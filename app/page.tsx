@@ -779,10 +779,10 @@ function Footer() {
     {
       title: "Legal",
       links: [
-        { label: "Refund policy", highlight: false },
-        { label: "Terms of service", highlight: false },
-        { label: "Privacy policy", highlight: false },
-        { label: "Affiliate TOS", highlight: false },
+        { label: "Refund policy", highlight: false, href: "/refund" },
+        { label: "Terms of service", highlight: false, href: "/terms" },
+        { label: "Privacy policy", highlight: false, href: "/privacy" },
+        { label: "Affiliate TOS", highlight: false, href: "/affiliate-tos" },
       ],
     },
   ];
@@ -806,12 +806,12 @@ function Footer() {
                 <ul className="space-y-2.5">
                   {col.links.map((link) => (
                     <li key={link.label}>
-                      <a
-                        href="#"
+                      <Link
+                        href={"href" in link ? link.href : "#"}
                         className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
                       >
                         {link.label}
-                      </a>
+                      </Link>
                     </li>
                   ))}
                 </ul>
