@@ -24,53 +24,45 @@ Install FFmpeg: https://ffmpeg.org/download.html
 
 ## Setup
 
-### 1. Install dependencies
+### Quick start (first time)
 ```bash
-npm install
+cp .env.example .env   # fill in your API keys, then:
+make setup             # install → docker up → migrate → seed
+make dev               # → http://localhost:3000
 ```
 
-### 2. Configure environment variables
-```bash
-cp .env.example .env
-```
-Edit `.env` and fill in your real API keys:
+### All available commands
+
+| Command | What it does |
+|---|---|
+| `make dev` | Start Next.js dev server |
+| `make build` | Production build |
+| `make start` | Start production server |
+| `make lint` | Run ESLint |
+| `make install` | npm install |
+| `make db-up` | Start Postgres + Redis via Docker |
+| `make db-down` | Stop Docker services |
+| `make db-migrate` | Run Prisma migrations |
+| `make db-seed` | Seed test user |
+| `make db-reset` | Reset DB and re-run all migrations |
+| `make db-studio` | Open Prisma Studio |
+| `make generate` | Regenerate Prisma client |
+| `make test-ffmpeg` | FFmpeg toolchain smoke test |
+| `make setup` | Full first-time setup (install + DB + seed) |
+
+### Environment variables
+Edit `.env` (copied from `.env.example`) with your real keys:
 - `GEMINI_API_KEY` from Google AI Studio
 - `ELEVENLABS_API_KEY` from ElevenLabs dashboard
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET`, `AWS_REGION` from AWS IAM
-- `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` from Stripe dashboard
+- `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` from Razorpay dashboard
 - `JWT_SECRET` — generate with: `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"`
-
-### 3. Start local database and Redis
-```bash
-docker-compose up -d
-```
-
-### 4. Run database migrations
-```bash
-npm run db:migrate
-```
-
-When prompted for a migration name, enter something like `init`.
-
-### 5. Seed the test user
-```bash
-npm run db:seed
-```
-
-Creates `test@example.com` / `password123` with 30 credits.
-
-### 6. Start the development server
-```bash
-npm run dev
-```
-
-Open http://localhost:3000
 
 ---
 
 ## Verify the FFmpeg toolchain
 ```bash
-npm run test:ffmpeg
+make test-ffmpeg
 ```
 
 Writes a test `.ass` caption file, runs FFmpeg with a synthetic input, and confirms a portrait 9:16 clip is produced. Run this before testing the full render pipeline.
@@ -96,8 +88,8 @@ Browser -> Next.js App Router -> API routes
   |- /api/generate/script  Gemini AI script generation
   |- /api/generate/voice   ElevenLabs TTS + word timings -> S3
   |- /api/generate/compile Credit check -> in-process queue -> FFmpeg -> S3
-  |- /api/billing/checkout Stripe checkout session
-  +- /api/webhooks/stripe  Stripe event handler (idempotent credit top-up)
+  |- /api/billing/checkout Razorpay order creation
+  +- /api/webhooks/razorpay Razorpay event handler (idempotent credit top-up)
 ```
 
 **Job queue:** in-process async FIFO (`lib/job-queue.ts`). Works for single-instance dev/prod.
@@ -105,14 +97,20 @@ For multi-instance deployments, swap to BullMQ on Redis — the interface is ide
 
 ---
 
-## Stripe setup
+## Razorpay setup
 
-1. Create 3 products in your Stripe dashboard with these exact price IDs:
-   - `price_starter` — $9 -> 60 credits
-   - `price_pro` — $19 -> 180 credits
-   - `price_unlimited` — $49 -> 600 credits
-2. Point the Stripe webhook to `https://your-domain/api/webhooks/stripe`
-3. Enable the `checkout.session.completed` event
+1. Create a Razorpay account at https://dashboard.razorpay.com
+2. Copy your **Key ID** and **Key Secret** into `.env` as `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`
+3. Go to **Settings → Webhooks**, add a webhook pointing to `https://your-domain/api/webhooks/razorpay`
+4. Enable the `payment.captured` event and copy the webhook secret into `RAZORPAY_WEBHOOK_SECRET`
+
+Credit packs (amounts in INR paise, adjust in `app/api/billing/checkout/route.ts`):
+
+| Pack ID | Price | Credits |
+|---|---|---|
+| `pack_starter` | ₹799 | 60 |
+| `pack_pro` | ₹1,599 | 180 |
+| `pack_studio` | ₹3,999 | 600 |
 
 ---
 
@@ -120,4 +118,4 @@ For multi-instance deployments, swap to BullMQ on Redis — the interface is ide
 
 - New users get **30 free credits** (1 credit = 1 video render)
 - Credits validated in Redis (fast path) and reconciled in Postgres (authoritative)
-- Stripe webhooks top up credits idempotently via the `StripeEvent` table
+- Razorpay webhooks top up credits idempotently via the `RazorpayEvent` table

@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = []
 }
 
 datasource db {
@@ -30,8 +31,8 @@ model Project {
   createdAt      DateTime @default(now())
 }
 
-model StripeEvent {
+model RazorpayEvent {
   id          String   @id
-  type        String
+  event       String
   processedAt DateTime @default(now())
 }

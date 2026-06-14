@@ -1,12 +1,70 @@
 import Redis from "ioredis";
 
-const globalForRedis = globalThis as unknown as { redis: Redis };
+const globalForRedis = globalThis as unknown as {
+  redis: Redis;
+  redisFallback: Map<string, { value: string; expiresAt: number | null }>;
+};
 
-export const redis =
+// In-memory fallback used when Redis is unreachable (dev without Docker)
+const fallback =
+  globalForRedis.redisFallback ?? new Map<string, { value: string; expiresAt: number | null }>();
+if (process.env.NODE_ENV !== "production") globalForRedis.redisFallback = fallback;
+
+function fallbackGet(key: string): string | null {
+  const entry = fallback.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt !== null && Date.now() > entry.expiresAt) {
+    fallback.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+function fallbackSet(key: string, value: string, ttlSeconds?: number) {
+  fallback.set(key, {
+    value,
+    expiresAt: ttlSeconds ? Date.now() + ttlSeconds * 1000 : null,
+  });
+}
+function fallbackDel(key: string) {
+  fallback.delete(key);
+}
+
+const client =
   globalForRedis.redis ??
   new Redis(process.env.REDIS_URL ?? "redis://localhost:6379", {
-    maxRetriesPerRequest: 3,
+    maxRetriesPerRequest: 1,
     lazyConnect: true,
+    enableOfflineQueue: false,
+    connectTimeout: 2000,
   });
 
-if (process.env.NODE_ENV !== "production") globalForRedis.redis = redis;
+if (process.env.NODE_ENV !== "production") globalForRedis.redis = client;
+
+// Silence "unhandled error" events when Redis is offline in dev
+client.on("error", () => {});
+
+// Thin wrapper that transparently falls back to in-memory when Redis is down
+export const redis = {
+  async get(key: string): Promise<string | null> {
+    try {
+      return await client.get(key);
+    } catch {
+      return fallbackGet(key);
+    }
+  },
+  async set(key: string, value: string, ex?: "EX", ttl?: number): Promise<void> {
+    try {
+      if (ex === "EX" && ttl) await client.set(key, value, "EX", ttl);
+      else await client.set(key, value);
+    } catch {
+      fallbackSet(key, value, ttl);
+    }
+  },
+  async del(key: string): Promise<void> {
+    try {
+      await client.del(key);
+    } catch {
+      fallbackDel(key);
+    }
+  },
+};

@@ -12,7 +12,7 @@ export async function generateScript(
   topic: string,
   style: string
 ): Promise<GeneratedScript> {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   const prompt = `You are a viral short-form video scriptwriter. Create a script for a 60-second vertical video.
 
