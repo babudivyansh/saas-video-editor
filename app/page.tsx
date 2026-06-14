@@ -716,6 +716,28 @@ function DiscordIcon({ className = "" }: { className?: string }) {
   );
 }
 
+// ── Still Have Questions ───────────────────────────────────────────────────
+function StillHaveQuestions() {
+  return (
+    <section className="bg-white px-4 sm:px-6 lg:px-8 pb-0 pt-0">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border border-gray-200 rounded-2xl px-8 py-6">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">Still have questions?</h3>
+            <p className="text-sm text-gray-500 mt-0.5">Contact our 24/7 support team for any concerns or inquiries.</p>
+          </div>
+          <a
+            href="mailto:support@clipforge.ai"
+            className="flex-shrink-0 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-6 py-2.5 rounded-full transition-colors"
+          >
+            Get in touch
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ── Footer ─────────────────────────────────────────────────────────────────
 function Footer() {
   const columns = [
@@ -772,12 +794,12 @@ function Footer() {
   ];
 
   return (
-    <footer className="bg-blue-600 px-4 sm:px-6 lg:px-8 pt-10 pb-10">
+    <footer className="bg-blue-600 px-4 sm:px-6 lg:px-8 pt-10 pb-10 mt-16">
       <div className="max-w-7xl mx-auto">
         {/* White rounded card */}
-        <div className="bg-white rounded-3xl px-8 sm:px-12 pt-10 pb-8">
-          {/* 5-column link grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-8 mb-10">
+        <div className="bg-white rounded-3xl px-10 pt-10 pb-8">
+          {/* 5-column link grid — always single row */}
+          <div className="grid grid-cols-5 gap-6 mb-10">
             {columns.map((col) => (
               <div key={col.title}>
                 <div className="text-gray-900 font-bold text-sm mb-4">{col.title}</div>
@@ -841,6 +863,7 @@ export default function HomePage() {
       <Testimonials />
       <Pricing />
       <FAQ />
+      <StillHaveQuestions />
       <CTABanner />
       <Footer />
     </div>
