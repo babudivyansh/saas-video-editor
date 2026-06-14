@@ -772,7 +772,7 @@ function Footer() {
     {
       title: "Product",
       links: [
-        { label: "Pricing", highlight: true },
+        { label: "Pricing", highlight: true, href: "/pricing" },
         { label: "Enterprise", highlight: true },
       ],
     },
