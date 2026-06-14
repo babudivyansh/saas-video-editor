@@ -808,11 +808,7 @@ function Footer() {
                     <li key={link.label}>
                       <a
                         href="#"
-                        className={`text-sm transition-colors ${
-                          link.highlight
-                            ? "text-blue-600 hover:text-blue-700"
-                            : "text-gray-500 hover:text-gray-900"
-                        }`}
+                        className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
                       >
                         {link.label}
                       </a>
