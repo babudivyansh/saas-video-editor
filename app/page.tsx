@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 
@@ -52,7 +52,7 @@ function InstagramIcon({ className = "" }: { className?: string }) {
 // ── Navbar ─────────────────────────────────────────────────────────────────
 function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const { user, openAuthModal } = useAuth();
+  const { user, openAuthModal, signOut } = useAuth();
   return (
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-gray-100 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -76,13 +76,17 @@ function Navbar() {
           {/* CTA */}
           <div className="hidden md:flex items-center gap-3">
             {user ? (
-              <Link
-                href="/dashboard"
-                className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm"
-              >
-                <ZapIcon className="w-3.5 h-3.5" />
-                Go to Dashboard
-              </Link>
+              <>
+                <Link href="/dashboard" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
+                  Dashboard
+                </Link>
+                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold select-none">
+                  {user.email[0].toUpperCase()}
+                </div>
+                <button onClick={signOut} className="text-sm font-medium text-gray-500 hover:text-gray-800 transition-colors">
+                  Logout
+                </button>
+              </>
             ) : (
               <>
                 <button
@@ -131,20 +135,20 @@ function Navbar() {
             </Link>
           ))}
           {user ? (
-            <Link
-              href="/dashboard"
-              className="flex items-center justify-center gap-1.5 bg-blue-600 text-white text-sm font-semibold px-4 py-2.5 rounded-full"
-              onClick={() => setMenuOpen(false)}
-            >
-              <ZapIcon className="w-3.5 h-3.5" />
-              Go to Dashboard
-            </Link>
+            <>
+              <Link href="/dashboard" className="block text-sm font-medium text-gray-700 hover:text-blue-600" onClick={() => setMenuOpen(false)}>
+                Dashboard
+              </Link>
+              <button
+                onClick={() => { signOut(); setMenuOpen(false); }}
+                className="w-full text-left text-sm font-medium text-gray-500 hover:text-gray-800"
+              >
+                Logout ({user.email})
+              </button>
+            </>
           ) : (
             <button
-              onClick={() => {
-                setMenuOpen(false);
-                openAuthModal("register");
-              }}
+              onClick={() => { setMenuOpen(false); openAuthModal("register"); }}
               className="w-full flex items-center justify-center gap-1.5 bg-blue-600 text-white text-sm font-semibold px-4 py-2.5 rounded-full cursor-pointer"
             >
               <ZapIcon className="w-3.5 h-3.5" />

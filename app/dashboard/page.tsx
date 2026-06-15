@@ -276,19 +276,22 @@ export default function DashboardPage() {
       <main className="flex-1 overflow-y-auto bg-white">
 
         {/* Top bar */}
-        <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3 gap-4">
+        <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3 gap-3">
           {user ? (
             <>
-              <span className="text-sm text-gray-500 font-medium">Logged in as {user.email}</span>
-              <button 
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold select-none flex-shrink-0">
+                {user.email[0].toUpperCase()}
+              </div>
+              <span className="text-sm text-gray-600 font-medium hidden sm:block">{user.email}</span>
+              <button
                 onClick={signOut}
-                className="inline-flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm cursor-pointer"
+                className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
               >
-                Sign Out
+                Logout
               </button>
             </>
           ) : (
-            <button 
+            <button
               onClick={() => openAuthModal("login")}
               className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm cursor-pointer"
             >

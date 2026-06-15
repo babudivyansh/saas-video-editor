@@ -155,6 +155,97 @@ export function useVideoGenerate() {
     }
   }, [startPolling]);
 
+  const generateRedditVideo = useCallback(async (params: {
+    postTitle: string;
+    username: string;
+    script: string;
+    introVoiceId: string;
+    scriptVoiceId: string;
+    bgMusicUrl: string;
+    bgVideoUrl: string;
+    subtitleStyleIndex: number;
+    subtitleMode: "oneword" | "lines";
+    token: string;
+  }) => {
+    const { postTitle, username, script, introVoiceId, scriptVoiceId, bgMusicUrl, bgVideoUrl, subtitleStyleIndex, subtitleMode, token } = params;
+    setStatus("creating");
+    setError(null);
+    setVideoUrl(null);
+    try {
+      const projectId = await createProject(token, {
+        title: postTitle || "Reddit Story Video",
+        backgroundUrl: bgVideoUrl,
+        script,
+        voiceId: scriptVoiceId,
+        musicUrl: bgMusicUrl || null,
+        subtitlesStyle: { styleIndex: subtitleStyleIndex, mode: subtitleMode },
+        productType: "reddit-video",
+      });
+      await callGenerate("/api/generate/reddit-video", token, {
+        projectId,
+        postTitle,
+        username,
+        script,
+        introVoiceId,
+        scriptVoiceId,
+        bgMusicUrl,
+        bgVideoUrl,
+        subtitleStyleIndex,
+        subtitleMode,
+      });
+      setStatus("rendering");
+      startPolling(projectId, token);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+      setStatus("failed");
+    }
+  }, [startPolling]);
+
+  const generateTextVideo = useCallback(async (params: {
+    contactName: string;
+    messages: { type: "receiver" | "sender"; text: string }[];
+    theme: {
+      bg: string; headerBg: string; headerText: string;
+      receiverBubble: string; receiverText: string;
+      senderBubble: string; senderText: string;
+    };
+    bgVideoUrl: string;
+    receiverVoiceId: string;
+    narratorVoiceId: string;
+    bgMusicUrl: string;
+    token: string;
+  }) => {
+    const { contactName, messages, theme, bgVideoUrl, receiverVoiceId, narratorVoiceId, bgMusicUrl, token } = params;
+    setStatus("creating");
+    setError(null);
+    setVideoUrl(null);
+    try {
+      const firstMsg = messages[0]?.text?.slice(0, 40) || "Text Video";
+      const projectId = await createProject(token, {
+        title: firstMsg,
+        backgroundUrl: bgVideoUrl,
+        voiceId: receiverVoiceId,
+        musicUrl: bgMusicUrl || null,
+        productType: "text-video",
+      });
+      await callGenerate("/api/generate/text-video", token, {
+        projectId,
+        contactName,
+        messages,
+        theme,
+        bgVideoUrl,
+        receiverVoiceId,
+        narratorVoiceId,
+        bgMusicUrl,
+      });
+      setStatus("rendering");
+      startPolling(projectId, token);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+      setStatus("failed");
+    }
+  }, [startPolling]);
+
   const reset = useCallback(() => {
     if (pollRef.current) clearInterval(pollRef.current);
     setStatus("idle");
@@ -162,5 +253,5 @@ export function useVideoGenerate() {
     setError(null);
   }, []);
 
-  return { status, videoUrl, error, generateSplitScreen, generateStreamerVideo, reset };
+  return { status, videoUrl, error, generateSplitScreen, generateStreamerVideo, generateRedditVideo, generateTextVideo, reset };
 }
