@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 
 type Stage = "idle" | "ready" | "compressing" | "complete";
 
@@ -9,11 +9,35 @@ interface QualityOption {
   sub: string;
 }
 
+interface ResolutionOption {
+  id: string;
+  label: string;
+  w: number;
+  h: number;
+}
+
 const QUALITY_OPTIONS: QualityOption[] = [
-  { id: "low", label: "Low", sub: "Smallest size" },
-  { id: "medium", label: "Medium", sub: "Balanced" },
-  { id: "high", label: "High", sub: "Best quality" },
+  { id: "maximum", label: "Maximum", sub: "Smallest file size" },
+  { id: "high", label: "High", sub: "Good balance" },
+  { id: "medium", label: "Medium", sub: "Better quality" },
+  { id: "low", label: "Low", sub: "High quality" },
+  { id: "minimal", label: "Minimal", sub: "Best quality" },
 ];
+
+const RESOLUTION_TARGETS = [
+  { id: "360p", label: "360p", targetH: 360 },
+  { id: "240p", label: "240p", targetH: 240 },
+];
+
+function getResolutionOptions(w: number, h: number): ResolutionOption[] {
+  const opts: ResolutionOption[] = [{ id: "original", label: "Original", w, h }];
+  for (const t of RESOLUTION_TARGETS) {
+    if (h > t.targetH) {
+      opts.push({ id: t.id, label: t.label, w: Math.round(w * t.targetH / h), h: t.targetH });
+    }
+  }
+  return opts;
+}
 
 function fmtMB(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
@@ -80,6 +104,8 @@ export default function VideoCompressorTool() {
   const [stage, setStage] = useState<Stage>("idle");
   const [dragging, setDragging] = useState(false);
   const [quality, setQuality] = useState("medium");
+  const [resolution, setResolution] = useState("original");
+  const [videoDims, setVideoDims] = useState({ w: 0, h: 0 });
   const [progress, setProgress] = useState(0);
   const [realtime, setRealtime] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +116,8 @@ export default function VideoCompressorTool() {
   const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef(0);
 
+  const resolutionOptions = videoDims.h > 0 ? getResolutionOptions(videoDims.w, videoDims.h) : [];
+
   useEffect(() => {
     return () => {
       if (progressTimer.current) clearInterval(progressTimer.current);
@@ -97,38 +125,7 @@ export default function VideoCompressorTool() {
     };
   }, [outputUrl]);
 
-  function onPick(list: FileList | null) {
-    if (!list || list.length === 0) return;
-    const f = list[0];
-    setFile(f);
-    setStage("ready");
-    setError(null);
-    setProgress(0);
-    setOutputBlob(null);
-    const url = URL.createObjectURL(f);
-    const media = document.createElement("video");
-    media.preload = "metadata";
-    media.onloadedmetadata = () => {
-      setDurationSec(Number.isFinite(media.duration) ? media.duration : 0);
-      URL.revokeObjectURL(url);
-    };
-    media.onerror = () => { setDurationSec(0); URL.revokeObjectURL(url); };
-    media.src = url;
-  }
-
-  function clearFile() {
-    setFile(null);
-    setStage("idle");
-    setProgress(0);
-    setOutputBlob(null);
-    if (outputUrl) { URL.revokeObjectURL(outputUrl); setOutputUrl(null); }
-  }
-
-  function stopPolling() {
-    if (progressTimer.current) { clearInterval(progressTimer.current); progressTimer.current = null; }
-  }
-
-  async function handleCompress() {
+  const handleCompress = useCallback(async () => {
     if (!file || stage === "compressing") return;
     setStage("compressing");
     setError(null);
@@ -139,6 +136,7 @@ export default function VideoCompressorTool() {
       const form = new FormData();
       form.append("file", file);
       form.append("quality", quality);
+      form.append("resolution", resolution);
       const startRes = await fetch("/api/tools/video-compressor", { method: "POST", body: form });
       if (!startRes.ok) {
         const json = await startRes.json().catch(() => ({})) as { error?: string };
@@ -147,7 +145,7 @@ export default function VideoCompressorTool() {
       const { jobId } = await startRes.json() as { jobId: string };
 
       await new Promise<void>((resolve, reject) => {
-        stopPolling();
+        if (progressTimer.current) clearInterval(progressTimer.current);
         progressTimer.current = setInterval(async () => {
           try {
             const res = await fetch(`/api/tools/video-compressor?jobId=${jobId}`);
@@ -158,11 +156,14 @@ export default function VideoCompressorTool() {
             if (durationSec > 0 && elapsed > 0) {
               setRealtime((durationSec * (data.progress / 100)) / elapsed);
             }
-            if (data.status === "done") { stopPolling(); resolve(); }
-            else if (data.status === "error") { stopPolling(); reject(new Error(data.error ?? "Compression failed")); }
-          } catch {
-            // transient — keep polling
-          }
+            if (data.status === "done") {
+              if (progressTimer.current) { clearInterval(progressTimer.current); progressTimer.current = null; }
+              resolve();
+            } else if (data.status === "error") {
+              if (progressTimer.current) { clearInterval(progressTimer.current); progressTimer.current = null; }
+              reject(new Error(data.error ?? "Compression failed"));
+            }
+          } catch { /* transient */ }
         }, 400);
       });
 
@@ -175,10 +176,51 @@ export default function VideoCompressorTool() {
       setOutputUrl(url);
       setStage("complete");
     } catch (err: unknown) {
-      stopPolling();
+      if (progressTimer.current) { clearInterval(progressTimer.current); progressTimer.current = null; }
       setError(err instanceof Error ? err.message : "Compression failed");
       setStage("ready");
     }
+  }, [file, stage, quality, resolution, durationSec]);
+
+  // ⌘+Enter / Ctrl+Enter shortcut
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && stage === "ready") {
+        void handleCompress();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [stage, handleCompress]);
+
+  function onPick(list: FileList | null) {
+    if (!list || list.length === 0) return;
+    const f = list[0];
+    setFile(f);
+    setStage("ready");
+    setError(null);
+    setProgress(0);
+    setOutputBlob(null);
+    setResolution("original");
+    const url = URL.createObjectURL(f);
+    const media = document.createElement("video");
+    media.preload = "metadata";
+    media.onloadedmetadata = () => {
+      setDurationSec(Number.isFinite(media.duration) ? media.duration : 0);
+      setVideoDims({ w: media.videoWidth, h: media.videoHeight });
+      URL.revokeObjectURL(url);
+    };
+    media.onerror = () => { setDurationSec(0); URL.revokeObjectURL(url); };
+    media.src = url;
+  }
+
+  function clearFile() {
+    setFile(null);
+    setStage("idle");
+    setProgress(0);
+    setOutputBlob(null);
+    setVideoDims({ w: 0, h: 0 });
+    if (outputUrl) { URL.revokeObjectURL(outputUrl); setOutputUrl(null); }
   }
 
   function handleDownload() {
@@ -200,7 +242,8 @@ export default function VideoCompressorTool() {
   }
 
   const busy = stage === "compressing";
-  const qualityLocked = stage === "compressing" || stage === "complete";
+  const locked = stage === "compressing" || stage === "complete";
+  const qualityLabel = QUALITY_OPTIONS.find(q => q.id === quality)?.label ?? quality;
 
   return (
     <div className="mx-auto w-full max-w-[1440px] px-8 pb-10">
@@ -258,29 +301,59 @@ export default function VideoCompressorTool() {
             </div>
           )}
 
-          {/* Quality selector */}
+          {/* Resolution selector */}
+          {stage !== "idle" && resolutionOptions.length > 0 && (
+            <div className="mt-5">
+              <p className="text-sm font-semibold text-gray-900 mb-2">Resolution</p>
+              <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${resolutionOptions.length}, 1fr)` }}>
+                {resolutionOptions.map(opt => {
+                  const active = resolution === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      disabled={locked}
+                      onClick={() => setResolution(opt.id)}
+                      className="rounded-lg border px-1 py-2 text-center transition-colors"
+                      style={{
+                        borderColor: active ? "#3b82f6" : "#e5e7eb",
+                        background: active ? "#eff6ff" : "#ffffff",
+                        opacity: locked && !active ? 0.5 : 1,
+                        cursor: locked ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      <p className="text-[13px] font-semibold" style={{ color: active ? "#2563eb" : "#374151" }}>{opt.label}</p>
+                      <p className="text-[10px] text-gray-400 leading-tight mt-0.5">{opt.w}×{opt.h}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Compression Level selector */}
           {stage !== "idle" && (
             <div className="mt-5">
-              <p className="text-sm font-semibold text-gray-900 mb-2">Compression Quality</p>
-              <div className="grid grid-cols-3 gap-2">
+              <p className="text-sm font-semibold text-gray-900 mb-2">Compression Level</p>
+              <div className="grid grid-cols-5 gap-2">
                 {QUALITY_OPTIONS.map(opt => {
                   const active = quality === opt.id;
                   return (
                     <button
                       key={opt.id}
                       type="button"
-                      disabled={qualityLocked}
+                      disabled={locked}
                       onClick={() => setQuality(opt.id)}
-                      className="rounded-lg border px-1 py-3 text-center transition-colors"
+                      className="rounded-lg border px-1 py-2 text-center transition-colors"
                       style={{
                         borderColor: active ? "#3b82f6" : "#e5e7eb",
                         background: active ? "#eff6ff" : "#ffffff",
-                        opacity: qualityLocked && !active ? 0.5 : 1,
-                        cursor: qualityLocked ? "not-allowed" : "pointer",
+                        opacity: locked && !active ? 0.5 : 1,
+                        cursor: locked ? "not-allowed" : "pointer",
                       }}
                     >
-                      <p className="text-[13px] font-semibold" style={{ color: active ? "#2563eb" : "#374151" }}>{opt.label}</p>
-                      <p className="text-[11px] text-gray-400 leading-tight mt-0.5">{opt.sub}</p>
+                      <p className="text-[12px] font-semibold" style={{ color: active ? "#2563eb" : "#374151" }}>{opt.label}</p>
+                      <p className="text-[10px] text-gray-400 leading-tight mt-0.5">{opt.sub}</p>
                     </button>
                   );
                 })}
@@ -294,9 +367,7 @@ export default function VideoCompressorTool() {
           {stage === "compressing" && (
             <div className="mt-5">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">
-                  Compressing with {QUALITY_OPTIONS.find(q => q.id === quality)?.label} quality…
-                </span>
+                <span className="text-gray-600">Compressing with {qualityLabel} level…</span>
                 {realtime > 0 && <span className="text-gray-400">~{realtime.toFixed(1)}x real time</span>}
               </div>
               <div className="mt-2 h-2 rounded-full bg-gray-100 overflow-hidden">
@@ -318,14 +389,18 @@ export default function VideoCompressorTool() {
                   <span className="font-medium text-gray-900">{fmtMB(file.size)}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Output size:</span>
+                  <span className="text-gray-600">Compressed size:</span>
                   <span className="font-medium text-gray-900">{fmtMB(outputBlob.size)}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Size reduction:</span>
-                  <span className="font-medium text-green-700">
-                    {file.size > 0 ? `${Math.round((1 - outputBlob.size / file.size) * 100)}%` : "—"}
+                  <span className="font-medium" style={{ color: "#16a34a" }}>Size reduction:</span>
+                  <span className="font-semibold" style={{ color: "#16a34a" }}>
+                    {file.size > 0 ? `${(((file.size - outputBlob.size) / file.size) * 100).toFixed(1)}%` : "—"}
                   </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-medium" style={{ color: "#16a34a" }}>Compression level:</span>
+                  <span className="font-semibold" style={{ color: "#16a34a" }}>{qualityLabel}</span>
                 </div>
               </div>
             </div>
@@ -335,11 +410,12 @@ export default function VideoCompressorTool() {
           {stage === "ready" && (
             <button
               type="button"
-              onClick={handleCompress}
+              onClick={() => void handleCompress()}
               className="mt-4 w-full inline-flex items-center justify-center gap-2 text-white text-sm font-semibold py-3 rounded-xl transition-colors"
               style={{ background: "#2563eb" }}
             >
-              Compress Video
+              <span>Generate Video</span>
+              <span className="ml-auto text-xs opacity-70 bg-white/20 rounded px-1.5 py-0.5">⌘+Enter</span>
             </button>
           )}
 
@@ -362,7 +438,7 @@ export default function VideoCompressorTool() {
                 className="inline-flex items-center justify-center gap-2 text-white text-sm font-semibold py-3 rounded-xl"
                 style={{ background: "#2563eb" }}
               >
-                <IcDownload /> Download Video
+                <IcDownload /> Download Compressed Video
               </button>
               <button
                 type="button"

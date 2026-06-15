@@ -8,7 +8,15 @@ import { randomUUID } from "crypto";
 
 export const maxDuration = 300;
 
-const QUALITY_CRF: Record<string, string> = { low: "32", medium: "28", high: "24" };
+const QUALITY_CRF: Record<string, string> = {
+  maximum: "36",
+  high: "32",
+  medium: "28",
+  low: "24",
+  minimal: "20",
+};
+
+const RESOLUTION_H: Record<string, number> = { "360p": 360, "240p": 240 };
 
 interface Job {
   progress: number;
@@ -54,6 +62,10 @@ export async function POST(req: NextRequest) {
   const quality = (formData.get("quality") as string | null) ?? "medium";
   const crf = QUALITY_CRF[quality] ?? "28";
 
+  const resolution = (formData.get("resolution") as string | null) ?? "original";
+  const targetH = RESOLUTION_H[resolution] ?? null;
+  const scaleArgs = targetH ? ["-vf", `scale=-2:${targetH}`] : [];
+
   const jobId = randomUUID();
   const inputExt = (file.name.split(".").pop() ?? "mp4").toLowerCase();
   const inputPath = path.join(os.tmpdir(), `${jobId}-input.${inputExt}`);
@@ -68,7 +80,7 @@ export async function POST(req: NextRequest) {
   jobs.set(jobId, job);
 
   runFFmpegWithProgress(
-    ["-y", "-i", inputPath, "-c:v", "libx264", "-crf", crf, "-preset", "fast", "-c:a", "aac", "-b:a", "128k", outputPath],
+    ["-y", "-i", inputPath, ...scaleArgs, "-c:v", "libx264", "-crf", crf, "-preset", "fast", "-c:a", "aac", "-b:a", "128k", outputPath],
     (pct) => { job.progress = pct; },
   )
     .then(() => { job.progress = 100; job.status = "done"; })

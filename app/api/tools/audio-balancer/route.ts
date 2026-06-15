@@ -8,6 +8,12 @@ import { randomUUID } from "crypto";
 
 export const maxDuration = 300;
 
+const MODE_FILTERS: Record<string, string[]> = {
+  "left-only": ["-af", "pan=stereo|c0=c0|c1=c0"],
+  "balance-center": ["-af", "loudnorm=I=-23:TP=-2:LRA=7"],
+  "right-only": ["-af", "pan=stereo|c0=c1|c1=c1"],
+};
+
 interface Job {
   progress: number;
   status: "processing" | "done" | "error";
@@ -49,6 +55,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "File too large (max 500 MB)" }, { status: 413 });
   }
 
+  const mode = (formData.get("mode") as string | null) ?? "balance-center";
+  const filterArgs = MODE_FILTERS[mode] ?? MODE_FILTERS["balance-center"];
+
   const jobId = randomUUID();
   const inputExt = (file.name.split(".").pop() ?? "mp4").toLowerCase();
   const inputPath = path.join(os.tmpdir(), `${jobId}-input.${inputExt}`);
@@ -63,7 +72,7 @@ export async function POST(req: NextRequest) {
   jobs.set(jobId, job);
 
   runFFmpegWithProgress(
-    ["-y", "-i", inputPath, "-af", "loudnorm=I=-23:TP=-2:LRA=7", "-acodec", "libmp3lame", "-q:a", "2", outputPath],
+    ["-y", "-i", inputPath, ...filterArgs, "-acodec", "libmp3lame", "-q:a", "2", outputPath],
     (pct) => { job.progress = pct; },
   )
     .then(() => { job.progress = 100; job.status = "done"; })

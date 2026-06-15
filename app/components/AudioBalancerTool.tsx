@@ -3,6 +3,18 @@ import { useRef, useState, useEffect } from "react";
 
 type Stage = "idle" | "ready" | "balancing" | "complete";
 
+interface BalanceMode {
+  id: string;
+  label: string;
+  sub: string;
+}
+
+const BALANCE_MODES: BalanceMode[] = [
+  { id: "left-only", label: "Left Only", sub: "Keep left, mute right" },
+  { id: "balance-center", label: "Balance Center", sub: "Auto-balance channels" },
+  { id: "right-only", label: "Right Only", sub: "Keep right, mute left" },
+];
+
 function fmtMB(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
@@ -67,6 +79,7 @@ export default function AudioBalancerTool() {
   const [file, setFile] = useState<File | null>(null);
   const [stage, setStage] = useState<Stage>("idle");
   const [dragging, setDragging] = useState(false);
+  const [balanceMode, setBalanceMode] = useState("balance-center");
   const [progress, setProgress] = useState(0);
   const [realtime, setRealtime] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -125,6 +138,7 @@ export default function AudioBalancerTool() {
     try {
       const form = new FormData();
       form.append("file", file);
+      form.append("mode", balanceMode);
       const startRes = await fetch("/api/tools/audio-balancer", { method: "POST", body: form });
       if (!startRes.ok) {
         const json = await startRes.json().catch(() => ({})) as { error?: string };
@@ -146,9 +160,7 @@ export default function AudioBalancerTool() {
             }
             if (data.status === "done") { stopPolling(); resolve(); }
             else if (data.status === "error") { stopPolling(); reject(new Error(data.error ?? "Balancing failed")); }
-          } catch {
-            // transient — keep polling
-          }
+          } catch { /* transient */ }
         }, 400);
       });
 
@@ -186,6 +198,9 @@ export default function AudioBalancerTool() {
   }
 
   const busy = stage === "balancing";
+  const modeLocked = stage === "balancing" || stage === "complete";
+  const modeLabel = BALANCE_MODES.find(m => m.id === balanceMode)?.label ?? balanceMode;
+  const fileType = file?.type.startsWith("audio/") ? "Audio" : "Video";
 
   return (
     <div className="mx-auto w-full max-w-[1440px] px-8 pb-10">
@@ -199,7 +214,7 @@ export default function AudioBalancerTool() {
             </div>
             <div className="min-w-0">
               <h2 className="font-bold text-gray-900 text-[17px] leading-tight">Balance Audio</h2>
-              <p className="text-sm text-gray-500 mt-1">Upload an audio or video file to normalize and balance audio levels.</p>
+              <p className="text-sm text-gray-500 mt-1">Upload an audio or video file to normalize and balance audio.</p>
             </div>
           </div>
 
@@ -243,6 +258,36 @@ export default function AudioBalancerTool() {
             </div>
           )}
 
+          {/* Balance Mode selector */}
+          {stage !== "idle" && (
+            <div className="mt-5">
+              <p className="text-sm font-semibold text-gray-900 mb-2">Balance Mode</p>
+              <div className="grid grid-cols-3 gap-2">
+                {BALANCE_MODES.map(opt => {
+                  const active = balanceMode === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      disabled={modeLocked}
+                      onClick={() => setBalanceMode(opt.id)}
+                      className="rounded-lg border px-1 py-3 text-center transition-colors"
+                      style={{
+                        borderColor: active ? "#3b82f6" : "#e5e7eb",
+                        background: active ? "#eff6ff" : "#ffffff",
+                        opacity: modeLocked && !active ? 0.5 : 1,
+                        cursor: modeLocked ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      <p className="text-[13px] font-semibold" style={{ color: active ? "#2563eb" : "#374151" }}>{opt.label}</p>
+                      <p className="text-[11px] text-gray-400 leading-tight mt-0.5">{opt.sub}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {error && <p className="mt-3 text-sm text-red-500 text-center">{error}</p>}
 
           {/* Balancing progress */}
@@ -263,7 +308,7 @@ export default function AudioBalancerTool() {
           {stage === "complete" && file && outputBlob && (
             <div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
               <div className="flex items-center gap-2 text-green-700 font-semibold">
-                <IcCheck className="w-5 h-5" /> Balancing Complete
+                <IcCheck className="w-5 h-5" /> Balance Complete
               </div>
               <div className="mt-2 space-y-1 text-sm">
                 <div className="flex items-center justify-between">
@@ -274,6 +319,14 @@ export default function AudioBalancerTool() {
                   <span className="text-gray-600">Output size:</span>
                   <span className="font-medium text-gray-900">{fmtMB(outputBlob.size)}</span>
                 </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-medium" style={{ color: "#2563eb" }}>Balance mode:</span>
+                  <span className="font-semibold" style={{ color: "#2563eb" }}>{modeLabel}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-medium" style={{ color: "#2563eb" }}>File type:</span>
+                  <span className="font-semibold" style={{ color: "#2563eb" }}>{fileType}</span>
+                </div>
               </div>
             </div>
           )}
@@ -282,7 +335,7 @@ export default function AudioBalancerTool() {
           {stage === "ready" && (
             <button
               type="button"
-              onClick={handleBalance}
+              onClick={() => void handleBalance()}
               className="mt-4 w-full inline-flex items-center justify-center gap-2 text-white text-sm font-semibold py-3 rounded-xl transition-colors"
               style={{ background: "#2563eb" }}
             >
@@ -309,7 +362,7 @@ export default function AudioBalancerTool() {
                 className="inline-flex items-center justify-center gap-2 text-white text-sm font-semibold py-3 rounded-xl"
                 style={{ background: "#2563eb" }}
               >
-                <IcDownload /> Download Balanced MP3
+                <IcDownload /> Download Balanced Audio
               </button>
               <button
                 type="button"
