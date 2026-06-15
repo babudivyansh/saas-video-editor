@@ -10,6 +10,8 @@ interface Props {
   acceptAttr: string;
   buttonLabel: string;
   shortcut?: string;
+  apiEndpoint: string;
+  outputFilename: string;
 }
 
 function IcCloud() {
@@ -20,13 +22,52 @@ function IcCloud() {
   );
 }
 
-export default function FreeToolUploader({ icon, title, subtitle, uploadTitle, fileTypes, acceptAttr, buttonLabel, shortcut }: Props) {
+function Spinner() {
+  return (
+    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  );
+}
+
+export default function FreeToolUploader({ icon, title, subtitle, uploadTitle, fileTypes, acceptAttr, buttonLabel, shortcut, apiEndpoint, outputFilename }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   function onPick(f: FileList | null) {
-    if (f && f.length > 0) setFile(f[0]);
+    if (f && f.length > 0) { setFile(f[0]); setError(null); }
+  }
+
+  async function handleProcess() {
+    if (!file || processing) return;
+    setProcessing(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(apiEndpoint, { method: "POST", body: form });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(json.error ?? `Server error (${res.status})`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = outputFilename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setProcessing(false);
+    }
   }
 
   return (
@@ -76,19 +117,28 @@ export default function FreeToolUploader({ icon, title, subtitle, uploadTitle, f
             )}
           </button>
 
+          {error && (
+            <p className="mt-3 text-sm text-red-500 text-center">{error}</p>
+          )}
+
           {/* Action */}
           <button
             type="button"
-            disabled={!file}
+            disabled={!file || processing}
+            onClick={handleProcess}
             className="mt-4 w-full inline-flex items-center justify-center gap-2 text-white text-sm font-semibold py-3 rounded-xl transition-colors"
             style={{
-              background: file ? "#2563eb" : "#a5b4fc",
-              cursor: file ? "pointer" : "not-allowed",
+              background: file && !processing ? "#2563eb" : "#a5b4fc",
+              cursor: file && !processing ? "pointer" : "not-allowed",
             }}
           >
-            {buttonLabel}
-            {shortcut && (
-              <span className="text-[11px] font-medium bg-white/20 rounded px-1.5 py-0.5">{shortcut}</span>
+            {processing ? <><Spinner /> Processing…</> : (
+              <>
+                {buttonLabel}
+                {shortcut && (
+                  <span className="text-[11px] font-medium bg-white/20 rounded px-1.5 py-0.5">{shortcut}</span>
+                )}
+              </>
             )}
           </button>
         </div>

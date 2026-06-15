@@ -30,6 +30,8 @@ export async function POST(req: NextRequest) {
       musicUrl: body.musicUrl ?? null,
       backgroundUrl: body.backgroundUrl ?? "",
       subtitlesStyle: body.subtitlesStyle ?? {},
+      uploadedVideoUrl: body.uploadedVideoUrl ?? null,
+      productType: body.productType ?? "split-screen",
       status: "draft",
     },
   });

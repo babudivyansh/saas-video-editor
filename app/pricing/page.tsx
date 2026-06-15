@@ -398,7 +398,7 @@ export default function PricingPage() {
                 </td>
               </tr>
               {WORKFLOWS.map((row, i) => (
-                <CompareRow key={row.name} {...row} shaded={i % 2 === 0} />
+                <CompareRow key={row.name} feature={row.name} starter={row.starter} creator={row.creator} studio={row.studio} shaded={i % 2 === 0} />
               ))}
             </tbody>
 
@@ -410,7 +410,7 @@ export default function PricingPage() {
                 </td>
               </tr>
               {TOOLS.map((row, i) => (
-                <CompareRow key={row.name} {...row} shaded={i % 2 === 0} />
+                <CompareRow key={row.name} feature={row.name} starter={row.starter} creator={row.creator} studio={row.studio} shaded={i % 2 === 0} />
               ))}
             </tbody>
           </table>

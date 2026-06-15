@@ -24,11 +24,13 @@ model Project {
   script         String   @default("")
   voiceId        String   @default("")
   musicUrl       String?
-  backgroundUrl  String   @default("")
-  subtitlesStyle Json     @default("{}")
-  status         String   @default("draft")
-  videoUrl       String?
-  createdAt      DateTime @default(now())
+  backgroundUrl    String   @default("")
+  subtitlesStyle   Json     @default("{}")
+  status           String   @default("draft")
+  videoUrl         String?
+  uploadedVideoUrl String?
+  productType      String   @default("split-screen")
+  createdAt        DateTime @default(now())
 }
 
 model RazorpayEvent {

@@ -1,7 +1,6 @@
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import fs from "fs";
-import path from "path";
 
 export const s3 = new S3Client({
   region: process.env.AWS_REGION ?? "us-east-1",
@@ -46,6 +45,15 @@ export async function uploadBufferToS3(
 
 export async function getPresignedUrl(key: string, expiresIn = 3600): Promise<string> {
   const cmd = new GetObjectCommand({ Bucket: BUCKET, Key: key });
+  return getSignedUrl(s3, cmd, { expiresIn });
+}
+
+export async function getPresignedUploadUrl(
+  key: string,
+  contentType: string,
+  expiresIn = 3600
+): Promise<string> {
+  const cmd = new PutObjectCommand({ Bucket: BUCKET, Key: key, ContentType: contentType });
   return getSignedUrl(s3, cmd, { expiresIn });
 }
 

@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useRef, useState, type ReactNode, type CSSProperties } from "react";
+import { Suspense, useRef, useState, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
@@ -9,18 +9,11 @@ import { useVideoGenerate, getStoredToken, storeToken, type GenerateStatus } fro
 function IcFilm() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><rect x="2" y="2" width="20" height="20" rx="2.18"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M17 7h5M2 17h5M17 17h5"/></svg>;
 }
-
 function IcCloud() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/></svg>;
 }
-function IcChevron() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M9 18l6-6-6-6"/></svg>;
-}
 function IcZap() {
   return <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>;
-}
-function IcSparkle() {
-  return <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5"><path d="M12 2l1.9 5.6L19.5 9l-5.6 1.9L12 16l-1.9-5.1L4.5 9l5.6-1.4L12 2z"/></svg>;
 }
 function IcDiscord() {
   return <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>;
@@ -37,61 +30,20 @@ function IcX() {
 function IcArrowRight() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M5 12h14M12 5l7 7-7 7"/></svg>;
 }
+function IcSparkle() {
+  return <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5"><path d="M12 2l1.9 5.6L19.5 9l-5.6 1.9L12 16l-1.9-5.1L4.5 9l5.6-1.4L12 2z"/></svg>;
+}
+function IcChevronLeft() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M15 18l-6-6 6-6"/></svg>;
+}
 
 // ── Steps ────────────────────────────────────────────────────────────────────
 const STEPS = [
-  { id: "upload-video", label: "Upload Video" },
-  { id: "select-background", label: "Select Background" },
-  { id: "select-subtitles", label: "Select Subtitles" },
+  { id: "upload", label: "Upload" },
+  { id: "title", label: "Title" },
 ];
 
-// ── Background video data — all 36 from gameplay-cdn.com ────────────────────
-const CDN     = "https://gameplay-cdn.com/gameplay";
-const JAKEY   = "https://64.media.tumblr.com/8e073c3c73202376a83e782c25fc3012/163239d388b24cef-77/s640x960/a7ce4408f438a78ddc2e8011589a31c54215b2b8.jpg";
-const SIR_SAT = "https://i.pinimg.com/736x/30/88/49/308849bbb361c64eb407cfb3be3aab4b.jpg";
-const STEVE   = "https://minecraftpfp.com/api/pfp/null.png";
-const MARIO   = "https://i.pinimg.com/736x/8a/79/5d/8a795df46777227e009cf7e3738ee07f.jpg";
-
-const BACKGROUNDS = [
-  { title: "Subway Surfers",  author: "Jakey",          authorImg: JAKEY,   mins: "2 mins",   size: "327 MB", id: "12dm7zdo-qhr4-9ro5-xb9p-794xmqsudvi" },
-  { title: "Soap Video",      author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1.0 mins", size: "93 MB",  id: "25r3klxv-8xnh-bx9z-0v5e-l02oj4wq85p" },
-  { title: "Minecraft Video", author: "Steve",          authorImg: STEVE,   mins: "2 mins",   size: "84 MB",  id: "04k002fo-pf26-j5h1-v6ti-nxykcnf42"   },
-  { title: "Mario Kart",      author: "Mario",          authorImg: MARIO,   mins: "2 mins",   size: "309 MB", id: "2fg1tjdy-8ngb-xg29-tz1y-ze3h4vxeih"  },
-  { title: "Slime Video",     author: "Sir Satisfying", authorImg: SIR_SAT, mins: "0.9 mins", size: "204 MB", id: "0rbt0c54-ace8-8khb-nw6u-o6azecvjlzk"  },
-  { title: "Subway Surfers",  author: "Jakey",          authorImg: JAKEY,   mins: "3 mins",   size: "536 MB", id: "00eieqe3-po4g-rh90-888c-zriwtgl77k"   },
-  { title: "Soap Video",      author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1.0 mins", size: "94 MB",  id: "27yzpm7j-wlau-sx6d-hguk-85621eh5k89"  },
-  { title: "Minecraft Video", author: "Steve",          authorImg: STEVE,   mins: "2 mins",   size: "95 MB",  id: "1s739e44-vipb-57t9-5jqa-a14rqcc4upw"  },
-  { title: "Mario Kart",      author: "Mario",          authorImg: MARIO,   mins: "2 mins",   size: "303 MB", id: "3ncmzbyx-jfrn-axi2-rq0d-t5kk8sbr9ha"  },
-  { title: "Slime Video",     author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1 mins",   size: "254 MB", id: "17bu4z5j-srkt-5b8j-q6ar-jdurow26pzn"  },
-  { title: "Subway Surfers",  author: "Jakey",          authorImg: JAKEY,   mins: "1 mins",   size: "132 MB", id: "0vw1h3lz-2tt3-n7k7-b98p-9c154ozp06n"  },
-  { title: "Soap Video",      author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1.0 mins", size: "92 MB",  id: "2m69x29r-2jf4-me7c-v78s-vdwqcd5k4mn"  },
-  { title: "Minecraft Video", author: "Steve",          authorImg: STEVE,   mins: "2 mins",   size: "131 MB", id: "23dfs135-48dv-e8rk-3uqs-i4k3nu5ut6n"  },
-  { title: "Mario Kart",      author: "Mario",          authorImg: MARIO,   mins: "1 mins",   size: "165 MB", id: "10xr2xpw-tode-8jnk-v1ke-zv3svbi4w3"  },
-  { title: "Slime Video",     author: "Sir Satisfying", authorImg: SIR_SAT, mins: "0.7 mins", size: "170 MB", id: "1ty6nlgz-tn87-8p6c-c5z3-0sqlp10wdf5r" },
-  { title: "Subway Surfers",  author: "Jakey",          authorImg: JAKEY,   mins: "3 mins",   size: "378 MB", id: "24fmrp9x-0hak-r5rd-7nft-652n4dvo2y5"  },
-  { title: "Soap Video",      author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1 mins",   size: "97 MB",  id: "2trross0-2cbw-vxl9-vz05-0oc0dez0efx"  },
-  { title: "Minecraft Video", author: "Steve",          authorImg: STEVE,   mins: "1 mins",   size: "38 MB",  id: "0864s7f0-u5v3-vrhb-lyef-n6lrc1oblvk"  },
-  { title: "Mario Kart",      author: "Mario",          authorImg: MARIO,   mins: "3 mins",   size: "458 MB", id: "1idc8qo6-2w9u-5eud-xwm2-nkaqgww6egm"  },
-  { title: "Slime Video",     author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1 mins",   size: "256 MB", id: "1ugj853n-7bon-dbtg-rh3g-2qb7ez2f1cz"  },
-  { title: "Subway Surfers",  author: "Jakey",          authorImg: JAKEY,   mins: "1 mins",   size: "186 MB", id: "3mrc3y7k-gjyh-kadj-vlqn-vrb147gzep"   },
-  { title: "Soap Video",      author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1 mins",   size: "96 MB",  id: "313ylwzs-jxbb-x19i-vwo8-muwlzxih7um"  },
-  { title: "Minecraft Video", author: "Steve",          authorImg: STEVE,   mins: "3 mins",   size: "133 MB", id: "0xacedg7-9dp8-8p3s-53zy-vt35lqhy0ml"  },
-  { title: "Mario Kart",      author: "Mario",          authorImg: MARIO,   mins: "1 mins",   size: "138 MB", id: "2ibe7k60-x2i7-34t5-umje-a3s89d5ic4"   },
-  { title: "Slime Video",     author: "Sir Satisfying", authorImg: SIR_SAT, mins: "0.9 mins", size: "213 MB", id: "4dsd1k4g-jie6-3a4o-c56q-g6ldu00mxmo"  },
-  { title: "Subway Surfers",  author: "Jakey",          authorImg: JAKEY,   mins: "3 mins",   size: "375 MB", id: "4n2riglr-0hgm-erzz-0tlu-6ak40mdm95j"  },
-  { title: "Soap Video",      author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1 mins",   size: "98 MB",  id: "3n4gdxmp-kz62-usur-zbfw-paqdrcbzxv"   },
-  { title: "Minecraft Video", author: "Steve",          authorImg: STEVE,   mins: "1 mins",   size: "51 MB",  id: "23h5er9b-981x-khfz-mjdd-v78quz93ewo"  },
-  { title: "Mario Kart",      author: "Mario",          authorImg: MARIO,   mins: "3 mins",   size: "467 MB", id: "68bki2q6-vgfa-2q5b-fpoe-jiwjnaj2s4"   },
-  { title: "Slime Video",     author: "Sir Satisfying", authorImg: SIR_SAT, mins: "0.9 mins", size: "208 MB", id: "4ly973he-fwmq-i78t-y16c-neo2iosu28"   },
-  { title: "Subway Surfers",  author: "Jakey",          authorImg: JAKEY,   mins: "3 mins",   size: "378 MB", id: "5f23yh4q-mwsv-8uts-bnuc-909o0yyy5na"  },
-  { title: "Minecraft Video", author: "Steve",          authorImg: STEVE,   mins: "1 mins",   size: "37 MB",  id: "5vrdji60-24vi-l7aw-pce4-vl2p8vrpii"   },
-  { title: "Mario Kart",      author: "Mario",          authorImg: MARIO,   mins: "3 mins",   size: "477 MB", id: "6jww7z18-spei-32kn-9u6l-hm8rq6oq66n"  },
-  { title: "Subway Surfers",  author: "Jakey",          authorImg: JAKEY,   mins: "1 mins",   size: "139 MB", id: "5p00qpnk-q5ok-njot-q8t5-hvoz6kyngq9"  },
-  { title: "Minecraft Video", author: "Steve",          authorImg: STEVE,   mins: "1 mins",   size: "44 MB",  id: "6whgrwz6-l9ta-3jgl-oti4-5iia2q3s5us"  },
-  { title: "Mario Kart",      author: "Mario",          authorImg: MARIO,   mins: "1 mins",   size: "137 MB", id: "7ob75v4o-vgia-vnwu-x7l5-bzh0kbxl224"  },
-];
-
-// ── Subtitle styles — CSS text tiles matching Crayo exactly ──────────────────
+// ── Subtitle styles (same 16 CSS tiles as Crayo) ─────────────────────────────
 const OUTLINE = "1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000,0 2px 4px rgba(0,0,0,.5)";
 
 const ONE_WORD_STYLES: CSSProperties[] = [
@@ -208,8 +160,8 @@ function GeneratingOverlay({ status, videoUrl, error, onReset }: { status: Gener
   };
   if (status === "completed" && videoUrl) {
     return (
-      <div className="mt-4 mx-8 mb-8 rounded-[28px] bg-gray-50 border border-gray-100 flex items-center justify-center" style={{ minHeight: "calc(100vh - 200px)" }}>
-        <div className="w-full max-w-sm flex flex-col items-center gap-5 p-6 text-center">
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="w-full max-w-sm flex flex-col items-center gap-5 text-center">
           <h2 className="text-xl font-bold text-gray-900">Your video is ready!</h2>
           <video src={videoUrl} controls className="w-full rounded-xl shadow-lg max-h-64 object-contain" />
           <div className="flex gap-3 w-full">
@@ -221,8 +173,8 @@ function GeneratingOverlay({ status, videoUrl, error, onReset }: { status: Gener
     );
   }
   return (
-    <div className="mt-4 mx-8 mb-8 rounded-[28px] bg-gray-50 border border-gray-100 flex items-center justify-center" style={{ minHeight: "calc(100vh - 200px)" }}>
-      <div className="flex flex-col items-center gap-4 p-8 text-center">
+    <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex flex-col items-center gap-4 text-center">
         {status === "failed" ? (
           <>
             <p className="text-gray-700 font-medium">{error ?? "Something went wrong."}</p>
@@ -243,26 +195,31 @@ function GeneratingOverlay({ status, videoUrl, error, onReset }: { status: Gener
 // ── Header ───────────────────────────────────────────────────────────────────
 function Header({
   stepIndex,
-  onAction,
-  actionLabel,
-  actionIcon,
-  canProceed,
+  onNext,
+  onBack,
+  onGenerate,
+  canNext,
+  canGenerate,
 }: {
   stepIndex: number;
-  onAction: () => void;
-  actionLabel: string;
-  actionIcon: ReactNode;
-  canProceed: boolean;
+  onNext: () => void;
+  onBack: () => void;
+  onGenerate: () => void;
+  canNext: boolean;
+  canGenerate: boolean;
 }) {
   return (
-    <div className="px-8 pt-6">
+    <div className="sticky top-0 z-40 bg-white border-b border-gray-100 px-8 py-4" style={{ backdropFilter: "blur(25px)" }}>
       <div className="flex items-center justify-between">
+        {/* Left: icon + title */}
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-700">
             <IcFilm />
           </div>
-          <h1 className="text-xl font-bold text-gray-900">Vertical Split Screen Video</h1>
+          <h1 className="text-lg font-medium text-black">Streamer Video</h1>
         </div>
+
+        {/* Right: discord + login */}
         <div className="flex items-center gap-4">
           <a href="/discord" aria-label="Discord" className="text-[#5865F2]"><IcDiscord /></a>
           <Link href="/login" className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm">
@@ -271,36 +228,59 @@ function Header({
         </div>
       </div>
 
-      <div className="flex items-center justify-between mt-5">
-        <nav className="flex items-center gap-2">
+      {/* Step nav + action buttons */}
+      <div className="flex items-center justify-between mt-4">
+        {/* Step indicators */}
+        <nav className="flex items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
           {STEPS.map((s, i) => (
-            <div key={s.id} className="flex items-center gap-2">
-              <div className="flex items-center gap-2">
-                <span
-                  className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0"
-                  style={{
-                    background: i === stepIndex ? "#2563eb" : "transparent",
-                    color: i === stepIndex ? "#fff" : "#9ca3af",
-                    border: i === stepIndex ? "none" : "1.5px solid #d1d5db",
-                  }}
-                >
-                  {i + 1}
-                </span>
-                <span className="text-sm font-semibold" style={{ color: i === stepIndex ? "#111827" : "#9ca3af" }}>{s.label}</span>
+            <div key={s.id} className="flex cursor-pointer flex-row items-center space-x-2 whitespace-nowrap px-2">
+              <div
+                className="flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold flex-shrink-0"
+                style={{
+                  background: i === stepIndex ? "#335CFF" : "#fff",
+                  color: i === stepIndex ? "#fff" : "#6b7280",
+                  border: i === stepIndex ? "none" : "1px solid #e5e7eb",
+                }}
+              >
+                {i + 1}
               </div>
-              {i < STEPS.length - 1 && <span className="text-gray-300 mx-1"><IcChevron /></span>}
+              <p className="font-inter text-sm" style={{ color: i === stepIndex ? "#111827" : "#6b7280" }}>
+                {s.label}
+              </p>
             </div>
           ))}
         </nav>
 
-        <button
-          onClick={onAction}
-          disabled={!canProceed}
-          className="inline-flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ background: canProceed ? "#2563eb" : "#93c5fd" }}
-        >
-          {actionLabel} {actionIcon}
-        </button>
+        {/* Action buttons */}
+        <div className="flex items-center gap-2">
+          {stepIndex > 0 && (
+            <button
+              onClick={onBack}
+              className="inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <IcChevronLeft /> Back
+            </button>
+          )}
+          {stepIndex < STEPS.length - 1 ? (
+            <button
+              onClick={onNext}
+              disabled={!canNext}
+              className="inline-flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: canNext ? "#335CFF" : "#93c5fd" }}
+            >
+              Next <IcArrowRight />
+            </button>
+          ) : (
+            <button
+              onClick={onGenerate}
+              disabled={!canGenerate}
+              className="inline-flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: canGenerate ? "#3b82f6" : "#93c5fd" }}
+            >
+              <IcSparkle /> Generate video
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -340,7 +320,7 @@ function UploadStep({
   const linkValid = isValidUrl(link);
 
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center md:bg-[#F7F7F7] md:rounded-[20px] p-4 md:p-8" style={{ minHeight: "calc(100vh - 200px)" }}>
+    <div className="flex h-full w-full flex-col items-center justify-center md:bg-[#F7F7F7] md:rounded-[20px] p-4 md:p-8" style={{ minHeight: "calc(100vh - 160px)" }}>
       <div className="w-full max-w-xl flex flex-col space-y-2 rounded-lg border border-gray-200 bg-white py-4">
 
         <div className="px-4">
@@ -422,128 +402,70 @@ function UploadStep({
   );
 }
 
-// ── Background card — exact Crayo reel format ────────────────────────────────
-function BgCard({ b, isSel, onSelect }: { b: typeof BACKGROUNDS[0]; isSel: boolean; onSelect: () => void }) {
-  const thumbUrl = `${CDN}/${b.id}/thumbnail.webp`;
-  const gifUrl   = `${CDN}/${b.id}/preview.gif`;
-  const premiumUrl = `https://premiumgameplay.com/explore?id=${b.id}`;
-
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={e => e.key === "Enter" && onSelect()}
-      className="relative overflow-hidden rounded-lg border bg-white cursor-pointer"
-      style={{ borderColor: isSel ? "#2563eb" : "#e5e7eb" }}
-    >
-      {isSel && (
-        <div className="absolute left-3 top-3 z-30 h-5 w-5 rounded-full border border-blue-600 bg-blue-500 flex items-center justify-center">
-          <IcCheck />
-        </div>
-      )}
-
-      <div className="group relative w-full overflow-hidden" style={{ aspectRatio: "16/9", height: "176px" }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={thumbUrl} alt="" aria-hidden="true" draggable={false} className="absolute inset-0 h-full w-full object-cover blur-lg" style={{ transform: "scale(1.1)" }} loading="lazy" />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="relative h-full" style={{ aspectRatio: "9/16" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={thumbUrl} alt={b.title} draggable={false} className="h-full w-full object-cover select-none" loading="lazy" />
-            <div className="absolute inset-0 z-20 transition-opacity duration-300" style={{ opacity: 0 }} onMouseEnter={e => (e.currentTarget.style.opacity = "1")} onMouseLeave={e => (e.currentTarget.style.opacity = "0")}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={gifUrl} alt="" aria-hidden="true" draggable={false} className="absolute inset-0 h-full w-full object-cover blur-lg" style={{ transform: "scale(1.1)" }} />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={gifUrl} alt={b.title} draggable={false} className="relative h-full w-full object-cover" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-1 p-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium text-gray-900">{b.title}</h3>
-          <div className="flex items-center gap-1.5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={b.authorImg} alt={b.author} draggable={false} className="h-5 w-5 rounded-full object-cover select-none" loading="lazy" />
-            <p className="text-xs text-gray-600">{b.author}</p>
-          </div>
-        </div>
-        <div className="flex flex-col items-center gap-2">
-          <div className="flex w-full flex-row items-start gap-1">
-            <span className="rounded-md bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700">{b.mins}</span>
-            <span className="rounded-md bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700">{b.size}</span>
-            <span className="rounded-md bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700">Free</span>
-          </div>
-          <a href={premiumUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="w-full rounded-lg border border-gray-200 p-2 text-center text-sm text-gray-600 hover:text-gray-800 transition-colors block">
-            View in Premium Gameplay
-          </a>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Step 2: Background ────────────────────────────────────────────────────────
-function BackgroundStep({ selected, onSelect }: { selected: number; onSelect: (i: number) => void }) {
-  return (
-    <div className="px-8 pt-6 pb-10">
-      <h2 className="text-lg font-bold text-gray-900">Select Background Video</h2>
-      <p className="text-sm text-gray-500 mt-1.5">
-        <span className="font-semibold text-gray-700">Tip:</span> You can replace the background video after generation in the editor.
-      </p>
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mt-5">
-        {BACKGROUNDS.map((b, i) => (
-          <BgCard key={b.id} b={b} isSel={selected === i} onSelect={() => onSelect(i)} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Step 3: Subtitles — CSS-styled text tiles matching Crayo exactly ─────────
-function SubtitleStep({
-  selected,
-  onSelect,
-  mode,
+// ── Step 2: Title + Subtitle Style ───────────────────────────────────────────
+function TitleStep({
+  titleText,
+  onTitleChange,
+  subtitleMode,
   onModeChange,
+  subtitleSel,
+  onSubtitleSel,
 }: {
-  selected: number;
-  onSelect: (i: number) => void;
-  mode: "oneword" | "lines";
+  titleText: string;
+  onTitleChange: (v: string) => void;
+  subtitleMode: "oneword" | "lines";
   onModeChange: (m: "oneword" | "lines") => void;
+  subtitleSel: number;
+  onSubtitleSel: (i: number) => void;
 }) {
-  const styles = mode === "oneword" ? ONE_WORD_STYLES : LINE_STYLES;
-  const sample = mode === "oneword" ? "Crayo" : "The quick brown";
+  const styles = subtitleMode === "oneword" ? ONE_WORD_STYLES : LINE_STYLES;
+  const sample = subtitleMode === "oneword" ? "Crayo" : "The quick brown";
 
   return (
-    <div className="px-8 pt-6 pb-10">
-      <h2 className="text-lg font-bold text-gray-900">Select Subtitle Template</h2>
-
-      <div className="flex items-center gap-3 mt-3 mb-5">
-        <span className="text-sm font-medium" style={{ color: mode === "oneword" ? "#111827" : "#9ca3af" }}>One Word</span>
-        <button
-          onClick={() => { onModeChange(mode === "oneword" ? "lines" : "oneword"); onSelect(0); }}
-          className="relative w-10 h-5 rounded-full transition-colors"
-          style={{ background: mode === "lines" ? "#2563eb" : "#cbd5e1" }}
-        >
-          <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow-sm" style={{ left: mode === "lines" ? "22px" : "2px" }} />
-        </button>
-        <span className="text-sm font-medium" style={{ color: mode === "lines" ? "#111827" : "#9ca3af" }}>Lines</span>
+    <div className="px-8 pt-6 pb-10 flex flex-col space-y-4 h-full">
+      {/* Title input */}
+      <div className="flex flex-col space-y-2">
+        <h1 className="text-lg font-medium md:text-xl text-gray-900">Select Title Text</h1>
+        <input
+          value={titleText}
+          onChange={e => onTitleChange(e.target.value)}
+          placeholder="ex: Adin Ross just did something crazy with Ray"
+          className="w-full rounded-md border px-4 py-5 text-sm text-gray-800 focus:outline-none focus:ring-0 transition-colors"
+          style={{ borderColor: "#E7E9EF" }}
+          onFocus={e => (e.currentTarget.style.borderColor = "#4e80ed")}
+          onBlur={e => (e.currentTarget.style.borderColor = "#E7E9EF")}
+        />
       </div>
 
-      <div className="mt-4 grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      {/* One Word / Lines toggle */}
+      <div className="flex items-center gap-3">
+        <span className="text-sm font-medium" style={{ color: subtitleMode === "oneword" ? "#111827" : "#9ca3af" }}>One Word</span>
+        <button
+          onClick={() => { onModeChange(subtitleMode === "oneword" ? "lines" : "oneword"); onSubtitleSel(0); }}
+          className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none"
+          style={{ background: subtitleMode === "lines" ? "#335CFF" : "#cbd5e1" }}
+        >
+          <span
+            className="absolute w-4 h-4 rounded-full bg-white transition-all shadow-sm"
+            style={{ left: subtitleMode === "lines" ? "22px" : "2px", top: "4px" }}
+          />
+        </button>
+        <span className="text-sm font-medium" style={{ color: subtitleMode === "lines" ? "#111827" : "#9ca3af" }}>Lines</span>
+      </div>
+
+      {/* Subtitle style tiles */}
+      <div className="grid w-full grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4">
         {styles.map((st, i) => {
-          const isSel = selected === i;
+          const isSel = subtitleSel === i;
           return (
             <button
               key={i}
-              onClick={() => onSelect(i)}
+              onClick={() => onSubtitleSel(i)}
               className="group relative h-[104px] rounded-xl flex items-center justify-center px-4 transition-all overflow-hidden cursor-pointer"
-              style={{ background: "#243044", border: isSel ? "2px solid #2563eb" : "2px solid transparent" }}
+              style={{ background: "#243044", border: isSel ? "2px solid #335CFF" : "2px solid transparent" }}
             >
               {isSel && (
-                <span className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow">
+                <span className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full text-white flex items-center justify-center shadow" style={{ background: "#335CFF" }}>
                   <IcCheck />
                 </span>
               )}
@@ -557,28 +479,28 @@ function SubtitleStep({
 }
 
 // ── Main flow ─────────────────────────────────────────────────────────────────
-function ViralSplitScreenFlow() {
+function StreamerVideoFlow() {
   const router = useRouter();
   const params = useSearchParams();
 
-  const stepParam = params.get("step") || "upload-video";
+  const stepParam = params.get("step") || "upload";
   const stepIndex = Math.max(0, STEPS.findIndex(s => s.id === stepParam));
 
   const fileName = params.get("file") || null;
   const fileRef = useRef<File | null>(null);
 
-  const [bg, setBg] = useState(0);
-  const [subSel, setSubSel] = useState(0);
-  const [subMode, setSubMode] = useState<"oneword" | "lines">("oneword");
+  const [titleText, setTitleText] = useState("");
+  const [subtitleMode, setSubtitleMode] = useState<"oneword" | "lines">("oneword");
+  const [subtitleSel, setSubtitleSel] = useState(0);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
-  const { status: genStatus, videoUrl, error: genError, generateSplitScreen, reset: resetGenerate } = useVideoGenerate();
+  const { status: genStatus, videoUrl, error: genError, generateStreamerVideo, reset: resetGenerate } = useVideoGenerate();
   const isGenerating = genStatus !== "idle";
 
   function goTo(i: number, currentFile?: string | null) {
     const f = currentFile !== undefined ? currentFile : fileName;
     const fileQuery = f ? `&file=${encodeURIComponent(f)}` : "";
-    router.push(`/dashboard/create/viral-split-screen?step=${STEPS[i].id}${fileQuery}`);
+    router.push(`/dashboard/create/streamer-video?step=${STEPS[i].id}${fileQuery}`);
   }
 
   function handleFile(f: File) {
@@ -595,16 +517,13 @@ function ViralSplitScreenFlow() {
 
   async function doGenerate(token: string) {
     if (!fileRef.current) return;
-    const bgVideoUrl = `https://gameplay-cdn.com/gameplay/${BACKGROUNDS[bg].id}/video.mp4`;
-    await generateSplitScreen({ file: fileRef.current, bgVideoUrl, subtitleStyleIndex: subSel, mode: subMode, token });
+    await generateStreamerVideo({ file: fileRef.current, titleText, subtitleStyleIndex: subtitleSel, token });
   }
 
-  const isLast = stepIndex === STEPS.length - 1;
-  const canProceed = stepIndex === 0 ? !!fileName : true;
+  const canNext = stepIndex === 0 ? !!fileName : true;
+  const canGenerate = !!titleText.trim() && !isGenerating;
 
-  function handleAction() {
-    if (isGenerating) return;
-    if (stepIndex < STEPS.length - 1) { goTo(stepIndex + 1); return; }
+  function handleGenerateClick() {
     const token = getStoredToken();
     if (token) { void doGenerate(token); }
     else { setShowAuthModal(true); }
@@ -620,24 +539,38 @@ function ViralSplitScreenFlow() {
 
       <ToolsSidebar active="create" />
 
-      <main className="flex-1 overflow-y-auto bg-white">
+      <main className="flex-1 overflow-y-auto bg-white flex flex-col">
         <Header
           stepIndex={stepIndex}
-          actionLabel={isLast ? (isGenerating ? "Generating…" : "Generate") : "Next"}
-          actionIcon={isLast ? <IcSparkle /> : <IcChevron />}
-          onAction={handleAction}
-          canProceed={canProceed && !isGenerating}
+          onNext={() => goTo(stepIndex + 1)}
+          onBack={() => goTo(stepIndex - 1)}
+          onGenerate={handleGenerateClick}
+          canNext={canNext}
+          canGenerate={canGenerate}
         />
 
         {isGenerating ? (
           <GeneratingOverlay status={genStatus} videoUrl={videoUrl} error={genError} onReset={resetGenerate} />
         ) : (
-          <div className="mt-4 mx-8 mb-8 rounded-[28px] bg-gray-50 border border-gray-100" style={{ minHeight: "calc(100vh - 200px)" }}>
+          <div className="flex-1">
             {stepIndex === 0 && (
-              <UploadStep onFile={handleFile} onLinkGate={() => setShowAuthModal(true)} fileName={fileName} onClearFile={handleClearFile} />
+              <UploadStep
+                onFile={handleFile}
+                onLinkGate={() => setShowAuthModal(true)}
+                fileName={fileName}
+                onClearFile={handleClearFile}
+              />
             )}
-            {stepIndex === 1 && <BackgroundStep selected={bg} onSelect={setBg} />}
-            {stepIndex === 2 && <SubtitleStep selected={subSel} onSelect={setSubSel} mode={subMode} onModeChange={setSubMode} />}
+            {stepIndex === 1 && (
+              <TitleStep
+                titleText={titleText}
+                onTitleChange={setTitleText}
+                subtitleMode={subtitleMode}
+                onModeChange={setSubtitleMode}
+                subtitleSel={subtitleSel}
+                onSubtitleSel={setSubtitleSel}
+              />
+            )}
           </div>
         )}
       </main>
@@ -645,10 +578,10 @@ function ViralSplitScreenFlow() {
   );
 }
 
-export default function ViralSplitScreenPage() {
+export default function StreamerVideoPage() {
   return (
     <Suspense fallback={<div className="h-screen bg-white" />}>
-      <ViralSplitScreenFlow />
+      <StreamerVideoFlow />
     </Suspense>
   );
 }

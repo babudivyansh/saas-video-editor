@@ -46,20 +46,7 @@ function InstagramIcon({ className = "" }: { className?: string }) {
     </svg>
   );
 }
-function TikTokIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.32 6.32 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.18 8.18 0 004.78 1.53V6.77a4.85 4.85 0 01-1.01-.08z" />
-    </svg>
-  );
-}
-function YoutubeIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-    </svg>
-  );
-}
+
 
 // ── Navbar ─────────────────────────────────────────────────────────────────
 function Navbar() {
@@ -748,7 +735,7 @@ function Footer() {
         { label: "Vertical Split Screen", highlight: false, href: "/dashboard/create/viral-split-screen" },
         { label: "Reddit Story Video", highlight: true },
         { label: "Fake Texts Video", highlight: true },
-        { label: "Streamer Video", highlight: false },
+        { label: "Streamer Video", highlight: false, href: "/dashboard/create/streamer-video" },
       ],
     },
     {
@@ -764,9 +751,9 @@ function Footer() {
     {
       title: "Free Tools",
       links: [
-        { label: "Audio Balancer", highlight: false },
-        { label: "Video Compressor", highlight: false },
-        { label: "MP3 Converter", highlight: false },
+        { label: "Audio Balancer", highlight: false, href: "/dashboard/tools/free/audio-balancer" },
+        { label: "Video Compressor", highlight: false, href: "/dashboard/tools/free/video-compressor" },
+        { label: "MP3 Converter", highlight: false, href: "/dashboard/tools/free/mp3-converter" },
       ],
     },
     {
@@ -807,7 +794,7 @@ function Footer() {
                   {col.links.map((link) => (
                     <li key={link.label}>
                       <Link
-                        href={"href" in link ? link.href : "#"}
+                        href={link.href || "#"}
                         className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
                       >
                         {link.label}

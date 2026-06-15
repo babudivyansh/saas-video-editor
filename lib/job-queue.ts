@@ -14,7 +14,7 @@ interface Job<T> {
   retries: number;
 }
 
-class InProcessQueue<T> {
+export class InProcessQueue<T> {
   private queue: Job<T>[] = [];
   private running = false;
   private readonly MAX_RETRIES = 2;

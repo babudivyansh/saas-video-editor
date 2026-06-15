@@ -38,7 +38,6 @@ function EditorContent() {
   const params = useSearchParams();
   const projectId = params.get("id");
 
-  const [project, setProject] = useState<Project | null>(null);
   const [step, setStep] = useState(1);
 
   // Step 1
@@ -75,7 +74,6 @@ function EditorContent() {
       .then(d => {
         if (!d.project) { router.push("/dashboard"); return; }
         const p: Project = d.project;
-        setProject(p);
         if (p.script) { setScript(p.script); setTitle(p.title); setStep(2); }
         if (p.voiceId) { setVoiceId(p.voiceId); }
         if (p.backgroundUrl) setBgVideo(p.backgroundUrl);
