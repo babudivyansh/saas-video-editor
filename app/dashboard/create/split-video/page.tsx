@@ -279,17 +279,15 @@ function UploadStep({
     onLinkGate();
   }
 
+  const linkValid = isValidUrl(link);
+
   return (
-    <div className="flex items-center justify-center p-8" style={{ minHeight: "calc(100vh - 200px)" }}>
-      <div className="w-full max-w-[575px] bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-        <div className="flex items-start gap-3 pb-4">
-          <div className="w-11 h-11 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 flex-shrink-0">
-            <IcLink />
-          </div>
-          <div>
-            <h2 className="font-bold text-gray-900 text-[17px] leading-tight">Upload your video</h2>
-            <p className="text-sm text-gray-500 mt-1">Upload a video to use for your new project.</p>
-          </div>
+    <div className="flex h-full w-full flex-col items-center justify-center md:bg-[#F7F7F7] md:rounded-[20px] p-4 md:p-8" style={{ minHeight: "calc(100vh - 200px)" }}>
+      <div className="w-full max-w-xl flex flex-col space-y-2 rounded-lg border border-gray-200 bg-white py-4">
+
+        <div className="px-4">
+          <p className="text-base text-black">Upload your video</p>
+          <p className="text-xs text-gray-500 mt-0.5">Upload a video to use for your new project.</p>
         </div>
 
         <input
@@ -301,7 +299,7 @@ function UploadStep({
         />
 
         {fileName ? (
-          <div className="rounded-xl border border-blue-200 bg-blue-50 flex items-center gap-3 px-4 py-4">
+          <div className="mx-4 rounded-lg border border-blue-200 bg-blue-50 flex items-center gap-3 px-4 py-4">
             <div className="text-blue-500 flex-shrink-0"><IcFile /></div>
             <span className="text-sm font-semibold text-blue-700 flex-1 truncate">{fileName}</span>
             <button onClick={onClearFile} className="text-blue-400 hover:text-blue-600 flex-shrink-0 transition-colors">
@@ -314,46 +312,53 @@ function UploadStep({
             onDragLeave={() => setDragging(false)}
             onDrop={e => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files?.[0]) onFile(e.dataTransfer.files[0]); }}
             onClick={() => inputRef.current?.click()}
-            className="rounded-xl border-2 border-dashed flex flex-col items-center justify-center text-center px-6 py-10 transition-colors cursor-pointer"
-            style={{ borderColor: dragging ? "#93c5fd" : "#e5e7eb", background: dragging ? "#eff6ff" : "#fff" }}
+            className="mx-4 flex cursor-pointer flex-col items-center justify-center space-y-3 rounded-lg border border-dashed border-gray-300 py-4 transition-all duration-300 ease-in-out md:py-8"
+            style={{ borderColor: dragging ? "#93c5fd" : undefined, background: dragging ? "#eff6ff" : undefined }}
           >
-            <div className="text-blue-500 mb-2"><IcCloud /></div>
-            <p className="text-[15px] font-semibold text-gray-900">Choose a clip or drag &amp; drop it here.</p>
-            <p className="text-sm text-gray-400 mt-1.5">MP4 formats, up to 50 MB.</p>
+            <div className="text-blue-500"><IcCloud /></div>
+            <p className="text-center text-base text-gray-700">Choose a clip or drag &amp; drop it here.</p>
+            <p className="text-center text-sm text-gray-400">MP4 formats, up to 50 MB.</p>
             <button
               onClick={e => { e.stopPropagation(); inputRef.current?.click(); }}
-              className="mt-4 bg-gray-900 hover:bg-black text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors"
+              className="inline-flex items-center justify-center rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:opacity-90 h-10"
             >
               Browse File
             </button>
           </div>
         )}
 
-        <div className="flex items-center gap-3 my-5">
+        <div className="flex items-center gap-3 mx-4 py-1">
           <div className="h-px bg-gray-100 flex-1" />
-          <span className="text-xs font-medium text-gray-400">OR</span>
+          <span className="text-sm text-gray-500">OR</span>
           <div className="h-px bg-gray-100 flex-1" />
         </div>
 
-        <p className="text-sm font-semibold text-gray-700 mb-2">Add Youtube or Tiktok link</p>
-        <div className="flex items-center gap-2">
-          <input
-            value={link}
-            onChange={e => { setLink(e.target.value); setLinkError(""); }}
-            onKeyDown={e => e.key === "Enter" && handleLinkSubmit()}
-            placeholder="https://youtube.com/watch?v=..."
-            className="flex-1 rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:border-blue-400"
-            style={{ borderColor: linkError ? "#fca5a5" : undefined }}
-          />
-          <button
-            onClick={handleLinkSubmit}
-            className="w-10 h-10 rounded-lg flex items-center justify-center text-white transition-colors flex-shrink-0"
-            style={{ background: "#335CFF" }}
-          >
-            <IcArrowRight />
-          </button>
+        <div className="px-4">
+          <p className="text-sm text-gray-500 mb-2">Add Youtube or Tiktok link</p>
+          <div className="flex items-center gap-2">
+            <input
+              value={link}
+              onChange={e => { setLink(e.target.value); setLinkError(""); }}
+              onKeyDown={e => e.key === "Enter" && handleLinkSubmit()}
+              placeholder="https://youtube.com/watch?v=..."
+              className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none"
+              style={{ borderColor: linkError ? "#fca5a5" : undefined }}
+            />
+            <button
+              onClick={handleLinkSubmit}
+              className="flex w-10 h-10 flex-row items-center justify-center rounded-md p-2 transition-all duration-300 flex-shrink-0"
+              style={{
+                background: linkValid ? "#335CFF" : "#F7F7F7",
+                color: linkValid ? "#fff" : "#CACFD8",
+                cursor: link.trim() ? "pointer" : "not-allowed",
+              }}
+            >
+              <IcArrowRight />
+            </button>
+          </div>
+          {linkError && <p className="text-xs text-red-500 mt-1.5">{linkError}</p>}
         </div>
-        {linkError && <p className="text-xs text-red-500 mt-1.5">{linkError}</p>}
+
       </div>
     </div>
   );
