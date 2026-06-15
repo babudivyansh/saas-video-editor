@@ -449,9 +449,26 @@ function BackgroundStep({ selected, onSelect }: { selected: number; onSelect: (i
 
 // ── Step 3: Subtitles — PNG previews from cdn-crayo.com ──────────────────────
 function SubtitleStep({ selected, onSelect }: { selected: number; onSelect: (i: number) => void }) {
+  const [mode, setMode] = useState<"oneword" | "lines">("oneword");
+
   return (
     <div className="px-8 pt-6 pb-10">
       <h2 className="text-lg font-bold text-gray-900">Select Subtitle Template</h2>
+
+      <div className="flex items-center gap-3 mt-3 mb-5">
+        <span className="text-sm font-medium" style={{ color: mode === "oneword" ? "#111827" : "#9ca3af" }}>One Word</span>
+        <button
+          onClick={() => { setMode(m => m === "oneword" ? "lines" : "oneword"); onSelect(0); }}
+          className="relative w-10 h-5 rounded-full transition-colors"
+          style={{ background: mode === "lines" ? "#2563eb" : "#cbd5e1" }}
+        >
+          <span
+            className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow-sm"
+            style={{ left: mode === "lines" ? "22px" : "2px" }}
+          />
+        </button>
+        <span className="text-sm font-medium" style={{ color: mode === "lines" ? "#111827" : "#9ca3af" }}>Lines</span>
+      </div>
 
       <div className="mt-4 grid w-full grid-cols-1 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4">
         {SUBTITLE_PRESETS.map((presetId, i) => {
