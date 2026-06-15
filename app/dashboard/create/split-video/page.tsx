@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useRef, useState, useEffect, type ReactNode } from "react";
+import { Suspense, useRef, useState, useEffect, type ReactNode, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
@@ -92,8 +92,46 @@ const BACKGROUNDS = [
   { title: "Mario Kart",      author: "Mario",          authorImg: MARIO,   mins: "1 mins",   size: "137 MB", id: "7ob75v4o-vgia-vnwu-x7l5-bzh0kbxl224"  },
 ];
 
-// ── Subtitle preset IDs — exact order from cdn-crayo.com/assets/caption-previews
-const SUBTITLE_PRESETS = [1, 7, 3, 6, 67, 8, 34, 37, 61, 66, 104, 114, 122, 131, 157, 208];
+// ── Subtitle styles — CSS text tiles matching Crayo exactly ──────────────────
+const OUTLINE = "1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000,0 2px 4px rgba(0,0,0,.5)";
+
+const ONE_WORD_STYLES: CSSProperties[] = [
+  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#fff", textShadow: OUTLINE },
+  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#22d3ee", textShadow: OUTLINE },
+  { fontFamily: "Georgia,serif", fontWeight: 700, color: "#fff", textShadow: "0 0 12px rgba(255,255,255,.6)" },
+  { fontFamily: "Georgia,serif", fontWeight: 400, color: "#fff", textShadow: "0 0 14px rgba(255,255,255,.7)" },
+  { fontFamily: "system-ui,sans-serif", fontWeight: 800, fontStyle: "italic", color: "#fff", textShadow: OUTLINE },
+  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
+  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#4ade80", textTransform: "uppercase", textShadow: OUTLINE },
+  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, fontStyle: "italic", color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
+  { fontFamily: "system-ui,sans-serif", fontWeight: 800, fontStyle: "italic", color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
+  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", background: "#ef4444", padding: "4px 18px", borderRadius: 9999 },
+  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
+  { fontFamily: "system-ui,sans-serif", fontWeight: 700, color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
+  { fontFamily: "Georgia,serif", fontWeight: 700, fontStyle: "italic", color: "#facc15", textShadow: "1px 1px 2px rgba(0,0,0,.6)" },
+  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, fontStyle: "italic", color: "#facc15", textTransform: "uppercase", textShadow: "0 0 12px rgba(250,204,21,.8)" },
+  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#facc15", textTransform: "uppercase", textShadow: OUTLINE },
+  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#3b82f6", textTransform: "uppercase", textShadow: "1px 1px 0 #fff,-1px 1px 0 #fff,1px -1px 0 #fff,-1px -1px 0 #fff" },
+];
+
+const LINE_STYLES: CSSProperties[] = [
+  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#fff", textShadow: OUTLINE },
+  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#fff", textShadow: "0 0 14px rgba(255,255,255,.7)" },
+  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, fontStyle: "italic", color: "#3b82f6", textTransform: "uppercase", textShadow: OUTLINE },
+  { fontFamily: "system-ui,sans-serif", fontWeight: 700, color: "#1f2937", background: "#f3f4f6", padding: "4px 12px", borderRadius: 6 },
+  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
+  { fontFamily: "Georgia,serif", fontWeight: 700, color: "#facc15", textShadow: "0 0 12px rgba(250,204,21,.7)" },
+  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, fontStyle: "italic", color: "#fff", textTransform: "uppercase", textShadow: "1px 1px 0 #ef4444,-1px -1px 0 #000" },
+  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#facc15", textTransform: "uppercase", textShadow: OUTLINE },
+  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#22d3ee", textTransform: "uppercase", textShadow: OUTLINE },
+  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#84cc16", textTransform: "uppercase", textShadow: OUTLINE },
+  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#fb923c", textShadow: "0 0 12px rgba(251,146,60,.6)" },
+  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, fontStyle: "italic", color: "#f9a8d4", textTransform: "uppercase", textShadow: OUTLINE },
+  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
+  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", background: "#2563eb", padding: "4px 12px", borderRadius: 6 },
+  { fontFamily: "system-ui,sans-serif", fontWeight: 700, color: "#fff", background: "#000", padding: "4px 12px", borderRadius: 6 },
+  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#c4b5fd", textTransform: "uppercase", textShadow: "0 0 10px rgba(196,181,253,.6)" },
+];
 
 // ── Auth Gate Modal ──────────────────────────────────────────────────────────
 function AuthModal({ onClose }: { onClose: () => void }) {
@@ -447,9 +485,11 @@ function BackgroundStep({ selected, onSelect }: { selected: number; onSelect: (i
   );
 }
 
-// ── Step 3: Subtitles — PNG previews from cdn-crayo.com ──────────────────────
+// ── Step 3: Subtitles — CSS-styled text tiles matching Crayo exactly ─────────
 function SubtitleStep({ selected, onSelect }: { selected: number; onSelect: (i: number) => void }) {
   const [mode, setMode] = useState<"oneword" | "lines">("oneword");
+  const styles = mode === "oneword" ? ONE_WORD_STYLES : LINE_STYLES;
+  const sample = mode === "oneword" ? "Crayo" : "The quick brown";
 
   return (
     <div className="px-8 pt-6 pb-10">
@@ -470,40 +510,23 @@ function SubtitleStep({ selected, onSelect }: { selected: number; onSelect: (i: 
         <span className="text-sm font-medium" style={{ color: mode === "lines" ? "#111827" : "#9ca3af" }}>Lines</span>
       </div>
 
-      <div className="mt-4 grid w-full grid-cols-1 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4">
-        {SUBTITLE_PRESETS.map((presetId, i) => {
+      <div className="mt-4 grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {styles.map((st, i) => {
           const isSel = selected === i;
           return (
-            <div
-              key={presetId}
-              role="button"
-              tabIndex={0}
+            <button
+              key={i}
               onClick={() => onSelect(i)}
-              onKeyDown={e => e.key === "Enter" && onSelect(i)}
-              className="group relative flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-slate-700 transition-all duration-200 sm:rounded-xl"
-              style={{
-                height: "96px",
-                border: isSel ? "2px solid #335CFF" : "2px solid transparent",
-                boxShadow: isSel ? "0 10px 15px -3px rgba(59,130,246,0.2)" : "none",
-              }}
+              className="relative h-[104px] rounded-xl flex items-center justify-center px-4 transition-all hover:opacity-90"
+              style={{ background: "#243044", border: isSel ? "2px solid #2563eb" : "2px solid transparent" }}
             >
               {isSel && (
-                <div className="absolute right-1 top-1 z-10 flex h-5 w-5 items-center justify-center rounded-full sm:right-2 sm:top-2 sm:h-6 sm:w-6" style={{ background: "#335CFF" }}>
+                <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow">
                   <IcCheck />
-                </div>
+                </span>
               )}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={`https://cdn-crayo.com/assets/caption-previews/${presetId}.png`}
-                alt={`Preview for template ${presetId}`}
-                data-preset-id={presetId}
-                draggable={false}
-                loading="lazy"
-                width={540}
-                height={540}
-                className="w-1/2 select-none object-cover transition-transform duration-200 group-hover:scale-105"
-              />
-            </div>
+              <span className="text-[22px] leading-tight text-center" style={st}>{sample}</span>
+            </button>
           );
         })}
       </div>
