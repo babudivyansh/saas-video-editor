@@ -2,6 +2,8 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "@/app/components/AuthContext";
+
 
 interface Project {
   id: string;
@@ -37,6 +39,8 @@ function EditorContent() {
   const router = useRouter();
   const params = useSearchParams();
   const projectId = params.get("id");
+  const { user, openAuthModal } = useAuth();
+
 
   const [step, setStep] = useState(1);
 
@@ -93,6 +97,10 @@ function EditorContent() {
   }
 
   async function generateScript() {
+    if (!user) {
+      openAuthModal("login");
+      return;
+    }
     setScriptLoading(true);
     try {
       const res = await fetch("/api/generate/script", {
@@ -113,6 +121,10 @@ function EditorContent() {
   }
 
   async function generateVoice() {
+    if (!user) {
+      openAuthModal("login");
+      return;
+    }
     setVoiceLoading(true);
     try {
       const res = await fetch("/api/generate/voice", {
@@ -133,6 +145,10 @@ function EditorContent() {
   }
 
   async function handleExport() {
+    if (!user) {
+      openAuthModal("login");
+      return;
+    }
     setExporting(true); setExportError("");
     try {
       const subtitlesStyle = {

@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import { useAuth } from "@/app/components/AuthContext";
+
 
 // ── Sidebar Icons ──────────────────────────────────────────────────────────────
 function IcHome() {
@@ -211,6 +213,8 @@ const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const [activeNav, setActiveNav] = useState("home");
+  const { user, openAuthModal, signOut } = useAuth();
+
 
   return (
     <div className="flex h-screen overflow-hidden bg-white">
@@ -272,12 +276,28 @@ export default function DashboardPage() {
       <main className="flex-1 overflow-y-auto bg-white">
 
         {/* Top bar */}
-        <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3">
-          <Link href="/login" className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm">
-            <IcZap />
-            Login
-          </Link>
+        <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3 gap-4">
+          {user ? (
+            <>
+              <span className="text-sm text-gray-500 font-medium">Logged in as {user.email}</span>
+              <button 
+                onClick={signOut}
+                className="inline-flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm cursor-pointer"
+              >
+                Sign Out
+              </button>
+            </>
+          ) : (
+            <button 
+              onClick={() => openAuthModal("login")}
+              className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm cursor-pointer"
+            >
+              <IcZap />
+              Login
+            </button>
+          )}
         </div>
+
 
         <div className="mx-auto w-full max-w-[1440px] px-8 pb-10 space-y-5">
 
@@ -483,17 +503,22 @@ export default function DashboardPage() {
               <div className="rounded-2xl border border-gray-200 p-4">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Your Credits</p>
-                  <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">30 left</span>
+                  <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                    {user ? `${user.credits} left` : "—"}
+                  </span>
                 </div>
                 <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-1.5">
-                  <div className="h-full bg-blue-500 rounded-full" style={{ width: "30%" }} />
+                  <div className="h-full bg-blue-500 rounded-full" style={{ width: user ? `${Math.min(user.credits, 100)}%` : "0%" }} />
                 </div>
-                <p className="text-[11px] text-gray-400 mb-3">30 / 100 credits remaining</p>
+                <p className="text-[11px] text-gray-400 mb-3">
+                  {user ? `${user.credits} / 100 credits remaining` : "Sign in to view your credits"}
+                </p>
                 <Link href="/pricing" className="flex items-center justify-center gap-1.5 w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 rounded-lg transition-colors">
                   <IcZap />
                   Upgrade Plan
                 </Link>
               </div>
+
             </div>
           </div>
         </div>
