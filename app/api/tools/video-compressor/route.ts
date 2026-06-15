@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runFFmpegArgs } from "@/utils/ffmpeg-render";
+import { runFFmpegWithProgress } from "@/utils/ffmpeg-render";
 import { attachmentDisposition } from "@/utils/content-disposition";
 import os from "os";
 import path from "path";
@@ -10,7 +10,32 @@ export const maxDuration = 300;
 
 const QUALITY_CRF: Record<string, string> = { low: "32", medium: "28", high: "24" };
 
+interface Job {
+  progress: number;
+  status: "processing" | "done" | "error";
+  inputPath: string;
+  outputPath: string;
+  downloadName: string;
+  error?: string;
+  createdAt: number;
+}
+
+const g = globalThis as unknown as { __videoJobs?: Map<string, Job> };
+const jobs: Map<string, Job> = g.__videoJobs ?? (g.__videoJobs = new Map());
+
+function sweep() {
+  const cutoff = Date.now() - 30 * 60 * 1000;
+  for (const [id, job] of jobs) {
+    if (job.createdAt < cutoff) {
+      for (const f of [job.inputPath, job.outputPath]) { try { fs.unlinkSync(f); } catch {} }
+      jobs.delete(id);
+    }
+  }
+}
+
 export async function POST(req: NextRequest) {
+  sweep();
+
   let formData: FormData;
   try {
     formData = await req.formData();
@@ -21,7 +46,7 @@ export async function POST(req: NextRequest) {
   const file = formData.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
-  const MAX_BYTES = 500 * 1024 * 1024; // 500 MB
+  const MAX_BYTES = 500 * 1024 * 1024;
   if (file.size > MAX_BYTES) {
     return NextResponse.json({ error: "File too large (max 500 MB)" }, { status: 413 });
   }
@@ -33,30 +58,51 @@ export async function POST(req: NextRequest) {
   const inputExt = (file.name.split(".").pop() ?? "mp4").toLowerCase();
   const inputPath = path.join(os.tmpdir(), `${jobId}-input.${inputExt}`);
   const outputPath = path.join(os.tmpdir(), `${jobId}-output.mp4`);
+  const downloadName = `${file.name.replace(/\.[^.]+$/, "")}-compressed.mp4`;
 
-  try {
-    fs.writeFileSync(inputPath, Buffer.from(await file.arrayBuffer()));
+  fs.writeFileSync(inputPath, Buffer.from(await file.arrayBuffer()));
 
-    await runFFmpegArgs([
-      "-y", "-i", inputPath,
-      "-c:v", "libx264", "-crf", crf, "-preset", "fast",
-      "-c:a", "aac", "-b:a", "128k",
-      outputPath,
-    ]);
+  const job: Job = {
+    progress: 0, status: "processing", inputPath, outputPath, downloadName, createdAt: Date.now(),
+  };
+  jobs.set(jobId, job);
 
-    const outputBuffer = fs.readFileSync(outputPath);
-    const originalName = file.name.replace(/\.[^.]+$/, "");
+  runFFmpegWithProgress(
+    ["-y", "-i", inputPath, "-c:v", "libx264", "-crf", crf, "-preset", "fast", "-c:a", "aac", "-b:a", "128k", outputPath],
+    (pct) => { job.progress = pct; },
+  )
+    .then(() => { job.progress = 100; job.status = "done"; })
+    .catch((err) => { job.status = "error"; job.error = err instanceof Error ? err.message : "Compression failed"; })
+    .finally(() => { try { fs.unlinkSync(inputPath); } catch {} });
 
-    return new NextResponse(outputBuffer, {
+  return NextResponse.json({ jobId }, { status: 202 });
+}
+
+export async function GET(req: NextRequest) {
+  const jobId = req.nextUrl.searchParams.get("jobId");
+  const download = req.nextUrl.searchParams.get("download");
+  if (!jobId) return NextResponse.json({ error: "Missing jobId" }, { status: 400 });
+
+  const job = jobs.get(jobId);
+  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+
+  if (download) {
+    if (job.status !== "done") return NextResponse.json({ error: "Not ready" }, { status: 409 });
+    const buffer = fs.readFileSync(job.outputPath);
+    try { fs.unlinkSync(job.outputPath); } catch {}
+    jobs.delete(jobId);
+    return new NextResponse(buffer, {
       headers: {
         "Content-Type": "video/mp4",
-        "Content-Disposition": attachmentDisposition(`${originalName}-compressed.mp4`),
-        "Content-Length": String(outputBuffer.length),
+        "Content-Disposition": attachmentDisposition(job.downloadName),
+        "Content-Length": String(buffer.length),
       },
     });
-  } finally {
-    for (const f of [inputPath, outputPath]) {
-      try { fs.unlinkSync(f); } catch {}
-    }
   }
+
+  return NextResponse.json({
+    progress: Math.round(job.progress),
+    status: job.status,
+    error: job.error,
+  });
 }
