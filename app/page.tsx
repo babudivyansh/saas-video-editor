@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 
@@ -50,13 +50,81 @@ function InstagramIcon({ className = "" }: { className?: string }) {
 
 
 // ── Navbar ─────────────────────────────────────────────────────────────────
+const FEATURES_ITEMS = [
+  {
+    title: "Reddit Story Videos",
+    desc: "Create reddit-style story videos in seconds with our AI script generator",
+    href: "/dashboard/create/reddit-video",
+  },
+  {
+    title: "Split Screen Videos",
+    desc: "Create split-screen video with our AI script generator",
+    href: "/dashboard/create/viral-split-screen",
+  },
+  {
+    title: "Fake Text Stories",
+    desc: "Create fake text conversation videos for Instagram, TikTok, and Shorts",
+    href: "/dashboard/create/text-video",
+  },
+  {
+    title: "Veo-3 Style Video",
+    desc: "Create viral Veo-3 style videos with just a few clicks",
+    href: "/dashboard/create/streamer-video",
+  },
+];
+
+const TOOLS_ITEMS = [
+  { title: "Audio Balancer",   href: "/dashboard/tools/free/audio-balancer"  },
+  { title: "Video Compressor", href: "/dashboard/tools/free/video-compressor" },
+  { title: "MP3 Converter",    href: "/dashboard/tools/free/mp3-converter"   },
+];
+
+const RESOURCES_ITEMS = [
+  {
+    title: "Affiliate Program",
+    desc: "Earn 20% on all paid referrals to ClipForge.",
+    href: "/affiliate-tos",
+  },
+  {
+    title: "Community Discord",
+    desc: "Join for customer support and feedback.",
+    href: "/discord",
+  },
+];
+
+function NavDropdown({ label, children }: { label: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button className="flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors">
+        {label}
+        <svg className={`w-3.5 h-3.5 transition-transform duration-150 ${open ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 min-w-max">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileSection, setMobileSection] = useState<string | null>(null);
   const { user, openAuthModal, signOut } = useAuth();
+
   return (
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-gray-100 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
+
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 font-extrabold text-xl text-gray-900">
             <span className="bg-blue-600 text-white rounded-lg w-8 h-8 flex items-center justify-center">
@@ -66,11 +134,50 @@ function Navbar() {
           </Link>
 
           {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-600">
-            <Link href="#features" className="hover:text-blue-600 transition-colors">Features</Link>
-            <Link href="#tools" className="hover:text-blue-600 transition-colors">AI Tools</Link>
-            <Link href="#pricing" className="hover:text-blue-600 transition-colors">Pricing</Link>
-            <Link href="#faq" className="hover:text-blue-600 transition-colors">FAQ</Link>
+          <nav className="hidden md:flex items-center gap-7">
+
+            {/* Features dropdown */}
+            <NavDropdown label="Features">
+              <div className="flex gap-0 p-2" style={{ minWidth: 560 }}>
+                {/* Left — feature pages */}
+                <div className="flex-1 p-3 space-y-1">
+                  {FEATURES_ITEMS.map(item => (
+                    <Link key={item.href} href={item.href}
+                      className="flex flex-col gap-0.5 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors group">
+                      <span className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">{item.title}</span>
+                      <span className="text-xs text-gray-500 leading-snug">{item.desc}</span>
+                    </Link>
+                  ))}
+                </div>
+                {/* Divider */}
+                <div className="w-px bg-gray-100 my-2" />
+                {/* Right — free tools */}
+                <div className="w-44 p-5 space-y-3">
+                  {TOOLS_ITEMS.map(item => (
+                    <Link key={item.href} href={item.href}
+                      className="block text-sm font-semibold text-gray-800 hover:text-blue-600 transition-colors">
+                      {item.title}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </NavDropdown>
+
+            {/* Resources dropdown */}
+            <NavDropdown label="Resources">
+              <div className="flex gap-6 p-6" style={{ minWidth: 440 }}>
+                {RESOURCES_ITEMS.map(item => (
+                  <Link key={item.href} href={item.href}
+                    className="flex flex-col gap-1 flex-1 hover:opacity-80 transition-opacity group">
+                    <span className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">{item.title}</span>
+                    <span className="text-xs text-gray-500 leading-snug">{item.desc}</span>
+                  </Link>
+                ))}
+              </div>
+            </NavDropdown>
+
+            <Link href="/blog" className="text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors">Blog</Link>
+            <Link href="/pricing" className="text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors">Pricing</Link>
           </nav>
 
           {/* CTA */}
@@ -106,7 +213,6 @@ function Navbar() {
             )}
           </div>
 
-
           {/* Mobile hamburger */}
           <button
             className="md:hidden p-2 rounded-md text-gray-600 hover:text-gray-900"
@@ -123,38 +229,70 @@ function Navbar() {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="md:hidden border-t border-gray-100 bg-white px-4 py-4 space-y-3">
-          {["Features", "AI Tools", "Pricing", "FAQ"].map((item) => (
-            <Link
-              key={item}
-              href={`#${item.toLowerCase().replace(" ", "-")}`}
-              className="block text-sm font-medium text-gray-700 hover:text-blue-600"
-              onClick={() => setMenuOpen(false)}
-            >
-              {item}
-            </Link>
-          ))}
-          {user ? (
-            <>
-              <Link href="/dashboard" className="block text-sm font-medium text-gray-700 hover:text-blue-600" onClick={() => setMenuOpen(false)}>
-                Dashboard
-              </Link>
-              <button
-                onClick={() => { signOut(); setMenuOpen(false); }}
-                className="w-full text-left text-sm font-medium text-gray-500 hover:text-gray-800"
-              >
-                Logout ({user.email})
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={() => { setMenuOpen(false); openAuthModal("register"); }}
-              className="w-full flex items-center justify-center gap-1.5 bg-blue-600 text-white text-sm font-semibold px-4 py-2.5 rounded-full cursor-pointer"
-            >
-              <ZapIcon className="w-3.5 h-3.5" />
-              Try ClipForge Free
-            </button>
+        <div className="md:hidden border-t border-gray-100 bg-white px-4 py-4 space-y-1">
+          {/* Features section */}
+          <button
+            onClick={() => setMobileSection(mobileSection === "features" ? null : "features")}
+            className="flex items-center justify-between w-full text-sm font-semibold text-gray-700 py-2"
+          >
+            Features
+            <svg className={`w-4 h-4 transition-transform ${mobileSection === "features" ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          {mobileSection === "features" && (
+            <div className="pl-3 space-y-1 pb-1">
+              {[...FEATURES_ITEMS, ...TOOLS_ITEMS].map(item => (
+                <Link key={item.href} href={item.href}
+                  onClick={() => setMenuOpen(false)}
+                  className="block text-sm text-gray-600 hover:text-blue-600 py-1.5">
+                  {"desc" in item ? item.title : item.title}
+                </Link>
+              ))}
+            </div>
           )}
+
+          {/* Resources section */}
+          <button
+            onClick={() => setMobileSection(mobileSection === "resources" ? null : "resources")}
+            className="flex items-center justify-between w-full text-sm font-semibold text-gray-700 py-2"
+          >
+            Resources
+            <svg className={`w-4 h-4 transition-transform ${mobileSection === "resources" ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          {mobileSection === "resources" && (
+            <div className="pl-3 space-y-1 pb-1">
+              {RESOURCES_ITEMS.map(item => (
+                <Link key={item.href} href={item.href}
+                  onClick={() => setMenuOpen(false)}
+                  className="block text-sm text-gray-600 hover:text-blue-600 py-1.5">
+                  {item.title}
+                </Link>
+              ))}
+            </div>
+          )}
+
+          <Link href="/blog" className="block text-sm font-semibold text-gray-700 hover:text-blue-600 py-2" onClick={() => setMenuOpen(false)}>Blog</Link>
+          <Link href="/pricing" className="block text-sm font-semibold text-gray-700 hover:text-blue-600 py-2" onClick={() => setMenuOpen(false)}>Pricing</Link>
+
+          <div className="pt-2 border-t border-gray-100 mt-1">
+            {user ? (
+              <>
+                <Link href="/dashboard" className="block text-sm font-medium text-gray-700 hover:text-blue-600 py-2" onClick={() => setMenuOpen(false)}>
+                  Dashboard
+                </Link>
+                <button onClick={() => { signOut(); setMenuOpen(false); }} className="w-full text-left text-sm font-medium text-gray-500 hover:text-gray-800 py-2">
+                  Logout ({user.email})
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => { setMenuOpen(false); openAuthModal("register"); }}
+                className="w-full flex items-center justify-center gap-1.5 bg-blue-600 text-white text-sm font-semibold px-4 py-2.5 rounded-full cursor-pointer mt-1"
+              >
+                <ZapIcon className="w-3.5 h-3.5" />
+                Try ClipForge Free
+              </button>
+            )}
+          </div>
         </div>
       )}
 
