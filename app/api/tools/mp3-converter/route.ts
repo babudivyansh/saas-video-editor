@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runFFmpegArgs } from "@/utils/ffmpeg-render";
+import { runFFmpegWithProgress } from "@/utils/ffmpeg-render";
 import { attachmentDisposition } from "@/utils/content-disposition";
 import os from "os";
 import path from "path";
 import fs from "fs";
 import { randomUUID } from "crypto";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 // MP3 quality presets → constant bitrate. Mirrors the Crayo selector labels.
 const QUALITY_BITRATE: Record<string, string> = {
@@ -17,7 +17,35 @@ const QUALITY_BITRATE: Record<string, string> = {
   maximum: "320k",
 };
 
+interface Job {
+  progress: number;
+  status: "processing" | "done" | "error";
+  inputPath: string;
+  outputPath: string;
+  downloadName: string;
+  error?: string;
+  createdAt: number;
+}
+
+// Module-level job store (single-instance server). Same pattern as the render queue.
+const g = globalThis as unknown as { __mp3Jobs?: Map<string, Job> };
+const jobs: Map<string, Job> = g.__mp3Jobs ?? (g.__mp3Jobs = new Map());
+
+// Sweep abandoned jobs older than 30 min.
+function sweep() {
+  const cutoff = Date.now() - 30 * 60 * 1000;
+  for (const [id, job] of jobs) {
+    if (job.createdAt < cutoff) {
+      for (const f of [job.inputPath, job.outputPath]) { try { fs.unlinkSync(f); } catch {} }
+      jobs.delete(id);
+    }
+  }
+}
+
+// ── POST: start a conversion, return a jobId immediately ──────────────────────
 export async function POST(req: NextRequest) {
+  sweep();
+
   let formData: FormData;
   try {
     formData = await req.formData();
@@ -40,30 +68,56 @@ export async function POST(req: NextRequest) {
   const inputExt = (file.name.split(".").pop() ?? "mp4").toLowerCase();
   const inputPath = path.join(os.tmpdir(), `${jobId}-input.${inputExt}`);
   const outputPath = path.join(os.tmpdir(), `${jobId}-output.mp3`);
+  const downloadName = `${file.name.replace(/\.[^.]+$/, "")}.mp3`;
 
-  try {
-    fs.writeFileSync(inputPath, Buffer.from(await file.arrayBuffer()));
+  fs.writeFileSync(inputPath, Buffer.from(await file.arrayBuffer()));
 
-    await runFFmpegArgs([
-      "-y", "-i", inputPath,
-      "-vn",
-      "-acodec", "libmp3lame", "-b:a", bitrate,
-      outputPath,
-    ]);
+  const job: Job = {
+    progress: 0, status: "processing", inputPath, outputPath, downloadName, createdAt: Date.now(),
+  };
+  jobs.set(jobId, job);
 
-    const outputBuffer = fs.readFileSync(outputPath);
-    const originalName = file.name.replace(/\.[^.]+$/, "");
+  // Kick off conversion without blocking the response.
+  runFFmpegWithProgress(
+    ["-y", "-i", inputPath, "-vn", "-acodec", "libmp3lame", "-b:a", bitrate, outputPath],
+    (pct) => { job.progress = pct; },
+  )
+    .then(() => { job.progress = 100; job.status = "done"; })
+    .catch((err) => { job.status = "error"; job.error = err instanceof Error ? err.message : "Conversion failed"; })
+    .finally(() => { try { fs.unlinkSync(inputPath); } catch {} });
 
-    return new NextResponse(outputBuffer, {
+  return NextResponse.json({ jobId }, { status: 202 });
+}
+
+// ── GET: poll progress (?jobId=) or download the result (?jobId=&download=1) ───
+export async function GET(req: NextRequest) {
+  const jobId = req.nextUrl.searchParams.get("jobId");
+  const download = req.nextUrl.searchParams.get("download");
+  if (!jobId) return NextResponse.json({ error: "Missing jobId" }, { status: 400 });
+
+  const job = jobs.get(jobId);
+  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+
+  if (download) {
+    if (job.status !== "done") {
+      return NextResponse.json({ error: "Not ready" }, { status: 409 });
+    }
+    const buffer = fs.readFileSync(job.outputPath);
+    // One-shot download: clean up the temp file and forget the job.
+    try { fs.unlinkSync(job.outputPath); } catch {}
+    jobs.delete(jobId);
+    return new NextResponse(buffer, {
       headers: {
         "Content-Type": "audio/mpeg",
-        "Content-Disposition": attachmentDisposition(`${originalName}.mp3`),
-        "Content-Length": String(outputBuffer.length),
+        "Content-Disposition": attachmentDisposition(job.downloadName),
+        "Content-Length": String(buffer.length),
       },
     });
-  } finally {
-    for (const f of [inputPath, outputPath]) {
-      try { fs.unlinkSync(f); } catch {}
-    }
   }
+
+  return NextResponse.json({
+    progress: Math.round(job.progress),
+    status: job.status,
+    error: job.error,
+  });
 }

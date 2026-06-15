@@ -134,21 +134,8 @@ export default function Mp3ConverterTool(_props: Props) {
     if (outputUrl) { URL.revokeObjectURL(outputUrl); setOutputUrl(null); }
   }
 
-  function startSimulatedProgress() {
-    startTimeRef.current = Date.now();
-    // Estimate processing time from file size; bar eases toward 95% until the
-    // real response lands, then snaps to 100%.
-    const sizeMB = file ? file.size / (1024 * 1024) : 5;
-    const estSec = Math.max(2.5, sizeMB * 0.5);
-    if (progressTimer.current) clearInterval(progressTimer.current);
-    progressTimer.current = setInterval(() => {
-      const elapsed = (Date.now() - startTimeRef.current) / 1000;
-      const pct = Math.min(95, (elapsed / estSec) * 100);
-      setProgress(pct);
-      if (durationSec > 0 && elapsed > 0) {
-        setRealtime((durationSec * (pct / 100)) / elapsed);
-      }
-    }, 120);
+  function stopPolling() {
+    if (progressTimer.current) { clearInterval(progressTimer.current); progressTimer.current = null; }
   }
 
   async function handleConvert() {
@@ -156,25 +143,52 @@ export default function Mp3ConverterTool(_props: Props) {
     setStage("converting");
     setError(null);
     setProgress(0);
-    startSimulatedProgress();
+    setRealtime(0);
+    startTimeRef.current = Date.now();
     try {
+      // 1. Start the job — server returns a jobId immediately.
       const form = new FormData();
       form.append("file", file);
       form.append("quality", quality);
-      const res = await fetch("/api/tools/mp3-converter", { method: "POST", body: form });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(json.error ?? `Server error (${res.status})`);
+      const startRes = await fetch("/api/tools/mp3-converter", { method: "POST", body: form });
+      if (!startRes.ok) {
+        const json = await startRes.json().catch(() => ({})) as { error?: string };
+        throw new Error(json.error ?? `Server error (${startRes.status})`);
       }
-      const blob = await res.blob();
-      if (progressTimer.current) clearInterval(progressTimer.current);
+      const { jobId } = await startRes.json() as { jobId: string };
+
+      // 2. Poll real FFmpeg progress until the job finishes.
+      await new Promise<void>((resolve, reject) => {
+        stopPolling();
+        progressTimer.current = setInterval(async () => {
+          try {
+            const res = await fetch(`/api/tools/mp3-converter?jobId=${jobId}`);
+            if (!res.ok) return;
+            const data = await res.json() as { progress: number; status: string; error?: string };
+            setProgress(data.progress);
+            const elapsed = (Date.now() - startTimeRef.current) / 1000;
+            if (durationSec > 0 && elapsed > 0) {
+              setRealtime((durationSec * (data.progress / 100)) / elapsed);
+            }
+            if (data.status === "done") { stopPolling(); resolve(); }
+            else if (data.status === "error") { stopPolling(); reject(new Error(data.error ?? "Conversion failed")); }
+          } catch {
+            // transient — keep polling
+          }
+        }, 400);
+      });
+
+      // 3. Download the finished file.
+      const fileRes = await fetch(`/api/tools/mp3-converter?jobId=${jobId}&download=1`);
+      if (!fileRes.ok) throw new Error("Failed to fetch converted file");
+      const blob = await fileRes.blob();
       setProgress(100);
       const url = URL.createObjectURL(blob);
       setOutputBlob(blob);
       setOutputUrl(url);
       setStage("complete");
     } catch (err: unknown) {
-      if (progressTimer.current) clearInterval(progressTimer.current);
+      stopPolling();
       setError(err instanceof Error ? err.message : "Conversion failed");
       setStage("ready");
     }
@@ -199,6 +213,8 @@ export default function Mp3ConverterTool(_props: Props) {
   }
 
   const busy = stage === "converting";
+  // Quality is locked once conversion starts and stays locked on the result screen.
+  const qualityLocked = stage === "converting" || stage === "complete";
 
   return (
     <div className="mx-auto w-full max-w-[1440px] px-8 pb-10">
@@ -267,14 +283,14 @@ export default function Mp3ConverterTool(_props: Props) {
                     <button
                       key={opt.id}
                       type="button"
-                      disabled={busy}
+                      disabled={qualityLocked}
                       onClick={() => setQuality(opt.id)}
                       className="rounded-lg border px-1 py-2 text-center transition-colors"
                       style={{
                         borderColor: active ? "#3b82f6" : "#e5e7eb",
                         background: active ? "#eff6ff" : "#ffffff",
-                        opacity: busy && !active ? 0.5 : 1,
-                        cursor: busy ? "not-allowed" : "pointer",
+                        opacity: qualityLocked && !active ? 0.5 : 1,
+                        cursor: qualityLocked ? "not-allowed" : "pointer",
                       }}
                     >
                       <p className="text-[12px] font-semibold" style={{ color: active ? "#2563eb" : "#374151" }}>{opt.label}</p>

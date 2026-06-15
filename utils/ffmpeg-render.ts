@@ -160,6 +160,47 @@ export function runFFmpegArgs(args: string[]): Promise<void> {
   });
 }
 
+// Like runFFmpegArgs but parses FFmpeg's stderr for the input "Duration:" and the
+// running "time=" markers to report real conversion progress (0–99).
+export function runFFmpegWithProgress(
+  args: string[],
+  onProgress: (pct: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(ffmpegBin!, args, { stdio: ["ignore", "pipe", "pipe"] });
+    let stderrBuf = "";
+    let totalMs = 0;
+
+    const hms = (h: string, m: string, s: string) =>
+      (parseInt(h) * 3600 + parseInt(m) * 60 + parseFloat(s)) * 1000;
+
+    proc.stderr.on("data", (chunk: Buffer) => {
+      const s = chunk.toString();
+      stderrBuf += s;
+
+      if (totalMs === 0) {
+        const d = /Duration:\s*(\d+):(\d+):(\d+\.\d+)/.exec(stderrBuf);
+        if (d) totalMs = hms(d[1], d[2], d[3]);
+      }
+
+      // Take the last time= marker in this chunk.
+      const re = /time=\s*(\d+):(\d+):(\d+\.\d+)/g;
+      let last: RegExpExecArray | null = null, m: RegExpExecArray | null;
+      while ((m = re.exec(s)) !== null) last = m;
+      if (last && totalMs > 0) {
+        const cur = hms(last[1], last[2], last[3]);
+        onProgress(Math.max(0, Math.min(99, (cur / totalMs) * 100)));
+      }
+    });
+
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`FFmpeg exited ${code}:\n${stderrBuf.slice(-2000)}`));
+    });
+    proc.on("error", (err) => reject(err));
+  });
+}
+
 // ── Audio extraction ─────────────────────────────────────────────────────────
 
 export function extractAudio(videoPath: string, audioPath: string): Promise<void> {
