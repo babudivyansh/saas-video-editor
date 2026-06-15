@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runFFmpegArgs } from "@/utils/ffmpeg-render";
+import { attachmentDisposition } from "@/utils/content-disposition";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
     return new NextResponse(outputBuffer, {
       headers: {
         "Content-Type": "audio/mpeg",
-        "Content-Disposition": `attachment; filename="${originalName}-balanced.mp3"`,
+        "Content-Disposition": attachmentDisposition(`${originalName}-balanced.mp3`),
         "Content-Length": String(outputBuffer.length),
       },
     });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runFFmpegArgs } from "@/utils/ffmpeg-render";
+import { attachmentDisposition } from "@/utils/content-disposition";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
     return new NextResponse(outputBuffer, {
       headers: {
         "Content-Type": "video/mp4",
-        "Content-Disposition": `attachment; filename="${originalName}-compressed.mp4"`,
+        "Content-Disposition": attachmentDisposition(`${originalName}-compressed.mp4`),
         "Content-Length": String(outputBuffer.length),
       },
     });
