@@ -2,7 +2,21 @@ import fs from "fs";
 import path from "path";
 import { spawn } from "child_process";
 import { WordTiming } from "./elevenlabs";
-import ffmpegBin from "ffmpeg-static";
+import ffmpegStatic from "ffmpeg-static";
+
+// Next.js bundles ffmpeg-static and rewrites its internal __dirname to a literal
+// "\ROOT\...", which makes the exported path point at a file that doesn't exist.
+// Resolve the real binary ourselves: trust the export only if it exists on disk,
+// otherwise fall back to node_modules under the project cwd, then system PATH.
+function resolveFfmpegBin(): string {
+  if (ffmpegStatic && fs.existsSync(ffmpegStatic)) return ffmpegStatic;
+  const binName = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
+  const cwdPath = path.join(process.cwd(), "node_modules", "ffmpeg-static", binName);
+  if (fs.existsSync(cwdPath)) return cwdPath;
+  return "ffmpeg";
+}
+
+const ffmpegBin = resolveFfmpegBin();
 
 export interface SubtitleStyle {
   fontName?: string;
