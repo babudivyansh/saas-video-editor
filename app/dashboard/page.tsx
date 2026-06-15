@@ -279,10 +279,12 @@ export default function DashboardPage() {
         <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3 gap-3">
           {user ? (
             <>
-              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold select-none flex-shrink-0">
-                {user.email[0].toUpperCase()}
-              </div>
-              <span className="text-sm text-gray-600 font-medium hidden sm:block">{user.email}</span>
+              <Link href="/dashboard/profile" className="flex items-center gap-2 group">
+                <div className="w-8 h-8 rounded-full bg-blue-600 group-hover:bg-blue-700 flex items-center justify-center text-white text-sm font-bold select-none flex-shrink-0 transition-colors">
+                  {user.email[0].toUpperCase()}
+                </div>
+                <span className="text-sm text-gray-600 font-medium hidden sm:block group-hover:text-gray-900 transition-colors">{user.email}</span>
+              </Link>
               <button
                 onClick={signOut}
                 className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
