@@ -517,7 +517,7 @@ function SubtitleStep({ selected, onSelect }: { selected: number; onSelect: (i: 
             <button
               key={i}
               onClick={() => onSelect(i)}
-              className="group relative h-[104px] rounded-xl flex items-center justify-center px-4 transition-all overflow-hidden"
+              className="group relative h-[104px] rounded-xl flex items-center justify-center px-4 transition-all overflow-hidden cursor-pointer"
               style={{ background: "#243044", border: isSel ? "2px solid #2563eb" : "2px solid transparent" }}
             >
               {isSel && (
