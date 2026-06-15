@@ -19,6 +19,8 @@ export default function Mp3ConverterPage() {
           fileTypes=".mp3, .wav, .aac, .ogg, .flac, .m4a, .webm, .mp4, .mov, .avi, .mkv, .webm, .m4v"
           acceptAttr="audio/*,video/*"
           buttonLabel="Convert"
+          apiEndpoint="/api/tools/mp3-converter"
+          outputFilename="converted.mp3"
         />
       </main>
     </div>

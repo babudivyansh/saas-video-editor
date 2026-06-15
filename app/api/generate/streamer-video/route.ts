@@ -1,0 +1,117 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getAuthUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { redis } from "@/lib/redis";
+import { runStreamerFFmpeg, styleIndexToDrawtext } from "@/utils/ffmpeg-render";
+import { uploadFileToS3 } from "@/utils/s3-upload";
+import { InProcessQueue } from "@/lib/job-queue";
+import os from "os";
+import path from "path";
+import fs from "fs";
+import https from "https";
+import http from "http";
+
+export const maxDuration = 300;
+
+const CREDIT_COST = 1;
+
+interface StreamerPayload {
+  projectId: string;
+  titleText: string;
+  subtitleStyleIndex: number;
+}
+
+function downloadFile(url: string, dest: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(dest);
+    const get = url.startsWith("https") ? https.get : http.get;
+    get(url, (res) => {
+      res.pipe(file);
+      file.on("finish", () => file.close(() => resolve()));
+    }).on("error", reject);
+  });
+}
+
+async function renderJob(payload: StreamerPayload): Promise<void> {
+  const { projectId, titleText, subtitleStyleIndex } = payload;
+
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  if (!project?.uploadedVideoUrl) {
+    throw new Error(`Project ${projectId} missing uploadedVideoUrl`);
+  }
+
+  const tmp = os.tmpdir();
+  const userPath = path.join(tmp, `${projectId}-user.mp4`);
+  const outPath  = path.join(tmp, `${projectId}-output.mp4`);
+
+  try {
+    await downloadFile(project.uploadedVideoUrl, userPath);
+
+    const drawtextOpts = styleIndexToDrawtext(subtitleStyleIndex);
+    await runStreamerFFmpeg({ userVideoPath: userPath, titleText, drawtextOpts, outputPath: outPath });
+
+    const s3Key = `renders/${projectId}.mp4`;
+    const videoUrl = await uploadFileToS3(outPath, s3Key, "video/mp4");
+
+    await prisma.project.update({ where: { id: projectId }, data: { status: "completed", videoUrl } });
+  } catch (err) {
+    console.error(`[streamer-video] render failed for ${projectId}:`, err);
+    await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } });
+  } finally {
+    for (const f of [userPath, outPath]) {
+      try { fs.unlinkSync(f); } catch {}
+    }
+  }
+}
+
+let _queue: InProcessQueue<StreamerPayload> | null = null;
+function getQueue() {
+  if (!_queue) _queue = new InProcessQueue<StreamerPayload>("streamer-video", renderJob);
+  return _queue;
+}
+
+export async function POST(req: NextRequest) {
+  const auth = await getAuthUser(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const cachedCredits = await redis.get(`credits:${auth.userId}`);
+  const credits = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
+  if (credits !== null && credits < CREDIT_COST) {
+    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
+  }
+
+  const body = await req.json() as Partial<StreamerPayload>;
+  if (!body.projectId || !body.titleText) {
+    return NextResponse.json({ error: "projectId and titleText required" }, { status: 400 });
+  }
+
+  const project = await prisma.project.findFirst({
+    where: { id: body.projectId, userId: auth.userId },
+  });
+  if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  if (!project.uploadedVideoUrl) {
+    return NextResponse.json({ error: "Project has no uploaded video" }, { status: 400 });
+  }
+
+  const user = await prisma.user.update({
+    where: { id: auth.userId },
+    data: { credits: { decrement: CREDIT_COST } },
+    select: { credits: true },
+  });
+
+  if (user.credits < 0) {
+    await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
+    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
+  }
+
+  await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
+  await prisma.project.update({ where: { id: body.projectId }, data: { status: "rendering" } });
+
+  getQueue().enqueue(body.projectId, {
+    projectId: body.projectId,
+    titleText: body.titleText,
+    subtitleStyleIndex: body.subtitleStyleIndex ?? 0,
+  });
+
+  return NextResponse.json({ status: "rendering", creditsRemaining: user.credits });
+}

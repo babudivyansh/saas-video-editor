@@ -19,6 +19,8 @@ export default function AudioBalancerPage() {
           fileTypes=".mp3, .wav, .aac, .ogg, .flac, .m4a, .webm, .mp4, .mov, .avi, .mkv, .webm, .m4v"
           acceptAttr="audio/*,video/*"
           buttonLabel="Balance Audio"
+          apiEndpoint="/api/tools/audio-balancer"
+          outputFilename="balanced-audio.mp3"
         />
       </main>
     </div>

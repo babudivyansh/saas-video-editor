@@ -20,7 +20,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await req.json();
-  const allowed = ["title", "script", "voiceId", "musicUrl", "backgroundUrl", "subtitlesStyle"];
+  const allowed = ["title", "script", "voiceId", "musicUrl", "backgroundUrl", "subtitlesStyle", "uploadedVideoUrl"];
   const data: Record<string, unknown> = {};
   for (const key of allowed) {
     if (key in body) data[key] = body[key];

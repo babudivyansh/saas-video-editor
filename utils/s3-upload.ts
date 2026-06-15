@@ -49,6 +49,15 @@ export async function getPresignedUrl(key: string, expiresIn = 3600): Promise<st
   return getSignedUrl(s3, cmd, { expiresIn });
 }
 
+export async function getPresignedUploadUrl(
+  key: string,
+  contentType: string,
+  expiresIn = 3600
+): Promise<string> {
+  const cmd = new PutObjectCommand({ Bucket: BUCKET, Key: key, ContentType: contentType });
+  return getSignedUrl(s3, cmd, { expiresIn });
+}
+
 export function sanitizeS3Key(rawKey: string): string {
   // Only allow alphanumeric, hyphens, underscores, dots, and forward-slashes
   return rawKey.replace(/[^a-zA-Z0-9\-_./]/g, "");

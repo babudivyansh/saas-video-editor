@@ -20,6 +20,8 @@ export default function VideoCompressorPage() {
           acceptAttr="video/*"
           buttonLabel="Generate Video"
           shortcut="⌘+Enter"
+          apiEndpoint="/api/tools/video-compressor"
+          outputFilename="compressed-video.mp4"
         />
       </main>
     </div>

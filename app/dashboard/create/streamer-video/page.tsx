@@ -3,6 +3,7 @@ import { Suspense, useRef, useState, useEffect, type ReactNode, type CSSProperti
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
+import { useVideoGenerate, getStoredToken, storeToken, type GenerateStatus } from "@/app/hooks/useVideoGenerate";
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 function IcFilm() {
@@ -84,49 +85,108 @@ const LINE_STYLES: CSSProperties[] = [
 ];
 
 // ── Auth Gate Modal ──────────────────────────────────────────────────────────
-function AuthModal({ onClose }: { onClose: () => void }) {
+function AuthModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (token: string) => void }) {
+  const [tab, setTab] = useState<"login" | "register">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function handleSubmit() {
+    if (!email || !password) { setErr("Email and password required"); return; }
+    setLoading(true); setErr(null);
+    try {
+      const endpoint = tab === "login" ? "/api/auth/login" : "/api/auth/register";
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json() as { token?: string; error?: string };
+      if (!res.ok || !data.token) { setErr(data.error ?? "Something went wrong"); return; }
+      storeToken(data.token);
+      onSuccess(data.token);
+      onClose();
+    } catch { setErr("Network error — please try again"); }
+    finally { setLoading(false); }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-7 relative">
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors">
-          <IcX />
-        </button>
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"><IcX /></button>
         <div className="text-center">
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
-            <IcZap />
-          </div>
-          <h2 className="text-lg font-bold text-gray-900 mb-1">Create an account to proceed</h2>
-          <p className="text-sm text-gray-500 mb-6">Start making videos with AI today.</p>
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4"><IcZap /></div>
+          <h2 className="text-lg font-bold text-gray-900 mb-1">{tab === "login" ? "Welcome back" : "Create an account"}</h2>
+          <p className="text-sm text-gray-500 mb-5">Start making videos with AI today.</p>
+        </div>
+        <div className="flex rounded-lg border border-gray-200 p-1 mb-5">
+          {(["login", "register"] as const).map(t => (
+            <button key={t} onClick={() => { setTab(t); setErr(null); }}
+              className="flex-1 py-1.5 text-sm font-semibold rounded-md transition-colors"
+              style={{ background: tab === t ? "#2563eb" : "transparent", color: tab === t ? "#fff" : "#6b7280" }}>
+              {t === "login" ? "Sign in" : "Register"}
+            </button>
+          ))}
         </div>
         <div className="space-y-3">
           <div>
             <label className="text-xs font-semibold text-gray-600 block mb-1.5">Email</label>
-            <input
-              type="email"
-              placeholder="example@gmail.com"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:border-blue-400"
-            />
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSubmit()}
+              placeholder="example@gmail.com" className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:border-blue-400" />
           </div>
-          <button className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors">
-            Sign up
-          </button>
-          <div className="flex items-center gap-3">
-            <div className="h-px bg-gray-100 flex-1" />
-            <span className="text-xs text-gray-400">OR</span>
-            <div className="h-px bg-gray-100 flex-1" />
+          <div>
+            <label className="text-xs font-semibold text-gray-600 block mb-1.5">Password</label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSubmit()}
+              placeholder="••••••••" className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:border-blue-400" />
           </div>
-          <button className="w-full border border-gray-200 text-sm font-semibold py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
-            <svg viewBox="0 0 24 24" className="w-4 h-4" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-            Continue with Google
+          {err && <p className="text-xs text-red-500">{err}</p>}
+          <button onClick={handleSubmit} disabled={loading}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors">
+            {loading ? "Please wait…" : tab === "login" ? "Sign in" : "Create account"}
           </button>
         </div>
-        <p className="text-center text-xs text-gray-400 mt-4">
-          Already have an account?{" "}
-          <Link href="/login" className="text-blue-600 font-semibold hover:underline">Login</Link>
-        </p>
-        <p className="text-center text-xs text-gray-400 mt-2">
-          This is a paid-only feature. Please login and subscribe to continue.
-        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Generating overlay + result panel ────────────────────────────────────────
+function GeneratingOverlay({ status, videoUrl, error, onReset }: { status: GenerateStatus; videoUrl: string | null; error: string | null; onReset: () => void }) {
+  const statusText: Partial<Record<GenerateStatus, string>> = {
+    uploading: "Uploading your video…",
+    creating: "Creating your project…",
+    rendering: "Rendering your video — this may take 2–5 minutes…",
+  };
+  if (status === "completed" && videoUrl) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="w-full max-w-sm flex flex-col items-center gap-5 text-center">
+          <h2 className="text-xl font-bold text-gray-900">Your video is ready!</h2>
+          <video src={videoUrl} controls className="w-full rounded-xl shadow-lg max-h-64 object-contain" />
+          <div className="flex gap-3 w-full">
+            <a href={videoUrl} download className="flex-1 inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors">Download</a>
+            <button onClick={onReset} className="flex-1 inline-flex items-center justify-center border border-gray-200 text-gray-700 text-sm font-semibold py-2.5 rounded-lg hover:bg-gray-50 transition-colors">Create Another</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex flex-col items-center gap-4 text-center">
+        {status === "failed" ? (
+          <>
+            <p className="text-gray-700 font-medium">{error ?? "Something went wrong."}</p>
+            <button onClick={onReset} className="mt-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors">Try Again</button>
+          </>
+        ) : (
+          <>
+            <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+            <p className="text-gray-700 font-medium">{statusText[status] ?? ""}</p>
+            {status === "rendering" && <p className="text-sm text-gray-400">You can leave this page — we&apos;ll keep processing.</p>}
+          </>
+        )}
       </div>
     </div>
   );
@@ -428,10 +488,15 @@ function StreamerVideoFlow() {
 
   const fileNameParam = params.get("file") || null;
   const [fileName, setFileName] = useState<string | null>(fileNameParam);
+  const fileRef = useRef<File | null>(null);
+
   const [titleText, setTitleText] = useState("");
   const [subtitleMode, setSubtitleMode] = useState<"oneword" | "lines">("oneword");
   const [subtitleSel, setSubtitleSel] = useState(0);
   const [showAuthModal, setShowAuthModal] = useState(false);
+
+  const { status: genStatus, videoUrl, error: genError, generateStreamerVideo, reset: resetGenerate } = useVideoGenerate();
+  const isGenerating = genStatus !== "idle";
 
   useEffect(() => {
     setFileName(params.get("file") || null);
@@ -444,23 +509,40 @@ function StreamerVideoFlow() {
   }
 
   function handleFile(f: File) {
+    fileRef.current = f;
     setFileName(f.name);
     goTo(1, f.name);
   }
 
   function handleClearFile() {
+    fileRef.current = null;
     setFileName(null);
     const url = new URL(window.location.href);
     url.searchParams.delete("file");
     router.replace(url.pathname + url.search);
   }
 
+  async function doGenerate(token: string) {
+    if (!fileRef.current) return;
+    await generateStreamerVideo({ file: fileRef.current, titleText, subtitleStyleIndex: subtitleSel, token });
+  }
+
   const canNext = stepIndex === 0 ? !!fileName : true;
-  const canGenerate = !!titleText.trim();
+  const canGenerate = !!titleText.trim() && !isGenerating;
+
+  function handleGenerateClick() {
+    const token = getStoredToken();
+    if (token) { void doGenerate(token); }
+    else { setShowAuthModal(true); }
+  }
+
+  function handleAuthSuccess(token: string) {
+    void doGenerate(token);
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-white">
-      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} onSuccess={handleAuthSuccess} />}
 
       <ToolsSidebar active="create" />
 
@@ -469,31 +551,35 @@ function StreamerVideoFlow() {
           stepIndex={stepIndex}
           onNext={() => goTo(stepIndex + 1)}
           onBack={() => goTo(stepIndex - 1)}
-          onGenerate={() => setShowAuthModal(true)}
+          onGenerate={handleGenerateClick}
           canNext={canNext}
           canGenerate={canGenerate}
         />
 
-        <div className="flex-1">
-          {stepIndex === 0 && (
-            <UploadStep
-              onFile={handleFile}
-              onLinkGate={() => setShowAuthModal(true)}
-              fileName={fileName}
-              onClearFile={handleClearFile}
-            />
-          )}
-          {stepIndex === 1 && (
-            <TitleStep
-              titleText={titleText}
-              onTitleChange={setTitleText}
-              subtitleMode={subtitleMode}
-              onModeChange={setSubtitleMode}
-              subtitleSel={subtitleSel}
-              onSubtitleSel={setSubtitleSel}
-            />
-          )}
-        </div>
+        {isGenerating ? (
+          <GeneratingOverlay status={genStatus} videoUrl={videoUrl} error={genError} onReset={resetGenerate} />
+        ) : (
+          <div className="flex-1">
+            {stepIndex === 0 && (
+              <UploadStep
+                onFile={handleFile}
+                onLinkGate={() => setShowAuthModal(true)}
+                fileName={fileName}
+                onClearFile={handleClearFile}
+              />
+            )}
+            {stepIndex === 1 && (
+              <TitleStep
+                titleText={titleText}
+                onTitleChange={setTitleText}
+                subtitleMode={subtitleMode}
+                onModeChange={setSubtitleMode}
+                subtitleSel={subtitleSel}
+                onSubtitleSel={setSubtitleSel}
+              />
+            )}
+          </div>
+        )}
       </main>
     </div>
   );
