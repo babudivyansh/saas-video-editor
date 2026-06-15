@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, useEffect, type ReactNode } from "react";
+import { useRef, useState, useEffect } from "react";
 
 type Stage = "idle" | "ready" | "converting" | "complete" | "error";
 
@@ -78,11 +78,7 @@ function Spinner() {
   );
 }
 
-interface Props {
-  icon?: ReactNode;
-}
-
-export default function Mp3ConverterTool(_props: Props) {
+export default function Mp3ConverterTool() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [stage, setStage] = useState<Stage>("idle");

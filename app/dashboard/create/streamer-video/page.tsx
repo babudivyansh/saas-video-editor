@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useRef, useState, useEffect, type ReactNode, type CSSProperties } from "react";
+import { Suspense, useRef, useState, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
@@ -486,8 +486,7 @@ function StreamerVideoFlow() {
   const stepParam = params.get("step") || "upload";
   const stepIndex = Math.max(0, STEPS.findIndex(s => s.id === stepParam));
 
-  const fileNameParam = params.get("file") || null;
-  const [fileName, setFileName] = useState<string | null>(fileNameParam);
+  const fileName = params.get("file") || null;
   const fileRef = useRef<File | null>(null);
 
   const [titleText, setTitleText] = useState("");
@@ -498,10 +497,6 @@ function StreamerVideoFlow() {
   const { status: genStatus, videoUrl, error: genError, generateStreamerVideo, reset: resetGenerate } = useVideoGenerate();
   const isGenerating = genStatus !== "idle";
 
-  useEffect(() => {
-    setFileName(params.get("file") || null);
-  }, [params]);
-
   function goTo(i: number, currentFile?: string | null) {
     const f = currentFile !== undefined ? currentFile : fileName;
     const fileQuery = f ? `&file=${encodeURIComponent(f)}` : "";
@@ -510,13 +505,11 @@ function StreamerVideoFlow() {
 
   function handleFile(f: File) {
     fileRef.current = f;
-    setFileName(f.name);
     goTo(1, f.name);
   }
 
   function handleClearFile() {
     fileRef.current = null;
-    setFileName(null);
     const url = new URL(window.location.href);
     url.searchParams.delete("file");
     router.replace(url.pathname + url.search);

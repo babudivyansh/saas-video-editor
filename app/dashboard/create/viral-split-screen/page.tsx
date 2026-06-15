@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useRef, useState, useEffect, type ReactNode, type CSSProperties } from "react";
+import { Suspense, useRef, useState, type ReactNode, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
@@ -9,9 +9,7 @@ import { useVideoGenerate, getStoredToken, storeToken, type GenerateStatus } fro
 function IcFilm() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><rect x="2" y="2" width="20" height="20" rx="2.18"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M17 7h5M2 17h5M17 17h5"/></svg>;
 }
-function IcLink() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>;
-}
+
 function IcCloud() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/></svg>;
 }
@@ -566,8 +564,7 @@ function ViralSplitScreenFlow() {
   const stepParam = params.get("step") || "upload-video";
   const stepIndex = Math.max(0, STEPS.findIndex(s => s.id === stepParam));
 
-  const fileNameParam = params.get("file") || null;
-  const [fileName, setFileName] = useState<string | null>(fileNameParam);
+  const fileName = params.get("file") || null;
   const fileRef = useRef<File | null>(null);
 
   const [bg, setBg] = useState(0);
@@ -578,10 +575,6 @@ function ViralSplitScreenFlow() {
   const { status: genStatus, videoUrl, error: genError, generateSplitScreen, reset: resetGenerate } = useVideoGenerate();
   const isGenerating = genStatus !== "idle";
 
-  useEffect(() => {
-    setFileName(params.get("file") || null);
-  }, [params]);
-
   function goTo(i: number, currentFile?: string | null) {
     const f = currentFile !== undefined ? currentFile : fileName;
     const fileQuery = f ? `&file=${encodeURIComponent(f)}` : "";
@@ -590,13 +583,11 @@ function ViralSplitScreenFlow() {
 
   function handleFile(f: File) {
     fileRef.current = f;
-    setFileName(f.name);
     goTo(1, f.name);
   }
 
   function handleClearFile() {
     fileRef.current = null;
-    setFileName(null);
     const url = new URL(window.location.href);
     url.searchParams.delete("file");
     router.replace(url.pathname + url.search);
