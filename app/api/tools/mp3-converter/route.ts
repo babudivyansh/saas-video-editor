@@ -8,6 +8,15 @@ import { randomUUID } from "crypto";
 
 export const maxDuration = 120;
 
+// MP3 quality presets → constant bitrate. Mirrors the Crayo selector labels.
+const QUALITY_BITRATE: Record<string, string> = {
+  minimum: "64k",
+  low: "128k",
+  medium: "192k",
+  high: "256k",
+  maximum: "320k",
+};
+
 export async function POST(req: NextRequest) {
   let formData: FormData;
   try {
@@ -24,6 +33,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "File too large (max 500 MB)" }, { status: 413 });
   }
 
+  const quality = (formData.get("quality") as string | null) ?? "medium";
+  const bitrate = QUALITY_BITRATE[quality] ?? QUALITY_BITRATE.medium;
+
   const jobId = randomUUID();
   const inputExt = (file.name.split(".").pop() ?? "mp4").toLowerCase();
   const inputPath = path.join(os.tmpdir(), `${jobId}-input.${inputExt}`);
@@ -35,7 +47,7 @@ export async function POST(req: NextRequest) {
     await runFFmpegArgs([
       "-y", "-i", inputPath,
       "-vn",
-      "-acodec", "libmp3lame", "-q:a", "2",
+      "-acodec", "libmp3lame", "-b:a", bitrate,
       outputPath,
     ]);
 
