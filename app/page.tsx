@@ -764,9 +764,9 @@ function Footer() {
     {
       title: "Free Tools",
       links: [
-        { label: "Audio Balancer", highlight: false },
-        { label: "Video Compressor", highlight: false },
-        { label: "MP3 Converter", highlight: false },
+        { label: "Audio Balancer", highlight: false, href: "/dashboard/tools/free/audio-balancer" },
+        { label: "Video Compressor", highlight: false, href: "/dashboard/tools/free/video-compressor" },
+        { label: "MP3 Converter", highlight: false, href: "/dashboard/tools/free/mp3-converter" },
       ],
     },
     {
