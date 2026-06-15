@@ -47,21 +47,50 @@ const STEPS = [
   { id: "select-subtitles", label: "Select Subtitles" },
 ];
 
-// ── Background video data (real gameplay-cdn.com IDs) ────────────────────────
-const CDN = "https://gameplay-cdn.com/gameplay";
+// ── Background video data — all 36 from gameplay-cdn.com ────────────────────
+const CDN     = "https://gameplay-cdn.com/gameplay";
+const JAKEY   = "https://64.media.tumblr.com/8e073c3c73202376a83e782c25fc3012/163239d388b24cef-77/s640x960/a7ce4408f438a78ddc2e8011589a31c54215b2b8.jpg";
+const SIR_SAT = "https://i.pinimg.com/736x/30/88/49/308849bbb361c64eb407cfb3be3aab4b.jpg";
+const STEVE   = "https://minecraftpfp.com/api/pfp/null.png";
+const MARIO   = "https://i.pinimg.com/736x/8a/79/5d/8a795df46777227e009cf7e3738ee07f.jpg";
+
 const BACKGROUNDS = [
-  { title: "Subway Surfers", author: "Jakey",           mins: "2 mins",   size: "327 MB", id: "12dm7zdo-qhr4-9ro5-xb9p-794xmqsudvi", authorImg: "https://64.media.tumblr.com/8e073c3c73202376a83e782c25fc3012/163239d388b24cef-77/s640x960/a7ce4408f438a78ddc2e8011589a31c54215b2b8.jpg" },
-  { title: "Soap Video",     author: "Sir Satisfying",  mins: "1.0 mins", size: "93 MB",  id: "25r3klxv-8xnh-bx9z-0v5e-l02oj4wq85p", authorImg: "https://i.pinimg.com/736x/30/88/49/308849bbb361c64eb407cfb3be3aab4b.jpg" },
-  { title: "Minecraft Video",author: "Steve",           mins: "2 mins",   size: "84 MB",  id: "04k002fo-pf26-j5h1-v6ti-nxykcnf42",   authorImg: "https://minecraftpfp.com/api/pfp/null.png" },
-  { title: "Mario Kart",     author: "Mario",           mins: "2 mins",   size: "309 MB", id: "2fg1tjdy-8ngb-xg29-tz1y-ze3h4vxeih",  authorImg: "https://i.pinimg.com/736x/30/88/49/308849bbb361c64eb407cfb3be3aab4b.jpg" },
-  { title: "Slime Video",    author: "Sir Satisfying",  mins: "0.9 mins", size: "204 MB", id: "0rbt0c54-ace8-8khb-nw6u-o6azecvjlzk",  authorImg: "https://i.pinimg.com/736x/30/88/49/308849bbb361c64eb407cfb3be3aab4b.jpg" },
-  { title: "Subway Surfers", author: "Jakey",           mins: "3 mins",   size: "536 MB", id: "00eieqe3-po4g-rh90-888c-zriwtgl77k",   authorImg: "https://64.media.tumblr.com/8e073c3c73202376a83e782c25fc3012/163239d388b24cef-77/s640x960/a7ce4408f438a78ddc2e8011589a31c54215b2b8.jpg" },
-  { title: "Soap Video",     author: "Sir Satisfying",  mins: "1.0 mins", size: "94 MB",  id: "27yzpm7j-wlau-sx6d-hguk-85621eh5k89",  authorImg: "https://i.pinimg.com/736x/30/88/49/308849bbb361c64eb407cfb3be3aab4b.jpg" },
-  { title: "Minecraft Video",author: "Steve",           mins: "2 mins",   size: "95 MB",  id: "1s739e44-vipb-57t9-5jqa-a14rqcc4upw",  authorImg: "https://minecraftpfp.com/api/pfp/null.png" },
-  { title: "Mario Kart",     author: "Mario",           mins: "2 mins",   size: "311 MB", id: "3ncmzbyx-jfrn-axi2-rq0d-t5kk8sbr9ha",  authorImg: "https://i.pinimg.com/736x/30/88/49/308849bbb361c64eb407cfb3be3aab4b.jpg" },
-  { title: "Slime Video",    author: "Sir Satisfying",  mins: "1.1 mins", size: "188 MB", id: "17bu4z5j-srkt-5b8j-q6ar-jdurow26pzn",  authorImg: "https://i.pinimg.com/736x/30/88/49/308849bbb361c64eb407cfb3be3aab4b.jpg" },
-  { title: "Soap Video",     author: "Sir Satisfying",  mins: "1.2 mins", size: "101 MB", id: "0vw1h3lz-2tt3-n7k7-b98p-9c154ozp06n",  authorImg: "https://i.pinimg.com/736x/30/88/49/308849bbb361c64eb407cfb3be3aab4b.jpg" },
-  { title: "Minecraft Video",author: "Steve",           mins: "2 mins",   size: "88 MB",  id: "2m69x29r-2jf4-me7c-v78s-vdwqcd5k4mn",  authorImg: "https://minecraftpfp.com/api/pfp/null.png" },
+  { title: "Subway Surfers",  author: "Jakey",          authorImg: JAKEY,   mins: "2 mins",   size: "327 MB", id: "12dm7zdo-qhr4-9ro5-xb9p-794xmqsudvi" },
+  { title: "Soap Video",      author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1.0 mins", size: "93 MB",  id: "25r3klxv-8xnh-bx9z-0v5e-l02oj4wq85p" },
+  { title: "Minecraft Video", author: "Steve",          authorImg: STEVE,   mins: "2 mins",   size: "84 MB",  id: "04k002fo-pf26-j5h1-v6ti-nxykcnf42"   },
+  { title: "Mario Kart",      author: "Mario",          authorImg: MARIO,   mins: "2 mins",   size: "309 MB", id: "2fg1tjdy-8ngb-xg29-tz1y-ze3h4vxeih"  },
+  { title: "Slime Video",     author: "Sir Satisfying", authorImg: SIR_SAT, mins: "0.9 mins", size: "204 MB", id: "0rbt0c54-ace8-8khb-nw6u-o6azecvjlzk"  },
+  { title: "Subway Surfers",  author: "Jakey",          authorImg: JAKEY,   mins: "3 mins",   size: "536 MB", id: "00eieqe3-po4g-rh90-888c-zriwtgl77k"   },
+  { title: "Soap Video",      author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1.0 mins", size: "94 MB",  id: "27yzpm7j-wlau-sx6d-hguk-85621eh5k89"  },
+  { title: "Minecraft Video", author: "Steve",          authorImg: STEVE,   mins: "2 mins",   size: "95 MB",  id: "1s739e44-vipb-57t9-5jqa-a14rqcc4upw"  },
+  { title: "Mario Kart",      author: "Mario",          authorImg: MARIO,   mins: "2 mins",   size: "303 MB", id: "3ncmzbyx-jfrn-axi2-rq0d-t5kk8sbr9ha"  },
+  { title: "Slime Video",     author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1 mins",   size: "254 MB", id: "17bu4z5j-srkt-5b8j-q6ar-jdurow26pzn"  },
+  { title: "Subway Surfers",  author: "Jakey",          authorImg: JAKEY,   mins: "1 mins",   size: "132 MB", id: "0vw1h3lz-2tt3-n7k7-b98p-9c154ozp06n"  },
+  { title: "Soap Video",      author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1.0 mins", size: "92 MB",  id: "2m69x29r-2jf4-me7c-v78s-vdwqcd5k4mn"  },
+  { title: "Minecraft Video", author: "Steve",          authorImg: STEVE,   mins: "2 mins",   size: "131 MB", id: "23dfs135-48dv-e8rk-3uqs-i4k3nu5ut6n"  },
+  { title: "Mario Kart",      author: "Mario",          authorImg: MARIO,   mins: "1 mins",   size: "165 MB", id: "10xr2xpw-tode-8jnk-v1ke-zv3svbi4w3"  },
+  { title: "Slime Video",     author: "Sir Satisfying", authorImg: SIR_SAT, mins: "0.7 mins", size: "170 MB", id: "1ty6nlgz-tn87-8p6c-c5z3-0sqlp10wdf5r" },
+  { title: "Subway Surfers",  author: "Jakey",          authorImg: JAKEY,   mins: "3 mins",   size: "378 MB", id: "24fmrp9x-0hak-r5rd-7nft-652n4dvo2y5"  },
+  { title: "Soap Video",      author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1 mins",   size: "97 MB",  id: "2trross0-2cbw-vxl9-vz05-0oc0dez0efx"  },
+  { title: "Minecraft Video", author: "Steve",          authorImg: STEVE,   mins: "1 mins",   size: "38 MB",  id: "0864s7f0-u5v3-vrhb-lyef-n6lrc1oblvk"  },
+  { title: "Mario Kart",      author: "Mario",          authorImg: MARIO,   mins: "3 mins",   size: "458 MB", id: "1idc8qo6-2w9u-5eud-xwm2-nkaqgww6egm"  },
+  { title: "Slime Video",     author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1 mins",   size: "256 MB", id: "1ugj853n-7bon-dbtg-rh3g-2qb7ez2f1cz"  },
+  { title: "Subway Surfers",  author: "Jakey",          authorImg: JAKEY,   mins: "1 mins",   size: "186 MB", id: "3mrc3y7k-gjyh-kadj-vlqn-vrb147gzep"   },
+  { title: "Soap Video",      author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1 mins",   size: "96 MB",  id: "313ylwzs-jxbb-x19i-vwo8-muwlzxih7um"  },
+  { title: "Minecraft Video", author: "Steve",          authorImg: STEVE,   mins: "3 mins",   size: "133 MB", id: "0xacedg7-9dp8-8p3s-53zy-vt35lqhy0ml"  },
+  { title: "Mario Kart",      author: "Mario",          authorImg: MARIO,   mins: "1 mins",   size: "138 MB", id: "2ibe7k60-x2i7-34t5-umje-a3s89d5ic4"   },
+  { title: "Slime Video",     author: "Sir Satisfying", authorImg: SIR_SAT, mins: "0.9 mins", size: "213 MB", id: "4dsd1k4g-jie6-3a4o-c56q-g6ldu00mxmo"  },
+  { title: "Subway Surfers",  author: "Jakey",          authorImg: JAKEY,   mins: "3 mins",   size: "375 MB", id: "4n2riglr-0hgm-erzz-0tlu-6ak40mdm95j"  },
+  { title: "Soap Video",      author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1 mins",   size: "98 MB",  id: "3n4gdxmp-kz62-usur-zbfw-paqdrcbzxv"   },
+  { title: "Minecraft Video", author: "Steve",          authorImg: STEVE,   mins: "1 mins",   size: "51 MB",  id: "23h5er9b-981x-khfz-mjdd-v78quz93ewo"  },
+  { title: "Mario Kart",      author: "Mario",          authorImg: MARIO,   mins: "3 mins",   size: "467 MB", id: "68bki2q6-vgfa-2q5b-fpoe-jiwjnaj2s4"   },
+  { title: "Slime Video",     author: "Sir Satisfying", authorImg: SIR_SAT, mins: "0.9 mins", size: "208 MB", id: "4ly973he-fwmq-i78t-y16c-neo2iosu28"   },
+  { title: "Subway Surfers",  author: "Jakey",          authorImg: JAKEY,   mins: "3 mins",   size: "378 MB", id: "5f23yh4q-mwsv-8uts-bnuc-909o0yyy5na"  },
+  { title: "Minecraft Video", author: "Steve",          authorImg: STEVE,   mins: "1 mins",   size: "37 MB",  id: "5vrdji60-24vi-l7aw-pce4-vl2p8vrpii"   },
+  { title: "Mario Kart",      author: "Mario",          authorImg: MARIO,   mins: "3 mins",   size: "477 MB", id: "6jww7z18-spei-32kn-9u6l-hm8rq6oq66n"  },
+  { title: "Subway Surfers",  author: "Jakey",          authorImg: JAKEY,   mins: "1 mins",   size: "139 MB", id: "5p00qpnk-q5ok-njot-q8t5-hvoz6kyngq9"  },
+  { title: "Minecraft Video", author: "Steve",          authorImg: STEVE,   mins: "1 mins",   size: "44 MB",  id: "6whgrwz6-l9ta-3jgl-oti4-5iia2q3s5us"  },
+  { title: "Mario Kart",      author: "Mario",          authorImg: MARIO,   mins: "1 mins",   size: "137 MB", id: "7ob75v4o-vgia-vnwu-x7l5-bzh0kbxl224"  },
 ];
 
 // ── Subtitle styles ───────────────────────────────────────────────────────────
