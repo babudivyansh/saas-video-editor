@@ -517,15 +517,15 @@ function SubtitleStep({ selected, onSelect }: { selected: number; onSelect: (i: 
             <button
               key={i}
               onClick={() => onSelect(i)}
-              className="relative h-[104px] rounded-xl flex items-center justify-center px-4 transition-all hover:opacity-90"
+              className="group relative h-[104px] rounded-xl flex items-center justify-center px-4 transition-all overflow-hidden"
               style={{ background: "#243044", border: isSel ? "2px solid #2563eb" : "2px solid transparent" }}
             >
               {isSel && (
-                <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow">
+                <span className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow">
                   <IcCheck />
                 </span>
               )}
-              <span className="text-[22px] leading-tight text-center" style={st}>{sample}</span>
+              <span className="text-[22px] leading-tight text-center transition-transform duration-200 group-hover:scale-110" style={st}>{sample}</span>
             </button>
           );
         })}
