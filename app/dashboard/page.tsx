@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { getStoredToken } from "@/app/hooks/useVideoGenerate";
 
 // ── Sidebar Icons ──────────────────────────────────────────────────────────────
 function IcHome() {
@@ -211,6 +212,17 @@ const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const [activeNav, setActiveNav] = useState("home");
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    const token = getStoredToken();
+    if (!token) return;
+    try {
+      // JWT payload is the middle base64 segment
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      if (payload?.email) setUserEmail(payload.email as string);
+    } catch { /* ignore malformed token */ }
+  }, []);
 
   return (
     <div className="flex h-screen overflow-hidden bg-white">
@@ -273,10 +285,25 @@ export default function DashboardPage() {
 
         {/* Top bar */}
         <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3">
-          <Link href="/login" className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm">
-            <IcZap />
-            Login
-          </Link>
+          {userEmail ? (
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold select-none">
+                {userEmail[0].toUpperCase()}
+              </div>
+              <span className="text-sm text-gray-600 font-medium hidden sm:block">{userEmail}</span>
+              <button
+                onClick={() => { localStorage.removeItem("auth_token"); setUserEmail(null); }}
+                className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                Logout
+              </button>
+            </div>
+          ) : (
+            <Link href="/login" className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm">
+              <IcZap />
+              Login
+            </Link>
+          )}
         </div>
 
         <div className="mx-auto w-full max-w-[1440px] px-8 pb-10 space-y-5">
