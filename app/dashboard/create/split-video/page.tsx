@@ -331,53 +331,112 @@ function UploadStep({
   );
 }
 
-// ── Background card with hover GIF ───────────────────────────────────────────
+// ── Background card — exact Crayo reel format ────────────────────────────────
 function BgCard({ b, isSel, onSelect }: { b: typeof BACKGROUNDS[0]; isSel: boolean; onSelect: () => void }) {
-  const [hovered, setHovered] = useState(false);
   const thumbUrl = `${CDN}/${b.id}/thumbnail.webp`;
-  const gifUrl = `${CDN}/${b.id}/preview.gif`;
+  const gifUrl   = `${CDN}/${b.id}/preview.gif`;
+  const premiumUrl = `https://premiumgameplay.com/explore?id=${b.id}`;
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onSelect}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className="text-left rounded-2xl border bg-white overflow-hidden transition-all"
-      style={{ borderColor: isSel ? "#2563eb" : "#e5e7eb", boxShadow: isSel ? "0 0 0 1px #2563eb" : "none" }}
+      onKeyDown={e => e.key === "Enter" && onSelect()}
+      className="relative overflow-hidden rounded-lg border bg-white cursor-pointer"
+      style={{ borderColor: isSel ? "#2563eb" : "#e5e7eb" }}
     >
-      <div className="relative h-[150px] bg-gray-100 overflow-hidden">
+      {/* Selected checkmark badge */}
+      {isSel && (
+        <div className="absolute left-3 top-3 z-30 h-5 w-5 rounded-full border border-blue-600 bg-blue-500 flex items-center justify-center">
+          <IcCheck />
+        </div>
+      )}
+
+      {/* Thumbnail area: 16:9 container, portrait 9:16 reel inside */}
+      <div className="group relative w-full overflow-hidden" style={{ aspectRatio: "16/9", height: "176px" }}>
+        {/* Blurred landscape backdrop */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={hovered ? gifUrl : thumbUrl}
-          alt={b.title}
-          className="w-full h-full object-cover"
+          src={thumbUrl}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          className="absolute inset-0 h-full w-full object-cover blur-lg"
+          style={{ transform: "scale(1.1)" }}
           loading="lazy"
         />
-        {isSel && (
-          <span className="absolute top-2 left-2 w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center shadow">
-            <IcCheck />
-          </span>
-        )}
-      </div>
-      <div className="p-3">
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <p className="font-bold text-gray-900 text-sm truncate">{b.title}</p>
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+
+        {/* Portrait reel frame centered */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="relative h-full" style={{ aspectRatio: "9/16" }}>
+            {/* Static thumbnail */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={b.authorImg} alt={b.author} className="w-5 h-5 rounded-full object-cover" loading="lazy" />
-            <span className="text-xs text-gray-500">{b.author}</span>
+            <img
+              src={thumbUrl}
+              alt={b.title}
+              draggable={false}
+              className="h-full w-full object-cover select-none"
+              loading="lazy"
+            />
+
+            {/* GIF overlay — fades in on hover */}
+            <div
+              className="absolute inset-0 z-20 transition-opacity duration-300"
+              style={{ opacity: 0 }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = "1")}
+              onMouseLeave={e => (e.currentTarget.style.opacity = "0")}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={gifUrl}
+                alt=""
+                aria-hidden="true"
+                draggable={false}
+                className="absolute inset-0 h-full w-full object-cover blur-lg"
+                style={{ transform: "scale(1.1)" }}
+              />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={gifUrl}
+                alt={b.title}
+                draggable={false}
+                className="relative h-full w-full object-cover"
+              />
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 mb-3">
-          <span className="text-[11px] text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">{b.mins}</span>
-          <span className="text-[11px] text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">{b.size}</span>
-          <span className="text-[11px] text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">Free</span>
+      </div>
+
+      {/* Info section */}
+      <div className="space-y-1 p-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium text-gray-900">{b.title}</h3>
+          <div className="flex items-center gap-1.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={b.authorImg} alt={b.author} draggable={false} className="h-5 w-5 rounded-full object-cover select-none" loading="lazy" />
+            <p className="text-xs text-gray-600">{b.author}</p>
+          </div>
         </div>
-        <div className="w-full border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-semibold py-2 rounded-lg text-center transition-colors">
-          View in Premium Gameplay
+        <div className="flex flex-col items-center gap-2">
+          <div className="flex w-full flex-row items-start gap-1">
+            <span className="rounded-md bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700">{b.mins}</span>
+            <span className="rounded-md bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700">{b.size}</span>
+            <span className="rounded-md bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700">Free</span>
+          </div>
+          {/* View in Premium Gameplay — opens premiumgameplay.com with the exact video ID */}
+          <a
+            href={premiumUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            className="w-full rounded-lg border border-gray-200 p-2 text-center text-sm text-gray-600 hover:text-gray-800 transition-colors block"
+          >
+            View in Premium Gameplay
+          </a>
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 
