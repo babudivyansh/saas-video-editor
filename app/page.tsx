@@ -744,8 +744,8 @@ function Footer() {
     {
       title: "Workflows",
       links: [
-        { label: "Classic Split Screen", highlight: false },
-        { label: "Vertical Split Screen", highlight: false },
+        { label: "Classic Split Screen", highlight: false, href: "/dashboard/create/split-video" },
+        { label: "Vertical Split Screen", highlight: false, href: "/dashboard/create/viral-split-screen" },
         { label: "Reddit Story Video", highlight: true },
         { label: "Fake Texts Video", highlight: true },
         { label: "Streamer Video", highlight: false },
