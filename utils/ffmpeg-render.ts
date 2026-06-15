@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { spawn } from "child_process";
 import { WordTiming } from "./elevenlabs";
+import ffmpegBin from "ffmpeg-static";
 
 export interface SubtitleStyle {
   fontName?: string;
@@ -111,7 +112,7 @@ export function runFFmpeg(opts: RenderOptions): Promise<void> {
       ];
     }
 
-    const proc = spawn("ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
+    const proc = spawn(ffmpegBin!, args, { stdio: ["ignore", "pipe", "pipe"] });
 
     let stderrBuf = "";
     proc.stderr.on("data", (chunk: Buffer) => {
@@ -134,7 +135,7 @@ export function runFFmpeg(opts: RenderOptions): Promise<void> {
 
 export function runFFmpegArgs(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    const proc = spawn("ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
+    const proc = spawn(ffmpegBin!, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stderrBuf = "";
     proc.stderr.on("data", (chunk: Buffer) => { stderrBuf += chunk.toString(); });
     proc.on("close", (code) => {
