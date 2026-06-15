@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { getStoredToken } from "@/app/hooks/useVideoGenerate";
+import { useAuth } from "@/app/components/AuthContext";
 
 // ── Icons ──────────────────────────────────────────────────────────────────
 function ZapIcon({ className = "" }: { className?: string }) {
@@ -52,22 +52,7 @@ function InstagramIcon({ className = "" }: { className?: string }) {
 // ── Navbar ─────────────────────────────────────────────────────────────────
 function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-
-  useEffect(() => {
-    const token = getStoredToken();
-    if (!token) return;
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      if (payload?.email) setUserEmail(payload.email as string);
-    } catch { /* ignore */ }
-  }, []);
-
-  function handleLogout() {
-    localStorage.removeItem("auth_token");
-    setUserEmail(null);
-  }
-
+  const { user, openAuthModal, signOut } = useAuth();
   return (
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-gray-100 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -90,35 +75,37 @@ function Navbar() {
 
           {/* CTA */}
           <div className="hidden md:flex items-center gap-3">
-            {userEmail ? (
+            {user ? (
               <>
                 <Link href="/dashboard" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
                   Dashboard
                 </Link>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold select-none">
-                    {userEmail[0].toUpperCase()}
-                  </div>
-                  <button onClick={handleLogout} className="text-sm font-medium text-gray-500 hover:text-gray-800 transition-colors">
-                    Logout
-                  </button>
+                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold select-none">
+                  {user.email[0].toUpperCase()}
                 </div>
+                <button onClick={signOut} className="text-sm font-medium text-gray-500 hover:text-gray-800 transition-colors">
+                  Logout
+                </button>
               </>
             ) : (
               <>
-                <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
+                <button
+                  onClick={() => openAuthModal("login")}
+                  className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors bg-transparent border-none cursor-pointer"
+                >
                   Sign in
-                </Link>
-                <Link
-                  href="/register"
-                  className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm"
+                </button>
+                <button
+                  onClick={() => openAuthModal("register")}
+                  className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm cursor-pointer"
                 >
                   <ZapIcon className="w-3.5 h-3.5" />
                   Try ClipForge Free
-                </Link>
+                </button>
               </>
             )}
           </div>
+
 
           {/* Mobile hamburger */}
           <button
@@ -147,36 +134,37 @@ function Navbar() {
               {item}
             </Link>
           ))}
-          {userEmail ? (
+          {user ? (
             <>
               <Link href="/dashboard" className="block text-sm font-medium text-gray-700 hover:text-blue-600" onClick={() => setMenuOpen(false)}>
                 Dashboard
               </Link>
               <button
-                onClick={() => { handleLogout(); setMenuOpen(false); }}
+                onClick={() => { signOut(); setMenuOpen(false); }}
                 className="w-full text-left text-sm font-medium text-gray-500 hover:text-gray-800"
               >
-                Logout ({userEmail})
+                Logout ({user.email})
               </button>
             </>
           ) : (
-            <Link
-              href="/register"
-              className="flex items-center justify-center gap-1.5 bg-blue-600 text-white text-sm font-semibold px-4 py-2.5 rounded-full"
-              onClick={() => setMenuOpen(false)}
+            <button
+              onClick={() => { setMenuOpen(false); openAuthModal("register"); }}
+              className="w-full flex items-center justify-center gap-1.5 bg-blue-600 text-white text-sm font-semibold px-4 py-2.5 rounded-full cursor-pointer"
             >
               <ZapIcon className="w-3.5 h-3.5" />
               Try ClipForge Free
-            </Link>
+            </button>
           )}
         </div>
       )}
+
     </header>
   );
 }
 
 // ── Hero ───────────────────────────────────────────────────────────────────
 function Hero() {
+  const { user, openAuthModal } = useAuth();
   return (
     <section className="relative overflow-hidden bg-white pt-20 pb-24">
       {/* Background gradient blobs */}
@@ -206,13 +194,23 @@ function Hero() {
 
         {/* CTA */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
-          <Link
-            href="/register"
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg px-8 py-4 rounded-full shadow-lg transition-transform hover:scale-105"
-          >
-            <ZapIcon className="w-5 h-5" />
-            Start Creating Free
-          </Link>
+          {user ? (
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg px-8 py-4 rounded-full shadow-lg transition-transform hover:scale-105 animate-pulse"
+            >
+              <ZapIcon className="w-5 h-5" />
+              Go to Dashboard
+            </Link>
+          ) : (
+            <button
+              onClick={() => openAuthModal("register")}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg px-8 py-4 rounded-full shadow-lg transition-transform hover:scale-105 cursor-pointer"
+            >
+              <ZapIcon className="w-5 h-5" />
+              Start Creating Free
+            </button>
+          )}
           <Link
             href="#features"
             className="flex items-center gap-2 text-gray-700 font-semibold text-base px-6 py-4 rounded-full border border-gray-200 hover:border-blue-300 hover:text-blue-600 transition-colors"
@@ -220,6 +218,7 @@ function Hero() {
             See how it works
           </Link>
         </div>
+
 
         {/* Social proof */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-6 text-sm text-gray-500">
@@ -527,6 +526,7 @@ function Testimonials() {
 
 // ── Pricing ────────────────────────────────────────────────────────────────
 function Pricing() {
+  const { user, openAuthModal } = useAuth();
   const plans = [
     {
       name: "Starter",
@@ -626,16 +626,30 @@ function Pricing() {
                 ))}
               </ul>
 
-              <Link
-                href="/billing"
-                className={`block text-center font-bold py-3 rounded-full transition-all ${
-                  plan.highlighted
-                    ? "bg-white text-blue-600 hover:bg-blue-50"
-                    : "bg-blue-600 text-white hover:bg-blue-700"
-                }`}
-              >
-                {plan.cta}
-              </Link>
+              {user ? (
+                <Link
+                  href="/billing"
+                  className={`block text-center font-bold py-3 rounded-full transition-all ${
+                    plan.highlighted
+                      ? "bg-white text-blue-600 hover:bg-blue-50"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}
+                >
+                  {plan.cta}
+                </Link>
+              ) : (
+                <button
+                  onClick={() => openAuthModal("login")}
+                  className={`w-full block text-center font-bold py-3 rounded-full transition-all cursor-pointer ${
+                    plan.highlighted
+                      ? "bg-white text-blue-600 hover:bg-blue-50"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}
+                >
+                  {plan.cta}
+                </button>
+              )}
+
             </div>
           ))}
         </div>
@@ -719,6 +733,7 @@ function FAQ() {
 
 // ── CTA Banner ─────────────────────────────────────────────────────────────
 function CTABanner() {
+  const { user, openAuthModal } = useAuth();
   return (
     <section className="py-24 bg-white">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -729,13 +744,24 @@ function CTABanner() {
           <p className="text-blue-200 text-lg mb-8 max-w-xl mx-auto">
             Join 3.2 million creators using ClipForge to build faceless channels that print views.
           </p>
-          <Link
-            href="/register"
-            className="inline-flex items-center gap-2 bg-white text-blue-600 font-bold text-lg px-8 py-4 rounded-full hover:bg-blue-50 transition-colors shadow-lg"
-          >
-            <ZapIcon className="w-5 h-5" />
-            Start for Free — 30 Credits Included
-          </Link>
+          {user ? (
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-2 bg-white text-blue-600 font-bold text-lg px-8 py-4 rounded-full hover:bg-blue-50 transition-colors shadow-lg"
+            >
+              <ZapIcon className="w-5 h-5" />
+              Go to Dashboard
+            </Link>
+          ) : (
+            <button
+              onClick={() => openAuthModal("register")}
+              className="inline-flex items-center gap-2 bg-white text-blue-600 font-bold text-lg px-8 py-4 rounded-full hover:bg-blue-50 transition-colors shadow-lg cursor-pointer"
+            >
+              <ZapIcon className="w-5 h-5" />
+              Start for Free — 30 Credits Included
+            </button>
+          )}
+
           <p className="mt-4 text-blue-300 text-sm">No credit card required</p>
         </div>
       </div>
@@ -782,8 +808,8 @@ function Footer() {
       links: [
         { label: "Classic Split Screen", highlight: false, href: "/dashboard/create/split-video" },
         { label: "Vertical Split Screen", highlight: false, href: "/dashboard/create/viral-split-screen" },
-        { label: "Reddit Story Video", highlight: false, href: "/dashboard/create/reddit-video" },
-        { label: "Fake Texts Video", highlight: false, href: "/dashboard/create/text-video" },
+        { label: "Reddit Story Video", highlight: true },
+        { label: "Fake Texts Video", highlight: true },
         { label: "Streamer Video", highlight: false, href: "/dashboard/create/streamer-video" },
       ],
     },

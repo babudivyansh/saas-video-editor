@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import { useAuth } from "./AuthContext";
+
 
 function IcHome() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>;
@@ -34,7 +36,7 @@ export default function ToolsSidebar({ active = "home" }: { active?: string }) {
       className="flex flex-col items-center pt-5 pb-5 flex-shrink-0 border-r border-gray-100"
       style={{ width: 88, background: "#ffffff" }}
     >
-      <Link href="/" className="w-11 h-11 rounded-2xl bg-blue-600 hover:bg-blue-700 flex items-center justify-center flex-shrink-0 transition-colors shadow-sm">
+      <Link href="/dashboard" className="w-11 h-11 rounded-2xl bg-blue-600 hover:bg-blue-700 flex items-center justify-center flex-shrink-0 transition-colors shadow-sm">
         <span className="text-white font-extrabold text-xl leading-none select-none">C</span>
       </Link>
 
@@ -84,12 +86,28 @@ export default function ToolsSidebar({ active = "home" }: { active?: string }) {
 }
 
 export function ToolsTopbar() {
+  const { user, openAuthModal, signOut } = useAuth();
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3">
-      <Link href="/login" className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm">
-        <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-        Login
-      </Link>
+    <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3 gap-4">
+      {user ? (
+        <>
+          <span className="text-sm text-gray-500 font-medium">Logged in as {user.email}</span>
+          <button 
+            onClick={signOut}
+            className="inline-flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm cursor-pointer"
+          >
+            Sign Out
+          </button>
+        </>
+      ) : (
+        <button 
+          onClick={() => openAuthModal("login")}
+          className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm cursor-pointer"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          Login
+        </button>
+      )}
     </div>
   );
 }

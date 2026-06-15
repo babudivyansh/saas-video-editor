@@ -1,7 +1,8 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { getStoredToken } from "@/app/hooks/useVideoGenerate";
+import { useAuth } from "@/app/components/AuthContext";
+
 
 // ── Sidebar Icons ──────────────────────────────────────────────────────────────
 function IcHome() {
@@ -212,17 +213,8 @@ const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const [activeNav, setActiveNav] = useState("home");
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const { user, openAuthModal, signOut } = useAuth();
 
-  useEffect(() => {
-    const token = getStoredToken();
-    if (!token) return;
-    try {
-      // JWT payload is the middle base64 segment
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      if (payload?.email) setUserEmail(payload.email as string);
-    } catch { /* ignore malformed token */ }
-  }, []);
 
   return (
     <div className="flex h-screen overflow-hidden bg-white">
@@ -284,27 +276,31 @@ export default function DashboardPage() {
       <main className="flex-1 overflow-y-auto bg-white">
 
         {/* Top bar */}
-        <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3">
-          {userEmail ? (
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold select-none">
-                {userEmail[0].toUpperCase()}
+        <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3 gap-3">
+          {user ? (
+            <>
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold select-none flex-shrink-0">
+                {user.email[0].toUpperCase()}
               </div>
-              <span className="text-sm text-gray-600 font-medium hidden sm:block">{userEmail}</span>
+              <span className="text-sm text-gray-600 font-medium hidden sm:block">{user.email}</span>
               <button
-                onClick={() => { localStorage.removeItem("auth_token"); setUserEmail(null); }}
+                onClick={signOut}
                 className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
               >
                 Logout
               </button>
-            </div>
+            </>
           ) : (
-            <Link href="/login" className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm">
+            <button
+              onClick={() => openAuthModal("login")}
+              className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm cursor-pointer"
+            >
               <IcZap />
               Login
-            </Link>
+            </button>
           )}
         </div>
+
 
         <div className="mx-auto w-full max-w-[1440px] px-8 pb-10 space-y-5">
 
@@ -510,17 +506,22 @@ export default function DashboardPage() {
               <div className="rounded-2xl border border-gray-200 p-4">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Your Credits</p>
-                  <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">30 left</span>
+                  <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                    {user ? `${user.credits} left` : "—"}
+                  </span>
                 </div>
                 <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-1.5">
-                  <div className="h-full bg-blue-500 rounded-full" style={{ width: "30%" }} />
+                  <div className="h-full bg-blue-500 rounded-full" style={{ width: user ? `${Math.min(user.credits, 100)}%` : "0%" }} />
                 </div>
-                <p className="text-[11px] text-gray-400 mb-3">30 / 100 credits remaining</p>
+                <p className="text-[11px] text-gray-400 mb-3">
+                  {user ? `${user.credits} / 100 credits remaining` : "Sign in to view your credits"}
+                </p>
                 <Link href="/pricing" className="flex items-center justify-center gap-1.5 w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 rounded-lg transition-colors">
                   <IcZap />
                   Upgrade Plan
                 </Link>
               </div>
+
             </div>
           </div>
         </div>
