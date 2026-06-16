@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 
 // ── Icons ──────────────────────────────────────────────────────────────────
@@ -83,69 +83,17 @@ function Navbar() {
 }
 
 // ── Data ───────────────────────────────────────────────────────────────────
-const PLANS = [
-  {
-    id: "starter",
-    name: "Starter",
-    monthlyPrice: 299,
-    annualPrice: 209,
-    credits: 60,
-    description: "Perfect for creators just getting started with AI videos.",
-    cta: "Get Started",
-    highlighted: false,
-    features: [
-      "60 video credits / month",
-      "All AI voices (120+)",
-      "Karaoke captions",
-      "1080p export",
-      "Background music library",
-      "Email support",
-    ],
-  },
-  {
-    id: "creator",
-    name: "Creator",
-    monthlyPrice: 599,
-    annualPrice: 419,
-    credits: 180,
-    description: "For serious creators scaling their faceless channel.",
-    cta: "Get Creator",
-    highlighted: true,
-    features: [
-      "180 video credits / month",
-      "All AI voices (120+)",
-      "Karaoke captions",
-      "4K export",
-      "Background music library",
-      "Priority support",
-      "Custom thumbnail generator",
-      "Advanced subtitle styles",
-    ],
-  },
-  {
-    id: "studio",
-    name: "Studio",
-    monthlyPrice: 999,
-    annualPrice: 699,
-    credits: 600,
-    description: "For agencies and power users running multiple channels.",
-    cta: "Get Studio",
-    highlighted: false,
-    features: [
-      "600 video credits / month",
-      "All AI voices (120+)",
-      "Karaoke captions",
-      "4K export",
-      "Background music library",
-      "Dedicated support",
-      "Custom thumbnail generator",
-      "Advanced subtitle styles",
-      "Team collaboration (5 seats)",
-      "API access",
-      "White label export",
-    ],
-  },
-];
+// Credit packs are one-time purchases loaded from the DB (/api/plans), which is
+// the single source of truth shared with checkout and the admin pricing editor.
+interface DbPlan {
+  id: string;
+  slug: string;
+  name: string;
+  priceInPaise: number;
+  currency: string;
+  credits: number;
+  features: string[];
+}
 
 // Workflow comparison
 const WORKFLOWS = [
@@ -235,8 +183,17 @@ function CompareRow({ feature, starter, creator, studio, shaded }: {
 
 // ── Page ───────────────────────────────────────────────────────────────────
 export default function PricingPage() {
-  const [annual, setAnnual] = useState(true);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [plans, setPlans] = useState<DbPlan[]>([]);
+  const [plansLoading, setPlansLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/plans")
+      .then(res => (res.ok ? res.json() : { plans: [] }))
+      .then((data: { plans: DbPlan[] }) => setPlans(data.plans ?? []))
+      .catch(() => setPlans([]))
+      .finally(() => setPlansLoading(false));
+  }, []);
 
   return (
     <div className="min-h-screen bg-white">
@@ -247,100 +204,84 @@ export default function PricingPage() {
         <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 mb-3">
           Simple, transparent pricing
         </h1>
-        <p className="text-lg text-gray-500 max-w-xl mx-auto mb-8">
-          Start free with 30 credits. Upgrade when you&apos;re ready. No hidden fees, no credit card required.
+        <p className="text-lg text-gray-500 max-w-xl mx-auto mb-2">
+          Start free with 30 credits. Buy a credit pack when you&apos;re ready. No subscription, no hidden fees.
         </p>
-
-        {/* Billing toggle */}
-        <div className="inline-flex items-center gap-3 bg-gray-100 rounded-full p-1">
-          <button
-            onClick={() => setAnnual(false)}
-            className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
-              !annual ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
-            }`}
-          >
-            Monthly
-          </button>
-          <button
-            onClick={() => setAnnual(true)}
-            className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold transition-all ${
-              annual ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
-            }`}
-          >
-            Annual
-            <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">
-              Save 30%
-            </span>
-          </button>
-        </div>
       </section>
 
       {/* ── Pricing Cards ── */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid md:grid-cols-3 gap-6 items-start">
-          {PLANS.map((plan) => {
-            const price = annual ? plan.annualPrice : plan.monthlyPrice;
-            return (
-              <div
-                key={plan.id}
-                className={`relative rounded-2xl p-8 border-2 flex flex-col ${
-                  plan.highlighted
-                    ? "border-blue-600 bg-blue-600 text-white shadow-2xl md:scale-105"
-                    : "border-gray-100 bg-white text-gray-900 shadow-sm"
-                }`}
-              >
-                {plan.highlighted && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                    <span className="bg-green-400 text-green-900 text-xs font-black px-4 py-1 rounded-full uppercase tracking-wide">
-                      Most Popular
-                    </span>
-                  </div>
-                )}
-
-                <div className="mb-6">
-                  <p className={`text-sm font-bold uppercase tracking-widest mb-1 ${plan.highlighted ? "text-blue-200" : "text-gray-400"}`}>
-                    {plan.name}
-                  </p>
-                  <div className="flex items-end gap-1 mb-1">
-                    <span className="text-4xl font-black">₹{price.toLocaleString("en-IN")}</span>
-                    <span className={`text-sm mb-1.5 ${plan.highlighted ? "text-blue-200" : "text-gray-400"}`}>/mo</span>
-                  </div>
-                  {annual && (
-                    <p className={`text-xs ${plan.highlighted ? "text-blue-200" : "text-gray-400"}`}>
-                      Billed ₹{(price * 12).toLocaleString("en-IN")}/year
-                    </p>
-                  )}
-                  <p className={`text-sm mt-2 ${plan.highlighted ? "text-blue-100" : "text-gray-500"}`}>
-                    {plan.description}
-                  </p>
-                </div>
-
-                <ul className="space-y-3 mb-8 flex-1">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2.5 text-sm">
-                      <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${plan.highlighted ? "text-blue-200" : "text-blue-600"}`} />
-                      <span className={plan.highlighted ? "text-blue-100" : "text-gray-700"}>{f}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <Link
-                  href="/register"
-                  className={`block text-center font-bold py-3 rounded-full transition-all ${
-                    plan.highlighted
-                      ? "bg-white text-blue-600 hover:bg-blue-50"
-                      : "bg-blue-600 text-white hover:bg-blue-700"
+        {plansLoading ? (
+          <div className="grid md:grid-cols-3 gap-6 items-start">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="rounded-2xl p-8 border-2 border-gray-100 bg-white animate-pulse h-96" />
+            ))}
+          </div>
+        ) : plans.length === 0 ? (
+          <p className="text-center text-gray-400 text-sm py-12">Pricing is being updated. Please check back shortly.</p>
+        ) : (
+          <div className="grid md:grid-cols-3 gap-6 items-start">
+            {plans.map((plan, idx) => {
+              // Highlight the middle pack as "most popular".
+              const highlighted = plans.length === 3 ? idx === 1 : idx === Math.floor(plans.length / 2);
+              const price = Math.round(plan.priceInPaise / 100);
+              return (
+                <div
+                  key={plan.id}
+                  className={`relative rounded-2xl p-8 border-2 flex flex-col ${
+                    highlighted
+                      ? "border-blue-600 bg-blue-600 text-white shadow-2xl md:scale-105"
+                      : "border-gray-100 bg-white text-gray-900 shadow-sm"
                   }`}
                 >
-                  {plan.cta}
-                </Link>
-              </div>
-            );
-          })}
-        </div>
+                  {highlighted && (
+                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                      <span className="bg-green-400 text-green-900 text-xs font-black px-4 py-1 rounded-full uppercase tracking-wide">
+                        Most Popular
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="mb-6">
+                    <p className={`text-sm font-bold uppercase tracking-widest mb-1 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
+                      {plan.name}
+                    </p>
+                    <div className="flex items-end gap-1 mb-1">
+                      <span className="text-4xl font-black">₹{price.toLocaleString("en-IN")}</span>
+                      <span className={`text-sm mb-1.5 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>one-time</span>
+                    </div>
+                    <p className={`text-sm mt-2 ${highlighted ? "text-blue-100" : "text-gray-500"}`}>
+                      {plan.credits} video credits · ₹{(price / plan.credits).toFixed(1)} per video
+                    </p>
+                  </div>
+
+                  <ul className="space-y-3 mb-8 flex-1">
+                    {plan.features.map((f) => (
+                      <li key={f} className="flex items-start gap-2.5 text-sm">
+                        <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${highlighted ? "text-blue-200" : "text-blue-600"}`} />
+                        <span className={highlighted ? "text-blue-100" : "text-gray-700"}>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <Link
+                    href="/register"
+                    className={`block text-center font-bold py-3 rounded-full transition-all ${
+                      highlighted
+                        ? "bg-white text-blue-600 hover:bg-blue-50"
+                        : "bg-blue-600 text-white hover:bg-blue-700"
+                    }`}
+                  >
+                    Get {plan.name}
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         <p className="text-center mt-6 text-gray-400 text-sm">
-          All plans include 30 free credits to start · Cancel anytime · Powered by Razorpay
+          Every account starts with 30 free credits · One-time purchase · Powered by Razorpay
         </p>
       </section>
 

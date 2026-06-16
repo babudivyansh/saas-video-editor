@@ -7,13 +7,51 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+
 model User {
-  id           String    @id @default(uuid())
-  email        String    @unique
+  id           String     @id @default(uuid())
+  email        String     @unique
   passwordHash String
-  credits      Int       @default(30)
-  createdAt    DateTime  @default(now())
+  credits      Int        @default(30)
+  role         Role       @default(USER)
+  name         String?
+  avatarUrl    String?
+  planId       String?
+  plan         Plan?      @relation(fields: [planId], references: [id])
+  createdAt    DateTime   @default(now())
   projects     Project[]
+  purchases    Purchase[]
+}
+
+model Plan {
+  id           String     @id @default(uuid())
+  slug         String     @unique
+  name         String
+  priceInPaise Int
+  currency     String     @default("INR")
+  credits      Int
+  features     String[]   @default([])
+  active       Boolean    @default(true)
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now())
+  users        User[]
+  purchases    Purchase[]
+}
+
+model Purchase {
+  id            String   @id
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId        String?
+  plan          Plan?    @relation(fields: [planId], references: [id])
+  amountInPaise Int
+  credits       Int
+  status        String   @default("captured")
+  createdAt     DateTime @default(now())
 }
 
 model Project {

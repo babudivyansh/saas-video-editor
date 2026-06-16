@@ -3,11 +3,14 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-const PACKS = [
-  { id: "pack_starter", label: "Starter", credits: 60,  price: "₹799"  },
-  { id: "pack_pro",     label: "Pro",     credits: 180, price: "₹1,599" },
-  { id: "pack_studio",  label: "Studio",  credits: 600, price: "₹3,999" },
-];
+interface DbPlan {
+  id: string;
+  slug: string;
+  name: string;
+  priceInPaise: number;
+  currency: string;
+  credits: number;
+}
 
 function token() {
   return typeof window !== "undefined" ? localStorage.getItem("token") ?? "" : "";
@@ -34,6 +37,7 @@ function BillingContent() {
   const [userEmail, setUserEmail] = useState("");
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [packs, setPacks] = useState<DbPlan[]>([]);
 
   useEffect(() => {
     const t = token();
@@ -43,7 +47,14 @@ function BillingContent() {
       .then(d => {
         if (d.user) { setCredits(d.user.credits); setUserEmail(d.user.email); }
       });
+    // Credit packs come from the DB (single source of truth shared with /pricing + admin).
+    fetch("/api/plans")
+      .then(r => (r.ok ? r.json() : { plans: [] }))
+      .then((d: { plans: DbPlan[] }) => setPacks(d.plans ?? []))
+      .catch(() => setPacks([]));
   }, [router]);
+
+  const formatPrice = (paise: number) => `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
 
   async function handleBuy(packId: string) {
     setError("");
@@ -116,22 +127,26 @@ function BillingContent() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {PACKS.map(pack => (
-            <div key={pack.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col items-center text-center">
-              <h2 className="text-lg font-semibold text-white mb-1">{pack.label}</h2>
-              <p className="text-4xl font-extrabold text-violet-400 my-3">{pack.price}</p>
-              <p className="text-sm text-zinc-400 mb-6">{pack.credits} credits</p>
-              <button
-                onClick={() => handleBuy(pack.id)}
-                disabled={loading === pack.id}
-                className="w-full bg-violet-600 hover:bg-violet-500 text-white font-semibold py-2.5 rounded-xl transition-colors disabled:opacity-50"
-              >
-                {loading === pack.id ? "Opening payment…" : "Buy now"}
-              </button>
-            </div>
-          ))}
-        </div>
+        {packs.length === 0 ? (
+          <p className="text-center text-zinc-500 text-sm py-8">Loading credit packs…</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {packs.map(pack => (
+              <div key={pack.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col items-center text-center">
+                <h2 className="text-lg font-semibold text-white mb-1">{pack.name}</h2>
+                <p className="text-4xl font-extrabold text-violet-400 my-3">{formatPrice(pack.priceInPaise)}</p>
+                <p className="text-sm text-zinc-400 mb-6">{pack.credits} credits</p>
+                <button
+                  onClick={() => handleBuy(pack.slug)}
+                  disabled={loading === pack.slug}
+                  className="w-full bg-violet-600 hover:bg-violet-500 text-white font-semibold py-2.5 rounded-xl transition-colors disabled:opacity-50"
+                >
+                  {loading === pack.slug ? "Opening payment…" : "Buy now"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         <p className="text-center text-xs text-zinc-600 mt-8">
           Payments powered by Razorpay · Secure &amp; encrypted

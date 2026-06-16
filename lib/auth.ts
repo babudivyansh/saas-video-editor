@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { NextRequest } from "next/server";
 import { redis } from "./redis";
+import { prisma } from "./prisma";
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 const SESSION_TTL = 60 * 60 * 24 * 7; // 7 days in seconds
@@ -38,4 +39,20 @@ export async function getAuthUser(req: NextRequest): Promise<TokenPayload | null
   } catch {
     return null;
   }
+}
+
+/**
+ * Resolves the caller and confirms they are an ADMIN.
+ * Role is read from Postgres per-request (not embedded in the JWT) so a
+ * promotion/demotion takes effect immediately without re-issuing tokens.
+ * Returns the token payload for admins, or null otherwise (caller should 403).
+ */
+export async function requireAdmin(req: NextRequest): Promise<TokenPayload | null> {
+  const auth = await getAuthUser(req);
+  if (!auth) return null;
+  const user = await prisma.user.findUnique({
+    where: { id: auth.userId },
+    select: { role: true },
+  });
+  return user?.role === "ADMIN" ? auth : null;
 }

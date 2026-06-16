@@ -3,12 +3,6 @@ import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 
-const CREDITS_PER_PACK: Record<string, number> = {
-  pack_starter: 60,
-  pack_pro: 180,
-  pack_studio: 600,
-};
-
 export async function POST(req: NextRequest) {
   const body = await req.text();
   const sig = req.headers.get("x-razorpay-signature");
@@ -32,6 +26,7 @@ export async function POST(req: NextRequest) {
         entity: {
           id: string;
           order_id: string;
+          amount: number;
           notes: { userId?: string; packId?: string; credits?: string };
         };
       };
@@ -46,19 +41,41 @@ export async function POST(req: NextRequest) {
   if (existing) return NextResponse.json({ received: true });
 
   if (event.event === "payment.captured") {
-    const { notes } = event.payload.payment.entity;
+    const entity = event.payload.payment.entity;
+    const { notes } = entity;
     const userId = notes?.userId;
     const packId = notes?.packId;
 
     if (userId && packId) {
-      const credits = CREDITS_PER_PACK[packId] ?? parseInt(notes?.credits ?? "0", 10);
+      // Resolve credits/amount from the DB plan (single source of truth);
+      // fall back to the order notes if the plan was since removed.
+      const plan = await prisma.plan.findUnique({ where: { slug: packId } });
+      const credits = plan?.credits ?? parseInt(notes?.credits ?? "0", 10);
+      const amountInPaise = plan?.priceInPaise ?? entity.amount ?? 0;
+
       if (credits > 0) {
         const user = await prisma.user.update({
           where: { id: userId },
-          data: { credits: { increment: credits } },
+          data: {
+            credits: { increment: credits },
+            // Record the current tier (last purchased plan).
+            ...(plan ? { planId: plan.id } : {}),
+          },
           select: { credits: true },
         });
         await redis.set(`credits:${userId}`, String(user.credits), "EX", 3600);
+
+        // Record the purchase for billing history (id = paymentId keeps it idempotent).
+        await prisma.purchase.create({
+          data: {
+            id: paymentId,
+            userId,
+            planId: plan?.id ?? null,
+            amountInPaise,
+            credits,
+            status: "captured",
+          },
+        });
       }
     }
   }
