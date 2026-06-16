@@ -21,6 +21,9 @@ function IcTelescope() {
 function IcSearch() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>;
 }
+function IcShield() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>;
+}
 
 const NAV = [
   { id: "home", icon: <IcHome />, label: "Home", href: "/dashboard" },
@@ -31,6 +34,7 @@ const NAV = [
 ];
 
 export default function ToolsSidebar({ active = "home" }: { active?: string }) {
+  const { user } = useAuth();
   return (
     <aside
       className="flex flex-col items-center pt-5 pb-5 flex-shrink-0 border-r border-gray-100"
@@ -76,6 +80,20 @@ export default function ToolsSidebar({ active = "home" }: { active?: string }) {
           );
         })}
       </nav>
+
+      {user?.role === "ADMIN" && (
+        <Link
+          href="/admin"
+          title="Admin"
+          className="group relative w-12 h-12 flex items-center justify-center rounded-2xl mb-2 flex-shrink-0 transition-all duration-100"
+          style={{ background: active === "admin" ? "#eff6ff" : "transparent", color: active === "admin" ? "#2563eb" : "#64748b" }}
+        >
+          <IcShield />
+          <span className="pointer-events-none absolute left-full ml-3 px-2 py-1 text-xs font-semibold text-white bg-gray-800 rounded-md opacity-0 group-hover:opacity-100 whitespace-nowrap z-50 shadow-lg transition-opacity">
+            Admin
+          </span>
+        </Link>
+      )}
 
       <button title="Search (⌘K)" className="flex flex-col items-center gap-1 mt-2 flex-shrink-0 hover:opacity-100 opacity-70 transition-opacity" style={{ color: "#64748b" }}>
         <IcSearch />

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
 import { useAuth } from "@/app/components/AuthContext";
@@ -14,6 +14,9 @@ function IcUser()     { return <svg viewBox="0 0 24 24" fill="none" stroke="curr
 function IcZap()      { return <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>; }
 function IcCheck()    { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M5 13l4 4L19 7"/></svg>; }
 function IcCopy()     { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>; }
+function IcCamera()   { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>; }
+function IcCard()     { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg>; }
+function IcShield()   { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>; }
 function IcSpinner()  { return <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />; }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -26,6 +29,15 @@ interface Project {
   uploadedVideoUrl: string | null;
   backgroundUrl: string;
   createdAt: string;
+}
+
+interface Purchase {
+  id: string;
+  amountInPaise: number;
+  credits: number;
+  status: string;
+  createdAt: string;
+  plan: { name: string; slug: string } | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -45,6 +57,10 @@ const STATUS_STYLES: Record<string, string> = {
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function formatINR(paise: number) {
+  return `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
 }
 
 function ProductBadge({ type }: { type: string }) {
@@ -164,11 +180,22 @@ function VideoCard({ project, token, onDelete }: { project: Project; token: stri
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ProfilePage() {
-  const { user, token, signOut } = useAuth();
-  const [tab, setTab]             = useState<"videos" | "settings">("videos");
+  const { user, token, signOut, refreshUser } = useAuth();
+  const [tab, setTab]             = useState<"videos" | "billing" | "settings">("videos");
   const [projects, setProjects]   = useState<Project[]>([]);
   const [loading, setLoading]     = useState(true);
   const [filter, setFilter]       = useState("all");
+
+  // Purchase history
+  const [purchases, setPurchases]       = useState<Purchase[]>([]);
+  const [purchasesLoaded, setPurchasesLoaded] = useState(false);
+
+  // Profile edit state
+  const [displayName, setDisplayName] = useState("");
+  const [savingName, setSavingName]   = useState(false);
+  const [nameMsg, setNameMsg]         = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Password change state
   const [currentPw, setCurrentPw] = useState("");
@@ -192,6 +219,78 @@ export default function ProfilePage() {
   }, [token]);
 
   useEffect(() => { fetchProjects(); }, [fetchProjects]);
+
+  // Seed the name field once the user loads
+  useEffect(() => { setDisplayName(user?.name ?? ""); }, [user?.name]);
+
+  // Lazy-load purchases when the billing tab is first opened
+  useEffect(() => {
+    if (tab !== "billing" || purchasesLoaded || !token) return;
+    fetch("/api/auth/purchases", { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => (res.ok ? res.json() : { purchases: [] }))
+      .then((data: { purchases: Purchase[] }) => setPurchases(data.purchases ?? []))
+      .catch(() => setPurchases([]))
+      .finally(() => setPurchasesLoaded(true));
+  }, [tab, purchasesLoaded, token]);
+
+  async function handleSaveName(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingName(true);
+    setNameMsg(null);
+    try {
+      const res = await fetch("/api/auth/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: displayName }),
+      });
+      const data = await res.json() as { error?: string };
+      if (res.ok) {
+        setNameMsg({ type: "success", text: "Profile updated." });
+        await refreshUser();
+      } else {
+        setNameMsg({ type: "error", text: data.error ?? "Failed to update profile." });
+      }
+    } finally {
+      setSavingName(false);
+    }
+  }
+
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setNameMsg({ type: "error", text: "Please choose an image file." });
+      return;
+    }
+    setUploadingAvatar(true);
+    setNameMsg(null);
+    try {
+      // Reuse the existing S3-backed upload route, then persist the URL.
+      const form = new FormData();
+      form.append("file", file);
+      const up = await fetch("/api/upload", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      const upData = await up.json() as { url?: string; error?: string };
+      if (!up.ok || !upData.url) throw new Error(upData.error ?? "Upload failed");
+
+      const res = await fetch("/api/auth/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ avatarUrl: upData.url }),
+      });
+      if (!res.ok) throw new Error("Failed to save avatar");
+      setNameMsg({ type: "success", text: "Avatar updated." });
+      await refreshUser();
+    } catch (err) {
+      setNameMsg({ type: "error", text: err instanceof Error ? err.message : "Avatar upload failed." });
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
 
   async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault();
@@ -225,6 +324,14 @@ export default function ProfilePage() {
   const rendering = projects.filter(p => p.status === "rendering").length;
 
   const memberSince = user?.createdAt ? formatDate(user.createdAt) : "—";
+  const planName    = user?.plan?.name ?? "Free Plan";
+  const isAdmin     = user?.role === "ADMIN";
+
+  // Usage history derived from projects (each generated video = 1 credit)
+  const usage = projects
+    .filter(p => p.status === "completed")
+    .slice()
+    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
 
   const FILTERS = [
     { id: "all",            label: "All" },
@@ -247,10 +354,18 @@ export default function ProfilePage() {
             </Link>
             <h1 className="text-xl font-bold text-gray-900">Profile</h1>
           </div>
-          <button onClick={signOut}
-            className="text-sm font-semibold text-gray-500 hover:text-red-500 transition-colors border border-gray-200 hover:border-red-200 px-4 py-1.5 rounded-lg">
-            Sign Out
-          </button>
+          <div className="flex items-center gap-3">
+            {isAdmin && (
+              <Link href="/admin"
+                className="flex items-center gap-1.5 text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 px-4 py-1.5 rounded-lg transition-colors">
+                <IcShield /> Admin
+              </Link>
+            )}
+            <button onClick={signOut}
+              className="text-sm font-semibold text-gray-500 hover:text-red-500 transition-colors border border-gray-200 hover:border-red-200 px-4 py-1.5 rounded-lg">
+              Sign Out
+            </button>
+          </div>
         </div>
 
         <div className="max-w-6xl mx-auto px-8 py-8 space-y-8">
@@ -259,17 +374,34 @@ export default function ProfilePage() {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
               {/* Avatar */}
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-3xl font-extrabold select-none flex-shrink-0 shadow-md">
-                {user?.email?.[0]?.toUpperCase() ?? "?"}
+              <div className="relative flex-shrink-0">
+                {user?.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={user.avatarUrl} alt="avatar" className="w-20 h-20 rounded-2xl object-cover shadow-md" />
+                ) : (
+                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-3xl font-extrabold select-none shadow-md">
+                    {(user?.name?.[0] ?? user?.email?.[0] ?? "?").toUpperCase()}
+                  </div>
+                )}
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingAvatar}
+                  title="Change avatar"
+                  className="absolute -bottom-1.5 -right-1.5 w-8 h-8 rounded-full bg-white border border-gray-200 shadow flex items-center justify-center text-gray-600 hover:text-blue-600 hover:border-blue-200 transition-colors"
+                >
+                  {uploadingAvatar ? <IcSpinner /> : <IcCamera />}
+                </button>
+                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
               </div>
 
               {/* Info */}
               <div className="flex-1 min-w-0">
-                <p className="text-xl font-bold text-gray-900 truncate">{user?.email ?? "—"}</p>
+                <p className="text-xl font-bold text-gray-900 truncate">{user?.name || user?.email || "—"}</p>
+                {user?.name && <p className="text-sm text-gray-500 truncate">{user?.email}</p>}
                 <p className="text-sm text-gray-400 mt-0.5">Member since {memberSince}</p>
                 <div className="flex flex-wrap items-center gap-2 mt-3">
                   <span className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-50 text-blue-700 px-3 py-1 rounded-full">
-                    <IcZap /> Free Plan
+                    <IcZap /> {planName}
                   </span>
                   <span className="text-xs text-gray-400">•</span>
                   <span className="text-xs text-gray-500 font-medium">{user?.credits ?? 0} credits remaining</span>
@@ -299,11 +431,14 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* ── Credits bar ── */}
+          {/* ── Current plan + credits ── */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-bold text-gray-900">Credits</h2>
-              <span className="text-xs text-gray-500">{user?.credits ?? 0} / 100 remaining</span>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-gray-900">Current Plan</h2>
+                <span className="text-xs font-semibold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{planName}</span>
+              </div>
+              <span className="text-xs text-gray-500">{user?.credits ?? 0} credits remaining</span>
             </div>
             <div className="w-full bg-gray-100 rounded-full h-2.5">
               <div
@@ -311,12 +446,14 @@ export default function ProfilePage() {
                 style={{ width: `${Math.min((user?.credits ?? 0), 100)}%` }}
               />
             </div>
-            <p className="text-xs text-gray-400 mt-2">Each video generation costs 1 credit. <Link href="/pricing" className="text-blue-600 hover:underline">Get more credits →</Link></p>
+            <p className="text-xs text-gray-400 mt-2">
+              Each video generation costs 1 credit. Credit packs are one-time purchases. <Link href="/pricing" className="text-blue-600 hover:underline">Get more credits →</Link>
+            </p>
           </div>
 
           {/* ── Tabs ── */}
           <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-            {([["videos", "My Videos"], ["settings", "Account Settings"]] as const).map(([id, label]) => (
+            {([["videos", "My Videos"], ["billing", "Billing & Usage"], ["settings", "Account Settings"]] as const).map(([id, label]) => (
               <button key={id} onClick={() => setTab(id)}
                 className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${tab === id ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
                 {label}
@@ -366,17 +503,98 @@ export default function ProfilePage() {
             </div>
           )}
 
+          {/* ── Billing & Usage tab ── */}
+          {tab === "billing" && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Purchase history */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                <div className="flex items-center gap-2 mb-5">
+                  <IcCard />
+                  <h2 className="text-base font-bold text-gray-900">Purchase History</h2>
+                </div>
+                {!purchasesLoaded ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-400 py-6"><IcSpinner /> Loading…</div>
+                ) : purchases.length === 0 ? (
+                  <div className="text-center py-10">
+                    <p className="text-sm text-gray-500 font-medium">No purchases yet</p>
+                    <p className="text-xs text-gray-400 mt-1">Your credit pack purchases will appear here.</p>
+                    <Link href="/pricing" className="inline-flex items-center gap-1.5 mt-4 text-sm font-semibold text-blue-600 hover:underline">
+                      <IcZap /> Buy credits
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {purchases.map(p => (
+                      <div key={p.id} className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-xl">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800">{p.plan?.name ?? "Credit Pack"}</p>
+                          <p className="text-xs text-gray-400">{formatDate(p.createdAt)} · +{p.credits} credits</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-gray-900">{formatINR(p.amountInPaise)}</p>
+                          <span className="text-[10px] font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full capitalize">{p.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Usage history */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                <div className="flex items-center gap-2 mb-5">
+                  <IcVideo />
+                  <h2 className="text-base font-bold text-gray-900">Credit Usage</h2>
+                </div>
+                {loading ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-400 py-6"><IcSpinner /> Loading…</div>
+                ) : usage.length === 0 ? (
+                  <div className="text-center py-10">
+                    <p className="text-sm text-gray-500 font-medium">No usage yet</p>
+                    <p className="text-xs text-gray-400 mt-1">Each generated video uses 1 credit.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-80 overflow-y-auto">
+                    {usage.map(p => (
+                      <div key={p.id} className="flex items-center justify-between py-2.5 px-4 bg-gray-50 rounded-xl">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-800 truncate">{p.title}</p>
+                          <p className="text-xs text-gray-400">{formatDate(p.createdAt)}</p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <ProductBadge type={p.productType} />
+                          <span className="text-xs font-bold text-red-500">−1</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* ── Settings tab ── */}
           {tab === "settings" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-              {/* Account info card */}
+              {/* Edit profile card */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
                 <div className="flex items-center gap-2 mb-1">
                   <IcUser />
-                  <h2 className="text-base font-bold text-gray-900">Account Information</h2>
+                  <h2 className="text-base font-bold text-gray-900">Edit Profile</h2>
                 </div>
-                <div className="space-y-4">
+                <form onSubmit={handleSaveName} className="space-y-4">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">Display Name</label>
+                    <input
+                      type="text"
+                      value={displayName}
+                      onChange={e => setDisplayName(e.target.value)}
+                      placeholder="Your name"
+                      maxLength={60}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    />
+                  </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">Email Address</label>
                     <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
@@ -384,17 +602,23 @@ export default function ProfilePage() {
                       <span className="text-[10px] font-semibold text-gray-400 bg-gray-200 px-2 py-0.5 rounded-full">Read only</span>
                     </div>
                   </div>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">User ID</label>
-                    <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
-                      <span className="text-xs text-gray-400 font-mono">{user?.id ?? "—"}</span>
+
+                  {nameMsg && (
+                    <div className={`text-sm font-medium px-4 py-3 rounded-xl ${nameMsg.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
+                      {nameMsg.text}
                     </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">Member Since</label>
-                    <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
-                      <span className="text-sm text-gray-700">{memberSince}</span>
-                    </div>
+                  )}
+
+                  <button type="submit" disabled={savingName}
+                    className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold py-3 rounded-xl transition-colors">
+                    {savingName ? <><IcSpinner /> Saving…</> : "Save Changes"}
+                  </button>
+                </form>
+
+                <div className="pt-4 border-t border-gray-100">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">User ID</label>
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+                    <span className="text-xs text-gray-400 font-mono">{user?.id ?? "—"}</span>
                   </div>
                 </div>
               </div>

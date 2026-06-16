@@ -3,11 +3,23 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 
+interface UserPlan {
+  id: string;
+  slug: string;
+  name: string;
+  credits: number;
+  priceInPaise: number;
+}
+
 interface User {
   id: string;
   email: string;
   credits: number;
   createdAt: string;
+  role: "USER" | "ADMIN";
+  name: string | null;
+  avatarUrl: string | null;
+  plan: UserPlan | null;
 }
 
 interface AuthModalState {
