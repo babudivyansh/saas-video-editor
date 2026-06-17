@@ -1,5 +1,5 @@
 .PHONY: dev build start lint install \
-        db-up db-down db-migrate db-seed db-reset db-studio \
+        db-migrate db-seed db-reset db-studio \
         test-ffmpeg generate setup
 
 # ── Dev ────────────────────────────────────────────────────────────────────────
@@ -18,13 +18,11 @@ lint:
 install:
 	npm install
 
-# ── Docker / Database ──────────────────────────────────────────────────────────
-db-up:
-	docker-compose up -d
-
-db-down:
-	docker-compose down
-
+# ── Database ─────────────────────────────────────────────────────────────────
+# Postgres + Redis must be running locally (or any reachable instance pointed to
+# by DATABASE_URL / REDIS_URL in .env). Redis is optional in dev — lib/redis.ts
+# falls back to an in-memory store when it's unreachable. docker-compose.yml is
+# kept in the repo for production/optional use, but is not required for dev.
 db-migrate:
 	npx prisma migrate dev
 
@@ -45,6 +43,7 @@ test-ffmpeg:
 	npx tsx utils/test-ffmpeg.ts
 
 # ── First-time setup ───────────────────────────────────────────────────────────
-setup: install db-up generate db-migrate db-seed
+# Assumes Postgres (and optionally Redis) are already running and reachable via .env.
+setup: install generate db-migrate db-seed
 	@echo ""
 	@echo "Setup complete. Run 'make dev' to start the server."

@@ -11,9 +11,12 @@ export async function GET(req: NextRequest) {
     select: {
       id: true,
       email: true,
+      phone: true,
       credits: true,
       createdAt: true,
       role: true,
+      firstName: true,
+      lastName: true,
       name: true,
       avatarUrl: true,
       plan: { select: { id: true, slug: true, name: true, credits: true, priceInPaise: true } },
