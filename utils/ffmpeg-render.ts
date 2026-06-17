@@ -226,7 +226,10 @@ export function runSplitScreenFFmpeg(opts: SplitScreenOptions): Promise<void> {
     "-filter_complex",
     `[0:v]scale=1080:960:force_original_aspect_ratio=increase,crop=1080:960[top];` +
     `[1:v]scale=1080:960:force_original_aspect_ratio=increase,crop=1080:960[bot];` +
-    `[top][bot]vstack=inputs=2[stacked];` +
+    // shortest=1 makes vstack end with the (finite) user video; without it the
+    // infinitely -stream_loop'd background drives the output forever, duplicating
+    // the user's last frame and producing a runaway file that never completes.
+    `[top][bot]vstack=inputs=2:shortest=1[stacked];` +
     `[stacked]subtitles='${assEscaped}'[video];` +
     `[0:a]aformat=sample_rates=44100:channel_layouts=stereo[audio]`,
     "-map", "[video]",

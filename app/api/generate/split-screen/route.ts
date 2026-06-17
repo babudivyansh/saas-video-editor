@@ -10,11 +10,10 @@ import {
 } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { WordTiming } from "@/utils/elevenlabs";
+import { downloadFile } from "@/utils/download";
 import os from "os";
 import path from "path";
 import fs from "fs";
-import https from "https";
-import http from "http";
 import { InProcessQueue } from "@/lib/job-queue";
 
 export const maxDuration = 300;
@@ -31,17 +30,9 @@ interface SplitScreenPayload {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function downloadFile(url: string, dest: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(dest);
-    const get = url.startsWith("https") ? https.get : http.get;
-    get(url, (res) => {
-      res.pipe(file);
-      file.on("finish", () => file.close(() => resolve()));
-    }).on("error", reject);
-  });
-}
+// downloadFile is imported from utils/download: it follows redirects and rejects
+// on non-200 responses, so an unreachable/404 background URL fails fast with a
+// clear error instead of silently writing an HTML error page as the "video".
 
 async function transcribeWithWhisper(audioPath: string): Promise<WordTiming[]> {
   const apiKey = process.env.OPENAI_API_KEY;
