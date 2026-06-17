@@ -15,7 +15,11 @@ export async function POST(req: NextRequest) {
     .update(body)
     .digest("hex");
 
-  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+  const sigBuf = Buffer.from(sig);
+  const expectedBuf = Buffer.from(expected);
+  // timingSafeEqual throws if the buffers differ in length, so reject a
+  // wrong-length signature up front (still a 400, never a 500).
+  if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
