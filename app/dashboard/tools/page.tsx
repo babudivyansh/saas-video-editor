@@ -224,14 +224,14 @@ const TOP_CARDS = [
 ];
 
 const TOOLS = [
-  { title: "AI Image Generator", desc: "Generate high quality images with AI in seconds.", preview: <ImageGenPreview />, badge: null },
-  { title: "AI Voiceover Generator", desc: "Make high quality voiceovers in seconds with 50+ narrators.", preview: <VoiceoverPreview />, badge: null },
-  { title: "AI Speech Enhancer", desc: "Enhance the quality of any audio or video file with AI.", preview: <SpeechEnhancerPreview />, badge: "New" },
-  { title: "AI Video Generator", desc: "VEO3 is a tool that allows you to create videos with AI.", preview: <VideoGenPreview />, badge: null },
-  { title: "AI Vocal Remover", desc: "Remove vocals from any audio or video file with AI.", preview: <VocalRemoverPreview />, badge: null },
-  { title: "AI Brainstormer", desc: "Generate viral content ideas based on your niche.", preview: <BrainstormerPreview />, badge: null },
-  { title: "Reddit Video Generator", desc: "Convert Reddit posts into viral videos with AI.", preview: <RedditPreview />, badge: null },
-  { title: "Fake Texts Video Generator", desc: "Create engaging fake texts videos with AI to go viral.", preview: <FakeTextsPreview />, badge: null },
+  { title: "AI Image Generator", desc: "Generate high quality images with AI in seconds.", preview: <ImageGenPreview />, badge: null, href: "/dashboard/tools/image-generator" },
+  { title: "AI Voiceover Generator", desc: "Make high quality voiceovers in seconds with 50+ narrators.", preview: <VoiceoverPreview />, badge: null, href: "/dashboard/tools/voiceover" },
+  { title: "AI Speech Enhancer", desc: "Enhance the quality of any audio or video file with AI.", preview: <SpeechEnhancerPreview />, badge: "New", href: "/dashboard/tools" },
+  { title: "AI Video Generator", desc: "VEO3 is a tool that allows you to create videos with AI.", preview: <VideoGenPreview />, badge: null, href: "/dashboard/tools" },
+  { title: "AI Vocal Remover", desc: "Remove vocals from any audio or video file with AI.", preview: <VocalRemoverPreview />, badge: null, href: "/dashboard/tools" },
+  { title: "AI Brainstormer", desc: "Generate viral content ideas based on your niche.", preview: <BrainstormerPreview />, badge: null, href: "/dashboard/tools" },
+  { title: "Reddit Video Generator", desc: "Convert Reddit posts into viral videos with AI.", preview: <RedditPreview />, badge: null, href: "/dashboard/create/reddit-video" },
+  { title: "Fake Texts Video Generator", desc: "Create engaging fake texts videos with AI to go viral.", preview: <FakeTextsPreview />, badge: null, href: "/dashboard/create/text-video" },
 ];
 
 // ── Page ───────────────────────────────────────────────────────────────────────
@@ -333,9 +333,12 @@ export default function ToolsPage() {
                     )}
                   </div>
                   <p className="text-[13px] text-gray-500 leading-relaxed mb-4 flex-1">{tool.desc}</p>
-                  <button className="w-full border border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-800 text-sm font-semibold py-2.5 rounded-xl transition-colors">
+                  <Link
+                    href={tool.href}
+                    className="w-full border border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-800 text-sm font-semibold py-2.5 rounded-xl transition-colors text-center block"
+                  >
                     Get Started
-                  </button>
+                  </Link>
                 </div>
               </div>
             ))}

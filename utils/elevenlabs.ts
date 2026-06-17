@@ -9,11 +9,23 @@ export interface VoiceResult {
   wordTimings: WordTiming[];
 }
 
+export interface VoiceSettings {
+  stability?: number;       // 0..1
+  similarityBoost?: number; // 0..1
+  style?: number;           // 0..1 — exaggeration / expressiveness
+}
+
 export async function synthesizeVoice(
   text: string,
-  voiceId: string
+  voiceId: string,
+  settings?: VoiceSettings
 ): Promise<VoiceResult> {
   const apiKey = process.env.ELEVENLABS_API_KEY!;
+
+  const clamp = (n: number) => Math.min(1, Math.max(0, n));
+  const stability = settings?.stability != null ? clamp(settings.stability) : 0.5;
+  const similarity_boost = settings?.similarityBoost != null ? clamp(settings.similarityBoost) : 0.75;
+  const style = settings?.style != null ? clamp(settings.style) : 0.5;
 
   // Request with word-level timestamps
   const res = await fetch(
@@ -27,7 +39,7 @@ export async function synthesizeVoice(
       body: JSON.stringify({
         text,
         model_id: "eleven_multilingual_v2",
-        voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+        voice_settings: { stability, similarity_boost, style, use_speaker_boost: true },
         output_format: "mp3_44100_128",
       }),
     }

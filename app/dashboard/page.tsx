@@ -200,12 +200,12 @@ const TOOLS_SMALL = [
 ];
 
 const MINI_TOOLS = [
-  { icon: <IcImage />, label: "Image Generator" },
-  { icon: <IcUser />, label: "AI Face Swap" },
-  { icon: <IcMic />, label: "Voiceover Generator" },
-  { icon: <IcEraser />, label: "Background Remover" },
-  { icon: <IcVideo />, label: "VEO3 Generator" },
-  { icon: <IcYoutube />, label: "YouTube Downloader" },
+  { icon: <IcImage />, label: "Image Generator",    href: "/dashboard/tools/image-generator" },
+  { icon: <IcUser />,  label: "AI Face Swap",       href: "/dashboard/tools" },
+  { icon: <IcMic />,   label: "Voiceover Generator",href: "/dashboard/tools/voiceover" },
+  { icon: <IcEraser />,label: "Background Remover", href: "/dashboard/tools" },
+  { icon: <IcVideo />, label: "VEO3 Generator",     href: "/dashboard/tools" },
+  { icon: <IcYoutube />,label: "YouTube Downloader",href: "/dashboard/tools" },
 ];
 
 const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -443,15 +443,16 @@ export default function DashboardPage() {
                 </div>
                 <div className="grid grid-cols-6 gap-2.5">
                   {MINI_TOOLS.map((tool, i) => (
-                    <button
+                    <Link
                       key={i}
+                      href={tool.href}
                       className="flex flex-col items-center gap-2 px-2 py-3.5 rounded-2xl border border-gray-200 hover:border-blue-200 hover:bg-blue-50/30 transition-all group"
                     >
                       <div className="w-10 h-10 rounded-xl bg-indigo-50 group-hover:bg-indigo-100 flex items-center justify-center transition-colors text-indigo-500">
                         {tool.icon}
                       </div>
                       <span className="text-[11px] font-medium text-gray-700 text-center leading-tight">{tool.label}</span>
-                    </button>
+                    </Link>
                   ))}
                 </div>
               </div>
