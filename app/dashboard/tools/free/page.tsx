@@ -10,8 +10,12 @@ function IcVideoFile() {
 function IcFileAudio() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M8 16a1.5 1.5 0 103 0v-3.5l3-1V15a1.5 1.5 0 103 0"/></svg>;
 }
+function IcMic() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8"/></svg>;
+}
 
 const FREE_TOOLS = [
+  { icon: <IcMic />, title: "Voiceover Generator", desc: "Turn any script into a natural AI voiceover", href: "/dashboard/tools/voiceover" },
   { icon: <IcEqualizer />, title: "Audio Balancer", desc: "Balance between the left and right channels", href: "/dashboard/tools/free/audio-balancer" },
   { icon: <IcVideoFile />, title: "Video Compressor", desc: "Compress video files to reduce file size", href: "/dashboard/tools/free/video-compressor" },
   { icon: <IcFileAudio />, title: "MP3 Converter", desc: "Convert any media file to MP3", href: "/dashboard/tools/free/mp3-converter" },
