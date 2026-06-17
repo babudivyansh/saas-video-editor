@@ -28,7 +28,7 @@ function IcArrow() {
 
 // ── Quick strip (image 1) ───────────────────────────────────────────────────
 const QUICK_TOOLS = [
-  { icon: <IcImage />, label: "Image Generator", href: "/dashboard/tools" },
+  { icon: <IcImage />, label: "Image Generator", href: "/dashboard/tools/image-generator" },
   { icon: <IcFace />, label: "AI Face Swap", href: "/dashboard/tools" },
   { icon: <IcMic />, label: "Voiceover Generator", href: "/dashboard/tools/voiceover" },
   { icon: <IcEraser />, label: "Background Remover", href: "/dashboard/tools" },
@@ -68,7 +68,7 @@ export function ClipForgeToolsStrip({ activeLabel }: { activeLabel?: string }) {
 
 // ── All tools section (image 3) ─────────────────────────────────────────────
 const ALL_TOOLS = [
-  { icon: <IcImage />, badge: "Popular", title: "AI Image Generator", desc: "Generate high quality images with AI in seconds.", href: "/dashboard/tools" },
+  { icon: <IcImage />, badge: "Popular", title: "AI Image Generator", desc: "Generate high quality images with AI in seconds.", href: "/dashboard/tools/image-generator" },
   { icon: <IcMic />, title: "AI Voiceover Generator", desc: "Make high quality voiceovers in seconds with 50+ narrators.", href: "/dashboard/tools/voiceover" },
   { icon: <IcSpark />, badge: "New", title: "AI Speech Enhancer", desc: "Enhance the quality of any audio or video file with AI.", href: "/dashboard/tools" },
   { icon: <IcVideo />, title: "AI Video Generator", desc: "VEO3 is a tool that lets you create videos with AI.", href: "/dashboard/tools" },

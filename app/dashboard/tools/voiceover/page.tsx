@@ -1,7 +1,5 @@
 import ToolsSidebar, { ToolsTopbar } from "@/app/components/ToolsSidebar";
 import VoiceoverTool from "@/app/components/VoiceoverTool";
-import { ClipForgeToolsStrip, AllToolsSection } from "@/app/components/ToolsShowcase";
-import SiteFooter from "@/app/components/SiteFooter";
 
 export default function VoiceoverPage() {
   return (
@@ -15,15 +13,6 @@ export default function VoiceoverPage() {
         </div>
 
         <VoiceoverTool />
-
-        {/* Quick tools strip (image 1) */}
-        <ClipForgeToolsStrip activeLabel="Voiceover Generator" />
-
-        {/* All tools section (image 3) */}
-        <AllToolsSection />
-
-        {/* Site footer (image 2) */}
-        <SiteFooter />
       </main>
     </div>
   );

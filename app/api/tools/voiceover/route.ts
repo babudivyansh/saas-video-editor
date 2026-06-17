@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
     title?: string;
     stability?: number;
     similarityBoost?: number;
+    exaggeration?: number;
   };
   try {
     body = await req.json();
@@ -49,6 +50,7 @@ export async function POST(req: NextRequest) {
     const { audioBuffer, wordTimings } = await synthesizeVoice(text, voiceId, {
       stability: body.stability,
       similarityBoost: body.similarityBoost,
+      style: body.exaggeration,
     });
 
     const durationMs = wordTimings.length ? wordTimings[wordTimings.length - 1].end : 0;

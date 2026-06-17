@@ -28,7 +28,7 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
     title: "AI Tools",
     links: [
       { label: "Voiceover Generator", href: "/dashboard/tools/voiceover" },
-      { label: "Image Generator", href: "/dashboard/tools" },
+      { label: "Image Generator", href: "/dashboard/tools/image-generator" },
       { label: "Video Generator (VEO3)", href: "/dashboard/tools" },
       { label: "Vocal Remover", href: "/dashboard/tools" },
       { label: "Video & Image Background Remover", href: "/dashboard/tools" },
