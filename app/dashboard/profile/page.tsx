@@ -192,6 +192,7 @@ export default function ProfilePage() {
 
   // Profile edit state
   const [displayName, setDisplayName] = useState("");
+  const [phone, setPhone]             = useState("");
   const [savingName, setSavingName]   = useState(false);
   const [nameMsg, setNameMsg]         = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -220,8 +221,9 @@ export default function ProfilePage() {
 
   useEffect(() => { fetchProjects(); }, [fetchProjects]);
 
-  // Seed the name field once the user loads
+  // Seed the editable fields once the user loads
   useEffect(() => { setDisplayName(user?.name ?? ""); }, [user?.name]);
+  useEffect(() => { setPhone(user?.phone ?? ""); }, [user?.phone]);
 
   // Lazy-load purchases when the billing tab is first opened
   useEffect(() => {
@@ -241,7 +243,7 @@ export default function ProfilePage() {
       const res = await fetch("/api/auth/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ name: displayName }),
+        body: JSON.stringify({ name: displayName, phone }),
       });
       const data = await res.json() as { error?: string };
       if (res.ok) {
@@ -592,6 +594,16 @@ export default function ProfilePage() {
                       onChange={e => setDisplayName(e.target.value)}
                       placeholder="Your name"
                       maxLength={60}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">Phone Number</label>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={e => setPhone(e.target.value)}
+                      placeholder="+91 98765 43210"
                       className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     />
                   </div>

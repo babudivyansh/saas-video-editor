@@ -14,9 +14,12 @@ interface UserPlan {
 interface User {
   id: string;
   email: string;
+  phone: string | null;
   credits: number;
   createdAt: string;
   role: "USER" | "ADMIN";
+  firstName: string | null;
+  lastName: string | null;
   name: string | null;
   avatarUrl: string | null;
   plan: UserPlan | null;

@@ -10,7 +10,16 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-export async function sendOtpEmail(to: string, otp: string) {
+export type DeliveryChannel = "email" | "sms" | "dev-console";
+
+export async function sendOtpEmail(to: string, otp: string): Promise<DeliveryChannel> {
+  // No SMTP configured → dev fallback so OTP login is testable without an
+  // email provider. Plug EMAIL_USER/EMAIL_PASS into .env to send real mail.
+  if (!process.env.EMAIL_USER) {
+    console.log(`[email:dev] OTP for ${to}: ${otp}`);
+    return "dev-console";
+  }
+
   const from = process.env.EMAIL_FROM || process.env.EMAIL_USER || "noreply@clipforge.app";
 
   await transporter.sendMail({
@@ -44,4 +53,6 @@ export async function sendOtpEmail(to: string, otp: string) {
       </div>
     `,
   });
+
+  return "email";
 }

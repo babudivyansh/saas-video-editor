@@ -16,9 +16,12 @@ A Crayo.ai-style SaaS that turns a text prompt into a 9:16 vertical short-form v
 |------|---------|
 | Node.js | >= 18 |
 | FFmpeg | any recent build, must be on PATH |
-| Docker + Docker Compose | for local Postgres + Redis |
+| PostgreSQL | 16 (local install or any reachable instance) |
+| Redis | optional — falls back to in-memory in dev if unreachable |
 
 Install FFmpeg: https://ffmpeg.org/download.html
+
+No Docker is required for local development — point `DATABASE_URL` / `REDIS_URL` in `.env` at any reachable Postgres/Redis. (`docker-compose.yml` is kept in the repo for production/optional use.)
 
 ---
 
@@ -27,7 +30,9 @@ Install FFmpeg: https://ffmpeg.org/download.html
 ### Quick start (first time)
 ```bash
 cp .env.example .env   # fill in your API keys, then:
-make setup             # install → docker up → migrate → seed
+# Start a local Postgres (and optionally Redis) reachable at the URLs in .env,
+# then create the database/user to match (see "Local database" below).
+make setup             # install → migrate → seed
 make dev               # → http://localhost:3000
 ```
 
@@ -40,15 +45,31 @@ make dev               # → http://localhost:3000
 | `make start` | Start production server |
 | `make lint` | Run ESLint |
 | `make install` | npm install |
-| `make db-up` | Start Postgres + Redis via Docker |
-| `make db-down` | Stop Docker services |
 | `make db-migrate` | Run Prisma migrations |
 | `make db-seed` | Seed test user |
 | `make db-reset` | Reset DB and re-run all migrations |
 | `make db-studio` | Open Prisma Studio |
 | `make generate` | Regenerate Prisma client |
 | `make test-ffmpeg` | FFmpeg toolchain smoke test |
-| `make setup` | Full first-time setup (install + DB + seed) |
+| `make setup` | Full first-time setup (install + migrate + seed) |
+
+### Local database
+
+Local dev needs a reachable **PostgreSQL 16** instance; **Redis is optional** (when it's
+unreachable, `lib/redis.ts` transparently falls back to an in-memory store).
+
+1. Install PostgreSQL locally (or use any reachable/managed instance) and, optionally, Redis.
+2. Create a database and user matching `.env.example` (or edit `DATABASE_URL` to match yours):
+   ```sql
+   CREATE USER saas WITH PASSWORD 'saas';
+   CREATE DATABASE saas_video OWNER saas;
+   ```
+3. Apply the schema and seed:
+   ```bash
+   make db-migrate && make db-seed
+   ```
+
+`docker-compose.yml` is retained for production/optional use, but Docker is not required for dev.
 
 ### Environment variables
 Edit `.env` (copied from `.env.example`) with your real keys:

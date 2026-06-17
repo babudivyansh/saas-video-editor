@@ -1,47 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { redis } from "@/lib/redis";
 import { signToken, cacheSession } from "@/lib/auth";
+import { consumeOtp } from "@/lib/otp";
+import { normalizeIdentifier, findUserByMethod, type AuthMethod } from "@/lib/identifier";
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, otp, type } = await req.json();
+    const body = await req.json();
+    const method: AuthMethod = body.method === "phone" ? "phone" : "email";
+    const identifier = normalizeIdentifier(method, body.identifier ?? body.email ?? body.phone ?? "");
+    const { otp } = body;
 
-    if (!email || !otp || !type || !["login", "register"].includes(type)) {
+    if (!identifier || !otp) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
-    const storedOtp = await redis.get(`otp:${type}:${email}`);
-    if (!storedOtp || storedOtp !== otp.toString()) {
+    const ok = await consumeOtp(method, identifier, otp);
+    if (!ok) {
       return NextResponse.json({ error: "Invalid or expired code" }, { status: 401 });
     }
 
-    await redis.del(`otp:${type}:${email}`);
-
-    if (type === "register") {
-      const user = await prisma.user.create({
-        data: { email, passwordHash: "" },
-        select: { id: true, email: true, credits: true },
-      });
-
-      const token = signToken({ userId: user.id, email: user.email });
-      await cacheSession(user.id, token);
-
-      return NextResponse.json({ token, user }, { status: 201 });
-    } else {
-      const user = await prisma.user.findUnique({ where: { email } });
-      if (!user) {
-        return NextResponse.json({ error: "User not found" }, { status: 404 });
-      }
-
-      const token = signToken({ userId: user.id, email: user.email });
-      await cacheSession(user.id, token);
-
-      return NextResponse.json({
-        token,
-        user: { id: user.id, email: user.email, credits: user.credits },
-      });
+    const user = await findUserByMethod(method, identifier);
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
+
+    const token = signToken({ userId: user.id, email: user.email });
+    await cacheSession(user.id, token);
+
+    return NextResponse.json({
+      token,
+      user: { id: user.id, email: user.email, credits: user.credits },
+    });
   } catch (err) {
     console.error("[verify-otp]", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

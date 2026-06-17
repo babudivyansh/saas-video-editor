@@ -1,40 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { redis } from "@/lib/redis";
-import { sendOtpEmail } from "@/lib/email";
-
-function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
+import { issueOtp } from "@/lib/otp";
+import { normalizeIdentifier, findUserByMethod, type AuthMethod } from "@/lib/identifier";
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, type } = await req.json();
+    const body = await req.json();
+    const method: AuthMethod = body.method === "phone" ? "phone" : "email";
+    const identifier = normalizeIdentifier(method, body.identifier ?? body.email ?? body.phone ?? "");
 
-    if (!email || !type || !["login", "register"].includes(type)) {
+    if (!identifier) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
-    const existing = await prisma.user.findUnique({ where: { email } });
-
-    if (type === "register") {
-      if (existing) {
-        return NextResponse.json({ error: "Email already registered" }, { status: 409 });
-      }
-    } else {
-      if (!existing) {
-        return NextResponse.json({ error: "No account found with this email" }, { status: 404 });
-      }
+    // OTP is a sign-in method, so the account must already exist.
+    const user = await findUserByMethod(method, identifier);
+    if (!user) {
+      const label = method === "email" ? "email" : "phone number";
+      return NextResponse.json({ error: `No account found with this ${label}` }, { status: 404 });
     }
 
-    const otp = generateOtp();
-    await redis.set(`otp:${type}:${email}`, otp, "EX", 600);
+    const { code, channel } = await issueOtp(method, identifier);
 
-    await sendOtpEmail(email, otp);
+    // When no real email/SMS provider is configured, return the code so dev
+    // login works end-to-end. Real deliveries never expose it.
+    const devCode = channel === "dev-console" ? code : undefined;
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, channel, devCode });
   } catch (err) {
     console.error("[send-otp]", err);
-    return NextResponse.json({ error: "Failed to send OTP" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to send code" }, { status: 500 });
   }
 }
