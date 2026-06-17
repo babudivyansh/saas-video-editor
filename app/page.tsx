@@ -129,23 +129,32 @@ function NavDropdown({ label, children }: { label: string; children: React.React
 function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileSection, setMobileSection] = useState<string | null>(null);
+  const [scrolled, setScrolled] = useState(false);
   const { user, openAuthModal, signOut } = useAuth();
 
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 10);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
-    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-gray-100 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-50 backdrop-blur-md">
+      {/* bg overlay — transparent at top, fades to white on scroll */}
+      <div className={`absolute inset-0 transition-all duration-300 ${scrolled ? "bg-white/90 shadow-sm" : "bg-transparent"}`} />
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
 
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 font-extrabold text-xl text-gray-900">
-            <span className="bg-blue-600 text-white rounded-lg w-8 h-8 flex items-center justify-center">
+          <Link href="/" className="flex items-center gap-2 font-black text-2xl tracking-tight text-gray-900">
+            <span className="bg-[#335CFF] text-white rounded-lg w-8 h-8 flex items-center justify-center">
               <ZapIcon className="w-4 h-4" />
             </span>
-            ClipForge
+            CLIPFORGE
           </Link>
 
           {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-7">
+          <nav className="hidden md:flex items-center gap-8">
 
             {/* Features dropdown */}
             <NavDropdown label="Features">
@@ -155,7 +164,7 @@ function Navbar() {
                   {FEATURES_ITEMS.map(item => (
                     <Link key={item.href} href={item.href}
                       className="flex flex-col gap-0.5 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors group">
-                      <span className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">{item.title}</span>
+                      <span className="text-sm font-semibold text-gray-900 group-hover:text-[#335CFF] transition-colors">{item.title}</span>
                       <span className="text-xs text-gray-500 leading-snug">{item.desc}</span>
                     </Link>
                   ))}
@@ -166,7 +175,7 @@ function Navbar() {
                 <div className="w-44 p-5 space-y-3">
                   {TOOLS_ITEMS.map(item => (
                     <Link key={item.href} href={item.href}
-                      className="block text-sm font-semibold text-gray-800 hover:text-blue-600 transition-colors">
+                      className="block text-sm font-semibold text-gray-800 hover:text-[#335CFF] transition-colors">
                       {item.title}
                     </Link>
                   ))}
@@ -180,47 +189,42 @@ function Navbar() {
                 {RESOURCES_ITEMS.map(item => (
                   <Link key={item.href} href={item.href}
                     className="flex flex-col gap-1 flex-1 hover:opacity-80 transition-opacity group">
-                    <span className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">{item.title}</span>
+                    <span className="text-sm font-semibold text-gray-900 group-hover:text-[#335CFF] transition-colors">{item.title}</span>
                     <span className="text-xs text-gray-500 leading-snug">{item.desc}</span>
                   </Link>
                 ))}
               </div>
             </NavDropdown>
 
-            <Link href="/blog" className="text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors">Blog</Link>
-            <Link href="/pricing" className="text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors">Pricing</Link>
+            <Link href="/blog" className="text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors">Blog</Link>
+            <Link href="/pricing" className="text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors">Pricing</Link>
           </nav>
 
           {/* CTA */}
           <div className="hidden md:flex items-center gap-3">
             {user ? (
               <>
-                <Link href="/dashboard" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
+                <Link
+                  href="/dashboard"
+                  className="flex items-center gap-1.5 bg-[#335CFF] text-white text-sm font-bold px-5 py-2.5 rounded-full transition-transform duration-200 hover:scale-[1.01]"
+                >
                   Dashboard
                 </Link>
-                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold select-none">
-                  {user.email[0].toUpperCase()}
-                </div>
-                <button onClick={signOut} className="text-sm font-medium text-gray-500 hover:text-gray-800 transition-colors">
+                <button
+                  onClick={signOut}
+                  className="flex items-center gap-1.5 text-sm font-semibold text-[#525866] hover:text-gray-900 px-4 py-2.5 rounded-full border border-[#D7DBEA] hover:border-[#335CFF]/40 transition-colors cursor-pointer"
+                >
                   Logout
                 </button>
               </>
             ) : (
-              <>
-                <button
-                  onClick={() => openAuthModal("login")}
-                  className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors bg-transparent border-none cursor-pointer"
-                >
-                  Sign in
-                </button>
-                <button
-                  onClick={() => openAuthModal("register")}
-                  className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm cursor-pointer"
-                >
-                  <ZapIcon className="w-3.5 h-3.5" />
-                  Try ClipForge Free
-                </button>
-              </>
+              <button
+                onClick={() => openAuthModal("register")}
+                className="flex items-center gap-1.5 bg-[#335CFF] text-white text-sm font-bold px-5 py-2.5 rounded-full transition-transform duration-200 hover:scale-[1.01] cursor-pointer"
+              >
+                <ZapIcon className="w-3.5 h-3.5" />
+                Try ClipForge Now
+              </button>
             )}
           </div>
 
@@ -254,7 +258,7 @@ function Navbar() {
               {[...FEATURES_ITEMS, ...TOOLS_ITEMS].map(item => (
                 <Link key={item.href} href={item.href}
                   onClick={() => setMenuOpen(false)}
-                  className="block text-sm text-gray-600 hover:text-blue-600 py-1.5">
+                  className="block text-sm text-gray-600 hover:text-[#335CFF] py-1.5">
                   {"desc" in item ? item.title : item.title}
                 </Link>
               ))}
@@ -274,20 +278,20 @@ function Navbar() {
               {RESOURCES_ITEMS.map(item => (
                 <Link key={item.href} href={item.href}
                   onClick={() => setMenuOpen(false)}
-                  className="block text-sm text-gray-600 hover:text-blue-600 py-1.5">
+                  className="block text-sm text-gray-600 hover:text-[#335CFF] py-1.5">
                   {item.title}
                 </Link>
               ))}
             </div>
           )}
 
-          <Link href="/blog" className="block text-sm font-semibold text-gray-700 hover:text-blue-600 py-2" onClick={() => setMenuOpen(false)}>Blog</Link>
-          <Link href="/pricing" className="block text-sm font-semibold text-gray-700 hover:text-blue-600 py-2" onClick={() => setMenuOpen(false)}>Pricing</Link>
+          <Link href="/blog" className="block text-sm font-semibold text-gray-700 hover:text-[#335CFF] py-2" onClick={() => setMenuOpen(false)}>Blog</Link>
+          <Link href="/pricing" className="block text-sm font-semibold text-gray-700 hover:text-[#335CFF] py-2" onClick={() => setMenuOpen(false)}>Pricing</Link>
 
           <div className="pt-2 border-t border-gray-100 mt-1">
             {user ? (
               <>
-                <Link href="/dashboard" className="block text-sm font-medium text-gray-700 hover:text-blue-600 py-2" onClick={() => setMenuOpen(false)}>
+                <Link href="/dashboard" className="block text-sm font-medium text-gray-700 hover:text-[#335CFF] py-2" onClick={() => setMenuOpen(false)}>
                   Dashboard
                 </Link>
                 <button onClick={() => { signOut(); setMenuOpen(false); }} className="w-full text-left text-sm font-medium text-gray-500 hover:text-gray-800 py-2">
@@ -297,7 +301,7 @@ function Navbar() {
             ) : (
               <button
                 onClick={() => { setMenuOpen(false); openAuthModal("register"); }}
-                className="w-full flex items-center justify-center gap-1.5 bg-blue-600 text-white text-sm font-semibold px-4 py-2.5 rounded-full cursor-pointer mt-1"
+                className="w-full flex items-center justify-center gap-1.5 bg-[#335CFF] text-white text-sm font-semibold px-4 py-2.5 rounded-full cursor-pointer mt-1"
               >
                 <ZapIcon className="w-3.5 h-3.5" />
                 Try ClipForge Free
@@ -315,38 +319,29 @@ function Navbar() {
 function Hero() {
   const { user, openAuthModal } = useAuth();
   return (
-    <section className="relative overflow-hidden bg-white pt-20 pb-24">
-      {/* Background gradient blobs */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-24 -left-32 w-[600px] h-[600px] bg-blue-100 rounded-full opacity-40 blur-3xl" />
-        <div className="absolute -top-12 right-0 w-[400px] h-[400px] bg-purple-100 rounded-full opacity-30 blur-3xl" />
-      </div>
-
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        {/* Badge */}
-        <div className="inline-flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold px-4 py-1.5 rounded-full mb-6">
-          <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-          #1 AI Faceless Video Generator
-        </div>
-
+    <section className="relative bg-white pt-24 pb-28">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
         {/* Headline */}
-        <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-gray-900 leading-tight tracking-tight mb-6">
-          Create Viral Videos
+        <h1 className="text-[31px] sm:text-6xl lg:text-7xl font-semibold text-gray-900 leading-tight tracking-[0.015em] mb-6">
+          The{" "}
+          <span className="relative inline-block rounded-lg bg-[#335CFF] px-1 sm:px-2 text-white">
+            #1 AI Video Tool
+          </span>
           <br />
-          <span className="text-blue-600">With AI</span> — In Seconds
+          Create Viral Videos With AI
         </h1>
 
-        <p className="max-w-2xl mx-auto text-lg sm:text-xl text-gray-500 mb-10 leading-relaxed">
-          Generate scripts, voiceovers, captions, and full-length short-form videos with one click.
-          No editing skills required — just a topic.
+        <p className="max-w-2xl mx-auto text-lg text-[#868C98] mb-10 leading-relaxed">
+          Your all-in-one platform for creating AI voiceovers, scripts, captions, and full-length
+          short-form videos. No editing skills required — just a topic.
         </p>
 
         {/* CTA */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
+        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-14">
           {user ? (
             <Link
               href="/dashboard"
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg px-8 py-4 rounded-full shadow-lg transition-transform hover:scale-105 animate-pulse"
+              className="flex items-center gap-2 bg-[#335CFF] text-white font-semibold text-base px-8 py-5 rounded-full transition-transform duration-200 ease-in-out hover:scale-[1.01]"
             >
               <ZapIcon className="w-5 h-5" />
               Go to Dashboard
@@ -354,23 +349,22 @@ function Hero() {
           ) : (
             <button
               onClick={() => openAuthModal("register")}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg px-8 py-4 rounded-full shadow-lg transition-transform hover:scale-105 cursor-pointer"
+              className="flex items-center gap-2 bg-[#335CFF] text-white font-semibold text-base px-8 py-5 rounded-full transition-transform duration-200 ease-in-out hover:scale-[1.01] cursor-pointer"
             >
               <ZapIcon className="w-5 h-5" />
-              Start Creating Free
+              Try ClipForge Now
             </button>
           )}
           <Link
             href="#features"
-            className="flex items-center gap-2 text-gray-700 font-semibold text-base px-6 py-4 rounded-full border border-gray-200 hover:border-blue-300 hover:text-blue-600 transition-colors"
+            className="flex items-center gap-2 text-gray-700 font-semibold text-base px-6 py-4 rounded-full border border-[#D7DBEA] hover:border-[#335CFF]/40 hover:text-[#335CFF] transition-colors"
           >
             See how it works
           </Link>
         </div>
 
-
         {/* Social proof */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-6 text-sm text-gray-500">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-6 text-sm text-[#868C98]">
           <div className="flex items-center gap-2">
             <div className="flex -space-x-2">
               {["bg-blue-400", "bg-purple-400", "bg-pink-400", "bg-green-400", "bg-orange-400"].map((color, i) => (
@@ -379,12 +373,12 @@ function Hero() {
                 </div>
               ))}
             </div>
-            <span><strong className="text-gray-800">3.2M+</strong> creators</span>
+            <span><strong className="text-gray-900">3.2M+</strong> creators</span>
           </div>
           <span className="hidden sm:block text-gray-300">|</span>
           <div className="flex items-center gap-1">
             {[1,2,3,4,5].map(i => <StarIcon key={i} className="w-4 h-4 text-yellow-400" />)}
-            <span className="ml-1"><strong className="text-gray-800">4.9/5</strong> rating</span>
+            <span className="ml-1"><strong className="text-gray-900">4.9/5</strong> rating</span>
           </div>
           <span className="hidden sm:block text-gray-300">|</span>
           <span>No credit card required</span>
@@ -402,18 +396,18 @@ function Hero() {
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2 bg-gray-800 rounded-lg p-4 space-y-3">
-                  <div className="h-3 bg-blue-600 rounded-full w-3/4" />
+                  <div className="h-3 bg-[#335CFF] rounded-full w-3/4" />
                   <div className="h-2 bg-gray-700 rounded-full w-full" />
                   <div className="h-2 bg-gray-700 rounded-full w-5/6" />
                   <div className="h-2 bg-gray-700 rounded-full w-4/6" />
                   <div className="mt-4 flex gap-2">
-                    <div className="h-8 bg-blue-600 rounded-lg flex-1 flex items-center justify-center">
+                    <div className="h-8 bg-[#335CFF] rounded-lg flex-1 flex items-center justify-center">
                       <span className="text-white text-xs font-medium">Generate Video</span>
                     </div>
                   </div>
                 </div>
                 <div className="bg-gray-800 rounded-lg overflow-hidden flex items-center justify-center">
-                  <div className="w-20 h-36 bg-gradient-to-b from-blue-600 to-purple-700 rounded-lg flex flex-col items-center justify-end pb-3 gap-1">
+                  <div className="w-20 h-36 bg-gradient-to-b from-[#335CFF] to-purple-700 rounded-lg flex flex-col items-center justify-end pb-3 gap-1">
                     <div className="w-14 h-2 bg-white/30 rounded-full" />
                     <div className="w-10 h-2 bg-white/20 rounded-full" />
                     <div className="w-12 h-2 bg-white/40 rounded-full" />
@@ -423,11 +417,11 @@ function Hero() {
             </div>
           </div>
           {/* Floating badges */}
-          <div className="absolute -left-6 top-1/3 bg-white rounded-xl shadow-xl border border-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-800 flex items-center gap-2">
+          <div className="absolute -left-6 top-1/3 bg-white rounded-xl shadow-xl border border-[#D7DBEA] px-4 py-2.5 text-sm font-semibold text-gray-800 flex items-center gap-2">
             <span className="text-green-500 font-bold text-base">✓</span> Script generated
           </div>
-          <div className="absolute -right-6 top-1/2 bg-white rounded-xl shadow-xl border border-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-800 flex items-center gap-2">
-            <ZapIcon className="w-4 h-4 text-blue-600" /> 12s render
+          <div className="absolute -right-6 top-1/2 bg-white rounded-xl shadow-xl border border-[#D7DBEA] px-4 py-2.5 text-sm font-semibold text-gray-800 flex items-center gap-2">
+            <ZapIcon className="w-4 h-4 text-[#335CFF]" /> 12s render
           </div>
         </div>
       </div>
@@ -443,7 +437,7 @@ function HowItWorks() {
       title: "Enter Your Topic",
       description: "Type any topic or paste your script. Our AI instantly generates a viral-ready script tailored for short-form content.",
       icon: "💡",
-      color: "from-blue-500 to-blue-600",
+      color: "from-[#335CFF] to-[#2A66FF]",
     },
     {
       number: "02",
@@ -462,28 +456,28 @@ function HowItWorks() {
   ];
 
   return (
-    <section id="features" className="py-24 bg-gray-50">
+    <section id="features" className="py-24 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <span className="text-blue-600 font-semibold text-sm uppercase tracking-widest">How It Works</span>
-          <h2 className="mt-3 text-4xl sm:text-5xl font-extrabold text-gray-900">
+          <span className="text-[#335CFF] font-semibold text-sm uppercase tracking-widest">How It Works</span>
+          <h2 className="mt-3 text-4xl sm:text-[45px] font-semibold text-gray-900 leading-tight">
             From idea to viral video
-            <br />in <span className="text-blue-600">3 simple steps</span>
+            <br />in <span className="text-[#335CFF]">3 simple steps</span>
           </h2>
-          <p className="mt-4 text-gray-500 text-lg max-w-xl mx-auto">
+          <p className="mt-4 text-[#868C98] text-lg max-w-xl mx-auto">
             No timeline. No editing. No experience needed. Just results.
           </p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-8">
           {steps.map((step, i) => (
-            <div key={i} className="relative bg-white rounded-2xl p-8 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-              <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${step.color} flex items-center justify-center text-2xl mb-6 shadow-lg`}>
+            <div key={i} className="relative flex flex-col rounded-xl border border-[#D7DBEA] p-8 hover:shadow-md transition-shadow">
+              <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${step.color} flex items-center justify-center text-2xl mb-6`}>
                 {step.icon}
               </div>
               <div className="text-6xl font-black text-gray-100 absolute top-6 right-8 leading-none">{step.number}</div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">{step.title}</h3>
-              <p className="text-gray-500 leading-relaxed">{step.description}</p>
+              <p className="text-[#868C98] leading-relaxed">{step.description}</p>
             </div>
           ))}
         </div>
@@ -506,13 +500,13 @@ function ToolsGrid() {
   ];
 
   return (
-    <section id="tools" className="py-24 bg-white">
+    <section id="tools" className="py-24 bg-[#F9FBFF]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <span className="text-blue-600 font-semibold text-sm uppercase tracking-widest">AI Toolkit</span>
-          <h2 className="mt-3 text-4xl sm:text-5xl font-extrabold text-gray-900">
+          <span className="text-[#335CFF] font-semibold text-sm uppercase tracking-widest">AI Toolkit</span>
+          <h2 className="mt-3 text-4xl sm:text-[45px] font-semibold text-gray-900 leading-tight">
             Everything you need to
-            <br /><span className="text-blue-600">dominate short-form</span>
+            <br /><span className="text-[#335CFF]">dominate short-form</span>
           </h2>
         </div>
 
@@ -520,16 +514,16 @@ function ToolsGrid() {
           {tools.map((tool, i) => (
             <div
               key={i}
-              className="group relative bg-gray-50 hover:bg-blue-50 border border-gray-100 hover:border-blue-200 rounded-2xl p-6 transition-all duration-200 cursor-pointer"
+              className="group relative bg-white border border-[#D7DBEA] hover:border-[#335CFF]/40 rounded-xl p-6 transition-all duration-200 cursor-pointer hover:shadow-md"
             >
               {tool.badge && (
-                <span className="absolute top-4 right-4 text-xs font-bold bg-blue-600 text-white px-2 py-0.5 rounded-full">
+                <span className="absolute top-4 right-4 text-xs font-bold bg-[#335CFF] text-white px-2 py-0.5 rounded-full">
                   {tool.badge}
                 </span>
               )}
               <div className="text-3xl mb-4">{tool.icon}</div>
-              <h3 className="font-bold text-gray-900 mb-1.5 group-hover:text-blue-700 transition-colors">{tool.name}</h3>
-              <p className="text-sm text-gray-500 leading-relaxed">{tool.desc}</p>
+              <h3 className="font-bold text-gray-900 mb-1.5 group-hover:text-[#335CFF] transition-colors">{tool.name}</h3>
+              <p className="text-sm text-[#868C98] leading-relaxed">{tool.desc}</p>
             </div>
           ))}
         </div>
@@ -548,21 +542,21 @@ function StatsBanner() {
   ];
 
   return (
-    <section className="py-20 bg-gradient-to-r from-blue-600 to-blue-700">
+    <section className="py-20 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white">
-            Generating Billions of Views
+          <h2 className="text-3xl sm:text-[45px] font-semibold text-gray-900 leading-tight">
+            ClipForge Has Generated <span className="text-[#335CFF]">Billions</span> of Views
           </h2>
-          <p className="mt-3 text-blue-200 text-lg">
-            Join the fastest-growing community of faceless creators
+          <p className="mt-3 text-[#868C98] text-lg">
+            For millions of creators around the world
           </p>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
           {stats.map((stat, i) => (
-            <div key={i} className="text-center">
-              <div className="text-5xl font-black text-white mb-2">{stat.value}</div>
-              <div className="text-blue-200 font-medium">{stat.label}</div>
+            <div key={i} className="text-center p-6 rounded-xl border border-[#D7DBEA]">
+              <div className="text-5xl font-bold text-gray-900 mb-2">{stat.value}</div>
+              <div className="text-[#868C98] font-medium">{stat.label}</div>
             </div>
           ))}
         </div>
@@ -631,21 +625,21 @@ function Testimonials() {
   ];
 
   return (
-    <section className="py-24 bg-gray-50">
+    <section className="py-24 bg-[#F9FBFF]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <span className="text-blue-600 font-semibold text-sm uppercase tracking-widest">Creator Stories</span>
-          <h2 className="mt-3 text-4xl sm:text-5xl font-extrabold text-gray-900">
+          <span className="text-[#335CFF] font-semibold text-sm uppercase tracking-widest">Creator Stories</span>
+          <h2 className="mt-3 text-4xl sm:text-[45px] font-semibold text-gray-900 leading-tight">
             Creators love ClipForge
           </h2>
-          <p className="mt-4 text-gray-500 text-lg">
+          <p className="mt-4 text-[#868C98] text-lg">
             Real results from real creators — not actors
           </p>
         </div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {testimonials.map((t, i) => (
-            <div key={i} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div key={i} className="bg-white rounded-xl p-6 border border-[#D7DBEA] hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-full ${t.color} flex items-center justify-center text-white font-bold text-sm`}>
@@ -653,17 +647,17 @@ function Testimonials() {
                   </div>
                   <div>
                     <div className="font-semibold text-gray-900 text-sm">{t.name}</div>
-                    <div className="text-gray-400 text-xs">{t.handle}</div>
+                    <div className="text-[#868C98] text-xs">{t.handle}</div>
                   </div>
                 </div>
                 <div className="flex gap-0.5">
                   {[1,2,3,4,5].map(s => <StarIcon key={s} className="w-3.5 h-3.5 text-yellow-400" />)}
                 </div>
               </div>
-              <p className="text-gray-700 text-sm leading-relaxed mb-4">&ldquo;{t.text}&rdquo;</p>
-              <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                <span className="text-xs text-gray-400 font-medium">{t.platform}</span>
-                <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{t.views}</span>
+              <p className="text-[#525866] text-sm leading-relaxed mb-4">&ldquo;{t.text}&rdquo;</p>
+              <div className="flex items-center justify-between pt-4 border-t border-[#D7DBEA]">
+                <span className="text-xs text-[#868C98] font-medium">{t.platform}</span>
+                <span className="text-xs font-bold text-[#335CFF] bg-[rgba(0,82,180,0.1)] px-2 py-0.5 rounded-full">{t.views}</span>
               </div>
             </div>
           ))}
@@ -729,11 +723,11 @@ function Pricing() {
     <section id="pricing" className="py-24 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <span className="text-blue-600 font-semibold text-sm uppercase tracking-widest">Pricing</span>
-          <h2 className="mt-3 text-4xl sm:text-5xl font-extrabold text-gray-900">
+          <span className="text-[#335CFF] font-semibold text-sm uppercase tracking-widest">Pricing</span>
+          <h2 className="mt-3 text-4xl sm:text-[45px] font-semibold text-gray-900 leading-tight">
             Simple, transparent pricing
           </h2>
-          <p className="mt-4 text-gray-500 text-lg">
+          <p className="mt-4 text-[#868C98] text-lg">
             Buy credits once, use them forever. No subscription traps.
           </p>
         </div>
@@ -742,26 +736,26 @@ function Pricing() {
           {plans.map((plan, i) => (
             <div
               key={i}
-              className={`rounded-2xl p-8 border-2 ${
+              className={`rounded-xl p-8 border-2 ${
                 plan.highlighted
-                  ? "border-blue-600 bg-blue-600 text-white shadow-2xl scale-105"
-                  : "border-gray-100 bg-gray-50 text-gray-900"
+                  ? "border-[#335CFF] bg-[#335CFF] text-white shadow-2xl scale-105"
+                  : "border-[#D7DBEA] bg-white text-gray-900"
               }`}
             >
               {plan.highlighted && (
                 <div className="text-center mb-4">
-                  <span className="bg-white text-blue-600 text-xs font-bold px-3 py-1 rounded-full">Most Popular</span>
+                  <span className="bg-white text-[#335CFF] text-xs font-bold px-3 py-1 rounded-full">Most Popular</span>
                 </div>
               )}
               <div className="mb-6">
-                <div className={`text-sm font-bold uppercase tracking-wide mb-1 ${plan.highlighted ? "text-blue-200" : "text-gray-500"}`}>
+                <div className={`text-sm font-bold uppercase tracking-wide mb-1 ${plan.highlighted ? "text-blue-200" : "text-[#868C98]"}`}>
                   {plan.name}
                 </div>
                 <div className="flex items-end gap-1">
-                  <span className="text-4xl font-black">{plan.price}</span>
-                  <span className={`text-sm mb-1 ${plan.highlighted ? "text-blue-200" : "text-gray-400"}`}>one-time</span>
+                  <span className="text-4xl font-bold">{plan.price}</span>
+                  <span className={`text-sm mb-1 ${plan.highlighted ? "text-blue-200" : "text-[#868C98]"}`}>one-time</span>
                 </div>
-                <div className={`text-sm mt-1 ${plan.highlighted ? "text-blue-200" : "text-gray-500"}`}>
+                <div className={`text-sm mt-1 ${plan.highlighted ? "text-blue-200" : "text-[#868C98]"}`}>
                   {plan.credits} video credits
                 </div>
               </div>
@@ -769,8 +763,8 @@ function Pricing() {
               <ul className="space-y-3 mb-8">
                 {plan.features.map((feat, j) => (
                   <li key={j} className="flex items-center gap-2.5 text-sm">
-                    <CheckIcon className={`w-4 h-4 flex-shrink-0 ${plan.highlighted ? "text-blue-200" : "text-blue-600"}`} />
-                    <span className={plan.highlighted ? "text-blue-100" : "text-gray-700"}>{feat}</span>
+                    <CheckIcon className={`w-4 h-4 flex-shrink-0 ${plan.highlighted ? "text-blue-200" : "text-[#335CFF]"}`} />
+                    <span className={plan.highlighted ? "text-blue-100" : "text-[#525866]"}>{feat}</span>
                   </li>
                 ))}
               </ul>
@@ -780,8 +774,8 @@ function Pricing() {
                   href="/billing"
                   className={`block text-center font-bold py-3 rounded-full transition-all ${
                     plan.highlighted
-                      ? "bg-white text-blue-600 hover:bg-blue-50"
-                      : "bg-blue-600 text-white hover:bg-blue-700"
+                      ? "bg-white text-[#335CFF] hover:bg-[#F9FBFF]"
+                      : "bg-[#335CFF] text-white hover:opacity-90"
                   }`}
                 >
                   {plan.cta}
@@ -791,8 +785,8 @@ function Pricing() {
                   onClick={() => openAuthModal("login")}
                   className={`w-full block text-center font-bold py-3 rounded-full transition-all cursor-pointer ${
                     plan.highlighted
-                      ? "bg-white text-blue-600 hover:bg-blue-50"
-                      : "bg-blue-600 text-white hover:bg-blue-700"
+                      ? "bg-white text-[#335CFF] hover:bg-[#F9FBFF]"
+                      : "bg-[#335CFF] text-white hover:opacity-90"
                   }`}
                 >
                   {plan.cta}
@@ -803,7 +797,7 @@ function Pricing() {
           ))}
         </div>
 
-        <p className="text-center mt-8 text-gray-400 text-sm">
+        <p className="text-center mt-8 text-[#868C98] text-sm">
           All plans include 30 free credits to start. No credit card required.
         </p>
       </div>
@@ -843,11 +837,11 @@ function FAQ() {
   const [open, setOpen] = useState<number | null>(null);
 
   return (
-    <section id="faq" className="py-24 bg-gray-50">
+    <section id="faq" className="py-24 bg-[#F9FBFF]">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="text-blue-600 font-semibold text-sm uppercase tracking-widest">FAQ</span>
-          <h2 className="mt-3 text-4xl font-extrabold text-gray-900">Frequently asked questions</h2>
+          <span className="text-[#335CFF] font-semibold text-sm uppercase tracking-widest">FAQ</span>
+          <h2 className="mt-3 text-4xl sm:text-[45px] font-semibold text-gray-900 leading-tight">Frequently asked questions</h2>
         </div>
 
         <div className="space-y-3">
@@ -855,7 +849,7 @@ function FAQ() {
             <div
               key={i}
               className={`bg-white border rounded-xl overflow-hidden transition-all ${
-                open === i ? "border-blue-200 shadow-sm" : "border-gray-100"
+                open === i ? "border-[#335CFF]/30 shadow-sm" : "border-[#D7DBEA]"
               }`}
             >
               <button
@@ -864,11 +858,11 @@ function FAQ() {
               >
                 <span className="font-semibold text-gray-900">{faq.q}</span>
                 <ChevronDownIcon
-                  className={`w-5 h-5 text-gray-400 flex-shrink-0 ml-4 transition-transform ${open === i ? "rotate-180" : ""}`}
+                  className={`w-5 h-5 text-[#868C98] flex-shrink-0 ml-4 transition-transform ${open === i ? "rotate-180" : ""}`}
                 />
               </button>
               {open === i && (
-                <div className="px-6 pb-5 text-gray-600 leading-relaxed text-sm border-t border-gray-100 pt-4">
+                <div className="px-6 pb-5 text-[#525866] leading-relaxed text-sm border-t border-[#D7DBEA] pt-4">
                   {faq.a}
                 </div>
               )}
@@ -886,8 +880,8 @@ function CTABanner() {
   return (
     <section className="py-24 bg-white">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-3xl p-12 sm:p-16 text-white shadow-2xl">
-          <h2 className="text-4xl sm:text-5xl font-extrabold mb-4">
+        <div className="bg-[#2A66FF] rounded-3xl p-12 sm:p-16 text-white">
+          <h2 className="text-4xl sm:text-5xl font-semibold mb-4">
             Ready to go viral?
           </h2>
           <p className="text-blue-200 text-lg mb-8 max-w-xl mx-auto">
@@ -896,7 +890,7 @@ function CTABanner() {
           {user ? (
             <Link
               href="/dashboard"
-              className="inline-flex items-center gap-2 bg-white text-blue-600 font-bold text-lg px-8 py-4 rounded-full hover:bg-blue-50 transition-colors shadow-lg"
+              className="inline-flex items-center gap-2 bg-white text-[#335CFF] font-semibold text-lg px-8 py-5 rounded-full hover:scale-[1.01] transition-transform duration-200"
             >
               <ZapIcon className="w-5 h-5" />
               Go to Dashboard
@@ -904,14 +898,14 @@ function CTABanner() {
           ) : (
             <button
               onClick={() => openAuthModal("register")}
-              className="inline-flex items-center gap-2 bg-white text-blue-600 font-bold text-lg px-8 py-4 rounded-full hover:bg-blue-50 transition-colors shadow-lg cursor-pointer"
+              className="inline-flex items-center gap-2 bg-white text-[#335CFF] font-semibold text-lg px-8 py-5 rounded-full hover:scale-[1.01] transition-transform duration-200 cursor-pointer"
             >
               <ZapIcon className="w-5 h-5" />
               Start for Free — 30 Credits Included
             </button>
           )}
 
-          <p className="mt-4 text-blue-300 text-sm">No credit card required</p>
+          <p className="mt-4 text-blue-200 text-sm">No credit card required</p>
         </div>
       </div>
     </section>
@@ -932,14 +926,14 @@ function StillHaveQuestions() {
   return (
     <section className="bg-white px-4 sm:px-6 lg:px-8 pb-0 pt-0">
       <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border border-gray-200 rounded-2xl px-8 py-6">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border border-[#D7DBEA] rounded-xl px-8 py-6">
           <div>
             <h3 className="text-lg font-bold text-gray-900">Still have questions?</h3>
-            <p className="text-sm text-gray-500 mt-0.5">Contact our 24/7 support team for any concerns or inquiries.</p>
+            <p className="text-sm text-[#868C98] mt-0.5">Contact our 24/7 support team for any concerns or inquiries.</p>
           </div>
           <a
             href="mailto:support@clipforge.ai"
-            className="flex-shrink-0 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-6 py-2.5 rounded-full transition-colors"
+            className="flex-shrink-0 bg-[#335CFF] hover:scale-[1.01] text-white text-sm font-semibold px-6 py-2.5 rounded-full transition-transform duration-200"
           >
             Get in touch
           </a>
@@ -1005,7 +999,7 @@ function Footer() {
   ];
 
   return (
-    <footer className="bg-blue-600 px-4 sm:px-6 lg:px-8 pt-10 pb-10 mt-16">
+    <footer className="bg-[#2A66FF] px-4 sm:px-6 lg:px-8 pt-10 pb-10 mt-16">
       <div className="max-w-7xl mx-auto">
         {/* White rounded card */}
         <div className="bg-white rounded-3xl px-10 pt-10 pb-8">
@@ -1033,7 +1027,7 @@ function Footer() {
           {/* Bottom row: logo left, social icons right */}
           <div className="flex items-center justify-between pt-6 border-t border-gray-100">
             <Link href="/" className="flex items-center gap-2 font-black text-2xl text-gray-900 tracking-tight">
-              <span className="bg-blue-600 text-white rounded-lg w-8 h-8 flex items-center justify-center">
+              <span className="bg-[#335CFF] text-white rounded-lg w-8 h-8 flex items-center justify-center">
                 <ZapIcon className="w-4 h-4" />
               </span>
               CLIPFORGE
@@ -1045,7 +1039,7 @@ function Footer() {
                   key={s.label}
                   href="#"
                   aria-label={s.label}
-                  className="w-9 h-9 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center transition-colors"
+                  className="w-9 h-9 rounded-full bg-[#335CFF] hover:opacity-90 text-white flex items-center justify-center transition-colors"
                 >
                   {s.icon}
                 </a>

@@ -9,9 +9,9 @@ export default function AuthModal() {
   if (!authModal.isOpen) return null;
 
   const handleSuccess = async (token: string) => {
-    // Refresh user state in AuthContext
     await refreshUser();
     closeAuthModal();
+    window.location.href = "/dashboard";
   };
 
   return (
