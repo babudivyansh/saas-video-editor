@@ -120,7 +120,7 @@ function buildChatFilter(
     // Header background
     `drawbox=x=0:y=0:w=iw:h=${HEADER_H}:color=${hdrColor}:t=fill`,
     // Contact name in header
-    `drawtext=text='${escapeFfmpegText(contactName)}':x=(w-text_w)/2:y=${Math.round(HEADER_H / 2 - FONT_SIZE / 2 + 2)}:fontsize=${FONT_SIZE + 4}:fontcolor=${hdrText}:fontname=Arial`,
+    `drawtext=text='${escapeFfmpegText(contactName)}':x=(w-text_w)/2:y=${Math.round(HEADER_H / 2 - FONT_SIZE / 2 + 2)}:fontsize=${FONT_SIZE + 4}:fontcolor=${hdrText}:font=Arial`,
   ];
 
   let yPos = HEADER_H + 16;
@@ -144,7 +144,7 @@ function buildChatFilter(
     for (let l = 0; l < lines.length; l++) {
       const lineY = yPos + PAD_Y + l * LINE_H;
       filters.push(
-        `drawtext=text='${escapeFfmpegText(lines[l])}':x=${textX}:y=${lineY}:fontsize=${FONT_SIZE}:fontcolor=${textColor}:fontname=Arial:enable='gte(t,${startSec})'`,
+        `drawtext=text='${escapeFfmpegText(lines[l])}':x=${textX}:y=${lineY}:fontsize=${FONT_SIZE}:fontcolor=${textColor}:font=Arial:enable='gte(t,${startSec})'`,
       );
     }
 

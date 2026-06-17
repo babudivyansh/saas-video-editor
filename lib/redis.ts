@@ -29,6 +29,7 @@ function fallbackDel(key: string) {
   fallback.delete(key);
 }
 
+const isNewClient = !globalForRedis.redis;
 const client =
   globalForRedis.redis ??
   new Redis(process.env.REDIS_URL ?? "redis://localhost:6379", {
@@ -40,8 +41,18 @@ const client =
 
 if (process.env.NODE_ENV !== "production") globalForRedis.redis = client;
 
-// Silence "unhandled error" events when Redis is offline in dev
-client.on("error", () => {});
+if (isNewClient) {
+  // Silence "unhandled error" events when Redis is offline in dev.
+  client.on("error", () => {});
+  // Eagerly open the connection at startup. With lazyConnect + a disabled
+  // offline queue, the first command issued before the handshake completes
+  // would fail straight into the in-memory fallback while later reads hit the
+  // now-connected real Redis — so a session written at boot would "vanish".
+  // Connecting up front (localhost is ~ms, far faster than route compile)
+  // closes that race; if Redis is genuinely down, this rejects and commands
+  // still fall back to the in-memory map as before.
+  client.connect().catch(() => {});
+}
 
 // Thin wrapper that transparently falls back to in-memory when Redis is down
 export const redis = {
