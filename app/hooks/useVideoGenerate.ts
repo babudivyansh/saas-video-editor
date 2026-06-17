@@ -246,6 +246,43 @@ export function useVideoGenerate() {
     }
   }, [startPolling]);
 
+  const generateAutoClip = useCallback(async (params: {
+    file: File;
+    minDuration: number;
+    maxDuration: number;
+    clipCount: number;
+    aspectRatio: string;
+    instructions: string;
+    token: string;
+  }) => {
+    const { file, minDuration, maxDuration, clipCount, aspectRatio, instructions, token } = params;
+    setStatus("uploading");
+    setError(null);
+    setVideoUrl(null);
+    try {
+      const uploadedVideoUrl = await uploadVideo(file, token);
+      setStatus("creating");
+      const projectId = await createProject(token, {
+        title: file.name,
+        uploadedVideoUrl,
+        productType: "auto-clip",
+      });
+      await callGenerate("/api/generate/auto-clip", token, {
+        projectId,
+        minDuration,
+        maxDuration,
+        clipCount,
+        aspectRatio,
+        instructions,
+      });
+      setStatus("rendering");
+      startPolling(projectId, token);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+      setStatus("failed");
+    }
+  }, [startPolling]);
+
   const reset = useCallback(() => {
     if (pollRef.current) clearInterval(pollRef.current);
     setStatus("idle");
@@ -253,5 +290,5 @@ export function useVideoGenerate() {
     setError(null);
   }, []);
 
-  return { status, videoUrl, error, generateSplitScreen, generateStreamerVideo, generateRedditVideo, generateTextVideo, reset };
+  return { status, videoUrl, error, generateSplitScreen, generateStreamerVideo, generateRedditVideo, generateTextVideo, generateAutoClip, reset };
 }
