@@ -1,8 +1,74 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 
+
+// ── Avatar Menu ───────────────────────────────────────────────────────────────
+function AvatarMenu({ user, signOut }: { user: { email: string; role: string; name?: string | null }; signOut: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(prev => !prev)}
+        className="w-9 h-9 rounded-full bg-[#335CFF] flex items-center justify-center text-white text-sm font-bold select-none cursor-pointer hover:opacity-90 transition-opacity"
+      >
+        {user.email[0].toUpperCase()}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl border border-[#D7DBEA] shadow-xl z-50 py-1.5 overflow-hidden">
+          <div className="px-4 py-3 border-b border-[#D7DBEA]">
+            <p className="text-sm font-semibold text-gray-900 truncate">{user.name || "User"}</p>
+            <p className="text-xs text-[#868C98] truncate">{user.email}</p>
+          </div>
+
+          <div className="py-1.5">
+            <Link
+              href="/dashboard/profile"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2.5 px-4 py-2 text-sm text-[#525866] hover:bg-gray-50 hover:text-gray-900 transition-colors"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              Profile
+            </Link>
+
+            {user.role === "ADMIN" && (
+              <Link
+                href="/admin"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2.5 px-4 py-2 text-sm text-[#525866] hover:bg-gray-50 hover:text-gray-900 transition-colors"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                Admin Panel
+              </Link>
+            )}
+          </div>
+
+          <div className="border-t border-[#D7DBEA] pt-1.5">
+            <button
+              onClick={() => { setOpen(false); signOut(); }}
+              className="flex items-center gap-2.5 w-full px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              Logout
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Sidebar Icons ──────────────────────────────────────────────────────────────
 function IcHome() {
@@ -278,24 +344,11 @@ export default function DashboardPage() {
         {/* Top bar */}
         <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3 gap-3">
           {user ? (
-            <>
-              <Link href="/dashboard/profile" className="flex items-center gap-2 group">
-                <div className="w-8 h-8 rounded-full bg-blue-600 group-hover:bg-blue-700 flex items-center justify-center text-white text-sm font-bold select-none flex-shrink-0 transition-colors">
-                  {user.email[0].toUpperCase()}
-                </div>
-                <span className="text-sm text-gray-600 font-medium hidden sm:block group-hover:text-gray-900 transition-colors">{user.email}</span>
-              </Link>
-              <button
-                onClick={signOut}
-                className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                Logout
-              </button>
-            </>
+            <AvatarMenu user={user} signOut={signOut} />
           ) : (
             <button
               onClick={() => openAuthModal("login")}
-              className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm cursor-pointer"
+              className="inline-flex items-center gap-1.5 bg-[#335CFF] text-white text-sm font-semibold px-4 py-2 rounded-full transition-transform duration-200 hover:scale-[1.01] cursor-pointer"
             >
               <IcZap />
               Login
@@ -458,74 +511,6 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* ── Right column ── */}
-            <div className="w-[268px] flex-shrink-0 space-y-3">
-
-              {/* This Week */}
-              <div className="rounded-2xl border border-gray-200 p-4">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">This Week</p>
-                  <div className="flex items-center gap-1 text-gray-400">
-                    <IcFlame />
-                    <span className="text-xs font-bold">0</span>
-                  </div>
-                </div>
-                <p className="text-gray-900 font-bold text-[15px] mb-3.5">Sign in daily</p>
-                <div className="flex gap-1.5">
-                  {DAYS.map((d, i) => (
-                    <div key={i} className="flex-1 flex flex-col items-center">
-                      <span className="text-[10px] font-semibold text-gray-400 mb-1.5">{d}</span>
-                      <div className="w-full rounded-lg border border-gray-200 bg-gray-50" style={{ aspectRatio: "1" }} />
-                      <span
-                        className="text-[10px] mt-1.5 leading-none h-3"
-                        style={{
-                          color: i === 0 ? "#111827" : "#9ca3af",
-                          fontWeight: i === 0 ? 700 : 400,
-                        }}
-                      >
-                        {i === 0 ? "Mon" : i === DAYS.length - 1 ? "Sun" : ""}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* $100 Raffle */}
-              <div className="rounded-2xl border border-gray-200 p-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "#f0fdfa" }}>
-                    <span className="text-teal-500"><IcTrophy /></span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-gray-900">$100 monthly raffle</p>
-                    <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
-                      Hit a 30-day streak to enter the monthly draw — one random winner gets $100, and we&apos;ll email you if it&apos;s you. 30 days to go.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Credits */}
-              <div className="rounded-2xl border border-gray-200 p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Your Credits</p>
-                  <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                    {user ? `${user.credits} left` : "—"}
-                  </span>
-                </div>
-                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-1.5">
-                  <div className="h-full bg-blue-500 rounded-full" style={{ width: user ? `${Math.min(user.credits, 100)}%` : "0%" }} />
-                </div>
-                <p className="text-[11px] text-gray-400 mb-3">
-                  {user ? `${user.credits} / 100 credits remaining` : "Sign in to view your credits"}
-                </p>
-                <Link href="/pricing" className="flex items-center justify-center gap-1.5 w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 rounded-lg transition-colors">
-                  <IcZap />
-                  Upgrade Plan
-                </Link>
-              </div>
-
-            </div>
           </div>
         </div>
       </main>
