@@ -256,8 +256,8 @@ const QUESTS = [
 ];
 
 const TOOLS_LARGE = [
-  { title: "ClipForge AutoClip", desc: "Transform long videos into viral clips automatically", preview: <AutoClipPreview /> },
-  { title: "Cut & Crop", desc: "Trim and stitch your video(s) into one clip ready to edit", preview: <CutCropPreview /> },
+  { title: "ClipForge AutoClip", desc: "Transform long videos into viral clips automatically", preview: <AutoClipPreview />, href: "/dashboard/create/auto-clip" },
+  { title: "Cut & Crop", desc: "Trim and stitch your video(s) into one clip ready to edit", preview: <CutCropPreview />, href: "/dashboard/tools" },
 ];
 const TOOLS_SMALL = [
   { title: "Voice Changer", desc: "Change the voice of any audio or video file", preview: <VoiceChangerPreview /> },
@@ -460,9 +460,9 @@ export default function DashboardPage() {
                         <p className="text-[14px] font-bold text-gray-900 leading-tight">{tool.title}</p>
                         <p className="text-xs text-blue-500 mt-0.5 leading-relaxed">{tool.desc}</p>
                       </div>
-                      <button className="flex-shrink-0 inline-flex items-center gap-1 border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                      <Link href={tool.href} className="flex-shrink-0 inline-flex items-center gap-1 border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
                         Try Now <IcChevron />
-                      </button>
+                      </Link>
                     </div>
                   </div>
                 ))}
