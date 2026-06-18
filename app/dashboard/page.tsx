@@ -257,7 +257,7 @@ const QUESTS = [
 
 const TOOLS_LARGE = [
   { title: "Clipiro AutoClip", desc: "Transform long videos into viral clips automatically", preview: <AutoClipPreview />, href: "/dashboard/create/auto-clip" },
-  { title: "Cut & Crop", desc: "Trim and stitch your video(s) into one clip ready to edit", preview: <CutCropPreview />, href: "/dashboard/tools" },
+  { title: "Cut & Crop", desc: "Trim and stitch your video(s) into one clip ready to edit", preview: <CutCropPreview />, href: "/dashboard/cut-and-crop" },
 ];
 const TOOLS_SMALL = [
   { title: "Voice Changer", desc: "Change the voice of any audio or video file", preview: <VoiceChangerPreview /> },
