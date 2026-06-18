@@ -26,7 +26,7 @@ export async function sendOtpSms(to: string, otp: string): Promise<DeliveryChann
   //   await client.messages.create({
   //     to,
   //     from: process.env.TWILIO_FROM_NUMBER,
-  //     body: `Your ClipForge verification code is ${otp}. It expires in 10 minutes.`,
+  //     body: `Your Clipiro verification code is ${otp}. It expires in 10 minutes.`,
   //   });
   //   return "sms";
   // ─────────────────────────────────────────────────────────────────────────

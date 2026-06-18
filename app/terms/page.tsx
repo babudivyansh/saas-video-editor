@@ -26,18 +26,18 @@ export default function TermsPage() {
     <LegalPage title="Terms of Service" lastUpdated="June 14, 2026" sections={sections}>
 
       <p>
-        These Terms of Service (&quot;Terms&quot;) govern your access to and use of the ClipForge
-        platform, website, and services (collectively, the &quot;Service&quot;) operated by ClipForge
+        These Terms of Service (&quot;Terms&quot;) govern your access to and use of the Clipiro
+        platform, website, and services (collectively, the &quot;Service&quot;) operated by Clipiro
         (&quot;we&quot;, &quot;our&quot;, &quot;us&quot;). By creating an account or using the Service, you agree to be
         bound by these Terms. If you do not agree, do not use the Service.
       </p>
 
       <h2 id="acceptance">Acceptance of Terms</h2>
       <p>
-        By accessing or using ClipForge, you confirm that you have read, understood, and
+        By accessing or using Clipiro, you confirm that you have read, understood, and
         agree to be bound by these Terms and our{" "}
         <a href="/privacy">Privacy Policy</a>, which is incorporated by reference.
-        These Terms constitute a legally binding agreement between you and ClipForge.
+        These Terms constitute a legally binding agreement between you and Clipiro.
       </p>
 
       <h2 id="eligibility">Eligibility</h2>
@@ -57,7 +57,7 @@ export default function TermsPage() {
         <li>Provide accurate, current, and complete information during registration</li>
         <li>Maintain and promptly update your account information</li>
         <li>Keep your password confidential and not share it with any third party</li>
-        <li>Notify us immediately at <a href="mailto:support@clipforge.ai">support@clipforge.ai</a> of any unauthorised access to your account</li>
+        <li>Notify us immediately at <a href="mailto:support@clipiro.ai">support@clipiro.ai</a> of any unauthorised access to your account</li>
         <li>Accept responsibility for all activity that occurs under your account</li>
       </ul>
       <p>
@@ -67,7 +67,7 @@ export default function TermsPage() {
 
       <h2 id="service">Description of Service</h2>
       <p>
-        ClipForge is an AI-powered platform that enables users to generate short-form vertical
+        Clipiro is an AI-powered platform that enables users to generate short-form vertical
         videos from text prompts. The Service includes:
       </p>
       <ul>
@@ -146,7 +146,7 @@ export default function TermsPage() {
       <h3>Our Property</h3>
       <p>
         The Service, including its software, design, branding, trademarks, and underlying
-        AI infrastructure, is owned by ClipForge and protected by applicable intellectual
+        AI infrastructure, is owned by Clipiro and protected by applicable intellectual
         property laws. You may not copy, modify, distribute, or create derivative works of
         any part of our platform without our express written permission.
       </p>
@@ -155,13 +155,13 @@ export default function TermsPage() {
       <p>
         Subject to these Terms, you own the videos you generate using the Service. You are
         responsible for ensuring your use of generated content complies with platform policies,
-        applicable law, and any third-party rights. ClipForge does not claim ownership of
+        applicable law, and any third-party rights. Clipiro does not claim ownership of
         your output.
       </p>
 
       <h2 id="user-content">Your Content</h2>
       <p>
-        By submitting prompts, scripts, or other content to the Service, you grant ClipForge
+        By submitting prompts, scripts, or other content to the Service, you grant Clipiro
         a limited, non-exclusive, worldwide licence to process and use that content solely
         to provide the Service to you. We do not use your prompts or generated videos to
         train our AI models without your explicit consent.
@@ -173,10 +173,10 @@ export default function TermsPage() {
 
       <h2 id="ai-disclaimer">AI-Generated Content Disclaimer</h2>
       <p>
-        ClipForge uses artificial intelligence to generate scripts, voiceovers, and video
+        Clipiro uses artificial intelligence to generate scripts, voiceovers, and video
         content. AI-generated content may occasionally be inaccurate, incomplete, or
         inappropriate. You are solely responsible for reviewing generated content before
-        publishing it. ClipForge does not guarantee the accuracy, completeness, suitability,
+        publishing it. Clipiro does not guarantee the accuracy, completeness, suitability,
         or factual correctness of any AI-generated output.
       </p>
 
@@ -193,7 +193,7 @@ export default function TermsPage() {
         We may suspend or terminate your account and access to the Service at any time,
         with or without cause, with or without notice, if we believe you have violated these
         Terms. You may terminate your account at any time by contacting{" "}
-        <a href="mailto:support@clipforge.ai">support@clipforge.ai</a>.
+        <a href="mailto:support@clipiro.ai">support@clipiro.ai</a>.
       </p>
       <p>
         Upon termination, your right to use the Service ceases immediately. Unused purchased
@@ -213,7 +213,7 @@ export default function TermsPage() {
 
       <h2 id="liability">Limitation of Liability</h2>
       <p>
-        TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, CLIPFORGE AND ITS OFFICERS,
+        TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, CLIPIRO AND ITS OFFICERS,
         DIRECTORS, EMPLOYEES, AND AFFILIATES SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
         SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING LOSS OF PROFITS, DATA, OR
         GOODWILL, ARISING OUT OF OR IN CONNECTION WITH YOUR USE OF OR INABILITY TO USE THE SERVICE,
@@ -221,13 +221,13 @@ export default function TermsPage() {
       </p>
       <p>
         OUR TOTAL CUMULATIVE LIABILITY TO YOU FOR ALL CLAIMS ARISING FROM OR RELATING TO
-        THE SERVICE SHALL NOT EXCEED THE AMOUNT YOU PAID TO CLIPFORGE IN THE 12 MONTHS
+        THE SERVICE SHALL NOT EXCEED THE AMOUNT YOU PAID TO CLIPIRO IN THE 12 MONTHS
         PRECEDING THE CLAIM, OR ₹1,000 (ONE THOUSAND RUPEES), WHICHEVER IS GREATER.
       </p>
 
       <h2 id="indemnification">Indemnification</h2>
       <p>
-        You agree to indemnify, defend, and hold harmless ClipForge and its officers, directors,
+        You agree to indemnify, defend, and hold harmless Clipiro and its officers, directors,
         employees, and agents from and against any claims, liabilities, damages, losses, and
         expenses (including reasonable legal fees) arising out of or relating to: (a) your use
         of the Service; (b) your violation of these Terms; (c) your violation of any third-party
@@ -240,7 +240,7 @@ export default function TermsPage() {
         without regard to its conflict of law provisions. Any dispute arising from these Terms
         or your use of the Service shall be subject to the exclusive jurisdiction of the courts
         located in India. You agree to first attempt to resolve disputes informally by
-        contacting us at <a href="mailto:legal@clipforge.ai">legal@clipforge.ai</a> before
+        contacting us at <a href="mailto:legal@clipiro.ai">legal@clipiro.ai</a> before
         initiating any formal legal proceedings.
       </p>
 
@@ -256,8 +256,8 @@ export default function TermsPage() {
       <h2 id="contact">Contact Us</h2>
       <p>If you have questions about these Terms, please contact us:</p>
       <ul>
-        <li><strong>Email:</strong> <a href="mailto:legal@clipforge.ai">legal@clipforge.ai</a></li>
-        <li><strong>Support:</strong> <a href="mailto:support@clipforge.ai">support@clipforge.ai</a></li>
+        <li><strong>Email:</strong> <a href="mailto:legal@clipiro.ai">legal@clipiro.ai</a></li>
+        <li><strong>Support:</strong> <a href="mailto:support@clipiro.ai">support@clipiro.ai</a></li>
       </ul>
 
     </LegalPage>

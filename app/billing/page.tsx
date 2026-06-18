@@ -80,7 +80,7 @@ function BillingContent() {
         key: data.keyId,
         amount: data.amount,
         currency: data.currency,
-        name: "ClipForge",
+        name: "Clipiro",
         description: data.packName,
         order_id: data.orderId,
         prefill: { email: userEmail },

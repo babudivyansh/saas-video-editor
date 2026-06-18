@@ -22,21 +22,21 @@ export default function AffiliateTosPage() {
 
       <p>
         These Affiliate Terms of Service (&quot;Affiliate Terms&quot;) govern your participation in
-        the ClipForge Affiliate Program (the &quot;Program&quot;). By applying to or participating
+        the Clipiro Affiliate Program (the &quot;Program&quot;). By applying to or participating
         in the Program, you (&quot;Affiliate&quot;, &quot;you&quot;, or &quot;your&quot;) agree to be bound by these
         Affiliate Terms, our <a href="/terms">Terms of Service</a>, and our{" "}
         <a href="/privacy">Privacy Policy</a>, all of which are incorporated by reference.
       </p>
       <p>
         If you do not agree to these Affiliate Terms, you must not participate in the Program.
-        ClipForge reserves the right to accept or reject any affiliate application at its
+        Clipiro reserves the right to accept or reject any affiliate application at its
         sole discretion.
       </p>
 
       <h2 id="introduction">Introduction</h2>
       <p>
-        The ClipForge Affiliate Program allows approved partners to earn commissions by
-        referring new paying customers to ClipForge. When someone signs up and makes a
+        The Clipiro Affiliate Program allows approved partners to earn commissions by
+        referring new paying customers to Clipiro. When someone signs up and makes a
         qualifying purchase through your unique referral link, you earn a commission on
         that transaction. The Program is designed to reward genuine promotion of our platform
         to audiences who would genuinely benefit from our Service.
@@ -47,8 +47,8 @@ export default function AffiliateTosPage() {
         To join the Program, you must:
       </p>
       <ul>
-        <li>Submit an affiliate application through our official affiliate portal or by contacting <a href="mailto:affiliates@clipforge.ai">affiliates@clipforge.ai</a></li>
-        <li>Have an active ClipForge account in good standing</li>
+        <li>Submit an affiliate application through our official affiliate portal or by contacting <a href="mailto:affiliates@clipiro.ai">affiliates@clipiro.ai</a></li>
+        <li>Have an active Clipiro account in good standing</li>
         <li>Own or control a website, social media channel, newsletter, or other promotional platform with original content</li>
         <li>Comply with all applicable laws and advertising regulations in your jurisdiction</li>
         <li>Be at least 18 years of age</li>
@@ -60,30 +60,30 @@ export default function AffiliateTosPage() {
       </p>
 
       <h2 id="obligations">Affiliate Obligations</h2>
-      <p>As a ClipForge Affiliate, you agree to:</p>
+      <p>As a Clipiro Affiliate, you agree to:</p>
       <ul>
-        <li>Promote ClipForge honestly, accurately, and in compliance with all applicable advertising laws and platform policies</li>
-        <li>Clearly and conspicuously disclose your affiliate relationship with ClipForge in all promotional content, in accordance with applicable consumer protection and advertising disclosure requirements (e.g., FTC guidelines, ASA rules)</li>
-        <li>Only make claims about ClipForge that are accurate and substantiated</li>
-        <li>Not misrepresent ClipForge&apos;s features, pricing, or capabilities</li>
-        <li>Maintain the reputation and goodwill of the ClipForge brand</li>
-        <li>Promptly update or remove promotional content if notified by ClipForge that it is inaccurate or non-compliant</li>
+        <li>Promote Clipiro honestly, accurately, and in compliance with all applicable advertising laws and platform policies</li>
+        <li>Clearly and conspicuously disclose your affiliate relationship with Clipiro in all promotional content, in accordance with applicable consumer protection and advertising disclosure requirements (e.g., FTC guidelines, ASA rules)</li>
+        <li>Only make claims about Clipiro that are accurate and substantiated</li>
+        <li>Not misrepresent Clipiro&apos;s features, pricing, or capabilities</li>
+        <li>Maintain the reputation and goodwill of the Clipiro brand</li>
+        <li>Promptly update or remove promotional content if notified by Clipiro that it is inaccurate or non-compliant</li>
         <li>Keep your affiliate account credentials secure and not share them with third parties</li>
       </ul>
 
       <h2 id="approved-methods">Approved Promotional Methods</h2>
-      <p>You may promote ClipForge through the following channels:</p>
+      <p>You may promote Clipiro through the following channels:</p>
       <ul>
         <li>Your own website, blog, or online publication with original content</li>
         <li>YouTube, TikTok, Instagram, Twitter/X, LinkedIn, and other social media platforms where you have a genuine following</li>
         <li>Email newsletters to your own opted-in subscriber list (no purchased or rented lists)</li>
         <li>Podcast episodes and video content featuring honest reviews or tutorials</li>
         <li>Search engine marketing (SEM) — subject to the keyword restrictions below</li>
-        <li>Comparison or review articles where ClipForge is one of multiple products assessed</li>
+        <li>Comparison or review articles where Clipiro is one of multiple products assessed</li>
       </ul>
       <p>
         If you are unsure whether a specific promotional method is permitted, email us at{" "}
-        <a href="mailto:affiliates@clipforge.ai">affiliates@clipforge.ai</a> before proceeding.
+        <a href="mailto:affiliates@clipiro.ai">affiliates@clipiro.ai</a> before proceeding.
       </p>
 
       <h2 id="prohibited">Prohibited Activities</h2>
@@ -94,13 +94,13 @@ export default function AffiliateTosPage() {
       <ul>
         <li>Using your own referral link to make purchases on your own account or creating fake accounts to generate commissions (self-referral fraud)</li>
         <li>Cookie stuffing, click spamming, or any form of forced or fraudulent cookie placement</li>
-        <li>Bidding on branded keywords (&quot;ClipForge&quot;, &quot;ClipForge AI&quot;, or similar variations) in paid search without prior written permission</li>
-        <li>Creating websites, social media profiles, or email addresses that impersonate or could be confused with ClipForge&apos;s official presence</li>
-        <li>Using ClipForge&apos;s trademarks, logos, or brand assets in domain names or usernames</li>
-        <li>Sending unsolicited bulk emails (spam) to promote ClipForge</li>
-        <li>Making false or misleading claims about ClipForge&apos;s features, results, or pricing</li>
-        <li>Offering unauthorised cashback, discounts, or incentives beyond what ClipForge officially provides</li>
-        <li>Promoting ClipForge through adult content sites, gambling sites, or any platform that violates our Terms of Service</li>
+        <li>Bidding on branded keywords (&quot;Clipiro&quot;, &quot;Clipiro AI&quot;, or similar variations) in paid search without prior written permission</li>
+        <li>Creating websites, social media profiles, or email addresses that impersonate or could be confused with Clipiro&apos;s official presence</li>
+        <li>Using Clipiro&apos;s trademarks, logos, or brand assets in domain names or usernames</li>
+        <li>Sending unsolicited bulk emails (spam) to promote Clipiro</li>
+        <li>Making false or misleading claims about Clipiro&apos;s features, results, or pricing</li>
+        <li>Offering unauthorised cashback, discounts, or incentives beyond what Clipiro officially provides</li>
+        <li>Promoting Clipiro through adult content sites, gambling sites, or any platform that violates our Terms of Service</li>
         <li>Incentivised clicks or signups that do not represent genuine user interest</li>
         <li>Sub-affiliating or sharing your referral link with third-party affiliate networks without written consent</li>
       </ul>
@@ -129,7 +129,7 @@ export default function AffiliateTosPage() {
       <p>
         Payments are made via bank transfer (NEFT/RTGS/IMPS) for Indian affiliates, or
         PayPal / wire transfer for international affiliates. You are responsible for providing
-        accurate payment details. ClipForge is not liable for payments made to incorrect
+        accurate payment details. Clipiro is not liable for payments made to incorrect
         details you provide.
       </p>
 
@@ -144,7 +144,7 @@ export default function AffiliateTosPage() {
 
       <h3>Taxes</h3>
       <p>
-        You are responsible for all taxes applicable to commissions you receive. ClipForge
+        You are responsible for all taxes applicable to commissions you receive. Clipiro
         will provide necessary documentation (such as TDS certificates where applicable under
         Indian tax law) upon request. You agree to provide any tax information we reasonably
         request to comply with our own tax obligations.
@@ -158,20 +158,20 @@ export default function AffiliateTosPage() {
         industry-standard tracking and make every effort to ensure accurate attribution,
         but we cannot guarantee tracking in all circumstances (e.g., if a user clears cookies
         or uses an ad blocker). Disputed tracking issues must be raised within 14 days of
-        the relevant payment period via <a href="mailto:affiliates@clipforge.ai">affiliates@clipforge.ai</a>.
+        the relevant payment period via <a href="mailto:affiliates@clipiro.ai">affiliates@clipiro.ai</a>.
       </p>
 
       <h2 id="termination">Term & Termination</h2>
       <p>
         These Affiliate Terms are effective from the date of your acceptance and continue
         until terminated by either party. You may exit the Program at any time by notifying
-        us in writing. ClipForge may terminate your participation at any time, with or without
+        us in writing. Clipiro may terminate your participation at any time, with or without
         cause, upon written notice. Grounds for immediate termination without notice include:
         fraud, violation of the prohibited activities listed above, or conduct that damages
-        ClipForge&apos;s reputation.
+        Clipiro&apos;s reputation.
       </p>
       <p>
-        Upon termination, you must immediately cease using ClipForge&apos;s brand assets and
+        Upon termination, you must immediately cease using Clipiro&apos;s brand assets and
         remove all affiliate links from your promotional channels. Commissions already earned
         and approved prior to termination will be paid at the next scheduled payment date,
         unless termination was due to fraud or material breach, in which case all unpaid
@@ -180,38 +180,38 @@ export default function AffiliateTosPage() {
 
       <h2 id="relationship">Relationship of Parties</h2>
       <p>
-        You and ClipForge are independent contractors. Nothing in these Affiliate Terms
+        You and Clipiro are independent contractors. Nothing in these Affiliate Terms
         creates a partnership, joint venture, agency, franchise, or employment relationship.
         You have no authority to make representations, commitments, or obligations on behalf
-        of ClipForge. You are responsible for your own business expenses and obligations,
+        of Clipiro. You are responsible for your own business expenses and obligations,
         including taxes and insurance.
       </p>
 
       <h2 id="liability">Limitation of Liability</h2>
       <p>
-        TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, CLIPFORGE&apos;S TOTAL LIABILITY TO
+        TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, CLIPIRO&apos;S TOTAL LIABILITY TO
         YOU UNDER OR IN CONNECTION WITH THESE AFFILIATE TERMS SHALL NOT EXCEED THE TOTAL
-        COMMISSIONS PAID TO YOU IN THE THREE MONTHS PRECEDING THE CLAIM. CLIPFORGE SHALL NOT
+        COMMISSIONS PAID TO YOU IN THE THREE MONTHS PRECEDING THE CLAIM. CLIPIRO SHALL NOT
         BE LIABLE FOR ANY INDIRECT, INCIDENTAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING
         FROM YOUR PARTICIPATION IN THE PROGRAM.
       </p>
 
       <h2 id="disclaimers">Disclaimers</h2>
       <p>
-        THE PROGRAM IS PROVIDED &quot;AS IS&quot;. CLIPFORGE MAKES NO WARRANTIES, EXPRESS OR IMPLIED,
+        THE PROGRAM IS PROVIDED &quot;AS IS&quot;. CLIPIRO MAKES NO WARRANTIES, EXPRESS OR IMPLIED,
         REGARDING THE PROGRAM, INCLUDING ANY WARRANTY THAT THE PROGRAM WILL GENERATE ANY
         PARTICULAR LEVEL OF INCOME OR RESULTS FOR YOU. PAST COMMISSION EARNINGS BY OTHER
         AFFILIATES ARE NOT A GUARANTEE OF YOUR FUTURE EARNINGS.
       </p>
       <p>
-        ClipForge reserves the right to modify pricing, credit packs, or the Service at any
+        Clipiro reserves the right to modify pricing, credit packs, or the Service at any
         time, which may affect the volume or value of future commissions. Such changes do not
         entitle you to any compensation.
       </p>
 
       <h2 id="modification">Modification</h2>
       <p>
-        ClipForge may modify these Affiliate Terms at any time by posting the updated terms
+        Clipiro may modify these Affiliate Terms at any time by posting the updated terms
         on our website and notifying active affiliates via email with at least 14 days&apos; notice
         before the changes take effect. Your continued participation in the Program after the
         effective date constitutes acceptance of the revised terms. If you do not agree to
@@ -223,8 +223,8 @@ export default function AffiliateTosPage() {
         For all affiliate programme enquiries, applications, or disputes:
       </p>
       <ul>
-        <li><strong>Affiliate inquiries:</strong> <a href="mailto:affiliates@clipforge.ai">affiliates@clipforge.ai</a></li>
-        <li><strong>General support:</strong> <a href="mailto:support@clipforge.ai">support@clipforge.ai</a></li>
+        <li><strong>Affiliate inquiries:</strong> <a href="mailto:affiliates@clipiro.ai">affiliates@clipiro.ai</a></li>
+        <li><strong>General support:</strong> <a href="mailto:support@clipiro.ai">support@clipiro.ai</a></li>
       </ul>
       <p>
         We aim to respond to all affiliate queries within 3 business days.

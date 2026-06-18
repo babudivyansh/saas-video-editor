@@ -19,14 +19,14 @@ export default function RefundPage() {
     <LegalPage title="Refund Policy" lastUpdated="June 14, 2026" sections={sections}>
 
       <p>
-        At ClipForge, we want you to be satisfied with your purchase. This Refund Policy
+        At Clipiro, we want you to be satisfied with your purchase. This Refund Policy
         explains when and how you may request a refund for credit packs purchased on our
         platform. Please read this policy carefully before making a purchase.
       </p>
 
       <h2 id="overview">Overview</h2>
       <p>
-        ClipForge operates on a credit-based system. Credits are used to generate videos —
+        Clipiro operates on a credit-based system. Credits are used to generate videos —
         each video generation consumes one credit. Because our costs (AI API calls, compute,
         and storage) are incurred at the moment a video is generated, our refund policy
         distinguishes between credits that have been used and those that remain unused.
@@ -98,7 +98,7 @@ export default function RefundPage() {
       <ul>
         <li>
           Email us at{" "}
-          <a href="mailto:support@clipforge.ai">support@clipforge.ai</a> with the subject
+          <a href="mailto:support@clipiro.ai">support@clipiro.ai</a> with the subject
           line: <strong>&quot;Refund Request — [your registered email]&quot;</strong>
         </li>
         <li>Include your registered email address and the date of purchase</li>
@@ -122,7 +122,7 @@ export default function RefundPage() {
       </ul>
       <p>
         Refunds are processed through Razorpay back to the original payment source.
-        ClipForge is not responsible for delays caused by your bank or payment provider.
+        Clipiro is not responsible for delays caused by your bank or payment provider.
       </p>
 
       <h2 id="payment-failures">Payment Failures</h2>
@@ -131,12 +131,12 @@ export default function RefundPage() {
         be auto-reversed by your bank within 5–7 business days. If no auto-reversal occurs
         after 7 business days, please contact your bank with the failed transaction reference
         and also notify us at{" "}
-        <a href="mailto:support@clipforge.ai">support@clipforge.ai</a> so we can assist.
+        <a href="mailto:support@clipiro.ai">support@clipiro.ai</a> so we can assist.
       </p>
 
       <h2 id="subscription">No Subscription Model</h2>
       <p>
-        ClipForge does not offer subscription plans. All purchases are one-time credit pack
+        Clipiro does not offer subscription plans. All purchases are one-time credit pack
         transactions. There are no recurring charges, no auto-renewals, and no hidden fees.
         You will only be charged when you explicitly purchase a credit pack.
       </p>
@@ -154,7 +154,7 @@ export default function RefundPage() {
         For all refund-related queries, please reach out to our support team:
       </p>
       <ul>
-        <li><strong>Email:</strong> <a href="mailto:support@clipforge.ai">support@clipforge.ai</a></li>
+        <li><strong>Email:</strong> <a href="mailto:support@clipiro.ai">support@clipiro.ai</a></li>
         <li><strong>Response time:</strong> Within 3 business days</li>
       </ul>
       <p>

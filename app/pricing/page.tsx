@@ -44,7 +44,7 @@ function Navbar() {
             <span className="bg-blue-600 text-white rounded-lg w-8 h-8 flex items-center justify-center">
               <ZapIcon className="w-4 h-4" />
             </span>
-            ClipForge
+            Clipiro
           </Link>
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-600">
             <Link href="/#features" className="hover:text-blue-600 transition-colors">Features</Link>
@@ -144,7 +144,7 @@ const FAQS = [
   },
   {
     q: "Can I use the videos commercially?",
-    a: "Yes. All videos generated with ClipForge are yours to use commercially on any platform — TikTok, YouTube, Instagram, client work, and more.",
+    a: "Yes. All videos generated with Clipiro are yours to use commercially on any platform — TikTok, YouTube, Instagram, client work, and more.",
   },
   {
     q: "What payment methods are accepted?",
@@ -152,7 +152,7 @@ const FAQS = [
   },
   {
     q: "Is there a free trial?",
-    a: "Yes — every new account gets 30 free credits to try ClipForge before purchasing any plan. No credit card required.",
+    a: "Yes — every new account gets 30 free credits to try Clipiro before purchasing any plan. No credit card required.",
   },
   {
     q: "Do you support multiple languages for voiceovers?",
@@ -335,7 +335,7 @@ export default function PricingPage() {
             <tbody>
               <tr>
                 <td colSpan={4} className="py-3 px-6 text-xs font-bold text-gray-400 uppercase tracking-widest bg-gray-50 border-t border-gray-100">
-                  ClipForge Workflows
+                  Clipiro Workflows
                 </td>
               </tr>
               {WORKFLOWS.map((row, i) => (
@@ -347,7 +347,7 @@ export default function PricingPage() {
             <tbody>
               <tr>
                 <td colSpan={4} className="py-3 px-6 text-xs font-bold text-gray-400 uppercase tracking-widest bg-gray-50 border-t border-gray-100">
-                  ClipForge AI Tools
+                  Clipiro AI Tools
                 </td>
               </tr>
               {TOOLS.map((row, i) => (
@@ -400,7 +400,7 @@ export default function PricingPage() {
               Start Free — 30 Credits
             </Link>
             <a
-              href="mailto:support@clipforge.ai"
+              href="mailto:support@clipiro.ai"
               className="inline-flex items-center justify-center gap-2 border-2 border-white/40 text-white font-bold px-8 py-3.5 rounded-full hover:bg-white/10 transition-colors"
             >
               Contact Support
@@ -416,7 +416,7 @@ export default function PricingPage() {
             <span className="bg-blue-600 text-white rounded-lg w-7 h-7 flex items-center justify-center">
               <ZapIcon className="w-3.5 h-3.5" />
             </span>
-            CLIPFORGE
+            CLIPIRO
           </Link>
           <div className="flex items-center gap-6 text-sm text-gray-400">
             <Link href="/privacy" className="hover:text-gray-700">Privacy</Link>

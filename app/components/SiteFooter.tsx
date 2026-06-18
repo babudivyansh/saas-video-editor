@@ -93,7 +93,7 @@ export default function SiteFooter() {
               <span className="bg-blue-600 text-white rounded-lg w-8 h-8 flex items-center justify-center">
                 <ZapIcon />
               </span>
-              CLIPFORGE
+              CLIPIRO
             </Link>
             <div className="flex items-center gap-2">
               {SOCIALS.map((s) => (

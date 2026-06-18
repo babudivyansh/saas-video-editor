@@ -249,14 +249,14 @@ const NAV = [
 ];
 
 const QUESTS = [
-  { icon: <IcDiscord />, title: "Join the community", xp: 500, desc: "Connect your Discord and join the ClipForge server.", color: "#5865F2" },
+  { icon: <IcDiscord />, title: "Join the community", xp: 500, desc: "Connect your Discord and join the Clipiro server.", color: "#5865F2" },
   { icon: <IcFilm />, title: "First clip", xp: 300, desc: "Walk through the Simple Editor and make your first clip.", color: "#3b82f6" },
   { icon: <IcMic />, title: "Hear yourself out", xp: 200, desc: "Generate your first AI voiceover.", color: "#a855f7" },
   { icon: <IcImage />, title: "Picture this", xp: 200, desc: "Generate your first AI image.", color: "#ec4899" },
 ];
 
 const TOOLS_LARGE = [
-  { title: "ClipForge AutoClip", desc: "Transform long videos into viral clips automatically", preview: <AutoClipPreview />, href: "/dashboard/create/auto-clip" },
+  { title: "Clipiro AutoClip", desc: "Transform long videos into viral clips automatically", preview: <AutoClipPreview />, href: "/dashboard/create/auto-clip" },
   { title: "Cut & Crop", desc: "Trim and stitch your video(s) into one clip ready to edit", preview: <CutCropPreview />, href: "/dashboard/tools" },
 ];
 const TOOLS_SMALL = [
@@ -486,10 +486,10 @@ export default function DashboardPage() {
                 ))}
               </div>
 
-              {/* ── ClipForge Tools section ── */}
+              {/* ── Clipiro Tools section ── */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-base font-bold text-gray-900">ClipForge Tools</h2>
+                  <h2 className="text-base font-bold text-gray-900">Clipiro Tools</h2>
                   <Link href="/dashboard/tools" className="text-sm font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors">
                     View All Tools <IcChevron />
                   </Link>

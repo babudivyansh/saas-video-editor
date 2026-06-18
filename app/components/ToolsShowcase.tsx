@@ -36,11 +36,11 @@ const QUICK_TOOLS = [
   { icon: <IcYoutube />, label: "YouTube Downloader", href: "/dashboard/tools" },
 ];
 
-export function ClipForgeToolsStrip({ activeLabel }: { activeLabel?: string }) {
+export function ClipiroToolsStrip({ activeLabel }: { activeLabel?: string }) {
   return (
     <section className="mx-auto w-full max-w-[1440px] px-8 mt-10">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-[17px] font-extrabold text-gray-900">ClipForge Tools</h2>
+        <h2 className="text-[17px] font-extrabold text-gray-900">Clipiro Tools</h2>
         <Link href="/dashboard/tools" className="inline-flex items-center gap-1 text-[13px] font-semibold text-blue-600 hover:text-blue-700">
           View All Tools <IcArrow />
         </Link>
