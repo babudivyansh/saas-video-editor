@@ -1,4 +1,4 @@
-# ClipForge — AI Faceless Video Generator
+# Clipiro — AI Faceless Video Generator
 
 A Crayo.ai-style SaaS that turns a text prompt into a 9:16 vertical short-form video with:
 - AI script (Google Gemini)

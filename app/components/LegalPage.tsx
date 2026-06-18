@@ -30,7 +30,7 @@ export default function LegalPage({ title, lastUpdated, sections, children }: Le
             <span className="bg-blue-600 text-white rounded-lg w-8 h-8 flex items-center justify-center">
               <ZapIcon />
             </span>
-            ClipForge
+            Clipiro
           </Link>
           <div className="flex items-center gap-4">
             <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900">Sign in</Link>
@@ -81,7 +81,7 @@ export default function LegalPage({ title, lastUpdated, sections, children }: Le
             <span className="bg-blue-600 text-white rounded-lg w-7 h-7 flex items-center justify-center">
               <ZapIcon />
             </span>
-            CLIPFORGE
+            CLIPIRO
           </Link>
           <div className="flex items-center gap-6 text-sm text-gray-400">
             <Link href="/privacy" className="hover:text-gray-700">Privacy Policy</Link>

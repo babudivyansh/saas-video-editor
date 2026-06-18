@@ -604,7 +604,7 @@ function RedditVideoFlow() {
                       <p className="text-xs font-bold text-blue-900">Limited time offer: 15 free credits!</p>
                       <p className="text-[11px] text-blue-700 leading-normal">We&apos;re offering free credits for any feedback / feature requests you have.</p>
                     </div>
-                    <a href="mailto:support@clipforge.ai" className="text-xs font-extrabold text-blue-600 hover:underline bg-white px-3.5 py-2 rounded-lg border border-blue-200 whitespace-nowrap shadow-sm">Contact our team</a>
+                    <a href="mailto:support@clipiro.ai" className="text-xs font-extrabold text-blue-600 hover:underline bg-white px-3.5 py-2 rounded-lg border border-blue-200 whitespace-nowrap shadow-sm">Contact our team</a>
                   </div>
                 </div>
 

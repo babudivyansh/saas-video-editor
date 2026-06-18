@@ -20,10 +20,10 @@ export default function PrivacyPage() {
     <LegalPage title="Privacy Policy" lastUpdated="June 14, 2026" sections={sections}>
 
       <p>
-        Welcome to ClipForge (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;). We are committed to protecting your personal
+        Welcome to Clipiro (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;). We are committed to protecting your personal
         information and your right to privacy. This Privacy Policy explains how we collect, use,
         disclose, and safeguard your information when you use our AI video generation platform
-        at clipforge.ai (the &quot;Service&quot;). Please read this policy carefully. If you disagree
+        at clipiro.ai (the &quot;Service&quot;). Please read this policy carefully. If you disagree
         with its terms, please discontinue use of the Service.
       </p>
 
@@ -42,7 +42,7 @@ export default function PrivacyPage() {
       <p>
         When you register, we store your email address, a hashed version of your password (we
         never store your plain-text password), your credit balance, and the projects you create.
-        We use this data solely to operate and personalise your ClipForge experience.
+        We use this data solely to operate and personalise your Clipiro experience.
       </p>
 
       <h2 id="automated-collection">Automated Information Collection</h2>
@@ -81,7 +81,7 @@ export default function PrivacyPage() {
       <h2 id="use-of-information">Use of Information</h2>
       <p>We use the information we collect to:</p>
       <ul>
-        <li>Provide, operate, and maintain the ClipForge Service</li>
+        <li>Provide, operate, and maintain the Clipiro Service</li>
         <li>Process transactions and manage your credit balance</li>
         <li>Generate AI videos using the prompts and preferences you supply</li>
         <li>Send transactional emails (account confirmation, payment receipts, video completion notifications)</li>
@@ -110,7 +110,7 @@ export default function PrivacyPage() {
       <p>
         We may disclose your information when required by law, subpoena, court order, or
         government authority, or where we believe disclosure is necessary to protect the rights,
-        property, or safety of ClipForge, our users, or the public.
+        property, or safety of Clipiro, our users, or the public.
       </p>
 
       <h3>Protection of Rights and Safety</h3>
@@ -122,7 +122,7 @@ export default function PrivacyPage() {
 
       <h3>Business Transfers</h3>
       <p>
-        If ClipForge is acquired, merged with, or sells its assets to another company, your
+        If Clipiro is acquired, merged with, or sells its assets to another company, your
         information may be transferred as part of that transaction. We will notify you via
         email or a prominent notice on the Service before your data is transferred and becomes
         subject to a different privacy policy.
@@ -184,7 +184,7 @@ export default function PrivacyPage() {
 
       <h2 id="international">International Transfers</h2>
       <p>
-        ClipForge is operated from India. If you access our Service from outside India, your
+        Clipiro is operated from India. If you access our Service from outside India, your
         information may be transferred to and processed in India or other countries where our
         service providers operate (including the United States for AWS and Google services).
         These countries may have data protection laws that differ from those in your jurisdiction.
@@ -203,7 +203,7 @@ export default function PrivacyPage() {
       </ul>
       <p>
         To exercise any of these rights, email us at{" "}
-        <a href="mailto:privacy@clipforge.ai">privacy@clipforge.ai</a>. We will respond within
+        <a href="mailto:privacy@clipiro.ai">privacy@clipiro.ai</a>. We will respond within
         30 days. We may need to verify your identity before processing your request.
       </p>
 
@@ -229,8 +229,8 @@ export default function PrivacyPage() {
         data practices, please contact us:
       </p>
       <ul>
-        <li><strong>Email:</strong> <a href="mailto:privacy@clipforge.ai">privacy@clipforge.ai</a></li>
-        <li><strong>Support:</strong> <a href="mailto:support@clipforge.ai">support@clipforge.ai</a></li>
+        <li><strong>Email:</strong> <a href="mailto:privacy@clipiro.ai">privacy@clipiro.ai</a></li>
+        <li><strong>Support:</strong> <a href="mailto:support@clipiro.ai">support@clipiro.ai</a></li>
       </ul>
       <p>We aim to respond to all privacy inquiries within 5 business days.</p>
 

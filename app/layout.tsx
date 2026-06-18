@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ClipForge — AI Faceless Video Generator",
+  title: "Clipiro — AI Faceless Video Generator",
   description: "Turn any idea into a viral short-form video with AI script, voice, and animated captions.",
 };
 

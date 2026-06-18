@@ -20,19 +20,19 @@ export async function sendOtpEmail(to: string, otp: string): Promise<DeliveryCha
     return "dev-console";
   }
 
-  const from = process.env.EMAIL_FROM || process.env.EMAIL_USER || "noreply@clipforge.app";
+  const from = process.env.EMAIL_FROM || process.env.EMAIL_USER || "noreply@clipiro.app";
 
   await transporter.sendMail({
-    from: `"ClipForge" <${from}>`,
+    from: `"Clipiro" <${from}>`,
     to,
-    subject: "Your ClipForge verification code",
+    subject: "Your Clipiro verification code",
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px;">
         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 32px;">
           <div style="background: #2563eb; border-radius: 8px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
           </div>
-          <span style="font-size: 18px; font-weight: 800; color: #0f172a;">ClipForge</span>
+          <span style="font-size: 18px; font-weight: 800; color: #0f172a;">Clipiro</span>
         </div>
 
         <h1 style="color: #0f172a; font-size: 22px; font-weight: 700; margin: 0 0 8px;">Verify your email address</h1>
@@ -49,7 +49,7 @@ export async function sendOtpEmail(to: string, otp: string): Promise<DeliveryCha
         </p>
 
         <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 28px 0;" />
-        <p style="color: #cbd5e1; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} ClipForge. All rights reserved.</p>
+        <p style="color: #cbd5e1; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} Clipiro. All rights reserved.</p>
       </div>
     `,
   });
