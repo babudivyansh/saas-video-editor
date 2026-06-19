@@ -2,8 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { getAuthUser } from "@/lib/auth";
 import { uploadBufferToS3 } from "@/utils/s3-upload";
+import { redis } from "@/lib/redis";
+import { prisma } from "@/lib/prisma";
 
 export const maxDuration = 120;
+
+const CREDIT_COST = 1;
+
+async function refundCredit(userId: string) {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { credits: { increment: CREDIT_COST } },
+  });
+  const cached = await redis.get(`credits:${userId}`);
+  if (cached !== null) {
+    await redis.set(`credits:${userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
+  }
+}
 
 // Maps UI model slugs → Together AI model IDs + recommended steps
 const MODEL_MAP: Record<string, { model: string; steps: number }> = {
@@ -37,6 +52,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Image generation is not configured (missing TOGETHER_API_KEY)" }, { status: 503 });
   }
 
+  // Fast pre-check against cached credit balance
+  const cachedCredits = await redis.get(`credits:${auth.userId}`);
+  const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
+  if (cached !== null && cached < CREDIT_COST) {
+    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
+  }
+
   let body: { prompt?: string; model?: string; ratio?: string };
   try {
     body = await req.json();
@@ -51,36 +73,58 @@ export async function POST(req: NextRequest) {
   const { model, steps } = MODEL_MAP[body.model ?? ""] ?? MODEL_MAP["seedream-4.5"];
   const { width, height } = RATIO_MAP[body.ratio ?? ""] ?? RATIO_MAP["9:16"];
 
-  const togetherRes = await fetch("https://api.together.xyz/v1/images/generations", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.TOGETHER_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      prompt,
-      width,
-      height,
-      steps,
-      n: 1,
-      response_format: "b64_json",
-    }),
+  // Deduct credit before the paid call; refund on any failure below
+  const user = await prisma.user.update({
+    where: { id: auth.userId },
+    data: { credits: { decrement: CREDIT_COST } },
+    select: { credits: true },
   });
-
-  if (!togetherRes.ok) {
-    const err = await togetherRes.text();
-    console.error("[image-generator] Together AI error", togetherRes.status, err);
-    return NextResponse.json({ error: "Image generation failed. Please try again." }, { status: 502 });
+  if (user.credits < 0) {
+    await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
+    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
+  await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
 
-  const json = (await togetherRes.json()) as { data: { b64_json: string }[] };
-  const b64 = json.data?.[0]?.b64_json;
-  if (!b64) return NextResponse.json({ error: "No image returned" }, { status: 502 });
+  try {
+    const togetherRes = await fetch("https://api.together.xyz/v1/images/generations", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.TOGETHER_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        prompt,
+        width,
+        height,
+        steps,
+        n: 1,
+        response_format: "b64_json",
+      }),
+    });
 
-  const buffer = Buffer.from(b64, "base64");
-  const key = `generated-images/${auth.userId}/${randomUUID()}.png`;
-  const imageUrl = await uploadBufferToS3(buffer, key, "image/png");
+    if (!togetherRes.ok) {
+      const err = await togetherRes.text();
+      console.error("[image-generator] Together AI error", togetherRes.status, err);
+      await refundCredit(auth.userId);
+      return NextResponse.json({ error: "Image generation failed. Please try again." }, { status: 502 });
+    }
 
-  return NextResponse.json({ imageUrl, width, height });
+    const json = (await togetherRes.json()) as { data: { b64_json: string }[] };
+    const b64 = json.data?.[0]?.b64_json;
+    if (!b64) {
+      await refundCredit(auth.userId);
+      return NextResponse.json({ error: "No image returned" }, { status: 502 });
+    }
+
+    const buffer = Buffer.from(b64, "base64");
+    const key = `generated-images/${auth.userId}/${randomUUID()}.png`;
+    const imageUrl = await uploadBufferToS3(buffer, key, "image/png");
+
+    return NextResponse.json({ imageUrl, width, height });
+  } catch (err) {
+    console.error("[image-generator]", err);
+    try { await refundCredit(auth.userId); } catch { /* swallow */ }
+    return NextResponse.json({ error: "Image generation failed. Please try again." }, { status: 500 });
+  }
 }

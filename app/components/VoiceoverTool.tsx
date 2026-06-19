@@ -450,7 +450,7 @@ function PlayerCard({
 
 // ── Main component ───────────────────────────────────────────────────────────
 export default function VoiceoverTool() {
-  const { user, token, openAuthModal } = useAuth();
+  const { user, token, openAuthModal, refreshUser } = useAuth();
 
   const [voiceSlug, setVoiceSlug] = useState("william");
   const [title, setTitle] = useState("");
@@ -546,6 +546,7 @@ export default function VoiceoverTool() {
       };
       persistHistory([item, ...history]);
       setTimeout(() => togglePlay(item), 50);
+      refreshUser();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Voice generation failed.");
     } finally {

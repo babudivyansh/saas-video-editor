@@ -137,7 +137,7 @@ function RatioDropdown({ value, onChange }: { value: string; onChange: (v: strin
 
 // ── Main component ───────────────────────────────────────────────────────────
 export default function ImageGeneratorTool() {
-  const { user, token, openAuthModal } = useAuth();
+  const { user, token, openAuthModal, refreshUser } = useAuth();
 
   const [model, setModel] = useState("seedream-4.5");
   const [ratio, setRatio] = useState("9:16");
@@ -217,6 +217,7 @@ export default function ImageGeneratorTool() {
       };
       setCurrentImage(data.imageUrl);
       persistGenerations([item, ...generations]);
+      refreshUser();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Image generation failed");
     } finally {
