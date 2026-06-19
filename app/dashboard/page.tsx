@@ -262,7 +262,7 @@ const TOOLS_LARGE = [
 const TOOLS_SMALL = [
   { title: "Voice Changer", desc: "Change the voice of any audio or video file", preview: <VoiceChangerPreview />, href: "/dashboard/tools/voice-changer" },
   { title: "Subtitle Remover", desc: "Remove subtitles with AI in minutes", preview: <SubtitleRemoverPreview />, href: "/dashboard/tools/subtitle-remover" },
-  { title: "AI Creator", desc: "Become an AI content creator in 3 steps", preview: <AICreatorPreview /> },
+  { title: "AI Creator", desc: "Become an AI content creator in 3 steps", preview: <AICreatorPreview />, href: "/dashboard/ai-creator" },
 ];
 
 const MINI_TOOLS = [
