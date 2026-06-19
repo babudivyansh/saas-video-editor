@@ -239,6 +239,26 @@ function AICreatorPreview() {
   );
 }
 
+function VocalRemoverPreview() {
+  const wave = [10, 20, 14, 28, 18, 34, 12, 26, 16, 30, 22, 36, 14, 24, 18, 32, 20, 28, 12, 34, 16, 26, 20, 30, 14, 24, 18, 28];
+  return (
+    <div className="h-[140px] bg-gray-50 flex flex-col gap-3 p-4 justify-center overflow-hidden">
+      <div className="flex items-center gap-3">
+        <div className="relative w-10 h-10 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
+          <span className="text-blue-500"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="w-4 h-4"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" strokeLinecap="round"/></svg></span>
+          <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-500 text-white text-[8px] flex items-center justify-center">✕</span>
+        </div>
+        <div className="flex items-center gap-px h-5 flex-1">
+          {wave.map((h, i) => <div key={i} className="w-[3px] rounded-full bg-rose-300" style={{ height: `${h * 0.6}px` }} />)}
+        </div>
+      </div>
+      <div className="flex items-center gap-px h-6">
+        {wave.map((h, i) => <div key={i} className="w-[3px] rounded-full bg-gray-300" style={{ height: `${h * 0.75}px` }} />)}
+      </div>
+    </div>
+  );
+}
+
 // ── Data ───────────────────────────────────────────────────────────────────────
 const NAV = [
   { id: "home", icon: <IcHome />, label: "Home" },
@@ -263,6 +283,7 @@ const TOOLS_SMALL = [
   { title: "Voice Changer", desc: "Change the voice of any audio or video file", preview: <VoiceChangerPreview />, href: "/dashboard/tools/voice-changer" },
   { title: "Subtitle Remover", desc: "Remove subtitles with AI in minutes", preview: <SubtitleRemoverPreview />, href: "/dashboard/tools/subtitle-remover" },
   { title: "AI Creator", desc: "Become an AI content creator in 3 steps", preview: <AICreatorPreview />, href: "/dashboard/ai-creator" },
+  { title: "AI Vocal Remover", desc: "Remove vocals from audio/video with AI", preview: <VocalRemoverPreview />, href: "/dashboard/tools/vocal-remover" },
 ];
 
 const MINI_TOOLS = [
