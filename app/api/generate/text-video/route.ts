@@ -14,6 +14,21 @@ import { downloadFile } from "@/utils/download";
 
 const CREDIT_COST = 1;
 
+// Refund the credit charged at enqueue time when an async render job fails.
+async function refundRenderCredit(projectId: string) {
+  try {
+    const proj = await prisma.project.findUnique({ where: { id: projectId }, select: { userId: true } });
+    if (!proj) return;
+    await prisma.user.update({ where: { id: proj.userId }, data: { credits: { increment: CREDIT_COST } } });
+    const cached = await redis.get(`credits:${proj.userId}`);
+    if (cached !== null) {
+      await redis.set(`credits:${proj.userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
+    }
+  } catch (e) {
+    console.error(`[refund] failed to refund credit for project ${projectId}:`, e);
+  }
+}
+
 interface Message {
   type: "receiver" | "sender";
   text: string;
@@ -169,7 +184,7 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
   if (!hasElevenLabs || !hasAWS) {
     console.warn("[text-video] Missing credentials — simulating render");
     await new Promise(r => setTimeout(r, 3000));
-    const fallback = bgVideoUrl || "https://gameplay-cdn.com/gameplay/12dm7zdo-qhr4-9ro5-xb9p-794xmqsudvi/video.mp4";
+    const fallback = bgVideoUrl || "https://saas-video-editor-assets.s3.ap-south-1.amazonaws.com/backgrounds/subway-surfers.mp4";
     await prisma.project.update({ where: { id: projectId }, data: { status: "completed", videoUrl: fallback } });
     return;
   }
@@ -231,12 +246,19 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
     const bgVideoPath = path.join(tmpDir, "bg.mp4");
     await downloadFile(bgVideoUrl, bgVideoPath);
 
-    // 4. Download background music (optional)
+    // 4. Download background music (optional, best-effort — a missing/unreachable
+    // music URL must not fail the whole render)
     let musicPath: string | undefined;
     if (bgMusicUrl) {
       console.log("[text-video] Downloading background music...");
-      musicPath = path.join(tmpDir, "music.mp3");
-      await downloadFile(bgMusicUrl, musicPath);
+      const candidate = path.join(tmpDir, "music.mp3");
+      try {
+        await downloadFile(bgMusicUrl, candidate);
+        musicPath = candidate;
+      } catch (err) {
+        console.warn("[text-video] Background music unavailable, continuing without it:", err);
+        musicPath = undefined;
+      }
     }
 
     // 5. Build chat overlay video filter
@@ -297,6 +319,7 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
       where: { id: projectId },
       data: { status: "failed" },
     });
+    await refundRenderCredit(projectId);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

@@ -20,6 +20,21 @@ export const maxDuration = 300;
 
 const CREDIT_COST = 1;
 
+// Refund the credit charged at enqueue time when an async render job fails.
+async function refundRenderCredit(projectId: string) {
+  try {
+    const proj = await prisma.project.findUnique({ where: { id: projectId }, select: { userId: true } });
+    if (!proj) return;
+    await prisma.user.update({ where: { id: proj.userId }, data: { credits: { increment: CREDIT_COST } } });
+    const cached = await redis.get(`credits:${proj.userId}`);
+    if (cached !== null) {
+      await redis.set(`credits:${proj.userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
+    }
+  } catch (e) {
+    console.error(`[refund] failed to refund credit for project ${projectId}:`, e);
+  }
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface SplitScreenPayload {
@@ -112,6 +127,7 @@ async function renderJob(payload: SplitScreenPayload): Promise<void> {
   } catch (err) {
     console.error(`[split-screen] render failed for ${projectId}:`, err);
     await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } });
+    await refundRenderCredit(projectId);
   } finally {
     for (const f of [userPath, bgPath, audioPath, assPath, outPath]) {
       try { fs.unlinkSync(f); } catch {}
