@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
-import { uploadFileToS3, uploadBufferToS3 } from "@/utils/s3-upload";
+import { uploadBufferToS3 } from "@/utils/s3-upload";
 import { runFFmpegArgs } from "@/utils/ffmpeg-render";
 import { attachmentDisposition } from "@/utils/content-disposition";
 import os from "os";
@@ -14,9 +14,12 @@ export const maxDuration = 300;
 
 const CREDIT_COST = 2;
 
-const PRESET_AVATARS: Record<string, string> = {
-  "nano-banana": process.env.HEYGEN_AVATAR_NANO_BANANA ?? "Abigail_expressive_20240906",
-  "face-swap":   process.env.HEYGEN_AVATAR_FACE_SWAP   ?? "Anna_public_3_20240108",
+// Optional preset face images — set these in .env as public S3 URLs.
+// If not configured, those preset options return a clear error asking the user
+// to upload their own face image instead.
+const PRESET_AVATAR_URLS: Record<string, string | undefined> = {
+  "nano-banana": process.env.PRESET_AVATAR_NANO_BANANA_URL,
+  "face-swap":   process.env.PRESET_AVATAR_FACE_SWAP_URL,
 };
 
 interface Job {
@@ -55,54 +58,52 @@ async function refundCredit(userId: string) {
   }
 }
 
-async function heygenGenerate(
-  avatarId: string,
-  avatarType: "avatar" | "talking_photo",
-  audioUrl: string,
-  videoUrl: string,
-): Promise<string> {
-  const character =
-    avatarType === "talking_photo"
-      ? { type: "talking_photo", talking_photo_id: avatarId }
-      : { type: "avatar", avatar_id: avatarId, avatar_style: "normal" };
-
-  const res = await fetch("https://api.heygen.com/v2/video/generate", {
-    method: "POST",
-    headers: {
-      "x-api-key": process.env.HEYGEN_API_KEY!,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      video_inputs: [{
-        character,
-        voice: { type: "audio", audio_url: audioUrl },
-        background: { type: "video", url: videoUrl },
-      }],
-      dimension: { width: 1080, height: 1920 },
-    }),
-  });
-
-  const data = await res.json();
-  if (!res.ok || data.error) {
-    throw new Error(data.error?.message ?? `HeyGen generate error ${res.status}`);
-  }
-  return data.data.video_id as string;
+function falAuth() {
+  return { Authorization: `Key ${process.env.FAL_KEY}` };
 }
 
-async function heygenPollUntilDone(videoId: string): Promise<string> {
-  const deadline = Date.now() + 10 * 60 * 1000; // 10-minute timeout
+async function falSubmit(input: Record<string, unknown>): Promise<string> {
+  const res = await fetch("https://queue.fal.run/fal-ai/sadtalker", {
+    method: "POST",
+    headers: { ...falAuth(), "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`fal.ai submit error ${res.status}: ${txt}`);
+  }
+  const data = await res.json();
+  return data.request_id as string;
+}
+
+async function falPollUntilDone(requestId: string): Promise<string> {
+  const deadline = Date.now() + 10 * 60 * 1000;
   while (Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 5000));
-    const res = await fetch(
-      `https://api.heygen.com/v1/video_status.get?video_id=${videoId}`,
-      { headers: { "x-api-key": process.env.HEYGEN_API_KEY! } },
+    const statusRes = await fetch(
+      `https://queue.fal.run/fal-ai/sadtalker/requests/${requestId}/status`,
+      { headers: falAuth() },
     );
-    const data = await res.json();
-    const status = data.data?.status as string;
-    if (status === "completed") return data.data.video_url as string;
-    if (status === "failed") throw new Error(data.data?.error ?? "HeyGen generation failed");
+    if (!statusRes.ok) continue;
+    const statusData = await statusRes.json();
+    const status = statusData.status as string;
+    if (status === "COMPLETED") {
+      const resultRes = await fetch(
+        `https://queue.fal.run/fal-ai/sadtalker/requests/${requestId}`,
+        { headers: falAuth() },
+      );
+      if (!resultRes.ok) throw new Error("fal.ai result fetch failed");
+      const result = await resultRes.json();
+      const videoUrl = result.video?.url as string | undefined;
+      if (!videoUrl) throw new Error("No video URL in fal.ai result");
+      return videoUrl;
+    }
+    if (status === "FAILED") {
+      const err = statusData.error ?? "SadTalker generation failed";
+      throw new Error(typeof err === "string" ? err : JSON.stringify(err));
+    }
   }
-  throw new Error("HeyGen generation timed out after 10 minutes");
+  throw new Error("SadTalker generation timed out after 10 minutes");
 }
 
 export async function POST(req: NextRequest) {
@@ -110,6 +111,13 @@ export async function POST(req: NextRequest) {
 
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (!process.env.FAL_KEY) {
+    return NextResponse.json({ error: "AI Creator is not configured (missing FAL_KEY)" }, { status: 503 });
+  }
+  if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY || !process.env.AWS_S3_BUCKET) {
+    return NextResponse.json({ error: "AI Creator is not configured (missing AWS credentials)" }, { status: 503 });
+  }
 
   const cachedCredits = await redis.get(`credits:${auth.userId}`);
   const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
@@ -132,9 +140,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Video too large (max 200 MB)" }, { status: 413 });
   }
 
-  const avatarType = (formData.get("avatarType") as string | null) ?? "nano-banana";
+  const avatarType = (formData.get("avatarType") as string | null) ?? "upload";
   const avatarImageFile = formData.get("avatarImage") as File | null;
-  const voiceChoice = (formData.get("voiceChoice") as string | null) ?? "original";
+
+  if (avatarType !== "upload") {
+    if (!PRESET_AVATAR_URLS[avatarType]) {
+      return NextResponse.json(
+        { error: `Preset avatar "${avatarType}" is not configured. Please upload your own face image instead.` },
+        { status: 400 },
+      );
+    }
+  } else if (!avatarImageFile) {
+    return NextResponse.json({ error: "Please upload a face image for the avatar." }, { status: 400 });
+  }
 
   // Deduct credits
   const user = await prisma.user.update({
@@ -153,10 +171,9 @@ export async function POST(req: NextRequest) {
   const inputVideoPath = path.join(os.tmpdir(), `${jobId}-video.${videoExt}`);
   const outputPath = path.join(os.tmpdir(), `${jobId}-output.mp4`);
   const downloadName = `ai-creator-${Date.now()}.mp4`;
+  const tempFiles: string[] = [inputVideoPath, outputPath];
 
   fs.writeFileSync(inputVideoPath, Buffer.from(await videoFile.arrayBuffer()));
-
-  const tempFiles: string[] = [inputVideoPath, outputPath];
 
   let avatarImagePath: string | null = null;
   if (avatarType === "upload" && avatarImageFile) {
@@ -180,13 +197,8 @@ export async function POST(req: NextRequest) {
 
   (async () => {
     try {
-      // 1. Upload video to S3 (HeyGen needs a public URL)
+      // 1. Extract audio from the uploaded video
       job.progress = 10;
-      const videoS3Key = `ai-creator/${jobId}/video.${videoExt}`;
-      const videoS3Url = await uploadFileToS3(inputVideoPath, videoS3Key, "video/mp4");
-
-      // 2. Extract audio from video
-      job.progress = 20;
       const audioPath = path.join(os.tmpdir(), `${jobId}-audio.mp3`);
       tempFiles.push(audioPath);
       await runFFmpegArgs([
@@ -195,59 +207,57 @@ export async function POST(req: NextRequest) {
         audioPath,
       ]);
 
-      // 3. Upload audio to S3
-      job.progress = 30;
+      // 2. Upload audio to S3 — fal.ai requires a public URL
+      job.progress = 25;
       const audioBuffer = fs.readFileSync(audioPath);
-      const audioS3Url = await uploadBufferToS3(audioBuffer, `ai-creator/${jobId}/audio.mp3`, "audio/mpeg");
+      const audioS3Url = await uploadBufferToS3(
+        audioBuffer,
+        `ai-creator/${jobId}/audio.mp3`,
+        "audio/mpeg",
+      );
       try { fs.unlinkSync(audioPath); } catch { /* ignore */ }
 
-      // 4. Resolve avatar
+      // 3. Resolve avatar image URL
       job.progress = 35;
-      let resolvedAvatarId: string;
-      let resolvedAvatarKind: "avatar" | "talking_photo" = "avatar";
-
+      let avatarImageUrl: string;
       if (avatarType === "upload" && avatarImagePath) {
-        // Upload image to S3, then register as HeyGen talking photo
         const imgBuffer = fs.readFileSync(avatarImagePath);
         const imgExt = path.extname(avatarImagePath).replace(".", "") || "jpg";
-        const imgUrl = await uploadBufferToS3(imgBuffer, `ai-creator/${jobId}/avatar.${imgExt}`, "image/jpeg");
-
-        const tpRes = await fetch("https://api.heygen.com/v1/talking_photo", {
-          method: "POST",
-          headers: { "x-api-key": process.env.HEYGEN_API_KEY!, "Content-Type": "application/json" },
-          body: JSON.stringify({ image_url: imgUrl }),
-        });
-        const tpData = await tpRes.json();
-        if (!tpRes.ok || tpData.error) throw new Error(tpData.error?.message ?? "Failed to create talking photo");
-        resolvedAvatarId = tpData.data.talking_photo_id as string;
-        resolvedAvatarKind = "talking_photo";
+        avatarImageUrl = await uploadBufferToS3(
+          imgBuffer,
+          `ai-creator/${jobId}/avatar.${imgExt}`,
+          "image/jpeg",
+        );
+        try { fs.unlinkSync(avatarImagePath); } catch { /* ignore */ }
       } else {
-        resolvedAvatarId = PRESET_AVATARS[avatarType] ?? PRESET_AVATARS["nano-banana"];
+        avatarImageUrl = PRESET_AVATAR_URLS[avatarType]!;
       }
 
-      // 5. Submit to HeyGen
+      // 4. Submit to fal.ai SadTalker: source face image + driven audio → talking video
       job.progress = 40;
-      const heygenVideoId = await heygenGenerate(resolvedAvatarId, resolvedAvatarKind, audioS3Url, videoS3Url);
+      const requestId = await falSubmit({
+        source_image_url: avatarImageUrl,
+        driven_audio_url: audioS3Url,
+      });
 
-      // 6. Poll HeyGen (progress 40→90 during this wait)
+      // 5. Poll until done (progress ticks 45 → 88 while waiting)
       job.progress = 45;
       const progressTimer = setInterval(() => {
         if (job.progress < 88) job.progress += 3;
       }, 10000);
 
-      let heygenVideoUrl: string;
+      let videoUrl: string;
       try {
-        heygenVideoUrl = await heygenPollUntilDone(heygenVideoId);
+        videoUrl = await falPollUntilDone(requestId);
       } finally {
         clearInterval(progressTimer);
       }
 
-      // 7. Download result from HeyGen and write to output file
+      // 6. Download result and write to temp output file
       job.progress = 92;
-      const dlRes = await fetch(heygenVideoUrl);
-      if (!dlRes.ok) throw new Error("Failed to download HeyGen output");
-      const outputBuffer = Buffer.from(await dlRes.arrayBuffer());
-      fs.writeFileSync(outputPath, outputBuffer);
+      const dlRes = await fetch(videoUrl);
+      if (!dlRes.ok) throw new Error("Failed to download SadTalker output");
+      fs.writeFileSync(outputPath, Buffer.from(await dlRes.arrayBuffer()));
 
       job.progress = 100;
       job.status = "done";

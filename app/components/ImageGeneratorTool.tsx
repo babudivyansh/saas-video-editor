@@ -4,13 +4,7 @@ import { useAuth } from "./AuthContext";
 
 // ── Models ───────────────────────────────────────────────────────────────────
 const MODELS = [
-  { slug: "seedream-4.5",    name: "Seedream 4.5",          badge: null                    },
-  { slug: "seedream-5-lite", name: "Seedream 5 Lite",       badge: null                    },
-  { slug: "flux-schnell",    name: "Flux Schnell",           badge: "Fastest"               },
-  { slug: "ideogram-v3",     name: "Ideogram V3 Turbo",     badge: "Good With Text"        },
-  { slug: "bria-3.2",        name: "Bria Image 3.2",        badge: "Exceptional aesthetics"},
-  { slug: "nano-banana",     name: "Google Nano Banana",    badge: "Popular"               },
-  { slug: "nano-banana-pro", name: "Google Nano Banana Pro",badge: null                    },
+  { slug: "imagen-3", name: "Imagen 3", badge: "Google" },
 ];
 
 const RATIOS = ["Original","1:1","4:3","3:4","16:9","9:16","3:2","2:3","21:9"];
@@ -139,7 +133,7 @@ function RatioDropdown({ value, onChange }: { value: string; onChange: (v: strin
 export default function ImageGeneratorTool() {
   const { user, token, openAuthModal, refreshUser } = useAuth();
 
-  const [model, setModel] = useState("seedream-4.5");
+  const [model, setModel] = useState("imagen-3");
   const [ratio, setRatio] = useState("9:16");
   const [prompt, setPrompt] = useState("");
   const [referencePreview, setReferencePreview] = useState<string | null>(null);
