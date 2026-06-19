@@ -160,6 +160,24 @@ export function runFFmpegArgs(args: string[]): Promise<void> {
   });
 }
 
+// Probe a media file's duration in seconds by reading FFmpeg's "Duration:" line.
+// Runs `ffmpeg -i <file>` (no output), which exits non-zero — that's expected;
+// we parse stderr regardless. Returns 0 if the duration can't be determined.
+export function getMediaDurationSec(filePath: string): Promise<number> {
+  return new Promise((resolve) => {
+    const proc = spawn(ffmpegBin!, ["-i", filePath], { stdio: ["ignore", "ignore", "pipe"] });
+    let stderrBuf = "";
+    proc.stderr.on("data", (chunk: Buffer) => { stderrBuf += chunk.toString(); });
+    const finish = () => {
+      const d = /Duration:\s*(\d+):(\d+):(\d+\.\d+)/.exec(stderrBuf);
+      if (!d) return resolve(0);
+      resolve(parseInt(d[1]) * 3600 + parseInt(d[2]) * 60 + parseFloat(d[3]));
+    };
+    proc.on("close", finish);
+    proc.on("error", () => resolve(0));
+  });
+}
+
 // Like runFFmpegArgs but parses FFmpeg's stderr for the input "Duration:" and the
 // running "time=" markers to report real conversion progress (0–99).
 export function runFFmpegWithProgress(

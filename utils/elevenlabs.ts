@@ -1,3 +1,9 @@
+// TTS model used for all synthesis (voiceover + video renders).
+// eleven_flash_v2_5 is multilingual, supports /with-timestamps, and costs
+// ~5-6x less than eleven_multilingual_v2 (the single biggest margin win).
+// Flip back to "eleven_multilingual_v2" here if higher expressiveness is needed.
+const TTS_MODEL_ID = "eleven_flash_v2_5";
+
 export interface WordTiming {
   word: string;
   start: number; // milliseconds
@@ -38,7 +44,7 @@ export async function synthesizeVoice(
       },
       body: JSON.stringify({
         text,
-        model_id: "eleven_multilingual_v2",
+        model_id: TTS_MODEL_ID,
         voice_settings: { stability, similarity_boost, style, use_speaker_boost: true },
         output_format: "mp3_44100_128",
       }),

@@ -5,10 +5,7 @@ import { useAuth } from "./AuthContext";
 
 // ── Models / options ──────────────────────────────────────────────────────────
 const MODELS = [
-  { slug: "veo3-standard", name: "VEO3 Standard",  badge: "Popular"              },
-  { slug: "veo3-fast",     name: "VEO3 Fast",       badge: "Fast"                 },
-  { slug: "hailuo-02",     name: "Hailuo 02",       badge: "Excels at physics"    },
-  { slug: "seedance-pro",  name: "Seedance 1 Pro",  badge: "Best Length Control"  },
+  { slug: "veo3-fast", name: "VEO3 Fast", badge: "20 credits" },
 ];
 const DURATIONS = ["5s", "8s"];
 const RATIOS    = ["16:9", "9:16", "1:1"];
@@ -345,7 +342,7 @@ type Stage = "idle" | "generating" | "complete" | "error";
 export default function VideoGeneratorTool() {
   const { refreshUser } = useAuth();
 
-  const [model,       setModel]       = useState("veo3-standard");
+  const [model,       setModel]       = useState("veo3-fast");
   const [duration,    setDuration]    = useState("8s");
   const [ratio,       setRatio]       = useState("16:9");
   const [prompt,      setPrompt]      = useState("");

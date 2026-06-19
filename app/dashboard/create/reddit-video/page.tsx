@@ -633,10 +633,10 @@ function RedditVideoFlow() {
 
                   <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex justify-between items-start">
                     <div className="space-y-0.5">
-                      <p className="text-xs font-bold text-blue-900">Limited time offer: 15 free credits!</p>
-                      <p className="text-[11px] text-blue-700 leading-normal">We&apos;re offering free credits for any feedback / feature requests you have.</p>
+                      <p className="text-xs font-bold text-blue-900">This render costs 2 credits.</p>
+                      <p className="text-[11px] text-blue-700 leading-normal">Credits come with any subscription plan. Need more? Grab a top-up pack.</p>
                     </div>
-                    <a href="mailto:support@clipiro.ai" className="text-xs font-extrabold text-blue-600 hover:underline bg-white px-3.5 py-2 rounded-lg border border-blue-200 whitespace-nowrap shadow-sm">Contact our team</a>
+                    <a href="/pricing" className="text-xs font-extrabold text-blue-600 hover:underline bg-white px-3.5 py-2 rounded-lg border border-blue-200 whitespace-nowrap shadow-sm">View plans</a>
                   </div>
                 </div>
 

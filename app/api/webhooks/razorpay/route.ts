@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
           id: string;
           order_id: string;
           amount: number;
-          notes: { userId?: string; packId?: string; credits?: string };
+          notes: { userId?: string; packId?: string; kind?: string; credits?: string };
         };
       };
     };
@@ -51,35 +51,61 @@ export async function POST(req: NextRequest) {
     const packId = notes?.packId;
 
     if (userId && packId) {
-      // Resolve credits/amount from the DB plan (single source of truth);
-      // fall back to the order notes if the plan was since removed.
+      // Resolve everything from the DB plan (single source of truth); fall back
+      // to the order notes only if the plan was since removed.
       const plan = await prisma.plan.findUnique({ where: { slug: packId } });
-      const credits = plan?.credits ?? parseInt(notes?.credits ?? "0", 10);
       const amountInPaise = plan?.priceInPaise ?? entity.amount ?? 0;
+      const kind = plan?.kind ?? notes?.kind ?? "pack";
 
-      if (credits > 0) {
+      if (kind === "subscription" && plan) {
+        // Start (or replace) the subscription term. Grant the first month's
+        // credits now; a scheduled job tops up monthlyCredits on each nextRefillAt
+        // until subscriptionEndsAt.
+        const months = plan.intervalMonths ?? 1;
+        const monthlyCredits = plan.monthlyCredits ?? plan.credits;
+        const now = new Date();
+        const endsAt = new Date(now); endsAt.setMonth(endsAt.getMonth() + months);
+        const nextRefill = new Date(now); nextRefill.setMonth(nextRefill.getMonth() + 1);
+
         const user = await prisma.user.update({
           where: { id: userId },
           data: {
-            credits: { increment: credits },
-            // Record the current tier (last purchased plan).
-            ...(plan ? { planId: plan.id } : {}),
+            credits: { increment: monthlyCredits },
+            planId: plan.id,
+            subscriptionId: entity.order_id,
+            subscriptionEndsAt: endsAt,
+            // Only schedule a refill if the term is longer than one month.
+            nextRefillAt: months > 1 ? nextRefill : null,
+            monthlyCredits,
+            veo3Enabled: plan.veo3Included,
           },
           select: { credits: true },
         });
         await redis.set(`credits:${userId}`, String(user.credits), "EX", 3600);
 
-        // Record the purchase for billing history (id = paymentId keeps it idempotent).
         await prisma.purchase.create({
-          data: {
-            id: paymentId,
-            userId,
-            planId: plan?.id ?? null,
-            amountInPaise,
-            credits,
-            status: "captured",
-          },
+          data: { id: paymentId, userId, planId: plan.id, amountInPaise, credits: monthlyCredits, status: "captured" },
         });
+      } else if (kind === "addon") {
+        // Veo3 unlock — no credits, just flip the flag for this subscription term.
+        await prisma.user.update({ where: { id: userId }, data: { veo3Enabled: true } });
+        await prisma.purchase.create({
+          data: { id: paymentId, userId, planId: plan?.id ?? null, amountInPaise, credits: 0, status: "captured" },
+        });
+      } else {
+        // One-time top-up pack: just add credits.
+        const credits = plan?.credits ?? parseInt(notes?.credits ?? "0", 10);
+        if (credits > 0) {
+          const user = await prisma.user.update({
+            where: { id: userId },
+            data: { credits: { increment: credits } },
+            select: { credits: true },
+          });
+          await redis.set(`credits:${userId}`, String(user.credits), "EX", 3600);
+          await prisma.purchase.create({
+            data: { id: paymentId, userId, planId: plan?.id ?? null, amountInPaise, credits, status: "captured" },
+          });
+        }
       }
     }
   }

@@ -17,7 +17,7 @@ model User {
   email        String     @unique
   phone        String?    @unique
   passwordHash String
-  credits      Int        @default(30)
+  credits      Int        @default(0)
   role         Role       @default(USER)
   firstName    String?
   lastName     String?
@@ -25,6 +25,12 @@ model User {
   avatarUrl    String?
   planId       String?
   plan         Plan?      @relation(fields: [planId], references: [id])
+  // Subscription state (Phase C)
+  subscriptionId     String?    // Razorpay subscription/order id for the active term
+  subscriptionEndsAt DateTime?  // when the prepaid term expires (null = no active sub)
+  nextRefillAt       DateTime?  // when the next monthly credit grant is due
+  monthlyCredits     Int        @default(0) // credits granted on each refill for the active tier
+  veo3Enabled        Boolean    @default(false) // Veo3 unlocked (bundled term or paid add-on)
   createdAt    DateTime   @default(now())
   projects     Project[]
   purchases    Purchase[]
@@ -40,6 +46,12 @@ model Plan {
   features     String[]   @default([])
   active       Boolean    @default(true)
   sortOrder    Int        @default(0)
+  // Plan type (Phase C). "pack" = one-time top-up (subscriber-only),
+  // "subscription" = recurring tier with monthly credit refills.
+  kind           String   @default("pack")
+  intervalMonths Int?     // subscription term length: 1 / 3 / 6 / 12
+  monthlyCredits Int?     // credits granted each month of the term
+  veo3Included   Boolean  @default(false) // Veo3 bundled free on this plan
   createdAt    DateTime   @default(now())
   users        User[]
   purchases    Purchase[]

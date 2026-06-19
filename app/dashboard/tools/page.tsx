@@ -224,14 +224,14 @@ const TOP_CARDS = [
 ];
 
 const TOOLS = [
-  { title: "AI Image Generator", desc: "Generate high quality images with AI in seconds.", preview: <ImageGenPreview />, badge: null, href: "/dashboard/tools/image-generator" },
-  { title: "AI Voiceover Generator", desc: "Make high quality voiceovers in seconds with 50+ narrators.", preview: <VoiceoverPreview />, badge: null, href: "/dashboard/tools/voiceover" },
-  { title: "AI Speech Enhancer", desc: "Enhance the quality of any audio or video file with AI.", preview: <SpeechEnhancerPreview />, badge: "New", href: "/dashboard/tools/enhance-speech" },
-  { title: "AI Video Generator", desc: "VEO3 is a tool that allows you to create videos with AI.", preview: <VideoGenPreview />, badge: null, href: "/dashboard/tools/video-generator" },
-  { title: "AI Vocal Remover", desc: "Remove vocals from any audio or video file with AI.", preview: <VocalRemoverPreview />, badge: null, href: "/dashboard/tools/vocal-remover" },
-  { title: "AI Brainstormer", desc: "Generate viral content ideas based on your niche.", preview: <BrainstormerPreview />, badge: null, href: "/dashboard/tools/brainstormer" },
-  { title: "Reddit Video Generator", desc: "Convert Reddit posts into viral videos with AI.", preview: <RedditPreview />, badge: null, href: "/dashboard/create/reddit-video" },
-  { title: "Fake Texts Video Generator", desc: "Create engaging fake texts videos with AI to go viral.", preview: <FakeTextsPreview />, badge: null, href: "/dashboard/create/text-video" },
+  { title: "AI Image Generator", desc: "Generate high quality images with AI in seconds.", preview: <ImageGenPreview />, badge: "1 credit", href: "/dashboard/tools/image-generator" },
+  { title: "AI Voiceover Generator", desc: "Make high quality voiceovers in seconds with 50+ narrators.", preview: <VoiceoverPreview />, badge: "1 credit", href: "/dashboard/tools/voiceover" },
+  { title: "AI Speech Enhancer", desc: "Enhance the quality of any audio or video file with AI.", preview: <SpeechEnhancerPreview />, badge: "3 credits", href: "/dashboard/tools/enhance-speech" },
+  { title: "AI Video Generator", desc: "VEO3 is a tool that allows you to create videos with AI.", preview: <VideoGenPreview />, badge: "20 credits", href: "/dashboard/tools/video-generator" },
+  { title: "AI Vocal Remover", desc: "Remove vocals from any audio or video file with AI.", preview: <VocalRemoverPreview />, badge: "2 credits", href: "/dashboard/tools/vocal-remover" },
+  { title: "AI Brainstormer", desc: "Generate viral content ideas based on your niche.", preview: <BrainstormerPreview />, badge: "1 credit", href: "/dashboard/tools/brainstormer" },
+  { title: "Reddit Video Generator", desc: "Convert Reddit posts into viral videos with AI.", preview: <RedditPreview />, badge: "2 credits", href: "/dashboard/create/reddit-video" },
+  { title: "Fake Texts Video Generator", desc: "Create engaging fake texts videos with AI to go viral.", preview: <FakeTextsPreview />, badge: "2 credits", href: "/dashboard/create/text-video" },
 ];
 
 // ── Page ───────────────────────────────────────────────────────────────────────
