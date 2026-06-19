@@ -99,6 +99,45 @@ function buildWordTimings(alignment: {
   return timings;
 }
 
+// Transcribe an audio file to word-level timings using ElevenLabs Scribe
+// (speech-to-text). Returns [] if no API key is configured so callers can
+// degrade gracefully (e.g. render without subtitles).
+export async function transcribeAudio(
+  audioBuffer: Buffer,
+  mimeType = "audio/mpeg"
+): Promise<WordTiming[]> {
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  if (!apiKey) return [];
+
+  const form = new FormData();
+  form.append("file", new Blob([new Uint8Array(audioBuffer)], { type: mimeType }), "audio.mp3");
+  form.append("model_id", "scribe_v1");
+
+  const res = await fetch("https://api.elevenlabs.io/v1/speech-to-text", {
+    method: "POST",
+    headers: { "xi-api-key": apiKey },
+    body: form,
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`ElevenLabs STT error ${res.status}: ${err}`);
+  }
+
+  const json = (await res.json()) as {
+    words?: { text: string; start: number; end: number; type?: string }[];
+  };
+
+  // Scribe returns word / spacing / audio_event entries — keep only real words.
+  return (json.words ?? [])
+    .filter((w) => (w.type ?? "word") === "word" && w.text.trim())
+    .map((w) => ({
+      word: w.text.trim(),
+      start: Math.round(w.start * 1000),
+      end: Math.round(w.end * 1000),
+    }));
+}
+
 export async function listVoices(): Promise<{ voice_id: string; name: string; preview_url: string }[]> {
   const apiKey = process.env.ELEVENLABS_API_KEY!;
   const res = await fetch("https://api.elevenlabs.io/v1/voices", {
