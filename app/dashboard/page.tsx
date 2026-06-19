@@ -260,8 +260,8 @@ const TOOLS_LARGE = [
   { title: "Cut & Crop", desc: "Trim and stitch your video(s) into one clip ready to edit", preview: <CutCropPreview />, href: "/dashboard/cut-and-crop" },
 ];
 const TOOLS_SMALL = [
-  { title: "Voice Changer", desc: "Change the voice of any audio or video file", preview: <VoiceChangerPreview /> },
-  { title: "Subtitle Remover", desc: "Remove subtitles with AI in minutes", preview: <SubtitleRemoverPreview /> },
+  { title: "Voice Changer", desc: "Change the voice of any audio or video file", preview: <VoiceChangerPreview />, href: "/dashboard/tools/voice-changer" },
+  { title: "Subtitle Remover", desc: "Remove subtitles with AI in minutes", preview: <SubtitleRemoverPreview />, href: "/dashboard/tools/subtitle-remover" },
   { title: "AI Creator", desc: "Become an AI content creator in 3 steps", preview: <AICreatorPreview /> },
 ];
 
@@ -478,9 +478,15 @@ export default function DashboardPage() {
                         <p className="text-[13px] font-bold text-gray-900 leading-tight">{tool.title}</p>
                         <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">{tool.desc}</p>
                       </div>
-                      <button className="flex-shrink-0 inline-flex items-center gap-0.5 border border-gray-200 hover:bg-gray-50 text-gray-700 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap">
-                        Try Now <IcChevron />
-                      </button>
+                      {tool.href ? (
+                        <Link href={tool.href} className="flex-shrink-0 inline-flex items-center gap-0.5 border border-gray-200 hover:bg-gray-50 text-gray-700 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                          Try Now <IcChevron />
+                        </Link>
+                      ) : (
+                        <button className="flex-shrink-0 inline-flex items-center gap-0.5 border border-gray-200 hover:bg-gray-50 text-gray-700 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                          Try Now <IcChevron />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
