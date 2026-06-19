@@ -226,8 +226,8 @@ const TOP_CARDS = [
 const TOOLS = [
   { title: "AI Image Generator", desc: "Generate high quality images with AI in seconds.", preview: <ImageGenPreview />, badge: null, href: "/dashboard/tools/image-generator" },
   { title: "AI Voiceover Generator", desc: "Make high quality voiceovers in seconds with 50+ narrators.", preview: <VoiceoverPreview />, badge: null, href: "/dashboard/tools/voiceover" },
-  { title: "AI Speech Enhancer", desc: "Enhance the quality of any audio or video file with AI.", preview: <SpeechEnhancerPreview />, badge: "New", href: "/dashboard/tools" },
-  { title: "AI Video Generator", desc: "VEO3 is a tool that allows you to create videos with AI.", preview: <VideoGenPreview />, badge: null, href: "/dashboard/tools" },
+  { title: "AI Speech Enhancer", desc: "Enhance the quality of any audio or video file with AI.", preview: <SpeechEnhancerPreview />, badge: "New", href: "/dashboard/tools/enhance-speech" },
+  { title: "AI Video Generator", desc: "VEO3 is a tool that allows you to create videos with AI.", preview: <VideoGenPreview />, badge: null, href: "/dashboard/tools/video-generator" },
   { title: "AI Vocal Remover", desc: "Remove vocals from any audio or video file with AI.", preview: <VocalRemoverPreview />, badge: null, href: "/dashboard/tools" },
   { title: "AI Brainstormer", desc: "Generate viral content ideas based on your niche.", preview: <BrainstormerPreview />, badge: null, href: "/dashboard/tools" },
   { title: "Reddit Video Generator", desc: "Convert Reddit posts into viral videos with AI.", preview: <RedditPreview />, badge: null, href: "/dashboard/create/reddit-video" },
