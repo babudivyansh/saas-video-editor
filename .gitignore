@@ -39,6 +39,9 @@ yarn-error.log*
 # local agent tooling
 .claude/
 
+# generated test output (may contain auth tokens)
+scripts/e2e-results.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

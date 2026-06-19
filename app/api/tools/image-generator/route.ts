@@ -20,20 +20,6 @@ async function refundCredit(userId: string) {
   }
 }
 
-// Imagen 3 supports a fixed set of aspect ratios — map UI labels to them.
-// Unsupported ratios (3:2, 2:3, 21:9) fall back to the closest match.
-const RATIO_MAP: Record<string, string> = {
-  "Original": "1:1",
-  "1:1":      "1:1",
-  "4:3":      "4:3",
-  "3:4":      "3:4",
-  "16:9":     "16:9",
-  "9:16":     "9:16",
-  "3:2":      "16:9",
-  "2:3":      "3:4",
-  "21:9":     "16:9",
-};
-
 export async function POST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -57,9 +43,6 @@ export async function POST(req: NextRequest) {
 
   const prompt = (body.prompt ?? "").trim();
   if (!prompt) return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
-  if (prompt.length > 2000) return NextResponse.json({ error: "Prompt too long (max 2000 chars)" }, { status: 400 });
-
-  const aspectRatio = RATIO_MAP[body.ratio ?? ""] ?? "1:1";
 
   // Deduct credit before the paid call; refund on any failure below
   const user = await prisma.user.update({
@@ -74,29 +57,39 @@ export async function POST(req: NextRequest) {
   await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
 
   try {
-    const imagenRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          instances: [{ prompt }],
-          parameters: { sampleCount: 1, aspectRatio },
-        }),
-      },
-    );
-
-    if (!imagenRes.ok) {
-      const err = await imagenRes.text();
-      console.error("[image-generator] Imagen 3 error", imagenRes.status, err);
-      await refundCredit(auth.userId);
-      return NextResponse.json({ error: "Image generation failed. Please try again." }, { status: 502 });
+    // gemini-2.5-flash-image occasionally returns 503 "high demand" — retry a few
+    // times with a short backoff before giving up and refunding the credit.
+    let geminiRes: Response | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+          }),
+        },
+      );
+      if (geminiRes.status !== 503) break;
+      console.warn(`[image-generator] gemini-2.5-flash-image 503 (attempt ${attempt + 1}/3), retrying...`);
+      await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
     }
 
-    const json = (await imagenRes.json()) as {
-      predictions?: { bytesBase64Encoded: string; mimeType: string }[];
+    if (!geminiRes || !geminiRes.ok) {
+      const err = geminiRes ? await geminiRes.text() : "no response";
+      console.error(`[image-generator] gemini-2.5-flash-image error ${geminiRes?.status}:`, err);
+      await refundCredit(auth.userId);
+      const msg = geminiRes?.status === 503
+        ? "Image service is busy right now. Please try again in a moment."
+        : "Image generation failed. Please try again.";
+      return NextResponse.json({ error: msg }, { status: 502 });
+    }
+
+    const json = (await geminiRes.json()) as {
+      candidates?: { content: { parts: { inlineData?: { data: string; mimeType: string } }[] } }[];
     };
-    const b64 = json.predictions?.[0]?.bytesBase64Encoded;
+    const b64 = json.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
     if (!b64) {
       await refundCredit(auth.userId);
       return NextResponse.json({ error: "No image returned" }, { status: 502 });
