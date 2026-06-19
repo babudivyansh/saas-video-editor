@@ -272,24 +272,8 @@ function PromptLibraryModal({ onSelect, onClose }: { onSelect: (text: string) =>
 
           {selected && (
             <>
-              {/* Col 2: prompt text + button */}
-              <div className="flex-1 flex flex-col min-w-0 p-5 gap-4 border-r border-gray-100">
-                <div className="flex-1 overflow-y-auto min-h-0">
-                  <p className="text-[13px] text-gray-700 leading-relaxed">{selected.text}</p>
-                </div>
-                <div className="flex justify-end flex-shrink-0">
-                  <button
-                    onClick={() => { onSelect(selected.text); onClose(); }}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
-                    style={{ background: "linear-gradient(135deg, #335CFF 0%, #7B5EA7 100%)" }}
-                  >
-                    Use the Prompt <IcArrowRight />
-                  </button>
-                </div>
-              </div>
-
-              {/* Col 3: video preview */}
-              <div className="w-72 flex-shrink-0 p-4 flex flex-col justify-center">
+              {/* Col 2: video preview */}
+              <div className="flex-1 flex flex-col justify-center p-4 border-r border-gray-100 min-w-0">
                 <div
                   className="w-full rounded-xl overflow-hidden relative flex items-center justify-center"
                   style={{ aspectRatio: "16/9", background: selected.gradient }}
@@ -307,6 +291,22 @@ function PromptLibraryModal({ onSelect, onClose }: { onSelect: (text: string) =>
                     <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-3 h-3 flex-shrink-0"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
                     <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-3 h-3 flex-shrink-0"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
                   </div>
+                </div>
+              </div>
+
+              {/* Col 3: prompt text + button */}
+              <div className="w-72 flex-shrink-0 flex flex-col p-5 gap-4">
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  <p className="text-[13px] text-gray-700 leading-relaxed">{selected.text}</p>
+                </div>
+                <div className="flex justify-end flex-shrink-0">
+                  <button
+                    onClick={() => { onSelect(selected.text); onClose(); }}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                    style={{ background: "linear-gradient(135deg, #335CFF 0%, #7B5EA7 100%)" }}
+                  >
+                    Use the Prompt <IcArrowRight />
+                  </button>
                 </div>
               </div>
             </>
