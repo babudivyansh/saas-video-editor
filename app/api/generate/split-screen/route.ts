@@ -9,7 +9,7 @@ import {
   styleIndexToSubtitleStyle,
 } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
-import { WordTiming } from "@/utils/elevenlabs";
+import { WordTiming, transcribeAudio } from "@/utils/elevenlabs";
 import { downloadFile } from "@/utils/download";
 import os from "os";
 import path from "path";
@@ -19,6 +19,21 @@ import { InProcessQueue } from "@/lib/job-queue";
 export const maxDuration = 300;
 
 const CREDIT_COST = 1;
+
+// Refund the credit charged at enqueue time when an async render job fails.
+async function refundRenderCredit(projectId: string) {
+  try {
+    const proj = await prisma.project.findUnique({ where: { id: projectId }, select: { userId: true } });
+    if (!proj) return;
+    await prisma.user.update({ where: { id: proj.userId }, data: { credits: { increment: CREDIT_COST } } });
+    const cached = await redis.get(`credits:${proj.userId}`);
+    if (cached !== null) {
+      await redis.set(`credits:${proj.userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
+    }
+  } catch (e) {
+    console.error(`[refund] failed to refund credit for project ${projectId}:`, e);
+  }
+}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,40 +48,6 @@ interface SplitScreenPayload {
 // downloadFile is imported from utils/download: it follows redirects and rejects
 // on non-200 responses, so an unreachable/404 background URL fails fast with a
 // clear error instead of silently writing an HTML error page as the "video".
-
-async function transcribeWithWhisper(audioPath: string): Promise<WordTiming[]> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    console.warn("[split-screen] OPENAI_API_KEY not set — skipping transcription");
-    return [];
-  }
-
-  const audioBuffer = fs.readFileSync(audioPath);
-  const blob = new Blob([audioBuffer], { type: "audio/mpeg" });
-  const form = new FormData();
-  form.append("file", blob, "audio.mp3");
-  form.append("model", "whisper-1");
-  form.append("response_format", "verbose_json");
-  form.append("timestamp_granularities[]", "word");
-
-  const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: form,
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Whisper failed (${res.status}): ${text}`);
-  }
-
-  const data = await res.json() as { words?: { word: string; start: number; end: number }[] };
-  return (data.words ?? []).map((w) => ({
-    word: w.word.trim(),
-    start: Math.round(w.start * 1000),
-    end: Math.round(w.end * 1000),
-  }));
-}
 
 // ── Job worker ───────────────────────────────────────────────────────────────
 
@@ -95,9 +76,9 @@ async function renderJob(payload: SplitScreenPayload): Promise<void> {
 
     let wordTimings: WordTiming[] = [];
     try {
-      wordTimings = await transcribeWithWhisper(audioPath);
+      wordTimings = await transcribeAudio(fs.readFileSync(audioPath));
     } catch (err) {
-      console.warn("[split-screen] Whisper transcription failed, rendering without subtitles:", err);
+      console.warn("[split-screen] transcription failed, rendering without subtitles:", err);
     }
 
     const subtitleStyle = styleIndexToSubtitleStyle(subtitleStyleIndex, mode);
@@ -112,6 +93,7 @@ async function renderJob(payload: SplitScreenPayload): Promise<void> {
   } catch (err) {
     console.error(`[split-screen] render failed for ${projectId}:`, err);
     await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } });
+    await refundRenderCredit(projectId);
   } finally {
     for (const f of [userPath, bgPath, audioPath, assPath, outPath]) {
       try { fs.unlinkSync(f); } catch {}

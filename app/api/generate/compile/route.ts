@@ -5,24 +5,27 @@ import { redis } from "@/lib/redis";
 import { getRenderQueue, RenderJobPayload } from "@/lib/job-queue";
 import { generateASS, runFFmpeg } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
+import { downloadFile } from "@/utils/download";
 import os from "os";
 import path from "path";
-import https from "https";
-import http from "http";
 import fs from "fs";
 
 // Credit cost: 1 credit per video (you can adjust to minutes if you track duration)
 const CREDIT_COST = 1;
 
-async function downloadFile(url: string, dest: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(dest);
-    const get = url.startsWith("https") ? https.get : http.get;
-    get(url, (res) => {
-      res.pipe(file);
-      file.on("finish", () => file.close(() => resolve()));
-    }).on("error", reject);
-  });
+// Refund the credit charged at enqueue time when an async render job fails.
+async function refundRenderCredit(projectId: string) {
+  try {
+    const proj = await prisma.project.findUnique({ where: { id: projectId }, select: { userId: true } });
+    if (!proj) return;
+    await prisma.user.update({ where: { id: proj.userId }, data: { credits: { increment: CREDIT_COST } } });
+    const cached = await redis.get(`credits:${proj.userId}`);
+    if (cached !== null) {
+      await redis.set(`credits:${proj.userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
+    }
+  } catch (e) {
+    console.error(`[refund] failed to refund credit for project ${projectId}:`, e);
+  }
 }
 
 async function renderJob(payload: RenderJobPayload): Promise<void> {
@@ -65,6 +68,7 @@ async function renderJob(payload: RenderJobPayload): Promise<void> {
       where: { id: projectId },
       data: { status: "failed" },
     });
+    await refundRenderCredit(projectId);
   } finally {
     for (const f of [assPath, bgPath, voicePath, musicPath, outPath]) {
       if (f) try { fs.unlinkSync(f); } catch {}

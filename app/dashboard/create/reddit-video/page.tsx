@@ -28,7 +28,39 @@ const STEPS = [
 ];
 
 // ── Background Videos ────────────────────────────────────────────────────────
+// Thumbnail ids reference gameplay-cdn.com, but render-time background videos are
+// served from our own S3 bucket (the public gameplay CDN is not reachable). Each
+// catalogue title maps to one of the hosted sample clips (unknown titles fall back
+// to subway-surfers); override the base via NEXT_PUBLIC_BACKGROUNDS_BASE.
 const BACKDROP_CDN = "https://gameplay-cdn.com/gameplay";
+const BACKGROUNDS_BASE =
+  process.env.NEXT_PUBLIC_BACKGROUNDS_BASE ??
+  "https://saas-video-editor-assets.s3.ap-south-1.amazonaws.com/backgrounds";
+
+const BACKGROUND_FILE: Record<string, string> = {
+  "Subway Surfers": "subway-surfers.mp4",
+  "Minecraft Parkour": "minecraft.mp4",
+  "Minecraft Build": "minecraft.mp4",
+  "Soap Video": "soap.mp4",
+  "Slime Video": "slime.mp4",
+  "Sand Art": "slime.mp4",
+  "Kinetic Sand": "slime.mp4",
+  "Mario Kart": "mario-kart.mp4",
+  "Mario Kart GP": "mario-kart.mp4",
+  "GTA 5 Driving": "subway-surfers.mp4",
+  "GTA 5 City": "subway-surfers.mp4",
+  "Temple Run": "subway-surfers.mp4",
+  "Cooking ASMR": "soap.mp4",
+  "Basketball": "subway-surfers.mp4",
+  "Rocket League": "mario-kart.mp4",
+  "Beach Walk": "subway-surfers.mp4",
+  "Pressure Washing": "soap.mp4",
+};
+
+function backgroundUrlFor(title: string): string {
+  const file = BACKGROUND_FILE[title] ?? "subway-surfers.mp4";
+  return `${BACKGROUNDS_BASE}/${file}`;
+}
 const JAKEY   = "https://64.media.tumblr.com/8e073c3c73202376a83e782c25fc3012/163239d388b24cef-77/s640x960/a7ce4408f438a78ddc2e8011589a31c54215b2b8.jpg";
 const SIR_SAT = "https://i.pinimg.com/736x/30/88/49/308849bbb361c64eb407cfb3be3aab4b.jpg";
 const STEVE   = "https://minecraftpfp.com/api/pfp/null.png";
@@ -521,7 +553,7 @@ function RedditVideoFlow() {
   function handleGenerate() {
     const token = getStoredToken() || "";
     const chosenBg = BACKGROUNDS[selectedBg];
-    const bgVideoUrl = `${BACKDROP_CDN}/${chosenBg.id}/video.mp4`;
+    const bgVideoUrl = backgroundUrlFor(chosenBg.title);
     const bgMusicUrl = selectedMusic > 0
       ? `https://gameplay-cdn.com/music/${BACKGROUND_MUSIC[selectedMusic].name.toLowerCase().replace(/ /g, "-")}.mp3`
       : "";

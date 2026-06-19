@@ -117,7 +117,26 @@ const THEMES: Theme[] = [
 ];
 
 // ── Background Videos ─────────────────────────────────────────────────────────
+// Thumbnail ids reference gameplay-cdn.com, but render-time background videos are
+// served from our own S3 bucket (the public gameplay CDN is not reachable). Each
+// catalogue title maps to one hosted clip; override base via NEXT_PUBLIC_BACKGROUNDS_BASE.
 const BACKDROP_CDN = "https://gameplay-cdn.com/gameplay";
+const BACKGROUNDS_BASE =
+  process.env.NEXT_PUBLIC_BACKGROUNDS_BASE ??
+  "https://saas-video-editor-assets.s3.ap-south-1.amazonaws.com/backgrounds";
+
+const BACKGROUND_FILE: Record<string, string> = {
+  "Subway Surfers": "subway-surfers.mp4",
+  "Soap Video": "soap.mp4",
+  "Minecraft Video": "minecraft.mp4",
+  "Mario Kart": "mario-kart.mp4",
+  "Slime Video": "slime.mp4",
+};
+
+function backgroundUrlFor(title: string): string {
+  const file = BACKGROUND_FILE[title] ?? "subway-surfers.mp4";
+  return `${BACKGROUNDS_BASE}/${file}`;
+}
 const JAKEY   = "https://64.media.tumblr.com/8e073c3c73202376a83e782c25fc3012/163239d388b24cef-77/s640x960/a7ce4408f438a78ddc2e8011589a31c54215b2b8.jpg";
 const SIR_SAT = "https://i.pinimg.com/736x/30/88/49/308849bbb361c64eb407cfb3be3aab4b.jpg";
 const STEVE   = "https://minecraftpfp.com/api/pfp/null.png";
@@ -451,7 +470,7 @@ function TextVideoFlow() {
     if (!token) { alert("Please log in to generate a video."); return; }
     if (!messages.length) { alert("Add at least one message to generate."); return; }
     const bg = BACKGROUNDS[selectedBg];
-    const bgVideoUrl = `https://gameplay-cdn.com/gameplay/${bg.id}/video.mp4`;
+    const bgVideoUrl = backgroundUrlFor(bg.title);
     const bgMusicUrl = selectedMusic > 0 ? `https://assets.crayo.ai/music/${BACKGROUND_MUSIC[selectedMusic].name.toLowerCase().replace(/\s+/g, "-")}.mp3` : "";
     const t = THEMES[selectedTheme];
     await generateTextVideo({
