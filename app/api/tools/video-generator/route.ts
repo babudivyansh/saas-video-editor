@@ -10,14 +10,13 @@ import { randomUUID } from "crypto";
 
 export const maxDuration = 300;
 
-const CREDIT_COST = 5;
+// Veo3 is the most expensive API (~₹114 per 8s fast render). Priced at 20
+// credits and locked to the fast model + 8s cap to keep margins positive.
+// Standard/4K can be reintroduced as a premium tier later.
+const CREDIT_COST = 20;
+const MAX_DURATION = 8;
 
-const FAL_MODELS: Record<string, string> = {
-  "veo3-standard": "fal-ai/veo3",
-  "veo3-fast":     "fal-ai/veo3/fast",
-  "hailuo-02":     "fal-ai/minimax/video-01-live",
-  "seedance-pro":  "fal-ai/seedance-1-pro",
-};
+const VEO3_FAST_MODEL = "fal-ai/veo3/fast";
 
 interface Job {
   progress: number;
@@ -112,10 +111,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Video generation is not configured (missing FAL_KEY)" }, { status: 503 });
   }
 
+  // Veo3 is gated: requires a plan that bundles it or the ₹599 add-on.
+  const me = await prisma.user.findUnique({
+    where: { id: auth.userId },
+    select: { veo3Enabled: true },
+  });
+  if (!me?.veo3Enabled) {
+    return NextResponse.json(
+      { error: "AI Video (Veo3) is locked. Add it to your plan or upgrade to a plan that includes it." },
+      { status: 403 },
+    );
+  }
+
   const cachedCredits = await redis.get(`credits:${auth.userId}`);
   const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
   if (cached !== null && cached < CREDIT_COST) {
-    return NextResponse.json({ error: "Insufficient credits (need 5)" }, { status: 402 });
+    return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
   }
 
   let body: { prompt?: string; model?: string; duration?: number; aspectRatio?: string; referenceImageUrl?: string };
@@ -129,9 +140,9 @@ export async function POST(req: NextRequest) {
   if (!prompt) return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
   if (prompt.length > 2000) return NextResponse.json({ error: "Prompt too long (max 2000 chars)" }, { status: 400 });
 
-  const modelSlug = body.model ?? "veo3-standard";
-  const falModelId = FAL_MODELS[modelSlug] ?? FAL_MODELS["veo3-standard"];
-  const duration = body.duration ?? 8;
+  // Locked to the fast model and capped at 8s to bound API cost.
+  const falModelId = VEO3_FAST_MODEL;
+  const duration = Math.min(body.duration ?? MAX_DURATION, MAX_DURATION);
   const aspectRatio = body.aspectRatio ?? "16:9";
   const referenceImageUrl = body.referenceImageUrl ?? null;
 
@@ -143,7 +154,7 @@ export async function POST(req: NextRequest) {
   });
   if (user.credits < 0) {
     await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
-    return NextResponse.json({ error: "Insufficient credits (need 5)" }, { status: 402 });
+    return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
   }
   await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
 

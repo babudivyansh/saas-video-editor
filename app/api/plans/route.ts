@@ -14,6 +14,10 @@ export async function GET() {
       currency: true,
       credits: true,
       features: true,
+      kind: true,
+      intervalMonths: true,
+      monthlyCredits: true,
+      veo3Included: true,
     },
   });
   return NextResponse.json({ plans });

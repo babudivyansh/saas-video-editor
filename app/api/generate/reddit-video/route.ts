@@ -12,7 +12,7 @@ import { uploadFileToS3 } from "@/utils/s3-upload";
 import { resolveVoiceId } from "@/utils/voice-ids";
 import { downloadFile } from "@/utils/download";
 
-const CREDIT_COST = 1;
+const CREDIT_COST = 2;
 
 // Refund the credit charged at enqueue time when an async render job fails.
 async function refundRenderCredit(projectId: string) {

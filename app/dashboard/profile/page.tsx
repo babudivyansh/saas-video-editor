@@ -449,7 +449,7 @@ export default function ProfilePage() {
               />
             </div>
             <p className="text-xs text-gray-400 mt-2">
-              Each video generation costs 1 credit. Credit packs are one-time purchases. <Link href="/pricing" className="text-blue-600 hover:underline">Get more credits →</Link>
+              Credit cost varies by tool (1–20 credits). Top-up packs require an active subscription. <Link href="/pricing" className="text-blue-600 hover:underline">View plans →</Link>
             </p>
           </div>
 
@@ -553,7 +553,7 @@ export default function ProfilePage() {
                 ) : usage.length === 0 ? (
                   <div className="text-center py-10">
                     <p className="text-sm text-gray-500 font-medium">No usage yet</p>
-                    <p className="text-xs text-gray-400 mt-1">Each generated video uses 1 credit.</p>
+                    <p className="text-xs text-gray-400 mt-1">Credit cost varies by tool (1–20 credits).</p>
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-80 overflow-y-auto">
