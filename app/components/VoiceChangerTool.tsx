@@ -308,11 +308,11 @@ export default function VoiceChangerTool() {
   }
 
   const handleSubmit = useCallback(async () => {
-    if (!user) { openAuthModal("login"); return; }
+    if (!user) { openAuthModal("login", "AI Voice Changer"); return; }
     if (!audioFile) return;
 
     const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    if (!token) { openAuthModal("login"); return; }
+    if (!token) { openAuthModal("login", "AI Voice Changer"); return; }
 
     setStage("processing");
     setProgress(0);

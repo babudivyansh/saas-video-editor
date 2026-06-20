@@ -28,6 +28,8 @@ interface User {
 interface AuthModalState {
   isOpen: boolean;
   mode: "login" | "register";
+  feature?: string;
+  isFree?: boolean;
 }
 
 interface AuthContextType {
@@ -35,7 +37,7 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   authModal: AuthModalState;
-  openAuthModal: (mode?: "login" | "register") => void;
+  openAuthModal: (mode?: "login" | "register", feature?: string, isFree?: boolean) => void;
   closeAuthModal: () => void;
   signOut: () => void;
   refreshUser: () => Promise<void>;
@@ -53,6 +55,12 @@ const PUBLIC_ROUTES = [
   "/refund",
   "/affiliate-tos",
 ];
+
+const FREE_TOOL_NAMES: Record<string, string> = {
+  "/dashboard/tools/free/audio-balancer": "Audio Balancer",
+  "/dashboard/tools/free/mp3-converter": "MP3 Converter",
+  "/dashboard/tools/free/video-compressor": "Video Compressor",
+};
 
 function isPublicRoute(pathname: string) {
   if (pathname === "/") return true;
@@ -110,12 +118,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const isPublic = isPublicRoute(pathname);
     if (!user && !isPublic) {
-      setAuthModal({ isOpen: true, mode: "login" });
+      const freeTool = FREE_TOOL_NAMES[pathname];
+      setAuthModal({
+        isOpen: true,
+        mode: "login",
+        ...(freeTool ? { feature: freeTool, isFree: true } : {}),
+      });
     }
   }, [pathname, user, isLoading]);
 
-  const openAuthModal = (mode: "login" | "register" = "login") => {
-    setAuthModal({ isOpen: true, mode });
+  const openAuthModal = (mode: "login" | "register" = "login", feature?: string, isFree?: boolean) => {
+    setAuthModal({ isOpen: true, mode, feature, isFree });
   };
 
   const closeAuthModal = () => {

@@ -98,7 +98,7 @@ function EditorContent() {
 
   async function generateScript() {
     if (!user) {
-      openAuthModal("login");
+      openAuthModal("login", "AI Video Editor");
       return;
     }
     setScriptLoading(true);
@@ -122,7 +122,7 @@ function EditorContent() {
 
   async function generateVoice() {
     if (!user) {
-      openAuthModal("login");
+      openAuthModal("login", "AI Video Editor");
       return;
     }
     setVoiceLoading(true);
@@ -146,7 +146,7 @@ function EditorContent() {
 
   async function handleExport() {
     if (!user) {
-      openAuthModal("login");
+      openAuthModal("login", "AI Video Editor");
       return;
     }
     setExporting(true); setExportError("");

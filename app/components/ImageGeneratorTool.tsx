@@ -188,7 +188,7 @@ export default function ImageGeneratorTool() {
   }
 
   async function generate() {
-    if (!user || !token) { openAuthModal("login"); return; }
+    if (!user || !token) { openAuthModal("login", "AI Image Generator"); return; }
     if (!prompt.trim() || generating) return;
     setError(null);
     setGenerating(true);

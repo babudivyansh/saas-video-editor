@@ -35,8 +35,8 @@ function IcSmile() {
 function IcYoutube() {
   return <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M23.5 6.2a3 3 0 00-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 00.5 6.2 31 31 0 000 12a31 31 0 00.5 5.8 3 3 0 002.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 002.1-2.1A31 31 0 0024 12a31 31 0 00-.5-5.8zM9.6 15.6V8.4l6.3 3.6-6.3 3.6z"/></svg>;
 }
-function IcTiktok() {
-  return <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M16.6 5.82A4.28 4.28 0 0115.54 3h-3.09v12.4a2.59 2.59 0 01-2.59 2.5 2.59 2.59 0 01-2.59-2.59 2.59 2.59 0 012.59-2.59c.27 0 .53.04.78.12V9.66a5.99 5.99 0 00-.78-.05A5.69 5.69 0 004.17 15.3a5.69 5.69 0 005.69 5.69 5.69 5.69 0 005.69-5.69V9.01a7.35 7.35 0 004.3 1.38V7.3a4.28 4.28 0 01-3.14-1.48z"/></svg>;
+function IcInstagram() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>;
 }
 
 function IcEraser() {
@@ -235,6 +235,79 @@ function FaceSwapPreview() {
   );
 }
 
+function SplitScreenPreview() {
+  const wave = [8, 14, 10, 18, 12, 22, 9, 16, 13, 20, 11, 17, 8, 15, 12];
+  return (
+    <div className="h-[212px] bg-gray-50 flex items-stretch gap-0 overflow-hidden rounded-t-none">
+      {/* Left half: user video */}
+      <div className="flex-1 bg-gray-900 flex flex-col items-center justify-center gap-2 border-r border-gray-700">
+        <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center">
+          <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+        </div>
+        <div className="flex items-center gap-px h-5">
+          {wave.map((h, i) => <div key={i} className="w-[2.5px] rounded-full bg-blue-400/70" style={{ height: `${h}px` }} />)}
+        </div>
+        <p className="text-[8px] text-gray-400">Your Video</p>
+      </div>
+      {/* Right half: gameplay background */}
+      <div className="flex-1 bg-gradient-to-b from-green-400 to-emerald-600 flex flex-col items-center justify-center gap-1">
+        <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+          <svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+        <p className="text-[8px] text-white/80 font-semibold">Background</p>
+      </div>
+    </div>
+  );
+}
+
+function VerticalSplitPreview() {
+  const wave = [8, 14, 10, 18, 12, 22, 9, 16, 13, 20];
+  return (
+    <div className="h-[212px] bg-gray-50 flex flex-col items-stretch gap-0 overflow-hidden">
+      {/* Top half: user video */}
+      <div className="flex-1 bg-gray-900 flex items-center justify-center gap-3 border-b border-gray-700">
+        <div className="w-9 h-9 rounded-full bg-purple-500 flex items-center justify-center flex-shrink-0">
+          <svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+        </div>
+        <div className="flex items-center gap-px h-4">
+          {wave.map((h, i) => <div key={i} className="w-[2.5px] rounded-full bg-purple-400/70" style={{ height: `${h}px` }} />)}
+        </div>
+      </div>
+      {/* Bottom half: gameplay */}
+      <div className="flex-1 bg-gradient-to-b from-orange-400 to-red-500 flex items-center justify-center gap-2">
+        <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center">
+          <svg viewBox="0 0 24 24" fill="white" className="w-3.5 h-3.5"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+        <p className="text-[8px] text-white/80 font-semibold">Gameplay</p>
+      </div>
+    </div>
+  );
+}
+
+function StreamerPreview() {
+  return (
+    <div className="h-[212px] bg-gray-900 flex flex-col overflow-hidden relative">
+      {/* Fake video background */}
+      <div className="flex-1 bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
+        <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center shadow-lg">
+          <svg viewBox="0 0 24 24" fill="white" className="w-8 h-8"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+        </div>
+      </div>
+      {/* Subtitle bar at bottom */}
+      <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-4 py-2.5">
+        <div className="flex justify-center">
+          <span className="text-[11px] font-extrabold text-white tracking-wide uppercase" style={{ textShadow: "0 1px 4px #000" }}>THIS IS YOUR TITLE</span>
+        </div>
+        <div className="flex justify-center gap-px mt-1.5">
+          {["and", "this", "is", "a", "subtitle"].map((w, i) => (
+            <span key={i} className={`text-[9px] font-bold px-0.5 ${i === 2 ? "text-yellow-400" : "text-white"}`}>{w} </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BrainstormerPreview() {
   return (
     <div className="h-[212px] bg-gray-50 flex gap-2.5 p-4 overflow-hidden">
@@ -311,7 +384,7 @@ const NAV = [
 const TOP_CARDS = [
   { icon: <IcSmile />, title: "Free Tools", desc: "Audio balancer, video compressor, and more", color: "text-amber-500", bg: "bg-amber-50", href: "/dashboard/tools/free" },
   { icon: <IcYoutube />, title: "Youtube Downloader", desc: "Download Youtube videos", color: "text-red-500", bg: "bg-red-50", href: "/dashboard/tools/youtube-downloader" },
-  { icon: <IcTiktok />, title: "Tiktok Downloader", desc: "Download TikTok videos", color: "text-gray-900", bg: "bg-gray-100", href: "/dashboard/tools/free" },
+  { icon: <IcInstagram />, title: "Instagram Downloader", desc: "Download Reels, posts & IGTV", color: "text-pink-600", bg: "bg-pink-50", href: "/dashboard/tools/instagram-downloader" },
 ];
 
 const TOOLS = [
@@ -320,7 +393,6 @@ const TOOLS = [
   { title: "AI Speech Enhancer", desc: "Enhance the quality of any audio or video file with AI.", preview: <SpeechEnhancerPreview />, badge: "3 credits", href: "/dashboard/tools/enhance-speech" },
   { title: "AI Video Generator", desc: "VEO3 is a tool that allows you to create videos with AI.", preview: <VideoGenPreview />, badge: "20 credits", href: "/dashboard/tools/video-generator" },
   { title: "AI Vocal Remover", desc: "Remove vocals from any audio or video file with AI.", preview: <VocalRemoverPreview />, badge: "2 credits", href: "/dashboard/tools/vocal-remover" },
-  { title: "AI Face Swap", desc: "Swap faces between two images instantly with AI.", preview: <FaceSwapPreview />, badge: "2 credits", href: "/dashboard/tools/face-swap" },
 { title: "AI Brainstormer", desc: "Generate viral content ideas based on your niche.", preview: <BrainstormerPreview />, badge: "1 credit", href: "/dashboard/tools/brainstormer" },
   { title: "Reddit Video Generator", desc: "Convert Reddit posts into viral videos with AI.", preview: <RedditPreview />, badge: "2 credits", href: "/dashboard/create/reddit-video" },
   { title: "Fake Texts Video Generator", desc: "Create engaging fake texts videos with AI to go viral.", preview: <FakeTextsPreview />, badge: "2 credits", href: "/dashboard/create/text-video" },

@@ -167,7 +167,7 @@ export default function FaceSwapTool() {
 
   async function handleGenerate() {
     if (!charSlot.file || !targSlot.file) return;
-    if (!user || !token) { openAuthModal("login"); return; }
+    if (!user || !token) { openAuthModal("login", "AI Face Swap"); return; }
 
     setStage("processing");
     setError(null);

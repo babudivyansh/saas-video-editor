@@ -3,6 +3,7 @@ import { Suspense, useState, useRef, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
 import { useVideoGenerate, getStoredToken } from "@/app/hooks/useVideoGenerate";
+import { useAuth } from "@/app/components/AuthContext";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 function IcChevron() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M9 18l6-6-6-6"/></svg>; }
@@ -440,6 +441,7 @@ function TvVoiceColumn({ title, selected, onSelect }: { title: string; selected:
 function TextVideoFlow() {
   const router = useRouter();
   const params = useSearchParams();
+  const { openAuthModal } = useAuth();
   const stepParam = params.get("step") || "script";
   const stepIndex = Math.max(0, STEPS.findIndex(s => s.id === stepParam));
 
@@ -467,7 +469,7 @@ function TextVideoFlow() {
 
   async function handleGenerate() {
     const token = getStoredToken();
-    if (!token) { alert("Please log in to generate a video."); return; }
+    if (!token) { openAuthModal("login", "Fake Texts Video"); return; }
     if (!messages.length) { alert("Add at least one message to generate."); return; }
     const bg = BACKGROUNDS[selectedBg];
     const bgVideoUrl = backgroundUrlFor(bg.title);

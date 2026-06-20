@@ -164,8 +164,8 @@ function Header({
           {user ? (
             <span className="text-xs text-gray-500 font-medium">Logged in as {user.email}</span>
           ) : (
-            <button 
-              onClick={() => openAuthModal("login")}
+            <button
+              onClick={() => openAuthModal("login", "AI Video Creator")}
               className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm cursor-pointer"
             >
               <IcZap /> Login
@@ -451,7 +451,7 @@ function StreamerVideoFlow() {
 
   function handleFile(f: File) {
     if (!user) {
-      openAuthModal("login");
+      openAuthModal("login", "AI Video Creator");
       return;
     }
     fileRef.current = f;
@@ -475,7 +475,7 @@ function StreamerVideoFlow() {
 
   function handleGenerateClick() {
     if (!user) {
-      openAuthModal("login");
+      openAuthModal("login", "AI Video Creator");
       return;
     }
     const token = localStorage.getItem("token");
@@ -505,7 +505,7 @@ function StreamerVideoFlow() {
             {stepIndex === 0 && (
               <UploadStep
                 onFile={handleFile}
-                onLinkGate={() => openAuthModal("login")}
+                onLinkGate={() => openAuthModal("login", "AI Video Creator")}
                 fileName={fileName}
                 onClearFile={handleClearFile}
               />
