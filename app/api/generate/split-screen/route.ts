@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
+import { markQuestComplete } from "@/lib/quests";
 import {
   extractAudio,
   generateASS,
@@ -153,6 +154,7 @@ export async function POST(req: NextRequest) {
     subtitleStyleIndex: body.subtitleStyleIndex ?? 0,
     mode: body.mode ?? "oneword",
   });
+  void markQuestComplete(auth.userId, "first-clip");
 
   return NextResponse.json({ status: "rendering", creditsRemaining: user.credits });
 }

@@ -6,6 +6,7 @@ import { resolveVoiceId } from "@/utils/voice-ids";
 import { uploadBufferToS3 } from "@/utils/s3-upload";
 import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
+import { markQuestComplete } from "@/lib/quests";
 
 export const maxDuration = 120;
 
@@ -91,6 +92,7 @@ export async function POST(req: NextRequest) {
     const key = `voiceovers/${auth.userId}/${randomUUID()}.mp3`;
     const audioUrl = await uploadBufferToS3(audioBuffer, key, "audio/mpeg");
 
+    void markQuestComplete(auth.userId, "hear-yourself-out");
     return NextResponse.json({
       audioUrl,
       durationMs,

@@ -2,10 +2,28 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
+import { xpToLevel, levelColor, TOTAL_XP } from "@/lib/quest-config";
+
+interface QuestItem {
+  id: string;
+  title: string;
+  xp: number;
+  trigger: string;
+  completedAt: string | null;
+}
+
+interface QuestData {
+  quests: QuestItem[];
+  earnedXp: number;
+  totalXp: number;
+  remaining: number;
+  level: string;
+  allComplete: boolean;
+}
 
 
 // ── Avatar Menu ───────────────────────────────────────────────────────────────
-function AvatarMenu({ user, signOut }: { user: { email: string; role: string; name?: string | null }; signOut: () => void }) {
+function AvatarMenu({ user, signOut, level }: { user: { email: string; role: string; name?: string | null }; signOut: () => void; level?: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -29,7 +47,15 @@ function AvatarMenu({ user, signOut }: { user: { email: string; role: string; na
       {open && (
         <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl border border-[#D7DBEA] shadow-xl z-50 py-1.5 overflow-hidden">
           <div className="px-4 py-3 border-b border-[#D7DBEA]">
-            <p className="text-sm font-semibold text-gray-900 truncate">{user.name || "User"}</p>
+            <div className="flex items-center gap-2 mb-0.5">
+              <p className="text-sm font-semibold text-gray-900 truncate">{user.name || "User"}</p>
+              {level && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                  style={{ background: levelColor(level) + "20", color: levelColor(level) }}>
+                  {level}
+                </span>
+              )}
+            </div>
             <p className="text-xs text-[#868C98] truncate">{user.email}</p>
           </div>
 
@@ -299,7 +325,35 @@ const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const [activeNav, setActiveNav] = useState("home");
-  const { user, openAuthModal, signOut } = useAuth();
+  const { user, token, openAuthModal, signOut } = useAuth();
+  const [questData, setQuestData] = useState<QuestData | null>(null);
+
+  useEffect(() => {
+    if (!user || !token) return;
+    fetch("/api/quests", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(setQuestData)
+      .catch(() => {});
+  }, [user, token]);
+
+  async function handleDiscordQuest() {
+    if (!token) return;
+    window.open("https://discord.gg/clipiro", "_blank");
+    try {
+      await fetch("/api/quests/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ questId: "join-community" }),
+      });
+      const res = await fetch("/api/quests", { headers: { Authorization: `Bearer ${token}` } });
+      setQuestData(await res.json());
+    } catch { /* best-effort */ }
+  }
+
+  const earnedXp = questData?.earnedXp ?? 0;
+  const remaining = questData?.remaining ?? 4;
+  const level = questData ? questData.level : (user ? xpToLevel(0) : null);
+  const progressPct = Math.round((earnedXp / TOTAL_XP) * 100);
 
 
   return (
@@ -364,7 +418,7 @@ export default function DashboardPage() {
         {/* Top bar */}
         <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3 gap-3">
           {user ? (
-            <AvatarMenu user={user} signOut={signOut} />
+            <AvatarMenu user={user} signOut={signOut} level={level ?? undefined} />
           ) : (
             <button
               onClick={() => openAuthModal("login")}
@@ -436,38 +490,84 @@ export default function DashboardPage() {
               <div className="rounded-2xl border border-gray-200 overflow-hidden">
                 <div className="px-5 py-4 flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Onboarding</p>
-                    <p className="text-gray-900 font-bold text-[15px]">4 quests to go</p>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Onboarding</p>
+                      {level && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                          style={{ background: levelColor(level) + "18", color: levelColor(level) }}>
+                          {level}
+                        </span>
+                      )}
+                    </div>
+                    {questData === null && user ? (
+                      <div className="h-5 w-40 bg-gray-100 rounded animate-pulse mt-0.5" />
+                    ) : (
+                      <p className="text-gray-900 font-bold text-[15px]">
+                        {remaining === 0 ? "All quests complete!" : `${remaining} quest${remaining !== 1 ? "s" : ""} to go`}
+                      </p>
+                    )}
                     <div className="mt-2 h-1 bg-gray-100 rounded-full w-64 overflow-hidden">
-                      <div className="h-full bg-blue-600 rounded-full" style={{ width: "0%" }} />
+                      <div className="h-full bg-blue-600 rounded-full transition-all duration-500"
+                        style={{ width: `${progressPct}%` }} />
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="text-xl font-extrabold text-gray-900">0</span>
-                    <span className="text-sm text-gray-400 font-normal"> / 1200 XP</span>
+                    {questData === null && user ? (
+                      <div className="h-7 w-24 bg-gray-100 rounded animate-pulse ml-auto" />
+                    ) : (
+                      <>
+                        <span className="text-xl font-extrabold text-gray-900">{earnedXp}</span>
+                        <span className="text-sm text-gray-400 font-normal"> / 1200 XP</span>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 border-t border-gray-100">
-                  {QUESTS.map((q, i) => (
-                    <button
-                      key={i}
-                      className={`flex items-start gap-3 px-4 py-3.5 text-left hover:bg-gray-50 transition-colors group
-                        ${i % 2 === 0 ? "border-r border-gray-100" : ""}
-                        ${i >= 2 ? "border-t border-gray-100" : ""}`}
-                    >
-                      <span className="mt-0.5 flex-shrink-0 opacity-60" style={{ color: q.color }}>{q.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                          <span className="text-sm font-semibold text-gray-800">{q.title}</span>
-                          <span className="text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-full">+{q.xp} XP</span>
+                  {QUESTS.map((q, i) => {
+                    const liveQuest = questData?.quests.find(lq => lq.title === q.title);
+                    const done = !!liveQuest?.completedAt;
+                    const isDiscord = q.title === "Join the community";
+                    return (
+                      <button
+                        key={i}
+                        onClick={isDiscord ? handleDiscordQuest : undefined}
+                        disabled={done}
+                        className={`flex items-start gap-3 px-4 py-3.5 text-left transition-colors group
+                          ${i % 2 === 0 ? "border-r border-gray-100" : ""}
+                          ${i >= 2 ? "border-t border-gray-100" : ""}
+                          ${done ? "bg-green-50 cursor-default" : "hover:bg-gray-50"}`}
+                      >
+                        <span className="mt-0.5 flex-shrink-0 opacity-60" style={{ color: q.color }}>{q.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                            <span className={`text-sm font-semibold ${done ? "line-through text-gray-400" : "text-gray-800"}`}>{q.title}</span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${done ? "bg-green-50 text-green-600 border-green-100" : "bg-blue-50 text-blue-600 border-blue-100"}`}>
+                              +{q.xp} XP
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-400 leading-relaxed">{q.desc}</p>
                         </div>
-                        <p className="text-xs text-gray-400 leading-relaxed">{q.desc}</p>
-                      </div>
-                      <span className="text-gray-300 group-hover:text-gray-500 transition-colors mt-0.5 flex-shrink-0"><IcChevron /></span>
-                    </button>
-                  ))}
+                        {done ? (
+                          <span className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
+                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+                              <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </span>
+                        ) : (
+                          <span className="text-gray-300 group-hover:text-gray-500 transition-colors mt-0.5 flex-shrink-0"><IcChevron /></span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
+
+                {questData?.allComplete && (
+                  <div className="border-t border-green-100 bg-green-50 px-5 py-3 flex items-center gap-2.5">
+                    <span className="text-green-500 text-lg">🎉</span>
+                    <p className="text-sm font-semibold text-green-700">All quests complete! +5 credits have been added to your account.</p>
+                  </div>
+                )}
               </div>
 
               {/* Large tool cards — 2 col */}

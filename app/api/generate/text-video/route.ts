@@ -11,6 +11,7 @@ import { runFFmpegArgs } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { resolveVoiceId } from "@/utils/voice-ids";
 import { downloadFile } from "@/utils/download";
+import { markQuestComplete } from "@/lib/quests";
 
 const CREDIT_COST = 2;
 
@@ -392,6 +393,7 @@ export async function POST(req: NextRequest) {
     narratorVoiceId: body.narratorVoiceId || "william",
     bgMusicUrl: body.bgMusicUrl || "",
   });
+  void markQuestComplete(auth.userId, "first-clip");
 
   return NextResponse.json({ status: "rendering", creditsRemaining: user.credits });
 }
