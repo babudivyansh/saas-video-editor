@@ -122,7 +122,7 @@ export default function BackgroundRemoverTool() {
 
   async function handleRemove() {
     if (!file || stage === "processing") return;
-    if (!user || !token) { openAuthModal("login"); return; }
+    if (!user || !token) { openAuthModal("login", "AI Background Remover"); return; }
 
     setStage("processing");
     setError(null);

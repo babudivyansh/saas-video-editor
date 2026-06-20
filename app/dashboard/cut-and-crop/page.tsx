@@ -328,7 +328,7 @@ export default function CutAndCropPage() {
   }
 
   function onAddVideo() {
-    if (!user) { openAuthModal("login"); return; }
+    if (!user) { openAuthModal("login", "Cut & Crop Editor"); return; }
     fileInputRef.current?.click();
   }
 
@@ -448,14 +448,14 @@ export default function CutAndCropPage() {
 
   // Export
   const handleExport = useCallback(async () => {
-    if (!user) { openAuthModal("login"); return; }
+    if (!user) { openAuthModal("login", "Cut & Crop Editor"); return; }
     if (clips.length === 0) return;
     if (clips.some(c => c.duration === 0)) {
       setExportError("Still reading file metadata — try again in a moment.");
       return;
     }
     const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    if (!token) { openAuthModal("login"); return; }
+    if (!token) { openAuthModal("login", "Cut & Crop Editor"); return; }
 
     setStage("exporting");
     setProgress(0);
@@ -586,7 +586,7 @@ export default function CutAndCropPage() {
             {/* Export / Login */}
             {!user ? (
               <button
-                onClick={() => openAuthModal("login")}
+                onClick={() => openAuthModal("login", "Cut & Crop Editor")}
                 className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold text-white bg-[#335CFF] hover:opacity-90 transition-opacity"
               >
                 Login
@@ -619,7 +619,7 @@ export default function CutAndCropPage() {
               if (clips.length > 0) return;
               e.preventDefault();
               setDraggingOver(false);
-              if (!user) { openAuthModal("login"); return; }
+              if (!user) { openAuthModal("login", "Cut & Crop Editor"); return; }
               handleFiles(e.dataTransfer.files);
             }}
           >

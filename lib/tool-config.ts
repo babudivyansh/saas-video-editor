@@ -30,6 +30,7 @@ export const TOOL_DEFAULTS: ToolConfigMap = {
   "enhance-speech":   { enabled: true, creditCost: 3 },
   "video-generator":      { enabled: true, creditCost: 20 },
   "youtube-downloader":     { enabled: true, creditCost: 0 },
+  "instagram-downloader":   { enabled: true, creditCost: 0 },
   "background-remover":     { enabled: true, creditCost: 1 },
   "face-swap":              { enabled: true, creditCost: 2 },
 };
@@ -52,6 +53,7 @@ export const TOOL_SERVICE: Record<string, string> = {
   "enhance-speech":   "ElevenLabs Isolation",
   "video-generator":     "fal.ai Veo3",
   "youtube-downloader":    "yt-dlp (YouTube)",
+  "instagram-downloader":  "yt-dlp (Instagram)",
   "background-remover":    "fal.ai rembg",
   "face-swap":             "fal.ai face-swap",
 };

@@ -522,7 +522,7 @@ export default function VoiceoverTool() {
 
   async function generate() {
     setError(null);
-    if (!user || !token) { openAuthModal("login"); return; }
+    if (!user || !token) { openAuthModal("login", "AI Voiceover Generator"); return; }
     const text = script.trim();
     if (!text) { setError("Enter a script to generate a voiceover."); return; }
     if (text.length > MAX_CHARS) { setError(`Script is too long (max ${MAX_CHARS} characters).`); return; }

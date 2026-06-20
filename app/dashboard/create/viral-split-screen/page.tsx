@@ -3,7 +3,8 @@ import { Suspense, useRef, useState, type ReactNode, type CSSProperties } from "
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
-import { useVideoGenerate, getStoredToken, storeToken, type GenerateStatus } from "@/app/hooks/useVideoGenerate";
+import { useVideoGenerate, getStoredToken, type GenerateStatus } from "@/app/hooks/useVideoGenerate";
+import { useAuth } from "@/app/components/AuthContext";
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 function IcFilm() {
@@ -152,73 +153,6 @@ const LINE_STYLES: CSSProperties[] = [
   { fontFamily: "system-ui,sans-serif", fontWeight: 700, color: "#fff", background: "#000", padding: "4px 12px", borderRadius: 6 },
   { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#c4b5fd", textTransform: "uppercase", textShadow: "0 0 10px rgba(196,181,253,.6)" },
 ];
-
-// ── Auth Gate Modal ──────────────────────────────────────────────────────────
-function AuthModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (token: string) => void }) {
-  const [tab, setTab] = useState<"login" | "register">("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function handleSubmit() {
-    if (!email || !password) { setErr("Email and password required"); return; }
-    setLoading(true); setErr(null);
-    try {
-      const endpoint = tab === "login" ? "/api/auth/login" : "/api/auth/register";
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json() as { token?: string; error?: string };
-      if (!res.ok || !data.token) { setErr(data.error ?? "Something went wrong"); return; }
-      storeToken(data.token);
-      onSuccess(data.token);
-      onClose();
-    } catch { setErr("Network error — please try again"); }
-    finally { setLoading(false); }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-7 relative">
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"><IcX /></button>
-        <div className="text-center">
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4"><IcZap /></div>
-          <h2 className="text-lg font-bold text-gray-900 mb-1">{tab === "login" ? "Welcome back" : "Create an account"}</h2>
-          <p className="text-sm text-gray-500 mb-5">Start making videos with AI today.</p>
-        </div>
-        <div className="flex rounded-lg border border-gray-200 p-1 mb-5">
-          {(["login", "register"] as const).map(t => (
-            <button key={t} onClick={() => { setTab(t); setErr(null); }}
-              className="flex-1 py-1.5 text-sm font-semibold rounded-md transition-colors"
-              style={{ background: tab === t ? "#2563eb" : "transparent", color: tab === t ? "#fff" : "#6b7280" }}>
-              {t === "login" ? "Sign in" : "Register"}
-            </button>
-          ))}
-        </div>
-        <div className="space-y-3">
-          <div>
-            <label className="text-xs font-semibold text-gray-600 block mb-1.5">Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSubmit()}
-              placeholder="example@gmail.com" className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:border-blue-400" />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-600 block mb-1.5">Password</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSubmit()}
-              placeholder="••••••••" className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:border-blue-400" />
-          </div>
-          {err && <p className="text-xs text-red-500">{err}</p>}
-          <button onClick={handleSubmit} disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors">
-            {loading ? "Please wait…" : tab === "login" ? "Sign in" : "Create account"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── Generating overlay + result panel ────────────────────────────────────────
 function GeneratingOverlay({ status, videoUrl, error, onReset }: { status: GenerateStatus; videoUrl: string | null; error: string | null; onReset: () => void }) {
@@ -581,6 +515,7 @@ function SubtitleStep({
 function ViralSplitScreenFlow() {
   const router = useRouter();
   const params = useSearchParams();
+  const { openAuthModal } = useAuth();
 
   const stepParam = params.get("step") || "upload-video";
   const stepIndex = Math.max(0, STEPS.findIndex(s => s.id === stepParam));
@@ -591,7 +526,6 @@ function ViralSplitScreenFlow() {
   const [bg, setBg] = useState(0);
   const [subSel, setSubSel] = useState(0);
   const [subMode, setSubMode] = useState<"oneword" | "lines">("oneword");
-  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const { status: genStatus, videoUrl, error: genError, generateSplitScreen, reset: resetGenerate } = useVideoGenerate();
   const isGenerating = genStatus !== "idle";
@@ -627,18 +561,12 @@ function ViralSplitScreenFlow() {
     if (isGenerating) return;
     if (stepIndex < STEPS.length - 1) { goTo(stepIndex + 1); return; }
     const token = getStoredToken();
-    if (token) { void doGenerate(token); }
-    else { setShowAuthModal(true); }
-  }
-
-  function handleAuthSuccess(token: string) {
+    if (!token) { openAuthModal("login", "Vertical Split Screen"); return; }
     void doGenerate(token);
   }
 
   return (
     <div className="flex h-screen overflow-hidden bg-white">
-      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} onSuccess={handleAuthSuccess} />}
-
       <ToolsSidebar active="create" />
 
       <main className="flex-1 overflow-y-auto bg-white">
@@ -655,7 +583,7 @@ function ViralSplitScreenFlow() {
         ) : (
           <div className="mt-4 mx-8 mb-8 rounded-[28px] bg-gray-50 border border-gray-100" style={{ minHeight: "calc(100vh - 200px)" }}>
             {stepIndex === 0 && (
-              <UploadStep onFile={handleFile} onLinkGate={() => setShowAuthModal(true)} fileName={fileName} onClearFile={handleClearFile} />
+              <UploadStep onFile={handleFile} onLinkGate={() => openAuthModal("login", "Vertical Split Screen")} fileName={fileName} onClearFile={handleClearFile} />
             )}
             {stepIndex === 1 && <BackgroundStep selected={bg} onSelect={setBg} />}
             {stepIndex === 2 && <SubtitleStep selected={subSel} onSelect={setSubSel} mode={subMode} onModeChange={setSubMode} />}

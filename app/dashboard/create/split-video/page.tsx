@@ -230,8 +230,8 @@ function Header({
           {user ? (
             <span className="text-xs text-gray-500 font-medium">Logged in as {user.email}</span>
           ) : (
-            <button 
-              onClick={() => openAuthModal("login")}
+            <button
+              onClick={() => openAuthModal("login", "Split Screen Video")}
               className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm cursor-pointer"
             >
               <IcZap /> Login
@@ -602,7 +602,7 @@ function SplitVideoFlow() {
 
   function handleFile(f: File) {
     if (!user) {
-      openAuthModal("login");
+      openAuthModal("login", "Split Screen Video");
       return;
     }
     fileRef.current = f;
@@ -626,7 +626,7 @@ function SplitVideoFlow() {
     if (isGenerating) return;
     if (stepIndex < STEPS.length - 1) { goTo(stepIndex + 1); return; }
     if (!user) {
-      openAuthModal("login");
+      openAuthModal("login", "Split Screen Video");
       return;
     }
     const token = localStorage.getItem("token");
@@ -658,7 +658,7 @@ function SplitVideoFlow() {
             {stepIndex === 0 && (
               <UploadStep
                 onFile={handleFile}
-                onLinkGate={() => openAuthModal("login")}
+                onLinkGate={() => openAuthModal("login", "Split Screen Video")}
                 fileName={fileName}
                 onClearFile={handleClearFile}
               />
