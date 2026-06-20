@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, Fragment } from "react";
 import AdminShell from "../AdminShell";
 import { useAuth } from "@/app/components/AuthContext";
 
@@ -152,8 +152,8 @@ export default function AdminUsersPage() {
                     const subExpired = isExpired(u.subscriptionEndsAt);
                     const isAdmin = u.role === "ADMIN";
                     return (
-                      <>
-                        <tr key={u.id}
+                      <Fragment key={u.id}>
+                        <tr
                           className={`border-b border-gray-50 last:border-0 transition-colors ${isAdmin ? "bg-blue-50/40" : ""}`}>
                           <td className="py-3 px-5">
                             <p className="font-semibold text-gray-900">{u.name || u.email}</p>
@@ -247,7 +247,7 @@ export default function AdminUsersPage() {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })}
                 </tbody>

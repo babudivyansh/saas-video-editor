@@ -283,16 +283,15 @@ const TOOLS_SMALL = [
   { title: "Voice Changer", desc: "Change the voice of any audio or video file", preview: <VoiceChangerPreview />, href: "/dashboard/tools/voice-changer" },
   { title: "Subtitle Remover", desc: "Remove subtitles with AI in minutes", preview: <SubtitleRemoverPreview />, href: "/dashboard/tools/subtitle-remover" },
   { title: "AI Creator", desc: "Become an AI content creator in 3 steps", preview: <AICreatorPreview />, href: "/dashboard/ai-creator" },
-  { title: "AI Vocal Remover", desc: "Remove vocals from audio/video with AI", preview: <VocalRemoverPreview />, href: "/dashboard/tools/vocal-remover" },
 ];
 
 const MINI_TOOLS = [
-  { icon: <IcImage />, label: "Image Generator",    href: "/dashboard/tools/image-generator" },
-  { icon: <IcUser />,  label: "AI Face Swap",       href: "/dashboard/tools" },
-  { icon: <IcMic />,   label: "Voiceover Generator",href: "/dashboard/tools/voiceover" },
-  { icon: <IcEraser />,label: "Background Remover", href: "/dashboard/tools" },
-  { icon: <IcVideo />, label: "VEO3 Generator",     href: "/dashboard/tools" },
-  { icon: <IcYoutube />,label: "YouTube Downloader",href: "/dashboard/tools" },
+  { icon: <IcImage />,  label: "Image Generator",    href: "/dashboard/tools/image-generator" },
+  { icon: <IcUser />,   label: "AI Face Swap",        href: "/dashboard/tools/face-swap" },
+  { icon: <IcMic />,    label: "Voiceover Generator", href: "/dashboard/tools/voiceover" },
+  { icon: <IcEraser />, label: "Background Remover",  href: "/dashboard/tools/background-remover" },
+  { icon: <IcVideo />,  label: "VEO3 Generator",      href: "/dashboard/tools/video-generator" },
+  { icon: <IcYoutube />,label: "YouTube Downloader",  href: "/dashboard/tools/youtube-downloader" },
 ];
 
 const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -413,7 +412,7 @@ export default function DashboardPage() {
             </Link>
 
             {/* Free Tools */}
-            <Link href="/dashboard/tools" className="flex items-center gap-3 px-5 py-3.5 rounded-2xl flex-1 border border-gray-200 hover:bg-gray-50 transition-colors">
+            <Link href="/dashboard/tools/free" className="flex items-center gap-3 px-5 py-3.5 rounded-2xl flex-1 border border-gray-200 hover:bg-gray-50 transition-colors">
               <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
                 <svg className="w-4 h-4 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4l7.07 17 2.51-7.39L21 11.07z" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </div>
