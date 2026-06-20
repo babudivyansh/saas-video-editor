@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { writeAuditLog } from "@/lib/tool-config";
 
 export async function GET(req: NextRequest) {
   const admin = await requireAdmin(req);
@@ -33,7 +34,14 @@ export async function POST(req: NextRequest) {
       features: Array.isArray(body.features) ? body.features : [],
       active: body.active ?? true,
       sortOrder: Number(body.sortOrder ?? 0),
+      kind: body.kind ?? "pack",
+      intervalMonths: body.intervalMonths != null ? Number(body.intervalMonths) : null,
+      monthlyCredits: body.monthlyCredits != null ? Number(body.monthlyCredits) : null,
+      veo3Included: body.veo3Included ?? false,
     },
   });
+
+  await writeAuditLog({ adminId: admin.userId, action: "plan.created", targetId: plan.id, after: plan });
+
   return NextResponse.json({ plan }, { status: 201 });
 }
