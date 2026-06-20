@@ -39,6 +39,10 @@ function IcTiktok() {
   return <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M16.6 5.82A4.28 4.28 0 0115.54 3h-3.09v12.4a2.59 2.59 0 01-2.59 2.5 2.59 2.59 0 01-2.59-2.59 2.59 2.59 0 012.59-2.59c.27 0 .53.04.78.12V9.66a5.99 5.99 0 00-.78-.05A5.69 5.69 0 004.17 15.3a5.69 5.69 0 005.69 5.69 5.69 5.69 0 005.69-5.69V9.01a7.35 7.35 0 004.3 1.38V7.3a4.28 4.28 0 01-3.14-1.48z"/></svg>;
 }
 
+function IcEraser() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M20 20H7L3 16l10-10 7 7-3.5 3.5"/><path d="M6.5 17.5l4-4"/></svg>;
+}
+
 // ── Tool preview illustrations ─────────────────────────────────────────────────
 function ImageGenPreview() {
   return (
@@ -144,6 +148,93 @@ function VocalRemoverPreview() {
   );
 }
 
+function YouTubeDownloaderPreview() {
+  return (
+    <div className="h-[212px] bg-gray-50 flex flex-col gap-3 p-4 justify-center overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 px-3 py-2.5 flex items-center gap-2 shadow-sm">
+        <span className="text-red-500 flex-shrink-0">
+          <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5"><path d="M23.5 6.2a3 3 0 00-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 00.5 6.2 31 31 0 000 12a31 31 0 00.5 5.8 3 3 0 002.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 002.1-2.1A31 31 0 0024 12a31 31 0 00-.5-5.8zM9.6 15.6V8.4l6.3 3.6-6.3 3.6z"/></svg>
+        </span>
+        <div className="h-1.5 rounded-full bg-gray-200 flex-1" />
+      </div>
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+        <div className="flex gap-2.5 p-2">
+          <div className="w-16 h-10 rounded-lg bg-gradient-to-br from-red-400 to-orange-500 flex items-center justify-center flex-shrink-0">
+            <span className="w-4 h-4 rounded-full bg-white/80 flex items-center justify-center">
+              <svg viewBox="0 0 10 10" fill="currentColor" className="w-2 h-2 text-red-600"><polygon points="3,1 9,5 3,9"/></svg>
+            </span>
+          </div>
+          <div className="flex-1 min-w-0 py-0.5">
+            <div className="h-1.5 rounded-full bg-gray-200 w-full mb-1.5" />
+            <div className="h-1.5 rounded-full bg-gray-100 w-2/3" />
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-1.5">
+        {["720p MP4", "480p MP4", "MP3"].map((q, i) => (
+          <span key={i} className={`text-[9px] font-semibold px-2 py-1 rounded-lg border ${i === 0 ? "bg-red-500 text-white border-red-500" : "bg-white border-gray-200 text-gray-600"}`}>{q}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BgRemoverPreview() {
+  return (
+    <div className="h-[212px] bg-gray-50 flex items-center justify-center gap-3 p-4 overflow-hidden">
+      {/* Original with background */}
+      <div className="flex-1 rounded-xl overflow-hidden border border-gray-200 bg-white flex flex-col items-center justify-center p-2 gap-1.5 h-full max-h-44">
+        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center shadow">
+          <svg viewBox="0 0 24 24" fill="white" className="w-8 h-8"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+        </div>
+        <div className="w-full h-2 rounded bg-blue-100" />
+        <div className="w-2/3 h-2 rounded bg-blue-50" />
+        <p className="text-[9px] text-gray-400 mt-1">Original</p>
+      </div>
+      {/* Arrow */}
+      <svg viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" className="w-5 h-5 flex-shrink-0"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      {/* Result transparent */}
+      <div
+        className="flex-1 rounded-xl overflow-hidden border border-gray-200 flex flex-col items-center justify-center p-2 gap-1.5 h-full max-h-44"
+        style={{
+          backgroundImage: "linear-gradient(45deg,#e5e7eb 25%,transparent 25%),linear-gradient(-45deg,#e5e7eb 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e5e7eb 75%),linear-gradient(-45deg,transparent 75%,#e5e7eb 75%)",
+          backgroundSize: "10px 10px",
+          backgroundPosition: "0 0,0 5px,5px -5px,-5px 0",
+          backgroundColor: "#f9fafb",
+        }}
+      >
+        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center shadow">
+          <svg viewBox="0 0 24 24" fill="white" className="w-8 h-8"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+        </div>
+        <p className="text-[9px] text-gray-400 mt-1">No Background</p>
+      </div>
+    </div>
+  );
+}
+
+function FaceSwapPreview() {
+  return (
+    <div className="h-[212px] bg-gray-50 flex items-center justify-center gap-3 p-4 overflow-hidden">
+      {/* Character image */}
+      <div className="flex-1 rounded-xl overflow-hidden border border-gray-200 bg-white flex flex-col items-center justify-center p-2 gap-1.5 h-full max-h-44">
+        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-300 to-orange-500 flex items-center justify-center shadow">
+          <svg viewBox="0 0 24 24" fill="white" className="w-8 h-8"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+        </div>
+        <p className="text-[9px] text-gray-400 mt-1">Character</p>
+      </div>
+      {/* Arrow */}
+      <svg viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" className="w-5 h-5 flex-shrink-0"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      {/* Target image */}
+      <div className="flex-1 rounded-xl overflow-hidden border-2 border-indigo-300 bg-white flex flex-col items-center justify-center p-2 gap-1.5 h-full max-h-44">
+        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center shadow">
+          <svg viewBox="0 0 24 24" fill="white" className="w-8 h-8"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+        </div>
+        <p className="text-[9px] text-indigo-500 font-semibold mt-1">Swapped ✓</p>
+      </div>
+    </div>
+  );
+}
+
 function BrainstormerPreview() {
   return (
     <div className="h-[212px] bg-gray-50 flex gap-2.5 p-4 overflow-hidden">
@@ -219,7 +310,7 @@ const NAV = [
 
 const TOP_CARDS = [
   { icon: <IcSmile />, title: "Free Tools", desc: "Audio balancer, video compressor, and more", color: "text-amber-500", bg: "bg-amber-50", href: "/dashboard/tools/free" },
-  { icon: <IcYoutube />, title: "Youtube Downloader", desc: "Download Youtube videos", color: "text-red-500", bg: "bg-red-50", href: "/dashboard/tools/free" },
+  { icon: <IcYoutube />, title: "Youtube Downloader", desc: "Download Youtube videos", color: "text-red-500", bg: "bg-red-50", href: "/dashboard/tools/youtube-downloader" },
   { icon: <IcTiktok />, title: "Tiktok Downloader", desc: "Download TikTok videos", color: "text-gray-900", bg: "bg-gray-100", href: "/dashboard/tools/free" },
 ];
 
@@ -229,7 +320,8 @@ const TOOLS = [
   { title: "AI Speech Enhancer", desc: "Enhance the quality of any audio or video file with AI.", preview: <SpeechEnhancerPreview />, badge: "3 credits", href: "/dashboard/tools/enhance-speech" },
   { title: "AI Video Generator", desc: "VEO3 is a tool that allows you to create videos with AI.", preview: <VideoGenPreview />, badge: "20 credits", href: "/dashboard/tools/video-generator" },
   { title: "AI Vocal Remover", desc: "Remove vocals from any audio or video file with AI.", preview: <VocalRemoverPreview />, badge: "2 credits", href: "/dashboard/tools/vocal-remover" },
-  { title: "AI Brainstormer", desc: "Generate viral content ideas based on your niche.", preview: <BrainstormerPreview />, badge: "1 credit", href: "/dashboard/tools/brainstormer" },
+  { title: "AI Face Swap", desc: "Swap faces between two images instantly with AI.", preview: <FaceSwapPreview />, badge: "2 credits", href: "/dashboard/tools/face-swap" },
+{ title: "AI Brainstormer", desc: "Generate viral content ideas based on your niche.", preview: <BrainstormerPreview />, badge: "1 credit", href: "/dashboard/tools/brainstormer" },
   { title: "Reddit Video Generator", desc: "Convert Reddit posts into viral videos with AI.", preview: <RedditPreview />, badge: "2 credits", href: "/dashboard/create/reddit-video" },
   { title: "Fake Texts Video Generator", desc: "Create engaging fake texts videos with AI to go viral.", preview: <FakeTextsPreview />, badge: "2 credits", href: "/dashboard/create/text-video" },
 ];

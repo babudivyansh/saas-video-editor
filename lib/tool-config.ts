@@ -28,7 +28,10 @@ export const TOOL_DEFAULTS: ToolConfigMap = {
   "reddit-video":     { enabled: true, creditCost: 2 },
   "text-video":       { enabled: true, creditCost: 2 },
   "enhance-speech":   { enabled: true, creditCost: 3 },
-  "video-generator":  { enabled: true, creditCost: 20 },
+  "video-generator":      { enabled: true, creditCost: 20 },
+  "youtube-downloader":     { enabled: true, creditCost: 0 },
+  "background-remover":     { enabled: true, creditCost: 1 },
+  "face-swap":              { enabled: true, creditCost: 2 },
 };
 
 export const TOOL_SERVICE: Record<string, string> = {
@@ -47,7 +50,10 @@ export const TOOL_SERVICE: Record<string, string> = {
   "reddit-video":     "ElevenLabs + FFmpeg",
   "text-video":       "ElevenLabs + FFmpeg",
   "enhance-speech":   "ElevenLabs Isolation",
-  "video-generator":  "fal.ai Veo3",
+  "video-generator":     "fal.ai Veo3",
+  "youtube-downloader":    "yt-dlp (YouTube)",
+  "background-remover":    "fal.ai rembg",
+  "face-swap":             "fal.ai face-swap",
 };
 
 async function loadFromDB(): Promise<ToolConfigMap> {
