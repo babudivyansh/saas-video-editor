@@ -6,6 +6,7 @@ import { runStreamerFFmpeg, styleIndexToDrawtext } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { downloadFile } from "@/utils/download";
 import { InProcessQueue } from "@/lib/job-queue";
+import { markQuestComplete } from "@/lib/quests";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -116,6 +117,7 @@ export async function POST(req: NextRequest) {
     titleText: body.titleText,
     subtitleStyleIndex: body.subtitleStyleIndex ?? 0,
   });
+  void markQuestComplete(auth.userId, "first-clip");
 
   return NextResponse.json({ status: "rendering", creditsRemaining: user.credits });
 }

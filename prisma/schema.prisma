@@ -32,8 +32,10 @@ model User {
   monthlyCredits     Int        @default(0) // credits granted on each refill for the active tier
   veo3Enabled        Boolean    @default(false) // Veo3 unlocked (bundled term or paid add-on)
   createdAt    DateTime   @default(now())
-  projects     Project[]
-  purchases    Purchase[]
+  projects             Project[]
+  purchases            Purchase[]
+  quests               UserQuest[]
+  questRewardClaimed   Boolean    @default(false)
 }
 
 model Plan {
@@ -83,6 +85,7 @@ model Project {
   videoUrl         String?
   uploadedVideoUrl String?
   productType      String   @default("split-screen")
+  editorDoc        Json?    // serialized advanced-editor timeline (tracks, overlays, captions, crop)
   createdAt        DateTime @default(now())
 }
 
@@ -96,6 +99,16 @@ model RazorpayEvent {
 model Config {
   key   String @id
   value String // JSON string
+}
+
+model UserQuest {
+  id          String   @id @default(uuid())
+  userId      String
+  questId     String
+  completedAt DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questId])
 }
 
 // Immutable log of every admin action for accountability.

@@ -33,6 +33,8 @@ export const TOOL_DEFAULTS: ToolConfigMap = {
   "instagram-downloader":   { enabled: true, creditCost: 0 },
   "background-remover":     { enabled: true, creditCost: 1 },
   "face-swap":              { enabled: true, creditCost: 2 },
+  "simple-editor":          { enabled: true, creditCost: 1 },
+  "advanced-editor":        { enabled: true, creditCost: 2 },
 };
 
 export const TOOL_SERVICE: Record<string, string> = {
@@ -56,6 +58,8 @@ export const TOOL_SERVICE: Record<string, string> = {
   "instagram-downloader":  "yt-dlp (Instagram)",
   "background-remover":    "fal.ai rembg",
   "face-swap":             "fal.ai face-swap",
+  "simple-editor":         "ElevenLabs Scribe + FFmpeg",
+  "advanced-editor":       "ElevenLabs Scribe + FFmpeg",
 };
 
 async function loadFromDB(): Promise<ToolConfigMap> {

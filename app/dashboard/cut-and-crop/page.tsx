@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
+import { computeMask, type Aspect } from "@/lib/crop";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface Clip {
@@ -14,7 +15,7 @@ interface Clip {
   trimStart: number;
   trimEnd: number;
 }
-type CropAspect = "original" | "9:16" | "1:1" | "16:9";
+type CropAspect = Aspect;
 type Stage = "idle" | "exporting" | "complete" | "error";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -25,37 +26,7 @@ function fmt(sec: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-interface Mask { top: number; bottom: number; left: number; right: number }
-
-function computeMask(w: number, h: number, crop: CropAspect): Mask {
-  const none = { top: 0, bottom: 0, left: 0, right: 0 };
-  if (crop === "original" || w <= 0 || h <= 0) return none;
-
-  if (crop === "9:16") {
-    // keeps centre strip of width = h * 9/16
-    const keepW = h * 9 / 16;
-    if (keepW >= w) return none;
-    const pct = (w - keepW) / 2 / w * 100;
-    return { top: 0, bottom: 0, left: pct, right: pct };
-  }
-  if (crop === "1:1") {
-    // keeps centre square of side = min(w, h)
-    if (w >= h) {
-      const pct = (w - h) / 2 / w * 100;
-      return { top: 0, bottom: 0, left: pct, right: pct };
-    }
-    const pct = (h - w) / 2 / h * 100;
-    return { top: pct, bottom: pct, left: 0, right: 0 };
-  }
-  if (crop === "16:9") {
-    // keeps centre strip of height = w * 9/16
-    const keepH = w * 9 / 16;
-    if (keepH >= h) return none;
-    const pct = (h - keepH) / 2 / h * 100;
-    return { top: pct, bottom: pct, left: 0, right: 0 };
-  }
-  return none;
-}
+// computeMask is shared with the editors — see lib/crop.ts
 
 // ── SVG Icons ────────────────────────────────────────────────────────────────
 const sw = "1.75";

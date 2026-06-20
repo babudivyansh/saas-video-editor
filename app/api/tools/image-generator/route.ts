@@ -4,6 +4,7 @@ import { getAuthUser } from "@/lib/auth";
 import { uploadBufferToS3 } from "@/utils/s3-upload";
 import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
+import { markQuestComplete } from "@/lib/quests";
 
 export const maxDuration = 120;
 
@@ -99,6 +100,7 @@ export async function POST(req: NextRequest) {
     const key = `generated-images/${auth.userId}/${randomUUID()}.png`;
     const imageUrl = await uploadBufferToS3(buffer, key, "image/png");
 
+    void markQuestComplete(auth.userId, "picture-this");
     return NextResponse.json({ imageUrl });
   } catch (err) {
     console.error("[image-generator]", err);
