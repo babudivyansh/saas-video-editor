@@ -91,3 +91,20 @@ model RazorpayEvent {
   event       String
   processedAt DateTime @default(now())
 }
+
+// Key-value store for runtime admin configuration (e.g. tool enable/disable, credit costs).
+model Config {
+  key   String @id
+  value String // JSON string
+}
+
+// Immutable log of every admin action for accountability.
+model AuditLog {
+  id        String   @id @default(uuid())
+  adminId   String
+  action    String   // e.g. "user.credits_set", "plan.deactivated", "veo3.enabled"
+  targetId  String?
+  before    String?  // JSON snapshot
+  after     String?  // JSON snapshot
+  createdAt DateTime @default(now())
+}

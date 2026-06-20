@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import SiteNavbar from "@/app/components/SiteNavbar";
 
 // ── Icons ──────────────────────────────────────────────────────────────────
 function ZapIcon({ className = "" }: { className?: string }) {
@@ -33,54 +34,8 @@ function ChevronDownIcon({ className = "" }: { className?: string }) {
   );
 }
 
-// ── Navbar ─────────────────────────────────────────────────────────────────
-function Navbar() {
-  const [open, setOpen] = useState(false);
-  return (
-    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-gray-100 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <Link href="/" className="flex items-center gap-2 font-extrabold text-xl text-gray-900">
-            <span className="bg-blue-600 text-white rounded-lg w-8 h-8 flex items-center justify-center">
-              <ZapIcon className="w-4 h-4" />
-            </span>
-            Clipiro
-          </Link>
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-600">
-            <Link href="/#features" className="hover:text-blue-600 transition-colors">Features</Link>
-            <Link href="/#tools" className="hover:text-blue-600 transition-colors">AI Tools</Link>
-            <Link href="/pricing" className="text-blue-600 font-semibold">Pricing</Link>
-            <Link href="/#faq" className="hover:text-blue-600 transition-colors">FAQ</Link>
-          </nav>
-          <div className="hidden md:flex items-center gap-3">
-            <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900">Sign in</Link>
-            <Link href="/register" className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors">
-              <ZapIcon className="w-3.5 h-3.5" />
-              Try Free
-            </Link>
-          </div>
-          <button className="md:hidden p-2 text-gray-600" onClick={() => setOpen(!open)}>
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              {open
-                ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />}
-            </svg>
-          </button>
-        </div>
-      </div>
-      {open && (
-        <div className="md:hidden border-t border-gray-100 bg-white px-4 py-4 space-y-3">
-          {[["/#features", "Features"], ["/#tools", "AI Tools"], ["/pricing", "Pricing"], ["/#faq", "FAQ"]].map(([href, label]) => (
-            <Link key={label} href={href} className="block text-sm font-medium text-gray-700 hover:text-blue-600" onClick={() => setOpen(false)}>{label}</Link>
-          ))}
-          <Link href="/register" className="flex items-center justify-center gap-1.5 bg-blue-600 text-white text-sm font-semibold px-4 py-2.5 rounded-full" onClick={() => setOpen(false)}>
-            <ZapIcon className="w-3.5 h-3.5" /> Try Free
-          </Link>
-        </div>
-      )}
-    </header>
-  );
-}
+// Navbar moved to app/components/SiteNavbar.tsx (shared across home, pricing,
+// billing, and legal pages).
 
 // ── Data ───────────────────────────────────────────────────────────────────
 // Plans are loaded from the DB (/api/plans), the single source of truth shared
@@ -217,7 +172,7 @@ export default function PricingPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <Navbar />
+      <SiteNavbar solid />
 
       {/* ── Hero ── */}
       <section className="pt-16 pb-4 text-center px-4">

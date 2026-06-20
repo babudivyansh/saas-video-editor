@@ -13,18 +13,27 @@ interface Plan {
   features: string[];
   active: boolean;
   sortOrder: number;
+  kind: string;
+  intervalMonths: number | null;
+  monthlyCredits: number | null;
+  veo3Included: boolean;
 }
 
-const EMPTY = { slug: "", name: "", priceInPaise: 0, credits: 0, features: "", sortOrder: 0 };
+const EMPTY = {
+  slug: "", name: "", priceInPaise: 0, credits: 0, features: "", sortOrder: 0,
+  kind: "pack", intervalMonths: "", monthlyCredits: "", veo3Included: false,
+};
+const input = "w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
 
 export default function AdminPricingPage() {
   const { token, user } = useAuth();
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [plans, setPlans]       = useState<Plan[]>([]);
+  const [loading, setLoading]   = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ ...EMPTY });
-  const [err, setErr] = useState("");
+  const [form, setForm]         = useState({ ...EMPTY });
+  const [err, setErr]           = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token || user?.role !== "ADMIN") return;
@@ -49,6 +58,10 @@ export default function AdminPricingPage() {
           features: p.features,
           active: p.active,
           sortOrder: p.sortOrder,
+          kind: p.kind,
+          intervalMonths: p.intervalMonths ?? null,
+          monthlyCredits: p.monthlyCredits ?? null,
+          veo3Included: p.veo3Included,
         }),
       });
       await load();
@@ -57,8 +70,17 @@ export default function AdminPricingPage() {
     }
   }
 
+  async function deletePlan(id: string) {
+    await fetch(`/api/admin/plans/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setConfirmDelete(null);
+    await load();
+  }
+
   function edit(id: string, patch: Partial<Plan>) {
-    setPlans(prev => prev.map(p => (p.id === id ? { ...p, ...patch } : p)));
+    setPlans(prev => prev.map(p => p.id === id ? { ...p, ...patch } : p));
   }
 
   async function createPlan(e: React.FormEvent) {
@@ -75,6 +97,10 @@ export default function AdminPricingPage() {
           priceInPaise: Number(form.priceInPaise),
           credits: Number(form.credits),
           sortOrder: Number(form.sortOrder),
+          kind: form.kind,
+          intervalMonths: form.intervalMonths !== "" ? Number(form.intervalMonths) : null,
+          monthlyCredits: form.monthlyCredits !== "" ? Number(form.monthlyCredits) : null,
+          veo3Included: form.veo3Included,
           features: form.features.split("\n").map(s => s.trim()).filter(Boolean),
         }),
       });
@@ -90,26 +116,35 @@ export default function AdminPricingPage() {
     }
   }
 
-  const input = "w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
-
   return (
     <AdminShell title="Pricing">
       {loading ? (
         <p className="text-sm text-gray-400">Loading plans…</p>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {plans.map(p => (
             <div key={p.id} className={`bg-white rounded-2xl border shadow-sm p-6 ${p.active ? "border-gray-100" : "border-gray-200 opacity-60"}`}>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
+              <div className="flex items-start justify-between mb-4 gap-3 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-bold text-gray-900">{p.name}</h3>
                   <span className="text-xs font-mono text-gray-400 bg-gray-100 px-2 py-0.5 rounded">{p.slug}</span>
                   {!p.active && <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">Inactive</span>}
                 </div>
-                <label className="flex items-center gap-2 text-xs font-semibold text-gray-500">
-                  <input type="checkbox" checked={p.active} onChange={e => edit(p.id, { active: e.target.checked })} /> Active
-                </label>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer">
+                    <input type="checkbox" checked={p.active} onChange={e => edit(p.id, { active: e.target.checked })} /> Active
+                  </label>
+                  {confirmDelete === p.id ? (
+                    <div className="flex gap-2">
+                      <button onClick={() => deletePlan(p.id)} className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg">Confirm Delete</button>
+                      <button onClick={() => setConfirmDelete(null)} className="text-xs text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-lg border border-gray-200">Cancel</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmDelete(p.id)} className="text-xs font-semibold text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">Delete</button>
+                  )}
+                </div>
               </div>
+
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-gray-400 block mb-1">Name</label>
@@ -121,7 +156,7 @@ export default function AdminPricingPage() {
                   <p className="text-[10px] text-gray-400 mt-1">= ₹{(p.priceInPaise / 100).toLocaleString("en-IN")}</p>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-gray-400 block mb-1">Credits</label>
+                  <label className="text-xs font-semibold text-gray-400 block mb-1">Credits (total)</label>
                   <input type="number" className={input} value={p.credits} onChange={e => edit(p.id, { credits: Number(e.target.value) })} />
                 </div>
                 <div>
@@ -129,6 +164,37 @@ export default function AdminPricingPage() {
                   <input type="number" className={input} value={p.sortOrder} onChange={e => edit(p.id, { sortOrder: Number(e.target.value) })} />
                 </div>
               </div>
+
+              {/* Subscription-specific fields */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 block mb-1">Kind</label>
+                  <select className={input} value={p.kind} onChange={e => edit(p.id, { kind: e.target.value })}>
+                    <option value="pack">pack</option>
+                    <option value="subscription">subscription</option>
+                    <option value="addon">addon</option>
+                  </select>
+                </div>
+                {p.kind === "subscription" && (
+                  <>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-400 block mb-1">Interval (months)</label>
+                      <input type="number" className={input} value={p.intervalMonths ?? ""} onChange={e => edit(p.id, { intervalMonths: e.target.value ? Number(e.target.value) : null })} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-400 block mb-1">Monthly Credits</label>
+                      <input type="number" className={input} value={p.monthlyCredits ?? ""} onChange={e => edit(p.id, { monthlyCredits: e.target.value ? Number(e.target.value) : null })} />
+                    </div>
+                  </>
+                )}
+                <div className="flex items-end pb-1">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer">
+                    <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={p.veo3Included} onChange={e => edit(p.id, { veo3Included: e.target.checked })} />
+                    Veo3 Included
+                  </label>
+                </div>
+              </div>
+
               <div className="mt-4">
                 <label className="text-xs font-semibold text-gray-400 block mb-1">Features (one per line)</label>
                 <textarea className={`${input} h-24 resize-y`} value={p.features.join("\n")}
@@ -147,7 +213,7 @@ export default function AdminPricingPage() {
           <form onSubmit={createPlan} className="bg-white rounded-2xl border border-dashed border-gray-300 p-6">
             <h3 className="font-bold text-gray-900 mb-4">Add a new plan</h3>
             {err && <div className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2 mb-4">{err}</div>}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <label className="text-xs font-semibold text-gray-400 block mb-1">Slug</label>
                 <input className={input} placeholder="pack_mega" value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })} required />
@@ -167,6 +233,32 @@ export default function AdminPricingPage() {
               <div>
                 <label className="text-xs font-semibold text-gray-400 block mb-1">Sort Order</label>
                 <input type="number" className={input} value={form.sortOrder} onChange={e => setForm({ ...form, sortOrder: Number(e.target.value) })} />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-400 block mb-1">Kind</label>
+                <select className={input} value={form.kind} onChange={e => setForm({ ...form, kind: e.target.value })}>
+                  <option value="pack">pack</option>
+                  <option value="subscription">subscription</option>
+                  <option value="addon">addon</option>
+                </select>
+              </div>
+              {form.kind === "subscription" && (
+                <>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-400 block mb-1">Interval (months)</label>
+                    <input type="number" className={input} value={form.intervalMonths} onChange={e => setForm({ ...form, intervalMonths: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-400 block mb-1">Monthly Credits</label>
+                    <input type="number" className={input} value={form.monthlyCredits} onChange={e => setForm({ ...form, monthlyCredits: e.target.value })} />
+                  </div>
+                </>
+              )}
+              <div className="flex items-end pb-1">
+                <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer">
+                  <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={form.veo3Included} onChange={e => setForm({ ...form, veo3Included: e.target.checked })} />
+                  Veo3 Included
+                </label>
               </div>
             </div>
             <div className="mt-4">
