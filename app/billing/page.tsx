@@ -2,6 +2,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { loadRazorpayScript } from "@/lib/razorpay";
 
 interface DbPlan {
   id: string;
@@ -14,19 +15,6 @@ interface DbPlan {
 
 function token() {
   return typeof window !== "undefined" ? localStorage.getItem("token") ?? "" : "";
-}
-
-// Dynamically load Razorpay checkout script
-function loadRazorpayScript(): Promise<boolean> {
-  return new Promise((resolve) => {
-    if (typeof window === "undefined") return resolve(false);
-    if ((window as unknown as Record<string, unknown>).Razorpay) return resolve(true);
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
 }
 
 function BillingContent() {
@@ -47,10 +35,12 @@ function BillingContent() {
       .then(d => {
         if (d.user) { setCredits(d.user.credits); setUserEmail(d.user.email); }
       });
-    // Credit packs come from the DB (single source of truth shared with /pricing + admin).
+    // Load only top-up packs (kind = "pack") — subscriptions are managed on /pricing.
     fetch("/api/plans")
       .then(r => (r.ok ? r.json() : { plans: [] }))
-      .then((d: { plans: DbPlan[] }) => setPacks(d.plans ?? []))
+      .then((d: { plans: (DbPlan & { kind: string })[] }) =>
+        setPacks(d.plans.filter(p => p.kind === "pack") ?? [])
+      )
       .catch(() => setPacks([]));
   }, [router]);
 
@@ -113,8 +103,8 @@ function BillingContent() {
       </nav>
 
       <main className="flex-1 px-8 py-16 max-w-3xl mx-auto w-full">
-        <h1 className="text-3xl font-bold text-white mb-2 text-center">Buy credits</h1>
-        <p className="text-zinc-500 text-center mb-10">1 credit = 1 video render</p>
+        <h1 className="text-3xl font-bold text-white mb-2 text-center">Top Up Credits</h1>
+        <p className="text-zinc-500 text-center mb-10">One-time purchase · credits never expire · added to your account instantly</p>
 
         {success && (
           <div className="bg-green-900/30 border border-green-700 text-green-300 rounded-xl px-5 py-3 text-sm mb-6">
