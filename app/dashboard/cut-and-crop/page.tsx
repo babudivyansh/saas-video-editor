@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
+import ToolsSidebar from "@/app/components/ToolsSidebar";
 import { computeMask, type Aspect } from "@/lib/crop";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -30,48 +31,6 @@ function fmt(sec: number): string {
 
 // ── SVG Icons ────────────────────────────────────────────────────────────────
 const sw = "1.75";
-function IconHome() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
-      <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" /><path d="M9 21V12h6v9" />
-    </svg>
-  );
-}
-function IconFolder() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
-      <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
-    </svg>
-  );
-}
-function IconFiles() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
-      <rect x="5" y="2" width="14" height="20" rx="2" /><path d="M9 7h6M9 11h6M9 15h4" />
-    </svg>
-  );
-}
-function IconWand() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
-      <path d="M15 4l5 5L8 21 3 16 15 4z" /><path d="M20 7l1-3 3-1-3-1-1-3-1 3-3 1 3 1z" />
-    </svg>
-  );
-}
-function IconCompass() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
-      <circle cx="12" cy="12" r="10" /><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
-    </svg>
-  );
-}
-function IconSearch() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-      <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
-    </svg>
-  );
-}
 function IconPlay() {
   return <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M8 5v14l11-7z" /></svg>;
 }
@@ -167,39 +126,6 @@ function IconZoomIn() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
       <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" />
     </svg>
-  );
-}
-
-// ── Sidebar ──────────────────────────────────────────────────────────────────
-function Sidebar() {
-  const items = [
-    { icon: <IconHome />,    label: "Home",    href: "/dashboard" },
-    { icon: <IconFolder />,  label: "Projects",href: "/dashboard" },
-    { icon: <IconFiles />,   label: "Files",   href: "/dashboard" },
-    { icon: <IconWand />,    label: "Create",  href: "/dashboard/tools" },
-    { icon: <IconCompass />, label: "Explore", href: "/dashboard" },
-  ];
-  return (
-    <aside className="flex flex-col items-center py-4 flex-shrink-0 border-r border-slate-200 w-[60px] bg-white">
-      <Link href="/dashboard"
-        className="w-8 h-8 rounded-xl bg-[#335CFF] flex items-center justify-center mb-5 hover:opacity-90 transition-opacity shadow-sm">
-        <span className="text-white font-bold text-sm leading-none">C</span>
-      </Link>
-      <nav className="flex flex-col items-center gap-1 flex-1">
-        {items.map(item => (
-          <Link key={item.label} href={item.href} title={item.label}
-            className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors">
-            {item.icon}
-          </Link>
-        ))}
-      </nav>
-      <div className="flex flex-col items-center gap-0.5">
-        <div className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 cursor-pointer">
-          <IconSearch />
-        </div>
-        <span className="text-[9px] text-slate-300 font-mono">⌘K</span>
-      </div>
-    </aside>
   );
 }
 
@@ -495,24 +421,15 @@ export default function CutAndCropPage() {
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-screen overflow-hidden bg-white">
-      <Sidebar />
+      <ToolsSidebar active="create" />
 
       {/* Right column */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
-        <header className="flex items-center gap-3 px-4 h-12 flex-shrink-0 border-b border-slate-200 bg-white">
-          {/* Back */}
-          <Link href="/dashboard"
-            className="flex items-center gap-1.5 text-slate-500 hover:text-slate-800 transition-colors text-sm">
-            <IconArrowLeft />
-            <span className="font-medium">Dashboard</span>
-          </Link>
-
-          <div className="w-px h-4 bg-slate-200 mx-1" />
-
+        <header className="flex items-center gap-3 px-6 h-12 flex-shrink-0 border-b border-gray-100 bg-white">
           {/* Title */}
-          <span className="text-sm font-semibold text-slate-800">Cut &amp; Crop</span>
+          <span className="text-[15px] font-semibold text-gray-800">Cut &amp; Crop</span>
 
           <div className="flex-1" />
 
@@ -520,15 +437,15 @@ export default function CutAndCropPage() {
           <div className="flex items-center gap-2">
             {/* Exporting indicator */}
             {stage === "exporting" && (
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <div className="w-3.5 h-3.5 border-2 border-slate-300 border-t-[#335CFF] rounded-full animate-spin" />
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <div className="w-3.5 h-3.5 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin" />
                 <span className="font-medium text-xs">{progress}%</span>
               </div>
             )}
 
             {/* Error toast */}
             {exportError && stage === "error" && (
-              <span className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5 max-w-[200px] truncate" title={exportError}>
+              <span className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-1.5 max-w-[200px] truncate" title={exportError}>
                 {exportError}
               </span>
             )}
@@ -538,7 +455,7 @@ export default function CutAndCropPage() {
               <a
                 href={outputUrl}
                 download={`cut-and-crop-${Date.now()}.mp4`}
-                className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5 hover:bg-emerald-100 transition-colors"
+                className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-1.5 hover:bg-emerald-100 transition-colors"
               >
                 Download again
               </a>
@@ -546,11 +463,12 @@ export default function CutAndCropPage() {
 
             {/* Credits */}
             {user && (
-              <div className="flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5">
-                <div className="w-5 h-5 rounded-full bg-slate-700 text-white flex items-center justify-center text-[9px] font-bold">
-                  {(user.email[0] ?? "U").toUpperCase()}
-                </div>
-                <span>{user.credits} credits</span>
+              <div className="flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1.5">
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 text-blue-500 flex-shrink-0">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                </svg>
+                <span className="text-sm font-bold text-gray-700">{user.credits}</span>
+                <span className="text-xs text-gray-400 font-medium">credits</span>
               </div>
             )}
 
@@ -558,7 +476,7 @@ export default function CutAndCropPage() {
             {!user ? (
               <button
                 onClick={() => openAuthModal("login", "Cut & Crop Editor")}
-                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold text-white bg-[#335CFF] hover:opacity-90 transition-opacity"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm"
               >
                 Login
               </button>
@@ -566,7 +484,7 @@ export default function CutAndCropPage() {
               <button
                 onClick={handleExport}
                 disabled={clips.length === 0 || stage === "exporting"}
-                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold text-white bg-[#335CFF] hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <IconUpload />
                 Export
@@ -600,7 +518,7 @@ export default function CutAndCropPage() {
                 onClick={onAddVideo}
                 className={`flex flex-col items-center gap-4 cursor-pointer rounded-2xl border-2 border-dashed px-14 py-12 transition-colors ${
                   draggingOver
-                    ? "border-[#335CFF] bg-[#335CFF]/10"
+                    ? "border-blue-500 bg-blue-500/10"
                     : "border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10"
                 }`}
               >
@@ -613,7 +531,7 @@ export default function CutAndCropPage() {
                 </div>
                 <button
                   onClick={e => { e.stopPropagation(); onAddVideo(); }}
-                  className="px-5 py-2 rounded-lg bg-[#335CFF] hover:opacity-90 text-white text-sm font-semibold transition-opacity"
+                  className="px-5 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors shadow-sm"
                 >
                   Add Video
                 </button>
@@ -675,24 +593,24 @@ export default function CutAndCropPage() {
           </div>
 
           {/* ── Timeline panel ─────────────────────────────────────────── */}
-          <div className="flex-shrink-0 bg-white border-t border-slate-200">
+          <div className="flex-shrink-0 bg-white border-t border-gray-100">
 
             {/* Controls bar */}
-            <div className="flex items-center gap-1 px-4 py-2 border-b border-slate-100">
+            <div className="flex items-center gap-1 px-4 py-2 border-b border-gray-100">
               {/* Transport */}
               <div className="flex items-center gap-0.5">
                 <button
                   onClick={() => seekRel(-10)}
                   disabled={!activeClip}
                   title="Back 10s"
-                  className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition-colors"
+                  className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-colors"
                 >
                   <IconBack10 />
                 </button>
                 <button
                   onClick={togglePlay}
                   disabled={!activeClip}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-700 hover:bg-slate-100 disabled:opacity-30 transition-colors"
+                  className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-700 hover:bg-gray-100 disabled:opacity-30 transition-colors"
                 >
                   {isPlaying ? <IconPause /> : <IconPlay />}
                 </button>
@@ -700,42 +618,42 @@ export default function CutAndCropPage() {
                   onClick={() => seekRel(10)}
                   disabled={!activeClip}
                   title="Forward 10s"
-                  className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition-colors"
+                  className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-colors"
                 >
                   <IconFwd10 />
                 </button>
                 <button
                   onClick={toggleMute}
                   title={muted ? "Unmute" : "Mute"}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+                  className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 transition-colors"
                 >
                   {muted ? <IconMute /> : <IconVolume />}
                 </button>
               </div>
 
               {/* Time */}
-              <span className="text-xs font-mono text-slate-500 ml-1 select-none tabular-nums">
+              <span className="text-xs font-mono text-gray-400 ml-1 select-none tabular-nums">
                 {fmt(currentTime)} / {fmt(totalDuration)}
               </span>
 
               {/* Divider */}
-              <div className="w-px h-5 bg-slate-200 mx-2" />
+              <div className="w-px h-5 bg-gray-200 mx-2" />
 
               {/* Edit tools */}
               <button
                 onClick={splitAtPlayhead}
                 disabled={!activeClip}
                 title="Split at playhead"
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition-colors"
+                className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-colors"
               >
                 <IconScissors />
               </button>
-              <div className="flex items-center gap-1 rounded-lg px-2 h-8 text-slate-500 hover:bg-slate-100 cursor-pointer">
+              <div className="flex items-center gap-1 rounded-xl px-2 h-8 text-gray-500 hover:bg-gray-100 cursor-pointer">
                 <IconCrop />
                 <select
                   value={crop}
                   onChange={e => setCrop(e.target.value as CropAspect)}
-                  className="appearance-none bg-transparent text-xs font-medium text-slate-600 outline-none cursor-pointer"
+                  className="appearance-none bg-transparent text-xs font-medium text-gray-600 outline-none cursor-pointer"
                 >
                   <option value="original">Original</option>
                   <option value="9:16">9:16</option>
@@ -747,7 +665,7 @@ export default function CutAndCropPage() {
                 onClick={() => activeClip && removeClip(activeClip.id)}
                 disabled={!activeClip}
                 title="Delete clip"
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-500 disabled:opacity-30 transition-colors"
+                className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-500 hover:bg-red-50 hover:text-red-500 disabled:opacity-30 transition-colors"
               >
                 <IconTrash />
               </button>
@@ -755,19 +673,19 @@ export default function CutAndCropPage() {
               {/* Right side */}
               <div className="ml-auto flex items-center gap-3">
                 {/* Zoom */}
-                <div className="flex items-center gap-1.5 text-slate-400">
-                  <button onClick={() => setZoom(z => Math.max(20, z - 10))} className="hover:text-slate-600 transition-colors"><IconZoomOut /></button>
+                <div className="flex items-center gap-1.5 text-gray-400">
+                  <button onClick={() => setZoom(z => Math.max(20, z - 10))} className="hover:text-gray-600 transition-colors"><IconZoomOut /></button>
                   <input
                     type="range" min={20} max={100} value={zoom}
                     onChange={e => setZoom(parseInt(e.target.value, 10))}
-                    className="w-20 accent-[#335CFF] h-1"
+                    className="w-20 accent-blue-600 h-1"
                   />
-                  <button onClick={() => setZoom(z => Math.min(100, z + 10))} className="hover:text-slate-600 transition-colors"><IconZoomIn /></button>
+                  <button onClick={() => setZoom(z => Math.min(100, z + 10))} className="hover:text-gray-600 transition-colors"><IconZoomIn /></button>
                 </div>
                 {/* Add */}
                 <button
                   onClick={onAddVideo}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-50 transition-colors"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-gray-200 text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors"
                 >
                   <IconPlus /> Add clip
                 </button>
@@ -787,7 +705,7 @@ export default function CutAndCropPage() {
               />
 
               {clips.length === 0 ? (
-                <div className="flex items-center justify-center h-14 rounded-xl border-2 border-dashed border-slate-200 text-xs text-slate-400 select-none">
+                <div className="flex items-center justify-center h-14 rounded-xl border-2 border-dashed border-gray-200 text-xs text-gray-400 select-none">
                   Add a video to get started
                 </div>
               ) : (
@@ -808,22 +726,22 @@ export default function CutAndCropPage() {
                           tabIndex={0}
                           onClick={e => seekToTrackPos(clip, e.currentTarget as HTMLElement, e)}
                           onKeyDown={e => { if (e.key === "Enter") setActiveId(clip.id); }}
-                          className={`relative h-9 rounded-lg select-none cursor-pointer transition-all ${
+                          className={`relative h-9 rounded-xl select-none cursor-pointer transition-all ${
                             isActive
-                              ? "bg-blue-100 ring-1 ring-[#335CFF]/60"
-                              : "bg-slate-100 ring-1 ring-slate-200 hover:bg-slate-200/70"
+                              ? "bg-blue-50 ring-1 ring-blue-300"
+                              : "bg-gray-100 ring-1 ring-gray-200 hover:bg-gray-200/70"
                           }`}
                           style={{ width: `${widthPct}%`, minWidth: 180 }}
                         >
                           {/* Trim masks */}
-                          <div className="absolute inset-y-0 left-0 bg-black/10 rounded-l-lg pointer-events-none" style={{ width: `${trimLPct}%` }} />
-                          <div className="absolute inset-y-0 right-0 bg-black/10 rounded-r-lg pointer-events-none" style={{ width: `${trimRPct}%` }} />
+                          <div className="absolute inset-y-0 left-0 bg-black/10 rounded-l-xl pointer-events-none" style={{ width: `${trimLPct}%` }} />
+                          <div className="absolute inset-y-0 right-0 bg-black/10 rounded-r-xl pointer-events-none" style={{ width: `${trimRPct}%` }} />
 
                           {/* Left trim handle */}
                           <div
                             onPointerDown={e => startTrimDrag(clip.id, "start", e.currentTarget.parentElement as HTMLElement, e)}
                             title="Trim start"
-                            className="absolute inset-y-0 w-2 cursor-ew-resize bg-[#335CFF] rounded-l-lg flex items-center justify-center z-10"
+                            className="absolute inset-y-0 w-2 cursor-ew-resize bg-blue-600 rounded-l-xl flex items-center justify-center z-10"
                             style={{ left: `${trimLPct}%` }}
                           >
                             <div className="w-px h-3 bg-white/70 rounded-full" />
@@ -832,7 +750,7 @@ export default function CutAndCropPage() {
                           <div
                             onPointerDown={e => startTrimDrag(clip.id, "end", e.currentTarget.parentElement as HTMLElement, e)}
                             title="Trim end"
-                            className="absolute inset-y-0 w-2 cursor-ew-resize bg-[#335CFF] rounded-r-lg flex items-center justify-center z-10"
+                            className="absolute inset-y-0 w-2 cursor-ew-resize bg-blue-600 rounded-r-xl flex items-center justify-center z-10"
                             style={{ right: `${trimRPct}%` }}
                           >
                             <div className="w-px h-3 bg-white/70 rounded-full" />
@@ -840,19 +758,19 @@ export default function CutAndCropPage() {
 
                           {/* Playhead */}
                           {playheadPct !== null && (
-                            <div className="absolute top-0 bottom-0 w-0.5 bg-[#335CFF] pointer-events-none z-20" style={{ left: `${playheadPct}%` }}>
-                              <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#335CFF] rotate-45" />
+                            <div className="absolute top-0 bottom-0 w-0.5 bg-blue-600 pointer-events-none z-20" style={{ left: `${playheadPct}%` }}>
+                              <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-2 h-2 bg-blue-600 rotate-45" />
                             </div>
                           )}
 
                           {/* Label */}
-                          <span className="absolute inset-0 flex items-center justify-center text-[11px] font-medium text-slate-700 truncate px-5 pointer-events-none">
+                          <span className="absolute inset-0 flex items-center justify-center text-[11px] font-medium text-gray-700 truncate px-5 pointer-events-none">
                             {clip.name.replace(/\.[^.]+$/, "")}
                           </span>
                         </div>
 
                         {/* Duration */}
-                        <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap tabular-nums w-10 flex-shrink-0">
+                        <span className="text-[10px] text-gray-400 font-mono whitespace-nowrap tabular-nums w-10 flex-shrink-0">
                           {fmt(clip.trimEnd - clip.trimStart)}
                         </span>
 
@@ -860,7 +778,7 @@ export default function CutAndCropPage() {
                         <button
                           onClick={() => removeClip(clip.id)}
                           title="Remove"
-                          className="w-6 h-6 flex items-center justify-center rounded-md text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
+                          className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
                         >
                           <IconTrash />
                         </button>

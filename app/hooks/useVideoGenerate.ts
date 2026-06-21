@@ -5,11 +5,7 @@ export type GenerateStatus = "idle" | "uploading" | "creating" | "rendering" | "
 
 export function getStoredToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("auth_token");
-}
-
-export function storeToken(token: string) {
-  localStorage.setItem("auth_token", token);
+  return localStorage.getItem("token");
 }
 
 async function uploadVideo(file: File, token: string): Promise<string> {

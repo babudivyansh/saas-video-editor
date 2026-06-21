@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "./AuthContext";
+import ToolsSidebar from "./ToolsSidebar";
 
 // ── Voice catalogue (same as VoiceChangerTool) ───────────────────────────────
 interface Voice {
@@ -366,7 +367,9 @@ export default function AICreatorWizard() {
   const selectedVoice = voiceSlug !== "original" ? voiceBySlug(voiceSlug) : null;
 
   return (
-    <div className="flex flex-col h-screen bg-white">
+    <div className="flex h-screen overflow-hidden bg-white">
+      <ToolsSidebar active="create" />
+      <div className="flex flex-col flex-1 min-w-0">
       {/* Top header */}
       <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100">
         <div className="flex items-center gap-2 text-gray-800">
@@ -628,6 +631,7 @@ export default function AICreatorWizard() {
           onClose={() => setShowVoicePicker(false)}
         />
       )}
+      </div>
     </div>
   );
 }

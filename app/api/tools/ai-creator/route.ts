@@ -201,11 +201,20 @@ export async function POST(req: NextRequest) {
       job.progress = 10;
       const audioPath = path.join(os.tmpdir(), `${jobId}-audio.mp3`);
       tempFiles.push(audioPath);
-      await runFFmpegArgs([
-        "-y", "-i", inputVideoPath,
-        "-vn", "-acodec", "libmp3lame", "-q:a", "4",
-        audioPath,
-      ]);
+      try {
+        await runFFmpegArgs([
+          "-y", "-i", inputVideoPath,
+          "-vn", "-acodec", "libmp3lame", "-q:a", "4",
+          audioPath,
+        ]);
+      } catch {
+        // Video has no audio track — generate 1-second silent mp3 so SadTalker still works
+        await runFFmpegArgs([
+          "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono",
+          "-t", "1", "-acodec", "libmp3lame", "-q:a", "9",
+          audioPath,
+        ]);
+      }
 
       // 2. Upload audio to S3 — fal.ai requires a public URL
       job.progress = 25;
@@ -262,6 +271,7 @@ export async function POST(req: NextRequest) {
       job.progress = 100;
       job.status = "done";
     } catch (err) {
+      console.error(`[ai-creator] job ${jobId} failed:`, err);
       job.status = "error";
       job.error = err instanceof Error ? err.message : "AI Creator generation failed";
       if (!job.refunded) {
