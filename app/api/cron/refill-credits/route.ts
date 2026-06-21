@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
     await prisma.user.update({
       where: { id: u.id },
       data: {
+        planId: null,
         subscriptionId: null,
         subscriptionEndsAt: null,
         nextRefillAt: null,

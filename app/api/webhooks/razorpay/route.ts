@@ -31,7 +31,8 @@ export async function POST(req: NextRequest) {
           id: string;
           order_id: string;
           amount: number;
-          notes: { userId?: string; packId?: string; kind?: string; credits?: string };
+          // planId is the current field; packId is kept for backward compat with older orders
+          notes: { userId?: string; planId?: string; packId?: string; addonIds?: string; kind?: string; credits?: string };
         };
       };
     };
@@ -48,13 +49,14 @@ export async function POST(req: NextRequest) {
     const entity = event.payload.payment.entity;
     const { notes } = entity;
     const userId = notes?.userId;
-    const packId = notes?.packId;
+    // Accept both current (planId) and legacy (packId) note field names
+    const planSlug = notes?.planId ?? notes?.packId;
 
-    if (userId && packId) {
+    if (userId && planSlug) {
       // Resolve everything from the DB plan (single source of truth); fall back
       // to the order notes only if the plan was since removed.
-      const plan = await prisma.plan.findUnique({ where: { slug: packId } });
-      const amountInPaise = plan?.priceInPaise ?? entity.amount ?? 0;
+      const plan = await prisma.plan.findUnique({ where: { slug: planSlug } });
+      const amountInPaise = entity.amount ?? 0;
       const kind = plan?.kind ?? notes?.kind ?? "pack";
 
       if (kind === "subscription" && plan) {
@@ -67,10 +69,21 @@ export async function POST(req: NextRequest) {
         const endsAt = new Date(now); endsAt.setMonth(endsAt.getMonth() + months);
         const nextRefill = new Date(now); nextRefill.setMonth(nextRefill.getMonth() + 1);
 
+        // Parse any addon pack slugs bundled with this subscription purchase
+        let addonSlugs: string[] = [];
+        try {
+          addonSlugs = notes?.addonIds ? JSON.parse(notes.addonIds) : [];
+        } catch { /* ignore malformed JSON */ }
+
+        const addons = addonSlugs.length
+          ? await prisma.plan.findMany({ where: { slug: { in: addonSlugs }, kind: "pack" } })
+          : [];
+        const addonCredits = addons.reduce((s, a) => s + a.credits, 0);
+
         const user = await prisma.user.update({
           where: { id: userId },
           data: {
-            credits: { increment: monthlyCredits },
+            credits: { increment: monthlyCredits + addonCredits },
             planId: plan.id,
             subscriptionId: entity.order_id,
             subscriptionEndsAt: endsAt,
@@ -84,7 +97,7 @@ export async function POST(req: NextRequest) {
         await redis.set(`credits:${userId}`, String(user.credits), "EX", 3600);
 
         await prisma.purchase.create({
-          data: { id: paymentId, userId, planId: plan.id, amountInPaise, credits: monthlyCredits, status: "captured" },
+          data: { id: paymentId, userId, planId: plan.id, amountInPaise, credits: monthlyCredits + addonCredits, status: "captured" },
         });
       } else if (kind === "addon") {
         // Veo3 unlock — no credits, just flip the flag for this subscription term.
