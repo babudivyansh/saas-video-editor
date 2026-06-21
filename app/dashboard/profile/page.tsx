@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
 import { useAuth } from "@/app/components/AuthContext";
+import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 function IcVideo()    { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>; }
@@ -18,6 +19,10 @@ function IcCamera()   { return <svg viewBox="0 0 24 24" fill="none" stroke="curr
 function IcCard()     { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg>; }
 function IcShield()   { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>; }
 function IcSpinner()  { return <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />; }
+function IcPlus()     { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M12 5v14M5 12h14"/></svg>; }
+function IcRefresh()  { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>; }
+function IcReceipt()  { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1z"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>; }
+function IcCalendar() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>; }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Project {
@@ -38,6 +43,15 @@ interface Purchase {
   status: string;
   createdAt: string;
   plan: { name: string; slug: string } | null;
+}
+
+interface Pack {
+  id: string;
+  slug: string;
+  name: string;
+  priceInPaise: number;
+  credits: number;
+  kind: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -63,6 +77,10 @@ function formatINR(paise: number) {
   return `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
 }
 
+function daysBetween(from: Date, to: Date) {
+  return Math.ceil((+to - +from) / (1000 * 60 * 60 * 24));
+}
+
 function ProductBadge({ type }: { type: string }) {
   const colors: Record<string, string> = {
     "split-screen":   "bg-purple-100 text-purple-700",
@@ -74,6 +92,30 @@ function ProductBadge({ type }: { type: string }) {
     <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${colors[type] ?? "bg-gray-100 text-gray-600"}`}>
       {PRODUCT_LABELS[type] ?? type}
     </span>
+  );
+}
+
+// ── Credit ring (inline SVG, no chart lib) ─────────────────────────────────────
+function CreditRing({ credits, denom }: { credits: number; denom: number }) {
+  const r = 46;
+  const circ = 2 * Math.PI * r;
+  const pct = Math.max(0, Math.min(1, denom > 0 ? credits / denom : 0));
+  const offset = circ * (1 - pct);
+  return (
+    <div className="relative w-32 h-32 flex-shrink-0">
+      <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
+        <circle cx="60" cy="60" r={r} fill="none" stroke="#f1f5f9" strokeWidth="12" />
+        <circle
+          cx="60" cy="60" r={r} fill="none" stroke="#2563eb" strokeWidth="12"
+          strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={offset}
+          className="transition-all duration-700"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-3xl font-black text-gray-900 leading-none">{credits}</span>
+        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mt-1">credits</span>
+      </div>
+    </div>
   );
 }
 
@@ -181,14 +223,26 @@ function VideoCard({ project, token, onDelete }: { project: Project; token: stri
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ProfilePage() {
   const { user, token, signOut, refreshUser } = useAuth();
+  const { startCheckout, activeId } = useRazorpayCheckout();
   const [tab, setTab]             = useState<"videos" | "billing" | "settings">("videos");
   const [projects, setProjects]   = useState<Project[]>([]);
   const [loading, setLoading]     = useState(true);
   const [filter, setFilter]       = useState("all");
 
   // Purchase history
-  const [purchases, setPurchases]       = useState<Purchase[]>([]);
+  const [purchases, setPurchases]             = useState<Purchase[]>([]);
   const [purchasesLoaded, setPurchasesLoaded] = useState(false);
+
+  // Top-up packs (lazy-loaded with the billing tab)
+  const [packs, setPacks]           = useState<Pack[]>([]);
+  const [packsLoaded, setPacksLoaded] = useState(false);
+
+  // Toast
+  const [toast, setToast] = useState<string | null>(null);
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 4000);
+  }, []);
 
   // Profile edit state
   const [displayName, setDisplayName] = useState("");
@@ -225,15 +279,24 @@ export default function ProfilePage() {
   useEffect(() => { setDisplayName(user?.name ?? ""); }, [user?.name]);
   useEffect(() => { setPhone(user?.phone ?? ""); }, [user?.phone]);
 
-  // Lazy-load purchases when the billing tab is first opened
+  // Lazy-load purchases + packs when the billing tab is first opened
   useEffect(() => {
-    if (tab !== "billing" || purchasesLoaded || !token) return;
-    fetch("/api/auth/purchases", { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => (res.ok ? res.json() : { purchases: [] }))
-      .then((data: { purchases: Purchase[] }) => setPurchases(data.purchases ?? []))
-      .catch(() => setPurchases([]))
-      .finally(() => setPurchasesLoaded(true));
-  }, [tab, purchasesLoaded, token]);
+    if (tab !== "billing" || !token) return;
+    if (!purchasesLoaded) {
+      fetch("/api/auth/purchases", { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => (res.ok ? res.json() : { purchases: [] }))
+        .then((data: { purchases: Purchase[] }) => setPurchases(data.purchases ?? []))
+        .catch(() => setPurchases([]))
+        .finally(() => setPurchasesLoaded(true));
+    }
+    if (!packsLoaded) {
+      fetch("/api/plans")
+        .then(res => (res.ok ? res.json() : { plans: [] }))
+        .then((data: { plans: Pack[] }) => setPacks((data.plans ?? []).filter(p => p.kind === "pack")))
+        .catch(() => setPacks([]))
+        .finally(() => setPacksLoaded(true));
+    }
+  }, [tab, purchasesLoaded, packsLoaded, token]);
 
   async function handleSaveName(e: React.FormEvent) {
     e.preventDefault();
@@ -318,6 +381,17 @@ export default function ProfilePage() {
     }
   }
 
+  function handleBuyCredits(pack: Pack) {
+    startCheckout({
+      planId: pack.slug,
+      onSuccess: () => {
+        showToast("Payment received — credits will appear shortly.");
+        refreshUser();
+        setTimeout(() => refreshUser(), 3000);
+      },
+    });
+  }
+
   // Filtered projects
   const filtered = filter === "all" ? projects : projects.filter(p => p.productType === filter);
 
@@ -329,11 +403,35 @@ export default function ProfilePage() {
   const planName    = user?.plan?.name ?? "Free Plan";
   const isAdmin     = user?.role === "ADMIN";
 
+  // Plan status
+  const endsAt        = user?.subscriptionEndsAt ? new Date(user.subscriptionEndsAt) : null;
+  const hasActivePlan = !!endsAt && endsAt > new Date();
+  const daysLeft      = endsAt ? daysBetween(new Date(), endsAt) : 0;
+  const expiringSoon  = hasActivePlan && daysLeft <= 7;
+  const monthlyCredits = user?.monthlyCredits ?? 0;
+  const ringDenom      = monthlyCredits > 0 ? monthlyCredits : Math.max(user?.credits ?? 0, 1);
+
   // Usage history derived from projects (each generated video = 1 credit)
   const usage = projects
     .filter(p => p.status === "completed")
     .slice()
     .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+
+  // Usage-over-time sparkline: last 14 days bucketed by day
+  const usageByDay = (() => {
+    const days: { label: string; count: number }[] = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i);
+      const next = new Date(d); next.setDate(d.getDate() + 1);
+      const count = usage.filter(p => {
+        const t = +new Date(p.createdAt);
+        return t >= +d && t < +next;
+      }).length;
+      days.push({ label: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }), count });
+    }
+    return days;
+  })();
+  const maxUsage = Math.max(1, ...usageByDay.map(d => d.count));
 
   const FILTERS = [
     { id: "all",            label: "All" },
@@ -372,16 +470,18 @@ export default function ProfilePage() {
 
         <div className="max-w-6xl mx-auto px-8 py-8 space-y-8">
 
-          {/* ── Profile card ── */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+          {/* ── Hero header ── */}
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 to-blue-800 shadow-lg">
+            <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-white/10" />
+            <div className="absolute -bottom-16 -left-8 w-40 h-40 rounded-full bg-white/5" />
+            <div className="relative p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center gap-6">
               {/* Avatar */}
               <div className="relative flex-shrink-0">
                 {user?.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={user.avatarUrl} alt="avatar" className="w-20 h-20 rounded-2xl object-cover shadow-md" />
+                  <img src={user.avatarUrl} alt="avatar" className="w-20 h-20 rounded-2xl object-cover shadow-md ring-2 ring-white/40" />
                 ) : (
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-3xl font-extrabold select-none shadow-md">
+                  <div className="w-20 h-20 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center text-white text-3xl font-extrabold select-none shadow-md ring-2 ring-white/40">
                     {(user?.name?.[0] ?? user?.email?.[0] ?? "?").toUpperCase()}
                   </div>
                 )}
@@ -389,7 +489,7 @@ export default function ProfilePage() {
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploadingAvatar}
                   title="Change avatar"
-                  className="absolute -bottom-1.5 -right-1.5 w-8 h-8 rounded-full bg-white border border-gray-200 shadow flex items-center justify-center text-gray-600 hover:text-blue-600 hover:border-blue-200 transition-colors"
+                  className="absolute -bottom-1.5 -right-1.5 w-8 h-8 rounded-full bg-white shadow flex items-center justify-center text-gray-600 hover:text-blue-600 transition-colors"
                 >
                   {uploadingAvatar ? <IcSpinner /> : <IcCamera />}
                 </button>
@@ -397,33 +497,110 @@ export default function ProfilePage() {
               </div>
 
               {/* Info */}
-              <div className="flex-1 min-w-0">
-                <p className="text-xl font-bold text-gray-900 truncate">{user?.name || user?.email || "—"}</p>
-                {user?.name && <p className="text-sm text-gray-500 truncate">{user?.email}</p>}
-                <p className="text-sm text-gray-400 mt-0.5">Member since {memberSince}</p>
+              <div className="flex-1 min-w-0 text-white">
+                <p className="text-2xl font-bold truncate">{user?.name || user?.email || "—"}</p>
+                {user?.name && <p className="text-sm text-blue-100 truncate">{user?.email}</p>}
                 <div className="flex flex-wrap items-center gap-2 mt-3">
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-50 text-blue-700 px-3 py-1 rounded-full">
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold bg-white/20 text-white px-3 py-1 rounded-full backdrop-blur">
                     <IcZap /> {planName}
                   </span>
-                  <span className="text-xs text-gray-400">•</span>
-                  <span className="text-xs text-gray-500 font-medium">{user?.credits ?? 0} credits remaining</span>
+                  <span className="text-xs text-blue-100">Member since {memberSince}</span>
                 </div>
               </div>
 
-              {/* Upgrade */}
-              <Link href="/pricing"
-                className="flex-shrink-0 flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-all shadow-sm">
-                <IcZap /> Upgrade Plan
-              </Link>
+              {/* Actions */}
+              <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+                {(expiringSoon || !hasActivePlan) && (
+                  <Link href="/pricing"
+                    className="inline-flex items-center gap-1.5 bg-white text-blue-700 text-sm font-bold px-5 py-2.5 rounded-xl transition-all shadow-sm hover:bg-blue-50">
+                    <IcRefresh /> {hasActivePlan ? "Renew" : "Subscribe"}
+                  </Link>
+                )}
+                <Link href="/pricing"
+                  className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 backdrop-blur text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-all border border-white/20">
+                  <IcZap /> Upgrade
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Plan & Credits panel ── */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-6 md:gap-8 items-center">
+              {/* Credit ring */}
+              <div className="flex items-center justify-center md:justify-start">
+                <CreditRing credits={user?.credits ?? 0} denom={ringDenom} />
+              </div>
+
+              {/* Plan facts */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-base font-bold text-gray-900">Plan &amp; Credits</h2>
+                  <span className="text-xs font-semibold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{planName}</span>
+                  {user?.veo3Enabled ? (
+                    <span className="text-xs font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">✦ Veo3 enabled</span>
+                  ) : (
+                    <span className="text-xs font-medium bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">Veo3 not included</span>
+                  )}
+                </div>
+
+                {hasActivePlan ? (
+                  <>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Monthly credits</p>
+                        <p className="text-lg font-bold text-gray-900">{monthlyCredits || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Renews / expires</p>
+                        <p className="text-lg font-bold text-gray-900">{endsAt ? formatDate(endsAt.toISOString()) : "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Next refill</p>
+                        <p className="text-lg font-bold text-gray-900">{user?.nextRefillAt ? formatDate(user.nextRefillAt) : "—"}</p>
+                      </div>
+                    </div>
+
+                    {/* Days-left bar */}
+                    <div>
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className={`font-semibold ${expiringSoon ? "text-amber-600" : "text-gray-500"}`}>
+                          <IcCalendar /> {daysLeft} day{daysLeft === 1 ? "" : "s"} left in term
+                        </span>
+                        {expiringSoon && (
+                          <Link href="/pricing" className="font-bold text-blue-600 hover:underline">Renew now →</Link>
+                        )}
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full transition-all ${expiringSoon ? "bg-amber-500" : "bg-blue-500"}`}
+                          style={{ width: `${Math.max(4, Math.min(100, (daysLeft / 30) * 100))}%` }}
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">No active subscription</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Subscribe to get monthly credits and unlock top-up packs.</p>
+                    </div>
+                    <Link href="/pricing"
+                      className="flex-shrink-0 inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors">
+                      <IcZap /> View plans
+                    </Link>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Stats row */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-gray-100">
               {[
-                { label: "Total Videos",     value: projects.length },
-                { label: "Completed",        value: completed },
-                { label: "Rendering",        value: rendering },
-                { label: "Credits Left",     value: user?.credits ?? 0 },
+                { label: "Total Videos", value: projects.length },
+                { label: "Completed",    value: completed },
+                { label: "Rendering",    value: rendering },
+                { label: "Credits Left", value: user?.credits ?? 0 },
               ].map(s => (
                 <div key={s.label} className="text-center">
                   <p className="text-2xl font-bold text-gray-900">{s.value}</p>
@@ -431,26 +608,6 @@ export default function ProfilePage() {
                 </div>
               ))}
             </div>
-          </div>
-
-          {/* ── Current plan + credits ── */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold text-gray-900">Current Plan</h2>
-                <span className="text-xs font-semibold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{planName}</span>
-              </div>
-              <span className="text-xs text-gray-500">{user?.credits ?? 0} credits remaining</span>
-            </div>
-            <div className="w-full bg-gray-100 rounded-full h-2.5">
-              <div
-                className="bg-blue-500 h-2.5 rounded-full transition-all"
-                style={{ width: `${Math.min((user?.credits ?? 0), 100)}%` }}
-              />
-            </div>
-            <p className="text-xs text-gray-400 mt-2">
-              Credit cost varies by tool (1–20 credits). Top-up packs require an active subscription. <Link href="/pricing" className="text-blue-600 hover:underline">View plans →</Link>
-            </p>
           </div>
 
           {/* ── Tabs ── */}
@@ -507,70 +664,148 @@ export default function ProfilePage() {
 
           {/* ── Billing & Usage tab ── */}
           {tab === "billing" && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Purchase history */}
+            <div className="space-y-6">
+
+              {/* Buy Credits */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                <div className="flex items-center gap-2 mb-5">
-                  <IcCard />
-                  <h2 className="text-base font-bold text-gray-900">Purchase History</h2>
+                <div className="flex items-center gap-2 mb-1">
+                  <IcZap />
+                  <h2 className="text-base font-bold text-gray-900">Top Up Credits</h2>
                 </div>
-                {!purchasesLoaded ? (
-                  <div className="flex items-center gap-2 text-sm text-gray-400 py-6"><IcSpinner /> Loading…</div>
-                ) : purchases.length === 0 ? (
-                  <div className="text-center py-10">
-                    <p className="text-sm text-gray-500 font-medium">No purchases yet</p>
-                    <p className="text-xs text-gray-400 mt-1">Your credit pack purchases will appear here.</p>
-                    <Link href="/pricing" className="inline-flex items-center gap-1.5 mt-4 text-sm font-semibold text-blue-600 hover:underline">
-                      <IcZap /> Buy credits
+                <p className="text-sm text-gray-500 mb-5">One-time purchase · credits never expire · added instantly after payment.</p>
+
+                {!hasActivePlan ? (
+                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Top-up packs require an active subscription</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Subscribe to any plan, then buy credit packs anytime.</p>
+                    </div>
+                    <Link href="/pricing"
+                      className="flex-shrink-0 inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors">
+                      <IcZap /> Subscribe to unlock
                     </Link>
                   </div>
+                ) : !packsLoaded ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-400 py-6"><IcSpinner /> Loading packs…</div>
+                ) : packs.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-4">No credit packs are available right now.</p>
                 ) : (
-                  <div className="space-y-2">
-                    {purchases.map(p => (
-                      <div key={p.id} className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-xl">
-                        <div>
-                          <p className="text-sm font-semibold text-gray-800">{p.plan?.name ?? "Credit Pack"}</p>
-                          <p className="text-xs text-gray-400">{formatDate(p.createdAt)} · +{p.credits} credits</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {packs.map(pack => {
+                      const isBuying = activeId === pack.slug;
+                      return (
+                        <div key={pack.id} className="rounded-xl border-2 border-gray-200 hover:border-blue-300 transition-all p-5 flex flex-col text-center shadow-sm">
+                          <p className="text-sm font-bold text-gray-900">{pack.name}</p>
+                          <p className="text-2xl font-black text-gray-900 mt-2">{formatINR(pack.priceInPaise)}</p>
+                          <p className="text-xs text-gray-500 mt-1 mb-4">{pack.credits.toLocaleString("en-IN")} credits</p>
+                          <button
+                            onClick={() => handleBuyCredits(pack)}
+                            disabled={!!activeId}
+                            className="mt-auto w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-bold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            {isBuying ? (
+                              <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Buying…</>
+                            ) : (
+                              <><IcPlus /> Buy</>
+                            )}
+                          </button>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm font-bold text-gray-900">{formatINR(p.amountInPaise)}</p>
-                          <span className="text-[10px] font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full capitalize">{p.status}</span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
 
-              {/* Usage history */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                <div className="flex items-center gap-2 mb-5">
-                  <IcVideo />
-                  <h2 className="text-base font-bold text-gray-900">Credit Usage</h2>
-                </div>
-                {loading ? (
-                  <div className="flex items-center gap-2 text-sm text-gray-400 py-6"><IcSpinner /> Loading…</div>
-                ) : usage.length === 0 ? (
-                  <div className="text-center py-10">
-                    <p className="text-sm text-gray-500 font-medium">No usage yet</p>
-                    <p className="text-xs text-gray-400 mt-1">Credit cost varies by tool (1–20 credits).</p>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Purchase history */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                  <div className="flex items-center gap-2 mb-5">
+                    <IcCard />
+                    <h2 className="text-base font-bold text-gray-900">Purchase History</h2>
                   </div>
-                ) : (
-                  <div className="space-y-2 max-h-80 overflow-y-auto">
-                    {usage.map(p => (
-                      <div key={p.id} className="flex items-center justify-between py-2.5 px-4 bg-gray-50 rounded-xl">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-800 truncate">{p.title}</p>
-                          <p className="text-xs text-gray-400">{formatDate(p.createdAt)}</p>
+                  {!purchasesLoaded ? (
+                    <div className="flex items-center gap-2 text-sm text-gray-400 py-6"><IcSpinner /> Loading…</div>
+                  ) : purchases.length === 0 ? (
+                    <div className="text-center py-10">
+                      <p className="text-sm text-gray-500 font-medium">No purchases yet</p>
+                      <p className="text-xs text-gray-400 mt-1">Your credit pack purchases will appear here.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {purchases.map(p => (
+                        <div key={p.id} className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-xl">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 truncate">{p.plan?.name ?? "Credit Pack"}</p>
+                            <p className="text-xs text-gray-400">{formatDate(p.createdAt)} · +{p.credits} credits</p>
+                          </div>
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            <div className="text-right">
+                              <p className="text-sm font-bold text-gray-900">{formatINR(p.amountInPaise)}</p>
+                              <span className="text-[10px] font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full capitalize">{p.status}</span>
+                            </div>
+                            <Link
+                              href={`/dashboard/profile/receipt/${p.id}`}
+                              target="_blank"
+                              title="View receipt"
+                              className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 hover:bg-white hover:border-blue-200 hover:text-blue-600 text-gray-400 transition-colors"
+                            >
+                              <IcReceipt />
+                            </Link>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <ProductBadge type={p.productType} />
-                          <span className="text-xs font-bold text-red-500">−1</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Usage history + sparkline */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                  <div className="flex items-center gap-2 mb-5">
+                    <IcVideo />
+                    <h2 className="text-base font-bold text-gray-900">Credit Usage</h2>
+                  </div>
+
+                  {loading ? (
+                    <div className="flex items-center gap-2 text-sm text-gray-400 py-6"><IcSpinner /> Loading…</div>
+                  ) : usage.length === 0 ? (
+                    <div className="text-center py-10">
+                      <p className="text-sm text-gray-500 font-medium">No usage yet</p>
+                      <p className="text-xs text-gray-400 mt-1">Credit cost varies by tool (1–20 credits).</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Sparkline — last 14 days */}
+                      <div className="mb-5">
+                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Last 14 days</p>
+                        <div className="flex items-end gap-1 h-20">
+                          {usageByDay.map((d, i) => (
+                            <div key={i} className="flex-1 flex flex-col justify-end group relative" title={`${d.label}: ${d.count}`}>
+                              <div
+                                className="w-full bg-blue-500/80 group-hover:bg-blue-600 rounded-sm transition-all"
+                                style={{ height: `${(d.count / maxUsage) * 100}%`, minHeight: d.count > 0 ? "4px" : "2px", opacity: d.count > 0 ? 1 : 0.25 }}
+                              />
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
+
+                      <div className="space-y-2 max-h-72 overflow-y-auto">
+                        {usage.map(p => (
+                          <div key={p.id} className="flex items-center justify-between py-2.5 px-4 bg-gray-50 rounded-xl">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-gray-800 truncate">{p.title}</p>
+                              <p className="text-xs text-gray-400">{formatDate(p.createdAt)}</p>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <ProductBadge type={p.productType} />
+                              <span className="text-xs font-bold text-red-500">−1</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -693,6 +928,14 @@ export default function ProfilePage() {
 
         </div>
       </main>
+
+      {/* ── Toast ── */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white text-sm font-medium px-5 py-3 rounded-xl shadow-2xl flex items-center gap-2 animate-[fadeIn_0.2s_ease-out]">
+          <span className="text-green-400"><IcCheck /></span>
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

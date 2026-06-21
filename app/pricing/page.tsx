@@ -4,13 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import SiteNavbar from "@/app/components/SiteNavbar";
 import { useAuth } from "@/app/components/AuthContext";
-import { loadRazorpayScript } from "@/lib/razorpay";
-
-declare global {
-  interface Window {
-    Razorpay: new (options: Record<string, unknown>) => { open(): void };
-  }
-}
+import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 
 // ── Icons ──────────────────────────────────────────────────────────────────
 function ZapIcon({ className = "" }: { className?: string }) {
@@ -163,7 +157,8 @@ function CompareRow({ feature, starter, creator, studio, shaded }: {
 
 // ── Page ───────────────────────────────────────────────────────────────────
 export default function PricingPage() {
-  const { user, token, openAuthModal } = useAuth();
+  const { user, openAuthModal } = useAuth();
+  const { startCheckout, activeId } = useRazorpayCheckout();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [plans, setPlans] = useState<DbPlan[]>([]);
   const [plansLoading, setPlansLoading] = useState(true);
@@ -172,9 +167,11 @@ export default function PricingPage() {
   // Checkout state
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const [checkoutPlan, setCheckoutPlan] = useState<DbPlan | null>(null);
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [successBanner, setSuccessBanner] = useState(false);
-  const [buyingPack, setBuyingPack] = useState<string | null>(null);
+
+  // Derived loading flags from the shared checkout hook.
+  const checkoutLoading = checkoutPlan != null && activeId === checkoutPlan.slug;
+  const buyingPack = activeId;
 
   useEffect(() => {
     fetch("/api/plans")
@@ -211,110 +208,20 @@ export default function PricingPage() {
     setCheckoutPlan(plan);
   };
 
-  const handlePay = async () => {
-    if (!checkoutPlan || !user) return;
-    setCheckoutLoading(true);
-    try {
-      const ok = await loadRazorpayScript();
-      if (!ok) {
-        alert("Failed to load Razorpay. Please check your internet connection.");
-        return;
-      }
-
-      const res = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ planId: checkoutPlan.slug, addonIds: selectedAddons }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({})) as { error?: string };
-        alert(err.error ?? "Checkout failed. Please try again.");
-        return;
-      }
-
-      const data = await res.json() as {
-        orderId: string; amount: number; currency: string;
-        keyId: string; packName: string; credits: number;
-      };
-
-      const rzp = new window.Razorpay({
-        key: data.keyId,
-        amount: data.amount,
-        currency: data.currency,
-        name: "Clipiro",
-        description: data.packName,
-        order_id: data.orderId,
-        prefill: { email: user.email },
-        theme: { color: "#2563eb" },
-        handler: () => {
-          window.location.href = "/pricing?success=1";
-        },
-        modal: {
-          ondismiss: () => setCheckoutLoading(false),
-        },
-      });
-
-      rzp.open();
-    } finally {
-      setCheckoutLoading(false);
-    }
+  const handlePay = () => {
+    if (!checkoutPlan) return;
+    startCheckout({
+      planId: checkoutPlan.slug,
+      addonIds: selectedAddons,
+      onSuccess: () => { window.location.href = "/pricing?success=1"; },
+    });
   };
 
-  const handleBuyPack = async (pack: DbPlan) => {
-    if (!user) return;
-    setBuyingPack(pack.slug);
-    try {
-      const ok = await loadRazorpayScript();
-      if (!ok) {
-        alert("Failed to load Razorpay. Please check your internet connection.");
-        return;
-      }
-
-      const res = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ planId: pack.slug, addonIds: [] }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({})) as { error?: string };
-        alert(err.error ?? "Purchase failed. Please try again.");
-        return;
-      }
-
-      const data = await res.json() as {
-        orderId: string; amount: number; currency: string;
-        keyId: string; packName: string; credits: number;
-      };
-
-      const rzp = new window.Razorpay({
-        key: data.keyId,
-        amount: data.amount,
-        currency: data.currency,
-        name: "Clipiro",
-        description: data.packName,
-        order_id: data.orderId,
-        prefill: { email: user.email },
-        theme: { color: "#2563eb" },
-        handler: () => {
-          window.location.href = "/pricing?success=1";
-        },
-        modal: {
-          ondismiss: () => setBuyingPack(null),
-        },
-      });
-
-      rzp.open();
-    } finally {
-      setBuyingPack(null);
-    }
+  const handleBuyPack = (pack: DbPlan) => {
+    startCheckout({
+      planId: pack.slug,
+      onSuccess: () => { window.location.href = "/pricing?success=1"; },
+    });
   };
 
   const totalDue =

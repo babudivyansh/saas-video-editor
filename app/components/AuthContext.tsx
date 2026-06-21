@@ -23,6 +23,9 @@ interface User {
   name: string | null;
   avatarUrl: string | null;
   subscriptionEndsAt: string | null;
+  nextRefillAt: string | null;
+  monthlyCredits: number;
+  veo3Enabled: boolean;
   plan: UserPlan | null;
 }
 
