@@ -20,6 +20,9 @@ export async function GET(req: NextRequest) {
       name: true,
       avatarUrl: true,
       subscriptionEndsAt: true,
+      nextRefillAt: true,
+      monthlyCredits: true,
+      veo3Enabled: true,
       plan: { select: { id: true, slug: true, name: true, credits: true, priceInPaise: true } },
     },
   });

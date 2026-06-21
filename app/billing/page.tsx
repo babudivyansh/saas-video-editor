@@ -2,7 +2,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { loadRazorpayScript } from "@/lib/razorpay";
+import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 
 interface DbPlan {
   id: string;
@@ -21,9 +21,8 @@ function BillingContent() {
   const router = useRouter();
   const params = useSearchParams();
   const success = params.get("success");
+  const { startCheckout, activeId } = useRazorpayCheckout();
   const [credits, setCredits] = useState<number | null>(null);
-  const [userEmail, setUserEmail] = useState("");
-  const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [packs, setPacks] = useState<DbPlan[]>([]);
 
@@ -33,7 +32,7 @@ function BillingContent() {
     fetch("/api/auth/me", { headers: { Authorization: `Bearer ${t}` } })
       .then(r => r.json())
       .then(d => {
-        if (d.user) { setCredits(d.user.credits); setUserEmail(d.user.email); }
+        if (d.user) setCredits(d.user.credits);
       });
     // Load only top-up packs (kind = "pack") — subscriptions are managed on /pricing.
     fetch("/api/plans")
@@ -46,51 +45,14 @@ function BillingContent() {
 
   const formatPrice = (paise: number) => `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
 
-  async function handleBuy(packId: string) {
+  function handleBuy(packId: string) {
     setError("");
-    setLoading(packId);
-
-    const loaded = await loadRazorpayScript();
-    if (!loaded) {
-      setError("Failed to load Razorpay. Check your internet connection.");
-      setLoading(null);
-      return;
-    }
-
-    try {
-      const res = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
-        body: JSON.stringify({ packId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to create order");
-
-      const options = {
-        key: data.keyId,
-        amount: data.amount,
-        currency: data.currency,
-        name: "Clipiro",
-        description: data.packName,
-        order_id: data.orderId,
-        prefill: { email: userEmail },
-        theme: { color: "#7c3aed" },
-        handler: () => {
-          // Payment captured — webhook handles credit top-up server-side
-          router.push("/billing?success=1");
-        },
-        modal: {
-          ondismiss: () => setLoading(null),
-        },
-      };
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rzp = new (window as any).Razorpay(options);
-      rzp.open();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-      setLoading(null);
-    }
+    startCheckout({
+      planId: packId,
+      // Payment captured — webhook handles credit top-up server-side
+      onSuccess: () => router.push("/billing?success=1"),
+      onError: setError,
+    });
   }
 
   return (
@@ -128,10 +90,10 @@ function BillingContent() {
                 <p className="text-sm text-zinc-400 mb-6">{pack.credits} credits</p>
                 <button
                   onClick={() => handleBuy(pack.slug)}
-                  disabled={loading === pack.slug}
+                  disabled={activeId === pack.slug}
                   className="w-full bg-violet-600 hover:bg-violet-500 text-white font-semibold py-2.5 rounded-xl transition-colors disabled:opacity-50"
                 >
-                  {loading === pack.slug ? "Opening payment…" : "Buy now"}
+                  {activeId === pack.slug ? "Opening payment…" : "Buy now"}
                 </button>
               </div>
             ))}
