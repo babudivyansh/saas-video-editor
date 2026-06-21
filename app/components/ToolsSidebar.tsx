@@ -105,12 +105,35 @@ export default function ToolsSidebar({ active = "home" }: { active?: string }) {
 
 export function ToolsTopbar() {
   const { user, openAuthModal, signOut } = useAuth();
+  const hasActivePlan =
+    !!user?.subscriptionEndsAt && new Date(user.subscriptionEndsAt) > new Date();
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3 gap-4">
+    <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3 gap-3">
       {user ? (
         <>
-          <span className="text-sm text-gray-500 font-medium">Logged in as {user.email}</span>
-          <button 
+          {/* Credit balance */}
+          <div className="flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1.5">
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 text-blue-500 flex-shrink-0">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+            </svg>
+            <span className="text-sm font-bold text-gray-700">{user.credits ?? 0}</span>
+            <span className="text-xs text-gray-400 font-medium">credits</span>
+          </div>
+
+          {/* Top Up — only when subscription is active */}
+          {hasActivePlan && (
+            <Link
+              href="/billing"
+              className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              Top Up
+            </Link>
+          )}
+
+          <button
             onClick={signOut}
             className="inline-flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm cursor-pointer"
           >
@@ -118,7 +141,7 @@ export function ToolsTopbar() {
           </button>
         </>
       ) : (
-        <button 
+        <button
           onClick={() => openAuthModal("login")}
           className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm cursor-pointer"
         >

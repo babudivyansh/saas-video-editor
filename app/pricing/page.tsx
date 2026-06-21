@@ -3,6 +3,14 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import SiteNavbar from "@/app/components/SiteNavbar";
+import { useAuth } from "@/app/components/AuthContext";
+import { loadRazorpayScript } from "@/lib/razorpay";
+
+declare global {
+  interface Window {
+    Razorpay: new (options: Record<string, unknown>) => { open(): void };
+  }
+}
 
 // ── Icons ──────────────────────────────────────────────────────────────────
 function ZapIcon({ className = "" }: { className?: string }) {
@@ -33,13 +41,15 @@ function ChevronDownIcon({ className = "" }: { className?: string }) {
     </svg>
   );
 }
-
-// Navbar moved to app/components/SiteNavbar.tsx (shared across home, pricing,
-// billing, and legal pages).
+function XIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 // ── Data ───────────────────────────────────────────────────────────────────
-// Plans are loaded from the DB (/api/plans), the single source of truth shared
-// with checkout and the admin pricing editor. kind = subscription | pack | addon.
 interface DbPlan {
   id: string;
   slug: string;
@@ -61,15 +71,12 @@ const TERMS = [
   { months: 12, label: "12 Months" },
 ];
 
-// Tier display order + the slug prefix used in the DB (sub_<tier>_<n>mo).
 const TIER_ORDER = ["creator", "pro", "studio"] as const;
 function tierOf(slug: string): string | null {
   const m = /^sub_([a-z]+)_/.exec(slug);
   return m ? m[1] : null;
 }
 
-// Every workflow and tool is included on every paid plan — tiers differ only by
-// monthly credits and perks (see PERKS below). All entries are `true` on purpose.
 const WORKFLOWS = [
   { name: "Reddit Story Videos", starter: true, creator: true, studio: true },
   { name: "Fake Texts Videos", starter: true, creator: true, studio: true },
@@ -90,7 +97,6 @@ const TOOLS = [
   { name: "Subtitle Remover", starter: true, creator: true, studio: true },
 ];
 
-// FAQ
 const FAQS = [
   {
     q: "Can I cancel my subscription anytime?",
@@ -157,10 +163,18 @@ function CompareRow({ feature, starter, creator, studio, shaded }: {
 
 // ── Page ───────────────────────────────────────────────────────────────────
 export default function PricingPage() {
+  const { user, token, openAuthModal } = useAuth();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [plans, setPlans] = useState<DbPlan[]>([]);
   const [plansLoading, setPlansLoading] = useState(true);
   const [term, setTerm] = useState(1);
+
+  // Checkout state
+  const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
+  const [checkoutPlan, setCheckoutPlan] = useState<DbPlan | null>(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [successBanner, setSuccessBanner] = useState(false);
+  const [buyingPack, setBuyingPack] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/plans")
@@ -170,9 +184,160 @@ export default function PricingPage() {
       .finally(() => setPlansLoading(false));
   }, []);
 
+  // Detect ?success=1 after Razorpay redirect
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("success") === "1") {
+      setSuccessBanner(true);
+      window.history.replaceState({}, "", "/pricing");
+    }
+  }, []);
+
+  const packs = plans.filter(p => p.kind === "pack");
+  const subs  = plans.filter(p => p.kind === "subscription");
+
+  // True only while the subscription period hasn't lapsed.
+  const hasActivePlan =
+    !!user?.subscriptionEndsAt && new Date(user.subscriptionEndsAt) > new Date();
+
+  const toggleAddon = (slug: string) => {
+    setSelectedAddons(prev =>
+      prev.includes(slug) ? prev.filter(s => s !== slug) : [...prev, slug]
+    );
+  };
+
+  const openCheckout = (plan: DbPlan) => {
+    setCheckoutPlan(plan);
+  };
+
+  const handlePay = async () => {
+    if (!checkoutPlan || !user) return;
+    setCheckoutLoading(true);
+    try {
+      const ok = await loadRazorpayScript();
+      if (!ok) {
+        alert("Failed to load Razorpay. Please check your internet connection.");
+        return;
+      }
+
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ planId: checkoutPlan.slug, addonIds: selectedAddons }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string };
+        alert(err.error ?? "Checkout failed. Please try again.");
+        return;
+      }
+
+      const data = await res.json() as {
+        orderId: string; amount: number; currency: string;
+        keyId: string; packName: string; credits: number;
+      };
+
+      const rzp = new window.Razorpay({
+        key: data.keyId,
+        amount: data.amount,
+        currency: data.currency,
+        name: "Clipiro",
+        description: data.packName,
+        order_id: data.orderId,
+        prefill: { email: user.email },
+        theme: { color: "#2563eb" },
+        handler: () => {
+          window.location.href = "/pricing?success=1";
+        },
+        modal: {
+          ondismiss: () => setCheckoutLoading(false),
+        },
+      });
+
+      rzp.open();
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
+
+  const handleBuyPack = async (pack: DbPlan) => {
+    if (!user) return;
+    setBuyingPack(pack.slug);
+    try {
+      const ok = await loadRazorpayScript();
+      if (!ok) {
+        alert("Failed to load Razorpay. Please check your internet connection.");
+        return;
+      }
+
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ planId: pack.slug, addonIds: [] }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string };
+        alert(err.error ?? "Purchase failed. Please try again.");
+        return;
+      }
+
+      const data = await res.json() as {
+        orderId: string; amount: number; currency: string;
+        keyId: string; packName: string; credits: number;
+      };
+
+      const rzp = new window.Razorpay({
+        key: data.keyId,
+        amount: data.amount,
+        currency: data.currency,
+        name: "Clipiro",
+        description: data.packName,
+        order_id: data.orderId,
+        prefill: { email: user.email },
+        theme: { color: "#2563eb" },
+        handler: () => {
+          window.location.href = "/pricing?success=1";
+        },
+        modal: {
+          ondismiss: () => setBuyingPack(null),
+        },
+      });
+
+      rzp.open();
+    } finally {
+      setBuyingPack(null);
+    }
+  };
+
+  const totalDue =
+    (checkoutPlan ? Math.round(checkoutPlan.priceInPaise / 100) : 0) +
+    selectedAddons.reduce((s, slug) => {
+      const pack = packs.find(p => p.slug === slug);
+      return s + (pack ? Math.round(pack.priceInPaise / 100) : 0);
+    }, 0);
+
   return (
     <div className="min-h-screen bg-white">
       <SiteNavbar solid />
+
+      {/* ── Success banner ── */}
+      {successBanner && (
+        <div className="bg-green-500 text-white text-center py-3 px-4 text-sm font-semibold flex items-center justify-center gap-3">
+          <CheckIcon className="w-4 h-4" />
+          Payment successful! Credits will appear in your account shortly.
+          <button onClick={() => setSuccessBanner(false)} className="ml-2 underline opacity-75 hover:opacity-100 text-xs">
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* ── Hero ── */}
       <section className="pt-16 pb-4 text-center px-4">
@@ -210,22 +375,24 @@ export default function PricingPage() {
             ))}
           </div>
         ) : (() => {
-          // Resolve one subscription card per tier for the selected term.
-          const subs = plans.filter(p => p.kind === "subscription");
           const cards = TIER_ORDER
             .map(tier => subs.find(p => tierOf(p.slug) === tier && p.intervalMonths === term))
             .filter((p): p is DbPlan => !!p);
 
           if (cards.length === 0) {
-            return <p className="text-center text-gray-400 text-sm py-12">Pricing is being updated. Please check back shortly.</p>;
+            return (
+              <p className="text-center text-gray-400 text-sm py-12">
+                Pricing is being updated. Please check back shortly.
+              </p>
+            );
           }
 
           return (
             <div className="grid md:grid-cols-3 gap-6 items-start">
               {cards.map((plan, idx) => {
-                const highlighted = idx === 1; // Pro
-                const price = Math.round(plan.priceInPaise / 100);
-                const months = plan.intervalMonths ?? 1;
+                const highlighted = idx === 1;
+                const price    = Math.round(plan.priceInPaise / 100);
+                const months   = plan.intervalMonths ?? 1;
                 const perMonth = Math.round(price / months);
                 const baseTier = plan.name.replace(/\s*\(.*\)$/, "");
                 return (
@@ -278,16 +445,29 @@ export default function PricingPage() {
                       ))}
                     </ul>
 
-                    <Link
-                      href="/register"
-                      className={`block text-center font-bold py-3 rounded-full transition-all ${
-                        highlighted
-                          ? "bg-white text-blue-600 hover:bg-blue-50"
-                          : "bg-blue-600 text-white hover:bg-blue-700"
-                      }`}
-                    >
-                      Get {baseTier}
-                    </Link>
+                    {user ? (
+                      <button
+                        onClick={() => openCheckout(plan)}
+                        className={`w-full font-bold py-3 rounded-full transition-all ${
+                          highlighted
+                            ? "bg-white text-blue-600 hover:bg-blue-50"
+                            : "bg-blue-600 text-white hover:bg-blue-700"
+                        }`}
+                      >
+                        Get {baseTier}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => openAuthModal("register", baseTier)}
+                        className={`w-full font-bold py-3 rounded-full transition-all ${
+                          highlighted
+                            ? "bg-white text-blue-600 hover:bg-blue-50"
+                            : "bg-blue-600 text-white hover:bg-blue-700"
+                        }`}
+                      >
+                        Get {baseTier}
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -295,38 +475,265 @@ export default function PricingPage() {
           );
         })()}
 
-        {/* Top-up packs (subscriber-only) */}
-        {!plansLoading && plans.some(p => p.kind === "pack") && (
-          <div className="mt-14">
-            <div className="text-center mb-6">
-              <h3 className="text-lg font-bold text-gray-900">Need more credits? Top-up packs</h3>
-              <p className="text-sm text-gray-500">One-time, never expire. Available to active subscribers.</p>
+        {/* ── Add-on Credit Packs ── */}
+        {!plansLoading && packs.length > 0 && (
+          <div className="mt-16">
+            <div className="text-center mb-8">
+              <span className="inline-block bg-blue-100 text-blue-700 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
+                {hasActivePlan ? "Top-up Credits" : "Optional Add-ons"}
+              </span>
+              <h3 className="text-2xl font-extrabold text-gray-900">Boost your credits</h3>
+              <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
+                {hasActivePlan
+                  ? "You have an active plan — buy any credit pack instantly. Credits never expire."
+                  : "Select any packs to bundle with your plan purchase. Credits never expire and roll over forever."}
+              </p>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {plans.filter(p => p.kind === "pack").map(pack => {
-                const price = Math.round(pack.priceInPaise / 100);
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {packs.map(pack => {
+                const checked   = selectedAddons.includes(pack.slug);
+                const price     = Math.round(pack.priceInPaise / 100);
+                const isLoading = buyingPack === pack.slug;
                 return (
-                  <div key={pack.id} className="rounded-xl border border-gray-200 bg-white p-5 text-center shadow-sm">
-                    <p className="text-sm font-bold text-gray-900">{pack.name}</p>
-                    <p className="text-2xl font-black text-gray-900 mt-1">₹{price.toLocaleString("en-IN")}</p>
-                    <p className="text-xs text-gray-500 mt-1">{pack.credits} credits</p>
+                  <div
+                    key={pack.id}
+                    className={`flex flex-col bg-white rounded-xl border-2 shadow-sm transition-all overflow-hidden ${
+                      checked
+                        ? "border-blue-600 ring-1 ring-blue-600/20 bg-blue-50/20"
+                        : "border-gray-200 hover:border-blue-200"
+                    }`}
+                  >
+                    {/* Checkbox row — always shown (for bundling with a plan) */}
+                    <label className="flex items-start gap-3 p-5 cursor-pointer flex-1">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleAddon(pack.slug)}
+                        className="mt-0.5 w-4 h-4 accent-blue-600 flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-gray-900 text-sm leading-snug">{pack.name}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · never expire</p>
+                        <p className="text-xl font-black text-gray-900 mt-3">₹{price.toLocaleString("en-IN")}</p>
+                      </div>
+                    </label>
+
+                    {/* Buy Now — only for active subscribers */}
+                    {hasActivePlan && (
+                      <button
+                        onClick={() => handleBuyPack(pack)}
+                        disabled={!!buyingPack}
+                        className="mx-4 mb-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
+                      >
+                        {isLoading ? (
+                          <>
+                            <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Buying...
+                          </>
+                        ) : (
+                          "Buy Now"
+                        )}
+                      </button>
+                    )}
                   </div>
                 );
               })}
             </div>
+
+            {hasActivePlan ? (
+              <p className="text-center text-sm text-gray-400 mt-5">
+                Click <strong>Buy Now</strong> to top-up instantly, or check a pack and click a plan above to bundle it.
+              </p>
+            ) : selectedAddons.length > 0 ? (
+              <p className="text-center text-sm text-blue-700 font-semibold mt-5 bg-blue-50 border border-blue-100 rounded-lg py-3">
+                {selectedAddons.length} add-on pack{selectedAddons.length > 1 ? "s" : ""} selected —
+                click any plan above to bundle them at checkout.
+              </p>
+            ) : (
+              <p className="text-center text-sm text-gray-400 mt-5">
+                Select any packs above, then click a plan to buy them together in one payment.
+              </p>
+            )}
           </div>
         )}
 
-        <p className="text-center mt-8 text-gray-400 text-sm">
+        <p className="text-center mt-10 text-gray-400 text-sm">
           Free tools are always free · Longer terms include Veo3 · Powered by Razorpay
         </p>
       </section>
+
+      {/* ── Checkout Modal ── */}
+      {checkoutPlan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => !checkoutLoading && setCheckoutPlan(null)}
+          />
+
+          {/* Card */}
+          <div className="relative z-10 w-full max-w-3xl bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            {/* Close */}
+            <button
+              onClick={() => !checkoutLoading && setCheckoutPlan(null)}
+              disabled={checkoutLoading}
+              className="absolute top-4 right-4 z-10 p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all disabled:opacity-40"
+              aria-label="Close"
+            >
+              <XIcon className="w-5 h-5" />
+            </button>
+
+            {/* 2-column body */}
+            <div className="flex flex-col md:flex-row overflow-y-auto flex-1 min-h-0">
+
+              {/* LEFT: plan info + add-ons */}
+              <div className="flex-1 p-8 bg-gray-50 overflow-y-auto">
+                {/* Selected plan card */}
+                <div className="mb-6 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Selected Plan</p>
+                  <p className="font-extrabold text-gray-900 text-lg leading-snug">{checkoutPlan.name}</p>
+                  <p className="text-sm text-gray-500 mt-0.5">{checkoutPlan.monthlyCredits} credits / month</p>
+                  <p className="text-2xl font-black text-gray-900 mt-2">
+                    ₹{Math.round(checkoutPlan.priceInPaise / 100).toLocaleString("en-IN")}
+                    <span className="text-sm font-normal text-gray-400 ml-1">
+                      {checkoutPlan.intervalMonths && checkoutPlan.intervalMonths > 1
+                        ? `/ ${checkoutPlan.intervalMonths} months`
+                        : "/ month"}
+                    </span>
+                  </p>
+                </div>
+
+                {/* Add-on packs */}
+                {packs.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="h-px flex-1 bg-gray-200" />
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">
+                        Bundle Add-ons
+                      </p>
+                      <div className="h-px flex-1 bg-gray-200" />
+                    </div>
+
+                    <div className="space-y-3">
+                      {packs.map(pack => {
+                        const checked = selectedAddons.includes(pack.slug);
+                        const price   = Math.round(pack.priceInPaise / 100);
+                        return (
+                          <label
+                            key={pack.id}
+                            className={`flex items-start gap-3 p-4 bg-white rounded-xl border-2 cursor-pointer transition-all ${
+                              checked
+                                ? "border-blue-600 shadow-sm bg-blue-50/20"
+                                : "border-gray-100 hover:border-gray-200"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleAddon(pack.slug)}
+                              className="mt-0.5 w-4 h-4 accent-blue-600 flex-shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-gray-900 text-sm">{pack.name}</p>
+                              <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · never expire</p>
+                            </div>
+                            <p className="font-bold text-gray-900 whitespace-nowrap">
+                              ₹{price.toLocaleString("en-IN")}
+                            </p>
+                          </label>
+                        );
+                      })}
+                    </div>
+
+                    {selectedAddons.length === 0 && (
+                      <div className="mt-4 bg-amber-50 border border-amber-100 rounded-lg py-2.5 px-3 text-center">
+                        <p className="text-xs text-amber-700 font-medium">
+                          💡 Add credits now — they never expire and save you more later!
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* RIGHT: order summary */}
+              <div className="w-full md:w-72 p-8 flex flex-col border-t md:border-t-0 md:border-l border-gray-100 flex-shrink-0">
+                <h3 className="font-bold text-gray-900 text-lg mb-5">Order Summary</h3>
+
+                <div className="flex-1 space-y-4 min-h-0">
+                  {/* Base plan */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{checkoutPlan.name}</p>
+                      <p className="text-xs text-gray-400">Subscription plan</p>
+                    </div>
+                    <p className="text-sm font-semibold text-gray-900 whitespace-nowrap">
+                      ₹{Math.round(checkoutPlan.priceInPaise / 100).toLocaleString("en-IN")}
+                    </p>
+                  </div>
+
+                  {/* Selected add-ons */}
+                  {selectedAddons.map(slug => {
+                    const pack = packs.find(p => p.slug === slug);
+                    if (!pack) return null;
+                    return (
+                      <div key={slug} className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{pack.name}</p>
+                          <p className="text-xs text-gray-400">{pack.credits} credits · add-on</p>
+                        </div>
+                        <p className="text-sm font-semibold text-gray-900 whitespace-nowrap">
+                          ₹{Math.round(pack.priceInPaise / 100).toLocaleString("en-IN")}
+                        </p>
+                      </div>
+                    );
+                  })}
+
+                  {selectedAddons.length === 0 && packs.length > 0 && (
+                    <p className="text-xs text-gray-400 italic">No add-ons selected yet.</p>
+                  )}
+
+                  {/* Total */}
+                  <div className="border-t border-gray-100 pt-4 mt-2">
+                    <div className="flex items-center justify-between">
+                      <p className="font-bold text-gray-900">Total Due</p>
+                      <p className="text-xl font-black text-gray-900">
+                        ₹{totalDue.toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">Secure payment via Razorpay</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handlePay}
+                  disabled={checkoutLoading}
+                  className="mt-6 w-full bg-blue-600 text-white font-bold py-3.5 rounded-full hover:bg-blue-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2 text-sm"
+                >
+                  {checkoutLoading ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    "Pay with Razorpay →"
+                  )}
+                </button>
+                <p className="text-xs text-gray-400 text-center mt-3">
+                  By continuing, you agree to our{" "}
+                  <Link href="/terms" className="underline hover:text-gray-600">Terms of Service</Link>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Feature Comparison Table ── */}
       <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <h2 className="text-3xl font-extrabold text-gray-900 text-center mb-12">Compare all features</h2>
 
-        {/* Table header */}
         <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
           <table className="w-full">
             <thead>
@@ -341,7 +748,6 @@ export default function PricingPage() {
               </tr>
             </thead>
 
-            {/* Credits + perks (what actually differs between tiers) */}
             <tbody>
               <tr className="bg-gray-50">
                 <td colSpan={4} className="py-3 px-6 text-xs font-bold text-gray-400 uppercase tracking-widest">
@@ -374,7 +780,6 @@ export default function PricingPage() {
               </tr>
             </tbody>
 
-            {/* Workflows section */}
             <tbody>
               <tr>
                 <td colSpan={4} className="py-3 px-6 text-xs font-bold text-gray-400 uppercase tracking-widest bg-gray-50 border-t border-gray-100">
@@ -386,7 +791,6 @@ export default function PricingPage() {
               ))}
             </tbody>
 
-            {/* Tools section */}
             <tbody>
               <tr>
                 <td colSpan={4} className="py-3 px-6 text-xs font-bold text-gray-400 uppercase tracking-widest bg-gray-50 border-t border-gray-100">
@@ -435,13 +839,23 @@ export default function PricingPage() {
             Our support team is available 24/7. Or start free — no credit card needed.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/register"
-              className="inline-flex items-center justify-center gap-2 bg-white text-blue-600 font-bold px-8 py-3.5 rounded-full hover:bg-blue-50 transition-colors shadow-lg"
-            >
-              <ZapIcon className="w-4 h-4" />
-              Start Free
-            </Link>
+            {user ? (
+              <button
+                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                className="inline-flex items-center justify-center gap-2 bg-white text-blue-600 font-bold px-8 py-3.5 rounded-full hover:bg-blue-50 transition-colors shadow-lg"
+              >
+                <ZapIcon className="w-4 h-4" />
+                Choose a Plan
+              </button>
+            ) : (
+              <button
+                onClick={() => openAuthModal("register")}
+                className="inline-flex items-center justify-center gap-2 bg-white text-blue-600 font-bold px-8 py-3.5 rounded-full hover:bg-blue-50 transition-colors shadow-lg"
+              >
+                <ZapIcon className="w-4 h-4" />
+                Start Free
+              </button>
+            )}
             <a
               href="mailto:support@clipiro.ai"
               className="inline-flex items-center justify-center gap-2 border-2 border-white/40 text-white font-bold px-8 py-3.5 rounded-full hover:bg-white/10 transition-colors"

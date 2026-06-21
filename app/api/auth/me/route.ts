@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
       lastName: true,
       name: true,
       avatarUrl: true,
+      subscriptionEndsAt: true,
       plan: { select: { id: true, slug: true, name: true, credits: true, priceInPaise: true } },
     },
   });

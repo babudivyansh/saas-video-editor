@@ -12,14 +12,23 @@ export async function POST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // packId is the plan slug (e.g. "pack_starter" or "sub_pro_3mo"). Plans live in
-  // the DB so the admin pricing editor is the single source of truth for amounts.
-  const { packId } = await req.json();
-  const plan = packId ? await prisma.plan.findUnique({ where: { slug: packId } }) : null;
-  if (!plan || !plan.active) return NextResponse.json({ error: "Invalid packId" }, { status: 400 });
+  // Accept both legacy { packId } and new { planId, addonIds? } shapes.
+  const body = await req.json();
+  const planSlug: string | undefined = body.planId ?? body.packId;
+  const addonSlugs: string[] = Array.isArray(body.addonIds) ? body.addonIds : [];
 
-  // Top-up packs are subscriber-only: require an active subscription.
-  if (plan.kind === "pack") {
+  if (!planSlug) return NextResponse.json({ error: "planId is required" }, { status: 400 });
+
+  // Resolve the base plan (subscription or pack).
+  const basePlan = await prisma.plan.findUnique({ where: { slug: planSlug } });
+  if (!basePlan || !basePlan.active) {
+    return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
+  }
+
+  // Top-up packs (standalone, no subscription) still require an active subscription.
+  // But when a pack is bundled as an addon alongside a subscription purchase we allow it.
+  const isStandalonePack = basePlan.kind === "pack" && addonSlugs.length === 0;
+  if (isStandalonePack) {
     const me = await prisma.user.findUnique({
       where: { id: auth.userId },
       select: { subscriptionEndsAt: true },
@@ -27,17 +36,36 @@ export async function POST(req: NextRequest) {
     const active = me?.subscriptionEndsAt && me.subscriptionEndsAt > new Date();
     if (!active) {
       return NextResponse.json(
-        { error: "Top-up packs require an active subscription. Subscribe to a plan first." },
+        { error: "Credit packs require an active subscription. Subscribe to a plan first." },
         { status: 403 },
       );
     }
   }
 
+  // Resolve add-on packs (must be active, kind = "pack").
+  const addons = addonSlugs.length
+    ? await prisma.plan.findMany({
+        where: { slug: { in: addonSlugs }, active: true, kind: "pack" },
+      })
+    : [];
+
+  // Combined totals.
+  const totalPaise = basePlan.priceInPaise + addons.reduce((s, a) => s + a.priceInPaise, 0);
+  const totalCredits = basePlan.credits + addons.reduce((s, a) => s + a.credits, 0);
+  const packName =
+    basePlan.name + (addons.length ? " + " + addons.map(a => a.name).join(", ") : "");
+
   const order = await razorpay.orders.create({
-    amount: plan.priceInPaise,
-    currency: plan.currency,
+    amount: totalPaise,
+    currency: basePlan.currency,
     receipt: `order_${auth.userId.slice(0, 8)}_${Date.now()}`,
-    notes: { userId: auth.userId, packId: plan.slug, kind: plan.kind, credits: String(plan.credits) },
+    notes: {
+      userId: auth.userId,
+      planId: basePlan.slug,
+      addonIds: JSON.stringify(addonSlugs),
+      kind: basePlan.kind,
+      credits: String(totalCredits),
+    },
   });
 
   return NextResponse.json({
@@ -45,7 +73,7 @@ export async function POST(req: NextRequest) {
     amount: order.amount,
     currency: order.currency,
     keyId: process.env.RAZORPAY_KEY_ID,
-    packName: plan.name,
-    credits: plan.credits,
+    packName,
+    credits: totalCredits,
   });
 }

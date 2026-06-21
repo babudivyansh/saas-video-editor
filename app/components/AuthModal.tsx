@@ -12,7 +12,9 @@ export default function AuthModal() {
   const handleSuccess = async (token: string) => {
     await refreshUser();
     closeAuthModal();
-    window.location.href = "/dashboard";
+    // If opened from the pricing page (feature = plan name, not a free tool), go to billing
+    const dest = feature && !isFree ? "/billing" : "/dashboard";
+    window.location.href = dest;
   };
 
   return (

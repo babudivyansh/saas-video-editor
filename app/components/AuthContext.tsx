@@ -22,6 +22,7 @@ interface User {
   lastName: string | null;
   name: string | null;
   avatarUrl: string | null;
+  subscriptionEndsAt: string | null;
   plan: UserPlan | null;
 }
 
@@ -50,6 +51,7 @@ const PUBLIC_ROUTES = [
   "/login",
   "/register",
   "/pricing",
+  "/billing",   // billing page handles its own auth redirect to /login
   "/terms",
   "/privacy",
   "/refund",
