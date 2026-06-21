@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/AuthContext";
 import SiteNavbar from "@/app/components/SiteNavbar";
 
@@ -699,6 +700,15 @@ function Footer() {
 
 // ── Page ───────────────────────────────────────────────────────────────────
 export default function HomePage() {
+  const { user } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (user) router.replace("/dashboard");
+  }, [user, router]);
+
+  if (user) return null;
+
   return (
     <div className="min-h-screen bg-white">
       <SiteNavbar />

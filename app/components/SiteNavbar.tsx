@@ -71,7 +71,7 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileSection, setMobileSection] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
-  const { user, openAuthModal, signOut } = useAuth();
+  const { openAuthModal } = useAuth();
 
   useEffect(() => {
     if (solid) return;
@@ -139,21 +139,10 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
 
           {/* CTA */}
           <div className="hidden md:flex items-center gap-3">
-            {user ? (
-              <>
-                <Link href="/dashboard" className="flex items-center gap-1.5 bg-[#335CFF] text-white text-sm font-bold px-5 py-2.5 rounded-full transition-transform duration-200 hover:scale-[1.01]">
-                  Dashboard
-                </Link>
-                <button onClick={signOut} className="flex items-center gap-1.5 text-sm font-semibold text-[#525866] hover:text-gray-900 px-4 py-2.5 rounded-full border border-[#D7DBEA] hover:border-[#335CFF]/40 transition-colors cursor-pointer">
-                  Logout
-                </button>
-              </>
-            ) : (
-              <button onClick={() => openAuthModal("register")} className="flex items-center gap-1.5 bg-[#335CFF] text-white text-sm font-bold px-5 py-2.5 rounded-full transition-transform duration-200 hover:scale-[1.01] cursor-pointer">
-                <ZapIcon className="w-3.5 h-3.5" />
-                Try Clipiro Now
-              </button>
-            )}
+            <button onClick={() => openAuthModal("register")} className="flex items-center gap-1.5 bg-[#335CFF] text-white text-sm font-bold px-5 py-2.5 rounded-full transition-transform duration-200 hover:scale-[1.01] cursor-pointer">
+              <ZapIcon className="w-3.5 h-3.5" />
+              Try Clipiro Now
+            </button>
           </div>
 
           {/* Mobile hamburger */}
@@ -199,17 +188,10 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
           <Link href="/blog" className="block text-sm font-semibold text-gray-700 hover:text-[#335CFF] py-2" onClick={() => setMenuOpen(false)}>Blog</Link>
           <Link href="/pricing" className="block text-sm font-semibold text-gray-700 hover:text-[#335CFF] py-2" onClick={() => setMenuOpen(false)}>Pricing</Link>
           <div className="pt-2 border-t border-gray-100 mt-1">
-            {user ? (
-              <>
-                <Link href="/dashboard" className="block text-sm font-medium text-gray-700 hover:text-[#335CFF] py-2" onClick={() => setMenuOpen(false)}>Dashboard</Link>
-                <button onClick={() => { signOut(); setMenuOpen(false); }} className="w-full text-left text-sm font-medium text-gray-500 hover:text-gray-800 py-2">Logout ({user.email})</button>
-              </>
-            ) : (
-              <button onClick={() => { setMenuOpen(false); openAuthModal("register"); }} className="w-full flex items-center justify-center gap-1.5 bg-[#335CFF] text-white text-sm font-semibold px-4 py-2.5 rounded-full cursor-pointer mt-1">
-                <ZapIcon className="w-3.5 h-3.5" />
-                Try Clipiro Free
-              </button>
-            )}
+            <button onClick={() => { setMenuOpen(false); openAuthModal("register"); }} className="w-full flex items-center justify-center gap-1.5 bg-[#335CFF] text-white text-sm font-semibold px-4 py-2.5 rounded-full cursor-pointer mt-1">
+              <ZapIcon className="w-3.5 h-3.5" />
+              Try Clipiro Free
+            </button>
           </div>
         </div>
       )}
