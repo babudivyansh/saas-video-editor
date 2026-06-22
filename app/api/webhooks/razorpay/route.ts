@@ -123,6 +123,51 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Affiliate commission — run after credit logic, non-fatal
+  if (event.event === "payment.captured") {
+    const entity = event.payload?.payment?.entity;
+    const userId = entity?.notes?.userId;
+    if (userId) {
+      try {
+        const referral = await prisma.referral.findUnique({
+          where: { referredUserId: userId },
+          include: { affiliate: true },
+        });
+        // Only award commission on first payment (status must still be "signed_up")
+        if (referral && referral.status === "signed_up" && referral.affiliate.status === "active") {
+          const baseAmount = (entity.amount ?? 0) / 100; // paise → rupees
+          const rate = referral.affiliate.commissionRate;
+          const commission = parseFloat((baseAmount * rate).toFixed(2));
+
+          await prisma.$transaction([
+            prisma.commission.create({
+              data: {
+                affiliateId: referral.affiliateId,
+                referralId: referral.id,
+                razorpayOrderId: entity.order_id ?? null,
+                baseAmount,
+                commissionRate: rate,
+                amount: commission,
+                status: "pending",
+                availableAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+              },
+            }),
+            prisma.referral.update({
+              where: { id: referral.id },
+              data: { status: "converted", convertedAt: new Date() },
+            }),
+            prisma.affiliate.update({
+              where: { id: referral.affiliateId },
+              data: { totalEarned: { increment: commission } },
+            }),
+          ]);
+        }
+      } catch (err) {
+        console.error("[razorpay-webhook] affiliate commission error", err);
+      }
+    }
+  }
+
   await prisma.razorpayEvent.create({ data: { id: paymentId, event: event.event } });
 
   return NextResponse.json({ received: true });

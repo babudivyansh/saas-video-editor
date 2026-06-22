@@ -31,11 +31,59 @@ model User {
   nextRefillAt       DateTime?  // when the next monthly credit grant is due
   monthlyCredits     Int        @default(0) // credits granted on each refill for the active tier
   veo3Enabled        Boolean    @default(false) // Veo3 unlocked (bundled term or paid add-on)
+  // Affiliate program
+  referredBy         String?    // affiliateId that referred this user
   createdAt    DateTime   @default(now())
   projects             Project[]
   purchases            Purchase[]
   quests               UserQuest[]
   questRewardClaimed   Boolean    @default(false)
+  affiliate            Affiliate?
+  referral             Referral?  @relation("ReferredByAffiliate")
+}
+
+model Affiliate {
+  id             String       @id @default(cuid())
+  userId         String       @unique
+  user           User         @relation(fields: [userId], references: [id])
+  code           String       @unique
+  status         String       @default("active")  // active | suspended | banned
+  commissionRate Float        @default(0.20)
+  totalEarned    Float        @default(0)
+  totalPaid      Float        @default(0)
+  createdAt      DateTime     @default(now())
+  referrals      Referral[]
+  commissions    Commission[]
+}
+
+model Referral {
+  id             String      @id @default(cuid())
+  affiliateId    String
+  affiliate      Affiliate   @relation(fields: [affiliateId], references: [id])
+  referredUserId String      @unique
+  referredUser   User        @relation("ReferredByAffiliate", fields: [referredUserId], references: [id])
+  status         String      @default("signed_up")  // signed_up | converted | flagged | fraudulent
+  signupIp       String?
+  signedUpAt     DateTime    @default(now())
+  convertedAt    DateTime?
+  commissions    Commission[]
+}
+
+model Commission {
+  id              String    @id @default(cuid())
+  affiliateId     String
+  affiliate       Affiliate @relation(fields: [affiliateId], references: [id])
+  referralId      String
+  referral        Referral  @relation(fields: [referralId], references: [id])
+  razorpayOrderId String?
+  baseAmount      Float
+  commissionRate  Float
+  amount          Float
+  status          String    @default("pending")  // pending | available | paid | rejected
+  createdAt       DateTime  @default(now())
+  availableAt     DateTime
+  paidAt          DateTime?
+  payoutRef       String?
 }
 
 model Plan {
