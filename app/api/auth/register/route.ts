@@ -59,7 +59,49 @@ export async function POST(req: NextRequest) {
     const token = signToken({ userId: user.id, email: user.email });
     await cacheSession(user.id, token);
 
-    return NextResponse.json({ token, user }, { status: 201 });
+    // Affiliate attribution — read cookie set by middleware
+    const affiliateRef = req.cookies.get("affiliate_ref")?.value;
+    if (affiliateRef) {
+      try {
+        const affiliate = await prisma.affiliate.findUnique({ where: { code: affiliateRef } });
+        if (affiliate && affiliate.userId !== user.id && affiliate.status === "active") {
+          // IP-based fraud detection — flag if same /24 subnet as affiliate's last signup
+          const signupIp =
+            req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+            req.headers.get("x-real-ip") ??
+            null;
+
+          const affiliateIp = await prisma.referral
+            .findFirst({ where: { affiliateId: affiliate.id }, orderBy: { signedUpAt: "desc" } })
+            .then(r => r?.signupIp ?? null);
+
+          const sameSubnet =
+            signupIp &&
+            affiliateIp &&
+            signupIp.split(".").slice(0, 3).join(".") === affiliateIp.split(".").slice(0, 3).join(".");
+
+          await prisma.referral.create({
+            data: {
+              affiliateId: affiliate.id,
+              referredUserId: user.id,
+              status: sameSubnet ? "flagged" : "signed_up",
+              signupIp,
+            },
+          });
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { referredBy: affiliate.id },
+          });
+        }
+      } catch {
+        // Non-fatal: referral attribution failure should not block registration
+      }
+    }
+
+    const res = NextResponse.json({ token, user }, { status: 201 });
+    // Clear the affiliate cookie after attribution
+    res.cookies.set("affiliate_ref", "", { maxAge: 0, path: "/" });
+    return res;
   } catch (err) {
     console.error("[register]", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
