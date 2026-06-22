@@ -26,7 +26,7 @@ const TOOLS_ITEMS = [
 ];
 
 const RESOURCES_ITEMS = [
-  { title: "Affiliate Program", desc: "Earn 20% on all paid referrals to Clipiro.", href: "/affiliate-tos" },
+  { title: "Affiliate Program", desc: "Earn 20% on all paid referrals to Clipiro.", href: "/dashboard/referral" },
   { title: "Community Discord", desc: "Join for customer support and feedback.", href: "/discord" },
 ];
 
