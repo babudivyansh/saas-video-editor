@@ -30,9 +30,14 @@ function IcShield() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>;
 }
 
+function IcEditor() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="2" y="2" width="20" height="20" rx="2"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/><line x1="2" y1="18" x2="22" y2="18"/></svg>;
+}
+
 const NAV = [
   { id: "home",     icon: <IcHome />,   label: "Home",           href: "/dashboard" },
   { id: "projects", icon: <IcFolder />, label: "Projects",       href: "/dashboard" },
+  { id: "editor",   icon: <IcEditor />, label: "Video Editor",   href: "/dashboard/editor/new" },
   { id: "assets",   icon: <IcAssets />, label: "Assets",         href: "/dashboard/assets" },
   { id: "create",   icon: <IcWand />,   label: "Create",         href: "/dashboard/tools" },
   { id: "social",   icon: <IcSocial />, label: "Social Tracker", href: "/dashboard/social-tracker" },

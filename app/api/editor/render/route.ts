@@ -11,8 +11,9 @@ import { InProcessQueue } from "@/lib/job-queue";
 import { generateASS, styleIndexToSubtitleStyle, runFFmpegArgs } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { downloadFile } from "@/utils/download";
-import { buildEditorFFmpegArgs, EditorRenderPaths } from "@/lib/editor-render";
+import { buildEditorFFmpegArgs, EditorRenderPaths, buildTrackDocFFmpegArgs, TrackRenderPaths } from "@/lib/editor-render";
 import type { EditorDoc } from "@/lib/editor-types";
+import type { TrackDoc, VideoClipData, AudioClipData } from "@/lib/track-editor-types";
 import type { WordTiming } from "@/utils/elevenlabs";
 
 export const maxDuration = 300;
@@ -21,6 +22,13 @@ interface RenderPayload {
   projectId: string;
   userId: string;
   doc: EditorDoc;
+  creditCost: number;
+}
+
+interface TrackRenderPayload {
+  projectId: string;
+  userId: string;
+  doc: TrackDoc;
   creditCost: number;
 }
 
@@ -120,25 +128,100 @@ async function renderJob(payload: RenderPayload): Promise<void> {
   }
 }
 
+async function renderTrackDocJob(payload: TrackRenderPayload): Promise<void> {
+  const { projectId, userId, doc, creditCost } = payload;
+  const tmp = os.tmpdir();
+  const outPath = path.join(tmp, `${projectId}-v2-out.mp4`);
+  const cleanup: string[] = [outPath];
+
+  const videoPaths = new Map<string, string>();
+  const audioPaths = new Map<string, string>();
+
+  try {
+    // Deduplicate downloads by URL — multiple clips can share the same source file
+    const urlToLocal = new Map<string, string>();
+    let fileIdx = 0;
+
+    for (const track of doc.tracks) {
+      for (const clip of track.clips) {
+        if (clip.data.kind === "video") {
+          const url = (clip.data as VideoClipData).url;
+          if (!url) continue;
+          if (!urlToLocal.has(url)) {
+            const p = path.join(tmp, `${projectId}-v${fileIdx++}.mp4`);
+            await downloadFile(url, p);
+            urlToLocal.set(url, p);
+            cleanup.push(p);
+          }
+          videoPaths.set(clip.id, urlToLocal.get(url)!);
+        } else if (clip.data.kind === "audio") {
+          const url = (clip.data as AudioClipData).url;
+          if (!url) continue;
+          if (!urlToLocal.has(url)) {
+            const ext = url.includes(".mp3") ? "mp3" : "mp4";
+            const p = path.join(tmp, `${projectId}-a${fileIdx++}.${ext}`);
+            await downloadFile(url, p);
+            urlToLocal.set(url, p);
+            cleanup.push(p);
+          }
+          audioPaths.set(clip.id, urlToLocal.get(url)!);
+        }
+      }
+    }
+
+    const renderPaths: TrackRenderPaths = { videoPaths, audioPaths, output: outPath };
+    await runFFmpegArgs(buildTrackDocFFmpegArgs(doc, renderPaths));
+
+    const key = `editor/${userId}/${projectId}.mp4`;
+    const videoUrl = await uploadFileToS3(outPath, key, "video/mp4");
+
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { status: "completed", videoUrl },
+    });
+  } catch (err) {
+    console.error(`[editor/render] TrackDoc job ${projectId} failed:`, err);
+    await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } }).catch(() => {});
+    await refundCredit(userId, creditCost);
+    throw err;
+  } finally {
+    for (const p of cleanup) {
+      try { if (fs.existsSync(p)) fs.unlinkSync(p); } catch { /* ignore */ }
+    }
+  }
+}
+
 let _queue: InProcessQueue<RenderPayload> | null = null;
 function getQueue() {
   if (!_queue) _queue = new InProcessQueue<RenderPayload>("editor-render", renderJob);
   return _queue;
 }
 
+let _trackQueue: InProcessQueue<TrackRenderPayload> | null = null;
+function getTrackQueue() {
+  if (!_trackQueue) _trackQueue = new InProcessQueue<TrackRenderPayload>("editor-render-v2", renderTrackDocJob);
+  return _trackQueue;
+}
+
 export async function POST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body: { projectId?: string; doc?: EditorDoc; tool?: string };
+  let body: { projectId?: string; doc?: Record<string, unknown>; tool?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const doc = body.doc;
-  if (!doc?.videoUrl) return NextResponse.json({ error: "doc.videoUrl is required" }, { status: 400 });
+  const rawDoc = body.doc;
+  if (!rawDoc) return NextResponse.json({ error: "doc is required" }, { status: 400 });
+
+  const isV2 = rawDoc._v === 2;
+
+  if (!isV2 && !(rawDoc as unknown as EditorDoc).videoUrl) {
+    return NextResponse.json({ error: "doc.videoUrl is required" }, { status: 400 });
+  }
 
   const tool = body.tool === "advanced-editor" ? "advanced-editor" : "simple-editor";
   const { creditCost } = await getToolConfig(tool);
@@ -164,6 +247,22 @@ export async function POST(req: NextRequest) {
     await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
   }
 
+  // Get a representative source URL for the project record
+  let sourceUrl = "";
+  if (isV2) {
+    const trackDoc = rawDoc as unknown as TrackDoc;
+    outer: for (const track of trackDoc.tracks) {
+      for (const clip of track.clips) {
+        if (clip.data.kind === "video") {
+          sourceUrl = (clip.data as VideoClipData).url;
+          break outer;
+        }
+      }
+    }
+  } else {
+    sourceUrl = (rawDoc as unknown as EditorDoc).videoUrl;
+  }
+
   // Reuse or create a project to track render status.
   let projectId = body.projectId ?? "";
   if (projectId) {
@@ -174,7 +273,7 @@ export async function POST(req: NextRequest) {
     }
     await prisma.project.update({
       where: { id: projectId },
-      data: { status: "rendering", editorDoc: doc as object, productType: tool, uploadedVideoUrl: doc.videoUrl },
+      data: { status: "rendering", editorDoc: rawDoc as object, productType: tool, uploadedVideoUrl: sourceUrl },
     });
   } else {
     const project = await prisma.project.create({
@@ -183,8 +282,8 @@ export async function POST(req: NextRequest) {
         title: "Editor video",
         status: "rendering",
         productType: tool,
-        uploadedVideoUrl: doc.videoUrl,
-        editorDoc: doc as object,
+        uploadedVideoUrl: sourceUrl,
+        editorDoc: rawDoc as object,
         backgroundUrl: "",
         subtitlesStyle: {},
       },
@@ -192,7 +291,11 @@ export async function POST(req: NextRequest) {
     projectId = project.id;
   }
 
-  getQueue().enqueue(projectId, { projectId, userId: auth.userId, doc, creditCost });
+  if (isV2) {
+    getTrackQueue().enqueue(projectId, { projectId, userId: auth.userId, doc: rawDoc as unknown as TrackDoc, creditCost });
+  } else {
+    getQueue().enqueue(projectId, { projectId, userId: auth.userId, doc: rawDoc as unknown as EditorDoc, creditCost });
+  }
   void markQuestComplete(auth.userId, "first-clip");
 
   return NextResponse.json({ projectId, status: "rendering" });

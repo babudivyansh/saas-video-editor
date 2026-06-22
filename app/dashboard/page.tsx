@@ -374,7 +374,7 @@ export default function DashboardPage() {
             </Link>
 
             {/* Advanced Editor */}
-            <Link href="/dashboard/advanced-editor" className="flex items-center gap-3 px-5 py-3.5 rounded-2xl flex-1 hover:brightness-110 transition-all" style={{ background: "#2563eb" }}>
+            <Link href="/dashboard/editor/new" className="flex items-center gap-3 px-5 py-3.5 rounded-2xl flex-1 hover:brightness-110 transition-all" style={{ background: "#2563eb" }}>
               <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
                 <IcZap />
               </div>
