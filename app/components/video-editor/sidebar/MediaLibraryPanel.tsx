@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useEditorStore } from "../store/editorStore";
 
 interface MediaItem {
@@ -15,9 +15,13 @@ interface MediaItem {
 function token() {
   return typeof window !== "undefined" ? (localStorage.getItem("token") ?? "") : "";
 }
+function authHeaders() {
+  return { Authorization: `Bearer ${token()}` };
+}
 
 export default function MediaLibraryPanel() {
   const [items, setItems] = useState<MediaItem[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [linkInput, setLinkInput] = useState("");
@@ -27,14 +31,59 @@ export default function MediaLibraryPanel() {
   const addClip = useEditorStore(s => s.addClip);
   const present = useEditorStore(s => s.present);
 
+  // Load persisted assets from API on mount
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const [vRes, aRes] = await Promise.all([
+          fetch("/api/assets?kind=video&limit=100", { headers: authHeaders() }),
+          fetch("/api/assets?kind=audio&limit=100", { headers: authHeaders() }),
+        ]);
+        if (cancelled) return;
+        const vData = vRes.ok ? await vRes.json() : { assets: [] };
+        const aData = aRes.ok ? await aRes.json() : { assets: [] };
+        const all = [...(vData.assets ?? []), ...(aData.assets ?? [])];
+        all.sort((a: { createdAt: string }, b: { createdAt: string }) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        if (!cancelled) {
+          setItems(all.map((a: { id: string; name: string; url: string; duration: number | null; kind: "video" | "audio" }) => ({
+            id: a.id,
+            name: a.name,
+            url: a.url,
+            duration: a.duration ?? 30,
+            kind: a.kind,
+          })));
+          setLoaded(true);
+        }
+      } catch {
+        if (!cancelled) setLoaded(true);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
   const handleFileUpload = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setUploading(true);
     setUploadError(null);
     try {
       for (const file of Array.from(files)) {
+        // Extract duration client-side before upload
+        let clientDuration: number | undefined;
+        if (file.type.startsWith("video/") || file.type.startsWith("audio/")) {
+          const el = file.type.startsWith("video/") ? document.createElement("video") : document.createElement("audio");
+          el.src = URL.createObjectURL(file);
+          el.preload = "metadata";
+          clientDuration = await new Promise<number>(resolve => {
+            el.onloadedmetadata = () => { URL.revokeObjectURL(el.src); resolve((el as HTMLVideoElement).duration || 30); };
+            el.onerror = () => resolve(30);
+            setTimeout(() => resolve(30), 4000);
+          });
+        }
         const fd = new FormData();
         fd.append("file", file);
+        if (clientDuration) fd.append("duration", String(clientDuration));
         const res = await fetch("/api/upload", {
           method: "POST",
           headers: { Authorization: `Bearer ${token()}` },
@@ -48,14 +97,13 @@ export default function MediaLibraryPanel() {
           setUploadError(`Upload failed (${res.status})`);
           continue;
         }
-        const { url } = await res.json();
-        const duration = await getMediaDuration(url);
+        const data = await res.json();
         const kind = file.type.startsWith("audio") ? "audio" : "video";
         const item: MediaItem = {
-          id: crypto.randomUUID(),
+          id: data.asset?.id ?? crypto.randomUUID(),
           name: file.name,
-          url,
-          duration,
+          url: data.url,
+          duration: data.asset?.duration ?? clientDuration ?? 30,
           kind,
         };
         setItems(prev => [item, ...prev]);
@@ -194,7 +242,11 @@ export default function MediaLibraryPanel() {
       </div>
 
       {/* Media items grid */}
-      {items.length === 0 ? (
+      {!loaded ? (
+        <div className="flex justify-center py-6">
+          <Spinner />
+        </div>
+      ) : items.length === 0 ? (
         <div className="text-center py-6">
           <p className="text-xs" style={{ color: "#3f3f46" }}>No media yet</p>
         </div>
