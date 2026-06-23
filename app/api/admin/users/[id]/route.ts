@@ -89,6 +89,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if ("subscriptionEndsAt" in body) {
     data.subscriptionEndsAt = body.subscriptionEndsAt ? new Date(body.subscriptionEndsAt) : null;
   }
+  if ("name" in body) {
+    const name = String(body.name ?? "").trim();
+    data.name = name || null;
+  }
+  if ("email" in body) {
+    const email = String(body.email ?? "").trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
+    }
+    // Ensure uniqueness
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing && existing.id !== id) {
+      return NextResponse.json({ error: "Email already in use by another account" }, { status: 409 });
+    }
+    data.email = email;
+  }
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
@@ -123,4 +139,38 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   });
 
   return NextResponse.json({ user });
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const admin = await requireAdmin(req);
+  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { id } = await params;
+
+  if (id === admin.userId) {
+    return NextResponse.json({ error: "You cannot delete your own account." }, { status: 400 });
+  }
+
+  const target = await prisma.user.findUnique({
+    where: { id },
+    select: { id: true, email: true, name: true, role: true },
+  });
+  if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+  await prisma.user.delete({ where: { id } });
+
+  // Clean up Redis session and credit cache
+  await Promise.allSettled([
+    redis.del(`session:${id}`),
+    redis.del(`credits:${id}`),
+  ]);
+
+  await writeAuditLog({
+    adminId: admin.userId,
+    action: "user.deleted",
+    targetId: id,
+    before: target,
+    after: null,
+  });
+
+  return NextResponse.json({ success: true });
 }

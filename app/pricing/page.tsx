@@ -157,7 +157,7 @@ function CompareRow({ feature, starter, creator, studio, shaded }: {
 
 // ── Page ───────────────────────────────────────────────────────────────────
 export default function PricingPage() {
-  const { user, openAuthModal } = useAuth();
+  const { user, openAuthModal, isLoading: authLoading } = useAuth();
   const { startCheckout, activeId } = useRazorpayCheckout();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [plans, setPlans] = useState<DbPlan[]>([]);
@@ -168,6 +168,7 @@ export default function PricingPage() {
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const [checkoutPlan, setCheckoutPlan] = useState<DbPlan | null>(null);
   const [successBanner, setSuccessBanner] = useState(false);
+  const [renewalWarningDismissed, setRenewalWarningDismissed] = useState(false);
 
   // Derived loading flags from the shared checkout hook.
   const checkoutLoading = checkoutPlan != null && activeId === checkoutPlan.slug;
@@ -206,6 +207,7 @@ export default function PricingPage() {
 
   const openCheckout = (plan: DbPlan) => {
     setCheckoutPlan(plan);
+    setRenewalWarningDismissed(false);
   };
 
   const handlePay = () => {
@@ -352,29 +354,28 @@ export default function PricingPage() {
                       ))}
                     </ul>
 
-                    {user ? (
-                      <button
-                        onClick={() => openCheckout(plan)}
-                        className={`w-full font-bold py-3 rounded-full transition-all ${
-                          highlighted
-                            ? "bg-white text-blue-600 hover:bg-blue-50"
-                            : "bg-blue-600 text-white hover:bg-blue-700"
-                        }`}
-                      >
-                        Get {baseTier}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => openAuthModal("register", baseTier)}
-                        className={`w-full font-bold py-3 rounded-full transition-all ${
-                          highlighted
-                            ? "bg-white text-blue-600 hover:bg-blue-50"
-                            : "bg-blue-600 text-white hover:bg-blue-700"
-                        }`}
-                      >
-                        Get {baseTier}
-                      </button>
-                    )}
+                    <button
+                      onClick={() => {
+                        if (authLoading) return;
+                        if (user) openCheckout(plan);
+                        else openAuthModal("register", baseTier);
+                      }}
+                      disabled={authLoading}
+                      className={`w-full font-bold py-3 rounded-full transition-all disabled:opacity-60 disabled:cursor-wait ${
+                        highlighted
+                          ? "bg-white text-blue-600 hover:bg-blue-50"
+                          : "bg-blue-600 text-white hover:bg-blue-700"
+                      }`}
+                    >
+                      {authLoading ? (
+                        <span className="inline-flex items-center justify-center gap-2">
+                          <span className={`w-4 h-4 border-2 rounded-full animate-spin ${highlighted ? "border-blue-200/40 border-t-blue-600" : "border-white/30 border-t-white"}`} />
+                          Loading…
+                        </span>
+                      ) : (
+                        `Get ${baseTier}`
+                      )}
+                    </button>
                   </div>
                 );
               })}
@@ -510,6 +511,24 @@ export default function PricingPage() {
                     </span>
                   </p>
                 </div>
+
+                {/* Renewal warning for already-subscribed users */}
+                {hasActivePlan && !renewalWarningDismissed && user?.subscriptionEndsAt && (
+                  <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5">
+                      <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-amber-900">You already have an active plan</p>
+                      <p className="text-xs text-amber-700 mt-0.5">
+                        Buying now will <strong>reset</strong> your subscription to {checkoutPlan?.intervalMonths && checkoutPlan.intervalMonths > 1 ? `${checkoutPlan.intervalMonths} months` : "1 month"} from today — not extend your current plan (active until {new Date(user.subscriptionEndsAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}).
+                      </p>
+                    </div>
+                    <button onClick={() => setRenewalWarningDismissed(true)} className="text-amber-500 hover:text-amber-700 flex-shrink-0 ml-1">
+                      <XIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
 
                 {/* Add-on packs */}
                 {packs.length > 0 && (

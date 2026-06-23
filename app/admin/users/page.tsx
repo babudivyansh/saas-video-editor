@@ -46,6 +46,12 @@ export default function AdminUsersPage() {
   const [editCredits, setEditCredits]     = useState("");
   const [editSubEnd, setEditSubEnd]       = useState("");
   const [editMonthly, setEditMonthly]     = useState("");
+  const [editName, setEditName]           = useState("");
+  const [editEmail, setEditEmail]         = useState("");
+
+  // Delete confirm
+  const [deletingId, setDeletingId]       = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -95,6 +101,29 @@ export default function AdminUsersPage() {
     setEditCredits(String(u.credits));
     setEditMonthly(String(u.monthlyCredits));
     setEditSubEnd(u.subscriptionEndsAt ? u.subscriptionEndsAt.split("T")[0] : "");
+    setEditName(u.name ?? "");
+    setEditEmail(u.email);
+  }
+
+  async function deleteUser(id: string) {
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setUsers(prev => prev.filter(x => x.id !== id));
+        setTotal(prev => prev - 1);
+        if (expandedId === id) setExpandedId(null);
+      } else {
+        const d = await res.json() as { error?: string };
+        alert(d.error ?? "Failed to delete user.");
+      }
+    } finally {
+      setDeletingId(null);
+      setDeleteConfirmId(null);
+    }
   }
 
   async function saveExpanded(u: AdminUser) {
@@ -106,6 +135,10 @@ export default function AdminUsersPage() {
     if (editSubEnd !== (u.subscriptionEndsAt ? u.subscriptionEndsAt.split("T")[0] : "")) {
       body.subscriptionEndsAt = editSubEnd || null;
     }
+    const trimName = editName.trim();
+    if (trimName !== (u.name ?? "")) body.name = trimName;
+    const trimEmail = editEmail.trim().toLowerCase();
+    if (trimEmail && trimEmail !== u.email) body.email = trimEmail;
     if (Object.keys(body).length > 0) await patch(u.id, body);
     setExpandedId(null);
   }
@@ -185,17 +218,48 @@ export default function AdminUsersPage() {
                           <td className="py-3 px-3 text-gray-600">{u._count.projects}</td>
                           <td className="py-3 px-3 text-gray-400 text-xs whitespace-nowrap">{fmt(u.createdAt)}</td>
                           <td className="py-3 px-3">
-                            <button
-                              onClick={() => openExpand(u)}
-                              className="text-xs font-semibold text-blue-600 hover:text-blue-800 border border-blue-200 rounded-lg px-2.5 py-1.5 hover:bg-blue-50 transition-colors">
-                              {expandedId === u.id ? "Close" : "Edit"}
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => openExpand(u)}
+                                className="text-xs font-semibold text-blue-600 hover:text-blue-800 border border-blue-200 rounded-lg px-2.5 py-1.5 hover:bg-blue-50 transition-colors">
+                                {expandedId === u.id ? "Close" : "Edit"}
+                              </button>
+                              {deleteConfirmId === u.id ? (
+                                <>
+                                  <button
+                                    onClick={() => deleteUser(u.id)}
+                                    disabled={deletingId === u.id}
+                                    className="text-xs font-semibold text-white bg-red-600 hover:bg-red-700 disabled:bg-red-400 rounded-lg px-2.5 py-1.5 transition-colors">
+                                    {deletingId === u.id ? "…" : "Confirm"}
+                                  </button>
+                                  <button
+                                    onClick={() => setDeleteConfirmId(null)}
+                                    className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-2 py-1.5 hover:bg-gray-50 transition-colors">
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={() => setDeleteConfirmId(u.id)}
+                                  className="text-xs font-semibold text-red-600 hover:text-red-800 border border-red-200 rounded-lg px-2.5 py-1.5 hover:bg-red-50 transition-colors">
+                                  Delete
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                         {expandedId === u.id && (
                           <tr key={`${u.id}-expand`} className="bg-blue-50/60 border-b border-blue-100">
                             <td colSpan={10} className="px-5 py-4">
                               <div className="flex flex-wrap items-end gap-4">
+                                <div>
+                                  <label className="text-[10px] font-semibold text-gray-400 block mb-1">Display Name</label>
+                                  <input type="text" className={inputCls} value={editName} onChange={e => setEditName(e.target.value)} placeholder="e.g. John Doe" />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-semibold text-gray-400 block mb-1">Email</label>
+                                  <input type="email" className={inputCls} value={editEmail} onChange={e => setEditEmail(e.target.value)} />
+                                </div>
                                 <div>
                                   <label className="text-[10px] font-semibold text-gray-400 block mb-1">Set Credits</label>
                                   <input type="number" className={inputCls} value={editCredits} onChange={e => setEditCredits(e.target.value)} min={0} />
