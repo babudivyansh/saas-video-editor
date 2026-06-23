@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import fs from "fs";
 
@@ -65,4 +65,8 @@ export function sanitizeS3Key(rawKey: string): string {
 export function s3KeyToPublicUrl(key: string): string {
   const safeKey = sanitizeS3Key(key);
   return `https://${BUCKET}.s3.${process.env.AWS_REGION ?? "us-east-1"}.amazonaws.com/${safeKey}`;
+}
+
+export async function deleteS3Object(key: string): Promise<void> {
+  await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
 }

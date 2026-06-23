@@ -35,6 +35,7 @@ model User {
   referredBy         String?    // affiliateId that referred this user
   createdAt    DateTime   @default(now())
   projects             Project[]
+  assets               Asset[]
   purchases            Purchase[]
   quests               UserQuest[]
   questRewardClaimed   Boolean    @default(false)
@@ -157,6 +158,23 @@ model UserQuest {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, questId])
+}
+
+model Asset {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  s3Key     String
+  url       String
+  mimeType  String
+  kind      String   // "video" | "audio" | "image"
+  size      Int
+  duration  Float?
+  width     Int?
+  height    Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Immutable log of every admin action for accountability.

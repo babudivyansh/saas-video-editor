@@ -2,12 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { uploadBufferToS3 } from "@/utils/s3-upload";
 import { randomUUID } from "crypto";
+import { prisma } from "@/lib/prisma";
 
 export const maxDuration = 300;
+
+function getKind(mimeType: string): "video" | "audio" | "image" {
+  if (mimeType.startsWith("video/")) return "video";
+  if (mimeType.startsWith("audio/")) return "audio";
+  return "image";
+}
 
 export async function POST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const skipAsset = new URL(req.url).searchParams.get("skipAsset") === "true";
 
   let formData: FormData;
   try {
@@ -29,5 +38,30 @@ export async function POST(req: NextRequest) {
   const buffer = Buffer.from(await file.arrayBuffer());
   const url = await uploadBufferToS3(buffer, key, file.type || "video/mp4");
 
-  return NextResponse.json({ url, key });
+  if (skipAsset) {
+    return NextResponse.json({ url, key });
+  }
+
+  // Parse optional metadata sent by client before upload
+  const duration = formData.get("duration") ? parseFloat(formData.get("duration") as string) : null;
+  const width = formData.get("width") ? parseInt(formData.get("width") as string) : null;
+  const height = formData.get("height") ? parseInt(formData.get("height") as string) : null;
+  const mimeType = file.type || "application/octet-stream";
+
+  const asset = await prisma.asset.create({
+    data: {
+      userId: auth.userId,
+      name: file.name,
+      s3Key: key,
+      url,
+      mimeType,
+      kind: getKind(mimeType),
+      size: file.size,
+      duration: duration ?? undefined,
+      width: width ?? undefined,
+      height: height ?? undefined,
+    },
+  });
+
+  return NextResponse.json({ url, key, asset });
 }
