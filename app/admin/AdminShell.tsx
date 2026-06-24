@@ -12,6 +12,7 @@ function IcCalendar(){ return <svg viewBox="0 0 24 24" fill="none" stroke="curre
 function IcTool()    { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>; }
 function IcLog()     { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>; }
 function IcGift()    { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>; }
+function IcTicket()  { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M3 9a2 2 0 012-2h14a2 2 0 012 2v1.5a1.5 1.5 0 000 3V15a2 2 0 01-2 2H5a2 2 0 01-2-2v-1.5a1.5 1.5 0 000-3z"/><path d="M13 7v10" strokeDasharray="2 2"/></svg>; }
 function IcSpinner() { return <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />; }
 
 const NAV = [
@@ -19,6 +20,7 @@ const NAV = [
   { href: "/admin/users",         label: "Users",        icon: <IcUsers />,    exact: false },
   { href: "/admin/subscriptions", label: "Subscriptions",icon: <IcCalendar />, exact: false },
   { href: "/admin/pricing",       label: "Pricing",      icon: <IcTag />,      exact: false },
+  { href: "/admin/coupons",       label: "Coupons",      icon: <IcTicket />,   exact: false },
   { href: "/admin/tools",         label: "Tools",        icon: <IcTool />,     exact: false },
   { href: "/admin/purchases",     label: "Purchases",    icon: <IcReceipt />,  exact: false },
   { href: "/admin/audit",         label: "Audit Log",    icon: <IcLog />,      exact: false },

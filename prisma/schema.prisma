@@ -120,6 +120,42 @@ model Purchase {
   createdAt     DateTime @default(now())
 }
 
+// Admin-created discount codes applied at checkout. The discount lowers the
+// Razorpay order amount only — credits granted are always based on the plan.
+model Coupon {
+  id                String   @id @default(uuid())
+  code              String   @unique            // stored UPPERCASE
+  description       String?
+  discountType      String   @default("percent") // "percent" | "fixed"
+  discountValue     Int                          // percent 1–100, or paise for fixed
+  appliesTo         String   @default("all")      // "all" | "subscription" | "pack"
+  planSlugs         String[] @default([])          // optional: restrict to specific plan slugs
+  minAmountInPaise  Int      @default(0)
+  maxRedemptions    Int?                          // null = unlimited
+  perUserLimit      Int      @default(1)
+  timesRedeemed     Int      @default(0)
+  firstPurchaseOnly Boolean  @default(false)
+  featured          Boolean  @default(false)      // surfaced on the billing launch banner
+  active            Boolean  @default(true)
+  expiresAt         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  redemptions       CouponRedemption[]
+}
+
+model CouponRedemption {
+  id              String   @id @default(uuid())
+  couponId        String
+  coupon          Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  userId          String
+  orderId         String?
+  discountInPaise Int
+  createdAt       DateTime @default(now())
+
+  @@index([couponId])
+  @@index([userId])
+}
+
 model Project {
   id             String   @id @default(uuid())
   userId         String

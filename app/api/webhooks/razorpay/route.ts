@@ -1,174 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { prisma } from "@/lib/prisma";
-import { redis } from "@/lib/redis";
+import { fulfillPayment, type FulfillNotes } from "@/lib/fulfillment";
 
+// Backup fulfillment path. The primary path is the client-side verify endpoint
+// (app/api/billing/verify); this webhook catches payments where the browser
+// closed before verifying. Both share the same idempotent fulfillPayment(), so
+// whichever runs first grants and the other no-ops.
 export async function POST(req: NextRequest) {
   const body = await req.text();
   const sig = req.headers.get("x-razorpay-signature");
 
   if (!sig) return NextResponse.json({ error: "No signature" }, { status: 400 });
 
-  // Verify HMAC-SHA256 signature
+  // Verify HMAC-SHA256 signature of the raw body.
   const expected = crypto
     .createHmac("sha256", process.env.RAZORPAY_WEBHOOK_SECRET!)
     .update(body)
     .digest("hex");
-
   const sigBuf = Buffer.from(sig);
   const expectedBuf = Buffer.from(expected);
-  // timingSafeEqual throws if the buffers differ in length, so reject a
-  // wrong-length signature up front (still a 400, never a 500).
   if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
   const event = JSON.parse(body) as {
     event: string;
-    payload: {
-      payment: {
-        entity: {
-          id: string;
-          order_id: string;
-          amount: number;
-          // planId is the current field; packId is kept for backward compat with older orders
-          notes: { userId?: string; planId?: string; packId?: string; addonIds?: string; kind?: string; credits?: string };
-        };
-      };
-    };
+    payload: { payment: { entity: { id: string; order_id: string; amount: number; notes: FulfillNotes } } };
   };
 
-  // Idempotency check using payment ID as the unique event key
-  const paymentId = event.payload?.payment?.entity?.id;
-  if (!paymentId) return NextResponse.json({ received: true });
-
-  const existing = await prisma.razorpayEvent.findUnique({ where: { id: paymentId } });
-  if (existing) return NextResponse.json({ received: true });
-
-  if (event.event === "payment.captured") {
-    const entity = event.payload.payment.entity;
-    const { notes } = entity;
-    const userId = notes?.userId;
-    // Accept both current (planId) and legacy (packId) note field names
-    const planSlug = notes?.planId ?? notes?.packId;
-
-    if (userId && planSlug) {
-      // Resolve everything from the DB plan (single source of truth); fall back
-      // to the order notes only if the plan was since removed.
-      const plan = await prisma.plan.findUnique({ where: { slug: planSlug } });
-      const amountInPaise = entity.amount ?? 0;
-      const kind = plan?.kind ?? notes?.kind ?? "pack";
-
-      if (kind === "subscription" && plan) {
-        // Start (or replace) the subscription term. Grant the first month's
-        // credits now; a scheduled job tops up monthlyCredits on each nextRefillAt
-        // until subscriptionEndsAt.
-        const months = plan.intervalMonths ?? 1;
-        const monthlyCredits = plan.monthlyCredits ?? plan.credits;
-        const now = new Date();
-        const endsAt = new Date(now); endsAt.setMonth(endsAt.getMonth() + months);
-        const nextRefill = new Date(now); nextRefill.setMonth(nextRefill.getMonth() + 1);
-
-        // Parse any addon pack slugs bundled with this subscription purchase
-        let addonSlugs: string[] = [];
-        try {
-          addonSlugs = notes?.addonIds ? JSON.parse(notes.addonIds) : [];
-        } catch { /* ignore malformed JSON */ }
-
-        const addons = addonSlugs.length
-          ? await prisma.plan.findMany({ where: { slug: { in: addonSlugs }, kind: "pack" } })
-          : [];
-        const addonCredits = addons.reduce((s, a) => s + a.credits, 0);
-
-        const user = await prisma.user.update({
-          where: { id: userId },
-          data: {
-            credits: { increment: monthlyCredits + addonCredits },
-            planId: plan.id,
-            subscriptionId: entity.order_id,
-            subscriptionEndsAt: endsAt,
-            // Only schedule a refill if the term is longer than one month.
-            nextRefillAt: months > 1 ? nextRefill : null,
-            monthlyCredits,
-            veo3Enabled: plan.veo3Included,
-          },
-          select: { credits: true },
-        });
-        await redis.set(`credits:${userId}`, String(user.credits), "EX", 3600);
-
-        await prisma.purchase.create({
-          data: { id: paymentId, userId, planId: plan.id, amountInPaise, credits: monthlyCredits + addonCredits, status: "captured" },
-        });
-      } else if (kind === "addon") {
-        // Veo3 unlock — no credits, just flip the flag for this subscription term.
-        await prisma.user.update({ where: { id: userId }, data: { veo3Enabled: true } });
-        await prisma.purchase.create({
-          data: { id: paymentId, userId, planId: plan?.id ?? null, amountInPaise, credits: 0, status: "captured" },
-        });
-      } else {
-        // One-time top-up pack: just add credits.
-        const credits = plan?.credits ?? parseInt(notes?.credits ?? "0", 10);
-        if (credits > 0) {
-          const user = await prisma.user.update({
-            where: { id: userId },
-            data: { credits: { increment: credits } },
-            select: { credits: true },
-          });
-          await redis.set(`credits:${userId}`, String(user.credits), "EX", 3600);
-          await prisma.purchase.create({
-            data: { id: paymentId, userId, planId: plan?.id ?? null, amountInPaise, credits, status: "captured" },
-          });
-        }
-      }
-    }
-  }
-
-  // Affiliate commission — run after credit logic, non-fatal
   if (event.event === "payment.captured") {
     const entity = event.payload?.payment?.entity;
-    const userId = entity?.notes?.userId;
-    if (userId) {
-      try {
-        const referral = await prisma.referral.findUnique({
-          where: { referredUserId: userId },
-          include: { affiliate: true },
-        });
-        // Only award commission on first payment (status must still be "signed_up")
-        if (referral && referral.status === "signed_up" && referral.affiliate.status === "active") {
-          const baseAmount = (entity.amount ?? 0) / 100; // paise → rupees
-          const rate = referral.affiliate.commissionRate;
-          const commission = parseFloat((baseAmount * rate).toFixed(2));
-
-          await prisma.$transaction([
-            prisma.commission.create({
-              data: {
-                affiliateId: referral.affiliateId,
-                referralId: referral.id,
-                razorpayOrderId: entity.order_id ?? null,
-                baseAmount,
-                commissionRate: rate,
-                amount: commission,
-                status: "pending",
-                availableAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-              },
-            }),
-            prisma.referral.update({
-              where: { id: referral.id },
-              data: { status: "converted", convertedAt: new Date() },
-            }),
-            prisma.affiliate.update({
-              where: { id: referral.affiliateId },
-              data: { totalEarned: { increment: commission } },
-            }),
-          ]);
-        }
-      } catch (err) {
-        console.error("[razorpay-webhook] affiliate commission error", err);
-      }
+    if (entity?.id) {
+      await fulfillPayment({
+        paymentId: entity.id,
+        orderId: entity.order_id ?? null,
+        amountInPaise: entity.amount ?? 0,
+        notes: entity.notes,
+        eventName: event.event,
+      });
     }
   }
-
-  await prisma.razorpayEvent.create({ data: { id: paymentId, event: event.event } });
 
   return NextResponse.json({ received: true });
 }

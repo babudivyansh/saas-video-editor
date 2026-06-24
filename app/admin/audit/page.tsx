@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Fragment } from "react";
 import AdminShell from "../AdminShell";
 import { useAuth } from "@/app/components/AuthContext";
 
@@ -90,8 +90,8 @@ export default function AdminAuditPage() {
                 </thead>
                 <tbody>
                   {logs.map(l => (
-                    <>
-                      <tr key={l.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50 cursor-pointer"
+                    <Fragment key={l.id}>
+                      <tr className="border-b border-gray-50 last:border-0 hover:bg-gray-50 cursor-pointer"
                         onClick={() => setExpanded(expanded === l.id ? null : l.id)}>
                         <td className="py-3 px-5 text-xs text-gray-600">{l.adminEmail}</td>
                         <td className="py-3 px-3">
@@ -106,7 +106,7 @@ export default function AdminAuditPage() {
                         <td className="py-3 px-3 text-xs text-blue-600">{expanded === l.id ? "▲ Hide" : "▼ Show"}</td>
                       </tr>
                       {expanded === l.id && (
-                        <tr key={`${l.id}-detail`} className="bg-gray-50 border-b border-gray-100">
+                        <tr className="bg-gray-50 border-b border-gray-100">
                           <td colSpan={5} className="px-5 py-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div>
@@ -125,7 +125,7 @@ export default function AdminAuditPage() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

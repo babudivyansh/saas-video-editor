@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Razorpay from "razorpay";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { validateCoupon } from "@/lib/coupons";
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID!,
@@ -55,8 +56,31 @@ export async function POST(req: NextRequest) {
   const packName =
     basePlan.name + (addons.length ? " + " + addons.map(a => a.name).join(", ") : "");
 
+  // Optional coupon: validate and discount the order amount. Credits granted are
+  // unchanged (the discount affects price only, not value delivered).
+  const couponCode: string = typeof body.couponCode === "string" ? body.couponCode.trim() : "";
+  let amountToCharge = totalPaise;
+  let appliedCouponId: string | null = null;
+  let appliedDiscount = 0;
+
+  if (couponCode) {
+    const result = await validateCoupon({
+      code: couponCode,
+      userId: auth.userId,
+      cartKind: basePlan.kind as "subscription" | "pack" | "addon",
+      planSlug: basePlan.slug,
+      amountInPaise: totalPaise,
+    });
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+    amountToCharge = result.finalPaise;
+    appliedCouponId = result.couponId;
+    appliedDiscount = result.discountInPaise;
+  }
+
   const order = await razorpay.orders.create({
-    amount: totalPaise,
+    amount: amountToCharge,
     currency: basePlan.currency,
     receipt: `order_${auth.userId.slice(0, 8)}_${Date.now()}`,
     notes: {
@@ -65,6 +89,9 @@ export async function POST(req: NextRequest) {
       addonIds: JSON.stringify(addonSlugs),
       kind: basePlan.kind,
       credits: String(totalCredits),
+      ...(appliedCouponId
+        ? { couponId: appliedCouponId, couponCode: couponCode.toUpperCase(), discountInPaise: String(appliedDiscount) }
+        : {}),
     },
   });
 
@@ -75,5 +102,6 @@ export async function POST(req: NextRequest) {
     keyId: process.env.RAZORPAY_KEY_ID,
     packName,
     credits: totalCredits,
+    discountInPaise: appliedDiscount,
   });
 }

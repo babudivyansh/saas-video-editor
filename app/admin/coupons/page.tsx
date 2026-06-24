@@ -1,0 +1,290 @@
+"use client";
+import { useEffect, useState, useCallback } from "react";
+import AdminShell from "../AdminShell";
+import { useAuth } from "@/app/components/AuthContext";
+
+interface Coupon {
+  id: string;
+  code: string;
+  description: string | null;
+  discountType: string;
+  discountValue: number;
+  appliesTo: string;
+  planSlugs: string[];
+  minAmountInPaise: number;
+  maxRedemptions: number | null;
+  perUserLimit: number;
+  timesRedeemed: number;
+  firstPurchaseOnly: boolean;
+  featured: boolean;
+  active: boolean;
+  expiresAt: string | null;
+  _count?: { redemptions: number };
+}
+
+const EMPTY = {
+  code: "", description: "", discountType: "percent", discountValue: 10,
+  appliesTo: "subscription", minAmountInPaise: 0, maxRedemptions: "",
+  perUserLimit: 1, firstPurchaseOnly: false, featured: false, expiresAt: "",
+};
+const input = "w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+
+function fmtDate(iso: string | null) {
+  return iso ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—";
+}
+
+export default function AdminCouponsPage() {
+  const { token, user } = useAuth();
+  const [coupons, setCoupons]   = useState<Coupon[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm]         = useState({ ...EMPTY });
+  const [err, setErr]           = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!token || user?.role !== "ADMIN") return;
+    const res = await fetch("/api/admin/coupons", { headers: { Authorization: `Bearer ${token}` } });
+    const data = res.ok ? await res.json() : { coupons: [] };
+    setCoupons(data.coupons ?? []);
+    setLoading(false);
+  }, [token, user?.role]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function saveCoupon(c: Coupon) {
+    setSavingId(c.id);
+    try {
+      await fetch(`/api/admin/coupons/${c.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          description: c.description, discountType: c.discountType, discountValue: c.discountValue,
+          appliesTo: c.appliesTo, minAmountInPaise: c.minAmountInPaise,
+          maxRedemptions: c.maxRedemptions, perUserLimit: c.perUserLimit,
+          firstPurchaseOnly: c.firstPurchaseOnly, featured: c.featured, active: c.active,
+          expiresAt: c.expiresAt,
+        }),
+      });
+      await load();
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  async function deleteCoupon(id: string) {
+    await fetch(`/api/admin/coupons/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    setConfirmDelete(null);
+    await load();
+  }
+
+  function edit(id: string, patch: Partial<Coupon>) {
+    setCoupons(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
+  }
+
+  async function createCoupon(e: React.FormEvent) {
+    e.preventDefault();
+    setErr("");
+    setCreating(true);
+    try {
+      const res = await fetch("/api/admin/coupons", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          code: form.code,
+          description: form.description,
+          discountType: form.discountType,
+          discountValue: Number(form.discountValue),
+          appliesTo: form.appliesTo,
+          minAmountInPaise: Number(form.minAmountInPaise) || 0,
+          maxRedemptions: form.maxRedemptions !== "" ? Number(form.maxRedemptions) : null,
+          perUserLimit: Number(form.perUserLimit) || 1,
+          firstPurchaseOnly: form.firstPurchaseOnly,
+          featured: form.featured,
+          expiresAt: form.expiresAt || null,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json() as { error?: string };
+        setErr(d.error ?? "Failed to create coupon");
+        return;
+      }
+      setForm({ ...EMPTY });
+      await load();
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  const valueLabel = (c: { discountType: string; discountValue: number }) =>
+    c.discountType === "percent" ? `${c.discountValue}% off` : `₹${Math.round(c.discountValue / 100).toLocaleString("en-IN")} off`;
+
+  return (
+    <AdminShell title="Coupons">
+      {loading ? (
+        <p className="text-sm text-gray-400">Loading coupons…</p>
+      ) : (
+        <div className="space-y-5">
+          {coupons.length === 0 && (
+            <p className="text-sm text-gray-400">No coupons yet — create your first launch code below.</p>
+          )}
+
+          {coupons.map(c => (
+            <div key={c.id} className={`bg-white rounded-2xl border shadow-sm p-6 ${c.active ? "border-gray-100" : "border-gray-200 opacity-60"}`}>
+              <div className="flex items-start justify-between mb-4 gap-3 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-mono font-bold text-gray-900 tracking-wide">{c.code}</h3>
+                  <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">{valueLabel(c)}</span>
+                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{c.appliesTo}</span>
+                  {c.featured && <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">Featured</span>}
+                  {c.firstPurchaseOnly && <span className="text-xs text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">1st purchase</span>}
+                  {!c.active && <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">Inactive</span>}
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-gray-500">
+                    Used <strong>{c.timesRedeemed}</strong>{c.maxRedemptions != null ? ` / ${c.maxRedemptions}` : ""}
+                  </span>
+                  <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer">
+                    <input type="checkbox" checked={c.active} onChange={e => edit(c.id, { active: e.target.checked })} /> Active
+                  </label>
+                  {confirmDelete === c.id ? (
+                    <div className="flex gap-2">
+                      <button onClick={() => deleteCoupon(c.id)} className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg">Confirm</button>
+                      <button onClick={() => setConfirmDelete(null)} className="text-xs text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-lg border border-gray-200">Cancel</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmDelete(c.id)} className="text-xs font-semibold text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">Deactivate</button>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 block mb-1">Type</label>
+                  <select className={input} value={c.discountType} onChange={e => edit(c.id, { discountType: e.target.value })}>
+                    <option value="percent">percent (%)</option>
+                    <option value="fixed">fixed (₹ in paise)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 block mb-1">Value {c.discountType === "percent" ? "(%)" : "(paise)"}</label>
+                  <input type="number" className={input} value={c.discountValue} onChange={e => edit(c.id, { discountValue: Number(e.target.value) })} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 block mb-1">Applies to</label>
+                  <select className={input} value={c.appliesTo} onChange={e => edit(c.id, { appliesTo: e.target.value })}>
+                    <option value="all">all</option>
+                    <option value="subscription">subscription</option>
+                    <option value="pack">pack (top-ups)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 block mb-1">Min order (paise)</label>
+                  <input type="number" className={input} value={c.minAmountInPaise} onChange={e => edit(c.id, { minAmountInPaise: Number(e.target.value) })} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 block mb-1">Max redemptions</label>
+                  <input type="number" className={input} placeholder="∞" value={c.maxRedemptions ?? ""} onChange={e => edit(c.id, { maxRedemptions: e.target.value ? Number(e.target.value) : null })} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 block mb-1">Per-user limit</label>
+                  <input type="number" className={input} value={c.perUserLimit} onChange={e => edit(c.id, { perUserLimit: Number(e.target.value) })} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 block mb-1">Expires</label>
+                  <input type="date" className={input} value={c.expiresAt ? c.expiresAt.split("T")[0] : ""} onChange={e => edit(c.id, { expiresAt: e.target.value || null })} />
+                  <p className="text-[10px] text-gray-400 mt-1">{c.expiresAt ? fmtDate(c.expiresAt) : "never"}</p>
+                </div>
+                <div className="flex items-end gap-4 pb-1">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer">
+                    <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={c.firstPurchaseOnly} onChange={e => edit(c.id, { firstPurchaseOnly: e.target.checked })} /> 1st only
+                  </label>
+                  <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer">
+                    <input type="checkbox" className="w-4 h-4 accent-amber-500" checked={c.featured} onChange={e => edit(c.id, { featured: e.target.checked })} /> Featured
+                  </label>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <label className="text-xs font-semibold text-gray-400 block mb-1">Description</label>
+                <input className={input} value={c.description ?? ""} onChange={e => edit(c.id, { description: e.target.value })} />
+              </div>
+              <div className="flex justify-end mt-4">
+                <button onClick={() => saveCoupon(c)} disabled={savingId === c.id}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold px-5 py-2 rounded-xl transition-colors">
+                  {savingId === c.id ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* Create new coupon */}
+          <form onSubmit={createCoupon} className="bg-white rounded-2xl border border-dashed border-gray-300 p-6">
+            <h3 className="font-bold text-gray-900 mb-4">Create a coupon</h3>
+            {err && <div className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2 mb-4">{err}</div>}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-400 block mb-1">Code</label>
+                <input className={`${input} font-mono uppercase`} placeholder="LAUNCH30" value={form.code} onChange={e => setForm({ ...form, code: e.target.value.toUpperCase() })} required />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-400 block mb-1">Type</label>
+                <select className={input} value={form.discountType} onChange={e => setForm({ ...form, discountType: e.target.value })}>
+                  <option value="percent">percent (%)</option>
+                  <option value="fixed">fixed (₹ in paise)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-400 block mb-1">Value {form.discountType === "percent" ? "(%)" : "(paise)"}</label>
+                <input type="number" className={input} value={form.discountValue} onChange={e => setForm({ ...form, discountValue: Number(e.target.value) })} required />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-400 block mb-1">Applies to</label>
+                <select className={input} value={form.appliesTo} onChange={e => setForm({ ...form, appliesTo: e.target.value })}>
+                  <option value="all">all</option>
+                  <option value="subscription">subscription</option>
+                  <option value="pack">pack (top-ups)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-400 block mb-1">Min order (paise)</label>
+                <input type="number" className={input} value={form.minAmountInPaise} onChange={e => setForm({ ...form, minAmountInPaise: Number(e.target.value) })} />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-400 block mb-1">Max redemptions</label>
+                <input type="number" className={input} placeholder="∞" value={form.maxRedemptions} onChange={e => setForm({ ...form, maxRedemptions: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-400 block mb-1">Per-user limit</label>
+                <input type="number" className={input} value={form.perUserLimit} onChange={e => setForm({ ...form, perUserLimit: Number(e.target.value) })} />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-400 block mb-1">Expires</label>
+                <input type="date" className={input} value={form.expiresAt} onChange={e => setForm({ ...form, expiresAt: e.target.value })} />
+              </div>
+              <div className="flex items-end gap-4 pb-1">
+                <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer">
+                  <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={form.firstPurchaseOnly} onChange={e => setForm({ ...form, firstPurchaseOnly: e.target.checked })} /> 1st only
+                </label>
+                <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer">
+                  <input type="checkbox" className="w-4 h-4 accent-amber-500" checked={form.featured} onChange={e => setForm({ ...form, featured: e.target.checked })} /> Featured
+                </label>
+              </div>
+            </div>
+            <div className="mt-4">
+              <label className="text-xs font-semibold text-gray-400 block mb-1">Description</label>
+              <input className={input} placeholder="Launch special — 30% off your first plan" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+            </div>
+            <div className="flex justify-end mt-4">
+              <button type="submit" disabled={creating}
+                className="bg-gray-900 hover:bg-gray-800 disabled:bg-gray-500 text-white text-sm font-semibold px-5 py-2 rounded-xl transition-colors">
+                {creating ? "Creating…" : "Create Coupon"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </AdminShell>
+  );
+}

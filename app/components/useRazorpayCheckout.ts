@@ -5,6 +5,11 @@ import { useAuth } from "@/app/components/AuthContext";
 import { loadRazorpayScript } from "@/lib/razorpay";
 
 // Razorpay attaches its constructor to window once the checkout script loads.
+interface RazorpaySuccess {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+}
 declare global {
   interface Window {
     Razorpay: new (options: Record<string, unknown>) => { open(): void };
@@ -16,6 +21,8 @@ export interface StartCheckoutArgs {
   planId: string;
   /** Optional pack slugs to bundle into the same payment. */
   addonIds?: string[];
+  /** Optional coupon code applied to the order total at checkout. */
+  couponCode?: string;
   /** Fired from the Razorpay success handler (e.g. refreshUser + toast, or a redirect). */
   onSuccess?: () => void;
   /** Surface a checkout error. Defaults to window.alert. */
@@ -52,7 +59,7 @@ export function useRazorpayCheckout(): UseRazorpayCheckout {
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const startCheckout = useCallback(
-    async ({ planId, addonIds = [], onSuccess, onError }: StartCheckoutArgs) => {
+    async ({ planId, addonIds = [], couponCode, onSuccess, onError }: StartCheckoutArgs) => {
       const fail = (message: string) => (onError ? onError(message) : alert(message));
       if (!user || !token) {
         fail("Please sign in to continue.");
@@ -74,7 +81,7 @@ export function useRazorpayCheckout(): UseRazorpayCheckout {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ planId, addonIds }),
+          body: JSON.stringify({ planId, addonIds, couponCode }),
         });
 
         if (!res.ok) {
@@ -94,9 +101,26 @@ export function useRazorpayCheckout(): UseRazorpayCheckout {
           order_id: data.orderId,
           prefill: { email: user.email },
           theme: { color: "#2563eb" },
-          handler: () => {
-            setActiveId(null);
-            onSuccess?.();
+          handler: async (response: RazorpaySuccess) => {
+            // Confirm the payment server-side so the plan/credits are granted
+            // immediately — independent of the (unreliable) webhook.
+            try {
+              await fetch("/api/billing/verify", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_signature: response.razorpay_signature,
+                }),
+              });
+            } catch {
+              // Payment succeeded but verification call failed — the webhook is
+              // the backup. onSuccess still fires; credits/plan arrive shortly.
+            } finally {
+              setActiveId(null);
+              onSuccess?.();
+            }
           },
           modal: {
             ondismiss: () => setActiveId(null),

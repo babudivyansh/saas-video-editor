@@ -22,6 +22,15 @@ interface MeUser {
   plan: { name: string; slug: string } | null;
 }
 
+interface LaunchCoupon {
+  code: string;
+  description: string | null;
+  discountType: string;
+  discountValue: number;
+  appliesTo: string;
+  expiresAt: string | null;
+}
+
 function token() {
   return typeof window !== "undefined" ? localStorage.getItem("token") ?? "" : "";
 }
@@ -69,6 +78,16 @@ function BillingContent() {
   const [packs, setPacks] = useState<DbPlan[]>([]);
   const [addons, setAddons] = useState<DbPlan[]>([]);
 
+  // Launch offer banner
+  const [launch, setLaunch] = useState<LaunchCoupon | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // Top-up coupon (applies to the next pack / add-on purchase)
+  const [couponInput, setCouponInput] = useState("");
+  const [couponApplying, setCouponApplying] = useState(false);
+  const [couponError, setCouponError] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; label: string } | null>(null);
+
   useEffect(() => {
     const t = token();
     if (!t) { router.push("/login"); return; }
@@ -76,11 +95,14 @@ function BillingContent() {
     Promise.all([
       fetch("/api/auth/me", { headers: { Authorization: `Bearer ${t}` } }).then(r => r.json()),
       fetch("/api/plans").then(r => r.ok ? r.json() : { plans: [] }),
-    ]).then(([meData, plansData]) => {
+      fetch("/api/coupons/active").then(r => r.ok ? r.json() : { coupons: [] }),
+    ]).then(([meData, plansData, couponData]) => {
       if (meData.user) setUser(meData.user);
       const all: DbPlan[] = plansData.plans ?? [];
       setPacks(all.filter(p => p.kind === "pack"));
       setAddons(all.filter(p => p.kind === "addon"));
+      const featured: LaunchCoupon[] = couponData.coupons ?? [];
+      if (featured.length > 0) setLaunch(featured[0]);
     }).catch(() => setError("Failed to load billing data."))
       .finally(() => setLoading(false));
   }, [router]);
@@ -99,8 +121,44 @@ function BillingContent() {
     setError("");
     startCheckout({
       planId: slug,
+      couponCode: appliedCoupon?.code,
       onSuccess: () => router.push("/billing?success=1"),
       onError: setError,
+    });
+  }
+
+  // Validate the top-up coupon against the cheapest pack as a proxy (per-user /
+  // first-purchase rules are user-level; min-amount only relaxes on pricier packs).
+  async function applyTopupCoupon() {
+    const cheapest = [...packs].sort((a, b) => a.priceInPaise - b.priceInPaise)[0];
+    if (!couponInput.trim() || !cheapest) return;
+    setCouponApplying(true);
+    setCouponError("");
+    try {
+      const res = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ planId: cheapest.slug, code: couponInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setAppliedCoupon(null);
+        setCouponError(data.error ?? "Could not apply coupon.");
+        return;
+      }
+      setAppliedCoupon({ code: data.code, label: data.label });
+    } catch {
+      setCouponError("Could not apply coupon. Try again.");
+    } finally {
+      setCouponApplying(false);
+    }
+  }
+
+  function copyLaunchCode() {
+    if (!launch) return;
+    navigator.clipboard?.writeText(launch.code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
     });
   }
 
@@ -132,6 +190,33 @@ function BillingContent() {
           <h1 className="text-2xl font-extrabold text-gray-900">Billing</h1>
           <p className="text-sm text-gray-500 mt-1">Manage your credits and feature add-ons.</p>
         </div>
+
+        {/* ── Launch offer banner ── */}
+        {launch && (
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#335CFF] to-violet-600 px-6 py-5 text-white shadow-lg">
+            <div className="absolute -right-6 -top-8 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+            <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-widest text-white/80">🚀 Launch Special</p>
+                <p className="mt-1 font-bold leading-snug">
+                  {launch.description ?? `${launch.discountValue}% off your plan`}
+                </p>
+                {launch.expiresAt && (
+                  <p className="text-xs text-white/70 mt-0.5">
+                    Ends {new Date(launch.expiresAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={copyLaunchCode}
+                className="flex-shrink-0 inline-flex items-center gap-2 rounded-xl bg-white/15 hover:bg-white/25 border border-white/30 px-4 py-2.5 font-mono font-bold tracking-wider transition-colors"
+              >
+                {launch.code}
+                <span className="text-xs font-sans font-semibold text-white/80">{copied ? "Copied!" : "Copy"}</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Success / error banners */}
         {success && (
@@ -210,10 +295,46 @@ function BillingContent() {
         {/* ── Top-up Credits ── */}
         {hasActivePlan && (
           <section>
-            <div className="mb-5">
-              <h2 className="text-lg font-bold text-gray-900">Top-up Credits</h2>
-              <p className="text-sm text-gray-500 mt-0.5">One-time purchase · credits never expire · added to your account instantly.</p>
+            <div className="mb-5 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Top-up Credits</h2>
+                <p className="text-sm text-gray-500 mt-0.5">One-time purchase · credits never expire · added to your account instantly.</p>
+              </div>
+
+              {/* Top-up coupon */}
+              <div className="flex-shrink-0">
+                {appliedCoupon ? (
+                  <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                    <span className="text-xs font-bold text-green-700">🎟 {appliedCoupon.code} · {appliedCoupon.label}</span>
+                    <button onClick={() => { setAppliedCoupon(null); setCouponInput(""); }} className="text-xs text-green-700 hover:text-green-900 underline">Remove</button>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex gap-2">
+                      <input
+                        value={couponInput}
+                        onChange={e => { setCouponInput(e.target.value.toUpperCase()); setCouponError(""); }}
+                        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); applyTopupCoupon(); } }}
+                        placeholder="Coupon code"
+                        className="w-36 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                      <button
+                        onClick={applyTopupCoupon}
+                        disabled={couponApplying || !couponInput.trim()}
+                        className="px-3 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-40 transition-colors"
+                      >
+                        {couponApplying ? "…" : "Apply"}
+                      </button>
+                    </div>
+                    {couponError && <p className="text-xs text-red-600 mt-1.5 text-right">{couponError}</p>}
+                  </div>
+                )}
+              </div>
             </div>
+
+            {appliedCoupon && (
+              <p className="text-xs text-green-600 -mt-2 mb-4">Discount applies at checkout to the pack you buy.</p>
+            )}
 
             {packs.length === 0 ? (
               <p className="text-sm text-gray-400 py-6 text-center">Loading credit packs…</p>
