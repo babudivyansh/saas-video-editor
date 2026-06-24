@@ -15,8 +15,37 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Clipiro — AI Faceless Video Generator",
-  description: "Turn any idea into a viral short-form video with AI script, voice, and animated captions.",
+  metadataBase: new URL("https://clipiro.com"),
+  title: {
+    default: "Clipiro — Create Viral Shorts From Long Videos in Seconds",
+    template: "%s · Clipiro",
+  },
+  description:
+    "Clipiro turns podcasts, interviews, webinars, and YouTube videos into viral short-form clips with AI-powered clipping, captions, and one-click social formatting for TikTok, Reels, and Shorts.",
+  keywords: [
+    "AI video clipping",
+    "viral shorts generator",
+    "auto captions",
+    "YouTube to Shorts",
+    "podcast clips",
+    "TikTok video maker",
+    "AI faceless video",
+    "Clipiro",
+  ],
+  openGraph: {
+    type: "website",
+    siteName: "Clipiro",
+    title: "Clipiro — Create Viral Shorts From Long Videos in Seconds",
+    description:
+      "Transform long videos into engaging short-form content with AI clipping, captions, and social media optimization.",
+    url: "https://clipiro.com",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Clipiro — Create Viral Shorts From Long Videos in Seconds",
+    description:
+      "Transform long videos into engaging short-form content with AI clipping, captions, and social media optimization.",
+  },
 };
 
 export default function RootLayout({

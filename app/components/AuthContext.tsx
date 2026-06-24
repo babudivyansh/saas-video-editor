@@ -55,6 +55,8 @@ const PUBLIC_ROUTES = [
   "/register",
   "/pricing",
   "/billing",   // billing page handles its own auth redirect to /login
+  "/about",
+  "/blog",
   "/terms",
   "/privacy",
   "/refund",
