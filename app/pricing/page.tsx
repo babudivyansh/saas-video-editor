@@ -58,12 +58,18 @@ interface DbPlan {
   veo3Included: boolean;
 }
 
+interface ToolCost {
+  slug: string;
+  label: string;
+  service: string;
+  creditCost: number;
+}
+
 const TERMS = [
   { months: 1,  label: "Monthly" },
-  { months: 3,  label: "3 Months" },
-  { months: 6,  label: "6 Months" },
-  { months: 12, label: "12 Months" },
+  { months: 12, label: "Yearly" },
 ];
+const YEARLY_SAVE_PCT = 30; // yearly plans are 30% cheaper than 12× monthly
 
 const TIER_ORDER = ["creator", "pro", "studio"] as const;
 function tierOf(slug: string): string | null {
@@ -157,18 +163,25 @@ function CompareRow({ feature, starter, creator, studio, shaded }: {
 
 // ── Page ───────────────────────────────────────────────────────────────────
 export default function PricingPage() {
-  const { user, openAuthModal, isLoading: authLoading } = useAuth();
+  const { user, token, openAuthModal, isLoading: authLoading } = useAuth();
   const { startCheckout, activeId } = useRazorpayCheckout();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [plans, setPlans] = useState<DbPlan[]>([]);
   const [plansLoading, setPlansLoading] = useState(true);
   const [term, setTerm] = useState(1);
+  const [toolCosts, setToolCosts] = useState<ToolCost[]>([]);
 
   // Checkout state
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const [checkoutPlan, setCheckoutPlan] = useState<DbPlan | null>(null);
   const [successBanner, setSuccessBanner] = useState(false);
   const [renewalWarningDismissed, setRenewalWarningDismissed] = useState(false);
+
+  // Coupon state (scoped to the checkout modal)
+  const [couponInput, setCouponInput] = useState("");
+  const [couponApplying, setCouponApplying] = useState(false);
+  const [couponError, setCouponError] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; label: string; discountInPaise: number } | null>(null);
 
   // Derived loading flags from the shared checkout hook.
   const checkoutLoading = checkoutPlan != null && activeId === checkoutPlan.slug;
@@ -180,6 +193,14 @@ export default function PricingPage() {
       .then((data: { plans: DbPlan[] }) => setPlans(data.plans ?? []))
       .catch(() => setPlans([]))
       .finally(() => setPlansLoading(false));
+  }, []);
+
+  // Live per-feature credit costs for the "what each feature costs" table.
+  useEffect(() => {
+    fetch("/api/tool-costs")
+      .then(res => (res.ok ? res.json() : { tools: [] }))
+      .then((data: { tools: ToolCost[] }) => setToolCosts(data.tools ?? []))
+      .catch(() => setToolCosts([]));
   }, []);
 
   // Detect ?success=1 after Razorpay redirect
@@ -203,11 +224,44 @@ export default function PricingPage() {
     setSelectedAddons(prev =>
       prev.includes(slug) ? prev.filter(s => s !== slug) : [...prev, slug]
     );
+    // Cart total changed → invalidate any applied coupon so it re-validates.
+    setAppliedCoupon(null);
+    setCouponError("");
   };
 
   const openCheckout = (plan: DbPlan) => {
     setCheckoutPlan(plan);
     setRenewalWarningDismissed(false);
+    setCouponInput("");
+    setCouponError("");
+    setAppliedCoupon(null);
+  };
+
+  // Re-validate / clear the coupon whenever the cart (plan or add-ons) changes.
+  const clearCoupon = () => { setAppliedCoupon(null); setCouponError(""); };
+
+  const applyCoupon = async () => {
+    if (!checkoutPlan || !couponInput.trim()) return;
+    setCouponApplying(true);
+    setCouponError("");
+    try {
+      const res = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ planId: checkoutPlan.slug, addonIds: selectedAddons, code: couponInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setAppliedCoupon(null);
+        setCouponError(data.error ?? "Could not apply coupon.");
+        return;
+      }
+      setAppliedCoupon({ code: data.code, label: data.label, discountInPaise: data.discountInPaise });
+    } catch {
+      setCouponError("Could not apply coupon. Try again.");
+    } finally {
+      setCouponApplying(false);
+    }
   };
 
   const handlePay = () => {
@@ -215,6 +269,7 @@ export default function PricingPage() {
     startCheckout({
       planId: checkoutPlan.slug,
       addonIds: selectedAddons,
+      couponCode: appliedCoupon?.code,
       onSuccess: () => { window.location.href = "/pricing?success=1"; },
     });
   };
@@ -232,6 +287,11 @@ export default function PricingPage() {
       const pack = packs.find(p => p.slug === slug);
       return s + (pack ? Math.round(pack.priceInPaise / 100) : 0);
     }, 0);
+
+  // Total after any applied coupon discount (₹).
+  const discountedTotal = appliedCoupon
+    ? Math.max(1, totalDue - Math.round(appliedCoupon.discountInPaise / 100))
+    : totalDue;
 
   return (
     <div className="min-h-screen bg-white">
@@ -254,7 +314,7 @@ export default function PricingPage() {
           Simple, transparent pricing
         </h1>
         <p className="text-lg text-gray-500 max-w-xl mx-auto mb-2">
-          Free tools are open to everyone. Subscribe to a plan to unlock the AI tools — longer terms save more and bundle Veo3 AI video.
+          Free tools are open to everyone. Subscribe to unlock every AI tool — go <span className="font-semibold text-gray-700">yearly to save 30%</span> and get Veo3 AI video free.
         </p>
       </section>
 
@@ -267,11 +327,18 @@ export default function PricingPage() {
               <button
                 key={t.months}
                 onClick={() => setTerm(t.months)}
-                className={`px-4 sm:px-5 py-2 rounded-full text-sm font-semibold transition-all ${
+                className={`relative px-5 sm:px-7 py-2 rounded-full text-sm font-semibold transition-all ${
                   term === t.months ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:text-gray-900"
                 }`}
               >
                 {t.label}
+                {t.months === 12 && (
+                  <span className={`ml-2 text-[10px] font-black px-1.5 py-0.5 rounded-full ${
+                    term === 12 ? "bg-green-400 text-green-900" : "bg-green-100 text-green-700"
+                  }`}>
+                    SAVE {YEARLY_SAVE_PCT}%
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -304,6 +371,13 @@ export default function PricingPage() {
                 const months   = plan.intervalMonths ?? 1;
                 const perMonth = Math.round(price / months);
                 const baseTier = plan.name.replace(/\s*\(.*\)$/, "");
+                // For yearly, find the matching monthly plan to show savings.
+                const monthlyPlan = months > 1
+                  ? subs.find(p => tierOf(p.slug) === tierOf(plan.slug) && p.intervalMonths === 1)
+                  : null;
+                const monthlyEquiv = monthlyPlan ? Math.round(monthlyPlan.priceInPaise / 100) : null;
+                const fullYear = monthlyEquiv ? monthlyEquiv * 12 : null;
+                const saved = fullYear ? fullYear - price : null;
                 return (
                   <div
                     key={plan.id}
@@ -325,14 +399,24 @@ export default function PricingPage() {
                       <p className={`text-sm font-bold uppercase tracking-widest mb-1 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
                         {baseTier}
                       </p>
-                      <div className="flex items-end gap-1 mb-1">
+                      <div className="flex items-end gap-1.5 mb-1">
                         <span className="text-4xl font-black">₹{perMonth.toLocaleString("en-IN")}</span>
                         <span className={`text-sm mb-1.5 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>/mo</span>
+                        {months > 1 && monthlyEquiv && (
+                          <span className={`text-sm mb-1.5 line-through ${highlighted ? "text-blue-300/70" : "text-gray-300"}`}>
+                            ₹{monthlyEquiv.toLocaleString("en-IN")}
+                          </span>
+                        )}
                       </div>
                       <p className={`text-sm mt-2 ${highlighted ? "text-blue-100" : "text-gray-500"}`}>
                         {plan.monthlyCredits} credits / month
-                        {months > 1 && <> · ₹{price.toLocaleString("en-IN")} billed for {months} months</>}
+                        {months > 1 && <> · ₹{price.toLocaleString("en-IN")} billed yearly</>}
                       </p>
+                      {months > 1 && saved && saved > 0 && (
+                        <p className={`text-xs font-bold mt-1 ${highlighted ? "text-green-300" : "text-green-600"}`}>
+                          Save ₹{saved.toLocaleString("en-IN")} a year ({YEARLY_SAVE_PCT}% off)
+                        </p>
+                      )}
                       {plan.monthlyCredits != null && (
                         <p className={`text-xs mt-1 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
                           ≈ {plan.monthlyCredits} images, {Math.floor(plan.monthlyCredits / 2)} video renders, or {Math.floor(plan.monthlyCredits / 20)} Veo3 videos
@@ -620,12 +704,57 @@ export default function PricingPage() {
                     <p className="text-xs text-gray-400 italic">No add-ons selected yet.</p>
                   )}
 
+                  {/* Coupon */}
+                  <div className="border-t border-gray-100 pt-4">
+                    {appliedCoupon ? (
+                      <div className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-green-700 truncate">🎟 {appliedCoupon.code} applied</p>
+                          <p className="text-[11px] text-green-600">{appliedCoupon.label}</p>
+                        </div>
+                        <button onClick={clearCoupon} className="text-xs text-green-700 hover:text-green-900 underline flex-shrink-0">Remove</button>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="flex gap-2">
+                          <input
+                            value={couponInput}
+                            onChange={e => { setCouponInput(e.target.value.toUpperCase()); setCouponError(""); }}
+                            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); applyCoupon(); } }}
+                            placeholder="Coupon code"
+                            className="flex-1 min-w-0 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold tracking-wide uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          <button
+                            onClick={applyCoupon}
+                            disabled={couponApplying || !couponInput.trim()}
+                            className="px-3 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-40 transition-colors"
+                          >
+                            {couponApplying ? "…" : "Apply"}
+                          </button>
+                        </div>
+                        {couponError && <p className="text-xs text-red-600 mt-1.5">{couponError}</p>}
+                      </div>
+                    )}
+                  </div>
+
                   {/* Total */}
                   <div className="border-t border-gray-100 pt-4 mt-2">
-                    <div className="flex items-center justify-between">
+                    {appliedCoupon && appliedCoupon.discountInPaise > 0 && (
+                      <>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500">Subtotal</span>
+                          <span className="text-gray-500">₹{totalDue.toLocaleString("en-IN")}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm mt-1">
+                          <span className="text-green-600 font-medium">Discount ({appliedCoupon.code})</span>
+                          <span className="text-green-600 font-medium">−₹{Math.round(appliedCoupon.discountInPaise / 100).toLocaleString("en-IN")}</span>
+                        </div>
+                      </>
+                    )}
+                    <div className="flex items-center justify-between mt-2">
                       <p className="font-bold text-gray-900">Total Due</p>
                       <p className="text-xl font-black text-gray-900">
-                        ₹{totalDue.toLocaleString("en-IN")}
+                        ₹{discountedTotal.toLocaleString("en-IN")}
                       </p>
                     </div>
                     <p className="text-xs text-gray-400 mt-1">Secure payment via Razorpay</p>
@@ -654,6 +783,40 @@ export default function PricingPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── What each feature costs (live credit costs) ── */}
+      {toolCosts.length > 0 && (
+        <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16 border-t border-gray-100">
+          <div className="text-center mb-10">
+            <span className="inline-block bg-blue-100 text-blue-700 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
+              Credit costs
+            </span>
+            <h2 className="text-3xl font-extrabold text-gray-900">What each feature costs</h2>
+            <p className="text-sm text-gray-500 mt-2 max-w-lg mx-auto">
+              Every plan shares one credit balance. Spend it on whatever you need — here&apos;s what each tool costs per use.
+            </p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {toolCosts.map(t => (
+              <div key={t.slug} className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate">{t.label}</p>
+                  {t.service && <p className="text-[11px] text-gray-400 truncate">{t.service}</p>}
+                </div>
+                <span className={`flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${
+                  t.creditCost === 0 ? "bg-green-100 text-green-700" : t.creditCost >= 20 ? "bg-purple-100 text-purple-700" : "bg-blue-50 text-blue-700"
+                }`}>
+                  {t.creditCost === 0 ? "Free" : `${t.creditCost} ${t.creditCost === 1 ? "credit" : "credits"}`}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-xs text-gray-400 mt-6">
+            Free tools never use credits. Credits refill monthly on subscriptions and never expire on top-ups.
+          </p>
+        </section>
       )}
 
       {/* ── Feature Comparison Table ── */}

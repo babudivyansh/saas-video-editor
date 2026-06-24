@@ -237,6 +237,12 @@ export default function ProfilePage() {
   const [packs, setPacks]           = useState<Pack[]>([]);
   const [packsLoaded, setPacksLoaded] = useState(false);
 
+  // Top-up coupon (applies to the next pack purchase)
+  const [couponInput, setCouponInput]       = useState("");
+  const [couponApplying, setCouponApplying] = useState(false);
+  const [couponError, setCouponError]       = useState("");
+  const [appliedCoupon, setAppliedCoupon]   = useState<{ code: string; label: string } | null>(null);
+
   // Toast
   const [toast, setToast] = useState<string | null>(null);
   const showToast = useCallback((msg: string) => {
@@ -384,12 +390,42 @@ export default function ProfilePage() {
   function handleBuyCredits(pack: Pack) {
     startCheckout({
       planId: pack.slug,
+      couponCode: appliedCoupon?.code,
       onSuccess: () => {
-        showToast("Payment received — credits will appear shortly.");
+        // Payment is already verified + credits granted server-side by the time
+        // this fires (see useRazorpayCheckout handler). Refresh to reflect it.
+        showToast("✓ Payment confirmed — your credits have been added.");
         refreshUser();
-        setTimeout(() => refreshUser(), 3000);
+        setTimeout(() => refreshUser(), 2500);
       },
     });
+  }
+
+  // Validate the top-up coupon against the cheapest pack as a proxy (per-user /
+  // first-purchase rules are user-level; min-amount only relaxes on pricier packs).
+  async function applyTopupCoupon() {
+    const cheapest = [...packs].sort((a, b) => a.priceInPaise - b.priceInPaise)[0];
+    if (!couponInput.trim() || !cheapest) return;
+    setCouponApplying(true);
+    setCouponError("");
+    try {
+      const res = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ planId: cheapest.slug, code: couponInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setAppliedCoupon(null);
+        setCouponError(data.error ?? "Could not apply coupon.");
+        return;
+      }
+      setAppliedCoupon({ code: data.code, label: data.label });
+    } catch {
+      setCouponError("Could not apply coupon. Try again.");
+    } finally {
+      setCouponApplying(false);
+    }
   }
 
   // Filtered projects
@@ -668,11 +704,51 @@ export default function ProfilePage() {
 
               {/* Buy Credits */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                <div className="flex items-center gap-2 mb-1">
-                  <IcZap />
-                  <h2 className="text-base font-bold text-gray-900">Top Up Credits</h2>
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-1">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <IcZap />
+                      <h2 className="text-base font-bold text-gray-900">Top Up Credits</h2>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">One-time purchase · credits never expire · added instantly after payment.</p>
+                  </div>
+
+                  {/* Coupon (active subscribers only) */}
+                  {hasActivePlan && packsLoaded && packs.length > 0 && (
+                    <div className="flex-shrink-0">
+                      {appliedCoupon ? (
+                        <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                          <span className="text-xs font-bold text-green-700">🎟 {appliedCoupon.code} · {appliedCoupon.label}</span>
+                          <button onClick={() => { setAppliedCoupon(null); setCouponInput(""); }} className="text-xs text-green-700 hover:text-green-900 underline">Remove</button>
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="flex gap-2">
+                            <input
+                              value={couponInput}
+                              onChange={e => { setCouponInput(e.target.value.toUpperCase()); setCouponError(""); }}
+                              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); applyTopupCoupon(); } }}
+                              placeholder="Coupon code"
+                              className="w-36 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                            <button
+                              onClick={applyTopupCoupon}
+                              disabled={couponApplying || !couponInput.trim()}
+                              className="px-3 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-40 transition-colors"
+                            >
+                              {couponApplying ? "…" : "Apply"}
+                            </button>
+                          </div>
+                          {couponError && <p className="text-xs text-red-600 mt-1.5 text-right">{couponError}</p>}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <p className="text-sm text-gray-500 mb-5">One-time purchase · credits never expire · added instantly after payment.</p>
+
+                {appliedCoupon && (
+                  <p className="text-xs text-green-600 mb-4">Discount applies at checkout to the pack you buy.</p>
+                )}
 
                 {!hasActivePlan ? (
                   <div className="bg-blue-50 border border-blue-100 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">

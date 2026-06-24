@@ -26,24 +26,30 @@ interface SeedPlan {
 }
 
 // ── Subscriptions ───────────────────────────────────────────────────────────
-// Veo3 bundles free from: Studio 3mo+, Creator & Pro 6mo+.
+// Two terms only: Monthly + Yearly. Yearly = monthly × 12 × 0.70 (30% off) and
+// bundles Veo3 free. Monthly plans need the ₹599 addon_veo3 to unlock Veo3.
+const YEARLY_DISCOUNT = 0.30;
+const yearly = (monthlyPaise: number) => Math.round((monthlyPaise * 12 * (1 - YEARLY_DISCOUNT)) / 100) * 100;
+
 const SUBSCRIPTIONS: SeedPlan[] = [
-  // Creator — 45 cr/mo. 1/3/6mo no discount, 12mo 13% off.
-  { slug: "sub_creator_1mo",  name: "Creator (Monthly)",   priceInPaise:  59900, intervalMonths: 1,  monthlyCredits: 45, veo3Included: false, sortOrder: 10, features: ["45 credits / month", "All AI tools", "1080p exports"] },
-  { slug: "sub_creator_3mo",  name: "Creator (3 Months)",  priceInPaise: 179700, intervalMonths: 3,  monthlyCredits: 45, veo3Included: false, sortOrder: 11, features: ["45 credits / month", "All AI tools", "1080p exports"] },
-  { slug: "sub_creator_6mo",  name: "Creator (6 Months)",  priceInPaise: 359400, intervalMonths: 6,  monthlyCredits: 45, veo3Included: true,  sortOrder: 12, features: ["45 credits / month", "All AI tools", "Veo3 AI video included"] },
-  { slug: "sub_creator_12mo", name: "Creator (12 Months)", priceInPaise: 625400, intervalMonths: 12, monthlyCredits: 45, veo3Included: true,  sortOrder: 13, features: ["45 credits / month", "13% off", "Veo3 AI video included"] },
-  // Pro — 130 cr/mo. 3/6/12mo at 10/15/20% off.
-  { slug: "sub_pro_1mo",  name: "Pro (Monthly)",   priceInPaise: 149900,  intervalMonths: 1,  monthlyCredits: 130, veo3Included: false, sortOrder: 20, features: ["130 credits / month", "All AI tools", "Priority rendering"] },
-  { slug: "sub_pro_3mo",  name: "Pro (3 Months)",  priceInPaise: 404700,  intervalMonths: 3,  monthlyCredits: 130, veo3Included: false, sortOrder: 21, features: ["130 credits / month", "10% off", "Priority rendering"] },
-  { slug: "sub_pro_6mo",  name: "Pro (6 Months)",  priceInPaise: 764500,  intervalMonths: 6,  monthlyCredits: 130, veo3Included: true,  sortOrder: 22, features: ["130 credits / month", "15% off", "Veo3 AI video included"] },
-  { slug: "sub_pro_12mo", name: "Pro (12 Months)", priceInPaise: 1439000, intervalMonths: 12, monthlyCredits: 130, veo3Included: true,  sortOrder: 23, features: ["130 credits / month", "20% off", "Veo3 AI video included"] },
-  // Studio — 320 cr/mo. 3/6/12mo at 10/15/20% off; Veo3 from 3mo.
-  { slug: "sub_studio_1mo",  name: "Studio (Monthly)",   priceInPaise:  349900, intervalMonths: 1,  monthlyCredits: 320, veo3Included: false, sortOrder: 30, features: ["320 credits / month", "Priority rendering", "Dedicated support"] },
-  { slug: "sub_studio_3mo",  name: "Studio (3 Months)",  priceInPaise:  944700, intervalMonths: 3,  monthlyCredits: 320, veo3Included: true,  sortOrder: 31, features: ["320 credits / month", "10% off", "Veo3 AI video included"] },
-  { slug: "sub_studio_6mo",  name: "Studio (6 Months)",  priceInPaise: 1784500, intervalMonths: 6,  monthlyCredits: 320, veo3Included: true,  sortOrder: 32, features: ["320 credits / month", "15% off", "Veo3 AI video included"] },
-  { slug: "sub_studio_12mo", name: "Studio (12 Months)", priceInPaise: 3359000, intervalMonths: 12, monthlyCredits: 320, veo3Included: true,  sortOrder: 33, features: ["320 credits / month", "20% off", "Veo3 AI video included"] },
+  // Creator — 45 cr/mo (₹599/mo).
+  { slug: "sub_creator_1mo",  name: "Creator (Monthly)", priceInPaise: 59900,            intervalMonths: 1,  monthlyCredits: 45,  veo3Included: false, sortOrder: 10, features: ["45 credits / month", "All AI tools", "1080p exports"] },
+  { slug: "sub_creator_12mo", name: "Creator (Yearly)",  priceInPaise: yearly(59900),    intervalMonths: 12, monthlyCredits: 45,  veo3Included: true,  sortOrder: 13, features: ["45 credits / month", "Save 30% vs monthly", "Veo3 AI video included"] },
+  // Pro — 130 cr/mo (₹1,499/mo).
+  { slug: "sub_pro_1mo",  name: "Pro (Monthly)", priceInPaise: 149900,           intervalMonths: 1,  monthlyCredits: 130, veo3Included: false, sortOrder: 20, features: ["130 credits / month", "All AI tools", "Priority rendering"] },
+  { slug: "sub_pro_12mo", name: "Pro (Yearly)",  priceInPaise: yearly(149900),   intervalMonths: 12, monthlyCredits: 130, veo3Included: true,  sortOrder: 23, features: ["130 credits / month", "Save 30% vs monthly", "Veo3 AI video included"] },
+  // Studio — 320 cr/mo (₹3,499/mo).
+  { slug: "sub_studio_1mo",  name: "Studio (Monthly)", priceInPaise: 349900,          intervalMonths: 1,  monthlyCredits: 320, veo3Included: false, sortOrder: 30, features: ["320 credits / month", "Priority rendering", "Dedicated support"] },
+  { slug: "sub_studio_12mo", name: "Studio (Yearly)",  priceInPaise: yearly(349900),  intervalMonths: 12, monthlyCredits: 320, veo3Included: true,  sortOrder: 33, features: ["320 credits / month", "Save 30% vs monthly", "Veo3 AI video included"] },
 ].map(p => ({ ...p, kind: "subscription" as const, credits: p.monthlyCredits * p.intervalMonths }));
+
+// Old 3-month / 6-month terms are retired. Deactivate them (keep rows for
+// purchase history) so they disappear from /pricing and admin shows them inactive.
+const RETIRED_SUB_SLUGS = [
+  "sub_creator_3mo", "sub_creator_6mo",
+  "sub_pro_3mo", "sub_pro_6mo",
+  "sub_studio_3mo", "sub_studio_6mo",
+];
 
 // ── Top-up packs (subscriber-only) ──────────────────────────────────────────
 const PACKS: SeedPlan[] = [
@@ -59,6 +65,29 @@ const ADDONS: SeedPlan[] = [
 ];
 
 const PLANS: SeedPlan[] = [...SUBSCRIPTIONS, ...PACKS, ...ADDONS];
+
+// ── Launch coupons ──────────────────────────────────────────────────────────
+interface SeedCoupon {
+  code: string;
+  description: string;
+  discountType: "percent" | "fixed";
+  discountValue: number;
+  appliesTo: "all" | "subscription" | "pack";
+  minAmountInPaise?: number;
+  maxRedemptions?: number | null;
+  perUserLimit?: number;
+  firstPurchaseOnly?: boolean;
+  featured?: boolean;
+  expiresAt?: Date | null;
+}
+
+const LAUNCH = new Date(); LAUNCH.setDate(LAUNCH.getDate() + 30); // 30-day launch window
+
+const COUPONS: SeedCoupon[] = [
+  { code: "LAUNCH30",   description: "Launch special — 30% off your first plan", discountType: "percent", discountValue: 30, appliesTo: "subscription", firstPurchaseOnly: true, perUserLimit: 1, featured: true, expiresAt: LAUNCH },
+  { code: "FOUNDERS50", description: "Founders deal — 40% off for the first 50 customers", discountType: "percent", discountValue: 40, appliesTo: "subscription", firstPurchaseOnly: true, perUserLimit: 1, maxRedemptions: 50, expiresAt: LAUNCH },
+  { code: "TOPUP15",    description: "15% off any credit top-up pack", discountType: "percent", discountValue: 15, appliesTo: "pack" },
+];
 
 async function main() {
   // ── Plans ────────────────────────────────────────────────────────────────
@@ -93,6 +122,48 @@ async function main() {
       },
     });
     console.log("Seeded plan:", plan.slug, "| ₹", plan.priceInPaise / 100, "|", plan.kind, "|", plan.credits, "credits");
+  }
+
+  // ── Retire old 3mo / 6mo terms ───────────────────────────────────────────
+  const retired = await prisma.plan.updateMany({
+    where: { slug: { in: RETIRED_SUB_SLUGS } },
+    data: { active: false },
+  });
+  console.log("Deactivated retired terms:", retired.count);
+
+  // ── Launch coupons ───────────────────────────────────────────────────────
+  for (const c of COUPONS) {
+    const coupon = await prisma.coupon.upsert({
+      where: { code: c.code },
+      update: {
+        description: c.description,
+        discountType: c.discountType,
+        discountValue: c.discountValue,
+        appliesTo: c.appliesTo,
+        minAmountInPaise: c.minAmountInPaise ?? 0,
+        maxRedemptions: c.maxRedemptions ?? null,
+        perUserLimit: c.perUserLimit ?? 1,
+        firstPurchaseOnly: c.firstPurchaseOnly ?? false,
+        featured: c.featured ?? false,
+        active: true,
+        expiresAt: c.expiresAt ?? null,
+      },
+      create: {
+        code: c.code,
+        description: c.description,
+        discountType: c.discountType,
+        discountValue: c.discountValue,
+        appliesTo: c.appliesTo,
+        minAmountInPaise: c.minAmountInPaise ?? 0,
+        maxRedemptions: c.maxRedemptions ?? null,
+        perUserLimit: c.perUserLimit ?? 1,
+        firstPurchaseOnly: c.firstPurchaseOnly ?? false,
+        featured: c.featured ?? false,
+        active: true,
+        expiresAt: c.expiresAt ?? null,
+      },
+    });
+    console.log("Seeded coupon:", coupon.code, "|", coupon.discountValue + (coupon.discountType === "percent" ? "%" : "p"), "|", coupon.appliesTo);
   }
 
   // ── Test user ────────────────────────────────────────────────────────────
