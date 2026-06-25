@@ -7,6 +7,7 @@ export type TrackKind = "video" | "audio" | "text" | "effect";
 export type SaveStatus = "saved" | "saving" | "unsaved" | "error";
 export type SidebarTab =
   | "media"
+  | "transcript"
   | "templates"
   | "captions"
   | "effects"
@@ -59,6 +60,28 @@ export type EffectId =
 
 // ─── Clip data (discriminated by kind) ───────────────────────────────────────
 
+// ─── Keyframe animation ──────────────────────────────────────────────────────
+// Animatable transform parameters. A clip carries optional keyframe tracks per
+// param; `t` is seconds from the clip's start. When a param has 0 keyframes the
+// clip's static value is used.
+export type AnimatableParam = "posX" | "posY" | "scaleX" | "scaleY" | "rotation" | "opacity";
+export interface Keyframe { t: number; v: number }
+export type KeyframeMap = Partial<Record<AnimatableParam, Keyframe[]>>;
+
+// Chroma key (green-screen removal) and a rectangular crop mask.
+export interface ChromaKey {
+  enabled: boolean;
+  color: string;      // hex of the key color (e.g. "#00ff00")
+  similarity: number; // 0–1
+  blend: number;      // 0–1 edge softness
+}
+export interface RectMask {
+  enabled: boolean;
+  x: number; y: number; w: number; h: number; // 0–1 fractions
+  feather: number;     // 0–1 edge softness
+  invert: boolean;
+}
+
 export interface VideoClipData {
   kind: "video";
   url: string;
@@ -77,6 +100,10 @@ export interface VideoClipData {
   saturation: number;
   // Applied effects
   effects: EffectId[];
+  // Pro features (all optional → existing docs load unchanged)
+  keyframes?: KeyframeMap;
+  chroma?: ChromaKey;
+  mask?: RectMask;
 }
 
 export interface AudioClipData {
@@ -86,6 +113,7 @@ export interface AudioClipData {
   fadeIn: number;    // seconds
   fadeOut: number;   // seconds
   muted: boolean;
+  duck?: boolean;    // auto-duck under voice (music tracks)
 }
 
 export interface TextClipData {
@@ -107,6 +135,7 @@ export interface TextClipData {
   strokeWidth: number;
   shadow: boolean;
   shadowColor: string;
+  keyframes?: KeyframeMap;
 }
 
 export interface TransitionClipData {

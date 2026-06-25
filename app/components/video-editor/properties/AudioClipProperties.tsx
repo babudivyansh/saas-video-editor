@@ -22,6 +22,13 @@ export default function AudioClipProperties({ clipId, data }: Props) {
         <span className="text-xs" style={{ color: "#71717a" }}>Mute</span>
         <Toggle value={data.muted} onChange={v => patch({ muted: v })} />
       </div>
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="text-xs block" style={{ color: "#71717a" }}>Auto-duck under voice</span>
+          <span className="text-[10px]" style={{ color: "#52525b" }}>Lowers this music when someone speaks</span>
+        </div>
+        <Toggle value={!!data.duck} onChange={v => patch({ duck: v })} />
+      </div>
     </div>
   );
 }

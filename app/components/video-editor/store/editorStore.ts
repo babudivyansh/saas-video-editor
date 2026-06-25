@@ -14,6 +14,7 @@ import {
   findClip,
   computeDuration,
 } from "@/lib/track-editor-types";
+import { removeTimeRanges } from "@/lib/transcript-edit";
 
 const MAX_HISTORY = 50;
 
@@ -82,6 +83,7 @@ interface EditorState {
   duplicateClip: (clipId: string) => void;
   updateClipData: (clipId: string, patch: Partial<ClipData>) => void;
   rippleDelete: (clipId: string) => void;
+  applyTimeCuts: (ranges: { start: number; end: number }[]) => void;
 
   // ── Actions: markers ─────────────────────────────────────────────────────
   addMarker: (time: number, label?: string) => void;
@@ -432,6 +434,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       saveStatus: "unsaved",
     });
     void gap; // used above for clarity
+  },
+
+  // Text-based editing / cleanup: remove timeline ranges across all tracks and
+  // ripple the rest left. One undoable step regardless of how many cuts.
+  applyTimeCuts: (ranges) => {
+    const { past, present } = get();
+    if (!ranges || ranges.length === 0) return;
+    const next = removeTimeRanges(present, ranges);
+    set({
+      past: pushHistory(past, present),
+      present: next,
+      future: [],
+      selectedClipId: null,
+      duration: computeDuration(next),
+      saveStatus: "unsaved",
+    });
   },
 
   // ── Markers ───────────────────────────────────────────────────────────────

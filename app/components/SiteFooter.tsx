@@ -2,8 +2,13 @@ import Link from "next/link";
 import {
   ZapIcon, LinkedInIcon, XIcon, YoutubeIcon, GitHubIcon, DiscordIcon,
 } from "@/app/components/landing/icons";
+import { FREE_FEATURES, VIDEO_TOOLS, AI_TOOLS, type FeatureLink } from "@/app/components/featureLinks";
+
+// Map the shared feature lists (title/desc/href) to footer link rows (label/href).
+const asLinks = (items: FeatureLink[]) => items.map((i) => ({ label: i.title, href: i.href }));
 
 // Every href resolves to a real route, an on-page anchor, or a mailto — no 404s.
+// The Video / AI / Free Tools columns mirror the navbar (single source of truth).
 const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   {
     title: "Product",
@@ -15,35 +20,19 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
     ],
   },
   {
-    title: "Resources",
-    links: [
-      { label: "Blog", href: "/blog" },
-      { label: "Tutorials", href: "/blog" },
-      { label: "Documentation", href: "/blog" },
-      { label: "Help Center", href: "mailto:support@clipiro.com" },
-    ],
-  },
-  {
     title: "Company",
     links: [
       { label: "About", href: "/about" },
+      { label: "Blog", href: "/blog" },
       { label: "Contact", href: "mailto:hello@clipiro.com" },
       { label: "Affiliate Program", href: "/affiliate-tos" },
       { label: "Privacy Policy", href: "/privacy" },
       { label: "Terms of Service", href: "/terms" },
     ],
   },
-  {
-    title: "Features",
-    links: [
-      { label: "AI Video Clipping", href: "/#features" },
-      { label: "Auto Captions", href: "/#features" },
-      { label: "Social Formatting", href: "/#features" },
-      { label: "AI Hook Generator", href: "/#features" },
-      { label: "Multi-Language", href: "/#features" },
-      { label: "One-Click Export", href: "/#features" },
-    ],
-  },
+  { title: "Video Tools", links: asLinks(VIDEO_TOOLS) },
+  { title: "AI Tools", links: asLinks(AI_TOOLS) },
+  { title: "Free Tools", links: asLinks(FREE_FEATURES) },
 ];
 
 const SOCIALS = [
@@ -58,7 +47,7 @@ export default function SiteFooter() {
   return (
     <footer className="border-t border-gray-100 bg-white font-sans">
       <div className="mx-auto w-full max-w-screen-2xl px-4 py-16 md:px-12 lg:px-[120px]">
-        <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-6">
           {/* Brand blurb */}
           <div className="col-span-2 sm:col-span-3 lg:col-span-1">
             <Link href="/" className="flex items-center gap-2 text-xl font-black tracking-tight text-gray-900">

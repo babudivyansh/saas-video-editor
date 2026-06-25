@@ -10,6 +10,8 @@ import ReelsOptimizer from "./ai/ReelsOptimizer";
 import AICopilotPanel from "./ai/AICopilotPanel";
 import AutoEditSuggestions from "./ai/AutoEditSuggestions";
 import SmartReframe from "./ai/SmartReframe";
+import CommandPalette from "./layout/CommandPalette";
+import ShortcutsModal from "./layout/ShortcutsModal";
 
 export default function VideoEditor() {
   useKeyboardShortcuts();
@@ -31,6 +33,8 @@ export default function VideoEditor() {
       {aiCopilotOpen && <AICopilotPanel />}
       {autoEditOpen && <AutoEditSuggestions />}
       {smartReframeOpen && <SmartReframe />}
+      <CommandPalette />
+      <ShortcutsModal />
     </>
   );
 }

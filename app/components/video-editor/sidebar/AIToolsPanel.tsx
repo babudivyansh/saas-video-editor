@@ -1,6 +1,7 @@
 "use client";
 
 import { useEditorStore } from "../store/editorStore";
+import DubbingPanel from "../ai/DubbingPanel";
 
 const AI_TOOLS = [
   {
@@ -87,6 +88,9 @@ export default function AIToolsPanel() {
           </div>
         </button>
       ))}
+
+      {/* AI Dubbing & translation */}
+      <DubbingPanel />
     </div>
   );
 }

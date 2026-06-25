@@ -4,33 +4,10 @@ import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import { ZapIcon, ChevronDownIcon } from "@/app/components/landing/icons";
-
-type NavItem = { title: string; desc: string; href: string; external?: boolean };
-
-// ── Real product features ────────────────────────────────────────────────────
-// Free features map to the live free tools / downloaders; premium features map
-// to the gated AI workflows & tools (the auth modal gates them on click).
-const FREE_FEATURES: NavItem[] = [
-  { title: "Audio Balancer", desc: "Balance the left & right audio channels", href: "/dashboard/tools/free/audio-balancer" },
-  { title: "Video Compressor", desc: "Shrink video file size without quality loss", href: "/dashboard/tools/free/video-compressor" },
-  { title: "MP3 Converter", desc: "Convert any media file to MP3", href: "/dashboard/tools/free/mp3-converter" },
-  { title: "YouTube Downloader", desc: "Download YouTube videos in a click", href: "/dashboard/tools/youtube-downloader" },
-  { title: "Instagram Downloader", desc: "Save Instagram reels & posts instantly", href: "/dashboard/tools/instagram-downloader" },
-];
-
-const PREMIUM_FEATURES: NavItem[] = [
-  { title: "AI Auto Clip", desc: "Turn long videos into viral shorts automatically", href: "/dashboard/create/auto-clip" },
-  { title: "Reddit Story Videos", desc: "AI-scripted Reddit-style story videos", href: "/dashboard/create/reddit-video" },
-  { title: "Viral Split Screen", desc: "Gameplay split-screen videos that retain viewers", href: "/dashboard/create/viral-split-screen" },
-  { title: "Fake Text Videos", desc: "Create fake text-conversation story videos", href: "/dashboard/create/text-video" },
-  { title: "AI Voiceover", desc: "50+ realistic narrators across 29+ languages", href: "/dashboard/tools/voiceover" },
-  { title: "Veo3 AI Video", desc: "Generate AI video clips with Google Veo3", href: "/dashboard/tools/video-generator" },
-];
-
-const RESOURCES: NavItem[] = [
-  { title: "Affiliate Program", desc: "Earn 20% recurring on every paid referral", href: "/dashboard/referral" },
-  { title: "Community Discord", desc: "Get support & connect with fellow creators", href: "https://discord.gg/clipiro", external: true },
-];
+import {
+  FREE_FEATURES, VIDEO_TOOLS, AI_TOOLS, RESOURCES,
+  type FeatureLink as NavItem,
+} from "@/app/components/featureLinks";
 
 // Renders a dropdown row (title + description), handling internal vs external links.
 function DropdownItem({ item, onNavigate }: { item: NavItem; onNavigate: () => void }) {
@@ -126,21 +103,29 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-8">
-            {/* Features mega-menu */}
-            <NavDropdown label="Features" width={640}>
-              <div className="grid grid-cols-2 gap-0 p-3">
+            {/* Features mega-menu — full product surface, grouped */}
+            <NavDropdown label="Features" width={920}>
+              <div className="grid grid-cols-3 gap-0 p-3">
                 <div className="p-2">
-                  <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-gray-400">Free Features</p>
+                  <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-[#335CFF]">Video Tools</p>
                   <div className="space-y-0.5">
-                    {FREE_FEATURES.map((item) => (
+                    {VIDEO_TOOLS.map((item) => (
                       <DropdownItem key={item.title} item={item} onNavigate={() => {}} />
                     ))}
                   </div>
                 </div>
-                <div className="rounded-2xl bg-gradient-to-b from-[#335CFF]/[0.04] to-transparent p-2">
-                  <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-[#335CFF]">Premium Features</p>
+                <div className="p-2 border-l border-gray-100">
+                  <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-[#335CFF]">AI Tools</p>
                   <div className="space-y-0.5">
-                    {PREMIUM_FEATURES.map((item) => (
+                    {AI_TOOLS.map((item) => (
+                      <DropdownItem key={item.title} item={item} onNavigate={() => {}} />
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-gradient-to-b from-[#335CFF]/[0.04] to-transparent p-2 border-l border-gray-100">
+                  <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-gray-400">Free Tools</p>
+                  <div className="space-y-0.5">
+                    {FREE_FEATURES.map((item) => (
                       <DropdownItem key={item.title} item={item} onNavigate={() => {}} />
                     ))}
                   </div>
@@ -212,19 +197,16 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
           </button>
           {mobileSection === "features" && (
             <div className="pl-3 pb-1">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mt-1 mb-1">Free</p>
-              {FREE_FEATURES.map((item) => (
-                <Link key={item.title} href={item.href} onClick={closeMobile} className="block py-1.5">
-                  <span className="block text-sm font-medium text-gray-700 hover:text-[#335CFF]">{item.title}</span>
-                  <span className="block text-xs text-gray-400">{item.desc}</span>
-                </Link>
-              ))}
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#335CFF] mt-2 mb-1">Premium</p>
-              {PREMIUM_FEATURES.map((item) => (
-                <Link key={item.title} href={item.href} onClick={closeMobile} className="block py-1.5">
-                  <span className="block text-sm font-medium text-gray-700 hover:text-[#335CFF]">{item.title}</span>
-                  <span className="block text-xs text-gray-400">{item.desc}</span>
-                </Link>
+              {([["Video Tools", VIDEO_TOOLS], ["AI Tools", AI_TOOLS], ["Free Tools", FREE_FEATURES]] as const).map(([group, items]) => (
+                <div key={group}>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#335CFF] mt-2 mb-1">{group}</p>
+                  {items.map((item) => (
+                    <Link key={item.title} href={item.href} onClick={closeMobile} className="block py-1.5">
+                      <span className="block text-sm font-medium text-gray-700 hover:text-[#335CFF]">{item.title}</span>
+                      <span className="block text-xs text-gray-400">{item.desc}</span>
+                    </Link>
+                  ))}
+                </div>
               ))}
             </div>
           )}

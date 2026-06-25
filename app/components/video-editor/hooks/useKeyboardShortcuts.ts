@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useEditorStore } from "../store/editorStore";
+import { useEditorUIStore } from "../store/uiStore";
 
 export function useKeyboardShortcuts() {
   const store = useEditorStore;
@@ -10,10 +11,31 @@ export function useKeyboardShortcuts() {
     const handler = (e: KeyboardEvent) => {
       const s = store.getState();
       const target = e.target as HTMLElement;
-      // Don't fire when typing in an input/textarea
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
 
       const ctrl = e.ctrlKey || e.metaKey;
+
+      // ⌘K command palette — available even while typing (global launcher).
+      if (ctrl && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        useEditorUIStore.getState().toggleCommandPalette();
+        return;
+      }
+      // ⌘E export
+      if (ctrl && (e.key === "e" || e.key === "E")) {
+        e.preventDefault();
+        s.setExportModalOpen(true);
+        return;
+      }
+
+      // Don't fire the rest when typing in an input/textarea
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+
+      // ? opens the shortcut legend
+      if (e.key === "?") {
+        e.preventDefault();
+        useEditorUIStore.getState().toggleShortcuts();
+        return;
+      }
 
       if (ctrl && e.key === "z" && !e.shiftKey) {
         e.preventDefault();
