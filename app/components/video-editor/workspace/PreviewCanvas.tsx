@@ -14,6 +14,7 @@ import {
   type TextClipData,
   type EffectId,
 } from "@/lib/track-editor-types";
+import { sampleAnimatable } from "@/lib/keyframes";
 
 function buildClipFilter(d: VideoClipData): string {
   const parts: string[] = [];
@@ -88,16 +89,28 @@ export default function PreviewCanvas() {
       const el = videoEls.current.get(clip.id);
       if (!el || el.readyState < 2) continue;
       const d = clip.data as VideoClipData;
+      // Sample keyframed transform params at this clip's local time.
+      const localT = t - clip.start;
+      const a = sampleAnimatable(d.keyframes, localT, {
+        posX: d.posX, posY: d.posY, scaleX: d.scaleX, scaleY: d.scaleY, rotation: d.rotation, opacity: d.opacity,
+      });
       ctx.save();
-      ctx.globalAlpha = d.opacity;
+      // Rectangular mask: clip the drawing region before transform.
+      if (d.mask?.enabled) {
+        const m = d.mask;
+        ctx.beginPath();
+        ctx.rect(m.x * W, m.y * H, m.w * W, m.h * H);
+        if (m.invert) { ctx.rect(0, 0, W, H); ctx.clip("evenodd"); } else ctx.clip();
+      }
+      ctx.globalAlpha = a.opacity;
       const cssFilter = buildClipFilter(d);
       if (cssFilter !== "none") ctx.filter = cssFilter;
-      // Center-based transform
-      const cx = d.posX * W;
-      const cy = d.posY * H;
+      // Center-based transform (keyframe-animated)
+      const cx = a.posX * W;
+      const cy = a.posY * H;
       ctx.translate(cx, cy);
-      ctx.rotate((d.rotation * Math.PI) / 180);
-      ctx.scale(d.scaleX, d.scaleY);
+      ctx.rotate((a.rotation * Math.PI) / 180);
+      ctx.scale(a.scaleX, a.scaleY);
       // Zoom effects — scale up draw area
       const zoomScale = d.effects.includes("viral-zoom") || d.effects.includes("punch-in") ? 1.18
                       : d.effects.includes("zoom") ? 1.08 : 1;
@@ -129,7 +142,12 @@ export default function PreviewCanvas() {
     const textClips = active.filter(c => c.data.kind === "text");
     for (const clip of textClips) {
       const d = clip.data as TextClipData;
+      const localT = t - clip.start;
+      const a = sampleAnimatable(d.keyframes, localT, {
+        posX: d.posX, posY: d.posY, scaleX: 1, scaleY: 1, rotation: 0, opacity: 1,
+      });
       ctx.save();
+      ctx.globalAlpha = a.opacity;
       const txt = d.uppercase ? d.text.toUpperCase() : d.text;
       const scale = W / 1080; // scale relative to 1080 baseline
       const fs = d.fontSize * scale;
@@ -138,8 +156,8 @@ export default function PreviewCanvas() {
       ctx.font = `${style} ${weight} ${fs}px ${d.fontFamily}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      const x = d.posX * W;
-      const y = d.posY * H;
+      const x = a.posX * W;
+      const y = a.posY * H;
       if (d.stroke) {
         ctx.lineWidth = d.strokeWidth * scale;
         ctx.strokeStyle = d.strokeColor;

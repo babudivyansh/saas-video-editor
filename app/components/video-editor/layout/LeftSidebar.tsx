@@ -2,6 +2,7 @@
 
 import { useEditorStore } from "../store/editorStore";
 import type { SidebarTab } from "@/lib/track-editor-types";
+import { T } from "../editorTheme";
 import MediaLibraryPanel from "../sidebar/MediaLibraryPanel";
 import TemplatesPanel from "../sidebar/TemplatesPanel";
 import CaptionsPanelVE from "../sidebar/CaptionsPanelVE";
@@ -10,6 +11,7 @@ import TransitionsPanelVE from "../sidebar/TransitionsPanelVE";
 import AudioLibraryPanel from "../sidebar/AudioLibraryPanel";
 import AIToolsPanel from "../sidebar/AIToolsPanel";
 import StickersPanel from "../sidebar/StickersPanel";
+import TranscriptPanel from "../ai/TranscriptPanel";
 
 const TABS: { id: SidebarTab; label: string; icon: React.ReactNode }[] = [
   {
@@ -19,6 +21,15 @@ const TABS: { id: SidebarTab; label: string; icon: React.ReactNode }[] = [
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} className="w-5 h-5">
         <rect x="2" y="2" width="20" height="20" rx="2" />
         <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none" />
+      </svg>
+    ),
+  },
+  {
+    id: "transcript",
+    label: "Transcript",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} className="w-5 h-5">
+        <path d="M4 6h16M4 10h16M4 14h10M4 18h7" strokeLinecap="round" />
       </svg>
     ),
   },
@@ -105,6 +116,7 @@ export default function LeftSidebar() {
 
   const panelMap: Record<SidebarTab, React.ReactNode> = {
     media: <MediaLibraryPanel />,
+    transcript: <TranscriptPanel />,
     captions: <CaptionsPanelVE />,
     effects: <EffectsPanelVE />,
     transitions: <TransitionsPanelVE />,
@@ -112,42 +124,42 @@ export default function LeftSidebar() {
     stickers: <StickersPanel />,
     templates: <TemplatesPanel />,
     ai: <AIToolsPanel />,
-    brand: <div className="p-4 text-sm" style={{ color: "#71717a" }}>Brand Assets coming soon</div>,
+    brand: <div className="p-4 text-sm" style={{ color: T.textFaint }}>Brand Assets coming soon</div>,
   };
 
   return (
-    <div className="flex flex-shrink-0" style={{ width: 280, borderRight: "1px solid #27272a" }}>
+    <div className="flex flex-shrink-0" style={{ width: 300, borderRight: `1px solid ${T.border}` }}>
       {/* Icon tab strip */}
       <div
         className="flex flex-col items-center py-2 gap-1 flex-shrink-0"
-        style={{ width: 52, background: "#18181b", borderRight: "1px solid #27272a" }}
+        style={{ width: 56, background: T.surface, borderRight: `1px solid ${T.border}` }}
       >
-        {TABS.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            title={tab.label}
-            className="w-9 h-9 flex items-center justify-center rounded-lg transition-all"
-            style={{
-              color: activeTab === tab.id ? "#60a5fa" : "#52525b",
-              background: activeTab === tab.id ? "#1e3a5f" : "transparent",
-            }}
-            onMouseEnter={e => {
-              if (activeTab !== tab.id) (e.currentTarget as HTMLElement).style.color = "#a1a1aa";
-            }}
-            onMouseLeave={e => {
-              if (activeTab !== tab.id) (e.currentTarget as HTMLElement).style.color = "#52525b";
-            }}
-          >
-            {tab.icon}
-          </button>
-        ))}
+        {TABS.map(tab => {
+          const active = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              title={tab.label}
+              className="flex flex-col items-center justify-center gap-0.5 w-12 h-12 rounded-xl transition-all"
+              style={{
+                color: active ? T.accent : T.textFaint,
+                background: active ? T.accentSoft : "transparent",
+              }}
+              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = T.textMuted; }}
+              onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = T.textFaint; }}
+            >
+              {tab.icon}
+              <span className="text-[8px] font-medium leading-none">{tab.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Panel content */}
-      <div className="flex-1 flex flex-col overflow-hidden" style={{ background: "#141416" }}>
-        <div className="px-3 py-2 flex-shrink-0" style={{ borderBottom: "1px solid #27272a" }}>
-          <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#52525b" }}>
+      <div className="flex-1 flex flex-col overflow-hidden" style={{ background: T.surface }}>
+        <div className="px-3 py-2.5 flex-shrink-0" style={{ borderBottom: `1px solid ${T.border}` }}>
+          <span className="text-xs font-bold uppercase tracking-widest" style={{ color: T.textMuted }}>
             {TABS.find(t => t.id === activeTab)?.label}
           </span>
         </div>

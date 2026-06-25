@@ -144,6 +144,59 @@ export async function transcribeAudio(
     }));
 }
 
+// ── AI Dubbing & translation (ElevenLabs Dubbing API) ────────────────────────
+// Turns a video's speech into another language while preserving the speaker's
+// voice. Async: start → poll status → fetch dubbed audio.
+
+export interface DubbingJob { dubbingId: string; expectedDurationSec?: number }
+
+export async function startDubbing(videoUrl: string, targetLang: string, sourceLang = "auto"): Promise<DubbingJob> {
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  if (!apiKey) throw new Error("ElevenLabs API key not configured");
+
+  const form = new FormData();
+  form.append("source_url", videoUrl);
+  form.append("target_lang", targetLang);
+  form.append("source_lang", sourceLang);
+  form.append("num_speakers", "0"); // auto-detect
+
+  const res = await fetch("https://api.elevenlabs.io/v1/dubbing", {
+    method: "POST",
+    headers: { "xi-api-key": apiKey },
+    body: form,
+  });
+  if (!res.ok) throw new Error(`ElevenLabs dubbing error ${res.status}: ${await res.text()}`);
+  const json = (await res.json()) as { dubbing_id: string; expected_duration_sec?: number };
+  return { dubbingId: json.dubbing_id, expectedDurationSec: json.expected_duration_sec };
+}
+
+export async function getDubbingStatus(dubbingId: string): Promise<"dubbing" | "dubbed" | "failed"> {
+  const apiKey = process.env.ELEVENLABS_API_KEY!;
+  const res = await fetch(`https://api.elevenlabs.io/v1/dubbing/${dubbingId}`, { headers: { "xi-api-key": apiKey } });
+  if (!res.ok) throw new Error(`ElevenLabs dubbing status error ${res.status}`);
+  const json = (await res.json()) as { status: string };
+  if (json.status === "dubbed") return "dubbed";
+  if (json.status === "failed") return "failed";
+  return "dubbing";
+}
+
+export async function getDubbedAudio(dubbingId: string, lang: string): Promise<Buffer> {
+  const apiKey = process.env.ELEVENLABS_API_KEY!;
+  const res = await fetch(`https://api.elevenlabs.io/v1/dubbing/${dubbingId}/audio/${lang}`, { headers: { "xi-api-key": apiKey } });
+  if (!res.ok) throw new Error(`ElevenLabs dubbed audio error ${res.status}`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
+// Supported dubbing target languages (code → label). Subset of ElevenLabs' 29+.
+export const DUB_LANGUAGES: { code: string; label: string }[] = [
+  { code: "es", label: "Spanish" }, { code: "fr", label: "French" }, { code: "de", label: "German" },
+  { code: "hi", label: "Hindi" }, { code: "pt", label: "Portuguese" }, { code: "it", label: "Italian" },
+  { code: "ja", label: "Japanese" }, { code: "ko", label: "Korean" }, { code: "zh", label: "Chinese" },
+  { code: "ar", label: "Arabic" }, { code: "ru", label: "Russian" }, { code: "id", label: "Indonesian" },
+  { code: "nl", label: "Dutch" }, { code: "tr", label: "Turkish" }, { code: "pl", label: "Polish" },
+  { code: "en", label: "English" },
+];
+
 export async function listVoices(): Promise<{ voice_id: string; name: string; preview_url: string }[]> {
   const apiKey = process.env.ELEVENLABS_API_KEY!;
   const res = await fetch("https://api.elevenlabs.io/v1/voices", {

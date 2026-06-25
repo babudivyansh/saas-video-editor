@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { markQuestComplete } from "@/lib/quests";
 import { getToolConfig } from "@/lib/tool-config";
-import { InProcessQueue } from "@/lib/job-queue";
+import { createRenderQueue, setRenderProgress } from "@/lib/render-queue";
 import { generateASS, styleIndexToSubtitleStyle, runFFmpegArgs } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { downloadFile } from "@/utils/download";
@@ -79,6 +79,7 @@ async function renderJob(payload: RenderPayload): Promise<void> {
   const cleanup = [videoPath, assPath, outPath, musicPath];
 
   try {
+    await setRenderProgress(projectId, "downloading");
     await downloadFile(doc.videoUrl, videoPath);
 
     const norm = normalizeDoc(doc);
@@ -107,8 +108,10 @@ async function renderJob(payload: RenderPayload): Promise<void> {
     }
 
     const paths: EditorRenderPaths = { video: videoPath, ass, music, images: imagePaths, output: outPath };
+    await setRenderProgress(projectId, "rendering");
     await runFFmpegArgs(buildEditorFFmpegArgs(norm, paths));
 
+    await setRenderProgress(projectId, "uploading");
     const key = `editor/${userId}/${projectId}.mp4`;
     const videoUrl = await uploadFileToS3(outPath, key, "video/mp4");
 
@@ -170,8 +173,10 @@ async function renderTrackDocJob(payload: TrackRenderPayload): Promise<void> {
     }
 
     const renderPaths: TrackRenderPaths = { videoPaths, audioPaths, output: outPath };
+    await setRenderProgress(projectId, "rendering");
     await runFFmpegArgs(buildTrackDocFFmpegArgs(doc, renderPaths));
 
+    await setRenderProgress(projectId, "uploading");
     const key = `editor/${userId}/${projectId}.mp4`;
     const videoUrl = await uploadFileToS3(outPath, key, "video/mp4");
 
@@ -191,15 +196,15 @@ async function renderTrackDocJob(payload: TrackRenderPayload): Promise<void> {
   }
 }
 
-let _queue: InProcessQueue<RenderPayload> | null = null;
+let _queue: ReturnType<typeof createRenderQueue<RenderPayload>> | null = null;
 function getQueue() {
-  if (!_queue) _queue = new InProcessQueue<RenderPayload>("editor-render", renderJob);
+  if (!_queue) _queue = createRenderQueue<RenderPayload>("editor-render", renderJob);
   return _queue;
 }
 
-let _trackQueue: InProcessQueue<TrackRenderPayload> | null = null;
+let _trackQueue: ReturnType<typeof createRenderQueue<TrackRenderPayload>> | null = null;
 function getTrackQueue() {
-  if (!_trackQueue) _trackQueue = new InProcessQueue<TrackRenderPayload>("editor-render-v2", renderTrackDocJob);
+  if (!_trackQueue) _trackQueue = createRenderQueue<TrackRenderPayload>("editor-render-v2", renderTrackDocJob);
   return _trackQueue;
 }
 

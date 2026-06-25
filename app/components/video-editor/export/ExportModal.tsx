@@ -27,13 +27,16 @@ export default function ExportModal() {
 
   const [selectedPreset, setSelectedPreset] = useState("instagram");
   const [resolution, setResolution] = useState("1080p");
+  const [quality, setQuality] = useState("standard");
   const [status, setStatus] = useState<ExportStatus>("idle");
+  const [stage, setStage] = useState("queued");
   const [resultUrl, setResultUrl] = useState("");
   const [progress, setProgress] = useState(0);
 
   const startExport = useCallback(async () => {
     setStatus("rendering");
-    setProgress(10);
+    setProgress(2);
+    setStage("queued");
 
     try {
       const res = await fetch("/api/editor/render", {
@@ -43,32 +46,30 @@ export default function ExportModal() {
           projectId: projectId || undefined,
           doc: present,
           tool: "advanced-editor",
+          quality,
+          resolution,
         }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        setStatus("failed");
-        return;
-      }
+      if (!res.ok) { setStatus("failed"); return; }
 
       const pid = data.projectId;
-      setProgress(30);
 
-      // Poll for completion
+      // Poll the live render-status endpoint for real stage + percent.
       const poll = setInterval(async () => {
-        setProgress(p => Math.min(p + 10, 90));
         try {
-          const r = await fetch(`/api/projects/${pid}`, {
+          const r = await fetch(`/api/editor/render-status?projectId=${pid}`, {
             headers: { Authorization: `Bearer ${token()}` },
           });
           const d = await r.json();
-          const proj = d.project;
-          if (proj?.status === "completed" && proj?.videoUrl) {
+          if (typeof d.percent === "number") setProgress(d.percent);
+          if (d.stage) setStage(d.stage);
+          if (d.status === "completed" && d.videoUrl) {
             clearInterval(poll);
-            setResultUrl(proj.videoUrl);
+            setResultUrl(d.videoUrl);
             setStatus("done");
             setProgress(100);
-          } else if (proj?.status === "failed") {
+          } else if (d.status === "failed") {
             clearInterval(poll);
             setStatus("failed");
           }
@@ -76,11 +77,16 @@ export default function ExportModal() {
           clearInterval(poll);
           setStatus("failed");
         }
-      }, 3000);
+      }, 2000);
     } catch {
       setStatus("failed");
     }
-  }, [present, projectId]);
+  }, [present, projectId, quality, resolution]);
+
+  const STAGE_LABEL: Record<string, string> = {
+    queued: "Queued…", downloading: "Preparing media…", rendering: "Rendering your video…",
+    uploading: "Finalizing…", completed: "Done!", failed: "Failed",
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }}>
@@ -144,6 +150,32 @@ export default function ExportModal() {
                   ))}
                 </div>
               </div>
+
+              {/* Quality tier */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#52525b" }}>Quality</p>
+                <div className="flex gap-2">
+                  {[
+                    { id: "draft", label: "Draft", hint: "Fastest" },
+                    { id: "standard", label: "Standard", hint: "Balanced" },
+                    { id: "high", label: "High", hint: "Best" },
+                  ].map(q => (
+                    <button
+                      key={q.id}
+                      onClick={() => setQuality(q.id)}
+                      className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all flex flex-col items-center"
+                      style={{
+                        background: quality === q.id ? "#1e3a5f" : "#111113",
+                        border: `1px solid ${quality === q.id ? "#2563eb" : "#27272a"}`,
+                        color: quality === q.id ? "#93c5fd" : "#71717a",
+                      }}
+                    >
+                      {q.label}
+                      <span style={{ fontSize: 9, color: "#52525b" }}>{q.hint}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </>
           )}
 
@@ -163,7 +195,7 @@ export default function ExportModal() {
                 <div className="absolute inset-0 flex items-center justify-center text-sm font-bold" style={{ color: "#e4e4e7" }}>{progress}%</div>
               </div>
               <div className="text-center">
-                <p className="text-sm font-medium" style={{ color: "#e4e4e7" }}>Rendering your video…</p>
+                <p className="text-sm font-medium" style={{ color: "#e4e4e7" }}>{STAGE_LABEL[stage] ?? "Rendering your video…"}</p>
                 <p className="text-xs mt-1" style={{ color: "#52525b" }}>This may take a few minutes. You can close this window.</p>
               </div>
             </div>
