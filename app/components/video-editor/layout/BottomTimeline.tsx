@@ -8,8 +8,8 @@ export default function BottomTimeline() {
       className="flex-shrink-0"
       style={{
         height: 210,
-        borderTop: "1px solid #27272a",
-        background: "#111113",
+        borderTop: "1px solid #e4e7ec",
+        background: "#f6f7f9",
       }}
     >
       <Timeline />

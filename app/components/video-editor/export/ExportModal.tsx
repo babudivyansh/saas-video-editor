@@ -90,14 +90,14 @@ export default function ExportModal() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }}>
-      <div className="flex flex-col rounded-2xl shadow-2xl overflow-hidden" style={{ width: 500, maxHeight: "85vh", background: "#18181b", border: "1px solid #27272a" }}>
+      <div className="flex flex-col rounded-2xl shadow-2xl overflow-hidden" style={{ width: 500, maxHeight: "85vh", background: "#ffffff", border: "1px solid #e4e7ec" }}>
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid #27272a" }}>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid #e4e7ec" }}>
           <div>
-            <h2 className="text-base font-bold" style={{ color: "#e4e4e7" }}>Export Video</h2>
-            <p className="text-xs mt-0.5" style={{ color: "#52525b" }}>Choose your platform and quality</p>
+            <h2 className="text-base font-bold" style={{ color: "#15181f" }}>Export Video</h2>
+            <p className="text-xs mt-0.5" style={{ color: "#98a0ae" }}>Choose your platform and quality</p>
           </div>
-          <button onClick={() => setExportModalOpen(false)} style={{ color: "#71717a" }} className="hover:text-white transition-colors">
+          <button onClick={() => setExportModalOpen(false)} style={{ color: "#5a6170" }} className="hover:text-gray-900 transition-colors">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
               <line x1="18" y1="6" x2="6" y2="18" strokeLinecap="round" />
               <line x1="6" y1="6" x2="18" y2="18" strokeLinecap="round" />
@@ -110,7 +110,7 @@ export default function ExportModal() {
             <>
               {/* Platform presets */}
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#52525b" }}>Platform</p>
+                <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#98a0ae" }}>Platform</p>
                 <div className="grid grid-cols-3 gap-2">
                   {PLATFORM_PRESETS.map(p => (
                     <button
@@ -118,13 +118,13 @@ export default function ExportModal() {
                       onClick={() => setSelectedPreset(p.id)}
                       className="flex flex-col items-center gap-1.5 rounded-xl p-3 transition-all"
                       style={{
-                        background: selectedPreset === p.id ? "#1e3a5f" : "#111113",
-                        border: `1px solid ${selectedPreset === p.id ? "#2563eb" : "#27272a"}`,
+                        background: selectedPreset === p.id ? "#e8edff" : "#f6f7f9",
+                        border: `1px solid ${selectedPreset === p.id ? "#335cff" : "#e4e7ec"}`,
                       }}
                     >
                       <span style={{ fontSize: 22 }}>{p.icon}</span>
-                      <span className="text-xs font-medium" style={{ color: selectedPreset === p.id ? "#93c5fd" : "#a1a1aa" }}>{p.label}</span>
-                      {p.aspect && <span className="text-xs" style={{ color: "#52525b", fontSize: 9 }}>{p.aspect} · {p.resolution}</span>}
+                      <span className="text-xs font-medium" style={{ color: selectedPreset === p.id ? "#335cff" : "#5a6170" }}>{p.label}</span>
+                      {p.aspect && <span className="text-xs" style={{ color: "#98a0ae", fontSize: 9 }}>{p.aspect} · {p.resolution}</span>}
                     </button>
                   ))}
                 </div>
@@ -132,7 +132,7 @@ export default function ExportModal() {
 
               {/* Resolution */}
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#52525b" }}>Resolution</p>
+                <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#98a0ae" }}>Resolution</p>
                 <div className="flex gap-2">
                   {RESOLUTIONS.map(r => (
                     <button
@@ -140,9 +140,9 @@ export default function ExportModal() {
                       onClick={() => setResolution(r)}
                       className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all"
                       style={{
-                        background: resolution === r ? "#1e3a5f" : "#111113",
-                        border: `1px solid ${resolution === r ? "#2563eb" : "#27272a"}`,
-                        color: resolution === r ? "#93c5fd" : "#71717a",
+                        background: resolution === r ? "#e8edff" : "#f6f7f9",
+                        border: `1px solid ${resolution === r ? "#335cff" : "#e4e7ec"}`,
+                        color: resolution === r ? "#335cff" : "#5a6170",
                       }}
                     >
                       {r}
@@ -153,7 +153,7 @@ export default function ExportModal() {
 
               {/* Quality tier */}
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#52525b" }}>Quality</p>
+                <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#98a0ae" }}>Quality</p>
                 <div className="flex gap-2">
                   {[
                     { id: "draft", label: "Draft", hint: "Fastest" },
@@ -165,13 +165,13 @@ export default function ExportModal() {
                       onClick={() => setQuality(q.id)}
                       className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all flex flex-col items-center"
                       style={{
-                        background: quality === q.id ? "#1e3a5f" : "#111113",
-                        border: `1px solid ${quality === q.id ? "#2563eb" : "#27272a"}`,
-                        color: quality === q.id ? "#93c5fd" : "#71717a",
+                        background: quality === q.id ? "#e8edff" : "#f6f7f9",
+                        border: `1px solid ${quality === q.id ? "#335cff" : "#e4e7ec"}`,
+                        color: quality === q.id ? "#335cff" : "#5a6170",
                       }}
                     >
                       {q.label}
-                      <span style={{ fontSize: 9, color: "#52525b" }}>{q.hint}</span>
+                      <span style={{ fontSize: 9, color: "#98a0ae" }}>{q.hint}</span>
                     </button>
                   ))}
                 </div>
@@ -184,19 +184,19 @@ export default function ExportModal() {
             <div className="flex flex-col items-center gap-4 py-6">
               <div className="relative w-20 h-20">
                 <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                  <circle cx="18" cy="18" r="15" fill="none" stroke="#27272a" strokeWidth="3" />
+                  <circle cx="18" cy="18" r="15" fill="none" stroke="#e4e7ec" strokeWidth="3" />
                   <circle
-                    cx="18" cy="18" r="15" fill="none" stroke="#2563eb" strokeWidth="3"
+                    cx="18" cy="18" r="15" fill="none" stroke="#335cff" strokeWidth="3"
                     strokeDasharray={`${progress * 0.942} 94.2`}
                     strokeLinecap="round"
                     className="transition-all duration-500"
                   />
                 </svg>
-                <div className="absolute inset-0 flex items-center justify-center text-sm font-bold" style={{ color: "#e4e4e7" }}>{progress}%</div>
+                <div className="absolute inset-0 flex items-center justify-center text-sm font-bold" style={{ color: "#15181f" }}>{progress}%</div>
               </div>
               <div className="text-center">
-                <p className="text-sm font-medium" style={{ color: "#e4e4e7" }}>{STAGE_LABEL[stage] ?? "Rendering your video…"}</p>
-                <p className="text-xs mt-1" style={{ color: "#52525b" }}>This may take a few minutes. You can close this window.</p>
+                <p className="text-sm font-medium" style={{ color: "#15181f" }}>{STAGE_LABEL[stage] ?? "Rendering your video…"}</p>
+                <p className="text-xs mt-1" style={{ color: "#98a0ae" }}>This may take a few minutes. You can close this window.</p>
               </div>
             </div>
           )}
@@ -204,14 +204,14 @@ export default function ExportModal() {
           {/* Done state */}
           {status === "done" && (
             <div className="flex flex-col items-center gap-4 py-6">
-              <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "#14532d" }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth={2.5} className="w-8 h-8">
+              <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "#d1fae5" }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="#15a66b" strokeWidth={2.5} className="w-8 h-8">
                   <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
               <div className="text-center">
-                <p className="text-sm font-bold" style={{ color: "#e4e4e7" }}>Export complete!</p>
-                <p className="text-xs mt-1" style={{ color: "#52525b" }}>Your video is ready to download.</p>
+                <p className="text-sm font-bold" style={{ color: "#15181f" }}>Export complete!</p>
+                <p className="text-xs mt-1" style={{ color: "#98a0ae" }}>Your video is ready to download.</p>
               </div>
               <a
                 href={resultUrl}
@@ -219,7 +219,7 @@ export default function ExportModal() {
                 rel="noreferrer"
                 download
                 className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold transition-all"
-                style={{ background: "#2563eb", color: "white" }}
+                style={{ background: "#335cff", color: "white" }}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
                   <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" strokeLinecap="round" />
@@ -234,34 +234,34 @@ export default function ExportModal() {
           {/* Failed state */}
           {status === "failed" && (
             <div className="flex flex-col items-center gap-4 py-6">
-              <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "#450a0a" }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth={2.5} className="w-8 h-8">
+              <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "#fee2e2" }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="#e5484d" strokeWidth={2.5} className="w-8 h-8">
                   <circle cx="12" cy="12" r="10" />
                   <line x1="12" y1="8" x2="12" y2="12" strokeLinecap="round" />
                   <line x1="12" y1="16" x2="12.01" y2="16" strokeLinecap="round" />
                 </svg>
               </div>
-              <p className="text-sm font-medium" style={{ color: "#f87171" }}>Export failed</p>
-              <button onClick={() => setStatus("idle")} className="text-xs" style={{ color: "#52525b" }}>Try again</button>
+              <p className="text-sm font-medium" style={{ color: "#e5484d" }}>Export failed</p>
+              <button onClick={() => setStatus("idle")} className="text-xs" style={{ color: "#98a0ae" }}>Try again</button>
             </div>
           )}
         </div>
 
         {/* Footer */}
         {status === "idle" && (
-          <div className="flex items-center justify-end gap-2 px-5 py-3" style={{ borderTop: "1px solid #27272a" }}>
-            <button onClick={() => setExportModalOpen(false)} className="px-4 py-1.5 rounded-lg text-sm transition-colors" style={{ color: "#71717a" }}
-              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#e4e4e7")}
-              onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "#71717a")}
+          <div className="flex items-center justify-end gap-2 px-5 py-3" style={{ borderTop: "1px solid #e4e7ec" }}>
+            <button onClick={() => setExportModalOpen(false)} className="px-4 py-1.5 rounded-lg text-sm transition-colors" style={{ color: "#5a6170" }}
+              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#15181f")}
+              onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "#5a6170")}
             >
               Cancel
             </button>
             <button
               onClick={startExport}
               className="flex items-center gap-2 px-5 py-1.5 rounded-lg text-sm font-semibold transition-all"
-              style={{ background: "#2563eb", color: "white" }}
-              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = "#1d4ed8")}
-              onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = "#2563eb")}
+              style={{ background: "#335cff", color: "white" }}
+              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = "#284be0")}
+              onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = "#335cff")}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" strokeLinecap="round" />

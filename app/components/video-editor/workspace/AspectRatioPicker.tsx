@@ -17,15 +17,15 @@ export default function AspectRatioPicker() {
           onClick={() => setAspect(a)}
           className="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all"
           style={{
-            background: aspect === a ? "#1e3a5f" : "transparent",
-            color: aspect === a ? "#60a5fa" : "#52525b",
-            border: aspect === a ? "1px solid #1d4ed8" : "1px solid transparent",
+            background: aspect === a ? "#e8edff" : "transparent",
+            color: aspect === a ? "#335cff" : "#98a0ae",
+            border: aspect === a ? "1px solid #284be0" : "1px solid transparent",
           }}
           onMouseEnter={e => {
-            if (aspect !== a) (e.currentTarget as HTMLElement).style.color = "#a1a1aa";
+            if (aspect !== a) (e.currentTarget as HTMLElement).style.color = "#5a6170";
           }}
           onMouseLeave={e => {
-            if (aspect !== a) (e.currentTarget as HTMLElement).style.color = "#52525b";
+            if (aspect !== a) (e.currentTarget as HTMLElement).style.color = "#98a0ae";
           }}
         >
           <AspectIcon ratio={a} active={aspect === a} />
@@ -37,7 +37,7 @@ export default function AspectRatioPicker() {
 }
 
 function AspectIcon({ ratio, active }: { ratio: TrackAspect; active: boolean }) {
-  const color = active ? "#60a5fa" : "#52525b";
+  const color = active ? "#335cff" : "#98a0ae";
   const icons: Record<TrackAspect, React.ReactNode> = {
     "9:16": (
       <svg viewBox="0 0 12 18" className="w-2.5 h-3.5">

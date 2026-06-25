@@ -50,29 +50,29 @@ export default function AudioLibraryPanel() {
         value={search}
         onChange={e => setSearch(e.target.value)}
         className="rounded-md px-2 py-1.5 text-xs outline-none"
-        style={{ background: "#1e1e22", border: "1px solid #27272a", color: "#e4e4e7" }}
+        style={{ background: "#f6f7f9", border: "1px solid #e4e7ec", color: "#15181f" }}
       />
-      <p className="text-xs" style={{ color: "#52525b" }}>Stock library (previews only)</p>
+      <p className="text-xs" style={{ color: "#98a0ae" }}>Stock library (previews only)</p>
       <div className="flex flex-col gap-1">
         {filtered.map(item => (
           <button
             key={item.name}
             onClick={() => addAudio(item)}
             className="flex items-center gap-2 rounded-lg px-2 py-2 transition-all text-left"
-            style={{ background: "#1a1a1e", border: "1px solid #27272a" }}
-            onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = "#3f3f46")}
-            onMouseLeave={e => ((e.currentTarget as HTMLElement).style.borderColor = "#27272a")}
+            style={{ background: "#e4e7ec", border: "1px solid #e4e7ec" }}
+            onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = "#d3d8e0")}
+            onMouseLeave={e => ((e.currentTarget as HTMLElement).style.borderColor = "#e4e7ec")}
           >
-            <div className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0" style={{ background: "#14532d" }}>
-              <svg viewBox="0 0 24 24" fill="#4ade80" className="w-4 h-4">
+            <div className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0" style={{ background: "#d1fae5" }}>
+              <svg viewBox="0 0 24 24" fill="#15a66b" className="w-4 h-4">
                 <path d="M9 18V5l12-2v13" />
                 <circle cx="6" cy="18" r="3" />
                 <circle cx="18" cy="16" r="3" />
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium truncate" style={{ color: "#e4e4e7" }}>{item.name}</p>
-              <p className="text-xs" style={{ color: "#52525b" }}>{item.genre} · {fmtDur(item.duration)}</p>
+              <p className="text-xs font-medium truncate" style={{ color: "#15181f" }}>{item.name}</p>
+              <p className="text-xs" style={{ color: "#98a0ae" }}>{item.genre} · {fmtDur(item.duration)}</p>
             </div>
           </button>
         ))}

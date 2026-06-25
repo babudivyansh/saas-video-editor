@@ -83,8 +83,8 @@ export default function TimelineClip({ clip, track, zoom, height, onMoveDrop, sc
   }, [clip, removeClip]);
 
   const kindColors: Record<string, { bg: string; border: string; label: string }> = {
-    video: { bg: "#1e3a5f", border: "#2563eb", label: "#93c5fd" },
-    audio: { bg: "#14532d", border: "#16a34a", label: "#86efac" },
+    video: { bg: "#e8edff", border: "#335cff", label: "#335cff" },
+    audio: { bg: "#d1fae5", border: "#16a34a", label: "#86efac" },
     text:  { bg: "#451a03", border: "#d97706", label: "#fcd34d" },
     effect: { bg: "#2e1065", border: "#7c3aed", label: "#c4b5fd" },
     transition: { bg: "#1f2937", border: "#4b5563", label: "#9ca3af" },
@@ -99,7 +99,7 @@ export default function TimelineClip({ clip, track, zoom, height, onMoveDrop, sc
         width,
         height,
         background: color.bg,
-        border: `1px solid ${isSelected ? "#60a5fa" : color.border}`,
+        border: `1px solid ${isSelected ? "#335cff" : color.border}`,
         boxShadow: isSelected ? "0 0 0 2px rgba(96,165,250,0.3)" : undefined,
         cursor: "grab",
         zIndex: isSelected ? 10 : 1,
@@ -179,7 +179,7 @@ function WaveformPlaceholder() {
         <div
           key={i}
           className="w-px flex-shrink-0 rounded-full"
-          style={{ height: `${h}%`, background: "#22c55e" }}
+          style={{ height: `${h}%`, background: "#15a66b" }}
         />
       ))}
     </div>

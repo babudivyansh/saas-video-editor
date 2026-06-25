@@ -16,7 +16,7 @@ const TRANSITIONS = [
 export default function TransitionsPanelVE() {
   return (
     <div className="flex flex-col gap-3 p-3">
-      <p className="text-xs" style={{ color: "#52525b" }}>
+      <p className="text-xs" style={{ color: "#98a0ae" }}>
         Drag a transition between two clips on the timeline.
       </p>
       <div className="grid grid-cols-2 gap-1.5">
@@ -29,12 +29,12 @@ export default function TransitionsPanelVE() {
               e.dataTransfer.effectAllowed = "copy";
             }}
             className="flex items-center gap-2 rounded-lg px-2 py-2.5 cursor-grab transition-all"
-            style={{ background: "#1a1a1e", border: "1px solid #27272a" }}
-            onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = "#3f3f46")}
-            onMouseLeave={e => ((e.currentTarget as HTMLElement).style.borderColor = "#27272a")}
+            style={{ background: "#e4e7ec", border: "1px solid #e4e7ec" }}
+            onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = "#d3d8e0")}
+            onMouseLeave={e => ((e.currentTarget as HTMLElement).style.borderColor = "#e4e7ec")}
           >
             <span style={{ fontSize: 18 }}>{t.icon}</span>
-            <span className="text-xs font-medium" style={{ color: "#a1a1aa" }}>{t.label}</span>
+            <span className="text-xs font-medium" style={{ color: "#5a6170" }}>{t.label}</span>
           </div>
         ))}
       </div>

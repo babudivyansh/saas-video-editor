@@ -305,20 +305,20 @@ export default function PreviewCanvas() {
           style={{
             width: "100%",
             height: "100%",
-            boxShadow: "0 0 0 1px #27272a, 0 20px 60px rgba(0,0,0,0.6)",
+            boxShadow: "0 0 0 1px #e4e7ec, 0 20px 60px rgba(0,0,0,0.6)",
           }}
         />
         {/* Empty state */}
         {doc.tracks.every(t => t.clips.length === 0) && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center rounded-lg" style={{ background: "#111113" }}>
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style={{ background: "#1e1e22" }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="#52525b" strokeWidth={1.5} className="w-8 h-8">
+          <div className="absolute inset-0 flex flex-col items-center justify-center rounded-lg" style={{ background: "#f6f7f9" }}>
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style={{ background: "#f6f7f9" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#98a0ae" strokeWidth={1.5} className="w-8 h-8">
                 <rect x="2" y="2" width="20" height="20" rx="2" />
-                <polygon points="10 8 16 12 10 16 10 8" fill="#52525b" stroke="none" />
+                <polygon points="10 8 16 12 10 16 10 8" fill="#98a0ae" stroke="none" />
               </svg>
             </div>
-            <p className="text-sm font-medium" style={{ color: "#52525b" }}>Add media to begin</p>
-            <p className="text-xs mt-1" style={{ color: "#3f3f46" }}>Upload a video or drag it to the timeline</p>
+            <p className="text-sm font-medium" style={{ color: "#98a0ae" }}>Add media to begin</p>
+            <p className="text-xs mt-1" style={{ color: "#d3d8e0" }}>Upload a video or drag it to the timeline</p>
           </div>
         )}
       </div>

@@ -27,10 +27,10 @@ export default function PlaybackControls() {
   return (
     <div
       className="flex flex-col gap-1.5 px-4 py-2"
-      style={{ background: "#141416" }}
+      style={{ background: "#ffffff" }}
     >
       {/* Scrub bar */}
-      <div className="relative h-1 rounded-full cursor-pointer" style={{ background: "#27272a" }}
+      <div className="relative h-1 rounded-full cursor-pointer" style={{ background: "#e4e7ec" }}
         onClick={e => {
           const rect = e.currentTarget.getBoundingClientRect();
           const x = e.clientX - rect.left;
@@ -39,11 +39,11 @@ export default function PlaybackControls() {
       >
         <div
           className="absolute left-0 top-0 h-full rounded-full"
-          style={{ width: `${pct}%`, background: "#2563eb" }}
+          style={{ width: `${pct}%`, background: "#335cff" }}
         />
         <div
           className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-white"
-          style={{ left: `calc(${pct}% - 6px)`, background: "#2563eb", boxShadow: "0 0 6px rgba(37,99,235,0.7)" }}
+          style={{ left: `calc(${pct}% - 6px)`, background: "#335cff", boxShadow: "0 0 6px rgba(37,99,235,0.7)" }}
         />
       </div>
 
@@ -61,9 +61,9 @@ export default function PlaybackControls() {
           <button
             onClick={togglePlay}
             className="w-9 h-9 rounded-full flex items-center justify-center transition-all"
-            style={{ background: "#2563eb" }}
-            onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = "#1d4ed8")}
-            onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = "#2563eb")}
+            style={{ background: "#335cff" }}
+            onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = "#284be0")}
+            onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = "#335cff")}
           >
             {isPlaying ? (
               <svg viewBox="0 0 24 24" fill="white" className="w-4 h-4">
@@ -85,7 +85,7 @@ export default function PlaybackControls() {
           </CtrlBtn>
 
           {/* Timecode */}
-          <span className="text-xs font-mono ml-1" style={{ color: "#a1a1aa" }}>
+          <span className="text-xs font-mono ml-1" style={{ color: "#5a6170" }}>
             {fmtTime(currentTime)} / {fmtTime(duration)}
           </span>
         </div>
@@ -98,9 +98,9 @@ export default function PlaybackControls() {
             onChange={e => setPlaybackSpeed(Number(e.target.value))}
             className="text-xs rounded px-2 py-0.5 border outline-none"
             style={{
-              background: "#1e1e22",
-              borderColor: "#27272a",
-              color: "#a1a1aa",
+              background: "#f6f7f9",
+              borderColor: "#e4e7ec",
+              color: "#5a6170",
             }}
           >
             {SPEEDS.map(s => (
@@ -113,9 +113,9 @@ export default function PlaybackControls() {
             <button
               onClick={() => setVolume(volume === 0 ? 1 : 0)}
               className="transition-colors"
-              style={{ color: "#a1a1aa" }}
-              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#e4e4e7")}
-              onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "#a1a1aa")}
+              style={{ color: "#5a6170" }}
+              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#15181f")}
+              onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "#5a6170")}
             >
               {volume === 0 ? (
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
@@ -153,9 +153,9 @@ function CtrlBtn({ children, onClick, title }: { children: React.ReactNode; onCl
       onClick={onClick}
       title={title}
       className="w-7 h-7 flex items-center justify-center rounded-md transition-colors"
-      style={{ color: "#71717a" }}
-      onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#e4e4e7")}
-      onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "#71717a")}
+      style={{ color: "#5a6170" }}
+      onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#15181f")}
+      onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "#5a6170")}
     >
       {children}
     </button>

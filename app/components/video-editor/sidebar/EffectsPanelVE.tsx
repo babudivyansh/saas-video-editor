@@ -50,12 +50,12 @@ export default function EffectsPanelVE() {
     <div className="flex flex-col gap-3 p-3">
       {!selectedClipId && (
         <div className="text-center py-3">
-          <p className="text-xs" style={{ color: "#52525b" }}>Select a video clip to apply effects</p>
+          <p className="text-xs" style={{ color: "#98a0ae" }}>Select a video clip to apply effects</p>
         </div>
       )}
       {categories.map(cat => (
         <div key={cat}>
-          <p className="text-xs font-medium mb-1.5" style={{ color: "#71717a" }}>{cat}</p>
+          <p className="text-xs font-medium mb-1.5" style={{ color: "#5a6170" }}>{cat}</p>
           <div className="grid grid-cols-4 gap-1.5">
             {VIDEO_EFFECTS.filter(e => e.category === cat).map(effect => {
               const active = appliedEffects.includes(effect.id);
@@ -65,14 +65,14 @@ export default function EffectsPanelVE() {
                   onClick={() => toggleEffect(effect.id)}
                   className="flex flex-col items-center gap-1 p-2 rounded-lg transition-all"
                   style={{
-                    background: active ? "#1e3a5f" : "#1a1a1e",
-                    border: `1px solid ${active ? "#2563eb" : "#27272a"}`,
+                    background: active ? "#e8edff" : "#e4e7ec",
+                    border: `1px solid ${active ? "#335cff" : "#e4e7ec"}`,
                   }}
-                  onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.borderColor = "#3f3f46"; }}
-                  onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.borderColor = "#27272a"; }}
+                  onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.borderColor = "#d3d8e0"; }}
+                  onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.borderColor = "#e4e7ec"; }}
                 >
                   <span style={{ fontSize: 18 }}>{effect.icon}</span>
-                  <span style={{ fontSize: 9, color: active ? "#60a5fa" : "#71717a" }}>{effect.label}</span>
+                  <span style={{ fontSize: 9, color: active ? "#335cff" : "#5a6170" }}>{effect.label}</span>
                 </button>
               );
             })}
