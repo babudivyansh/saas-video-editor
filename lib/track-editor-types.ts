@@ -280,6 +280,28 @@ export function emptyTrackDoc(): TrackDoc {
   };
 }
 
+// Build a v2 TrackDoc seeded with a single video clip — used to open an Auto Clip
+// result in the advanced editor.
+export function buildClipDoc(url: string, durationSec: number, aspect: TrackAspect = "9:16"): TrackDoc {
+  const videoTrackId = uid();
+  const dur = Math.max(0.1, durationSec);
+  return {
+    _v: 2,
+    aspect,
+    fps: 30,
+    tracks: [
+      {
+        id: videoTrackId, kind: "video", name: "Video 1", locked: false, hidden: false, muted: false,
+        clips: [
+          { id: uid(), trackId: videoTrackId, start: 0, duration: dur, srcIn: 0, srcOut: dur, data: emptyVideoClipData(url) },
+        ],
+      },
+      { id: uid(), kind: "audio", name: "Audio 1", locked: false, hidden: false, muted: false, clips: [] },
+    ],
+    markers: [],
+  };
+}
+
 // Compute total timeline duration from all clip end times
 export function computeDuration(doc: TrackDoc): number {
   let max = 0;

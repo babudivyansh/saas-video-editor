@@ -37,42 +37,203 @@ const STEPS = [
   { id: "review", label: "Review" },
 ];
 
-// ── Generating overlay ──────────────────────────────────────────────────────
-function GeneratingOverlay({ status, videoUrl, error, onReset }: { status: GenerateStatus; videoUrl: string | null; error: string | null; onReset: () => void }) {
-  const statusText: Partial<Record<GenerateStatus, string>> = {
-    uploading: "Uploading your video…",
-    creating: "Creating your project…",
-    rendering: "Analyzing and clipping your video — this may take 5–10 minutes…",
-  };
-  if (status === "completed" && videoUrl) {
-    return (
-      <div className="mt-4 mx-8 mb-8 rounded-[28px] bg-gray-50 border border-gray-100 flex items-center justify-center" style={{ minHeight: "calc(100vh - 200px)" }}>
-        <div className="w-full max-w-sm flex flex-col items-center gap-5 p-6 text-center">
-          <h2 className="text-xl font-bold text-gray-900">Your clips are ready!</h2>
-          <video src={videoUrl} controls className="w-full rounded-xl shadow-lg max-h-64 object-contain" />
-          <div className="flex gap-3 w-full">
-            <a href={videoUrl} download className="flex-1 inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors">Download</a>
-            <button onClick={onReset} className="flex-1 inline-flex items-center justify-center border border-gray-200 text-gray-700 text-sm font-semibold py-2.5 rounded-lg hover:bg-gray-50 transition-colors">Create Another</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+// ── Clip results (Opus-style grid) ──────────────────────────────────────────
+interface ClipItem {
+  id: string;
+  index: number;
+  title: string | null;
+  startSec: number;
+  endSec: number;
+  durationSec: number;
+  aspectRatio: string;
+  score: number | null;
+  status: string; // queued | rendering | ready | failed
+  progress: number;
+  videoUrl: string | null;
+  thumbnailUrl: string | null;
+}
+
+function fmtTime(sec: number): string {
+  const s = Math.max(0, Math.round(sec));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+function scoreColor(score: number | null): { bg: string; text: string } {
+  if (score == null) return { bg: "#f1f5f9", text: "#64748b" };
+  if (score >= 75) return { bg: "#dcfce7", text: "#15803d" };
+  if (score >= 50) return { bg: "#fef9c3", text: "#a16207" };
+  return { bg: "#f1f5f9", text: "#64748b" };
+}
+function arCss(aspect: string): string {
+  return aspect === "16:9" ? "16/9" : aspect === "1:1" ? "1/1" : "9/16";
+}
+
+function IcPlay() {
+  return <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 ml-0.5"><path d="M8 5v14l11-7z" /></svg>;
+}
+
+function SkeletonCard() {
   return (
-    <div className="mt-4 mx-8 mb-8 rounded-[28px] bg-gray-50 border border-gray-100 flex items-center justify-center" style={{ minHeight: "calc(100vh - 200px)" }}>
-      <div className="flex flex-col items-center gap-4 p-8 text-center">
-        {status === "failed" ? (
-          <>
-            <p className="text-gray-700 font-medium">{error ?? "Something went wrong."}</p>
-            <button onClick={onReset} className="mt-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors">Try Again</button>
-          </>
+    <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+      <div className="bg-gray-100 animate-pulse" style={{ aspectRatio: "9/16" }} />
+      <div className="p-3 space-y-2">
+        <div className="h-3 bg-gray-100 rounded animate-pulse" />
+        <div className="h-2 w-1/2 bg-gray-100 rounded animate-pulse" />
+      </div>
+    </div>
+  );
+}
+
+function ClipCard({ clip, onEdit, editing }: { clip: ClipItem; onEdit: (id: string) => void; editing: boolean }) {
+  const [playing, setPlaying] = useState(false);
+  const sc = scoreColor(clip.score);
+  const ready = clip.status === "ready";
+  const failed = clip.status === "failed";
+
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden flex flex-col shadow-sm">
+      <div className="relative bg-gray-900" style={{ aspectRatio: arCss(clip.aspectRatio) }}>
+        {ready && playing && clip.videoUrl ? (
+          <video src={clip.videoUrl} controls autoPlay className="w-full h-full object-contain bg-black" />
         ) : (
           <>
-            <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-            <p className="text-gray-700 font-medium">{statusText[status] ?? ""}</p>
-            {status === "rendering" && <p className="text-sm text-gray-400">You can leave this page — we&apos;ll keep processing.</p>}
+            {clip.thumbnailUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={clip.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-gray-100 animate-pulse" />
+            )}
+            {ready ? (
+              <button onClick={() => setPlaying(true)} className="absolute inset-0 flex items-center justify-center bg-black/15 hover:bg-black/25 transition-colors group">
+                <span className="w-12 h-12 rounded-full bg-white/90 text-gray-900 flex items-center justify-center group-hover:scale-105 transition-transform"><IcPlay /></span>
+              </button>
+            ) : failed ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white text-xs font-medium">Failed to render</div>
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/35 text-white">
+                <div className="w-9 h-9 border-[3px] border-white/40 border-t-white rounded-full animate-spin" />
+                <span className="text-xs font-semibold">{clip.status === "queued" ? "Queued" : `${clip.progress}%`}</span>
+              </div>
+            )}
+            {clip.score != null && (
+              <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-xs font-bold shadow-sm" style={{ background: sc.bg, color: sc.text }}>
+                {clip.score}
+              </span>
+            )}
           </>
         )}
+        {!ready && !failed && clip.status === "rendering" && (
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/25">
+            <div className="h-full bg-[#3860FF] transition-all duration-500" style={{ width: `${clip.progress}%` }} />
+          </div>
+        )}
+      </div>
+      <div className="p-3 flex flex-col gap-2 flex-1">
+        <p className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2">{clip.title || `Clip ${clip.index + 1}`}</p>
+        <p className="text-xs text-gray-400">{fmtTime(clip.durationSec)} • {fmtTime(clip.startSec)}–{fmtTime(clip.endSec)}</p>
+        {ready && clip.videoUrl && (
+          <div className="flex gap-2 mt-auto pt-1">
+            <a href={clip.videoUrl} download className="flex-1 text-center text-xs font-semibold py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">Download</a>
+            <button onClick={() => onEdit(clip.id)} disabled={editing} className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-[#3860FF] text-white hover:bg-[#2d50e0] transition-colors disabled:opacity-50">
+              {editing ? "Opening…" : "Edit"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
+  projectId: string | null;
+  status: GenerateStatus;
+  error: string | null;
+  expectedCount: number;
+  onReset: () => void;
+}) {
+  const router = useRouter();
+  const [clips, setClips] = useState<ClipItem[]>([]);
+  const [projectStatus, setProjectStatus] = useState<string>("rendering");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!projectId) return;
+    const token = getStoredToken();
+    if (!token) return;
+    const tick = async () => {
+      try {
+        const res = await fetch(`/api/projects/${projectId}/clips`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const d = await res.json() as { clips?: ClipItem[]; project?: { status?: string } };
+        setClips(d.clips ?? []);
+        const st = d.project?.status ?? "rendering";
+        setProjectStatus(st);
+        if ((st === "completed" || st === "failed") && pollRef.current) clearInterval(pollRef.current);
+      } catch { /* keep polling */ }
+    };
+    tick();
+    pollRef.current = setInterval(tick, 2500);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [projectId]);
+
+  async function openInEditor(clipId: string) {
+    const token = getStoredToken();
+    if (!token) return;
+    setEditingId(clipId);
+    try {
+      const res = await fetch(`/api/clips/${clipId}/edit`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      const d = await res.json() as { projectId?: string; error?: string };
+      if (d.projectId) router.push(`/dashboard/editor/${d.projectId}`);
+    } finally {
+      setEditingId(null);
+    }
+  }
+
+  const ready = clips.filter(c => c.status === "ready").length;
+  const total = clips.length || expectedCount;
+  const failedHard = status === "failed" || (projectStatus === "failed" && clips.every(c => c.status === "failed"));
+  const analyzing = clips.length === 0 && !failedHard;
+  const allDone = projectStatus === "completed";
+
+  let heading: string;
+  if (failedHard) heading = "Something went wrong";
+  else if (status === "uploading") heading = "Uploading your video…";
+  else if (analyzing) heading = "Analyzing your video for the best moments…";
+  else if (allDone) heading = `Your clips are ready 🎉`;
+  else heading = "Generating your clips";
+
+  return (
+    <div className="px-4 md:px-8 py-6 max-w-6xl w-full mx-auto">
+      {/* Header */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            {!failedHard && !allDone && <div className="w-6 h-6 border-[3px] border-blue-200 border-t-[#3860FF] rounded-full animate-spin" />}
+            <h2 className="text-xl font-bold text-gray-900">{heading}</h2>
+          </div>
+          {!analyzing && !failedHard && (
+            <span className="text-sm font-semibold text-gray-500">{ready} / {total} ready</span>
+          )}
+          {(allDone || failedHard) && (
+            <button onClick={onReset} className="text-sm font-semibold text-[#3860FF] hover:underline">Create another</button>
+          )}
+        </div>
+        {/* Overall progress bar */}
+        {!analyzing && !failedHard && (
+          <div className="mt-3 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+            <div className="h-full bg-[#3860FF] transition-all duration-500" style={{ width: `${total ? (ready / total) * 100 : 0}%` }} />
+          </div>
+        )}
+        {failedHard && (
+          <p className="text-sm text-gray-500 mt-2">{error ?? "We couldn't generate clips from this video. Please try again."}</p>
+        )}
+      </div>
+
+      {/* Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        {clips.length > 0
+          ? clips.map(c => <ClipCard key={c.id} clip={c} onEdit={openInEditor} editing={editingId === c.id} />)
+          : !failedHard && Array.from({ length: Math.max(1, expectedCount) }).map((_, i) => <SkeletonCard key={i} />)}
       </div>
     </div>
   );
@@ -497,7 +658,7 @@ function AutoClipFlow() {
   const [instructions, setInstructions] = useState("");
 
   // Generation
-  const { status: genStatus, videoUrl, error: genError, generateAutoClip, reset } = useVideoGenerate();
+  const { status: genStatus, error: genError, projectId: genProjectId, generateAutoClip, reset } = useVideoGenerate();
 
   // Object URL cleanup
   useEffect(() => {
@@ -563,7 +724,7 @@ function AutoClipFlow() {
       <ToolsSidebar active="create" />
       <main className="flex-1 overflow-y-auto bg-white flex flex-col">
         {showOverlay ? (
-          <GeneratingOverlay status={genStatus} videoUrl={videoUrl} error={genError} onReset={handleReset} />
+          <ClipsResults projectId={genProjectId} status={genStatus} error={genError} expectedCount={clipCount} onReset={handleReset} />
         ) : (
           <>
             <StepperBar
