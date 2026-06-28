@@ -19,7 +19,7 @@ export default function TimelineControls() {
   return (
     <div
       className="flex items-center gap-1 px-3 flex-shrink-0"
-      style={{ height: 36, borderBottom: "1px solid #1a1a1e", background: "#111113" }}
+      style={{ height: 36, borderBottom: "1px solid #e4e7ec", background: "#f6f7f9" }}
     >
       {/* Clip actions */}
       <div className="flex items-center gap-1">
@@ -58,7 +58,7 @@ export default function TimelineControls() {
         </CtrlBtn>
       </div>
 
-      <div className="w-px h-4 mx-1" style={{ background: "#27272a" }} />
+      <div className="w-px h-4 mx-1" style={{ background: "#e4e7ec" }} />
 
       {/* Marker */}
       <CtrlBtn title="Add marker (M)" onClick={() => addMarker(currentTime)}>
@@ -75,9 +75,9 @@ export default function TimelineControls() {
         onClick={() => setSnapEnabled(!snapEnabled)}
         className="flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors"
         style={{
-          background: snapEnabled ? "#1e3a5f" : "transparent",
-          color: snapEnabled ? "#60a5fa" : "#52525b",
-          border: `1px solid ${snapEnabled ? "#1d4ed8" : "transparent"}`,
+          background: snapEnabled ? "#e8edff" : "transparent",
+          color: snapEnabled ? "#335cff" : "#98a0ae",
+          border: `1px solid ${snapEnabled ? "#284be0" : "transparent"}`,
         }}
         title="Toggle snap"
       >
@@ -92,9 +92,9 @@ export default function TimelineControls() {
         <button
           onClick={() => setZoom(zoom / 1.5)}
           className="w-6 h-6 flex items-center justify-center rounded transition-colors text-sm"
-          style={{ color: "#52525b" }}
-          onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#e4e4e7")}
-          onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "#52525b")}
+          style={{ color: "#98a0ae" }}
+          onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#15181f")}
+          onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "#98a0ae")}
           title="Zoom out (-)"
         >
           −
@@ -111,9 +111,9 @@ export default function TimelineControls() {
         <button
           onClick={() => setZoom(zoom * 1.5)}
           className="w-6 h-6 flex items-center justify-center rounded transition-colors text-sm"
-          style={{ color: "#52525b" }}
-          onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#e4e4e7")}
-          onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "#52525b")}
+          style={{ color: "#98a0ae" }}
+          onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#15181f")}
+          onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "#98a0ae")}
           title="Zoom in (+)"
         >
           +
@@ -141,11 +141,11 @@ function CtrlBtn({
       title={title}
       className="flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors"
       style={{
-        color: disabled ? "#3f3f46" : "#71717a",
+        color: disabled ? "#d3d8e0" : "#5a6170",
         cursor: disabled ? "not-allowed" : "pointer",
       }}
-      onMouseEnter={e => { if (!disabled) (e.currentTarget as HTMLElement).style.color = "#e4e4e7"; }}
-      onMouseLeave={e => { if (!disabled) (e.currentTarget as HTMLElement).style.color = "#71717a"; }}
+      onMouseEnter={e => { if (!disabled) (e.currentTarget as HTMLElement).style.color = "#15181f"; }}
+      onMouseLeave={e => { if (!disabled) (e.currentTarget as HTMLElement).style.color = "#5a6170"; }}
     >
       {children}
     </button>

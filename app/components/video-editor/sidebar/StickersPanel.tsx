@@ -43,16 +43,16 @@ export default function StickersPanel() {
 
   return (
     <div className="p-3">
-      <p className="text-xs mb-2" style={{ color: "#52525b" }}>Click to add at playhead position</p>
+      <p className="text-xs mb-2" style={{ color: "#98a0ae" }}>Click to add at playhead position</p>
       <div className="grid grid-cols-5 gap-1.5">
         {STICKERS.map(s => (
           <button
             key={s}
             onClick={() => addSticker(s)}
             className="flex items-center justify-center rounded-lg transition-all"
-            style={{ height: 40, background: "#1a1a1e", border: "1px solid #27272a", fontSize: 20 }}
-            onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = "#3f3f46")}
-            onMouseLeave={e => ((e.currentTarget as HTMLElement).style.borderColor = "#27272a")}
+            style={{ height: 40, background: "#e4e7ec", border: "1px solid #e4e7ec", fontSize: 20 }}
+            onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = "#d3d8e0")}
+            onMouseLeave={e => ((e.currentTarget as HTMLElement).style.borderColor = "#e4e7ec")}
           >
             {s}
           </button>

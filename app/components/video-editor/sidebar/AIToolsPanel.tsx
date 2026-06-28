@@ -9,7 +9,7 @@ const AI_TOOLS = [
     label: "Auto Captions",
     description: "Generate word-level captions with Whisper",
     icon: "💬",
-    color: "#6366f1",
+    color: "#335cff",
     action: "captions",
   },
   {
@@ -25,7 +25,7 @@ const AI_TOOLS = [
     label: "AI Copilot",
     description: "Type editing commands in plain English",
     icon: "🤖",
-    color: "#22c55e",
+    color: "#15a66b",
     action: "copilot",
   },
   {
@@ -63,18 +63,18 @@ export default function AIToolsPanel() {
 
   return (
     <div className="flex flex-col gap-2 p-3">
-      <div className="rounded-lg px-3 py-2.5" style={{ background: "linear-gradient(135deg,#1e1b4b,#312e81)", border: "1px solid #4338ca" }}>
-        <p className="text-xs font-semibold" style={{ color: "#a5b4fc" }}>✨ AI-Powered Editing</p>
-        <p className="text-xs mt-0.5" style={{ color: "#6366f1" }}>All tools are powered by Gemini + Whisper</p>
+      <div className="rounded-lg px-3 py-2.5" style={{ background: "linear-gradient(135deg,#eef1ff,#e8edff)", border: "1px solid #c7d2fe" }}>
+        <p className="text-xs font-semibold" style={{ color: "#335cff" }}>✨ AI-Powered Editing</p>
+        <p className="text-xs mt-0.5" style={{ color: "#335cff" }}>All tools are powered by Gemini + Whisper</p>
       </div>
       {AI_TOOLS.map(tool => (
         <button
           key={tool.id}
           onClick={() => handleTool(tool.action)}
           className="flex items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-all"
-          style={{ background: "#1a1a1e", border: "1px solid #27272a" }}
-          onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = "#3f3f46")}
-          onMouseLeave={e => ((e.currentTarget as HTMLElement).style.borderColor = "#27272a")}
+          style={{ background: "#e4e7ec", border: "1px solid #e4e7ec" }}
+          onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = "#d3d8e0")}
+          onMouseLeave={e => ((e.currentTarget as HTMLElement).style.borderColor = "#e4e7ec")}
         >
           <div
             className="w-9 h-9 rounded-lg flex items-center justify-center text-lg flex-shrink-0"
@@ -83,8 +83,8 @@ export default function AIToolsPanel() {
             {tool.icon}
           </div>
           <div>
-            <p className="text-xs font-semibold" style={{ color: "#e4e4e7" }}>{tool.label}</p>
-            <p className="text-xs mt-0.5" style={{ color: "#52525b" }}>{tool.description}</p>
+            <p className="text-xs font-semibold" style={{ color: "#15181f" }}>{tool.label}</p>
+            <p className="text-xs mt-0.5" style={{ color: "#98a0ae" }}>{tool.description}</p>
           </div>
         </button>
       ))}

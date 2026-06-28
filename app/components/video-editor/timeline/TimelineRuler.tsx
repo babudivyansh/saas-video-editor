@@ -33,14 +33,14 @@ export default function TimelineRuler({ zoom, duration, markers }: Props) {
               className="w-px"
               style={{
                 height: isMain ? 10 : 5,
-                background: isMain ? "#3f3f46" : "#27272a",
+                background: isMain ? "#d3d8e0" : "#e4e7ec",
                 marginTop: isMain ? 18 : 23,
               }}
             />
             {isMain && (
               <span
                 className="absolute text-[9px] top-1 whitespace-nowrap"
-                style={{ color: "#52525b", transform: "translateX(-50%)" }}
+                style={{ color: "#98a0ae", transform: "translateX(-50%)" }}
               >
                 {fmt(t)}
               </span>

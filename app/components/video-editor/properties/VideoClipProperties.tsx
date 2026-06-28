@@ -155,9 +155,9 @@ export default function VideoClipProperties({ clipId, data }: Props) {
         <button
           onClick={() => patch({ posX: 0.5, posY: 0.5, scaleX: 1, scaleY: 1, rotation: 0, opacity: 1, blur: 0, brightness: 1, contrast: 1, saturation: 1, speed: 1 })}
           className="w-full text-xs py-1.5 rounded-md transition-colors"
-          style={{ background: "#1e1e22", color: "#71717a", border: "1px solid #27272a" }}
-          onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#e4e4e7")}
-          onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "#71717a")}
+          style={{ background: "#f6f7f9", color: "#5a6170", border: "1px solid #e4e7ec" }}
+          onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#15181f")}
+          onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "#5a6170")}
         >
           Reset All
         </button>
@@ -169,8 +169,8 @@ export default function VideoClipProperties({ clipId, data }: Props) {
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="px-3 py-1.5" style={{ borderBottom: "1px solid #1a1a1e" }}>
-        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#52525b" }}>{label}</span>
+      <div className="px-3 py-1.5" style={{ borderBottom: "1px solid #e4e7ec" }}>
+        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#98a0ae" }}>{label}</span>
       </div>
       <div className="px-3 py-1.5 flex flex-col gap-2">{children}</div>
     </div>
@@ -180,7 +180,7 @@ function Section({ label, children }: { label: string; children: React.ReactNode
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-xs w-16 flex-shrink-0" style={{ color: "#71717a" }}>{label}</span>
+      <span className="text-xs w-16 flex-shrink-0" style={{ color: "#5a6170" }}>{label}</span>
       <div className="flex items-center gap-1.5 flex-1">{children}</div>
     </div>
   );
@@ -203,7 +203,7 @@ function Slider({ value, min, max, step, onChange }: { value: number; min: numbe
 
 function Val({ children }: { children: React.ReactNode }) {
   return (
-    <span className="text-xs w-10 text-right flex-shrink-0 tabular-nums" style={{ color: "#a1a1aa" }}>
+    <span className="text-xs w-10 text-right flex-shrink-0 tabular-nums" style={{ color: "#5a6170" }}>
       {children}
     </span>
   );

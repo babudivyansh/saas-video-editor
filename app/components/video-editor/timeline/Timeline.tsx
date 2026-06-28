@@ -41,10 +41,10 @@ export default function Timeline() {
         {/* Track labels column (fixed, doesn't scroll horizontally) */}
         <div
           className="flex-shrink-0 flex flex-col overflow-y-hidden"
-          style={{ width: TRACK_LABEL_W, borderRight: "1px solid #27272a" }}
+          style={{ width: TRACK_LABEL_W, borderRight: "1px solid #e4e7ec" }}
         >
           {/* Ruler spacer */}
-          <div style={{ height: RULER_H, flexShrink: 0, borderBottom: "1px solid #27272a" }} />
+          <div style={{ height: RULER_H, flexShrink: 0, borderBottom: "1px solid #e4e7ec" }} />
           {tracks.map(track => (
             <TrackLabel key={track.id} track={track} height={TRACK_H} />
           ))}
@@ -59,7 +59,7 @@ export default function Timeline() {
             {/* Ruler */}
             <div
               onClick={handleRulerClick}
-              style={{ height: RULER_H, cursor: "crosshair", position: "sticky", top: 0, zIndex: 10, background: "#111113", borderBottom: "1px solid #27272a" }}
+              style={{ height: RULER_H, cursor: "crosshair", position: "sticky", top: 0, zIndex: 10, background: "#f6f7f9", borderBottom: "1px solid #e4e7ec" }}
             >
               <TimelineRuler zoom={zoom} duration={duration} markers={markers} />
             </div>
@@ -84,7 +84,7 @@ export default function Timeline() {
       {/* Add track row — full width so buttons never get clipped */}
       <div
         className="flex-shrink-0 flex items-center"
-        style={{ height: 32, borderTop: "1px solid #1a1a1e", background: "#111113" }}
+        style={{ height: 32, borderTop: "1px solid #e4e7ec", background: "#f6f7f9" }}
       >
         <AddTrackButton />
       </div>
@@ -98,7 +98,7 @@ function TrackLabel({ track, height }: { track: { id: string; name: string; kind
 
   const kindColors: Record<string, string> = {
     video: "#3b82f6",
-    audio: "#22c55e",
+    audio: "#15a66b",
     text: "#f59e0b",
     effect: "#a855f7",
   };
@@ -108,19 +108,19 @@ function TrackLabel({ track, height }: { track: { id: string; name: string; kind
       className="relative flex items-center gap-1.5 px-2 flex-shrink-0 group"
       style={{
         height,
-        borderBottom: "1px solid #1a1a1e",
-        background: "#111113",
+        borderBottom: "1px solid #e4e7ec",
+        background: "#f6f7f9",
       }}
     >
       <div
         className="w-1 rounded-full flex-shrink-0"
-        style={{ height: 20, background: kindColors[track.kind] ?? "#52525b" }}
+        style={{ height: 20, background: kindColors[track.kind] ?? "#98a0ae" }}
       />
-      <span className="text-xs font-medium truncate flex-1 pr-1" style={{ color: "#a1a1aa" }}>
+      <span className="text-xs font-medium truncate flex-1 pr-1" style={{ color: "#5a6170" }}>
         {track.name}
       </span>
       {/* Buttons float absolutely so they don't shrink the track name */}
-      <div className="absolute right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "#111113" }}>
+      <div className="absolute right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "#f6f7f9" }}>
         {/* Mute */}
         <IconBtn
           active={track.muted}
@@ -184,7 +184,7 @@ function AddTrackButton() {
         onClick={() => addTrack("video")}
         className="flex items-center gap-1 text-xs transition-colors"
         style={{ color: "#3b82f6" }}
-        onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#60a5fa")}
+        onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#335cff")}
         onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "#3b82f6")}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3 h-3">
@@ -194,17 +194,17 @@ function AddTrackButton() {
         </svg>
         Add Video
       </button>
-      <span style={{ color: "#27272a" }}>·</span>
+      <span style={{ color: "#e4e7ec" }}>·</span>
       <button
         onClick={() => addTrack("audio")}
         className="flex items-center gap-1 text-xs transition-colors"
-        style={{ color: "#22c55e" }}
-        onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#4ade80")}
-        onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "#22c55e")}
+        style={{ color: "#15a66b" }}
+        onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#15a66b")}
+        onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "#15a66b")}
       >
         + Audio
       </button>
-      <span style={{ color: "#27272a" }}>·</span>
+      <span style={{ color: "#e4e7ec" }}>·</span>
       <button
         onClick={() => addTrack("text")}
         className="flex items-center gap-1 text-xs transition-colors"
@@ -234,9 +234,9 @@ function IconBtn({
       onClick={onClick}
       title={title}
       className="w-5 h-5 flex items-center justify-center rounded"
-      style={{ color: active ? "#ef4444" : "#52525b" }}
-      onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#e4e4e7")}
-      onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = active ? "#ef4444" : "#52525b")}
+      style={{ color: active ? "#ef4444" : "#98a0ae" }}
+      onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#15181f")}
+      onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = active ? "#ef4444" : "#98a0ae")}
     >
       {children}
     </button>

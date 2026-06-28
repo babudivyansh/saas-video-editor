@@ -21,7 +21,7 @@ interface Suggestion {
 const PRIORITY_COLOR: Record<Suggestion["priority"], string> = {
   high:   "#ef4444",
   medium: "#f59e0b",
-  low:    "#22c55e",
+  low:    "#15a66b",
 };
 
 function token() {
@@ -95,18 +95,18 @@ export default function AutoEditSuggestions() {
     >
       <div
         className="relative flex flex-col rounded-2xl overflow-hidden"
-        style={{ width: 560, maxHeight: "85vh", background: "#0d0d0f", border: "1px solid #27272a" }}
+        style={{ width: 560, maxHeight: "85vh", background: "#f3f4f7", border: "1px solid #e4e7ec" }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid #1c1c1e" }}>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid #e4e7ec" }}>
           <div>
-            <h2 className="text-base font-bold" style={{ color: "#e4e4e7" }}>✂️ Auto Edit</h2>
-            <p className="text-xs mt-0.5" style={{ color: "#52525b" }}>AI-suggested edits based on your timeline</p>
+            <h2 className="text-base font-bold" style={{ color: "#15181f" }}>✂️ Auto Edit</h2>
+            <p className="text-xs mt-0.5" style={{ color: "#98a0ae" }}>AI-suggested edits based on your timeline</p>
           </div>
           <button
             onClick={() => setAutoEditOpen(false)}
             className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
-            style={{ background: "#1a1a1e", color: "#71717a" }}
+            style={{ background: "#e4e7ec", color: "#5a6170" }}
           >
             ✕
           </button>
@@ -119,13 +119,13 @@ export default function AutoEditSuggestions() {
             <div className="flex flex-col items-center gap-4 py-8">
               <div
                 className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl"
-                style={{ background: "#1a1a1e" }}
+                style={{ background: "#e4e7ec" }}
               >
                 🤖
               </div>
               <div className="text-center">
-                <p className="text-sm font-semibold" style={{ color: "#e4e4e7" }}>Analyze your timeline</p>
-                <p className="text-xs mt-1" style={{ color: "#52525b" }}>
+                <p className="text-sm font-semibold" style={{ color: "#15181f" }}>Analyze your timeline</p>
+                <p className="text-xs mt-1" style={{ color: "#98a0ae" }}>
                   Gemini will review your clips and suggest pacing, text, and cut improvements
                 </p>
               </div>
@@ -135,7 +135,7 @@ export default function AutoEditSuggestions() {
               <button
                 onClick={analyze}
                 className="px-6 py-2.5 rounded-xl text-sm font-semibold transition-colors"
-                style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)", color: "#fff" }}
+                style={{ background: "linear-gradient(135deg,#3b82f6,#335cff)", color: "#fff" }}
               >
                 Analyze Timeline
               </button>
@@ -149,24 +149,24 @@ export default function AutoEditSuggestions() {
                   <div
                     key={i}
                     className="w-2 h-2 rounded-full animate-bounce"
-                    style={{ background: "#6366f1", animationDelay: `${i * 0.15}s` }}
+                    style={{ background: "#335cff", animationDelay: `${i * 0.15}s` }}
                   />
                 ))}
               </div>
-              <p className="text-sm" style={{ color: "#71717a" }}>Analyzing your timeline…</p>
+              <p className="text-sm" style={{ color: "#5a6170" }}>Analyzing your timeline…</p>
             </div>
           )}
 
           {suggestions.length > 0 && (
             <>
               <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold" style={{ color: "#71717a" }}>
+                <p className="text-xs font-semibold" style={{ color: "#5a6170" }}>
                   {suggestions.length} suggestion{suggestions.length !== 1 ? "s" : ""} found
                 </p>
                 <button
                   onClick={analyze}
                   className="text-xs px-3 py-1 rounded-lg transition-colors"
-                  style={{ background: "#1a1a1e", color: "#6366f1" }}
+                  style={{ background: "#e4e7ec", color: "#335cff" }}
                 >
                   Re-analyze
                 </button>
@@ -179,8 +179,8 @@ export default function AutoEditSuggestions() {
                     key={s.id}
                     className="rounded-xl p-4 flex items-start gap-3"
                     style={{
-                      background: "#111113",
-                      border: `1px solid ${done ? "#22c55e33" : "#27272a"}`,
+                      background: "#f6f7f9",
+                      border: `1px solid ${done ? "#15a66b33" : "#e4e7ec"}`,
                       opacity: done ? 0.7 : 1,
                     }}
                   >
@@ -189,8 +189,8 @@ export default function AutoEditSuggestions() {
                       style={{ background: PRIORITY_COLOR[s.priority] }}
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold" style={{ color: "#e4e4e7" }}>{s.title}</p>
-                      <p className="text-xs mt-0.5" style={{ color: "#52525b" }}>{s.description}</p>
+                      <p className="text-sm font-semibold" style={{ color: "#15181f" }}>{s.title}</p>
+                      <p className="text-xs mt-0.5" style={{ color: "#98a0ae" }}>{s.description}</p>
                     </div>
                     {s.action !== "info" && (
                       <button
@@ -198,9 +198,9 @@ export default function AutoEditSuggestions() {
                         disabled={done}
                         className="text-xs px-3 py-1.5 rounded-lg font-semibold flex-shrink-0 transition-all"
                         style={{
-                          background: done ? "#1a1a1e" : "#3b82f622",
-                          color: done ? "#52525b" : "#3b82f6",
-                          border: `1px solid ${done ? "#27272a" : "#3b82f633"}`,
+                          background: done ? "#e4e7ec" : "#3b82f622",
+                          color: done ? "#98a0ae" : "#3b82f6",
+                          border: `1px solid ${done ? "#e4e7ec" : "#3b82f633"}`,
                           cursor: done ? "default" : "pointer",
                         }}
                       >

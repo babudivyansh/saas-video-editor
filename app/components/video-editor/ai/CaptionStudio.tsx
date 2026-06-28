@@ -112,14 +112,14 @@ export default function CaptionStudio() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
-      <div className="flex flex-col rounded-2xl shadow-2xl overflow-hidden" style={{ width: 520, maxHeight: "80vh", background: "#18181b", border: "1px solid #27272a" }}>
+      <div className="flex flex-col rounded-2xl shadow-2xl overflow-hidden" style={{ width: 520, maxHeight: "80vh", background: "#ffffff", border: "1px solid #e4e7ec" }}>
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid #27272a" }}>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid #e4e7ec" }}>
           <div>
-            <h2 className="text-base font-bold" style={{ color: "#e4e4e7" }}>AI Caption Studio</h2>
-            <p className="text-xs mt-0.5" style={{ color: "#52525b" }}>Powered by Whisper · Word-level timestamps</p>
+            <h2 className="text-base font-bold" style={{ color: "#15181f" }}>AI Caption Studio</h2>
+            <p className="text-xs mt-0.5" style={{ color: "#98a0ae" }}>Powered by Whisper · Word-level timestamps</p>
           </div>
-          <button onClick={() => setCaptionStudioOpen(false)} style={{ color: "#71717a" }} className="hover:text-white transition-colors">
+          <button onClick={() => setCaptionStudioOpen(false)} style={{ color: "#5a6170" }} className="hover:text-gray-900 transition-colors">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
               <line x1="18" y1="6" x2="6" y2="18" strokeLinecap="round" />
               <line x1="6" y1="6" x2="18" y2="18" strokeLinecap="round" />
@@ -131,16 +131,16 @@ export default function CaptionStudio() {
           {/* Step 1: Generate */}
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: "#1e3a5f", color: "#60a5fa" }}>1</div>
-              <span className="text-sm font-medium" style={{ color: "#e4e4e7" }}>Generate Transcript</span>
+              <div className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: "#e8edff", color: "#335cff" }}>1</div>
+              <span className="text-sm font-medium" style={{ color: "#15181f" }}>Generate Transcript</span>
             </div>
-            {error && <p className="text-xs mb-2" style={{ color: "#f87171" }}>{error}</p>}
+            {error && <p className="text-xs mb-2" style={{ color: "#e5484d" }}>{error}</p>}
             <button
               onClick={generate}
               disabled={loading || !videoUrl}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
               style={{
-                background: loading ? "#1e3a5f" : "#2563eb",
+                background: loading ? "#e8edff" : "#335cff",
                 color: "white",
                 opacity: !videoUrl ? 0.5 : 1,
                 cursor: !videoUrl ? "not-allowed" : "pointer",
@@ -165,8 +165,8 @@ export default function CaptionStudio() {
 
           {/* Generated transcript preview */}
           {segments.length > 0 && (
-            <div className="rounded-lg p-3 max-h-40 overflow-y-auto" style={{ background: "#111113", border: "1px solid #27272a" }}>
-              <p className="text-xs leading-relaxed" style={{ color: "#a1a1aa" }}>
+            <div className="rounded-lg p-3 max-h-40 overflow-y-auto" style={{ background: "#f6f7f9", border: "1px solid #e4e7ec" }}>
+              <p className="text-xs leading-relaxed" style={{ color: "#5a6170" }}>
                 {segments.map(s => s.word).join(" ")}
               </p>
             </div>
@@ -176,8 +176,8 @@ export default function CaptionStudio() {
           {generated && (
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: "#1e3a5f", color: "#60a5fa" }}>2</div>
-                <span className="text-sm font-medium" style={{ color: "#e4e4e7" }}>Choose Caption Style</span>
+                <div className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: "#e8edff", color: "#335cff" }}>2</div>
+                <span className="text-sm font-medium" style={{ color: "#15181f" }}>Choose Caption Style</span>
               </div>
               <div className="grid grid-cols-4 gap-1.5">
                 {CAPTION_STYLES.map((style, i) => (
@@ -186,14 +186,14 @@ export default function CaptionStudio() {
                     onClick={() => setStyleIdx(i)}
                     className="flex flex-col items-center justify-center rounded-lg py-2 px-1 transition-all"
                     style={{
-                      background: styleIdx === i ? "#1e3a5f" : "#111113",
-                      border: `1px solid ${styleIdx === i ? "#2563eb" : "#27272a"}`,
+                      background: styleIdx === i ? "#e8edff" : "#f6f7f9",
+                      border: `1px solid ${styleIdx === i ? "#335cff" : "#e4e7ec"}`,
                     }}
                   >
                     <span style={{ color: style.color, fontFamily: style.fontFamily, fontSize: 10, fontWeight: style.weight }}>
                       WORD
                     </span>
-                    <span style={{ color: "#52525b", fontSize: 8, marginTop: 2 }}>{style.label}</span>
+                    <span style={{ color: "#98a0ae", fontSize: 8, marginTop: 2 }}>{style.label}</span>
                   </button>
                 ))}
               </div>
@@ -202,10 +202,10 @@ export default function CaptionStudio() {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-5 py-3" style={{ borderTop: "1px solid #27272a" }}>
-          <button onClick={() => setCaptionStudioOpen(false)} className="px-4 py-1.5 rounded-lg text-sm transition-colors" style={{ color: "#71717a" }}
-            onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#e4e4e7")}
-            onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "#71717a")}
+        <div className="flex items-center justify-end gap-2 px-5 py-3" style={{ borderTop: "1px solid #e4e7ec" }}>
+          <button onClick={() => setCaptionStudioOpen(false)} className="px-4 py-1.5 rounded-lg text-sm transition-colors" style={{ color: "#5a6170" }}
+            onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#15181f")}
+            onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "#5a6170")}
           >
             Cancel
           </button>
@@ -214,8 +214,8 @@ export default function CaptionStudio() {
             disabled={segments.length === 0}
             className="px-4 py-1.5 rounded-lg text-sm font-semibold transition-all"
             style={{
-              background: segments.length === 0 ? "#27272a" : "#2563eb",
-              color: segments.length === 0 ? "#52525b" : "white",
+              background: segments.length === 0 ? "#e4e7ec" : "#335cff",
+              color: segments.length === 0 ? "#98a0ae" : "white",
               cursor: segments.length === 0 ? "not-allowed" : "pointer",
             }}
           >

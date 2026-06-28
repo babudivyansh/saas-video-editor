@@ -1,6 +1,6 @@
 import Link from "next/link";
 import {
-  ZapIcon, LinkedInIcon, XIcon, YoutubeIcon, GitHubIcon, DiscordIcon,
+  LinkedInIcon, XIcon, YoutubeIcon, GitHubIcon, DiscordIcon,
 } from "@/app/components/landing/icons";
 import { FREE_FEATURES, VIDEO_TOOLS, AI_TOOLS, type FeatureLink } from "@/app/components/featureLinks";
 
@@ -50,11 +50,9 @@ export default function SiteFooter() {
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-6">
           {/* Brand blurb */}
           <div className="col-span-2 sm:col-span-3 lg:col-span-1">
-            <Link href="/" className="flex items-center gap-2 text-xl font-black tracking-tight text-gray-900">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#335CFF] text-white">
-                <ZapIcon className="h-4 w-4" />
-              </span>
-              CLIPIRO
+            <Link href="/" className="inline-flex" aria-label="Clipiro home">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/clipiro-wordmark.png" alt="Clipiro" className="h-15 w-auto" />
             </Link>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-gray-500">
               Turn long videos into viral short-form content with AI clipping, captions, and one-click export.

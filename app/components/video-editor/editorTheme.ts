@@ -1,30 +1,30 @@
-// Premium dark design tokens for the advanced editor. Centralizing these keeps
+// Premium LIGHT design tokens for the advanced editor. Centralizing these keeps
 // every panel consistent and makes future theming a one-file change.
 export const T = {
-  // Surfaces (darkest → lightest)
-  bg: "#0B0C0F",        // app canvas behind panels
-  surface: "#121318",   // panels
-  surface2: "#171922",  // raised cards / inputs
-  surface3: "#1E212B",  // hover / active
+  // Surfaces (app canvas → raised)
+  bg: "#F3F4F7",        // app canvas behind panels
+  surface: "#FFFFFF",   // panels
+  surface2: "#F6F7F9",  // raised cards / inputs
+  surface3: "#ECEEF2",  // hover / active
   // Lines
-  border: "#23262F",
-  borderStrong: "#2D313C",
+  border: "#E4E7EC",
+  borderStrong: "#D3D8E0",
   // Text
-  text: "#E8EAF0",
-  textMuted: "#9AA0AD",
-  textFaint: "#5B6170",
+  text: "#15181F",
+  textMuted: "#5A6170",
+  textFaint: "#98A0AE",
   // Brand accent
   accent: "#335CFF",
   accentHover: "#284BE0",
-  accentSoft: "rgba(51,92,255,0.14)",
-  accentRing: "rgba(51,92,255,0.45)",
+  accentSoft: "rgba(51,92,255,0.10)",
+  accentRing: "rgba(51,92,255,0.35)",
   // Status
-  green: "#3DD68C",
-  amber: "#F5B544",
-  red: "#FF5C5C",
+  green: "#15A66B",
+  amber: "#D6920A",
+  red: "#E5484D",
   // Effects
-  glass: "rgba(18,19,24,0.72)",
-  shadow: "0 12px 40px rgba(0,0,0,0.45)",
+  glass: "rgba(255,255,255,0.82)",
+  shadow: "0 12px 40px rgba(16,24,40,0.12)",
 } as const;
 
 export type EditorTheme = typeof T;

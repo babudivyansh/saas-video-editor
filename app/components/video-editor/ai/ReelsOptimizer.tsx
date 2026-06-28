@@ -36,18 +36,18 @@ export default function ReelsOptimizer() {
     }
   }, [present]);
 
-  const priorityColor: Record<string, string> = { high: "#ef4444", medium: "#f59e0b", low: "#22c55e" };
+  const priorityColor: Record<string, string> = { high: "#ef4444", medium: "#f59e0b", low: "#15a66b" };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
-      <div className="flex flex-col rounded-2xl shadow-2xl overflow-hidden" style={{ width: 460, maxHeight: "80vh", background: "#18181b", border: "1px solid #27272a" }}>
+      <div className="flex flex-col rounded-2xl shadow-2xl overflow-hidden" style={{ width: 460, maxHeight: "80vh", background: "#ffffff", border: "1px solid #e4e7ec" }}>
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid #27272a" }}>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid #e4e7ec" }}>
           <div>
-            <h2 className="text-base font-bold" style={{ color: "#e4e4e7" }}>🚀 Reels Optimizer</h2>
-            <p className="text-xs mt-0.5" style={{ color: "#52525b" }}>AI analysis for viral potential</p>
+            <h2 className="text-base font-bold" style={{ color: "#15181f" }}>🚀 Reels Optimizer</h2>
+            <p className="text-xs mt-0.5" style={{ color: "#98a0ae" }}>AI analysis for viral potential</p>
           </div>
-          <button onClick={() => setReelsOptimizerOpen(false)} style={{ color: "#71717a" }} className="hover:text-white transition-colors">
+          <button onClick={() => setReelsOptimizerOpen(false)} style={{ color: "#5a6170" }} className="hover:text-gray-900 transition-colors">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
               <line x1="18" y1="6" x2="6" y2="18" strokeLinecap="round" />
               <line x1="6" y1="6" x2="18" y2="18" strokeLinecap="round" />
@@ -60,10 +60,10 @@ export default function ReelsOptimizer() {
             <div className="flex flex-col items-center gap-4 py-6">
               <div className="text-5xl">🎯</div>
               <div className="text-center">
-                <p className="text-sm font-medium" style={{ color: "#e4e4e7" }}>Analyze your video</p>
-                <p className="text-xs mt-1" style={{ color: "#52525b" }}>Get a viral score and improvement suggestions</p>
+                <p className="text-sm font-medium" style={{ color: "#15181f" }}>Analyze your video</p>
+                <p className="text-xs mt-1" style={{ color: "#98a0ae" }}>Get a viral score and improvement suggestions</p>
               </div>
-              {error && <p className="text-xs" style={{ color: "#f87171" }}>{error}</p>}
+              {error && <p className="text-xs" style={{ color: "#e5484d" }}>{error}</p>}
               <button
                 onClick={analyze}
                 disabled={loading}
@@ -78,28 +78,28 @@ export default function ReelsOptimizer() {
               {/* Scores */}
               <div className="grid grid-cols-3 gap-2">
                 <ScoreCard label="Viral Score" score={result.viralScore} accent="#f59e0b" />
-                <ScoreCard label="Hook" score={result.hookScore} accent="#6366f1" />
-                <ScoreCard label="Pacing" score={result.pacingScore} accent="#22c55e" />
+                <ScoreCard label="Hook" score={result.hookScore} accent="#335cff" />
+                <ScoreCard label="Pacing" score={result.pacingScore} accent="#15a66b" />
               </div>
 
               {/* Suggestions */}
               {result.suggestions.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#52525b" }}>Suggestions</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#98a0ae" }}>Suggestions</p>
                   <div className="flex flex-col gap-1.5">
                     {result.suggestions.map((s, i) => (
-                      <div key={i} className="flex items-start gap-2 rounded-lg px-3 py-2" style={{ background: "#111113", border: "1px solid #1a1a1e" }}>
+                      <div key={i} className="flex items-start gap-2 rounded-lg px-3 py-2" style={{ background: "#f6f7f9", border: "1px solid #e4e7ec" }}>
                         <div className="w-2 h-2 rounded-full mt-1 flex-shrink-0" style={{ background: priorityColor[s.priority] }} />
-                        <p className="text-xs" style={{ color: "#a1a1aa" }}>{s.text}</p>
+                        <p className="text-xs" style={{ color: "#5a6170" }}>{s.text}</p>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              <button onClick={analyze} disabled={loading} className="text-xs transition-colors" style={{ color: "#52525b" }}
-                onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#e4e4e7")}
-                onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "#52525b")}
+              <button onClick={analyze} disabled={loading} className="text-xs transition-colors" style={{ color: "#98a0ae" }}
+                onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#15181f")}
+                onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "#98a0ae")}
               >
                 Re-analyze
               </button>
@@ -113,10 +113,10 @@ export default function ReelsOptimizer() {
 
 function ScoreCard({ label, score, accent }: { label: string; score: number; accent: string }) {
   return (
-    <div className="rounded-xl p-3 text-center" style={{ background: "#111113", border: `1px solid ${accent}33` }}>
+    <div className="rounded-xl p-3 text-center" style={{ background: "#f6f7f9", border: `1px solid ${accent}33` }}>
       <div className="text-2xl font-bold tabular-nums" style={{ color: accent }}>{score}</div>
-      <div className="text-xs mt-0.5" style={{ color: "#52525b" }}>{label}</div>
-      <div className="mt-2 h-1 rounded-full" style={{ background: "#1a1a1e" }}>
+      <div className="text-xs mt-0.5" style={{ color: "#98a0ae" }}>{label}</div>
+      <div className="mt-2 h-1 rounded-full" style={{ background: "#e4e7ec" }}>
         <div className="h-full rounded-full" style={{ width: `${score}%`, background: accent }} />
       </div>
     </div>

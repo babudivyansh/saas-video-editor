@@ -188,7 +188,7 @@ export default function MediaLibraryPanel() {
       {/* Upload zone */}
       <div
         className="flex flex-col items-center justify-center gap-2 rounded-lg cursor-pointer transition-all"
-        style={{ border: "2px dashed #27272a", padding: "20px 12px", background: uploading ? "#1a1a1e" : "transparent" }}
+        style={{ border: "2px dashed #e4e7ec", padding: "20px 12px", background: uploading ? "#e4e7ec" : "transparent" }}
         onClick={() => fileRef.current?.click()}
         onDragOver={e => { e.preventDefault(); }}
         onDrop={e => { e.preventDefault(); handleFileUpload(e.dataTransfer.files); }}
@@ -196,17 +196,17 @@ export default function MediaLibraryPanel() {
         {uploading ? (
           <div className="flex items-center gap-2">
             <Spinner />
-            <span className="text-xs" style={{ color: "#71717a" }}>Uploading…</span>
+            <span className="text-xs" style={{ color: "#5a6170" }}>Uploading…</span>
           </div>
         ) : (
           <>
-            <svg viewBox="0 0 24 24" fill="none" stroke="#52525b" strokeWidth={1.5} className="w-7 h-7">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#98a0ae" strokeWidth={1.5} className="w-7 h-7">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" strokeLinecap="round" />
               <polyline points="17 8 12 3 7 8" strokeLinecap="round" strokeLinejoin="round" />
               <line x1="12" y1="3" x2="12" y2="15" strokeLinecap="round" />
             </svg>
-            <span className="text-xs text-center" style={{ color: "#71717a" }}>
-              Drop video/audio here<br />or <span style={{ color: "#60a5fa" }}>browse</span>
+            <span className="text-xs text-center" style={{ color: "#5a6170" }}>
+              Drop video/audio here<br />or <span style={{ color: "#335cff" }}>browse</span>
             </span>
           </>
         )}
@@ -229,13 +229,13 @@ export default function MediaLibraryPanel() {
           onChange={e => setLinkInput(e.target.value)}
           onKeyDown={e => e.key === "Enter" && handleImportLink()}
           className="flex-1 rounded-md px-2 py-1 text-xs outline-none"
-          style={{ background: "#1e1e22", border: "1px solid #27272a", color: "#e4e4e7" }}
+          style={{ background: "#f6f7f9", border: "1px solid #e4e7ec", color: "#15181f" }}
         />
         <button
           onClick={handleImportLink}
           disabled={importing || !linkInput.trim()}
           className="px-2 py-1 rounded-md text-xs font-medium transition-colors"
-          style={{ background: "#2563eb", color: "white" }}
+          style={{ background: "#335cff", color: "white" }}
         >
           {importing ? "…" : "Import"}
         </button>
@@ -248,7 +248,7 @@ export default function MediaLibraryPanel() {
         </div>
       ) : items.length === 0 ? (
         <div className="text-center py-6">
-          <p className="text-xs" style={{ color: "#3f3f46" }}>No media yet</p>
+          <p className="text-xs" style={{ color: "#d3d8e0" }}>No media yet</p>
         </div>
       ) : (
         <div className="flex flex-col gap-1.5">
@@ -275,21 +275,21 @@ function MediaCard({ item, onAdd }: { item: MediaItem; onAdd: () => void }) {
       draggable
       onDragStart={onDragStart}
       className="flex items-center gap-2 rounded-lg px-2 py-2 cursor-grab transition-all group"
-      style={{ background: "#1a1a1e", border: "1px solid #27272a" }}
-      onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = "#3f3f46")}
-      onMouseLeave={e => ((e.currentTarget as HTMLElement).style.borderColor = "#27272a")}
+      style={{ background: "#e4e7ec", border: "1px solid #e4e7ec" }}
+      onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = "#d3d8e0")}
+      onMouseLeave={e => ((e.currentTarget as HTMLElement).style.borderColor = "#e4e7ec")}
     >
       {/* Icon */}
       <div
         className="w-9 h-9 rounded flex items-center justify-center flex-shrink-0"
-        style={{ background: item.kind === "video" ? "#1e3a5f" : "#14532d" }}
+        style={{ background: item.kind === "video" ? "#e8edff" : "#d1fae5" }}
       >
         {item.kind === "video" ? (
-          <svg viewBox="0 0 24 24" fill="#60a5fa" className="w-4 h-4">
+          <svg viewBox="0 0 24 24" fill="#335cff" className="w-4 h-4">
             <polygon points="5 3 19 12 5 21 5 3" />
           </svg>
         ) : (
-          <svg viewBox="0 0 24 24" fill="#4ade80" className="w-4 h-4">
+          <svg viewBox="0 0 24 24" fill="#15a66b" className="w-4 h-4">
             <path d="M9 18V5l12-2v13" strokeLinecap="round" />
             <circle cx="6" cy="18" r="3" />
             <circle cx="18" cy="16" r="3" />
@@ -299,15 +299,15 @@ function MediaCard({ item, onAdd }: { item: MediaItem; onAdd: () => void }) {
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium truncate" style={{ color: "#e4e4e7" }}>{item.name}</p>
-        <p className="text-xs" style={{ color: "#52525b" }}>{fmtDur(item.duration)}</p>
+        <p className="text-xs font-medium truncate" style={{ color: "#15181f" }}>{item.name}</p>
+        <p className="text-xs" style={{ color: "#98a0ae" }}>{fmtDur(item.duration)}</p>
       </div>
 
       {/* Add button */}
       <button
         onClick={e => { e.stopPropagation(); onAdd(); }}
         className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded flex items-center justify-center"
-        style={{ background: "#2563eb", color: "white" }}
+        style={{ background: "#335cff", color: "white" }}
         title="Add to timeline"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3.5 h-3.5">
