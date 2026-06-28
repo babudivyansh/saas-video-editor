@@ -24,79 +24,6 @@ interface QuestData {
 
 
 // ── Avatar Menu ───────────────────────────────────────────────────────────────
-function AvatarMenu({ user, signOut, level }: { user: { email: string; role: string; name?: string | null }; signOut: () => void; level?: string }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    if (open) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={() => setOpen(prev => !prev)}
-        className="w-9 h-9 rounded-full bg-[#335CFF] flex items-center justify-center text-white text-sm font-bold select-none cursor-pointer hover:opacity-90 transition-opacity"
-      >
-        {user.email[0].toUpperCase()}
-      </button>
-
-      {open && (
-        <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl border border-[#D7DBEA] shadow-xl z-50 py-1.5 overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#D7DBEA]">
-            <div className="flex items-center gap-2 mb-0.5">
-              <p className="text-sm font-semibold text-gray-900 truncate">{user.name || "User"}</p>
-              {level && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
-                  style={{ background: levelColor(level) + "20", color: levelColor(level) }}>
-                  {level}
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-[#868C98] truncate">{user.email}</p>
-          </div>
-
-          <div className="py-1.5">
-            <Link
-              href="/dashboard/profile"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-4 py-2 text-sm text-[#525866] hover:bg-gray-50 hover:text-gray-900 transition-colors"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              Profile
-            </Link>
-
-            {user.role === "ADMIN" && (
-              <Link
-                href="/admin"
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-2.5 px-4 py-2 text-sm text-[#525866] hover:bg-gray-50 hover:text-gray-900 transition-colors"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                Admin Panel
-              </Link>
-            )}
-          </div>
-
-          <div className="border-t border-[#D7DBEA] pt-1.5">
-            <button
-              onClick={() => { setOpen(false); signOut(); }}
-              className="flex items-center gap-2.5 w-full px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-              Logout
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Misc Icons ─────────────────────────────────────────────────────────────────
 function IcZap() {
   return <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>;
@@ -298,7 +225,7 @@ const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
-  const { user, token, openAuthModal, signOut } = useAuth();
+  const { user, token, openAuthModal } = useAuth();
   const [questData, setQuestData] = useState<QuestData | null>(null);
 
   useEffect(() => {
@@ -339,9 +266,7 @@ export default function DashboardPage() {
 
         {/* Top bar */}
         <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3 gap-3">
-          {user ? (
-            <AvatarMenu user={user} signOut={signOut} level={level ?? undefined} />
-          ) : (
+          {user ? null : (
             <button
               onClick={() => openAuthModal("login")}
               className="inline-flex items-center gap-1.5 bg-[#335CFF] text-white text-sm font-semibold px-4 py-2 rounded-full transition-transform duration-200 hover:scale-[1.01] cursor-pointer"

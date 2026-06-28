@@ -497,10 +497,6 @@ export default function ProfilePage() {
                 <IcShield /> Admin
               </Link>
             )}
-            <button onClick={signOut}
-              className="text-sm font-semibold text-gray-500 hover:text-red-500 transition-colors border border-gray-200 hover:border-red-200 px-4 py-1.5 rounded-lg">
-              Sign Out
-            </button>
           </div>
         </div>
 
