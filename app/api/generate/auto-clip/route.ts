@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { markQuestComplete } from "@/lib/quests";
 import { downloadFile } from "@/utils/download";
-import { extractAudio, runFFmpegArgs, getMediaDurationSec } from "@/utils/ffmpeg-render";
+import { extractAudio, runFFmpegArgs, runFFmpegWithProgress, getMediaDurationSec } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { transcribeAudio } from "@/utils/elevenlabs";
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -29,6 +29,8 @@ interface AutoClipPayload {
 interface ClipSegment {
   start: number; // seconds
   end: number;   // seconds
+  title: string; // AI hook/title
+  score: number; // virality 0–99
 }
 
 async function refundRenderCredit(projectId: string) {
@@ -66,6 +68,20 @@ async function getClipsFromGemini(
 
   const hasTranscript = transcriptText.trim().length > 0;
 
+  const sharedRules = `Return ONLY a valid JSON array — no explanation, no markdown fences. Example:
+[{"start":12.5,"end":35.0,"title":"The mistake everyone makes","score":87},{"start":67.2,"end":95.4,"title":"Why this changes everything","score":72}]
+
+For each clip include:
+- "title": a short, punchy, scroll-stopping hook (max 60 characters), no quotes inside
+- "score": a virality score 0–99 (how likely this clip is to go viral on TikTok/Reels/Shorts)
+
+Rules:
+- Return exactly ${clipCount} clip(s)
+- Each clip between ${minDuration}s and ${maxDuration}s long
+- Clips must not overlap
+- start/end within 0 and ${durationSec.toFixed(1)}
+- Sort by start time ascending`;
+
   const prompt = hasTranscript
     ? `You are a viral video editor. Analyze this transcript and select the ${clipCount} most engaging clips.
 
@@ -77,29 +93,13 @@ Video duration: ${durationSec.toFixed(1)} seconds
 Transcript (format: [seconds] word):
 ${transcriptText}
 
-Return ONLY a valid JSON array — no explanation, no markdown fences. Example:
-[{"start":12.5,"end":35.0},{"start":67.2,"end":95.4}]
-
-Rules:
-- Return exactly ${clipCount} clip(s)
-- Each clip between ${minDuration}s and ${maxDuration}s long
-- Clips must not overlap
-- start/end within 0 and ${durationSec.toFixed(1)}
-- Sort by start time ascending`
+${sharedRules}`
     : `You are a viral video editor. Select ${clipCount} clips from a ${durationSec.toFixed(1)}-second video.
 
 Each clip must be between ${minDuration} and ${maxDuration} seconds long.
 ${instructions ? `User instructions: ${instructions}` : "Space clips across the video to capture a variety of moments."}
 
-Return ONLY a valid JSON array — no explanation, no markdown fences. Example:
-[{"start":12.5,"end":35.0},{"start":67.2,"end":95.4}]
-
-Rules:
-- Return exactly ${clipCount} clip(s)
-- Each clip between ${minDuration}s and ${maxDuration}s long
-- Clips must not overlap
-- start/end within 0 and ${durationSec.toFixed(1)}
-- Sort by start time ascending`;
+${sharedRules}`;
 
   const result = await model.generateContent(prompt);
   const text = result.response.text().trim();
@@ -108,13 +108,15 @@ Rules:
   const jsonMatch = text.match(/\[[\s\S]*\]/);
   if (!jsonMatch) throw new Error("Gemini returned no JSON array");
 
-  const raw = JSON.parse(jsonMatch[0]) as Array<{ start: number; end: number }>;
+  const raw = JSON.parse(jsonMatch[0]) as Array<{ start: number; end: number; title?: string; score?: number }>;
 
   return raw
     .filter(c => typeof c.start === "number" && typeof c.end === "number" && c.end > c.start)
-    .map(c => ({
+    .map((c, i) => ({
       start: Math.max(0, Math.min(c.start, durationSec - 1)),
       end: Math.min(c.end, durationSec),
+      title: (typeof c.title === "string" && c.title.trim()) ? c.title.trim().slice(0, 80) : `Clip ${i + 1}`,
+      score: Math.max(0, Math.min(99, Math.round(typeof c.score === "number" ? c.score : 50))),
     }))
     .slice(0, clipCount);
 }
@@ -128,8 +130,7 @@ async function renderJob(payload: AutoClipPayload): Promise<void> {
   const tmp = os.tmpdir();
   const videoPath = path.join(tmp, `${projectId}-src.mp4`);
   const audioPath = path.join(tmp, `${projectId}-audio.mp3`);
-  const outPath   = path.join(tmp, `${projectId}-output.mp4`);
-  const clipPaths: string[] = [];
+  const tmpPaths: string[] = [videoPath, audioPath];
 
   try {
     // 1. Download source video from S3
@@ -161,50 +162,97 @@ async function renderJob(payload: AutoClipPayload): Promise<void> {
     );
     if (segments.length === 0) throw new Error("Gemini returned no valid clip segments");
 
-    // 5. Cut + crop each clip
+    // 5. Persist one Clip row per segment, then render + upload each separately
+    //    so the UI can show every clip as its own card with live progress.
     const cropFilter = aspectRatioFilter(aspectRatio);
+    const clipRows = await Promise.all(
+      segments.map((seg, i) =>
+        prisma.clip.create({
+          data: {
+            projectId,
+            index: i,
+            title: seg.title,
+            startSec: seg.start,
+            endSec: seg.end,
+            durationSec: seg.end - seg.start,
+            aspectRatio,
+            score: seg.score,
+            status: "queued",
+          },
+        }),
+      ),
+    );
+
+    let readyCount = 0;
+    let bestUrl: string | null = null;
+    let bestScore = -1;
+    let lastProgressAt = 0;
+
     for (let i = 0; i < segments.length; i++) {
-      const { start, end } = segments[i];
+      const seg = segments[i];
+      const row = clipRows[i];
       const clipPath = path.join(tmp, `${projectId}-clip${i}.mp4`);
-      clipPaths.push(clipPath);
-      await runFFmpegArgs([
-        "-y",
-        "-ss", String(start),
-        "-to", String(end),
-        "-i", videoPath,
-        "-vf", cropFilter,
-        "-c:v", "libx264", "-preset", "superfast", "-crf", "23",
-        "-c:a", "aac",
-        clipPath,
-      ]);
+      const thumbPath = path.join(tmp, `${projectId}-clip${i}.jpg`);
+      tmpPaths.push(clipPath, thumbPath);
+
+      try {
+        await prisma.clip.update({ where: { id: row.id }, data: { status: "rendering", progress: 5 } });
+
+        // Cut + crop with throttled live progress (0–85% of the bar).
+        await runFFmpegWithProgress(
+          [
+            "-y", "-ss", String(seg.start), "-to", String(seg.end), "-i", videoPath,
+            "-vf", cropFilter,
+            "-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-c:a", "aac",
+            clipPath,
+          ],
+          (pct) => {
+            const now = Date.now();
+            if (now - lastProgressAt < 1200) return;
+            lastProgressAt = now;
+            void prisma.clip
+              .update({ where: { id: row.id }, data: { progress: Math.round(5 + pct * 0.8) } })
+              .catch(() => {});
+          },
+        );
+
+        // Thumbnail from the clip midpoint (best-effort).
+        await prisma.clip.update({ where: { id: row.id }, data: { progress: 88 } });
+        await runFFmpegArgs([
+          "-y", "-ss", String((seg.end - seg.start) / 2), "-i", clipPath,
+          "-frames:v", "1", "-vf", "scale=480:-2", thumbPath,
+        ]).catch(() => {});
+
+        const videoUrl = await uploadFileToS3(clipPath, `renders/${projectId}/clip-${i}.mp4`, "video/mp4");
+        const thumbnailUrl = fs.existsSync(thumbPath)
+          ? await uploadFileToS3(thumbPath, `renders/${projectId}/clip-${i}.jpg`, "image/jpeg").catch(() => null)
+          : null;
+
+        await prisma.clip.update({
+          where: { id: row.id },
+          data: { status: "ready", progress: 100, videoUrl, thumbnailUrl },
+        });
+        readyCount++;
+        if (seg.score > bestScore) { bestScore = seg.score; bestUrl = videoUrl; }
+      } catch (err) {
+        console.error(`[auto-clip] clip ${i} failed for ${projectId}:`, err);
+        await prisma.clip.update({ where: { id: row.id }, data: { status: "failed" } }).catch(() => {});
+      }
     }
 
-    // 6. Concatenate all clips into one output video
-    if (clipPaths.length === 1) {
-      fs.copyFileSync(clipPaths[0], outPath);
+    // 6. Finalize — fail (and refund) only if every clip failed.
+    if (readyCount === 0) {
+      await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } });
+      await refundRenderCredit(projectId);
     } else {
-      const listPath = path.join(tmp, `${projectId}-list.txt`);
-      fs.writeFileSync(
-        listPath,
-        clipPaths.map(p => `file '${p.replace(/\\/g, "/")}'`).join("\n"),
-        "utf8",
-      );
-      await runFFmpegArgs([
-        "-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", outPath,
-      ]);
-      try { fs.unlinkSync(listPath); } catch {}
+      await prisma.project.update({ where: { id: projectId }, data: { status: "completed", videoUrl: bestUrl } });
     }
-
-    // 7. Upload to S3 and mark project done
-    const s3Key = `renders/${projectId}.mp4`;
-    const videoUrl = await uploadFileToS3(outPath, s3Key, "video/mp4");
-    await prisma.project.update({ where: { id: projectId }, data: { status: "completed", videoUrl } });
   } catch (err) {
     console.error(`[auto-clip] render failed for ${projectId}:`, err);
     await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } });
     await refundRenderCredit(projectId);
   } finally {
-    for (const f of [videoPath, audioPath, outPath, ...clipPaths]) {
+    for (const f of tmpPaths) {
       try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch {}
     }
   }

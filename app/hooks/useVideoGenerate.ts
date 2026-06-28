@@ -54,6 +54,7 @@ export function useVideoGenerate() {
   const [status, setStatus] = useState<GenerateStatus>("idle");
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [projectId, setProjectId] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -258,13 +259,14 @@ export function useVideoGenerate() {
     try {
       const uploadedVideoUrl = await uploadVideo(file, token);
       setStatus("creating");
-      const projectId = await createProject(token, {
+      const pid = await createProject(token, {
         title: file.name,
         uploadedVideoUrl,
         productType: "auto-clip",
       });
+      setProjectId(pid);
       await callGenerate("/api/generate/auto-clip", token, {
-        projectId,
+        projectId: pid,
         minDuration,
         maxDuration,
         clipCount,
@@ -272,19 +274,21 @@ export function useVideoGenerate() {
         instructions,
       });
       setStatus("rendering");
-      startPolling(projectId, token);
+      // Auto Clip shows every clip individually: the page polls
+      // /api/projects/{pid}/clips, so no single merged-video poll here.
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unknown error");
       setStatus("failed");
     }
-  }, [startPolling]);
+  }, []);
 
   const reset = useCallback(() => {
     if (pollRef.current) clearInterval(pollRef.current);
     setStatus("idle");
     setVideoUrl(null);
     setError(null);
+    setProjectId(null);
   }, []);
 
-  return { status, videoUrl, error, generateSplitScreen, generateStreamerVideo, generateRedditVideo, generateTextVideo, generateAutoClip, reset };
+  return { status, videoUrl, error, projectId, generateSplitScreen, generateStreamerVideo, generateRedditVideo, generateTextVideo, generateAutoClip, reset };
 }

@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useAuth } from "./AuthContext";
+import SidebarAccount from "./SidebarAccount";
 
 function IcHome() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>;
@@ -22,12 +23,6 @@ function IcGift() {
 }
 function IcZap() {
   return <svg viewBox="0 0 24 24" fill="currentColor" className="w-[18px] h-[18px]"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>;
-}
-function IcSearch() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>;
-}
-function IcShield() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>;
 }
 
 const NAV = [
@@ -76,7 +71,6 @@ function NavLink({ id, icon, label, href, active }: { id: string; icon: React.Re
 }
 
 export default function ToolsSidebar({ active = "home" }: { active?: string }) {
-  const { user } = useAuth();
   return (
     <aside
       className="flex flex-col items-center pt-5 pb-5 flex-shrink-0 border-r border-gray-100"
@@ -106,34 +100,15 @@ export default function ToolsSidebar({ active = "home" }: { active?: string }) {
 
       <div className="w-8 h-px bg-gray-200 my-3 flex-shrink-0" />
 
-      {/* Admin (only for admins) */}
-      {user?.role === "ADMIN" && (
-        <Link
-          href="/admin"
-          title="Admin"
-          className="group relative w-12 h-12 flex items-center justify-center rounded-2xl mb-2 flex-shrink-0 transition-all duration-100"
-          style={{ background: active === "admin" ? "#eff6ff" : "transparent", color: active === "admin" ? "#2563eb" : "#64748b" }}
-          onMouseEnter={e => { if (active !== "admin") { (e.currentTarget as HTMLElement).style.background = "#f1f5f9"; (e.currentTarget as HTMLElement).style.color = "#334155"; } }}
-          onMouseLeave={e => { if (active !== "admin") { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "#64748b"; } }}
-        >
-          <IcShield />
-          <span className="pointer-events-none absolute left-full ml-3 px-2 py-1 text-xs font-semibold text-white bg-gray-800 rounded-md opacity-0 group-hover:opacity-100 whitespace-nowrap z-50 shadow-lg transition-opacity">
-            Admin
-          </span>
-        </Link>
-      )}
-
-      {/* Search ⌘K */}
-      <button title="Search (⌘K)" className="flex flex-col items-center gap-1 flex-shrink-0 hover:opacity-100 opacity-70 transition-opacity" style={{ color: "#64748b" }}>
-        <IcSearch />
-        <span className="text-[10px] font-semibold tracking-tight" style={{ color: "#94a3b8" }}>⌘+K</span>
-      </button>
+      {/* Account (profile popover) + Settings — Admin & quick-search now live in
+          the account popover, keeping the rail compact and scrollbar-free. */}
+      <SidebarAccount />
     </aside>
   );
 }
 
 export function ToolsTopbar() {
-  const { user, openAuthModal, signOut } = useAuth();
+  const { user, openAuthModal } = useAuth();
   const hasActivePlan =
     !!user?.subscriptionEndsAt && new Date(user.subscriptionEndsAt) > new Date();
   return (
@@ -159,13 +134,6 @@ export function ToolsTopbar() {
               Top Up
             </Link>
           )}
-
-          <button
-            onClick={signOut}
-            className="inline-flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm cursor-pointer"
-          >
-            Sign Out
-          </button>
         </>
       ) : (
         <button

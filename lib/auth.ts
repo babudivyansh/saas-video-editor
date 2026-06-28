@@ -56,3 +56,20 @@ export async function requireAdmin(req: NextRequest): Promise<TokenPayload | nul
   });
   return user?.role === "ADMIN" ? auth : null;
 }
+
+/**
+ * Resolves the caller and confirms they have an active subscription. Used to
+ * gate subscriber-only features (e.g. Social Tracker). Subscription state is
+ * read from Postgres per-request so expiry/upgrades take effect immediately.
+ * Returns the token payload for active subscribers, or null otherwise.
+ */
+export async function requireSubscriber(req: NextRequest): Promise<TokenPayload | null> {
+  const auth = await getAuthUser(req);
+  if (!auth) return null;
+  const user = await prisma.user.findUnique({
+    where: { id: auth.userId },
+    select: { subscriptionEndsAt: true },
+  });
+  const active = !!user?.subscriptionEndsAt && user.subscriptionEndsAt > new Date();
+  return active ? auth : null;
+}
