@@ -33,10 +33,36 @@ function DropdownItem({ item, onNavigate }: { item: NavItem; onNavigate: () => v
   );
 }
 
-// Generic click-outside dropdown shell.
-function NavDropdown({ label, children, width }: { label: string; children: React.ReactNode; width: number }) {
+// Generic dropdown shell. Opens on hover (and click, for touch) and closes when
+// the cursor leaves the trigger+panel, with a small delay so crossing the gap
+// between them doesn't flicker it shut. `align` controls anchoring: "center"
+// (default, narrow menu sits under its trigger) or "screen" (wide mega-menu is
+// centred on the viewport via fixed positioning, just below the 64px header).
+function NavDropdown({
+  label,
+  children,
+  width,
+  align = "center",
+}: {
+  label: string;
+  children: React.ReactNode;
+  width: number;
+  align?: "center" | "screen";
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelClose = () => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  };
+  const scheduleClose = () => {
+    cancelClose();
+    closeTimer.current = setTimeout(() => setOpen(false), 140);
+  };
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -46,19 +72,35 @@ function NavDropdown({ label, children, width }: { label: string; children: Reac
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
+  // Clear any pending close timer on unmount.
+  useEffect(() => cancelClose, []);
+
+  const positionClass =
+    align === "screen"
+      ? "fixed top-[80px] left-1/2 -translate-x-1/2"
+      : "absolute top-full mt-3 left-1/2 -translate-x-1/2";
+
   return (
-    <div className="relative" ref={ref}>
+    <div
+      className="relative"
+      ref={ref}
+      onMouseEnter={() => {
+        cancelClose();
+        setOpen(true);
+      }}
+      onMouseLeave={scheduleClose}
+    >
       <button
         onClick={() => setOpen((p) => !p)}
-        className="flex items-center gap-1 text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors"
+        className="flex items-center gap-1 text-base font-semibold text-gray-700 hover:text-gray-900 transition-colors"
       >
         {label}
-        <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform duration-150 ${open ? "rotate-180" : ""}`} />
+        <ChevronDownIcon className={`w-4 h-4 transition-transform duration-150 ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
         <div
-          className="absolute top-full left-1/2 -translate-x-1/2 mt-3 rounded-2xl border border-gray-100 bg-white shadow-xl z-50"
-          style={{ width }}
+          className={`${positionClass} rounded-2xl border border-gray-100 bg-white shadow-xl z-50`}
+          style={{ width, maxWidth: "calc(100vw - 1.5rem)" }}
         >
           <div onClick={() => setOpen(false)}>{children}</div>
         </div>
@@ -84,49 +126,71 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, [solid]);
 
-  const bgClass = solid || scrolled ? "bg-white/90 shadow-sm" : "bg-transparent";
+  // Navbar background, matched to crayo.ai: a translucent white gradient that
+  // fades to transparent toward the bottom, with the backdrop-blur masked to fade
+  // out too. The bar dissolves into the page — no border, no shadow, no hard line.
+  // It cross-fades in on scroll (and is always shown on `solid` pages).
+  const showBar = solid || scrolled;
+  const barStyle: React.CSSProperties = {
+    background:
+      "linear-gradient(to bottom, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.7) 70%, rgba(255,255,255,0.4) 95%, transparent 100%)",
+    backdropFilter: "blur(12px)",
+    WebkitBackdropFilter: "blur(12px)",
+    maskImage: "linear-gradient(to bottom, black 0%, black 90%, transparent 100%)",
+    WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 90%, transparent 100%)",
+  };
   const closeMobile = () => setMenuOpen(false);
 
   return (
-    <header className="sticky top-0 z-50 backdrop-blur-md font-sans">
-      <div className={`absolute inset-0 transition-all duration-300 ${bgClass}`} />
-      <div className="relative max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-50 font-sans">
+      <div
+        className={`absolute inset-0 transition-opacity duration-300 ${showBar ? "opacity-100" : "opacity-0"}`}
+        style={barStyle}
+      />
+      <div className="relative max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
         <div className="flex items-center justify-between h-16">
 
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 font-black text-2xl tracking-tight text-gray-900">
-            <span className="bg-[#335CFF] text-white rounded-lg w-8 h-8 flex items-center justify-center">
-              <ZapIcon className="w-4 h-4" />
-            </span>
-            CLIPIRO
+          <Link href="/" className="flex items-center ml-15 md:ml-25" aria-label="Clipiro home">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/clipiro-wordmark.png" alt="Clipiro" className="h-15 w-auto" />
           </Link>
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-8">
-            {/* Features mega-menu — full product surface, grouped */}
-            <NavDropdown label="Features" width={920}>
-              <div className="grid grid-cols-3 gap-0 p-3">
+            {/* Features mega-menu — full product surface, grouped. AI Tools has
+                the most entries, so it spans two sub-columns to keep every
+                column roughly the same height (no lopsided gap). */}
+            <NavDropdown label="Features" width={940} align="screen">
+              <div className="grid grid-cols-4 gap-0 p-3">
                 <div className="p-2">
                   <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-[#335CFF]">Video Tools</p>
                   <div className="space-y-0.5">
                     {VIDEO_TOOLS.map((item) => (
-                      <DropdownItem key={item.title} item={item} onNavigate={() => {}} />
+                      <DropdownItem key={item.title} item={item} onNavigate={() => { }} />
                     ))}
                   </div>
                 </div>
-                <div className="p-2 border-l border-gray-100">
+                <div className="col-span-2 p-2 border-l border-gray-100">
                   <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-[#335CFF]">AI Tools</p>
-                  <div className="space-y-0.5">
-                    {AI_TOOLS.map((item) => (
-                      <DropdownItem key={item.title} item={item} onNavigate={() => {}} />
-                    ))}
+                  <div className="grid grid-cols-2 gap-x-1">
+                    <div className="space-y-0.5">
+                      {AI_TOOLS.slice(0, Math.ceil(AI_TOOLS.length / 2)).map((item) => (
+                        <DropdownItem key={item.title} item={item} onNavigate={() => { }} />
+                      ))}
+                    </div>
+                    <div className="space-y-0.5">
+                      {AI_TOOLS.slice(Math.ceil(AI_TOOLS.length / 2)).map((item) => (
+                        <DropdownItem key={item.title} item={item} onNavigate={() => { }} />
+                      ))}
+                    </div>
                   </div>
                 </div>
                 <div className="rounded-2xl bg-gradient-to-b from-[#335CFF]/[0.04] to-transparent p-2 border-l border-gray-100">
                   <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-gray-400">Free Tools</p>
                   <div className="space-y-0.5">
                     {FREE_FEATURES.map((item) => (
-                      <DropdownItem key={item.title} item={item} onNavigate={() => {}} />
+                      <DropdownItem key={item.title} item={item} onNavigate={() => { }} />
                     ))}
                   </div>
                 </div>
@@ -137,14 +201,14 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
             <NavDropdown label="Resources" width={340}>
               <div className="p-3 space-y-0.5">
                 {RESOURCES.map((item) => (
-                  <DropdownItem key={item.title} item={item} onNavigate={() => {}} />
+                  <DropdownItem key={item.title} item={item} onNavigate={() => { }} />
                 ))}
               </div>
             </NavDropdown>
 
-            <Link href="/pricing" className="text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors">Pricing</Link>
-            <Link href="/blog" className="text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors">Blog</Link>
-            <Link href="/about" className="text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors">About</Link>
+            <Link href="/pricing" className="text-base font-semibold text-gray-700 hover:text-gray-900 transition-colors">Pricing</Link>
+            <Link href="/blog" className="text-base font-semibold text-gray-700 hover:text-gray-900 transition-colors">Blog</Link>
+            <Link href="/about" className="text-base font-semibold text-gray-700 hover:text-gray-900 transition-colors">About</Link>
           </nav>
 
           {/* CTA */}
@@ -152,7 +216,7 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
             {user ? (
               <Link
                 href="/dashboard"
-                className="flex items-center gap-1.5 bg-[#335CFF] text-white text-sm font-bold px-5 py-2.5 rounded-full transition-transform duration-200 hover:scale-[1.02]"
+                className="flex items-center gap-1.5 bg-[#335CFF] text-white text-base font-bold px-5 py-2.5 rounded-full transition-transform duration-200 hover:scale-[1.02]"
               >
                 <ZapIcon className="w-3.5 h-3.5" />
                 Dashboard
@@ -161,13 +225,13 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
               <>
                 <button
                   onClick={() => openAuthModal("login")}
-                  className="text-sm font-semibold text-gray-700 hover:text-gray-900 px-4 py-2.5 rounded-full transition-colors cursor-pointer"
+                  className="text-base font-semibold text-gray-700 hover:text-gray-900 px-4 py-2.5 rounded-full transition-colors cursor-pointer"
                 >
                   Sign In
                 </button>
                 <button
                   onClick={() => openAuthModal("register")}
-                  className="flex items-center gap-1.5 bg-[#335CFF] text-white text-sm font-bold px-5 py-2.5 rounded-full transition-transform duration-200 hover:scale-[1.02] cursor-pointer"
+                  className="flex items-center gap-1.5 bg-[#335CFF] text-white text-base font-bold px-5 py-2.5 rounded-full transition-transform duration-200 hover:scale-[1.02] cursor-pointer"
                 >
                   <ZapIcon className="w-3.5 h-3.5" />
                   Start Free
