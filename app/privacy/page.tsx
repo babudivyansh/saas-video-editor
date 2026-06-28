@@ -7,6 +7,7 @@ const sections = [
   { id: "use-of-information", title: "Use of Information" },
   { id: "sharing", title: "Sharing of Information" },
   { id: "third-party", title: "Third-Party Service Integrations" },
+  { id: "social-accounts", title: "Linked Social Accounts" },
   { id: "security", title: "Security" },
   { id: "international", title: "International Transfers" },
   { id: "your-rights", title: "Your Rights" },
@@ -17,7 +18,7 @@ const sections = [
 
 export default function PrivacyPage() {
   return (
-    <LegalPage title="Privacy Policy" lastUpdated="June 14, 2026" sections={sections}>
+    <LegalPage title="Privacy Policy" lastUpdated="June 28, 2026" sections={sections}>
 
       <p>
         Welcome to Clipiro (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;). We are committed to protecting your personal
@@ -163,11 +164,25 @@ export default function PrivacyPage() {
         card or bank details.
       </p>
 
+      <h2 id="social-accounts">Linked Social Accounts (Social Tracker)</h2>
+      <p>
+        If you use the Social Tracker, you may link your YouTube, Instagram, or Facebook
+        accounts via each platform&apos;s official OAuth flow. We request{" "}
+        <strong>read-only</strong> analytics permissions only — we cannot post, message, delete
+        content, or read your direct messages or follower lists.
+      </p>
+      <ul>
+        <li><strong>What we store:</strong> your public profile basics (name, username, avatar) and analytics figures (followers, views, reach, likes, comments, watch time), including periodic snapshots used to chart your growth.</li>
+        <li><strong>Access tokens:</strong> the OAuth tokens the platforms issue are encrypted at rest with AES-256-GCM, stored only on our servers, and are never exposed to your browser or any third party.</li>
+        <li><strong>YouTube:</strong> use of YouTube data complies with the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>, including its Limited Use requirements. It is used only to show you your own analytics and is never sold or used for advertising.</li>
+        <li><strong>Instagram &amp; Facebook:</strong> data obtained through the Meta Graph API is used solely to display your own insights, in accordance with Meta&apos;s Platform Terms.</li>
+        <li><strong>Disconnecting:</strong> you can unlink any account at any time from the Social Tracker. Doing so revokes our access at the provider and deletes the stored tokens and analytics. Deleting your Clipiro account removes all linked-account data automatically.</li>
+      </ul>
+
       <h2 id="security">Security</h2>
       <p>
         We implement industry-standard technical and organisational security measures to
-        protect your personal information, including:
-      </p>
+        protect your personal information, including:</p>
       <ul>
         <li>HTTPS/TLS encryption for all data in transit</li>
         <li>AES-256 encryption for data at rest on AWS S3</li>

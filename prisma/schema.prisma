@@ -41,6 +41,7 @@ model User {
   questRewardClaimed   Boolean    @default(false)
   affiliate            Affiliate?
   referral             Referral?  @relation("ReferredByAffiliate")
+  socialAccounts       SocialAccount[]
 }
 
 model Affiliate {
@@ -172,6 +173,30 @@ model Project {
   productType      String   @default("split-screen")
   editorDoc        Json?    // serialized advanced-editor timeline (tracks, overlays, captions, crop)
   createdAt        DateTime @default(now())
+  clips            Clip[]
+}
+
+// An individual clip produced by Auto Clip. The job creates one row per AI-picked
+// segment, then renders + uploads each separately so the UI can show every clip
+// as its own card with live progress and an Opus-style virality score.
+model Clip {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  index        Int      // generation order
+  title        String?  // AI-generated catchy title / hook
+  startSec     Float
+  endSec       Float
+  durationSec  Float
+  aspectRatio  String   @default("9:16")
+  score        Int?     // virality 0–99
+  status       String   @default("queued") // queued | rendering | ready | failed
+  progress     Int      @default(0)        // 0–100
+  videoUrl     String?
+  thumbnailUrl String?
+  createdAt    DateTime @default(now())
+
+  @@index([projectId])
 }
 
 model RazorpayEvent {
@@ -211,6 +236,74 @@ model Asset {
   height    Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// A social platform account a user has linked via OAuth (Social Tracker).
+// OAuth tokens are stored ONLY as AES-256-GCM ciphertext (lib/encryption.ts) and
+// are never returned to the client. Read-only analytics scopes only.
+model SocialAccount {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          String   // "youtube" | "instagram" | "facebook"
+  providerAccountId String   // channel id / IG user id / Page id
+  username          String?
+  displayName       String?
+  avatarUrl         String?
+  accessTokenEnc    String   // AES-256-GCM ciphertext
+  refreshTokenEnc   String?  // AES-256-GCM ciphertext
+  tokenExpiresAt    DateTime?
+  scopes            String[] @default([])
+  status            String   @default("active") // active | needs_reauth | revoked
+  followers         Int?     // convenience copy of the latest snapshot
+  lastSyncedAt      DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  posts             SocialPost[]
+  snapshots         SocialAccountSnapshot[]
+
+  @@unique([userId, provider, providerAccountId])
+  @@index([userId])
+}
+
+// Daily account-level metric snapshot — powers follower/view growth charts.
+model SocialAccountSnapshot {
+  id          String        @id @default(cuid())
+  accountId   String
+  account     SocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  capturedAt  DateTime      @default(now())
+  followers   Int?
+  views       Int?
+  impressions Int?
+  reach       Int?
+  engagement  Int?
+
+  @@index([accountId, capturedAt])
+}
+
+// A single post/video and its latest analytics for a linked account.
+model SocialPost {
+  id             String        @id @default(cuid())
+  accountId      String
+  account        SocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  providerPostId String
+  caption        String?
+  thumbnailUrl   String?
+  permalink      String?
+  mediaType      String? // video | image | reel | short
+  publishedAt    DateTime?
+  views          Int?
+  likes          Int?
+  comments       Int?
+  shares         Int?
+  saves          Int?
+  reach          Int?
+  watchTimeSec   Float?
+  metricsJson    Json? // full provider payload for future-proofing
+  fetchedAt      DateTime @default(now())
+
+  @@unique([accountId, providerPostId])
+  @@index([accountId, publishedAt])
 }
 
 // Immutable log of every admin action for accountability.
