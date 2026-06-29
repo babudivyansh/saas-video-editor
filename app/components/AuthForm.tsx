@@ -512,14 +512,22 @@ export default function AuthForm({
             </PrimaryBtn>
           </form>
 
-          <button
-            type="button"
-            onClick={handleSendOtp}
-            disabled={loading}
-            className="w-full mt-3 text-sm text-[#335CFF] font-semibold hover:underline disabled:opacity-60 bg-transparent border-none p-0 cursor-pointer"
-          >
-            Use OTP instead
-          </button>
+          <div className="flex items-center justify-between mt-3">
+            <button
+              type="button"
+              onClick={handleSendOtp}
+              disabled={loading}
+              className="text-sm text-[#335CFF] font-semibold hover:underline disabled:opacity-60 bg-transparent border-none p-0 cursor-pointer"
+            >
+              Use OTP instead
+            </button>
+            <a
+              href="/reset-password-request"
+              className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              Forgot password?
+            </a>
+          </div>
 
           <div className="flex justify-center mt-6">
             <button
