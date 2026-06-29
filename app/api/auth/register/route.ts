@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
         lastName,
         name: `${firstName} ${lastName}`,
         passwordHash,
+        credits: 10,
       },
       select: { id: true, email: true, credits: true },
     });

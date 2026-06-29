@@ -14,7 +14,7 @@ export const maxDuration = 300;
 const CREDIT_COST = 3;
 // ElevenLabs audio-isolation bills per minute; cap input so a long file
 // can't exceed its credit value.
-const MAX_DURATION_SEC = 180; // 3 minutes
+const MAX_DURATION_SEC = 120; // 2 minutes
 
 interface Job {
   progress: number;
