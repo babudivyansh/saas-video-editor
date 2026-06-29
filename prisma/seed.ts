@@ -51,12 +51,15 @@ const RETIRED_SUB_SLUGS = [
   "sub_studio_3mo", "sub_studio_6mo",
 ];
 
-// ── Top-up packs (subscriber-only) ──────────────────────────────────────────
+// ── Top-up packs (open to all users) ────────────────────────────────────────
 const PACKS: SeedPlan[] = [
   { slug: "pack_mini",    name: "Mini Pack",    priceInPaise:  59900, credits:  30, sortOrder: 40, kind: "pack", features: ["30 credits", "One-time top-up", "Never expires"] },
   { slug: "pack_starter", name: "Starter Pack", priceInPaise: 159900, credits: 100, sortOrder: 41, kind: "pack", features: ["100 credits", "One-time top-up", "Never expires"] },
   { slug: "pack_pro",     name: "Pro Pack",     priceInPaise: 399900, credits: 280, sortOrder: 42, kind: "pack", features: ["280 credits", "One-time top-up", "Never expires"] },
   { slug: "pack_studio",  name: "Studio Pack",  priceInPaise: 899900, credits: 640, sortOrder: 43, kind: "pack", features: ["640 credits", "Best value", "Never expires"] },
+  // Veo3-specific pack: 5 videos × 35 credits = 175 credits, ₹999 flat.
+  // Keeps Veo3 economics separate so subscription credits aren't drained unexpectedly.
+  { slug: "pack_veo3_5",  name: "Veo3 Video Pack", priceInPaise: 99900, credits: 175, sortOrder: 44, kind: "pack", features: ["5 Veo3 AI videos", "175 credits", "Never expires", "₹199.80 per video"] },
 ];
 
 // ── Veo3 add-on (unlock for shorter subscription terms) ─────────────────────

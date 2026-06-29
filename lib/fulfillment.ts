@@ -165,7 +165,8 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
     if (referral && referral.status === "signed_up" && referral.affiliate.status === "active") {
       const baseAmount = amountInPaise / 100;
       const rate = referral.affiliate.commissionRate;
-      const commission = parseFloat((baseAmount * rate).toFixed(2));
+      // Cap commission at ₹2,000 per referral to protect margins on large plans.
+      const commission = Math.min(parseFloat((baseAmount * rate).toFixed(2)), 2000);
       await prisma.$transaction([
         prisma.commission.create({
           data: {
