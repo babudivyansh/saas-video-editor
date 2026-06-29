@@ -69,7 +69,7 @@ const TERMS = [
   { months: 1,  label: "Monthly" },
   { months: 12, label: "Yearly" },
 ];
-const YEARLY_SAVE_PCT = 30; // yearly plans are 30% cheaper than 12× monthly
+const YEARLY_SAVE_PCT = 20; // yearly plans are 20% cheaper than 12× monthly
 
 const TIER_ORDER = ["creator", "pro", "studio"] as const;
 function tierOf(slug: string): string | null {
@@ -104,7 +104,7 @@ const FAQS = [
   },
   {
     q: "What is a credit?",
-    a: "Credits are spent on AI tools — the cost depends on the tool (e.g. 1 credit for an image or voiceover, 2 for a video render, 20 for a Veo3 AI video). Subscription credits refill each month and do not roll over.",
+    a: "Credits are spent on AI tools — the cost depends on the tool (e.g. 1 credit for an image, 2 for a voiceover or video render, 35 for a Veo3 AI video). Subscription credits refill each month and do not roll over.",
   },
   {
     q: "How long can each video be?",
@@ -112,7 +112,7 @@ const FAQS = [
   },
   {
     q: "Do longer terms cost less?",
-    a: "Yes — on Pro and Studio you save 10% / 15% / 20% on 3 / 6 / 12-month terms, and the 6 and 12-month terms bundle Veo3 AI video for free. Creator's 12-month term saves 13%. You're billed once upfront for the full term.",
+    a: "Yes — the yearly plan is 20% cheaper than paying month-to-month, and it bundles Veo3 AI video for free. You're billed once upfront for the full year.",
   },
   {
     q: "Can I switch plans later?",
@@ -314,7 +314,7 @@ export default function PricingPage() {
           Simple, transparent pricing
         </h1>
         <p className="text-lg text-gray-500 max-w-xl mx-auto mb-2">
-          Free tools are open to everyone. Subscribe to unlock every AI tool — go <span className="font-semibold text-gray-700">yearly to save 30%</span> and get Veo3 AI video free.
+          Free tools are open to everyone. Subscribe to unlock every AI tool — go <span className="font-semibold text-gray-700">yearly to save 20%</span> and get Veo3 AI video free.
         </p>
       </section>
 
@@ -419,7 +419,7 @@ export default function PricingPage() {
                       )}
                       {plan.monthlyCredits != null && (
                         <p className={`text-xs mt-1 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
-                          ≈ {plan.monthlyCredits} images, {Math.floor(plan.monthlyCredits / 2)} video renders, or {Math.floor(plan.monthlyCredits / 20)} Veo3 videos
+                          ≈ {plan.monthlyCredits} images, {Math.floor(plan.monthlyCredits / 2)} video renders, or {Math.floor(plan.monthlyCredits / 35)} Veo3 videos
                         </p>
                       )}
                       {plan.veo3Included && (
@@ -845,9 +845,9 @@ export default function PricingPage() {
               </tr>
               <tr className="bg-white border-b border-gray-50">
                 <td className="py-4 px-6 text-sm text-gray-700">Credits per month</td>
-                <td className="text-center py-4 px-4 text-sm font-semibold text-gray-900">45</td>
-                <td className="text-center py-4 px-4 text-sm font-semibold text-blue-600 bg-blue-50/50">130</td>
-                <td className="text-center py-4 px-4 text-sm font-semibold text-gray-900">320</td>
+                <td className="text-center py-4 px-4 text-sm font-semibold text-gray-900">50</td>
+                <td className="text-center py-4 px-4 text-sm font-semibold text-blue-600 bg-blue-50/50">140</td>
+                <td className="text-center py-4 px-4 text-sm font-semibold text-gray-900">340</td>
               </tr>
               <tr className="bg-gray-50">
                 <td className="py-4 px-6 text-sm text-gray-700">Priority rendering</td>
