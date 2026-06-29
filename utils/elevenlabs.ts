@@ -19,6 +19,7 @@ export interface VoiceSettings {
   stability?: number;       // 0..1
   similarityBoost?: number; // 0..1
   style?: number;           // 0..1 — exaggeration / expressiveness
+  languageCode?: string;    // e.g. "en", "es", "fr" — passed to multilingual model
 }
 
 export async function synthesizeVoice(
@@ -47,6 +48,7 @@ export async function synthesizeVoice(
         model_id: TTS_MODEL_ID,
         voice_settings: { stability, similarity_boost, style, use_speaker_boost: true },
         output_format: "mp3_44100_128",
+        ...(settings?.languageCode && settings.languageCode !== "auto" ? { language_code: settings.languageCode } : {}),
       }),
     }
   );

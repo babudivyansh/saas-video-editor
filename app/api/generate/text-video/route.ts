@@ -12,6 +12,7 @@ import { uploadFileToS3 } from "@/utils/s3-upload";
 import { resolveVoiceId } from "@/utils/voice-ids";
 import { downloadFile } from "@/utils/download";
 import { markQuestComplete } from "@/lib/quests";
+import { renderChatFrame, type CanvasTheme, type CanvasMessage } from "@/utils/chat-canvas";
 
 const CREDIT_COST = 2;
 
@@ -49,11 +50,14 @@ interface TextVideoPayload {
   projectId: string;
   contactName: string;
   messages: Message[];
-  theme: ThemeColors;
+  theme: ThemeColors & { id?: string };
   bgVideoUrl: string;
   receiverVoiceId: string;
   narratorVoiceId: string;
   bgMusicUrl: string;
+  voiceSettings?: { stability?: number; style?: number; similarityBoost?: number };
+  language?: string;
+  avatarBase64?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -173,11 +177,28 @@ function buildChatFilter(
   return filters.join(",");
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+async function setProgress(projectId: string, n: number) {
+  await prisma.project.update({ where: { id: projectId }, data: { progress: n } }).catch(() => {});
+}
+
+const S3_HOST = "saas-video-editor-assets.s3.ap-south-1.amazonaws.com";
+
 // ── Real render pipeline ──────────────────────────────────────────────────────
 
 async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
   const { projectId, contactName, messages, theme, bgVideoUrl,
-          receiverVoiceId, narratorVoiceId, bgMusicUrl } = payload;
+          receiverVoiceId, narratorVoiceId, bgMusicUrl,
+          voiceSettings: vs, language } = payload;
+
+  const elevenLabsSettings: import("@/utils/elevenlabs").VoiceSettings | undefined =
+    (vs || language) ? {
+      stability: vs?.stability,
+      style: vs?.style,
+      similarityBoost: vs?.similarityBoost,
+      languageCode: language && language !== "auto" ? language : undefined,
+    } : undefined;
 
   const hasElevenLabs = !!process.env.ELEVENLABS_API_KEY;
   const hasAWS = !!process.env.AWS_ACCESS_KEY_ID && !!process.env.AWS_SECRET_ACCESS_KEY && !!process.env.AWS_S3_BUCKET;
@@ -195,6 +216,7 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
 
   try {
     console.log(`[text-video] Starting render for ${projectId} (${messages.length} messages)`);
+    await setProgress(projectId, 5);
 
     const resolvedReceiverVoice = resolveVoiceId(receiverVoiceId);
     const resolvedNarratorVoice = resolveVoiceId(narratorVoiceId);
@@ -214,13 +236,14 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
 
     let cursorMs = 0;
     const audioPiecesForConcat: string[] = [];
+    await setProgress(projectId, 10);
 
     for (let i = 0; i < messages.length; i++) {
       const msg = messages[i];
       const voiceId = msg.type === "receiver" ? resolvedReceiverVoice : resolvedNarratorVoice;
 
       console.log(`[text-video] TTS message ${i + 1}/${messages.length}...`);
-      const result = await synthesizeVoice(msg.text, voiceId);
+      const result = await synthesizeVoice(msg.text, voiceId, elevenLabsSettings);
       const audioPath = path.join(tmpDir, `msg_${i}.mp3`);
       fs.writeFileSync(audioPath, result.audioBuffer);
 
@@ -241,16 +264,17 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
     console.log("[text-video] Concatenating audio...");
     const combinedAudioPath = path.join(tmpDir, "voice.mp3");
     await concatAudioFiles(audioPiecesForConcat, combinedAudioPath);
+    await setProgress(projectId, 40);
 
     // 3. Download background video
     console.log("[text-video] Downloading background video...");
     const bgVideoPath = path.join(tmpDir, "bg.mp4");
     await downloadFile(bgVideoUrl, bgVideoPath);
+    await setProgress(projectId, 55);
 
-    // 4. Download background music (optional, best-effort — a missing/unreachable
-    // music URL must not fail the whole render)
+    // 4. Download background music (only from our own S3 — reject third-party CDNs)
     let musicPath: string | undefined;
-    if (bgMusicUrl) {
+    if (bgMusicUrl && bgMusicUrl.includes(S3_HOST)) {
       console.log("[text-video] Downloading background music...");
       const candidate = path.join(tmpDir, "music.mp3");
       try {
@@ -262,55 +286,155 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
       }
     }
 
-    // 5. Build chat overlay video filter
-    console.log("[text-video] Building chat overlay filter...");
-    const chatFilter = buildChatFilter(messages, msgStartMs, contactName, theme);
+    // 5. Render canvas chat frames
+    console.log("[text-video] Rendering canvas chat frames...");
+    const canvasTheme: CanvasTheme = { ...theme };
+    const canvasMessages: CanvasMessage[] = messages.map(m => ({ type: m.type, text: m.text }));
 
-    // 6. FFmpeg — compose final video
-    console.log("[text-video] Running FFmpeg...");
-    const outputPath = path.join(tmpDir, "output.mp4");
-
-    let args: string[];
-    if (musicPath) {
-      args = [
-        "-y",
-        "-stream_loop", "-1", "-i", bgVideoPath,
-        "-i", combinedAudioPath,
-        "-i", musicPath,
-        "-filter_complex",
-        `[2:a]volume=0.12[bgm];[1:a][bgm]amix=inputs=2:duration=first[audio];[0:v]${chatFilter}[video]`,
-        "-map", "[video]",
-        "-map", "[audio]",
-        "-c:v", "libx264", "-preset", "superfast", "-crf", "23",
-        "-c:a", "aac", "-shortest",
-        outputPath,
-      ];
-    } else {
-      args = [
-        "-y",
-        "-stream_loop", "-1", "-i", bgVideoPath,
-        "-i", combinedAudioPath,
-        "-filter_complex",
-        `[0:v]${chatFilter}[video]`,
-        "-map", "[video]",
-        "-map", "1:a",
-        "-c:v", "libx264", "-preset", "superfast", "-crf", "23",
-        "-c:a", "aac", "-shortest",
-        outputPath,
-      ];
+    // Decode avatar if provided
+    let avatarBuffer: Buffer | undefined;
+    if (payload.avatarBase64) {
+      try { avatarBuffer = Buffer.from(payload.avatarBase64, "base64"); } catch { /* ignore */ }
     }
 
+    // Build frame sequence:
+    // [init] empty chat (t=0)
+    // [typing_i] typing indicator (msgStartMs[i]/1000 - TYPING_DUR)
+    // [frame_i]  message i revealed (msgStartMs[i]/1000)
+    // Each frame is a full 1080×1920 PNG overlaid with gte(t,T)
+    const TYPING_DUR = 0.5; // seconds before each bubble appears
+
+    interface ChatFrame { path: string; startSec: number; }
+    const frames: ChatFrame[] = [];
+
+    // Initial empty frame
+    const initPath = path.join(tmpDir, "frame_init.png");
+    const initBuf = await renderChatFrame([], canvasTheme, contactName, avatarBuffer, false);
+    fs.writeFileSync(initPath, initBuf);
+    frames.push({ path: initPath, startSec: 0 });
+
+    // Pop sound paths (short 0.08s sine tones mixed at each message start)
+    const popPaths: { path: string; delayMs: number }[] = [];
+
+    for (let i = 0; i < messages.length; i++) {
+      const msgStart = msgStartMs[i] / 1000;
+      const typingStart = Math.max(0, msgStart - TYPING_DUR);
+
+      // Typing frame (only if there's enough gap for it)
+      if (typingStart > (frames[frames.length - 1]?.startSec ?? 0) + 0.05) {
+        const typingPath = path.join(tmpDir, `frame_typing_${i}.png`);
+        const typingBuf = await renderChatFrame(
+          canvasMessages.slice(0, i), canvasTheme, contactName, avatarBuffer, true,
+        );
+        fs.writeFileSync(typingPath, typingBuf);
+        frames.push({ path: typingPath, startSec: typingStart });
+      }
+
+      // Message revealed frame
+      const framePath = path.join(tmpDir, `frame_${i}.png`);
+      const frameBuf = await renderChatFrame(
+        canvasMessages.slice(0, i + 1), canvasTheme, contactName, avatarBuffer, false,
+      );
+      fs.writeFileSync(framePath, frameBuf);
+      frames.push({ path: framePath, startSec: msgStart });
+
+      // Pop sound for this message
+      const popPath = path.join(tmpDir, `pop_${i}.mp3`);
+      await runFFmpegArgs([
+        "-y", "-f", "lavfi",
+        "-i", "sine=frequency=880:duration=0.08",
+        "-ar", "44100", "-ac", "2", "-c:a", "libmp3lame", "-q:a", "9",
+        popPath,
+      ]);
+      popPaths.push({ path: popPath, delayMs: msgStartMs[i] });
+    }
+
+    await setProgress(projectId, 60);
+
+    // 6. FFmpeg — compose final video with canvas overlay frames
+    console.log("[text-video] Running FFmpeg (canvas overlay)...");
+    const outputPath = path.join(tmpDir, "output.mp4");
+
+    // Build -filter_complex for sequential overlays (each frame starts at its time and stays until next)
+    // Inputs: [0]=bg.mp4, [1]=voice.mp3, [2]=music.mp3 (optional), then PNG frames
+    const audioInputIdx = 1;
+    const musicInputIdx = musicPath ? 2 : -1;
+    const frameBaseIdx = musicPath ? 3 : 2;
+
+    let filterComplex = "";
+
+    // Scale bg to 1080×1920
+    filterComplex += `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[bg];`;
+
+    // Overlay frames sequentially — each frame shows from its startSec to the end,
+    // but the next frame (with higher startSec) overlays on top and replaces it
+    let prevLabel = "bg";
+    for (let f = 0; f < frames.length; f++) {
+      const inputIdx = frameBaseIdx + f;
+      const startSec = frames[f].startSec.toFixed(3);
+      const outLabel = f < frames.length - 1 ? `v${f}` : "vout";
+      filterComplex += `[${prevLabel}][${inputIdx}:v]overlay=0:0:enable='gte(t,${startSec})':eof_action=pass[${outLabel}];`;
+      prevLabel = outLabel;
+    }
+
+    // Audio: mix voice + pop sounds, optionally with background music
+    const popInputBase = frameBaseIdx + frames.length;
+    const popFilters = popPaths.map((p, i) => {
+      const inputIdx = popInputBase + i;
+      return `[${inputIdx}:a]adelay=${p.delayMs}|${p.delayMs},volume=0.4[pop${i}]`;
+    });
+    const audioSources = [`[${audioInputIdx}:a]`];
+    if (musicPath && musicInputIdx > 0) {
+      filterComplex += `[${musicInputIdx}:a]volume=0.12[bgm];`;
+      audioSources.push("[bgm]");
+    }
+    popPaths.forEach((_, i) => {
+      filterComplex += popFilters[i] + ";";
+      audioSources.push(`[pop${i}]`);
+    });
+
+    if (audioSources.length > 1) {
+      filterComplex += `${audioSources.join("")}amix=inputs=${audioSources.length}:duration=first:normalize=0[audio]`;
+    } else {
+      // single audio source — just label it
+      filterComplex += `[${audioInputIdx}:a]acopy[audio]`;
+    }
+
+    // Build full args list
+    const args: string[] = [
+      "-y",
+      "-stream_loop", "-1", "-i", bgVideoPath,   // 0: bg
+      "-i", combinedAudioPath,                     // 1: voice
+    ];
+    if (musicPath) args.push("-i", musicPath);     // 2: music (optional)
+    for (const f of frames) {
+      args.push("-loop", "1", "-i", f.path);       // PNG frames
+    }
+    for (const p of popPaths) {
+      args.push("-i", p.path);                     // pop sounds
+    }
+    args.push(
+      "-filter_complex", filterComplex,
+      "-map", "[vout]",
+      "-map", "[audio]",
+      "-c:v", "libx264", "-preset", "superfast", "-crf", "23",
+      "-c:a", "aac", "-shortest",
+      outputPath,
+    );
+
     await runFFmpegArgs(args);
+    await setProgress(projectId, 90);
 
     // 7. Upload to S3
     console.log("[text-video] Uploading to S3...");
     const s3Key = `text-videos/${projectId}/output.mp4`;
     const videoUrl = await uploadFileToS3(outputPath, s3Key, "video/mp4");
+    await setProgress(projectId, 95);
 
     // 8. Mark complete
     await prisma.project.update({
       where: { id: projectId },
-      data: { status: "completed", videoUrl },
+      data: { status: "completed", videoUrl, progress: 100 },
     });
     console.log(`[text-video] Done: ${videoUrl}`);
 
@@ -392,6 +516,9 @@ export async function POST(req: NextRequest) {
     receiverVoiceId: body.receiverVoiceId || "william",
     narratorVoiceId: body.narratorVoiceId || "william",
     bgMusicUrl: body.bgMusicUrl || "",
+    voiceSettings: body.voiceSettings,
+    language: body.language,
+    avatarBase64: body.avatarBase64,
   });
   void markQuestComplete(auth.userId, "first-clip");
 
