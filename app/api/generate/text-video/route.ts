@@ -204,10 +204,17 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
   const hasAWS = !!process.env.AWS_ACCESS_KEY_ID && !!process.env.AWS_SECRET_ACCESS_KEY && !!process.env.AWS_S3_BUCKET;
 
   if (!hasElevenLabs || !hasAWS) {
-    console.warn("[text-video] Missing credentials — simulating render");
-    await new Promise(r => setTimeout(r, 3000));
-    const fallback = bgVideoUrl || "https://saas-video-editor-assets.s3.ap-south-1.amazonaws.com/backgrounds/subway-surfers.mp4";
-    await prisma.project.update({ where: { id: projectId }, data: { status: "completed", videoUrl: fallback } });
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[text-video] Missing credentials — simulating render (dev only)");
+      await new Promise(r => setTimeout(r, 3000));
+      const fallback = bgVideoUrl || "https://saas-video-editor-assets.s3.ap-south-1.amazonaws.com/backgrounds/subway-surfers.mp4";
+      await prisma.project.update({ where: { id: projectId }, data: { status: "completed", videoUrl: fallback } });
+      return;
+    }
+    const missing = [!hasElevenLabs && "ELEVENLABS_API_KEY", !hasAWS && "AWS credentials"].filter(Boolean).join(", ");
+    console.error(`[text-video] Missing required credentials: ${missing}`);
+    await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } });
+    await refundRenderCredit(projectId);
     return;
   }
 

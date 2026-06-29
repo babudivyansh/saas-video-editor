@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
+import { sendPurchaseConfirmationEmail } from "@/lib/email";
 
 // Single source of truth for granting a captured Razorpay payment. Called by
 // BOTH the client-side verify endpoint (app/api/billing/verify) and the webhook
@@ -111,6 +112,30 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
         data: { id: paymentId, userId, planId: plan?.id ?? null, amountInPaise, credits, status: "captured" },
       });
     }
+  }
+
+  // ── Purchase confirmation email (non-fatal) ───────────────────────────────
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, firstName: true, name: true },
+    });
+    if (user) {
+      const planForEmail = plan ?? await prisma.plan.findUnique({ where: { slug: planSlug } });
+      const creditsForEmail = planForEmail?.credits ?? parseInt(notes?.credits ?? "0", 10);
+      const isSubscription = (planForEmail?.kind ?? kind) === "subscription";
+      await sendPurchaseConfirmationEmail({
+        userEmail: user.email,
+        userName: user.firstName ?? user.name ?? "",
+        planName: planForEmail?.name ?? planSlug ?? "Credit Pack",
+        creditsAdded: creditsForEmail,
+        amountInPaise,
+        orderId: orderId ?? paymentId,
+        isSubscription,
+      });
+    }
+  } catch (err) {
+    console.error("[fulfillment] purchase confirmation email error", err);
   }
 
   // ── Coupon redemption (non-fatal) ──────────────────────────────────────────

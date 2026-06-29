@@ -94,9 +94,10 @@ export async function POST(req: NextRequest) {
       comments: postData.num_comments || 99
     });
   } catch (err) {
-    console.warn("[reddit-scrape] Scraping failed, falling back to mock data. Error:", err);
-    // Graceful fallback to a random story from the list
-    const randomStory = POPULAR_REDDIT_STORIES[Math.floor(Math.random() * POPULAR_REDDIT_STORIES.length)];
-    return NextResponse.json(randomStory);
+    console.warn("[reddit-scrape] Scraping failed:", err);
+    return NextResponse.json(
+      { error: "Could not fetch this Reddit post — Reddit may be blocking the request. Try a different post URL." },
+      { status: 502 },
+    );
   }
 }
