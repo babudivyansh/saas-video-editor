@@ -165,13 +165,22 @@ export function useVideoGenerate() {
     subtitleStyleIndex: number;
     subtitleMode: "oneword" | "lines";
     token: string;
+    voiceSettings?: { stability?: number; style?: number; similarityBoost?: number };
+    language?: string;
+    showIntroCard?: boolean;
+    darkMode?: boolean;
+    upvotes?: string;
+    comments?: string;
   }) => {
-    const { postTitle, username, script, introVoiceId, scriptVoiceId, bgMusicUrl, bgVideoUrl, subtitleStyleIndex, subtitleMode, token } = params;
+    const { postTitle, username, script, introVoiceId, scriptVoiceId, bgMusicUrl, bgVideoUrl,
+            subtitleStyleIndex, subtitleMode, token, voiceSettings, language,
+            showIntroCard, darkMode, upvotes, comments } = params;
     setStatus("creating");
     setError(null);
     setVideoUrl(null);
+    setProgress(0);
     try {
-      const projectId = await createProject(token, {
+      const pid = await createProject(token, {
         title: postTitle || "Reddit Story Video",
         backgroundUrl: bgVideoUrl,
         script,
@@ -180,8 +189,9 @@ export function useVideoGenerate() {
         subtitlesStyle: { styleIndex: subtitleStyleIndex, mode: subtitleMode },
         productType: "reddit-video",
       });
+      setProjectId(pid);
       await callGenerate("/api/generate/reddit-video", token, {
-        projectId,
+        projectId: pid,
         postTitle,
         username,
         script,
@@ -191,9 +201,15 @@ export function useVideoGenerate() {
         bgVideoUrl,
         subtitleStyleIndex,
         subtitleMode,
+        voiceSettings,
+        language,
+        showIntroCard,
+        darkMode,
+        upvotes,
+        comments,
       });
       setStatus("rendering");
-      startPolling(projectId, token);
+      startPolling(pid, token);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unknown error");
       setStatus("failed");
