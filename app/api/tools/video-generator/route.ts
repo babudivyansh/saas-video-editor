@@ -10,10 +10,10 @@ import { randomUUID } from "crypto";
 
 export const maxDuration = 300;
 
-// Veo3 is the most expensive API (~₹114 per 8s fast render). Priced at 20
-// credits and locked to the fast model + 8s cap to keep margins positive.
+// Veo3 Fast 8s with audio costs up to $3.20 = ₹272. 35 credits gives a
+// positive margin even on the cheapest yearly plan (₹12.78/credit = ₹447).
 // Standard/4K can be reintroduced as a premium tier later.
-const CREDIT_COST = 20;
+const CREDIT_COST = 35;
 const MAX_DURATION = 8;
 
 const VEO3_FAST_MODEL = "fal-ai/veo3/fast";
@@ -27,6 +27,7 @@ interface Job {
   createdAt: number;
   userId: string;
   refunded: boolean;
+  usedVeo3Credits: boolean; // which pool was deducted from — needed for refund
 }
 
 const g = globalThis as unknown as { __videoGenJobs?: Map<string, Job> };
@@ -42,14 +43,21 @@ function sweep() {
   }
 }
 
-async function refundCredit(userId: string) {
-  await prisma.user.update({
-    where: { id: userId },
-    data: { credits: { increment: CREDIT_COST } },
-  });
-  const cached = await redis.get(`credits:${userId}`);
-  if (cached !== null) {
-    await redis.set(`credits:${userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
+async function refundCredit(userId: string, useVeo3Credits: boolean) {
+  if (useVeo3Credits) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { veo3Credits: { increment: CREDIT_COST } },
+    });
+  } else {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { credits: { increment: CREDIT_COST } },
+    });
+    const cached = await redis.get(`credits:${userId}`);
+    if (cached !== null) {
+      await redis.set(`credits:${userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
+    }
   }
 }
 
@@ -111,22 +119,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Video generation is not configured (missing FAL_KEY)" }, { status: 503 });
   }
 
-  // Veo3 is gated: requires a plan that bundles it or the ₹599 add-on.
+  // Fetch veo3Credits + regular credits + gate flag in one query.
   const me = await prisma.user.findUnique({
     where: { id: auth.userId },
-    select: { veo3Enabled: true },
+    select: { veo3Enabled: true, veo3Credits: true },
   });
-  if (!me?.veo3Enabled) {
+
+  // Gate: must have veo3Enabled OR have veo3Credits from the Veo3 pack.
+  const hasVeo3Access = me?.veo3Enabled || (me?.veo3Credits ?? 0) >= CREDIT_COST;
+  if (!hasVeo3Access) {
     return NextResponse.json(
-      { error: "AI Video (Veo3) is locked. Add it to your plan or upgrade to a plan that includes it." },
+      { error: "AI Video (Veo3) is locked. Upgrade to a yearly plan or buy a Veo3 Video Pack." },
       { status: 403 },
     );
   }
 
-  const cachedCredits = await redis.get(`credits:${auth.userId}`);
-  const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
-  if (cached !== null && cached < CREDIT_COST) {
-    return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
+  // Decide which pool to use: veo3Credits first, then regular credits.
+  const useVeo3Credits = (me?.veo3Credits ?? 0) >= CREDIT_COST;
+  if (!useVeo3Credits) {
+    const cachedCredits = await redis.get(`credits:${auth.userId}`);
+    const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
+    if (cached !== null && cached < CREDIT_COST) {
+      return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
+    }
   }
 
   let body: { prompt?: string; model?: string; duration?: number; aspectRatio?: string; referenceImageUrl?: string };
@@ -146,17 +161,29 @@ export async function POST(req: NextRequest) {
   const aspectRatio = body.aspectRatio ?? "16:9";
   const referenceImageUrl = body.referenceImageUrl ?? null;
 
-  // Deduct credits
-  const user = await prisma.user.update({
-    where: { id: auth.userId },
-    data: { credits: { decrement: CREDIT_COST } },
-    select: { credits: true },
-  });
-  if (user.credits < 0) {
-    await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
-    return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
+  // Deduct from the chosen pool.
+  if (useVeo3Credits) {
+    const user = await prisma.user.update({
+      where: { id: auth.userId },
+      data: { veo3Credits: { decrement: CREDIT_COST } },
+      select: { veo3Credits: true },
+    });
+    if (user.veo3Credits < 0) {
+      await prisma.user.update({ where: { id: auth.userId }, data: { veo3Credits: { increment: CREDIT_COST } } });
+      return NextResponse.json({ error: `Insufficient Veo3 credits (need ${CREDIT_COST})` }, { status: 402 });
+    }
+  } else {
+    const user = await prisma.user.update({
+      where: { id: auth.userId },
+      data: { credits: { decrement: CREDIT_COST } },
+      select: { credits: true },
+    });
+    if (user.credits < 0) {
+      await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
+      return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
+    }
+    await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
   }
-  await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
 
   const jobId = randomUUID();
   const outputPath = path.join(os.tmpdir(), `${jobId}-output.mp4`);
@@ -170,6 +197,7 @@ export async function POST(req: NextRequest) {
     createdAt: Date.now(),
     userId: auth.userId,
     refunded: false,
+    usedVeo3Credits: useVeo3Credits,
   };
   jobs.set(jobId, job);
 
@@ -213,7 +241,7 @@ export async function POST(req: NextRequest) {
       job.error = err instanceof Error ? err.message : "Video generation failed";
       if (!job.refunded) {
         job.refunded = true;
-        try { await refundCredit(job.userId); } catch { /* swallow */ }
+        try { await refundCredit(job.userId, job.usedVeo3Credits); } catch { /* swallow */ }
       }
     }
   })();

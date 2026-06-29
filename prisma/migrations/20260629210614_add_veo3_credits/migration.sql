@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "veo3Credits" INTEGER NOT NULL DEFAULT 0;

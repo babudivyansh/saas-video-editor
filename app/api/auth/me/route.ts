@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
       nextRefillAt: true,
       monthlyCredits: true,
       veo3Enabled: true,
+      veo3Credits: true,
       plan: { select: { id: true, slug: true, name: true, credits: true, priceInPaise: true } },
     },
   });

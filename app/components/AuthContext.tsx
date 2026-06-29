@@ -26,6 +26,7 @@ interface User {
   nextRefillAt: string | null;
   monthlyCredits: number;
   veo3Enabled: boolean;
+  veo3Credits: number;
   plan: UserPlan | null;
 }
 
