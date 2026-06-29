@@ -115,12 +115,31 @@ const THEMES: Theme[] = [
     senderBubble: "#2C6BED",
     senderText: "#fff",
   },
+  {
+    id: "instagram-dm",
+    label: "Instagram DM",
+    bg: "#000000",
+    headerBg: "#121212",
+    headerText: "#ffffff",
+    receiverBubble: "#262626",
+    receiverText: "#ffffff",
+    senderBubble: "#3797F0",
+    senderText: "#ffffff",
+  },
+  {
+    id: "telegram",
+    label: "Telegram",
+    bg: "#0F1014",
+    headerBg: "#17212B",
+    headerText: "#ffffff",
+    receiverBubble: "#182533",
+    receiverText: "#e6f0f3",
+    senderBubble: "#2B5278",
+    senderText: "#ffffff",
+  },
 ];
 
 // ── Background Videos ─────────────────────────────────────────────────────────
-// Thumbnail ids reference gameplay-cdn.com, but render-time background videos are
-// served from our own S3 bucket (the public gameplay CDN is not reachable). Each
-// catalogue title maps to one hosted clip; override base via NEXT_PUBLIC_BACKGROUNDS_BASE.
 const BACKDROP_CDN = "https://gameplay-cdn.com/gameplay";
 const BACKGROUNDS_BASE =
   process.env.NEXT_PUBLIC_BACKGROUNDS_BASE ??
@@ -142,29 +161,44 @@ const JAKEY   = "https://64.media.tumblr.com/8e073c3c73202376a83e782c25fc3012/16
 const SIR_SAT = "https://i.pinimg.com/736x/30/88/49/308849bbb361c64eb407cfb3be3aab4b.jpg";
 const STEVE   = "https://minecraftpfp.com/api/pfp/null.png";
 const MARIO   = "https://i.pinimg.com/736x/8a/79/5d/8a795df46777227e009cf7e3738ee07f.jpg";
-const GORDO   = "https://i.pinimg.com/736x/61/de/f1/61def12f9e5e0e5c6c99745de38e99dd.jpg";
-const APEX    = "https://i.pinimg.com/736x/aa/bb/cc/aabbcc1234567890abcdef1234567890.jpg";
 
+// Only the 5 backgrounds that have real S3-hosted video files
 const BACKGROUNDS = [
-  { title: "Subway Surfers",    author: "Jakey",          authorImg: JAKEY,   mins: "2 mins",   size: "327 MB", id: "12dm7zdo-qhr4-9ro5-xb9p-794xmqsudvi" },
-  { title: "Soap Video",        author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1.0 mins", size: "93 MB",  id: "25r3klxv-8xnh-bx9z-0v5e-l02oj4wq85p" },
-  { title: "Minecraft Video",   author: "Steve",          authorImg: STEVE,   mins: "2 mins",   size: "84 MB",  id: "04k002fo-pf26-j5h1-v6ti-nxykcnf42"   },
-  { title: "Mario Kart",        author: "Mario",          authorImg: MARIO,   mins: "2 mins",   size: "309 MB", id: "2fg1tjdy-8ngb-xg29-tz1y-ze3h4vxeih"  },
-  { title: "Slime Video",       author: "Sir Satisfying", authorImg: SIR_SAT, mins: "0.9 mins", size: "204 MB", id: "0rbt0c54-ace8-8khb-nw6u-o6azecvjlzk"  },
-  { title: "Subway Surfers",    author: "Jakey",          authorImg: JAKEY,   mins: "3 mins",   size: "536 MB", id: "00eieqe3-po4g-rh90-888c-zriwtgl77k"   },
-  { title: "Soap Video",        author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1.0 mins", size: "94 MB",  id: "27yzpm7j-wlau-sx6d-hguk-85621eh5k89"  },
-  { title: "Minecraft Video",   author: "Steve",          authorImg: STEVE,   mins: "2 mins",   size: "95 MB",  id: "1s739e44-vipb-57t9-5jqa-a14rqcc4upw"  },
-  { title: "Sand Art",          author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1.2 mins", size: "112 MB", id: "3kp9wz2e-1qas-7bcd-5efg-hijklmnop345"  },
-  { title: "GTA 5 Driving",     author: "Gordo",          authorImg: GORDO,   mins: "2 mins",   size: "412 MB", id: "9vw2xyza-4bcd-1efg-8hij-klmno56p789"  },
-  { title: "Kinetic Sand",      author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1.5 mins", size: "180 MB", id: "5rs8vb3c-2wde-9fgh-6ijk-lmnopq4r567"  },
-  { title: "Mario Kart GP",     author: "Mario",          authorImg: MARIO,   mins: "1.5 mins", size: "245 MB", id: "7tu1opqr-3sde-0abc-4fgh-ijklmn8p901"  },
-  { title: "GTA 5 City",        author: "Gordo",          authorImg: GORDO,   mins: "2.5 mins", size: "498 MB", id: "8ab3cdef-5ghi-2jkl-9mno-pqrst0u1234"  },
-  { title: "Cooking ASMR",      author: "Sir Satisfying", authorImg: SIR_SAT, mins: "2 mins",   size: "223 MB", id: "4efg5hij-7klm-4nop-1qrs-tuvwx2y3456"  },
-  { title: "Temple Run",        author: "Steve",          authorImg: STEVE,   mins: "1.5 mins", size: "128 MB", id: "1bcd2efg-6hij-3klm-0nop-qrstu7v8901"  },
-  { title: "Basketball",        author: "Apex",           authorImg: APEX,    mins: "1.5 mins", size: "176 MB", id: "6hij7klm-8nop-5qrs-2tuv-wxyz3a4567"   },
+  { title: "Subway Surfers",  author: "Jakey",          authorImg: JAKEY,   mins: "2 mins",   size: "327 MB", id: "12dm7zdo-qhr4-9ro5-xb9p-794xmqsudvi" },
+  { title: "Soap Video",      author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1.0 mins", size: "93 MB",  id: "25r3klxv-8xnh-bx9z-0v5e-l02oj4wq85p" },
+  { title: "Minecraft Video", author: "Steve",          authorImg: STEVE,   mins: "2 mins",   size: "84 MB",  id: "04k002fo-pf26-j5h1-v6ti-nxykcnf42"   },
+  { title: "Mario Kart",      author: "Mario",          authorImg: MARIO,   mins: "2 mins",   size: "309 MB", id: "2fg1tjdy-8ngb-xg29-tz1y-ze3h4vxeih"  },
+  { title: "Slime Video",     author: "Sir Satisfying", authorImg: SIR_SAT, mins: "0.9 mins", size: "204 MB", id: "0rbt0c54-ace8-8khb-nw6u-o6azecvjlzk"  },
 ];
 
 // ── Voices ────────────────────────────────────────────────────────────────────
+// ElevenLabs voice IDs (mirrors utils/voice-ids.ts fallbacks) for preview URL generation
+const EL_IDS: Record<string, string> = {
+  william:   "VR6AewLTigWG4xSOukaG",
+  adam:      "pNInz6obpgDQGcFmaJgB",
+  dandan:    "TxGEqnHWrfWFTfGW9XjX",
+  natasha:   "21m00Tcm4TlvDq8ikWAM",
+  amir1:     "ZQe5CZNOzWyzPSCn5a3c",
+  amir2:     "bVMeCyTHy58xNoL34h3p",
+  spongebob: "jBpfuIE2acCO8z3wKNLl",
+  charlie:   "yoZ06aMxZJJ28mfd3POQ",
+  clyde:     "2EiwWnXFnvU5JabPnv8n",
+  daniel:    "onwK4e9ZLuTAKqWW03F9",
+  ethan:     "g5CIjZEefAph4nQFvHAz",
+  josh:      "TxGEqnHWrfWFTfGW9XjX",
+  rachel:    "21m00Tcm4TlvDq8ikWAM",
+  sarah:     "EXAVITQu4vr4xnSDxMaL",
+  alice:     "Xb7hH8MSUJpSbSDYk0k2",
+  emily:     "LcfcDJNUP1GQjkzn1xUU",
+  aria:      "9BWtsMINqrJLrRacOk9x",
+  bella:     "EXAVITQu4vr4xnSDxMaL",
+};
+const EL_PREVIEW = (slug: string) =>
+  `https://storage.googleapis.com/eleven-public-prod/premade/voices/${EL_IDS[slug] ?? ""}/preview.mp3`;
+
+// Module-level audio ref so we stop the previous clip before playing a new one
+let currentPreviewAudio: HTMLAudioElement | null = null;
+
 interface Voice { id: string; name: string; gender: "Male" | "Female"; age: string; accent: string; desc: string; }
 
 const VOICES: Voice[] = [
@@ -189,6 +223,10 @@ const VOICES: Voice[] = [
 ];
 
 // ── Background Music ──────────────────────────────────────────────────────────
+const MUSIC_BASE =
+  process.env.NEXT_PUBLIC_MUSIC_BASE ??
+  "https://saas-video-editor-assets.s3.ap-south-1.amazonaws.com/music";
+
 const BACKGROUND_MUSIC = [
   { name: "No background music", duration: "",      desc: "Add your own music after generating your video in the editor" },
   { name: "Green to Blue",       duration: "3m 8s",  desc: "waveform" },
@@ -321,7 +359,12 @@ function ThemeCard({ theme, selected, name, messages, onSelect }: {
 interface VoiceSettings { styleExaggeration: number; voiceStability: number; voiceVolume: number; voiceSpeed: number; }
 const DEFAULT_VS: VoiceSettings = { styleExaggeration: 40, voiceStability: 50, voiceVolume: 90, voiceSpeed: 60 };
 
-function VoiceSettingsPanel({ settings, onChange }: { settings: VoiceSettings; onChange: (s: VoiceSettings) => void }) {
+function VoiceSettingsPanel({ settings, onChange, language, onLanguageChange }: {
+  settings: VoiceSettings;
+  onChange: (s: VoiceSettings) => void;
+  language: string;
+  onLanguageChange: (l: string) => void;
+}) {
   const sliders: { key: keyof VoiceSettings; label: string }[] = [
     { key: "styleExaggeration", label: "Style Exaggeration" },
     { key: "voiceStability",    label: "Voice Stability"    },
@@ -332,16 +375,22 @@ function VoiceSettingsPanel({ settings, onChange }: { settings: VoiceSettings; o
     <div className="flex flex-col gap-5">
       <h3 className="text-base font-bold text-gray-900">Language & Voice Settings</h3>
       {/* Language dropdown */}
-      <select className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none">
-        <option>Auto Detect Language</option>
-        <option>English</option>
-        <option>Spanish</option>
-        <option>French</option>
-        <option>German</option>
-        <option>Portuguese</option>
-        <option>Hindi</option>
-        <option>Japanese</option>
-        <option>Korean</option>
+      <select
+        value={language}
+        onChange={e => onLanguageChange(e.target.value)}
+        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none"
+      >
+        <option value="auto">Auto Detect Language</option>
+        <option value="en">English</option>
+        <option value="es">Spanish</option>
+        <option value="fr">French</option>
+        <option value="de">German</option>
+        <option value="pt">Portuguese</option>
+        <option value="hi">Hindi</option>
+        <option value="ja">Japanese</option>
+        <option value="ko">Korean</option>
+        <option value="zh">Chinese</option>
+        <option value="ar">Arabic</option>
       </select>
       {/* Sliders */}
       {sliders.map(({ key, label }) => (
@@ -375,6 +424,19 @@ function VoiceSettingsPanel({ settings, onChange }: { settings: VoiceSettings; o
 
 // ── Voice Card (Text Video style) ─────────────────────────────────────────────
 function TvVoiceCard({ voice, selected, onSelect }: { voice: Voice; selected: boolean; onSelect: () => void }) {
+  function handlePlay(e: React.MouseEvent) {
+    e.stopPropagation();
+    const previewUrl = EL_PREVIEW(voice.id);
+    if (!previewUrl) return;
+    if (currentPreviewAudio) {
+      currentPreviewAudio.pause();
+      currentPreviewAudio = null;
+    }
+    const audio = new Audio(previewUrl);
+    currentPreviewAudio = audio;
+    audio.play().catch(() => {});
+  }
+
   return (
     <div
       onClick={onSelect}
@@ -390,12 +452,13 @@ function TvVoiceCard({ voice, selected, onSelect }: { voice: Voice; selected: bo
           <span className="text-[10px] bg-purple-50 text-purple-600 px-2 py-0.5 rounded-md font-medium">{voice.accent}</span>
         </div>
       </div>
-      {/* Filled purple-blue play button on right */}
+      {/* Play preview button */}
       <button
         type="button"
-        onClick={e => e.stopPropagation()}
+        onClick={handlePlay}
         className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-colors mt-0.5"
         style={{ background: selected ? "#6366f1" : "#818cf8" }}
+        title="Play voice preview"
       >
         <svg viewBox="0 0 16 16" fill="white" className="w-3.5 h-3.5 ml-0.5">
           <path d="M4 2.5l9 5.5-9 5.5V2.5z" />
@@ -437,6 +500,128 @@ function TvVoiceColumn({ title, selected, onSelect }: { title: string; selected:
   );
 }
 
+// ── AI Script Modal ───────────────────────────────────────────────────────────
+type ScriptTone = "funny" | "dramatic" | "romantic" | "scary";
+
+const TONE_OPTIONS: { id: ScriptTone; label: string; emoji: string }[] = [
+  { id: "funny",    label: "Funny",    emoji: "😂" },
+  { id: "dramatic", label: "Dramatic", emoji: "😱" },
+  { id: "romantic", label: "Romantic", emoji: "💕" },
+  { id: "scary",    label: "Scary",    emoji: "👻" },
+];
+
+function AiScriptModal({
+  onClose,
+  onGenerate,
+  token,
+}: {
+  onClose: () => void;
+  onGenerate: (msgs: Msg[]) => void;
+  token: string;
+}) {
+  const [prompt, setPrompt] = useState("");
+  const [tone, setTone] = useState<ScriptTone>("dramatic");
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function handleGenerate() {
+    if (!prompt.trim()) { setErr("Enter a topic first"); return; }
+    setLoading(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/generate/text-video-script", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ prompt: prompt.trim(), tone }),
+      });
+      const data = await res.json() as { messages?: { type: "receiver" | "sender"; text: string }[]; error?: string };
+      if (!res.ok || data.error) { setErr(data.error ?? "Failed"); return; }
+      const msgs: Msg[] = (data.messages ?? []).map(m => ({
+        id: Date.now().toString() + Math.random().toString(36).slice(2),
+        type: m.type,
+        text: m.text,
+      }));
+      onGenerate(msgs);
+    } catch {
+      setErr("Network error — please try again");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 flex flex-col gap-4"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <IcSparkle /> AI Script Generator
+          </h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+        </div>
+
+        <div>
+          <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide block mb-1.5">
+            What's the scenario?
+          </label>
+          <textarea
+            value={prompt}
+            onChange={e => setPrompt(e.target.value)}
+            placeholder="e.g. my girlfriend caught me texting my ex"
+            rows={3}
+            maxLength={500}
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-blue-400 resize-none"
+          />
+          <p className="text-[10px] text-gray-400 mt-0.5 text-right">{prompt.length}/500</p>
+        </div>
+
+        <div>
+          <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide block mb-2">
+            Tone
+          </label>
+          <div className="grid grid-cols-4 gap-2">
+            {TONE_OPTIONS.map(t => (
+              <button
+                key={t.id}
+                onClick={() => setTone(t.id)}
+                className={`flex flex-col items-center gap-1 py-2.5 rounded-xl border-2 text-xs font-semibold transition-colors ${
+                  tone === t.id
+                    ? "border-blue-500 bg-blue-50 text-blue-700"
+                    : "border-gray-200 text-gray-600 hover:border-gray-300"
+                }`}
+              >
+                <span className="text-xl">{t.emoji}</span>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {err && <p className="text-sm text-red-600 font-semibold">{err}</p>}
+
+        <button
+          onClick={handleGenerate}
+          disabled={loading}
+          className={`w-full py-3 rounded-xl text-sm font-bold text-white transition-colors flex items-center justify-center gap-2 ${
+            loading ? "bg-blue-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+          }`}
+        >
+          {loading ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Generating script…
+            </>
+          ) : (
+            <><IcSparkle /> Generate Script</>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 function TextVideoFlow() {
   const router = useRouter();
@@ -449,6 +634,7 @@ function TextVideoFlow() {
   const [profilePic, setProfilePic] = useState<string | null>(null);
   const [name, setName]             = useState("my bae <3");
   const [messages, setMessages]     = useState<Msg[]>([]);
+  const [showScriptModal, setShowScriptModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Theme state
@@ -462,10 +648,28 @@ function TextVideoFlow() {
   const [narratorVoice, setNarratorVoice] = useState("william");
   const [selectedMusic, setSelectedMusic] = useState(0);
   const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(DEFAULT_VS);
+  const [language, setLanguage] = useState("auto");
 
-  const { status: genStatus, videoUrl, error: genError, generateTextVideo, reset } = useVideoGenerate();
+  const { status: genStatus, videoUrl, error: genError, projectId: genProjectId, generateTextVideo, reset, progress: renderProgress } = useVideoGenerate();
+  const [openingEditor, setOpeningEditor] = useState(false);
 
   function goTo(i: number) { router.push(`/dashboard/create/text-video?step=${STEPS[i].id}`); }
+
+  async function handleOpenInEditor() {
+    const token = getStoredToken();
+    if (!token || !genProjectId) return;
+    setOpeningEditor(true);
+    try {
+      const res = await fetch(`/api/projects/${genProjectId}/open-in-editor`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const d = await res.json() as { projectId?: string; error?: string };
+      if (d.projectId) router.push(`/dashboard/editor/${d.projectId}`);
+    } finally {
+      setOpeningEditor(false);
+    }
+  }
 
   async function handleGenerate() {
     const token = getStoredToken();
@@ -473,16 +677,37 @@ function TextVideoFlow() {
     if (!messages.length) { alert("Add at least one message to generate."); return; }
     const bg = BACKGROUNDS[selectedBg];
     const bgVideoUrl = backgroundUrlFor(bg.title);
-    const bgMusicUrl = selectedMusic > 0 ? `https://assets.crayo.ai/music/${BACKGROUND_MUSIC[selectedMusic].name.toLowerCase().replace(/\s+/g, "-")}.mp3` : "";
+    const bgMusicUrl = selectedMusic > 0
+      ? `${MUSIC_BASE}/${BACKGROUND_MUSIC[selectedMusic].name.toLowerCase().replace(/\s+/g, "-")}.mp3`
+      : "";
     const t = THEMES[selectedTheme];
+
+    // Convert avatar blob URL → base64 for sending to backend
+    let avatarBase64: string | undefined;
+    if (profilePic && profilePic.startsWith("blob:")) {
+      try {
+        const resp = await fetch(profilePic);
+        const buf = await resp.arrayBuffer();
+        const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+        avatarBase64 = b64;
+      } catch { /* skip avatar if conversion fails */ }
+    }
+
     await generateTextVideo({
       contactName: name,
       messages: messages.map(m => ({ type: m.type, text: m.text })),
-      theme: { bg: t.bg, headerBg: t.headerBg, headerText: t.headerText, receiverBubble: t.receiverBubble, receiverText: t.receiverText, senderBubble: t.senderBubble, senderText: t.senderText },
+      theme: { id: t.id, bg: t.bg, headerBg: t.headerBg, headerText: t.headerText, receiverBubble: t.receiverBubble, receiverText: t.receiverText, senderBubble: t.senderBubble, senderText: t.senderText },
       bgVideoUrl,
       receiverVoiceId: receiverVoice,
       narratorVoiceId: narratorVoice,
       bgMusicUrl,
+      voiceSettings: {
+        stability: voiceSettings.voiceStability / 100,
+        style: voiceSettings.styleExaggeration / 100,
+        similarityBoost: 0.75,
+      },
+      language: language !== "auto" ? language : undefined,
+      avatarBase64,
       token,
     });
   }
@@ -590,9 +815,18 @@ function TextVideoFlow() {
         {/* ── Generation status banner ── */}
         {genStatus === "completed" && videoUrl && (
           <div className="flex items-center gap-3 px-6 py-3 bg-green-50 border-b border-green-200">
-            <span className="text-sm font-semibold text-green-700">Video ready!</span>
+            <span className="text-sm font-semibold text-green-700">🎉 Video ready!</span>
             <a href={videoUrl} target="_blank" rel="noopener noreferrer"
               className="text-sm font-semibold text-blue-600 underline">Download / View</a>
+            {genProjectId && (
+              <button
+                onClick={handleOpenInEditor}
+                disabled={openingEditor}
+                className="flex items-center gap-1.5 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg px-3 py-1.5 transition-colors"
+              >
+                {openingEditor ? "Opening…" : "✏️ Open in Editor"}
+              </button>
+            )}
             <button onClick={reset} className="ml-auto text-xs text-gray-400 hover:text-gray-600">Dismiss</button>
           </div>
         )}
@@ -606,8 +840,20 @@ function TextVideoFlow() {
           <div className="flex items-center gap-3 px-6 py-3 bg-blue-50 border-b border-blue-200">
             <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
             <span className="text-sm font-semibold text-blue-700">
-              {genStatus === "creating" ? "Creating project…" : "Rendering your video — this takes a minute…"}
+              {genStatus === "creating"
+                ? "Creating project…"
+                : renderProgress > 0
+                  ? `Rendering your video… ${renderProgress}%`
+                  : "Rendering your video — this takes a minute…"}
             </span>
+            {genStatus === "rendering" && renderProgress > 0 && (
+              <div className="flex-1 max-w-xs h-1.5 bg-blue-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                  style={{ width: `${renderProgress}%` }}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -636,6 +882,7 @@ function TextVideoFlow() {
                       Sample Data
                     </button>
                     <button
+                      onClick={() => setShowScriptModal(true)}
                       className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg px-3 py-1.5 transition-colors">
                       <IcSparkle /> AI script
                     </button>
@@ -794,7 +1041,12 @@ function TextVideoFlow() {
                   <TvVoiceColumn title="Select Narrator Voice" selected={narratorVoice} onSelect={setNarratorVoice} />
                   {/* Language & Voice Settings */}
                   <div className="p-5">
-                    <VoiceSettingsPanel settings={voiceSettings} onChange={setVoiceSettings} />
+                    <VoiceSettingsPanel
+                      settings={voiceSettings}
+                      onChange={setVoiceSettings}
+                      language={language}
+                      onLanguageChange={setLanguage}
+                    />
                     {/* Background Music */}
                     <div className="mt-6">
                       <h4 className="text-sm font-bold text-gray-900 mb-3">Background Music</h4>
@@ -837,6 +1089,14 @@ function TextVideoFlow() {
 
         </div>
       </main>
+
+      {showScriptModal && (
+        <AiScriptModal
+          onClose={() => setShowScriptModal(false)}
+          onGenerate={(msgs) => { setMessages(msgs); setShowScriptModal(false); }}
+          token={getStoredToken() ?? ""}
+        />
+      )}
     </div>
   );
 }

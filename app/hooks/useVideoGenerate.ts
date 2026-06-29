@@ -55,6 +55,7 @@ export function useVideoGenerate() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number>(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -69,7 +70,8 @@ export function useVideoGenerate() {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) return;
-        const { project } = await res.json() as { project: { status: string; videoUrl?: string } };
+        const { project } = await res.json() as { project: { status: string; videoUrl?: string; progress?: number } };
+        if (project.progress != null) setProgress(project.progress);
         if (project.status === "completed" && project.videoUrl) {
           clearInterval(pollRef.current!);
           setVideoUrl(project.videoUrl);
@@ -205,28 +207,35 @@ export function useVideoGenerate() {
       bg: string; headerBg: string; headerText: string;
       receiverBubble: string; receiverText: string;
       senderBubble: string; senderText: string;
+      id?: string;
     };
     bgVideoUrl: string;
     receiverVoiceId: string;
     narratorVoiceId: string;
     bgMusicUrl: string;
+    voiceSettings?: { stability?: number; style?: number; similarityBoost?: number };
+    language?: string;
+    avatarBase64?: string;
     token: string;
   }) => {
-    const { contactName, messages, theme, bgVideoUrl, receiverVoiceId, narratorVoiceId, bgMusicUrl, token } = params;
+    const { contactName, messages, theme, bgVideoUrl, receiverVoiceId, narratorVoiceId,
+            bgMusicUrl, voiceSettings, language, avatarBase64, token } = params;
     setStatus("creating");
     setError(null);
     setVideoUrl(null);
+    setProgress(0);
     try {
       const firstMsg = messages[0]?.text?.slice(0, 40) || "Text Video";
-      const projectId = await createProject(token, {
+      const pid = await createProject(token, {
         title: firstMsg,
         backgroundUrl: bgVideoUrl,
         voiceId: receiverVoiceId,
         musicUrl: bgMusicUrl || null,
         productType: "text-video",
       });
+      setProjectId(pid);
       await callGenerate("/api/generate/text-video", token, {
-        projectId,
+        projectId: pid,
         contactName,
         messages,
         theme,
@@ -234,9 +243,12 @@ export function useVideoGenerate() {
         receiverVoiceId,
         narratorVoiceId,
         bgMusicUrl,
+        voiceSettings,
+        language,
+        avatarBase64,
       });
       setStatus("rendering");
-      startPolling(projectId, token);
+      startPolling(pid, token);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unknown error");
       setStatus("failed");
@@ -288,7 +300,8 @@ export function useVideoGenerate() {
     setVideoUrl(null);
     setError(null);
     setProjectId(null);
+    setProgress(0);
   }, []);
 
-  return { status, videoUrl, error, projectId, generateSplitScreen, generateStreamerVideo, generateRedditVideo, generateTextVideo, generateAutoClip, reset };
+  return { status, videoUrl, error, projectId, progress, generateSplitScreen, generateStreamerVideo, generateRedditVideo, generateTextVideo, generateAutoClip, reset };
 }

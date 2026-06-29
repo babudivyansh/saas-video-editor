@@ -168,6 +168,7 @@ model Project {
   backgroundUrl    String   @default("")
   subtitlesStyle   Json     @default("{}")
   status           String   @default("draft")
+  progress         Int      @default(0)        // 0–100 render progress for polling
   videoUrl         String?
   uploadedVideoUrl String?
   productType      String   @default("split-screen")
