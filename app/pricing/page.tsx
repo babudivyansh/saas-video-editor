@@ -69,7 +69,7 @@ const TERMS = [
   { months: 1,  label: "Monthly" },
   { months: 12, label: "Yearly" },
 ];
-const YEARLY_SAVE_PCT = 30; // yearly plans are 30% cheaper than 12× monthly
+const YEARLY_SAVE_PCT = 20; // yearly plans are 20% cheaper than 12× monthly
 
 const TIER_ORDER = ["creator", "pro", "studio"] as const;
 function tierOf(slug: string): string | null {
@@ -104,7 +104,7 @@ const FAQS = [
   },
   {
     q: "What is a credit?",
-    a: "Credits are spent on AI tools — the cost depends on the tool (e.g. 1 credit for an image or voiceover, 2 for a video render, 20 for a Veo3 AI video). Subscription credits refill each month and do not roll over.",
+    a: "Credits are spent on AI tools — the cost depends on the tool (e.g. 1 credit for an image, 2 for a voiceover or video render, 35 for a Veo3 AI video). Subscription credits refill each month and do not roll over. The Veo3 Video Pack gives a separate Veo3-only credit pool that can only be used for Veo3 AI video generation — not voiceovers or other tools.",
   },
   {
     q: "How long can each video be?",
@@ -112,7 +112,7 @@ const FAQS = [
   },
   {
     q: "Do longer terms cost less?",
-    a: "Yes — on Pro and Studio you save 10% / 15% / 20% on 3 / 6 / 12-month terms, and the 6 and 12-month terms bundle Veo3 AI video for free. Creator's 12-month term saves 13%. You're billed once upfront for the full term.",
+    a: "Yes — the yearly plan is 20% cheaper than paying month-to-month, and it bundles Veo3 AI video for free. You're billed once upfront for the full year.",
   },
   {
     q: "Can I switch plans later?",
@@ -314,7 +314,7 @@ export default function PricingPage() {
           Simple, transparent pricing
         </h1>
         <p className="text-lg text-gray-500 max-w-xl mx-auto mb-2">
-          Free tools are open to everyone. Subscribe to unlock every AI tool — go <span className="font-semibold text-gray-700">yearly to save 30%</span> and get Veo3 AI video free.
+          Free tools are open to everyone. Subscribe to unlock every AI tool — go <span className="font-semibold text-gray-700">yearly to save 20%</span> and get Veo3 AI video free.
         </p>
       </section>
 
@@ -419,7 +419,7 @@ export default function PricingPage() {
                       )}
                       {plan.monthlyCredits != null && (
                         <p className={`text-xs mt-1 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
-                          ≈ {plan.monthlyCredits} images, {Math.floor(plan.monthlyCredits / 2)} video renders, or {Math.floor(plan.monthlyCredits / 20)} Veo3 videos
+                          ≈ {plan.monthlyCredits} images, {Math.floor(plan.monthlyCredits / 2)} video renders, or {Math.floor(plan.monthlyCredits / 35)} Veo3 videos
                         </p>
                       )}
                       {plan.veo3Included && (
@@ -468,87 +468,146 @@ export default function PricingPage() {
         })()}
 
         {/* ── Add-on Credit Packs ── */}
-        {!plansLoading && packs.length > 0 && (
-          <div className="mt-16">
-            <div className="text-center mb-8">
-              <span className="inline-block bg-blue-100 text-blue-700 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
-                {hasActivePlan ? "Top-up Credits" : "Optional Add-ons"}
-              </span>
-              <h3 className="text-2xl font-extrabold text-gray-900">Boost your credits</h3>
-              <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
-                {hasActivePlan
-                  ? "You have an active plan — buy any credit pack instantly. Credits never expire."
-                  : "Select any packs to bundle with your plan purchase. Credits never expire and roll over forever."}
-              </p>
-            </div>
+        {!plansLoading && packs.length > 0 && (() => {
+          const regularPacks = packs.filter(p => p.slug !== "pack_veo3_5");
+          const veo3Pack     = packs.find(p => p.slug === "pack_veo3_5");
+          return (
+            <div className="mt-16">
+              {/* Regular credit packs */}
+              <div className="text-center mb-8">
+                <span className="inline-block bg-blue-100 text-blue-700 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
+                  {hasActivePlan ? "Top-up Credits" : "Optional Add-ons"}
+                </span>
+                <h3 className="text-2xl font-extrabold text-gray-900">Boost your credits</h3>
+                <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
+                  {hasActivePlan
+                    ? "You have an active plan — buy any credit pack instantly. Credits never expire."
+                    : "Select any packs to bundle with your plan purchase. Credits never expire."}
+                </p>
+              </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {packs.map(pack => {
-                const checked   = selectedAddons.includes(pack.slug);
-                const price     = Math.round(pack.priceInPaise / 100);
-                const isLoading = buyingPack === pack.slug;
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {regularPacks.map(pack => {
+                  const checked   = selectedAddons.includes(pack.slug);
+                  const price     = Math.round(pack.priceInPaise / 100);
+                  const isLoading = buyingPack === pack.slug;
+                  return (
+                    <div
+                      key={pack.id}
+                      className={`flex flex-col bg-white rounded-xl border-2 shadow-sm transition-all overflow-hidden ${
+                        checked
+                          ? "border-blue-600 ring-1 ring-blue-600/20 bg-blue-50/20"
+                          : "border-gray-200 hover:border-blue-200"
+                      }`}
+                    >
+                      <label className="flex items-start gap-3 p-5 cursor-pointer flex-1">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleAddon(pack.slug)}
+                          className="mt-0.5 w-4 h-4 accent-blue-600 flex-shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-gray-900 text-sm leading-snug">{pack.name}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · never expire</p>
+                          <p className="text-xl font-black text-gray-900 mt-3">₹{price.toLocaleString("en-IN")}</p>
+                        </div>
+                      </label>
+                      {hasActivePlan && (
+                        <button
+                          onClick={() => handleBuyPack(pack)}
+                          disabled={!!buyingPack}
+                          className="mx-4 mb-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
+                        >
+                          {isLoading ? (
+                            <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Buying...</>
+                          ) : "Buy Now"}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Veo3 Video Pack — visually separate, purple accent */}
+              {veo3Pack && (() => {
+                const checked   = selectedAddons.includes(veo3Pack.slug);
+                const price     = Math.round(veo3Pack.priceInPaise / 100);
+                const isLoading = buyingPack === veo3Pack.slug;
                 return (
-                  <div
-                    key={pack.id}
-                    className={`flex flex-col bg-white rounded-xl border-2 shadow-sm transition-all overflow-hidden ${
-                      checked
-                        ? "border-blue-600 ring-1 ring-blue-600/20 bg-blue-50/20"
-                        : "border-gray-200 hover:border-blue-200"
-                    }`}
-                  >
-                    {/* Checkbox row — always shown (for bundling with a plan) */}
-                    <label className="flex items-start gap-3 p-5 cursor-pointer flex-1">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleAddon(pack.slug)}
-                        className="mt-0.5 w-4 h-4 accent-blue-600 flex-shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-gray-900 text-sm leading-snug">{pack.name}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · never expire</p>
-                        <p className="text-xl font-black text-gray-900 mt-3">₹{price.toLocaleString("en-IN")}</p>
-                      </div>
-                    </label>
+                  <div className="mt-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="h-px flex-1 bg-gray-200" />
+                      <span className="text-xs font-bold text-purple-600 uppercase tracking-widest whitespace-nowrap px-2">
+                        ✦ Veo3 AI Video Pack
+                      </span>
+                      <div className="h-px flex-1 bg-gray-200" />
+                    </div>
+                    <div className={`flex flex-col sm:flex-row bg-white rounded-2xl border-2 shadow-sm transition-all overflow-hidden max-w-2xl mx-auto ${
+                      checked ? "border-purple-500 ring-1 ring-purple-500/20 bg-purple-50/10" : "border-purple-200 hover:border-purple-400"
+                    }`}>
+                      <label className="flex items-start gap-3 p-5 cursor-pointer flex-1">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleAddon(veo3Pack.slug)}
+                          className="mt-0.5 w-4 h-4 accent-purple-600 flex-shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-bold text-gray-900 text-sm leading-snug">Veo3 Video Pack</p>
+                            <span className="bg-purple-100 text-purple-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wide">
+                              Veo3-only
+                            </span>
+                          </div>
+                          <p className="text-xs text-purple-600 font-semibold mt-0.5">5 Veo3 AI videos · never expire</p>
+                          <p className="text-2xl font-black text-gray-900 mt-2">₹{price.toLocaleString("en-IN")}</p>
+                          <p className="text-xs text-gray-400 mt-1">₹199.80 per video · {veo3Pack.credits} Veo3 credits</p>
+                        </div>
+                      </label>
 
-                    {/* Buy Now — only for active subscribers */}
-                    {hasActivePlan && (
-                      <button
-                        onClick={() => handleBuyPack(pack)}
-                        disabled={!!buyingPack}
-                        className="mx-4 mb-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
-                      >
-                        {isLoading ? (
-                          <>
-                            <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            Buying...
-                          </>
-                        ) : (
-                          "Buy Now"
-                        )}
-                      </button>
-                    )}
+                      <div className="px-5 pb-5 sm:pb-0 sm:pr-5 sm:flex sm:items-center">
+                        <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 text-xs text-purple-700 sm:max-w-[220px]">
+                          <span className="font-bold block mb-1">What are Veo3 credits?</span>
+                          These credits live in a separate pool and can <strong>only</strong> be spent on Veo3 AI video generation — not voiceovers, images, or other tools.
+                        </div>
+                      </div>
+
+                      {hasActivePlan && (
+                        <div className="px-5 pb-5 sm:py-5 sm:pr-5 sm:flex sm:items-center">
+                          <button
+                            onClick={() => handleBuyPack(veo3Pack)}
+                            disabled={!!buyingPack}
+                            className="w-full sm:w-auto px-6 py-2 rounded-lg bg-purple-600 text-white text-sm font-bold hover:bg-purple-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
+                          >
+                            {isLoading ? (
+                              <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Buying...</>
+                            ) : "Buy Now"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
-              })}
-            </div>
+              })()}
 
-            {hasActivePlan ? (
-              <p className="text-center text-sm text-gray-400 mt-5">
-                Click <strong>Buy Now</strong> to top-up instantly, or check a pack and click a plan above to bundle it.
-              </p>
-            ) : selectedAddons.length > 0 ? (
-              <p className="text-center text-sm text-blue-700 font-semibold mt-5 bg-blue-50 border border-blue-100 rounded-lg py-3">
-                {selectedAddons.length} add-on pack{selectedAddons.length > 1 ? "s" : ""} selected —
-                click any plan above to bundle them at checkout.
-              </p>
-            ) : (
-              <p className="text-center text-sm text-gray-400 mt-5">
-                Select any packs above, then click a plan to buy them together in one payment.
-              </p>
-            )}
-          </div>
-        )}
+              {hasActivePlan ? (
+                <p className="text-center text-sm text-gray-400 mt-5">
+                  Click <strong>Buy Now</strong> to top-up instantly, or check a pack and click a plan above to bundle it.
+                </p>
+              ) : selectedAddons.length > 0 ? (
+                <p className="text-center text-sm text-blue-700 font-semibold mt-5 bg-blue-50 border border-blue-100 rounded-lg py-3">
+                  {selectedAddons.length} add-on pack{selectedAddons.length > 1 ? "s" : ""} selected —
+                  click any plan above to bundle them at checkout.
+                </p>
+              ) : (
+                <p className="text-center text-sm text-gray-400 mt-5">
+                  Select any packs above, then click a plan to buy them together in one payment.
+                </p>
+              )}
+            </div>
+          );
+        })()}
 
         <p className="text-center mt-10 text-gray-400 text-sm">
           Free tools are always free · Longer terms include Veo3 · Powered by Razorpay
@@ -646,7 +705,11 @@ export default function PricingPage() {
                             />
                             <div className="flex-1 min-w-0">
                               <p className="font-semibold text-gray-900 text-sm">{pack.name}</p>
-                              <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · never expire</p>
+                              {pack.slug === "pack_veo3_5" ? (
+                                <p className="text-xs text-purple-600 font-semibold mt-0.5">5 Veo3 AI videos · Veo3-only · never expire</p>
+                              ) : (
+                                <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · never expire</p>
+                              )}
                             </div>
                             <p className="font-bold text-gray-900 whitespace-nowrap">
                               ₹{price.toLocaleString("en-IN")}
@@ -845,9 +908,9 @@ export default function PricingPage() {
               </tr>
               <tr className="bg-white border-b border-gray-50">
                 <td className="py-4 px-6 text-sm text-gray-700">Credits per month</td>
-                <td className="text-center py-4 px-4 text-sm font-semibold text-gray-900">45</td>
-                <td className="text-center py-4 px-4 text-sm font-semibold text-blue-600 bg-blue-50/50">130</td>
-                <td className="text-center py-4 px-4 text-sm font-semibold text-gray-900">320</td>
+                <td className="text-center py-4 px-4 text-sm font-semibold text-gray-900">50</td>
+                <td className="text-center py-4 px-4 text-sm font-semibold text-blue-600 bg-blue-50/50">140</td>
+                <td className="text-center py-4 px-4 text-sm font-semibold text-gray-900">340</td>
               </tr>
               <tr className="bg-gray-50">
                 <td className="py-4 px-6 text-sm text-gray-700">Priority rendering</td>

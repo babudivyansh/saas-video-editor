@@ -31,6 +31,7 @@ model User {
   nextRefillAt       DateTime?  // when the next monthly credit grant is due
   monthlyCredits     Int        @default(0) // credits granted on each refill for the active tier
   veo3Enabled        Boolean    @default(false) // Veo3 unlocked (bundled term or paid add-on)
+  veo3Credits        Int        @default(0)    // restricted pool from Veo3 pack — only spendable on Veo3
   // Affiliate program
   referredBy         String?    // affiliateId that referred this user
   createdAt    DateTime   @default(now())

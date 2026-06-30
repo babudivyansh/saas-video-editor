@@ -99,15 +99,21 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
       data: { id: paymentId, userId, planId: plan?.id ?? null, amountInPaise, credits: 0, status: "captured" },
     });
   } else {
-    // One-time top-up pack: just add credits.
+    // One-time top-up pack: add credits to the appropriate pool.
+    // Veo3 pack credits go into a restricted pool — they can ONLY be spent on Veo3.
     const credits = plan?.credits ?? parseInt(notes?.credits ?? "0", 10);
     if (credits > 0) {
+      const isVeo3Pack = planSlug === "pack_veo3_5";
       const user = await prisma.user.update({
         where: { id: userId },
-        data: { credits: { increment: credits } },
+        data: isVeo3Pack
+          ? { veo3Credits: { increment: credits } }
+          : { credits: { increment: credits } },
         select: { credits: true },
       });
-      await redis.set(`credits:${userId}`, String(user.credits), "EX", 3600);
+      if (!isVeo3Pack) {
+        await redis.set(`credits:${userId}`, String(user.credits), "EX", 3600);
+      }
       await prisma.purchase.create({
         data: { id: paymentId, userId, planId: plan?.id ?? null, amountInPaise, credits, status: "captured" },
       });
@@ -165,7 +171,8 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
     if (referral && referral.status === "signed_up" && referral.affiliate.status === "active") {
       const baseAmount = amountInPaise / 100;
       const rate = referral.affiliate.commissionRate;
-      const commission = parseFloat((baseAmount * rate).toFixed(2));
+      // Cap commission at ₹2,000 per referral to protect margins on large plans.
+      const commission = Math.min(parseFloat((baseAmount * rate).toFixed(2)), 2000);
       await prisma.$transaction([
         prisma.commission.create({
           data: {

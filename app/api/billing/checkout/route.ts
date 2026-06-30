@@ -26,22 +26,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
   }
 
-  // Top-up packs (standalone, no subscription) still require an active subscription.
-  // But when a pack is bundled as an addon alongside a subscription purchase we allow it.
-  const isStandalonePack = basePlan.kind === "pack" && addonSlugs.length === 0;
-  if (isStandalonePack) {
-    const me = await prisma.user.findUnique({
-      where: { id: auth.userId },
-      select: { subscriptionEndsAt: true },
-    });
-    const active = me?.subscriptionEndsAt && me.subscriptionEndsAt > new Date();
-    if (!active) {
-      return NextResponse.json(
-        { error: "Credit packs require an active subscription. Subscribe to a plan first." },
-        { status: 403 },
-      );
-    }
-  }
+  // Packs are open to all users — no active subscription required.
+  // This lets lapsed subscribers top up and recaptures churned users.
 
   // Resolve add-on packs (must be active, kind = "pack").
   const addons = addonSlugs.length
