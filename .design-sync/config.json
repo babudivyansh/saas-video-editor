@@ -1,0 +1,16 @@
+{
+  "projectId": "b7fbb6e4-e6af-473c-9584-f0f93a84d3c4",
+  "shape": "package",
+  "pkg": "@clipiro/ui",
+  "globalName": "ClipiroUI",
+  "buildCmd": "npm run build",
+  "cssEntry": "dist/styles.css",
+  "extraFonts": ["src/fonts/geist-sans.css"],
+  "readmeHeader": ".design-sync/conventions.md",
+  "overrides": {
+    "Modal": { "cardMode": "single", "viewport": "640x520" },
+    "NavBar": { "cardMode": "column" },
+    "Footer": { "cardMode": "column" },
+    "PricingCard": { "cardMode": "column" }
+  }
+}
