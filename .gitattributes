@@ -1,0 +1,12 @@
+design-system/dist/** -text
+design-system/src/** text eol=lf
+design-system/README.md text eol=lf
+.design-sync/previews/** text eol=lf
+.design-sync/conventions.md text eol=lf
+.design-sync/NOTES.md text eol=lf
+.design-sync/config.json text eol=lf
+
+*.woff2 -text
+*.woff -text
+*.ttf -text
+*.otf -text
