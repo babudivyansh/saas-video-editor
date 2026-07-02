@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 import os from "os";
 import path from "path";
 import fs from "fs";
+import { fal } from "@fal-ai/client";
 
 export const maxDuration = 120;
 
@@ -55,14 +56,9 @@ function falAuth() {
 }
 
 async function uploadToFal(buffer: Buffer, mimeType: string): Promise<string> {
-  const res = await fetch("https://storage.fal.run", {
-    method: "POST",
-    headers: { ...falAuth(), "Content-Type": mimeType },
-    body: new Uint8Array(buffer),
-  });
-  if (!res.ok) throw new Error(`fal.ai upload failed ${res.status}: ${await res.text()}`);
-  const data = await res.json();
-  return (data.url ?? data.access_url) as string;
+  fal.config({ credentials: process.env.FAL_KEY! });
+  const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
+  return fal.storage.upload(blob);
 }
 
 async function submitToFal(swapImageUrl: string, baseImageUrl: string): Promise<string> {
@@ -205,8 +201,11 @@ export async function POST(req: NextRequest) {
       job.progress = 100;
       job.status = "done";
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const cause = err instanceof Error ? (err as NodeJS.ErrnoException).cause : undefined;
+      console.error("[face-swap] job failed:", msg, cause ?? "");
       job.status = "error";
-      job.error = err instanceof Error ? err.message : "Unknown error";
+      job.error = msg;
       if (!job.refunded) {
         job.refunded = true;
         await refundCredit(auth.userId).catch(console.error);
