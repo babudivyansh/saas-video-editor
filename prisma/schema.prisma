@@ -173,7 +173,6 @@ model Project {
   videoUrl         String?
   uploadedVideoUrl String?
   productType      String   @default("split-screen")
-  editorDoc        Json?    // serialized advanced-editor timeline (tracks, overlays, captions, crop)
   createdAt        DateTime @default(now())
   clips            Clip[]
 }

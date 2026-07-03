@@ -1,8 +1,8 @@
 "use client";
-import { Suspense, useState, useCallback, type CSSProperties } from "react";
+import { Suspense, useState, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
-import { useVideoGenerate, type GenerateStatus, getStoredToken } from "@/app/hooks/useVideoGenerate";
+import { useVideoGenerate, getStoredToken } from "@/app/hooks/useVideoGenerate";
 import { useAuth } from "@/app/components/AuthContext";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -18,7 +18,6 @@ function IcShare()        { return <svg viewBox="0 0 24 24" fill="none" stroke="
 function IcMusic()        { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>; }
 function IcPlay()         { return <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 ml-0.5"><path d="M4 2.5l9 5.5-9 5.5V2.5z" /></svg>; }
 function IcSliders()      { return <svg viewBox="0 0 20 20" fill="none" className="w-4 h-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M3 5h2m0 0a2 2 0 004 0m-4 0a2 2 0 014 0m0 0h8M3 10h10m0 0a2 2 0 004 0m-4 0a2 2 0 014 0m0 0h0M3 15h4m0 0a2 2 0 004 0m-4 0a2 2 0 014 0m0 0h6" /></svg>; }
-function IcEditor()       { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>; }
 
 // ── Steps ─────────────────────────────────────────────────────────────────────
 const STEPS = [
@@ -554,11 +553,8 @@ function RedditVideoFlow() {
   const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(DEFAULT_VS);
   const [language,      setLanguage]      = useState("auto");
 
-  // Editor open state
-  const [openingEditor, setOpeningEditor] = useState(false);
-
   const {
-    status: genStatus, videoUrl, error: genError, projectId,
+    status: genStatus, videoUrl, error: genError,
     progress: renderProgress, generateRedditVideo, reset: resetGenerate,
   } = useVideoGenerate();
 
@@ -576,22 +572,6 @@ function RedditVideoFlow() {
     setPostTitle("What is a secret you will take to your grave?");
     setScript("When I was ten years old, I accidentally broke my dad's favorite vintage watch that he got from his grandfather. I was so scared that I buried it in the backyard. My parents spent weeks looking for it and eventually assumed it was lost at a restaurant. Ten years later, they sold the house and we moved. To this day, they still think it was stolen, and I've never had the courage to tell them.");
   }
-
-  const handleOpenInEditor = useCallback(async () => {
-    if (!projectId) return;
-    setOpeningEditor(true);
-    try {
-      const token = getStoredToken() || "";
-      const res = await fetch(`/api/projects/${projectId}/open-in-editor`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json() as { projectId?: string; error?: string };
-      if (res.ok && data.projectId) router.push(`/dashboard/editor/${data.projectId}`);
-    } catch { /* ignore */ } finally {
-      setOpeningEditor(false);
-    }
-  }, [projectId, router]);
 
   function handleGenerate() {
     const token = getStoredToken();
@@ -662,10 +642,6 @@ function RedditVideoFlow() {
                 className="inline-flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3.5 py-2 rounded-lg transition-colors">
                 Download
               </a>
-              <button onClick={handleOpenInEditor} disabled={openingEditor}
-                className="inline-flex items-center gap-1.5 bg-white hover:bg-gray-50 text-gray-700 text-xs font-bold px-3.5 py-2 rounded-lg border border-gray-200 transition-colors disabled:opacity-50">
-                <IcEditor /> {openingEditor ? "Opening…" : "Open in Editor"}
-              </button>
               <button onClick={resetGenerate}
                 className="inline-flex items-center gap-1.5 text-green-600 text-xs font-semibold hover:underline px-2">
                 Dismiss
