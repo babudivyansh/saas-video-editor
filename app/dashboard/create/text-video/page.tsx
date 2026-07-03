@@ -650,26 +650,9 @@ function TextVideoFlow() {
   const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(DEFAULT_VS);
   const [language, setLanguage] = useState("auto");
 
-  const { status: genStatus, videoUrl, error: genError, projectId: genProjectId, generateTextVideo, reset, progress: renderProgress } = useVideoGenerate();
-  const [openingEditor, setOpeningEditor] = useState(false);
+  const { status: genStatus, videoUrl, error: genError, generateTextVideo, reset, progress: renderProgress } = useVideoGenerate();
 
   function goTo(i: number) { router.push(`/dashboard/create/text-video?step=${STEPS[i].id}`); }
-
-  async function handleOpenInEditor() {
-    const token = getStoredToken();
-    if (!token || !genProjectId) return;
-    setOpeningEditor(true);
-    try {
-      const res = await fetch(`/api/projects/${genProjectId}/open-in-editor`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const d = await res.json() as { projectId?: string; error?: string };
-      if (d.projectId) router.push(`/dashboard/editor/${d.projectId}`);
-    } finally {
-      setOpeningEditor(false);
-    }
-  }
 
   async function handleGenerate() {
     const token = getStoredToken();
@@ -818,15 +801,6 @@ function TextVideoFlow() {
             <span className="text-sm font-semibold text-green-700">🎉 Video ready!</span>
             <a href={videoUrl} target="_blank" rel="noopener noreferrer"
               className="text-sm font-semibold text-blue-600 underline">Download / View</a>
-            {genProjectId && (
-              <button
-                onClick={handleOpenInEditor}
-                disabled={openingEditor}
-                className="flex items-center gap-1.5 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg px-3 py-1.5 transition-colors"
-              >
-                {openingEditor ? "Opening…" : "✏️ Open in Editor"}
-              </button>
-            )}
             <button onClick={reset} className="ml-auto text-xs text-gray-400 hover:text-gray-600">Dismiss</button>
           </div>
         )}

@@ -83,7 +83,7 @@ function SkeletonCard() {
   );
 }
 
-function ClipCard({ clip, onEdit, editing }: { clip: ClipItem; onEdit: (id: string) => void; editing: boolean }) {
+function ClipCard({ clip }: { clip: ClipItem }) {
   const [playing, setPlaying] = useState(false);
   const sc = scoreColor(clip.score);
   const ready = clip.status === "ready";
@@ -133,9 +133,6 @@ function ClipCard({ clip, onEdit, editing }: { clip: ClipItem; onEdit: (id: stri
         {ready && clip.videoUrl && (
           <div className="flex gap-2 mt-auto pt-1">
             <a href={clip.videoUrl} download className="flex-1 text-center text-xs font-semibold py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">Download</a>
-            <button onClick={() => onEdit(clip.id)} disabled={editing} className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-[#3860FF] text-white hover:bg-[#2d50e0] transition-colors disabled:opacity-50">
-              {editing ? "Opening…" : "Edit"}
-            </button>
           </div>
         )}
       </div>
@@ -150,10 +147,8 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
   expectedCount: number;
   onReset: () => void;
 }) {
-  const router = useRouter();
   const [clips, setClips] = useState<ClipItem[]>([]);
   const [projectStatus, setProjectStatus] = useState<string>("rendering");
-  const [editingId, setEditingId] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -175,19 +170,6 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
     pollRef.current = setInterval(tick, 2500);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [projectId]);
-
-  async function openInEditor(clipId: string) {
-    const token = getStoredToken();
-    if (!token) return;
-    setEditingId(clipId);
-    try {
-      const res = await fetch(`/api/clips/${clipId}/edit`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
-      const d = await res.json() as { projectId?: string; error?: string };
-      if (d.projectId) router.push(`/dashboard/editor/${d.projectId}`);
-    } finally {
-      setEditingId(null);
-    }
-  }
 
   const ready = clips.filter(c => c.status === "ready").length;
   const total = clips.length || expectedCount;
@@ -232,7 +214,7 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
       {/* Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         {clips.length > 0
-          ? clips.map(c => <ClipCard key={c.id} clip={c} onEdit={openInEditor} editing={editingId === c.id} />)
+          ? clips.map(c => <ClipCard key={c.id} clip={c} />)
           : !failedHard && Array.from({ length: Math.max(1, expectedCount) }).map((_, i) => <SkeletonCard key={i} />)}
       </div>
     </div>

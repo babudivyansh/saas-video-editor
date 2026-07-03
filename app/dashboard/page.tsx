@@ -28,9 +28,6 @@ interface QuestData {
 function IcZap() {
   return <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>;
 }
-function IcArrow() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M5 12h14M12 5l7 7-7 7"/></svg>;
-}
 function IcChevron() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M9 18l6-6-6-6"/></svg>;
 }
@@ -282,36 +279,6 @@ export default function DashboardPage() {
 
           {/* ── Editor cards ── */}
           <div className="flex gap-3">
-            {/* Simple Editor */}
-            <Link href="/dashboard/simple-editor" className="flex items-center gap-3 px-5 py-3.5 rounded-2xl flex-1 hover:brightness-110 transition-all" style={{ background: "#0f1c35" }}>
-              <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0">
-                <svg className="w-4 h-4 text-orange-400" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M17.66 11.2C17.43 10.9 17.15 10.64 16.89 10.38C16.22 9.78 15.46 9.35 14.82 8.72C13.33 7.26 13 4.85 13.95 3C13 3.23 12.17 3.75 11.46 4.32C8.87 6.4 7.85 10.07 9.07 13.22C9.11 13.32 9.15 13.42 9.15 13.55C9.15 13.77 9 13.97 8.8 14.05C8.57 14.15 8.33 14.09 8.14 13.93C8.08 13.88 8.04 13.83 8 13.76C6.87 12.33 6.69 10.28 7.45 8.64C5.78 10 4.87 12.3 5 14.47C5.06 14.97 5.12 15.47 5.29 15.97C5.43 16.57 5.7 17.17 6 17.7C7.08 19.43 8.95 20.67 10.96 20.92C13.1 21.19 15.39 20.8 17.03 19.32C18.86 17.66 19.5 15 18.56 12.72L18.43 12.46C18.22 12 17.66 11.2 17.66 11.2Z"/>
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-white font-bold text-sm leading-tight">Simple Editor</p>
-                <p className="text-gray-400 text-xs mt-0.5">Quick formatting &amp; subtitles</p>
-              </div>
-              <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0 text-white">
-                <IcArrow />
-              </div>
-            </Link>
-
-            {/* Advanced Editor */}
-            <Link href="/dashboard/editor/new" className="flex items-center gap-3 px-5 py-3.5 rounded-2xl flex-1 hover:brightness-110 transition-all" style={{ background: "#2563eb" }}>
-              <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
-                <IcZap />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-white font-bold text-sm leading-tight">Advanced Editor</p>
-                <p className="text-blue-200 text-xs mt-0.5">Full control from scratch</p>
-              </div>
-              <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0 text-white">
-                <IcArrow />
-              </div>
-            </Link>
-
             {/* Free Tools */}
             <Link href="/dashboard/tools/free" className="flex items-center gap-3 px-5 py-3.5 rounded-2xl flex-1 border border-gray-200 hover:bg-gray-50 transition-colors">
               <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">

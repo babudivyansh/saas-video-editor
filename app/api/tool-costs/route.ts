@@ -24,8 +24,6 @@ const LABELS: Record<string, string> = {
   "instagram-downloader": "Instagram Downloader",
   "background-remover": "Background Remover",
   "face-swap": "AI Face Swap",
-  "simple-editor": "Simple Editor Export",
-  "advanced-editor": "Advanced Editor Export",
 };
 
 export async function GET() {
