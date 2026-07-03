@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
+import { useAuth } from "@/app/components/AuthContext";
 function IcZap() {
   return <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>;
 }
@@ -373,6 +374,8 @@ const TOOLS = [
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function ToolsPage() {
+  const { user, openAuthModal } = useAuth();
+
   return (
     <div className="flex h-screen overflow-hidden bg-white">
       <ToolsSidebar active="create" />
@@ -382,10 +385,15 @@ export default function ToolsPage() {
 
         {/* Top bar */}
         <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3">
-          <Link href="/login" className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm">
-            <IcZap />
-            Login
-          </Link>
+          {user ? null : (
+            <button
+              onClick={() => openAuthModal("login")}
+              className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm cursor-pointer"
+            >
+              <IcZap />
+              Login
+            </button>
+          )}
         </div>
 
         <div className="mx-auto w-full max-w-[1440px] px-8 pb-12 space-y-5">
