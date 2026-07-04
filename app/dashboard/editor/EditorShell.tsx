@@ -85,17 +85,20 @@ export default function EditorShell() {
         </div>
       </header>
 
-      {/* Main panes */}
+      {/* Main panes — sidebar spans the full remaining height, alongside
+          both the preview row and the timeline row below it. */}
       <div className="flex min-h-0 flex-1">
         <SidebarTabs />
-        <main className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3 bg-zinc-950 p-4">
-          <PreviewStage />
-        </main>
-        <PropertiesPanel />
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 flex-1">
+            <main className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3 bg-zinc-950 p-4">
+              <PreviewStage />
+            </main>
+            <PropertiesPanel />
+          </div>
+          <Timeline />
+        </div>
       </div>
-
-      {/* Timeline dock */}
-      <Timeline />
 
       {exportOpen && <ExportModal />}
 

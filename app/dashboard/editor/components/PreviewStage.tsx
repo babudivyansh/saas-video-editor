@@ -13,7 +13,6 @@ import { docDuration } from "@/lib/editor/doc-utils";
 import { ASPECT_DIMENSIONS } from "@/lib/editor/types";
 import { useAssets } from "./panels/MediaPanel";
 import PreviewControls from "./PreviewControls";
-import EditToolbar from "./EditToolbar";
 
 export default function PreviewStage() {
   const doc = useEditorStore((s) => s.doc);
@@ -159,7 +158,6 @@ export default function PreviewStage() {
       </div>
 
       <PreviewControls totalDuration={docDuration(doc)} />
-      <EditToolbar />
     </div>
   );
 }
