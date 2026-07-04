@@ -6,7 +6,7 @@
 // call the *Transient variants per-frame and commit once on pointer-up.
 
 import { create } from "zustand";
-import type { Aspect, AudioClip, TextClip, TimelineDoc, TrackKind, VideoClip } from "@/lib/editor/types";
+import type { AnyClip, Aspect, AudioClip, TextClip, TimelineDoc, TrackKind, VideoClip } from "@/lib/editor/types";
 import { DEFAULT_DOC, MIN_CLIP_DURATION } from "@/lib/editor/types";
 import { placeVideoClip, splitVideoClip, videoClipAt } from "@/lib/editor/doc-utils";
 import { emptyHistory, pushHistory, redo, undo, type HistoryState } from "./history";
@@ -27,6 +27,7 @@ interface EditorState {
 
   // Transient state
   selection: Selection | null;
+  clipboard: AnyClip | null;
   playing: boolean;
   currentTime: number; // throttled mirror of the rAF clock (UI text etc.)
   zoom: number; // timeline px per second
@@ -54,6 +55,7 @@ interface EditorState {
   setAspect: (a: Aspect) => void;
   addVideoClip: (clip: VideoClip) => void;
   addTextClip: (clip: TextClip) => void;
+  addTextClips: (clips: TextClip[]) => void;
   addAudioClip: (clip: AudioClip) => void;
   updateClip: (track: TrackKind, clipId: string, patch: Record<string, unknown>, undoable?: boolean) => void;
   commitDrag: (before: TimelineDoc) => void;
@@ -62,6 +64,9 @@ interface EditorState {
   trimClipTransient: (track: TrackKind, clipId: string, edge: "left" | "right", newTime: number) => void;
   splitAtPlayhead: () => void;
   deleteSelected: () => void;
+  copySelected: () => void;
+  duplicateSelected: () => void;
+  pasteAtPlayhead: () => void;
   undoAction: () => void;
   redoAction: () => void;
 }
@@ -72,6 +77,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   history: emptyHistory(),
 
   selection: null,
+  clipboard: null,
   playing: false,
   currentTime: 0,
   zoom: 60,
@@ -122,6 +128,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       history: pushHistory(s.history, s.doc),
       doc: { ...s.doc, tracks: { ...s.doc.tracks, text: [...s.doc.tracks.text, clip] } },
       selection: { clipId: clip.id, track: "text" },
+      saveState: "dirty",
+    })),
+
+  // Batch insert (auto-captions) — one history entry for the whole set.
+  addTextClips: (clips) =>
+    set((s) => ({
+      history: pushHistory(s.history, s.doc),
+      doc: { ...s.doc, tracks: { ...s.doc.tracks, text: [...s.doc.tracks.text, ...clips] } },
       saveState: "dirty",
     })),
 
@@ -177,8 +191,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         const newStart = Math.min(Math.max(0, newTime), end - MIN_CLIP_DURATION);
         const delta = newStart - clip.timelineStart;
         patch = { timelineStart: newStart, duration: end - newStart };
-        // Video/audio trims also advance into the source so content stays put.
-        if (track !== "text") (patch as VideoClip).srcIn = Math.max(0, (clip as VideoClip).srcIn + delta);
+        // Video/audio trims also advance into the source so content stays put
+        // (scaled by playback speed for video clips).
+        if (track !== "text") {
+          const speed = track === "video" ? ((clip as VideoClip).speed ?? 1) : 1;
+          (patch as VideoClip).srcIn = Math.max(0, (clip as VideoClip).srcIn + delta * speed);
+        }
       } else {
         const newEnd = Math.max(newTime, clip.timelineStart + MIN_CLIP_DURATION);
         patch = { duration: newEnd - clip.timelineStart };
@@ -216,6 +234,62 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         history: pushHistory(s.history, s.doc),
         doc: { ...s.doc, tracks: { ...s.doc.tracks, [track]: nextTrack } },
         selection: null,
+        saveState: "dirty",
+      };
+    }),
+
+  copySelected: () =>
+    set((s) => {
+      if (!s.selection) return s;
+      const list = s.doc.tracks[s.selection.track] as AnyClip[];
+      const clip = list.find((c) => c.id === s.selection!.clipId);
+      return clip ? { clipboard: structuredClone(clip) } : s;
+    }),
+
+  duplicateSelected: () =>
+    set((s) => {
+      if (!s.selection) return s;
+      const track = s.selection.track;
+      const list = s.doc.tracks[track] as AnyClip[];
+      const clip = list.find((c) => c.id === s.selection!.clipId);
+      if (!clip) return s;
+      const copy = { ...structuredClone(clip), id: crypto.randomUUID(), timelineStart: clip.timelineStart + clip.duration };
+      if (track === "video") {
+        const video = placeVideoClip(s.doc.tracks.video, copy as VideoClip);
+        return {
+          history: pushHistory(s.history, s.doc),
+          doc: { ...s.doc, tracks: { ...s.doc.tracks, video } },
+          selection: { clipId: copy.id, track: "video" },
+          saveState: "dirty",
+        };
+      }
+      return {
+        history: pushHistory(s.history, s.doc),
+        doc: { ...s.doc, tracks: { ...s.doc.tracks, [track]: [...list, copy] } },
+        selection: { clipId: copy.id, track },
+        saveState: "dirty",
+      };
+    }),
+
+  pasteAtPlayhead: () =>
+    set((s) => {
+      if (!s.clipboard) return s;
+      const track = s.clipboard.type === "video" ? "video" : s.clipboard.type === "text" ? "text" : "audio";
+      const copy = { ...structuredClone(s.clipboard), id: crypto.randomUUID(), timelineStart: s.currentTime };
+      if (track === "video") {
+        const video = placeVideoClip(s.doc.tracks.video, copy as VideoClip);
+        return {
+          history: pushHistory(s.history, s.doc),
+          doc: { ...s.doc, tracks: { ...s.doc.tracks, video } },
+          selection: { clipId: copy.id, track: "video" },
+          saveState: "dirty",
+        };
+      }
+      const list = s.doc.tracks[track] as AnyClip[];
+      return {
+        history: pushHistory(s.history, s.doc),
+        doc: { ...s.doc, tracks: { ...s.doc.tracks, [track]: [...list, copy] } },
+        selection: { clipId: copy.id, track },
         saveState: "dirty",
       };
     }),

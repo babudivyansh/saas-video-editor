@@ -23,7 +23,7 @@ export default function PreviewControls({ totalDuration }: { totalDuration: numb
       <button
         onClick={() => setCurrentTime(0)}
         aria-label="Go to start"
-        className="rounded-full p-2 text-ink-soft transition-colors hover:bg-white hover:text-ink cursor-pointer"
+        className="rounded-full p-2 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-100 cursor-pointer"
       >
         <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
           <path d="M6 5h2v14H6zM20 5l-10 7 10 7V5z" />
@@ -32,7 +32,7 @@ export default function PreviewControls({ totalDuration }: { totalDuration: numb
       <button
         onClick={() => setPlaying(!playing)}
         aria-label={playing ? "Pause" : "Play"}
-        className="flex h-10 w-10 items-center justify-center rounded-full bg-brand text-ink transition-colors hover:bg-brand-dark cursor-pointer"
+        className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-600 text-white transition-colors hover:bg-violet-500 cursor-pointer"
       >
         {playing ? (
           <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
@@ -44,7 +44,7 @@ export default function PreviewControls({ totalDuration }: { totalDuration: numb
           </svg>
         )}
       </button>
-      <span className="font-mono text-xs text-ink-soft">
+      <span className="font-mono text-xs text-zinc-400">
         {fmt(currentTime)} / {fmt(totalDuration)}
       </span>
     </div>

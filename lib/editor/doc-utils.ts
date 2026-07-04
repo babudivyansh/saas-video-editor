@@ -61,13 +61,15 @@ export function videoSegments(doc: TimelineDoc): VideoSegment[] {
 export function splitVideoClip(clip: VideoClip, t: number, newId: string): [VideoClip, VideoClip] | null {
   const offset = t - clip.timelineStart;
   if (offset < MIN_CLIP_DURATION || clip.duration - offset < MIN_CLIP_DURATION) return null;
+  const speed = clip.speed ?? 1;
   const left: VideoClip = { ...clip, duration: offset };
   const right: VideoClip = {
     ...clip,
     id: newId,
     timelineStart: t,
     duration: clip.duration - offset,
-    srcIn: clip.srcIn + offset,
+    // Source time advances speed× faster than timeline time.
+    srcIn: clip.srcIn + offset * speed,
   };
   return [left, right];
 }

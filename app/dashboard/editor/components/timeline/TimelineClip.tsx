@@ -8,22 +8,34 @@
 import React, { useRef } from "react";
 import { useEditorStore } from "../../store/editorStore";
 import { snapCandidates, snapTime } from "@/lib/editor/doc-utils";
+import { useVideoThumbnails } from "../../hooks/useVideoThumbnails";
 import type { AnyClip, TimelineDoc, TrackKind } from "@/lib/editor/types";
 
-const TRACK_COLORS: Record<TrackKind, { bg: string; border: string }> = {
-  video: { bg: "bg-brand/70", border: "border-brand-dark" },
-  text: { bg: "bg-amber-300/80", border: "border-amber-500" },
-  audio: { bg: "bg-emerald-300/80", border: "border-emerald-500" },
+const TRACK_COLORS: Record<TrackKind, { bg: string; border: string; text: string }> = {
+  video: { bg: "bg-violet-600/70", border: "border-violet-400", text: "text-white" },
+  text: { bg: "bg-amber-400/80", border: "border-amber-300", text: "text-zinc-900" },
+  audio: { bg: "bg-emerald-400/80", border: "border-emerald-300", text: "text-zinc-900" },
 };
 
 const SNAP_PX = 8;
 
 type DragMode = "move" | "trim-left" | "trim-right";
 
-export default function TimelineClip({ clip, track }: { clip: AnyClip; track: TrackKind }) {
+export default function TimelineClip({
+  clip,
+  track,
+  assetUrl,
+  assetName,
+}: {
+  clip: AnyClip;
+  track: TrackKind;
+  assetUrl?: string;
+  assetName?: string;
+}) {
   const zoom = useEditorStore((s) => s.zoom);
   const selected = useEditorStore((s) => s.selection?.clipId === clip.id);
   const select = useEditorStore((s) => s.select);
+  const thumbnails = useVideoThumbnails(track === "video" ? assetUrl ?? null : null);
 
   const drag = useRef<{
     mode: DragMode;
@@ -95,10 +107,22 @@ export default function TimelineClip({ clip, track }: { clip: AnyClip; track: Tr
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       className={`absolute bottom-0.5 top-0.5 flex cursor-grab touch-none items-center overflow-hidden rounded-md border ${colors.bg} ${colors.border} ${
-        selected ? "ring-2 ring-ink" : ""
+        selected ? "ring-2 ring-white" : ""
       }`}
       style={{ left: clip.timelineStart * zoom, width: Math.max(clip.duration * zoom, 8) }}
     >
+      {/* Filmstrip thumbnails (video clips only) */}
+      {track === "video" && thumbnails.length > 0 && (
+        <div className="pointer-events-none absolute inset-0 flex">
+          {Array.from({ length: Math.max(Math.ceil((clip.duration * zoom) / 44), 1) }).map((_, i) => (
+            <div
+              key={i}
+              className="h-full flex-1 border-r border-black/20 bg-cover bg-center last:border-r-0"
+              style={{ backgroundImage: `url(${thumbnails[i % thumbnails.length]})` }}
+            />
+          ))}
+        </div>
+      )}
       {/* Left trim handle */}
       <span
         onPointerDown={(e) => beginDrag(e, "trim-left")}
@@ -107,7 +131,13 @@ export default function TimelineClip({ clip, track }: { clip: AnyClip; track: Tr
         className="absolute inset-y-0 left-0 w-2 cursor-ew-resize touch-none bg-black/20 opacity-0 transition-opacity hover:opacity-100"
         aria-label="Trim start"
       />
-      <span className="pointer-events-none truncate px-2.5 text-[10px] font-semibold text-ink/80">{label}</span>
+      {track === "video" ? (
+        <span className="pointer-events-none absolute left-1.5 top-1 max-w-[85%] truncate rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-medium text-white">
+          {assetName ?? label}
+        </span>
+      ) : (
+        <span className={`pointer-events-none truncate px-2.5 text-[10px] font-semibold ${colors.text}`}>{label}</span>
+      )}
       {/* Right trim handle */}
       <span
         onPointerDown={(e) => beginDrag(e, "trim-right")}

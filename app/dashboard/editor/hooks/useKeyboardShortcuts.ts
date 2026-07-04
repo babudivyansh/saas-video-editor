@@ -3,6 +3,7 @@
 // Global editor shortcuts. Skipped while any input/textarea is focused so
 // typing in the text panel or title field never triggers timeline actions.
 // space = play/pause · S = split · Delete = remove · Ctrl+Z / Ctrl+Y = undo/redo
+// Ctrl+C = copy · Ctrl+D = duplicate · Ctrl+V = paste at playhead
 // ←/→ = nudge playhead one frame (1/30s), with shift = 1s
 
 import { useEffect } from "react";
@@ -33,6 +34,15 @@ export function useKeyboardShortcuts() {
       } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase() === "z"))) {
         e.preventDefault();
         s.redoAction();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+        e.preventDefault();
+        s.copySelected();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        s.duplicateSelected();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        s.pasteAtPlayhead();
       } else if (e.key === "ArrowLeft") {
         e.preventDefault();
         s.setCurrentTime(s.currentTime - (e.shiftKey ? 1 : FRAME));

@@ -27,11 +27,20 @@ export default function PropertiesPanel() {
   }
 
   return (
-    <aside className="w-64 flex-shrink-0 overflow-y-auto border-l border-card-border bg-white">
+    <aside className="w-64 flex-shrink-0 overflow-y-auto border-l border-zinc-800 bg-zinc-900">
       {content ?? (
-        <p className="p-4 text-xs leading-relaxed text-ink-soft">
-          Select a clip on the timeline (or text on the preview) to edit its properties.
-        </p>
+        <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-800 text-zinc-500">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-6 w-6">
+              <path d="M3 8.5l1-3.5h16l1 3.5" strokeLinejoin="round" />
+              <rect x="3" y="8.5" width="18" height="12" rx="1.5" />
+              <path d="M6 5l1.5 3.5M11 5l1.5 3.5M16 5l1.5 3.5" strokeLinecap="round" />
+            </svg>
+          </span>
+          <p className="text-xs leading-relaxed text-zinc-500">
+            Select a clip on the timeline (or text on the preview) to edit its properties.
+          </p>
+        </div>
       )}
     </aside>
   );
