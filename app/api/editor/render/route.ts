@@ -1,0 +1,83 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getAuthUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { redis } from "@/lib/redis";
+import { createRenderQueue } from "@/lib/render-queue";
+import { validateDoc, type TimelineDoc } from "@/lib/editor/types";
+import {
+  editorRenderJob,
+  EDITOR_RENDER_CREDIT_COST,
+  type EditorRenderPayload,
+} from "@/lib/editor/render-job";
+
+const renderQueue = createRenderQueue<EditorRenderPayload>("editor-render", editorRenderJob);
+
+// POST /api/editor/render { projectId }
+// Renders the project's saved editorDoc. Credit + refund pattern mirrors
+// app/api/generate/compile. The doc and its assets are re-validated and
+// re-resolved server-side — client URLs are never trusted.
+export async function POST(req: NextRequest) {
+  const auth = await getAuthUser(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = await req.json().catch(() => ({}));
+  const projectId = body.projectId as string | undefined;
+  if (!projectId) return NextResponse.json({ error: "projectId required" }, { status: 400 });
+
+  const project = await prisma.project.findFirst({ where: { id: projectId, userId: auth.userId } });
+  if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  if (project.status === "rendering") {
+    return NextResponse.json({ error: "Project is already rendering" }, { status: 409 });
+  }
+
+  // Validate the saved timeline document.
+  const doc = project.editorDoc as unknown as TimelineDoc | null;
+  if (!doc) return NextResponse.json({ error: "Nothing to export yet" }, { status: 400 });
+  const docError = validateDoc(doc);
+  if (docError) return NextResponse.json({ error: `Invalid timeline: ${docError}` }, { status: 400 });
+  if (doc.tracks.video.length === 0) {
+    return NextResponse.json({ error: "Add at least one video clip before exporting" }, { status: 400 });
+  }
+
+  // Resolve every referenced asset and confirm ownership.
+  const assetIds = [
+    ...new Set([...doc.tracks.video.map((c) => c.assetId), ...doc.tracks.audio.map((c) => c.assetId)]),
+  ];
+  const assets = await prisma.asset.findMany({ where: { id: { in: assetIds }, userId: auth.userId } });
+  if (assets.length !== assetIds.length) {
+    return NextResponse.json({ error: "One or more media files are missing from your library" }, { status: 400 });
+  }
+  const assetUrls: Record<string, string> = {};
+  for (const a of assets) assetUrls[a.id] = a.url;
+
+  // Fast-path credit check via Redis cache.
+  const cachedCredits = await redis.get(`credits:${auth.userId}`);
+  const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
+  if (cached !== null && cached < EDITOR_RENDER_CREDIT_COST) {
+    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
+  }
+
+  // Atomic decrement with rollback (source of truth: Postgres).
+  const user = await prisma.user.update({
+    where: { id: auth.userId },
+    data: { credits: { decrement: EDITOR_RENDER_CREDIT_COST } },
+    select: { credits: true },
+  });
+  if (user.credits < 0) {
+    await prisma.user.update({
+      where: { id: auth.userId },
+      data: { credits: { increment: EDITOR_RENDER_CREDIT_COST } },
+    });
+    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
+  }
+  await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
+
+  await prisma.project.update({
+    where: { id: projectId },
+    data: { status: "rendering", progress: 0, videoUrl: null },
+  });
+
+  renderQueue.enqueue(projectId, { projectId, assetUrls });
+
+  return NextResponse.json({ status: "rendering", creditsRemaining: user.credits });
+}

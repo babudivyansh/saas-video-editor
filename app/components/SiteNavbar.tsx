@@ -15,7 +15,7 @@ function DropdownItem({ item, onNavigate }: { item: NavItem; onNavigate: () => v
     "flex flex-col gap-0.5 rounded-xl px-3 py-2.5 transition-colors hover:bg-gray-50 group";
   const content = (
     <>
-      <span className="text-sm font-semibold text-gray-900 group-hover:text-[#335CFF] transition-colors">{item.title}</span>
+      <span className="text-sm font-semibold text-gray-900 group-hover:text-brand-deep transition-colors">{item.title}</span>
       <span className="text-xs leading-snug text-gray-500">{item.desc}</span>
     </>
   );
@@ -164,7 +164,7 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
             <NavDropdown label="Features" width={940} align="screen">
               <div className="grid grid-cols-4 gap-0 p-3">
                 <div className="p-2">
-                  <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-[#335CFF]">Video Tools</p>
+                  <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-brand-deep">Video Tools</p>
                   <div className="space-y-0.5">
                     {VIDEO_TOOLS.map((item) => (
                       <DropdownItem key={item.title} item={item} onNavigate={() => { }} />
@@ -172,7 +172,7 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
                   </div>
                 </div>
                 <div className="col-span-2 p-2 border-l border-gray-100">
-                  <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-[#335CFF]">AI Tools</p>
+                  <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-brand-deep">AI Tools</p>
                   <div className="grid grid-cols-2 gap-x-1">
                     <div className="space-y-0.5">
                       {AI_TOOLS.slice(0, Math.ceil(AI_TOOLS.length / 2)).map((item) => (
@@ -186,7 +186,7 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
                     </div>
                   </div>
                 </div>
-                <div className="rounded-2xl bg-gradient-to-b from-[#335CFF]/[0.04] to-transparent p-2 border-l border-gray-100">
+                <div className="rounded-2xl bg-gradient-to-b from-brand/[0.04] to-transparent p-2 border-l border-gray-100">
                   <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-gray-400">Free Tools</p>
                   <div className="space-y-0.5">
                     {FREE_FEATURES.map((item) => (
@@ -216,7 +216,7 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
             {user ? (
               <Link
                 href="/dashboard"
-                className="flex items-center gap-1.5 bg-[#335CFF] text-white text-base font-bold px-5 py-2.5 rounded-full transition-transform duration-200 hover:scale-[1.02]"
+                className="flex items-center gap-1.5 bg-brand text-ink hover:bg-brand-dark text-base font-bold px-5 py-2.5 rounded-full transition-transform duration-200 hover:scale-[1.02]"
               >
                 <ZapIcon className="w-3.5 h-3.5" />
                 Dashboard
@@ -231,7 +231,7 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
                 </button>
                 <button
                   onClick={() => openAuthModal("register")}
-                  className="flex items-center gap-1.5 bg-[#335CFF] text-white text-base font-bold px-5 py-2.5 rounded-full transition-transform duration-200 hover:scale-[1.02] cursor-pointer"
+                  className="flex items-center gap-1.5 bg-brand text-ink hover:bg-brand-dark text-base font-bold px-5 py-2.5 rounded-full transition-transform duration-200 hover:scale-[1.02] cursor-pointer"
                 >
                   <ZapIcon className="w-3.5 h-3.5" />
                   Start Free
@@ -263,10 +263,10 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
             <div className="pl-3 pb-1">
               {([["Video Tools", VIDEO_TOOLS], ["AI Tools", AI_TOOLS], ["Free Tools", FREE_FEATURES]] as const).map(([group, items]) => (
                 <div key={group}>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#335CFF] mt-2 mb-1">{group}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-brand-deep mt-2 mb-1">{group}</p>
                   {items.map((item) => (
                     <Link key={item.title} href={item.href} onClick={closeMobile} className="block py-1.5">
-                      <span className="block text-sm font-medium text-gray-700 hover:text-[#335CFF]">{item.title}</span>
+                      <span className="block text-sm font-medium text-gray-700 hover:text-brand-deep">{item.title}</span>
                       <span className="block text-xs text-gray-400">{item.desc}</span>
                     </Link>
                   ))}
@@ -285,12 +285,12 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
               {RESOURCES.map((item) =>
                 item.external ? (
                   <a key={item.title} href={item.href} target="_blank" rel="noopener noreferrer" onClick={closeMobile} className="block py-1.5">
-                    <span className="block text-sm font-medium text-gray-700 hover:text-[#335CFF]">{item.title}</span>
+                    <span className="block text-sm font-medium text-gray-700 hover:text-brand-deep">{item.title}</span>
                     <span className="block text-xs text-gray-400">{item.desc}</span>
                   </a>
                 ) : (
                   <Link key={item.title} href={item.href} onClick={closeMobile} className="block py-1.5">
-                    <span className="block text-sm font-medium text-gray-700 hover:text-[#335CFF]">{item.title}</span>
+                    <span className="block text-sm font-medium text-gray-700 hover:text-brand-deep">{item.title}</span>
                     <span className="block text-xs text-gray-400">{item.desc}</span>
                   </Link>
                 ),
@@ -298,19 +298,19 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
             </div>
           )}
 
-          <Link href="/pricing" className="block text-sm font-semibold text-gray-700 hover:text-[#335CFF] py-2" onClick={closeMobile}>Pricing</Link>
-          <Link href="/blog" className="block text-sm font-semibold text-gray-700 hover:text-[#335CFF] py-2" onClick={closeMobile}>Blog</Link>
-          <Link href="/about" className="block text-sm font-semibold text-gray-700 hover:text-[#335CFF] py-2" onClick={closeMobile}>About</Link>
+          <Link href="/pricing" className="block text-sm font-semibold text-gray-700 hover:text-brand-deep py-2" onClick={closeMobile}>Pricing</Link>
+          <Link href="/blog" className="block text-sm font-semibold text-gray-700 hover:text-brand-deep py-2" onClick={closeMobile}>Blog</Link>
+          <Link href="/about" className="block text-sm font-semibold text-gray-700 hover:text-brand-deep py-2" onClick={closeMobile}>About</Link>
 
           <div className="pt-2 border-t border-gray-100 mt-1 space-y-2">
             {user ? (
-              <Link href="/dashboard" onClick={closeMobile} className="w-full flex items-center justify-center gap-1.5 bg-[#335CFF] text-white text-sm font-semibold px-4 py-2.5 rounded-full">
+              <Link href="/dashboard" onClick={closeMobile} className="w-full flex items-center justify-center gap-1.5 bg-brand text-ink hover:bg-brand-dark text-sm font-semibold px-4 py-2.5 rounded-full">
                 <ZapIcon className="w-3.5 h-3.5" /> Dashboard
               </Link>
             ) : (
               <>
                 <button onClick={() => { closeMobile(); openAuthModal("login"); }} className="w-full text-sm font-semibold text-gray-700 border border-gray-200 px-4 py-2.5 rounded-full">Sign In</button>
-                <button onClick={() => { closeMobile(); openAuthModal("register"); }} className="w-full flex items-center justify-center gap-1.5 bg-[#335CFF] text-white text-sm font-semibold px-4 py-2.5 rounded-full">
+                <button onClick={() => { closeMobile(); openAuthModal("register"); }} className="w-full flex items-center justify-center gap-1.5 bg-brand text-ink hover:bg-brand-dark text-sm font-semibold px-4 py-2.5 rounded-full">
                   <ZapIcon className="w-3.5 h-3.5" /> Start Free
                 </button>
               </>

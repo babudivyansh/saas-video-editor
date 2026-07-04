@@ -21,6 +21,7 @@ export const FREE_FEATURES: FeatureLink[] = [
 
 // Video creation workflows (faceless videos, clipping, editing).
 export const VIDEO_TOOLS: FeatureLink[] = [
+  { title: "Video Editor", desc: "Multi-track timeline editor in your browser", href: "/dashboard/editor" },
   { title: "Clipiro AutoClip", desc: "Long videos into viral clips, automatically", href: "/dashboard/create/auto-clip" },
   { title: "Cut & Crop", desc: "Trim & stitch clips ready to edit", href: "/dashboard/cut-and-crop" },
   { title: "AI Creator", desc: "Become an AI content creator in 3 steps", href: "/dashboard/ai-creator" },

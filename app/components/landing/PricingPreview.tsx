@@ -54,7 +54,7 @@ export default function PricingPreview() {
       <div className="mx-auto w-full max-w-screen-2xl px-4 py-20 md:px-12 lg:px-[120px] lg:py-28">
         <Reveal>
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-xs font-bold uppercase tracking-widest text-[#335CFF]">Pricing</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-brand-deep">Pricing</span>
             <h2 className="mt-3 text-3xl font-extrabold text-gray-900 md:text-5xl">Simple plans that scale with you</h2>
             <p className="mt-4 text-lg text-gray-600">Start free. Upgrade when you&apos;re ready to go viral at scale.</p>
           </div>
@@ -76,8 +76,8 @@ export default function PricingPreview() {
                   <div
                     className={`flex h-full flex-col rounded-2xl border-2 p-7 transition-all ${
                       popular
-                        ? "border-[#335CFF] bg-gradient-to-b from-[#335CFF] to-[#2348d8] text-white shadow-2xl shadow-[#335CFF]/30 md:-translate-y-3"
-                        : "border-[#E8EDFF] bg-white"
+                        ? "border-brand bg-gradient-to-b from-brand-deep to-brand-dark text-white shadow-2xl shadow-brand/30 md:-translate-y-3"
+                        : "border-card-border bg-white"
                     }`}
                   >
                     {popular && (
@@ -85,22 +85,22 @@ export default function PricingPreview() {
                         Most Popular
                       </span>
                     )}
-                    <p className={`text-sm font-bold uppercase tracking-widest ${popular ? "text-blue-100" : "text-gray-400"}`}>
+                    <p className={`text-sm font-bold uppercase tracking-widest ${popular ? "text-teal-50" : "text-gray-400"}`}>
                       {tierName}
                     </p>
                     <div className="mt-3 flex items-baseline gap-1">
                       <span className={`text-4xl font-black ${popular ? "text-white" : "text-gray-900"}`}>{fmt(plan.priceInPaise)}</span>
-                      <span className={`text-sm ${popular ? "text-blue-100" : "text-gray-400"}`}>/mo</span>
+                      <span className={`text-sm ${popular ? "text-teal-50" : "text-gray-400"}`}>/mo</span>
                     </div>
-                    <p className={`mt-1 text-sm ${popular ? "text-blue-100" : "text-gray-500"}`}>
+                    <p className={`mt-1 text-sm ${popular ? "text-teal-50" : "text-gray-500"}`}>
                       {plan.monthlyCredits} credits / month
                     </p>
 
                     <ul className="mt-6 flex-1 space-y-3">
                       {plan.features.map((f) => (
                         <li key={f} className="flex items-start gap-2.5 text-sm">
-                          <CheckIcon className={`mt-0.5 h-4 w-4 flex-shrink-0 ${popular ? "text-blue-200" : "text-[#335CFF]"}`} />
-                          <span className={popular ? "text-blue-50" : "text-gray-700"}>{f}</span>
+                          <CheckIcon className={`mt-0.5 h-4 w-4 flex-shrink-0 ${popular ? "text-teal-100" : "text-brand-deep"}`} />
+                          <span className={popular ? "text-teal-50" : "text-gray-700"}>{f}</span>
                         </li>
                       ))}
                     </ul>
@@ -108,7 +108,7 @@ export default function PricingPreview() {
                     <button
                       onClick={() => handleCta(tierName)}
                       className={`mt-8 w-full rounded-full py-3 text-sm font-bold transition-transform duration-200 hover:scale-[1.02] cursor-pointer ${
-                        popular ? "bg-white text-[#335CFF] hover:bg-blue-50" : "bg-[#335CFF] text-white hover:bg-[#2348d8]"
+                        popular ? "bg-white text-brand-deep hover:bg-brand-soft" : "bg-brand text-ink hover:bg-brand-dark"
                       }`}
                     >
                       Get {tierName}
@@ -124,7 +124,7 @@ export default function PricingPreview() {
           <div className="mt-10 text-center">
             <Link
               href="/pricing"
-              className="group inline-flex items-center gap-1.5 text-sm font-semibold text-[#335CFF] hover:text-[#2348d8]"
+              className="group inline-flex items-center gap-1.5 text-sm font-semibold text-brand-deep hover:text-brand-dark"
             >
               See full pricing &amp; credit packs
               <ArrowRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />

@@ -44,7 +44,7 @@ export default function FAQ() {
       <div className="mx-auto w-full max-w-3xl px-4 py-20 md:px-6 lg:py-28">
         <Reveal>
           <div className="text-center">
-            <span className="text-xs font-bold uppercase tracking-widest text-[#335CFF]">FAQ</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-brand-deep">FAQ</span>
             <h2 className="mt-3 text-3xl font-extrabold text-gray-900 md:text-5xl">Frequently asked questions</h2>
             <p className="mt-4 text-lg text-gray-600">Everything you need to know about clipping with Clipiro.</p>
           </div>

@@ -16,14 +16,14 @@ export default function Hero() {
     <section className="relative overflow-hidden font-sans">
       {/* Soft gradient blobs */}
       <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="clipiro-blob absolute -top-24 -left-20 w-[420px] h-[420px] rounded-full bg-[#335CFF]/10 blur-3xl" />
-        <div className="clipiro-blob absolute top-10 right-0 w-[360px] h-[360px] rounded-full bg-purple-400/10 blur-3xl" style={{ animationDelay: "4s" }} />
+        <div className="clipiro-blob absolute -top-24 -left-20 w-[420px] h-[420px] rounded-full bg-brand/15 blur-3xl" />
+        <div className="clipiro-blob absolute top-10 right-0 w-[360px] h-[360px] rounded-full bg-emerald-300/15 blur-3xl" style={{ animationDelay: "4s" }} />
       </div>
 
       <div className="mx-auto flex w-full max-w-screen-2xl flex-col items-center gap-6 px-4 py-20 text-center md:px-12 lg:px-[120px] lg:py-28">
         {/* Badge */}
         <Reveal>
-          <span className="inline-flex items-center gap-2 rounded-full border border-[#335CFF]/20 bg-[#335CFF]/5 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-[#335CFF]">
+          <span className="inline-flex items-center gap-2 rounded-full border border-brand/25 bg-brand-soft px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-brand-deep">
             <ZapIcon className="h-3.5 w-3.5" />
             3.2M+ creators worldwide
           </span>
@@ -31,9 +31,9 @@ export default function Hero() {
 
         {/* H1 */}
         <Reveal delay={60}>
-          <h1 className="max-w-4xl text-balance text-4xl font-semibold leading-tight tracking-[0.01em] text-gray-900 md:text-6xl lg:text-7xl">
+          <h1 className="max-w-4xl text-balance text-4xl font-semibold leading-tight tracking-[0.01em] text-ink md:text-6xl lg:text-7xl">
             Create Viral Shorts From{" "}
-            <span className="bg-gradient-to-r from-[#335CFF] to-purple-500 bg-clip-text text-transparent">Long Videos</span>{" "}
+            <span className="bg-gradient-to-r from-brand-deep to-brand bg-clip-text text-transparent">Long Videos</span>{" "}
             in Seconds
           </h1>
         </Reveal>
@@ -52,7 +52,7 @@ export default function Hero() {
             {user ? (
               <Link
                 href="/dashboard"
-                className="inline-flex items-center gap-2 rounded-full bg-[#335CFF] px-8 py-4 text-base font-semibold text-white shadow-[0px_1px_2px_rgba(14,18,27,0.24),0px_0px_0px_1px_#5B7CFF] transition-transform duration-200 hover:scale-[1.02]"
+                className="inline-flex items-center gap-2 rounded-full bg-brand px-8 py-4 text-base font-bold text-ink shadow-card transition-all duration-200 hover:scale-[1.02] hover:bg-brand-dark"
               >
                 <ZapIcon className="h-4 w-4" />
                 Go to Dashboard
@@ -60,17 +60,17 @@ export default function Hero() {
             ) : (
               <button
                 onClick={() => openAuthModal("register")}
-                className="inline-flex items-center gap-2 rounded-full bg-[#335CFF] px-8 py-4 text-base font-semibold text-white shadow-[0px_1px_2px_rgba(14,18,27,0.24),0px_0px_0px_1px_#5B7CFF] transition-transform duration-200 hover:scale-[1.02] cursor-pointer"
+                className="inline-flex items-center gap-2 rounded-full bg-brand px-8 py-4 text-base font-bold text-ink shadow-card transition-all duration-200 hover:scale-[1.02] hover:bg-brand-dark cursor-pointer"
               >
                 <ZapIcon className="h-4 w-4" />
-                Start Free
+                Try Clipiro Free
               </button>
             )}
             <button
               onClick={() => setDemoOpen(true)}
-              className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-8 py-4 text-base font-semibold text-gray-800 transition-colors hover:border-gray-300 hover:bg-gray-50 cursor-pointer"
+              className="inline-flex items-center gap-2 rounded-full border border-card-border bg-white px-8 py-4 text-base font-semibold text-ink transition-colors hover:border-brand hover:bg-brand-soft cursor-pointer"
             >
-              <PlayIcon className="h-4 w-4 text-[#335CFF]" />
+              <PlayIcon className="h-4 w-4 text-brand-deep" />
               Watch Demo
             </button>
           </div>
@@ -88,11 +88,12 @@ export default function Hero() {
           </div>
         </Reveal>
 
-        {/* Hero visual: editor mockup */}
+        {/* Hero visual: editor mockup (CSS-drawn — replaced with a real editor
+            screenshot once the browser editor ships) */}
         <Reveal delay={300} className="w-full">
           <div className="relative mx-auto mt-8 w-full max-w-5xl">
-            <div className="absolute -inset-4 -z-10 rounded-[32px] bg-gradient-to-tr from-[#335CFF]/20 to-purple-400/20 blur-2xl" />
-            <div className="overflow-hidden rounded-2xl border border-[#E8EDFF] bg-white shadow-2xl">
+            <div className="absolute -inset-4 -z-10 rounded-[32px] bg-gradient-to-tr from-brand/25 to-emerald-300/20 blur-2xl" />
+            <div className="overflow-hidden rounded-2xl border border-card-border bg-white shadow-2xl">
               {/* Faux window chrome */}
               <div className="flex items-center gap-1.5 border-b border-gray-100 bg-gray-50 px-4 py-3">
                 <span className="h-3 w-3 rounded-full bg-red-400" />
@@ -102,13 +103,57 @@ export default function Hero() {
                   app.clipiro.com/editor
                 </span>
               </div>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="https://cdn-crayo.com/lp/public/landing/editor.png"
-                alt="Clipiro AI video editor: clip detection, caption generation, and export options"
-                className="w-full"
-                loading="eager"
-              />
+              {/* Editor mockup: sidebar / preview / properties + timeline */}
+              <div className="flex h-[300px] gap-2 bg-surface p-3 sm:h-[380px]" aria-hidden="true">
+                {/* Left sidebar: media bin */}
+                <div className="hidden w-40 flex-col gap-2 rounded-xl border border-card-border bg-white p-2 sm:flex">
+                  <div className="h-2 w-16 rounded-full bg-gray-200" />
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {["from-teal-300 to-emerald-500", "from-cyan-300 to-teal-500", "from-emerald-200 to-teal-400", "from-teal-200 to-cyan-400"].map((g, i) => (
+                      <div key={i} className={`aspect-video rounded-md bg-gradient-to-br ${g}`} />
+                    ))}
+                  </div>
+                  <div className="mt-1 h-2 w-20 rounded-full bg-gray-100" />
+                  <div className="h-2 w-14 rounded-full bg-gray-100" />
+                </div>
+                {/* Center: preview + timeline */}
+                <div className="flex flex-1 flex-col gap-2">
+                  <div className="relative flex flex-1 items-center justify-center rounded-xl bg-gray-900">
+                    <div className="flex aspect-[9/16] h-[85%] items-center justify-center rounded-lg bg-gradient-to-b from-teal-400 to-emerald-600">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/85">
+                        <PlayIcon className="h-4 w-4 translate-x-[1px] text-brand-deep" />
+                      </span>
+                    </div>
+                    <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded bg-black/60 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+                      Captions on point
+                    </span>
+                  </div>
+                  {/* Timeline */}
+                  <div className="flex flex-col gap-1.5 rounded-xl border border-card-border bg-white p-2">
+                    <div className="flex h-5 items-center gap-1">
+                      <div className="h-full w-2/5 rounded bg-brand/70" />
+                      <div className="h-full w-1/4 rounded bg-brand/50" />
+                      <div className="h-full w-1/3 rounded bg-brand/60" />
+                    </div>
+                    <div className="flex h-3.5 items-center gap-1">
+                      <div className="ml-[10%] h-full w-1/4 rounded bg-amber-300/80" />
+                      <div className="ml-[15%] h-full w-1/5 rounded bg-amber-200" />
+                    </div>
+                    <div className="flex h-3.5 items-center">
+                      <div className="h-full w-3/4 rounded bg-emerald-200" />
+                    </div>
+                  </div>
+                </div>
+                {/* Right: properties */}
+                <div className="hidden w-36 flex-col gap-2 rounded-xl border border-card-border bg-white p-2 md:flex">
+                  <div className="h-2 w-14 rounded-full bg-gray-200" />
+                  <div className="h-7 rounded-md border border-card-border bg-surface" />
+                  <div className="h-7 rounded-md border border-card-border bg-surface" />
+                  <div className="mt-1 h-2 w-10 rounded-full bg-gray-100" />
+                  <div className="h-2 rounded-full bg-brand/40" />
+                  <div className="mt-auto h-8 rounded-lg bg-brand" />
+                </div>
+              </div>
             </div>
             {/* Floating rating badge */}
             <div className="absolute -bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-gray-100 bg-white px-5 py-2.5 shadow-lg">

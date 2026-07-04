@@ -45,7 +45,7 @@ const SOCIALS = [
 
 export default function SiteFooter() {
   return (
-    <footer className="border-t border-gray-100 bg-white font-sans">
+    <footer className="border-t border-card-border bg-surface font-sans">
       <div className="mx-auto w-full max-w-screen-2xl px-4 py-16 md:px-12 lg:px-[120px]">
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-6">
           {/* Brand blurb */}
@@ -63,7 +63,7 @@ export default function SiteFooter() {
                   key={s.label}
                   href={s.href}
                   aria-label={s.label}
-                  className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-[#335CFF] hover:text-[#335CFF]"
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-brand hover:text-brand-deep"
                 >
                   {s.icon}
                 </a>
@@ -78,7 +78,7 @@ export default function SiteFooter() {
               <ul className="space-y-2.5">
                 {col.links.map((link) => (
                   <li key={link.label}>
-                    <Link href={link.href} className="text-sm text-gray-500 transition-colors hover:text-[#335CFF]">
+                    <Link href={link.href} className="text-sm text-gray-500 transition-colors hover:text-brand-deep">
                       {link.label}
                     </Link>
                   </li>
