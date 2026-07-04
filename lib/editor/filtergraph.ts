@@ -14,7 +14,7 @@
 import fs from "fs";
 import path from "path";
 import type { TimelineDoc } from "./types";
-import { ASPECT_DIMENSIONS } from "./types";
+import { ASPECT_DIMENSIONS, FILTER_PRESETS } from "./types";
 import { docDuration, videoSegments } from "./doc-utils";
 
 export interface ClipInput {
@@ -84,6 +84,25 @@ function escapeFilterPath(p: string): string {
 
 const num = (n: number) => Number(n.toFixed(4));
 
+/**
+ * atempo only accepts 0.5–2.0 per instance; chain instances to reach any
+ * speed in our 0.25–4 range (e.g. 4x = atempo=2,atempo=2).
+ */
+function atempoChain(speed: number): string {
+  const parts: number[] = [];
+  let s = speed;
+  while (s > 2) {
+    parts.push(2);
+    s /= 2;
+  }
+  while (s < 0.5) {
+    parts.push(0.5);
+    s /= 0.5;
+  }
+  parts.push(s);
+  return parts.map((p) => `atempo=${num(p)}`).join(",");
+}
+
 export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
   const { doc, assets, textFiles, outputPath } = input;
   const { w: W, h: H } = ASPECT_DIMENSIONS[doc.aspect];
@@ -121,17 +140,39 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
       const clip = seg.clip;
       const n = inputIndex.get(clip.assetId)!;
       const asset = assets.get(clip.assetId)!;
+      const speed = clip.speed ?? 1;
+      // Timeline duration is fixed; speed changes how much SOURCE is consumed.
       const from = num(clip.srcIn);
-      const to = num(clip.srcIn + clip.duration);
-      filters.push(
-        `[${n}:v]trim=start=${from}:end=${to},setpts=PTS-STARTPTS,fps=30,` +
-          `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1[${vLabel}]`,
-      );
+      const to = num(clip.srcIn + clip.duration * speed);
+      const fadeIn = Math.min(clip.fadeIn ?? 0, clip.duration);
+      const fadeOut = Math.min(clip.fadeOut ?? 0, clip.duration);
+      const preset = FILTER_PRESETS[clip.filter ?? "none"];
+
+      const vChain = [
+        `trim=start=${from}:end=${to}`,
+        `setpts=PTS-STARTPTS`,
+        ...(speed !== 1 ? [`setpts=PTS/${num(speed)}`] : []),
+        `fps=30`,
+        `scale=${W}:${H}:force_original_aspect_ratio=increase`,
+        `crop=${W}:${H}`,
+        `setsar=1`,
+        ...(preset.ffmpeg ? [preset.ffmpeg] : []),
+        ...(fadeIn > 0 ? [`fade=t=in:st=0:d=${num(fadeIn)}`] : []),
+        ...(fadeOut > 0 ? [`fade=t=out:st=${num(clip.duration - fadeOut)}:d=${num(fadeOut)}`] : []),
+      ];
+      filters.push(`[${n}:v]${vChain.join(",")}[${vLabel}]`);
+
       if (asset.hasAudio && !clip.muted && clip.volume > 0) {
-        filters.push(
-          `[${n}:a]atrim=start=${from}:end=${to},asetpts=PTS-STARTPTS,` +
-            `aformat=sample_rates=44100:channel_layouts=stereo,volume=${num(clip.volume)}[${aLabel}]`,
-        );
+        const aChain = [
+          `atrim=start=${from}:end=${to}`,
+          `asetpts=PTS-STARTPTS`,
+          ...(speed !== 1 ? [atempoChain(speed)] : []),
+          `aformat=sample_rates=44100:channel_layouts=stereo`,
+          `volume=${num(clip.volume)}`,
+          ...(fadeIn > 0 ? [`afade=t=in:st=0:d=${num(fadeIn)}`] : []),
+          ...(fadeOut > 0 ? [`afade=t=out:st=${num(clip.duration - fadeOut)}:d=${num(fadeOut)}`] : []),
+        ];
+        filters.push(`[${n}:a]${aChain.join(",")}[${aLabel}]`);
       } else {
         filters.push(`anullsrc=r=44100:cl=stereo,atrim=duration=${num(clip.duration)}[${aLabel}]`);
       }

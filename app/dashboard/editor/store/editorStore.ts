@@ -54,6 +54,7 @@ interface EditorState {
   setAspect: (a: Aspect) => void;
   addVideoClip: (clip: VideoClip) => void;
   addTextClip: (clip: TextClip) => void;
+  addTextClips: (clips: TextClip[]) => void;
   addAudioClip: (clip: AudioClip) => void;
   updateClip: (track: TrackKind, clipId: string, patch: Record<string, unknown>, undoable?: boolean) => void;
   commitDrag: (before: TimelineDoc) => void;
@@ -125,6 +126,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       saveState: "dirty",
     })),
 
+  // Batch insert (auto-captions) — one history entry for the whole set.
+  addTextClips: (clips) =>
+    set((s) => ({
+      history: pushHistory(s.history, s.doc),
+      doc: { ...s.doc, tracks: { ...s.doc.tracks, text: [...s.doc.tracks.text, ...clips] } },
+      saveState: "dirty",
+    })),
+
   addAudioClip: (clip) =>
     set((s) => ({
       history: pushHistory(s.history, s.doc),
@@ -177,8 +186,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         const newStart = Math.min(Math.max(0, newTime), end - MIN_CLIP_DURATION);
         const delta = newStart - clip.timelineStart;
         patch = { timelineStart: newStart, duration: end - newStart };
-        // Video/audio trims also advance into the source so content stays put.
-        if (track !== "text") (patch as VideoClip).srcIn = Math.max(0, (clip as VideoClip).srcIn + delta);
+        // Video/audio trims also advance into the source so content stays put
+        // (scaled by playback speed for video clips).
+        if (track !== "text") {
+          const speed = track === "video" ? ((clip as VideoClip).speed ?? 1) : 1;
+          (patch as VideoClip).srcIn = Math.max(0, (clip as VideoClip).srcIn + delta * speed);
+        }
       } else {
         const newEnd = Math.max(newTime, clip.timelineStart + MIN_CLIP_DURATION);
         patch = { duration: newEnd - clip.timelineStart };

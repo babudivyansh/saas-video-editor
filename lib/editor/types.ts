@@ -22,12 +22,31 @@ export interface ClipBase {
   duration: number; // seconds on the timeline
 }
 
+// Color-filter presets. Preview uses the css value; export uses the ffmpeg
+// filter expression — both tuned to look as close as practical.
+export const FILTER_PRESETS = {
+  none: { label: "None", css: "none", ffmpeg: null },
+  warm: { label: "Warm", css: "sepia(0.25) saturate(1.25)", ffmpeg: "colorbalance=rs=0.12:gs=0.02:bs=-0.12,eq=saturation=1.2" },
+  cool: { label: "Cool", css: "saturate(1.1) hue-rotate(-8deg) brightness(1.02)", ffmpeg: "colorbalance=rs=-0.1:bs=0.12,eq=saturation=1.1:brightness=0.01" },
+  mono: { label: "Mono", css: "grayscale(1) contrast(1.05)", ffmpeg: "hue=s=0,eq=contrast=1.05" },
+  vivid: { label: "Vivid", css: "saturate(1.5) contrast(1.1)", ffmpeg: "eq=saturation=1.5:contrast=1.1" },
+} as const;
+export type FilterPreset = keyof typeof FILTER_PRESETS;
+
+export const SPEED_OPTIONS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 4] as const;
+export const MAX_FADE_SEC = 3;
+
 export interface VideoClip extends ClipBase {
   type: "video";
   assetId: string; // Asset.id — server re-resolves the S3 key, never trusts URLs
-  srcIn: number; // trim-in inside the source file, seconds (1x speed: srcOut = srcIn + duration)
+  srcIn: number; // trim-in inside the source file, seconds
   volume: number; // 0..1
   muted: boolean;
+  // Phase 2 fields — all optional so v1 docs stay valid.
+  speed?: number; // playback rate 0.25..4 (default 1). Source consumed = duration * speed.
+  fadeIn?: number; // fade-from-black seconds at clip start (0..MAX_FADE_SEC)
+  fadeOut?: number; // fade-to-black seconds at clip end
+  filter?: FilterPreset; // color preset (default "none")
 }
 
 export interface TextClip extends ClipBase {
@@ -118,6 +137,10 @@ export function validateDoc(doc: unknown): string | null {
     if (typeof v.assetId !== "string" || !v.assetId) return "video clip missing assetId";
     if (!isFiniteNonNeg(v.srcIn)) return "video clip invalid srcIn";
     if (typeof v.volume !== "number" || v.volume < 0 || v.volume > 1) return "video clip invalid volume";
+    if (v.speed !== undefined && (typeof v.speed !== "number" || v.speed < 0.25 || v.speed > 4)) return "video clip invalid speed";
+    if (v.fadeIn !== undefined && (!isFiniteNonNeg(v.fadeIn) || v.fadeIn > MAX_FADE_SEC)) return "video clip invalid fadeIn";
+    if (v.fadeOut !== undefined && (!isFiniteNonNeg(v.fadeOut) || v.fadeOut > MAX_FADE_SEC)) return "video clip invalid fadeOut";
+    if (v.filter !== undefined && !(v.filter in FILTER_PRESETS)) return "video clip invalid filter";
   }
   for (const t of d.tracks.text) {
     if (typeof t.text !== "string") return "text clip missing text";

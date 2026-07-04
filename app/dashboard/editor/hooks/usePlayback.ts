@@ -8,6 +8,7 @@
 import { useEffect, useRef } from "react";
 import { useEditorStore } from "../store/editorStore";
 import { audioClipAt, docDuration, videoClipAt } from "@/lib/editor/doc-utils";
+import { FILTER_PRESETS } from "@/lib/editor/types";
 
 const DRIFT_TOLERANCE = 0.15; // seconds before we hard-correct a media element
 
@@ -56,13 +57,28 @@ export function usePlayback(registry: React.RefObject<MediaRegistry>) {
       for (const [assetId, el] of reg.videos) {
         const isActive = active?.assetId === assetId;
         if (isActive && active) {
-          const target = active.srcIn + (t - active.timelineStart);
-          if (Math.abs(el.currentTime - target) > DRIFT_TOLERANCE) {
+          const speed = active.speed ?? 1;
+          // Speed maps timeline-time to source-time; the element itself plays
+          // at `speed` so between drift corrections it tracks the clock.
+          const target = active.srcIn + (t - active.timelineStart) * speed;
+          if (Math.abs(el.currentTime - target) > DRIFT_TOLERANCE * Math.max(speed, 1)) {
             el.currentTime = target;
           }
+          if (el.playbackRate !== speed) el.playbackRate = speed;
           el.muted = active.muted;
           el.volume = active.volume;
-          el.style.opacity = "1";
+          // Fade preview: approximate the export's fade-to-black with opacity.
+          const local = t - active.timelineStart;
+          const fadeIn = active.fadeIn ?? 0;
+          const fadeOut = active.fadeOut ?? 0;
+          let opacity = 1;
+          if (fadeIn > 0 && local < fadeIn) opacity = Math.min(opacity, local / fadeIn);
+          if (fadeOut > 0 && local > active.duration - fadeOut)
+            opacity = Math.min(opacity, (active.duration - local) / fadeOut);
+          el.style.opacity = String(Math.max(0, Math.min(1, opacity)));
+          // Color filter preview: same preset family the export burns in.
+          const css = FILTER_PRESETS[active.filter ?? "none"].css;
+          if (el.style.filter !== css) el.style.filter = css;
           if (s.playing && el.paused) el.play().catch(() => {});
           if (!s.playing && !el.paused) el.pause();
         } else {
