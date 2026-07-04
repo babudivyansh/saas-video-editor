@@ -82,7 +82,7 @@ export default function SidebarAccount() {
               </div>
 
               <div className="py-1.5">
-                <MenuLink href="/dashboard/profile" onClick={() => setOpen(false)} icon={<IcUserLine />}>Profile</MenuLink>
+                <MenuLink href="/dashboard/profile/personal-info" onClick={() => setOpen(false)} icon={<IcUserLine />}>Profile</MenuLink>
                 <MenuLink href="/billing" onClick={() => setOpen(false)} icon={<IcCard />}>Billing &amp; Plans</MenuLink>
                 {user.role === "ADMIN" && <MenuLink href="/admin" onClick={() => setOpen(false)} icon={<IcShield />}>Admin Panel</MenuLink>}
                 <button

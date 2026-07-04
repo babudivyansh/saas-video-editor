@@ -22,6 +22,8 @@ interface User {
   lastName: string | null;
   name: string | null;
   avatarUrl: string | null;
+  gender: string | null;
+  intendedUse: string | null;
   subscriptionEndsAt: string | null;
   nextRefillAt: string | null;
   monthlyCredits: number;
