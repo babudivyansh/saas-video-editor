@@ -52,7 +52,7 @@ export default function Hero() {
             {user ? (
               <Link
                 href="/dashboard"
-                className="inline-flex items-center gap-2 rounded-full bg-brand px-8 py-4 text-base font-bold text-ink shadow-card transition-all duration-200 hover:scale-[1.02] hover:bg-brand-dark"
+                className="inline-flex items-center gap-2 rounded-full bg-brand px-8 py-4 text-base font-bold text-white shadow-card transition-all duration-200 hover:scale-[1.02] hover:bg-brand-dark"
               >
                 <ZapIcon className="h-4 w-4" />
                 Go to Dashboard
@@ -60,7 +60,7 @@ export default function Hero() {
             ) : (
               <button
                 onClick={() => openAuthModal("register")}
-                className="inline-flex items-center gap-2 rounded-full bg-brand px-8 py-4 text-base font-bold text-ink shadow-card transition-all duration-200 hover:scale-[1.02] hover:bg-brand-dark cursor-pointer"
+                className="inline-flex items-center gap-2 rounded-full bg-brand px-8 py-4 text-base font-bold text-white shadow-card transition-all duration-200 hover:scale-[1.02] hover:bg-brand-dark cursor-pointer"
               >
                 <ZapIcon className="h-4 w-4" />
                 Try Clipiro Free

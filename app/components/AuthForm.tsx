@@ -98,7 +98,7 @@ function PrimaryBtn({ enabled, loading, children }: { enabled: boolean; loading?
       disabled={!enabled || loading}
       className={`w-full font-semibold py-3 rounded-full text-sm transition-all flex items-center justify-center gap-2 ${
         enabled && !loading
-          ? "bg-brand hover:bg-brand-dark active:scale-[0.99] text-ink shadow-md shadow-brand/30"
+          ? "bg-brand hover:bg-brand-dark active:scale-[0.99] text-white shadow-md shadow-brand/30"
           : "bg-gray-100 text-gray-400 cursor-not-allowed"
       }`}
     >
