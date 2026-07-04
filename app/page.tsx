@@ -3,6 +3,7 @@ import SiteFooter from "@/app/components/SiteFooter";
 import Hero from "@/app/components/landing/Hero";
 import SocialProof from "@/app/components/landing/SocialProof";
 import Features from "@/app/components/landing/Features";
+import ToolShowcase from "@/app/components/landing/ToolShowcase";
 import HowItWorks from "@/app/components/landing/HowItWorks";
 import PricingPreview from "@/app/components/landing/PricingPreview";
 import FounderSection from "@/app/components/landing/FounderSection";
@@ -48,6 +49,7 @@ export default function HomePage() {
           <Hero />
           <SocialProof />
           <Features />
+          <ToolShowcase />
           <HowItWorks />
           <PricingPreview />
           <FounderSection />

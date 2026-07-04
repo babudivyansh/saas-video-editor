@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 
 function BrandIcon() {
   return (
-    <div className="w-12 h-12 rounded-2xl bg-[#335CFF] flex items-center justify-center shadow-lg shadow-blue-200">
+    <div className="w-12 h-12 rounded-2xl bg-brand flex items-center justify-center shadow-lg shadow-blue-200">
       <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
         <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
       </svg>
@@ -67,7 +67,7 @@ function GoogleIcon() {
 }
 
 const inputClass =
-  "w-full pl-10 pr-4 py-3 border border-gray-200 hover:border-gray-300 focus:border-[#335CFF] focus:ring-2 focus:ring-[#335CFF]/10 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none bg-white transition-all";
+  "w-full pl-10 pr-4 py-3 border border-gray-200 hover:border-gray-300 focus:border-brand focus:ring-2 focus:ring-brand/10 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none bg-white transition-all";
 
 type LoginStep = "identifier" | "password" | "otp";
 
@@ -98,7 +98,7 @@ function PrimaryBtn({ enabled, loading, children }: { enabled: boolean; loading?
       disabled={!enabled || loading}
       className={`w-full font-semibold py-3 rounded-full text-sm transition-all flex items-center justify-center gap-2 ${
         enabled && !loading
-          ? "bg-[#335CFF] hover:bg-[#2448e8] active:scale-[0.99] text-white shadow-md shadow-blue-200/60"
+          ? "bg-brand hover:bg-brand-dark active:scale-[0.99] text-ink shadow-md shadow-brand/30"
           : "bg-gray-100 text-gray-400 cursor-not-allowed"
       }`}
     >
@@ -408,7 +408,7 @@ export default function AuthForm({
 
         <p className="text-center text-[13px] text-gray-500 mt-5">
           Already have an account?{" "}
-          <button type="button" onClick={toggleMode} className="text-[#335CFF] font-semibold hover:underline bg-transparent border-none p-0 cursor-pointer">
+          <button type="button" onClick={toggleMode} className="text-brand-deep font-semibold hover:underline bg-transparent border-none p-0 cursor-pointer">
             Sign in
           </button>
         </p>
@@ -477,7 +477,7 @@ export default function AuthForm({
 
           <p className="text-center text-[13px] text-gray-500 mt-5">
             Don&apos;t have an account?{" "}
-            <button type="button" onClick={toggleMode} className="text-[#335CFF] font-semibold hover:underline bg-transparent border-none p-0 cursor-pointer">
+            <button type="button" onClick={toggleMode} className="text-brand-deep font-semibold hover:underline bg-transparent border-none p-0 cursor-pointer">
               Sign up free
             </button>
           </p>
@@ -517,7 +517,7 @@ export default function AuthForm({
               type="button"
               onClick={handleSendOtp}
               disabled={loading}
-              className="text-sm text-[#335CFF] font-semibold hover:underline disabled:opacity-60 bg-transparent border-none p-0 cursor-pointer"
+              className="text-sm text-brand-deep font-semibold hover:underline disabled:opacity-60 bg-transparent border-none p-0 cursor-pointer"
             >
               Use OTP instead
             </button>
@@ -572,7 +572,7 @@ export default function AuthForm({
                   value={digit}
                   onChange={e => handleOtpChange(idx, e.target.value)}
                   onKeyDown={e => handleOtpKeyDown(idx, e)}
-                  className="w-11 h-12 text-center text-xl font-bold border-2 border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:border-[#335CFF] focus:ring-2 focus:ring-[#335CFF]/10 bg-white transition-all"
+                  className="w-11 h-12 text-center text-xl font-bold border-2 border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 bg-white transition-all"
                 />
               ))}
             </div>

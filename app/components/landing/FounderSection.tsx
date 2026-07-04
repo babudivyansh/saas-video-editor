@@ -16,17 +16,17 @@ export default function FounderSection() {
     <section className="font-sans">
       <div className="mx-auto w-full max-w-screen-2xl px-4 py-20 md:px-12 lg:px-[120px] lg:py-28">
         <Reveal>
-          <div className="mx-auto flex max-w-4xl flex-col items-center gap-10 rounded-3xl border border-[#E8EDFF] bg-gradient-to-br from-[#335CFF]/[0.04] to-purple-400/[0.04] p-8 md:flex-row md:p-12">
+          <div className="mx-auto flex max-w-4xl flex-col items-center gap-10 rounded-3xl border border-card-border bg-gradient-to-br from-brand-deep/[0.04] to-brand/[0.06] p-8 md:flex-row md:p-12">
             {/* Photo / avatar */}
             <div className="flex-shrink-0">
-              <div className="flex h-28 w-28 items-center justify-center rounded-full bg-gradient-to-br from-[#335CFF] to-purple-500 text-4xl font-black text-white shadow-xl md:h-32 md:w-32">
+              <div className="flex h-28 w-28 items-center justify-center rounded-full bg-gradient-to-br from-brand-deep to-brand text-4xl font-black text-white shadow-xl md:h-32 md:w-32">
                 DV
               </div>
             </div>
 
             {/* Message */}
             <div className="flex-1 text-center md:text-left">
-              <span className="text-xs font-bold uppercase tracking-widest text-[#335CFF]">A note from the founder</span>
+              <span className="text-xs font-bold uppercase tracking-widest text-brand-deep">A note from the founder</span>
               <blockquote className="mt-3 text-lg leading-relaxed text-gray-700 md:text-xl">
                 &ldquo;I built Clipiro because creators spend hours editing what AI can do in minutes. Our mission is
                 simple: give every creator a studio-grade editor that turns one long video into a week of viral
@@ -45,7 +45,7 @@ export default function FounderSection() {
                       aria-label={s.label}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 transition-colors hover:border-[#335CFF] hover:text-[#335CFF]"
+                      className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 transition-colors hover:border-brand hover:text-brand-deep"
                     >
                       {s.icon}
                     </a>
