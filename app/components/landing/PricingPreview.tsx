@@ -108,7 +108,7 @@ export default function PricingPreview() {
                     <button
                       onClick={() => handleCta(tierName)}
                       className={`mt-8 w-full rounded-full py-3 text-sm font-bold transition-transform duration-200 hover:scale-[1.02] cursor-pointer ${
-                        popular ? "bg-white text-brand-deep hover:bg-brand-soft" : "bg-brand text-ink hover:bg-brand-dark"
+                        popular ? "bg-white text-brand-deep hover:bg-brand-soft" : "bg-brand text-white hover:bg-brand-dark"
                       }`}
                     >
                       Get {tierName}

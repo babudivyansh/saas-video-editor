@@ -31,7 +31,7 @@ export default function HowItWorks() {
             {STEPS.map((step, i) => (
               <Reveal key={step.title} delay={i * 80}>
                 <div className="relative flex flex-col items-center text-center">
-                  <div className="relative z-10 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand text-ink shadow-lg shadow-brand/30">
+                  <div className="relative z-10 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand text-white shadow-lg shadow-brand/30">
                     {step.icon}
                     <span className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-gray-900 text-xs font-bold text-white">
                       {i + 1}

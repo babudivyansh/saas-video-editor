@@ -216,7 +216,7 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
             {user ? (
               <Link
                 href="/dashboard"
-                className="flex items-center gap-1.5 bg-brand text-ink hover:bg-brand-dark text-base font-bold px-5 py-2.5 rounded-full transition-transform duration-200 hover:scale-[1.02]"
+                className="flex items-center gap-1.5 bg-brand text-white hover:bg-brand-dark text-base font-bold px-5 py-2.5 rounded-full transition-transform duration-200 hover:scale-[1.02]"
               >
                 <ZapIcon className="w-3.5 h-3.5" />
                 Dashboard
@@ -231,7 +231,7 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
                 </button>
                 <button
                   onClick={() => openAuthModal("register")}
-                  className="flex items-center gap-1.5 bg-brand text-ink hover:bg-brand-dark text-base font-bold px-5 py-2.5 rounded-full transition-transform duration-200 hover:scale-[1.02] cursor-pointer"
+                  className="flex items-center gap-1.5 bg-brand text-white hover:bg-brand-dark text-base font-bold px-5 py-2.5 rounded-full transition-transform duration-200 hover:scale-[1.02] cursor-pointer"
                 >
                   <ZapIcon className="w-3.5 h-3.5" />
                   Start Free
@@ -304,13 +304,13 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
 
           <div className="pt-2 border-t border-gray-100 mt-1 space-y-2">
             {user ? (
-              <Link href="/dashboard" onClick={closeMobile} className="w-full flex items-center justify-center gap-1.5 bg-brand text-ink hover:bg-brand-dark text-sm font-semibold px-4 py-2.5 rounded-full">
+              <Link href="/dashboard" onClick={closeMobile} className="w-full flex items-center justify-center gap-1.5 bg-brand text-white hover:bg-brand-dark text-sm font-semibold px-4 py-2.5 rounded-full">
                 <ZapIcon className="w-3.5 h-3.5" /> Dashboard
               </Link>
             ) : (
               <>
                 <button onClick={() => { closeMobile(); openAuthModal("login"); }} className="w-full text-sm font-semibold text-gray-700 border border-gray-200 px-4 py-2.5 rounded-full">Sign In</button>
-                <button onClick={() => { closeMobile(); openAuthModal("register"); }} className="w-full flex items-center justify-center gap-1.5 bg-brand text-ink hover:bg-brand-dark text-sm font-semibold px-4 py-2.5 rounded-full">
+                <button onClick={() => { closeMobile(); openAuthModal("register"); }} className="w-full flex items-center justify-center gap-1.5 bg-brand text-white hover:bg-brand-dark text-sm font-semibold px-4 py-2.5 rounded-full">
                   <ZapIcon className="w-3.5 h-3.5" /> Start Free
                 </button>
               </>
