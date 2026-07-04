@@ -10,10 +10,10 @@ import { useEditorStore } from "../../store/editorStore";
 import { snapCandidates, snapTime } from "@/lib/editor/doc-utils";
 import type { AnyClip, TimelineDoc, TrackKind } from "@/lib/editor/types";
 
-const TRACK_COLORS: Record<TrackKind, { bg: string; border: string }> = {
-  video: { bg: "bg-brand/70", border: "border-brand-dark" },
-  text: { bg: "bg-amber-300/80", border: "border-amber-500" },
-  audio: { bg: "bg-emerald-300/80", border: "border-emerald-500" },
+const TRACK_COLORS: Record<TrackKind, { bg: string; border: string; text: string }> = {
+  video: { bg: "bg-violet-600/70", border: "border-violet-400", text: "text-white" },
+  text: { bg: "bg-amber-400/80", border: "border-amber-300", text: "text-zinc-900" },
+  audio: { bg: "bg-emerald-400/80", border: "border-emerald-300", text: "text-zinc-900" },
 };
 
 const SNAP_PX = 8;
@@ -95,7 +95,7 @@ export default function TimelineClip({ clip, track }: { clip: AnyClip; track: Tr
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       className={`absolute bottom-0.5 top-0.5 flex cursor-grab touch-none items-center overflow-hidden rounded-md border ${colors.bg} ${colors.border} ${
-        selected ? "ring-2 ring-ink" : ""
+        selected ? "ring-2 ring-white" : ""
       }`}
       style={{ left: clip.timelineStart * zoom, width: Math.max(clip.duration * zoom, 8) }}
     >
@@ -107,7 +107,7 @@ export default function TimelineClip({ clip, track }: { clip: AnyClip; track: Tr
         className="absolute inset-y-0 left-0 w-2 cursor-ew-resize touch-none bg-black/20 opacity-0 transition-opacity hover:opacity-100"
         aria-label="Trim start"
       />
-      <span className="pointer-events-none truncate px-2.5 text-[10px] font-semibold text-ink/80">{label}</span>
+      <span className={`pointer-events-none truncate px-2.5 text-[10px] font-semibold ${colors.text}`}>{label}</span>
       {/* Right trim handle */}
       <span
         onPointerDown={(e) => beginDrag(e, "trim-right")}

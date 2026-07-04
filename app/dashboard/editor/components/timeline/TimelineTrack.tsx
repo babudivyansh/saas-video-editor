@@ -17,9 +17,9 @@ export default function TimelineTrack({ kind, label }: { kind: TrackKind; label:
   const clips = useEditorStore((s) => s.doc.tracks[kind]);
 
   return (
-    <div className={`relative ${TRACK_HEIGHT[kind]} rounded-md bg-surface`}>
+    <div className={`relative ${TRACK_HEIGHT[kind]} rounded-md bg-zinc-900`}>
       {clips.length === 0 && (
-        <span className="pointer-events-none sticky left-2 top-1/2 inline-block -translate-y-[-25%] px-2 text-[10px] text-ink-soft/60">
+        <span className="pointer-events-none sticky left-2 top-1/2 inline-block -translate-y-[-25%] px-2 text-[10px] text-zinc-600">
           {label}
         </span>
       )}

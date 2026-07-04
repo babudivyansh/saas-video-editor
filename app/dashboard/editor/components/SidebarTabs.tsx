@@ -46,15 +46,15 @@ export default function SidebarTabs() {
   const setActivePanel = useEditorStore((s) => s.setActivePanel);
 
   return (
-    <aside className="flex flex-shrink-0 border-r border-card-border bg-white">
+    <aside className="flex flex-shrink-0 border-r border-zinc-800 bg-zinc-900">
       {/* Icon rail */}
-      <div className="flex w-16 flex-col items-center gap-1 border-r border-card-border py-3">
+      <div className="flex w-16 flex-col items-center gap-1 border-r border-zinc-800 py-3">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActivePanel(tab.id)}
             className={`flex w-14 flex-col items-center gap-1 rounded-xl py-2.5 text-[10px] font-semibold transition-colors cursor-pointer ${
-              activePanel === tab.id ? "bg-brand-soft text-brand-deep" : "text-ink-soft hover:bg-surface hover:text-ink"
+              activePanel === tab.id ? "bg-violet-600/15 text-violet-400" : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
             }`}
           >
             {tab.icon}
@@ -64,7 +64,7 @@ export default function SidebarTabs() {
       </div>
 
       {/* Active panel */}
-      <div className="w-72 overflow-y-auto">
+      <div className="w-72 overflow-y-auto bg-zinc-950">
         {activePanel === "media" && <MediaPanel />}
         {activePanel === "text" && <TextPanel />}
         {activePanel === "audio" && <AudioPanel />}

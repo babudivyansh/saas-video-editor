@@ -18,7 +18,7 @@ export default function TextClipProps({ clip }: { clip: TextClip }) {
           onChange={(e) => patch({ text: e.target.value }, false)}
           onBlur={() => patch({}, true)}
           rows={3}
-          className="w-full resize-none rounded-md border border-card-border bg-surface px-2 py-1.5 text-xs text-ink outline-none focus:border-brand"
+          className="w-full resize-none rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-100 outline-none focus:border-violet-500"
         />
         <SelectField
           label="Font"
@@ -39,7 +39,7 @@ export default function TextClipProps({ clip }: { clip: TextClip }) {
             type="checkbox"
             checked={clip.bold}
             onChange={(e) => patch({ bold: e.target.checked })}
-            className="h-4 w-4 accent-[#12d6a5]"
+            className="h-4 w-4 accent-violet-500"
           />
         </Field>
         <ColorField label="Color" value={clip.color} onChange={(v) => v && patch({ color: v })} />
@@ -66,7 +66,7 @@ export default function TextClipProps({ clip }: { clip: TextClip }) {
       <Section title="Position">
         <NumberField label="X (%)" value={clip.x * 100} min={0} max={100} step={1} onChange={(v) => patch({ x: v / 100 })} />
         <NumberField label="Y (%)" value={clip.y * 100} min={0} max={100} step={1} onChange={(v) => patch({ y: v / 100 })} />
-        <p className="text-[10px] leading-snug text-ink-soft">Tip: drag the text directly on the preview.</p>
+        <p className="text-[10px] leading-snug text-zinc-500">Tip: drag the text directly on the preview.</p>
       </Section>
     </div>
   );

@@ -88,14 +88,14 @@ export default function VideoClipProps({ clip }: { clip: VideoClip }) {
         <button
           onClick={generateCaptions}
           disabled={captionState === "working"}
-          className="w-full rounded-lg bg-brand px-3 py-2 text-xs font-bold text-ink transition-colors hover:bg-brand-dark disabled:opacity-50 cursor-pointer"
+          className="w-full rounded-lg bg-violet-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-violet-500 disabled:opacity-50 cursor-pointer"
         >
           {captionState === "working" ? "Transcribing…" : "Auto captions (1 credit)"}
         </button>
         {captionState === "error" && captionError && (
-          <p className="text-[10px] leading-snug text-red-600">{captionError}</p>
+          <p className="text-[10px] leading-snug text-red-400">{captionError}</p>
         )}
-        <p className="text-[10px] leading-snug text-ink-soft">
+        <p className="text-[10px] leading-snug text-zinc-500">
           Transcribes this clip's speech and adds caption text to the timeline, aligned word-by-word.
         </p>
       </Section>
@@ -131,7 +131,7 @@ export default function VideoClipProps({ clip }: { clip: VideoClip }) {
               key={s}
               onClick={() => patch({ speed: s === 1 ? undefined : s })}
               className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors cursor-pointer ${
-                (clip.speed ?? 1) === s ? "bg-brand-soft text-brand-deep" : "text-ink-soft hover:bg-surface hover:text-ink"
+                (clip.speed ?? 1) === s ? "bg-violet-600/15 text-violet-400" : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
               }`}
             >
               {s}×
@@ -166,7 +166,7 @@ export default function VideoClipProps({ clip }: { clip: VideoClip }) {
               key={key}
               onClick={() => patch({ filter: key === "none" ? undefined : key })}
               className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors cursor-pointer ${
-                (clip.filter ?? "none") === key ? "bg-brand-soft text-brand-deep" : "text-ink-soft hover:bg-surface hover:text-ink"
+                (clip.filter ?? "none") === key ? "bg-violet-600/15 text-violet-400" : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
               }`}
             >
               {FILTER_PRESETS[key].label}
@@ -189,7 +189,7 @@ export default function VideoClipProps({ clip }: { clip: VideoClip }) {
             type="checkbox"
             checked={clip.muted}
             onChange={(e) => patch({ muted: e.target.checked })}
-            className="h-4 w-4 accent-[--brand]"
+            className="h-4 w-4 accent-violet-500"
           />
         </Field>
       </Section>

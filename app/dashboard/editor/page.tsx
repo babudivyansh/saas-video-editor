@@ -58,27 +58,27 @@ export default function EditorPage() {
 
   if (!user) {
     return (
-      <div className="flex h-screen items-center justify-center bg-white">
-        <p className="text-sm text-ink-soft">Sign in to open the editor.</p>
+      <div className="flex h-screen items-center justify-center bg-zinc-950">
+        <p className="text-sm text-zinc-400">Sign in to open the editor.</p>
       </div>
     );
   }
 
   if (state === "loading") {
     return (
-      <div className="flex h-screen items-center justify-center bg-white">
-        <p className="text-sm text-ink-soft">Opening editor…</p>
+      <div className="flex h-screen items-center justify-center bg-zinc-950">
+        <p className="text-sm text-zinc-400">Opening editor…</p>
       </div>
     );
   }
 
   if (state === "error") {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-3 bg-white">
-        <p className="text-sm text-red-600">{error}</p>
+      <div className="flex h-screen flex-col items-center justify-center gap-3 bg-zinc-950">
+        <p className="text-sm text-red-400">{error}</p>
         <button
           onClick={() => router.push("/dashboard")}
-          className="rounded-full border border-card-border px-4 py-2 text-sm font-semibold text-ink hover:bg-surface"
+          className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-100 hover:bg-zinc-800"
         >
           Back to dashboard
         </button>

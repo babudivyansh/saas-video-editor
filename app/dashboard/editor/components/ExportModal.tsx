@@ -105,30 +105,30 @@ export default function ExportModal() {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={stage === "rendering" ? undefined : close} />
-      <div className="relative z-10 w-full max-w-md rounded-2xl border border-card-border bg-white p-6 shadow-card-hover">
-        <h2 className="text-lg font-bold text-ink">Export video</h2>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={stage === "rendering" ? undefined : close} />
+      <div className="relative z-10 w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
+        <h2 className="text-lg font-bold text-zinc-100">Export video</h2>
 
         {stage === "confirm" && (
           <>
-            <div className="mt-4 space-y-2 rounded-xl bg-surface p-4 text-sm text-ink">
+            <div className="mt-4 space-y-2 rounded-xl bg-zinc-950 p-4 text-sm text-zinc-100">
               <Row label="Aspect ratio" value={doc.aspect} />
               <Row label="Duration" value={`${Math.round(duration)}s`} />
               <Row label="Resolution" value={doc.aspect === "16:9" ? "1920×1080" : doc.aspect === "1:1" ? "1080×1080" : "1080×1920"} />
               <Row label="Cost" value={`${CREDIT_COST} credit`} />
               <Row label="Your balance" value={`${user?.credits ?? 0} credits`} />
             </div>
-            <p className="mt-3 text-xs leading-snug text-ink-soft">
+            <p className="mt-3 text-xs leading-snug text-zinc-500">
               Rendering happens on our servers — you can keep editing other projects while it runs. Preview and export
               are closely matched, though text rendering may differ by a pixel or two.
             </p>
             <div className="mt-5 flex justify-end gap-2">
-              <button onClick={close} className="rounded-full px-4 py-2 text-sm font-semibold text-ink-soft hover:text-ink cursor-pointer">
+              <button onClick={close} className="rounded-full px-4 py-2 text-sm font-semibold text-zinc-400 hover:text-zinc-100 cursor-pointer">
                 Cancel
               </button>
               <button
                 onClick={onConfirm}
-                className="rounded-full bg-brand px-5 py-2 text-sm font-bold text-ink hover:bg-brand-dark cursor-pointer"
+                className="rounded-full bg-violet-600 px-5 py-2 text-sm font-bold text-white hover:bg-violet-500 cursor-pointer"
               >
                 Export ({CREDIT_COST} credit)
               </button>
@@ -138,24 +138,24 @@ export default function ExportModal() {
 
         {(stage === "rendering" || stage === "waiting-save") && (
           <div className="mt-5">
-            <p className="text-sm text-ink-soft">
+            <p className="text-sm text-zinc-400">
               {stage === "waiting-save" ? "Saving your latest changes…" : "Rendering your video…"}
             </p>
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface">
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-800">
               <div
-                className="h-full rounded-full bg-brand transition-all duration-500"
+                className="h-full rounded-full bg-violet-500 transition-all duration-500"
                 style={{ width: `${Math.max(progress, 4)}%` }}
               />
             </div>
-            <p className="mt-2 text-right text-xs text-ink-soft">{progress}%</p>
+            <p className="mt-2 text-right text-xs text-zinc-500">{progress}%</p>
           </div>
         )}
 
         {stage === "done" && videoUrl && (
           <div className="mt-5">
-            <p className="text-sm text-ink">Your video is ready 🎉</p>
+            <p className="text-sm text-zinc-100">Your video is ready 🎉</p>
             <div className="mt-4 flex justify-end gap-2">
-              <button onClick={close} className="rounded-full px-4 py-2 text-sm font-semibold text-ink-soft hover:text-ink cursor-pointer">
+              <button onClick={close} className="rounded-full px-4 py-2 text-sm font-semibold text-zinc-400 hover:text-zinc-100 cursor-pointer">
                 Close
               </button>
               <a
@@ -163,7 +163,7 @@ export default function ExportModal() {
                 download
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-full bg-brand px-5 py-2 text-sm font-bold text-ink hover:bg-brand-dark"
+                className="rounded-full bg-violet-600 px-5 py-2 text-sm font-bold text-white hover:bg-violet-500"
               >
                 Download MP4
               </a>
@@ -173,9 +173,9 @@ export default function ExportModal() {
 
         {stage === "error" && (
           <div className="mt-5">
-            <p className="text-sm text-red-600">{error}</p>
+            <p className="text-sm text-red-400">{error}</p>
             <div className="mt-4 flex justify-end">
-              <button onClick={close} className="rounded-full border border-card-border px-4 py-2 text-sm font-semibold text-ink hover:bg-surface cursor-pointer">
+              <button onClick={close} className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:bg-zinc-800 cursor-pointer">
                 Close
               </button>
             </div>
@@ -189,8 +189,8 @@ export default function ExportModal() {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between">
-      <span className="text-ink-soft">{label}</span>
-      <span className="font-semibold">{value}</span>
+      <span className="text-zinc-500">{label}</span>
+      <span className="font-semibold text-zinc-100">{value}</span>
     </div>
   );
 }

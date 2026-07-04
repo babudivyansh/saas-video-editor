@@ -141,7 +141,7 @@ export default function MediaPanel() {
       <button
         onClick={() => fileInput.current?.click()}
         disabled={uploading}
-        className="flex h-20 flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-card-border text-sm font-semibold text-ink-soft transition-colors hover:border-brand hover:text-brand-deep disabled:opacity-50 cursor-pointer"
+        className="flex h-20 flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-zinc-700 text-sm font-semibold text-zinc-400 transition-colors hover:border-violet-500 hover:text-violet-400 disabled:opacity-50 cursor-pointer"
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -152,12 +152,12 @@ export default function MediaPanel() {
         {uploading ? "Uploading…" : "+ Upload video"}
         <span className="text-[10px] font-normal">or drop a file here</span>
       </button>
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs text-red-400">{error}</p>}
 
       {loading ? (
-        <p className="p-2 text-xs text-ink-soft">Loading library…</p>
+        <p className="p-2 text-xs text-zinc-500">Loading library…</p>
       ) : assets.length === 0 ? (
-        <p className="p-2 text-xs text-ink-soft">No videos yet. Upload one to get started.</p>
+        <p className="p-2 text-xs text-zinc-500">No videos yet. Upload one to get started.</p>
       ) : (
         <div className="grid grid-cols-2 gap-2">
           {assets.map((a) => (
@@ -166,20 +166,20 @@ export default function MediaPanel() {
               onClick={() => addToTimeline(a)}
               disabled={adding === a.id}
               title={`Add "${a.name}" to timeline`}
-              className="group overflow-hidden rounded-lg border border-card-border text-left transition-all hover:border-brand disabled:opacity-50 cursor-pointer"
+              className="group overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900 text-left transition-all hover:border-violet-500 disabled:opacity-50 cursor-pointer"
             >
-              <div className="relative flex aspect-video items-center justify-center bg-gray-900">
+              <div className="relative flex aspect-video items-center justify-center bg-black">
                 <video src={a.url} preload="metadata" muted className="h-full w-full object-cover" />
-                <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-all group-hover:bg-black/40 group-hover:opacity-100">
+                <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-all group-hover:bg-black/50 group-hover:opacity-100">
                   {adding === a.id ? "Adding…" : "+ Add"}
                 </span>
                 {a.duration != null && (
-                  <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 text-[9px] text-white">
+                  <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 text-[9px] text-zinc-100">
                     {fmtDuration(a.duration)}
                   </span>
                 )}
               </div>
-              <p className="truncate px-1.5 py-1 text-[10px] font-medium text-ink">{a.name}</p>
+              <p className="truncate px-1.5 py-1 text-[10px] font-medium text-zinc-300">{a.name}</p>
             </button>
           ))}
         </div>

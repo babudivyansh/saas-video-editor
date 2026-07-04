@@ -55,27 +55,35 @@ export default function TextPanel() {
 
   return (
     <div className="flex flex-col gap-2 p-3">
-      <p className="px-1 text-xs font-semibold uppercase tracking-wide text-ink-soft">Text styles</p>
-      {PRESETS.map((p) => (
-        <button
-          key={p.label}
-          onClick={() => add(p)}
-          className="rounded-xl border border-card-border bg-white p-3 text-left transition-all hover:border-brand hover:shadow-card cursor-pointer"
-        >
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-soft">{p.label}</p>
-          <p
-            className="mt-1 truncate text-ink"
-            style={{
-              fontFamily: p.partial.fontFamily,
-              fontWeight: p.partial.bold ? 700 : 400,
-              fontSize: `${(p.partial.fontSizePct ?? 0.05) * 280}px`,
-            }}
+      <button
+        onClick={() => add({ label: "Plain text", preview: "Text", partial: {} })}
+        className="rounded-lg bg-violet-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-violet-500 cursor-pointer"
+      >
+        + Add Text
+      </button>
+      <p className="mt-1 px-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">Text styles</p>
+      <div className="grid grid-cols-2 gap-2">
+        {PRESETS.map((p) => (
+          <button
+            key={p.label}
+            onClick={() => add(p)}
+            className="rounded-xl border border-zinc-800 bg-zinc-900 p-3 text-left transition-all hover:border-violet-500 cursor-pointer"
           >
-            {p.preview}
-          </p>
-        </button>
-      ))}
-      <p className="px-1 text-[10px] leading-snug text-ink-soft">
+            <p className="text-[9px] font-semibold uppercase tracking-wide text-zinc-500">{p.label}</p>
+            <p
+              className="mt-1 truncate text-zinc-100"
+              style={{
+                fontFamily: p.partial.fontFamily,
+                fontWeight: p.partial.bold ? 700 : 400,
+                fontSize: `${(p.partial.fontSizePct ?? 0.05) * 220}px`,
+              }}
+            >
+              {p.preview}
+            </p>
+          </button>
+        ))}
+      </div>
+      <p className="px-1 text-[10px] leading-snug text-zinc-500">
         Text is added at the playhead. Drag it on the preview to position, and edit content in the panel on the right.
       </p>
     </div>

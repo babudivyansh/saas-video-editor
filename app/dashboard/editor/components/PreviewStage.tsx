@@ -13,6 +13,7 @@ import { docDuration } from "@/lib/editor/doc-utils";
 import { ASPECT_DIMENSIONS } from "@/lib/editor/types";
 import { useAssets } from "./panels/MediaPanel";
 import PreviewControls from "./PreviewControls";
+import EditToolbar from "./EditToolbar";
 
 export default function PreviewStage() {
   const doc = useEditorStore((s) => s.doc);
@@ -86,7 +87,7 @@ export default function PreviewStage() {
       <div className="flex min-h-0 w-full flex-1 items-center justify-center">
         <div
           ref={stageRef}
-          className="relative max-h-full overflow-hidden rounded-xl bg-black shadow-card"
+          className="relative max-h-full overflow-hidden rounded-xl bg-black shadow-[0_0_0_1px_rgba(255,255,255,0.06)]"
           style={{ aspectRatio: `${aspectRatio}`, height: "100%", maxWidth: "100%" }}
           onClick={() => select(null)}
         >
@@ -127,7 +128,7 @@ export default function PreviewStage() {
               onPointerMove={onTextPointerMove}
               onPointerUp={onTextPointerUp}
               className={`absolute -translate-x-1/2 -translate-y-1/2 cursor-move select-none whitespace-pre-wrap px-2 py-0.5 ${
-                selection?.clipId === t.id ? "ring-2 ring-brand" : ""
+                selection?.clipId === t.id ? "ring-2 ring-violet-500" : ""
               }`}
               style={{
                 left: `${t.x * 100}%`,
@@ -158,6 +159,7 @@ export default function PreviewStage() {
       </div>
 
       <PreviewControls totalDuration={docDuration(doc)} />
+      <EditToolbar />
     </div>
   );
 }
