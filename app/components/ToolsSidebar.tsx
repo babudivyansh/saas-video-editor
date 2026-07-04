@@ -2,6 +2,8 @@
 import Link from "next/link";
 import { useAuth } from "./AuthContext";
 import SidebarAccount from "./SidebarAccount";
+// SidebarAccount is exported here for ToolsTopbar's use (below) — no longer
+// rendered directly in the rail itself, see ToolsTopbar.
 
 function IcHome() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>;
@@ -98,11 +100,6 @@ export default function ToolsSidebar({ active = "home" }: { active?: string }) {
         ))}
       </div>
 
-      <div className="w-8 h-px bg-gray-200 my-3 flex-shrink-0" />
-
-      {/* Account (profile popover) + Settings — Admin & quick-search now live in
-          the account popover, keeping the rail compact and scrollbar-free. */}
-      <SidebarAccount />
     </aside>
   );
 }
@@ -134,6 +131,7 @@ export function ToolsTopbar() {
               Top Up
             </Link>
           )}
+          <SidebarAccount />
         </>
       ) : (
         <button

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
+import SidebarAccount from "@/app/components/SidebarAccount";
 
 interface AffiliateStats {
   enrolled: boolean;
@@ -96,20 +97,23 @@ export default function ReferralPage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-gray-50">
         {/* Header */}
         <div className="bg-white border-b border-gray-100 px-8 py-5">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-yellow-50 flex items-center justify-center flex-shrink-0">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#ca8a04" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-                <polyline points="20 12 20 22 4 22 4 12"/>
-                <rect x="2" y="7" width="20" height="5"/>
-                <line x1="12" y1="22" x2="12" y2="7"/>
-                <path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/>
-                <path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/>
-              </svg>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-yellow-50 flex items-center justify-center flex-shrink-0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#ca8a04" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                  <polyline points="20 12 20 22 4 22 4 12"/>
+                  <rect x="2" y="7" width="20" height="5"/>
+                  <line x1="12" y1="22" x2="12" y2="7"/>
+                  <path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/>
+                  <path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/>
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-lg font-bold text-gray-900">Affiliate Program</h1>
+                <p className="text-sm text-gray-500">Earn 20% commission on every friend&apos;s first payment</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-lg font-bold text-gray-900">Affiliate Program</h1>
-              <p className="text-sm text-gray-500">Earn 20% commission on every friend&apos;s first payment</p>
-            </div>
+            <SidebarAccount />
           </div>
         </div>
 

@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
+import SidebarAccount from "@/app/components/SidebarAccount";
 import { xpToLevel, levelColor, TOTAL_XP } from "@/lib/quest-config";
 
 interface QuestItem {
@@ -263,7 +264,16 @@ export default function DashboardPage() {
 
         {/* Top bar */}
         <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3 gap-3">
-          {user ? null : (
+          {user ? (
+            <>
+              <div className="flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1.5">
+                <IcZap />
+                <span className="text-sm font-bold text-gray-700">{user.credits ?? 0}</span>
+                <span className="text-xs text-gray-400 font-medium">credits</span>
+              </div>
+              <SidebarAccount />
+            </>
+          ) : (
             <button
               onClick={() => openAuthModal("login")}
               className="inline-flex items-center gap-1.5 bg-[#335CFF] text-white text-sm font-semibold px-4 py-2 rounded-full transition-transform duration-200 hover:scale-[1.01] cursor-pointer"

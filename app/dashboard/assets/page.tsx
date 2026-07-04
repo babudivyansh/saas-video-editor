@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
+import SidebarAccount from "@/app/components/SidebarAccount";
 import { useAuth } from "@/app/components/AuthContext";
 
 interface Asset {
@@ -221,6 +222,7 @@ export default function AssetsPage() {
               </svg>
               Upload
             </button>
+            <SidebarAccount />
             <input ref={fileRef} type="file" accept="video/*,audio/*,image/*" multiple className="hidden"
               onChange={e => handleFiles(e.target.files)} />
           </div>

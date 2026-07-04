@@ -2,6 +2,7 @@
 import { Suspense, useRef, useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
+import SidebarAccount from "@/app/components/SidebarAccount";
 import { useVideoGenerate, getStoredToken, type GenerateStatus } from "@/app/hooks/useVideoGenerate";
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -291,6 +292,7 @@ function StepperBar({
               Next <IcChevronRight />
             </button>
           )}
+          <SidebarAccount />
         </div>
       </div>
     </div>

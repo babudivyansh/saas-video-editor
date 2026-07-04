@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
+import SidebarAccount from "@/app/components/SidebarAccount";
 import { useAuth } from "@/app/components/AuthContext";
 function IcZap() {
   return <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>;
@@ -384,8 +385,17 @@ export default function ToolsPage() {
       <main className="flex-1 overflow-y-auto bg-white">
 
         {/* Top bar */}
-        <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3">
-          {user ? null : (
+        <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3 gap-3">
+          {user ? (
+            <>
+              <div className="flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1.5">
+                <IcZap />
+                <span className="text-sm font-bold text-gray-700">{user.credits ?? 0}</span>
+                <span className="text-xs text-gray-400 font-medium">credits</span>
+              </div>
+              <SidebarAccount />
+            </>
+          ) : (
             <button
               onClick={() => openAuthModal("login")}
               className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm cursor-pointer"

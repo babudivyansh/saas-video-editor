@@ -3,6 +3,7 @@ import { Suspense, useRef, useState, type ReactNode, type CSSProperties } from "
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
+import SidebarAccount from "@/app/components/SidebarAccount";
 import { useVideoGenerate, type GenerateStatus } from "@/app/hooks/useVideoGenerate";
 import { useAuth } from "@/app/components/AuthContext";
 
@@ -237,6 +238,7 @@ function Header({
               <IcZap /> Login
             </button>
           )}
+          <SidebarAccount />
         </div>
       </div>
 

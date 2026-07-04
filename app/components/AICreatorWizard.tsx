@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "./AuthContext";
 import ToolsSidebar from "./ToolsSidebar";
+import SidebarAccount from "./SidebarAccount";
 
 // ── Voice catalogue (same as VoiceChangerTool) ───────────────────────────────
 interface Voice {
@@ -426,6 +427,8 @@ export default function AICreatorWizard() {
             <>Next <IcChevronRight /></>
           )}
         </button>
+
+        <SidebarAccount />
       </div>
 
       {/* Main content */}
