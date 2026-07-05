@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     }
 
     const host = req.headers.get("host") || "clipiro.com";
-    const proto = req.headers.get("x-forwarded-proto") || (req.url.startsWith("https") ? "https" : "http");
+    const proto = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
     const redirectUri = `${proto}://${host}/api/auth/callback/google`;
 
     // 1. Exchange code for access tokens

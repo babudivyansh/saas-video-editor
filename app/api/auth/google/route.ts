@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
   const host = req.headers.get("host") || "clipiro.com";
-  const proto = req.headers.get("x-forwarded-proto") || (req.url.startsWith("https") ? "https" : "http");
+  const proto = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
   const redirectUri = `${proto}://${host}/api/auth/callback/google`;
 
   const rootUrl = "https://accounts.google.com/o/oauth2/v2/auth";
