@@ -3,8 +3,8 @@
 import React, { useState } from "react";
 import { useAuth } from "@/app/components/AuthContext";
 import { useEditorStore } from "../../store/editorStore";
-import type { FilterPreset, TextClip, VideoClip } from "@/lib/editor/types";
-import { FILTER_PRESETS, MAX_FADE_SEC, SPEED_OPTIONS } from "@/lib/editor/types";
+import type { EffectPreset, FilterPreset, TextClip, TransitionPreset, VideoClip } from "@/lib/editor/types";
+import { EFFECT_PRESETS, FILTER_PRESETS, MAX_FADE_SEC, SPEED_OPTIONS, TRANSITION_PRESETS } from "@/lib/editor/types";
 import { Field, NumberField, Section, SliderField } from "./fields";
 
 const CAPTION_WORDS_PER_LINE = 4;
@@ -173,6 +173,40 @@ export default function VideoClipProps({ clip }: { clip: VideoClip }) {
             </button>
           ))}
         </div>
+      </Section>
+
+      <Section title="Effect">
+        <div className="flex flex-wrap gap-1">
+          {(Object.keys(EFFECT_PRESETS) as EffectPreset[]).map((key) => (
+            <button
+              key={key}
+              onClick={() => patch({ effect: key === "none" ? undefined : key })}
+              className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors cursor-pointer ${
+                (clip.effect ?? "none") === key ? "bg-violet-600/15 text-violet-400" : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+              }`}
+            >
+              {EFFECT_PRESETS[key].label}
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] leading-snug text-zinc-500">Preview only — not yet applied to exports.</p>
+      </Section>
+
+      <Section title="Transition (out)">
+        <div className="flex flex-wrap gap-1">
+          {(Object.keys(TRANSITION_PRESETS) as TransitionPreset[]).map((key) => (
+            <button
+              key={key}
+              onClick={() => patch({ transitionOut: key === "none" ? undefined : key })}
+              className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors cursor-pointer ${
+                (clip.transitionOut ?? "none") === key ? "bg-violet-600/15 text-violet-400" : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+              }`}
+            >
+              {TRANSITION_PRESETS[key].label}
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] leading-snug text-zinc-500">Preview only — not yet applied to exports.</p>
       </Section>
 
       <Section title="Audio">

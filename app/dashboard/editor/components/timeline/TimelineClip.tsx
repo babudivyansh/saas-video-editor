@@ -15,6 +15,7 @@ const TRACK_COLORS: Record<TrackKind, { bg: string; border: string; text: string
   video: { bg: "bg-violet-600/70", border: "border-violet-400", text: "text-white" },
   text: { bg: "bg-amber-400/80", border: "border-amber-300", text: "text-zinc-900" },
   audio: { bg: "bg-emerald-400/80", border: "border-emerald-300", text: "text-zinc-900" },
+  image: { bg: "bg-sky-400/80", border: "border-sky-300", text: "text-zinc-900" },
 };
 
 const SNAP_PX = 8;
@@ -46,7 +47,9 @@ export default function TimelineClip({
   } | null>(null);
 
   const label =
-    clip.type === "text" ? clip.text || "Text" : clip.type === "video" ? "Video" : "Audio";
+    clip.type === "text" ? clip.text || "Text" :
+    clip.type === "video" ? "Video" :
+    clip.type === "image" ? (assetName ?? "Image") : "Audio";
 
   const beginDrag = (e: React.PointerEvent, mode: DragMode) => {
     e.stopPropagation();
@@ -80,7 +83,7 @@ export default function TimelineClip({
         else if (snappedEnd !== newStart + d.origDuration) newStart = snappedEnd - d.origDuration;
       }
       if (track === "video") s.moveVideoClipTransient(clip.id, newStart);
-      else s.moveOverlayClipTransient(track as "text" | "audio", clip.id, newStart);
+      else s.moveOverlayClipTransient(track as "text" | "audio" | "image", clip.id, newStart);
     } else if (d.mode === "trim-left") {
       let t = d.origStart + deltaSec;
       if (tolerance) t = snapTime(t, candidates, tolerance);

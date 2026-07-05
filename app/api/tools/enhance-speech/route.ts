@@ -11,10 +11,12 @@ import { randomUUID } from "crypto";
 
 export const maxDuration = 300;
 
-const CREDIT_COST = 3;
-// ElevenLabs audio-isolation bills per minute; cap input so a long file
-// can't exceed its credit value.
-const MAX_DURATION_SEC = 120; // 2 minutes
+// ElevenLabs audio-isolation bills ~1,000 credits/minute (~$0.20/min) — far
+// more than the Flash TTS model used elsewhere. 6 credits + a 90s cap keeps
+// real cost (~$0.30 = ~₹28.5 at the 90s cap) comfortably under revenue even
+// at the cheapest per-credit plan (Studio Yearly, ~₹9.41/credit = ~₹56.5).
+const CREDIT_COST = 6;
+const MAX_DURATION_SEC = 90;
 
 interface Job {
   progress: number;

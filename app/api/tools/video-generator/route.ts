@@ -10,9 +10,10 @@ import { randomUUID } from "crypto";
 
 export const maxDuration = 300;
 
-// Veo3 Fast 8s with audio costs up to $3.20 = ₹272. 35 credits gives a
-// positive margin even on the cheapest yearly plan (₹12.78/credit = ₹447).
-// Standard/4K can be reintroduced as a premium tier later.
+// Veo3 Fast is $0.15/s with audio (fal.ai cut this ~50% in 2026 — it used to
+// be $0.40/s). 8s w/ audio now costs ~$1.20 = ~₹114 at ₹95/$1, well under the
+// 35-credit price even on the cheapest per-credit plan. Standard/4K can be
+// reintroduced as a premium tier later.
 const CREDIT_COST = 35;
 const MAX_DURATION = 8;
 

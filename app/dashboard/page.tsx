@@ -302,6 +302,20 @@ export default function DashboardPage() {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M9 18l6-6-6-6" strokeLinecap="round"/></svg>
               </div>
             </Link>
+
+            {/* Editor */}
+            <Link href="/dashboard/editor" className="flex items-center gap-3 px-5 py-3.5 rounded-2xl flex-1 border border-gray-200 hover:bg-gray-50 transition-colors">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-[#335CFF]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="2.18" strokeLinecap="round" strokeLinejoin="round"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M17 7h5M2 17h5M17 17h5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-gray-900 font-bold text-sm leading-tight">Open the <span className="text-[#335CFF]">Editor</span></p>
+                <p className="text-gray-400 text-xs mt-0.5">Multi-track timeline editor in your browser</p>
+              </div>
+              <div className="text-gray-300 flex-shrink-0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M9 18l6-6-6-6" strokeLinecap="round"/></svg>
+              </div>
+            </Link>
           </div>
 
           {/* ── Two-column layout ── */}

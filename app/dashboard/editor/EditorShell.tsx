@@ -38,7 +38,7 @@ export default function EditorShell() {
   const save = SAVE_LABEL[saveState];
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-zinc-950 font-sans text-zinc-100">
+    <div className="clipiro-editor flex h-screen flex-col overflow-hidden bg-zinc-950 font-sans text-zinc-100">
       {/* Top bar */}
       <header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-zinc-800 bg-zinc-900 px-4">
         <div className="flex items-center gap-4">
@@ -89,7 +89,7 @@ export default function EditorShell() {
           both the preview row and the timeline row below it. */}
       <div className="flex min-h-0 flex-1">
         <SidebarTabs />
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="flex min-h-0 flex-1">
             <main className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3 bg-zinc-950 p-4">
               <PreviewStage />

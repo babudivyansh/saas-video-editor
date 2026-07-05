@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
+import { redis } from "@/lib/redis";
+import { prisma } from "@/lib/prisma";
 import { create as createYoutubeDl } from "youtube-dl-exec";
 import ffmpegStatic from "ffmpeg-static";
 import fs from "fs";
@@ -8,6 +10,21 @@ import os from "os";
 import { randomUUID } from "crypto";
 
 export const maxDuration = 300;
+
+// This route was free (0 credits) with no length limit — pure bandwidth cost
+// (fetch from YouTube, re-serve to the user) with zero monetization and no
+// bound on source video length. 1 credit + a 20-minute source cap keeps the
+// worst case bounded and gives the tool a real (if small) unit price.
+const CREDIT_COST = 1;
+const MAX_SOURCE_DURATION_SEC = 20 * 60; // 20 minutes
+
+async function refundCredit(userId: string) {
+  await prisma.user.update({ where: { id: userId }, data: { credits: { increment: CREDIT_COST } } });
+  const cached = await redis.get(`credits:${userId}`);
+  if (cached !== null) {
+    await redis.set(`credits:${userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
+  }
+}
 
 // ── yt-dlp binary (bundled by youtube-dl-exec) ────────────────────────────────
 const YT_DLP_BIN = path.join(
@@ -168,8 +185,16 @@ export async function GET(req: NextRequest) {
   const outTemplate = path.join(os.tmpdir(), `ytdl_${jobId}.%(ext)s`);
   const finalPath = path.join(os.tmpdir(), `ytdl_${jobId}.${ext}`);
 
+  // Credit check (fast path) before we do any real work.
+  const cachedCredits = await redis.get(`credits:${auth.userId}`);
+  const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
+  if (cached !== null && cached < CREDIT_COST) {
+    return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
+  }
+
+  let creditsDeducted = false;
   try {
-    // Resolve the title first (for a nice filename)
+    // Resolve the title first (for a nice filename) and check length before charging.
     const meta = (await ytDlp(cleanUrl, {
       dumpSingleJson: true,
       noWarnings: true,
@@ -177,6 +202,25 @@ export async function GET(req: NextRequest) {
       noPlaylist: true,
     })) as unknown as YtInfo;
     const title = safeTitle(meta.title ?? "video");
+
+    if ((meta.duration ?? 0) > MAX_SOURCE_DURATION_SEC) {
+      return NextResponse.json(
+        { error: `Video is too long (${Math.round(meta.duration ?? 0)}s). Max is ${MAX_SOURCE_DURATION_SEC / 60} minutes.` },
+        { status: 400 },
+      );
+    }
+
+    const user = await prisma.user.update({
+      where: { id: auth.userId },
+      data: { credits: { decrement: CREDIT_COST } },
+      select: { credits: true },
+    });
+    if (user.credits < 0) {
+      await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
+      return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
+    }
+    creditsDeducted = true;
+    await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
 
     if (isAudio) {
       await ytDlp(cleanUrl, {
@@ -208,6 +252,7 @@ export async function GET(req: NextRequest) {
       const dir = os.tmpdir();
       const produced = fs.readdirSync(dir).find(f => f.startsWith(`ytdl_${jobId}.`));
       if (!produced) {
+        if (creditsDeducted) await refundCredit(auth.userId).catch(() => {});
         return NextResponse.json({ error: "Download produced no output file" }, { status: 500 });
       }
       const producedPath = path.join(dir, produced);
@@ -218,6 +263,8 @@ export async function GET(req: NextRequest) {
     const contentType = isAudio ? "audio/mpeg" : "video/mp4";
     return streamFileResponse(finalPath, contentType, `${title}.${ext}`);
   } catch (err) {
+    if (creditsDeducted) await refundCredit(auth.userId).catch(() => {});
+
     // Clean up any partial files
     try {
       const dir = os.tmpdir();

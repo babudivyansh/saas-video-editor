@@ -41,7 +41,11 @@ export async function POST(req: NextRequest) {
 
   // Resolve every referenced asset and confirm ownership.
   const assetIds = [
-    ...new Set([...doc.tracks.video.map((c) => c.assetId), ...doc.tracks.audio.map((c) => c.assetId)]),
+    ...new Set([
+      ...doc.tracks.video.map((c) => c.assetId),
+      ...doc.tracks.audio.map((c) => c.assetId),
+      ...doc.tracks.image.map((c) => c.assetId),
+    ]),
   ];
   const assets = await prisma.asset.findMany({ where: { id: { in: assetIds }, userId: auth.userId } });
   if (assets.length !== assetIds.length) {

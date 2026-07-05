@@ -1,5 +1,39 @@
 @import "tailwindcss";
 
+/* Editor text/caption fonts — bundled locally (public/fonts) so the browser
+   preview renders the exact same file the export's ffmpeg drawtext burns in.
+   See lib/editor/filtergraph.ts's FONT_FILES for the server-side half. */
+@font-face {
+  font-family: "Poppins";
+  src: url("/fonts/Poppins-Bold.ttf") format("truetype");
+  font-weight: 700;
+}
+@font-face {
+  font-family: "Montserrat";
+  src: url("/fonts/Montserrat.ttf") format("truetype");
+  font-weight: 100 900;
+}
+@font-face {
+  font-family: "Bebas Neue";
+  src: url("/fonts/BebasNeue-Regular.ttf") format("truetype");
+  font-weight: 400;
+}
+@font-face {
+  font-family: "Oswald";
+  src: url("/fonts/Oswald.ttf") format("truetype");
+  font-weight: 200 700;
+}
+@font-face {
+  font-family: "Playfair Display";
+  src: url("/fonts/PlayfairDisplay.ttf") format("truetype");
+  font-weight: 400 900;
+}
+@font-face {
+  font-family: "Anton";
+  src: url("/fonts/Anton-Regular.ttf") format("truetype");
+  font-weight: 400;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -93,6 +127,29 @@ body {
   .clipiro-blob {
     animation: none;
   }
+}
+
+/* Editor scrollbars — black/faded instead of the OS-default light-gray bars,
+   which stood out badly against the editor's dark theme. Scoped to
+   .clipiro-editor (EditorShell's root) so the light marketing pages keep
+   their normal scrollbars. */
+.clipiro-editor {
+  scrollbar-color: rgba(0, 0, 0, 0.75) transparent;
+  scrollbar-width: thin;
+}
+.clipiro-editor ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.clipiro-editor ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.clipiro-editor ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.5));
+  border-radius: 9999px;
+}
+.clipiro-editor ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.95);
 }
 
 /* Legal page content styles */

@@ -6,13 +6,24 @@
 // call the *Transient variants per-frame and commit once on pointer-up.
 
 import { create } from "zustand";
-import type { AnyClip, Aspect, AudioClip, TextClip, TimelineDoc, TrackKind, VideoClip } from "@/lib/editor/types";
+import type { AnyClip, Aspect, AudioClip, ImageClip, TextClip, TimelineDoc, TrackKind, VideoClip } from "@/lib/editor/types";
 import { DEFAULT_DOC, MIN_CLIP_DURATION } from "@/lib/editor/types";
 import { placeVideoClip, splitVideoClip, videoClipAt } from "@/lib/editor/doc-utils";
 import { emptyHistory, pushHistory, redo, undo, type HistoryState } from "./history";
 
 export type SaveState = "saved" | "dirty" | "saving" | "error";
-export type PanelKind = "media" | "text" | "audio";
+export type PanelKind =
+  | "media"
+  | "image"
+  | "audio"
+  | "video"
+  | "text"
+  | "caption"
+  | "sticker"
+  | "effect"
+  | "filter"
+  | "transition"
+  | "keyboard";
 
 export interface Selection {
   clipId: string;
@@ -57,10 +68,11 @@ interface EditorState {
   addTextClip: (clip: TextClip) => void;
   addTextClips: (clips: TextClip[]) => void;
   addAudioClip: (clip: AudioClip) => void;
+  addImageClip: (clip: ImageClip) => void;
   updateClip: (track: TrackKind, clipId: string, patch: Record<string, unknown>, undoable?: boolean) => void;
   commitDrag: (before: TimelineDoc) => void;
   moveVideoClipTransient: (clipId: string, newStart: number) => void;
-  moveOverlayClipTransient: (track: "text" | "audio", clipId: string, newStart: number) => void;
+  moveOverlayClipTransient: (track: "text" | "audio" | "image", clipId: string, newStart: number) => void;
   trimClipTransient: (track: TrackKind, clipId: string, edge: "left" | "right", newTime: number) => void;
   splitAtPlayhead: () => void;
   deleteSelected: () => void;
@@ -147,6 +159,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       saveState: "dirty",
     })),
 
+  addImageClip: (clip) =>
+    set((s) => ({
+      history: pushHistory(s.history, s.doc),
+      doc: { ...s.doc, tracks: { ...s.doc.tracks, image: [...s.doc.tracks.image, clip] } },
+      selection: { clipId: clip.id, track: "image" },
+      saveState: "dirty",
+    })),
+
   updateClip: (track, clipId, patch, undoable = true) =>
     set((s) => {
       const list = s.doc.tracks[track] as { id: string }[];
@@ -192,8 +212,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         const delta = newStart - clip.timelineStart;
         patch = { timelineStart: newStart, duration: end - newStart };
         // Video/audio trims also advance into the source so content stays put
-        // (scaled by playback speed for video clips).
-        if (track !== "text") {
+        // (scaled by playback speed for video clips). Text/image clips have
+        // no srcIn — they're just repositioned/resized on the timeline.
+        if (track === "video" || track === "audio") {
           const speed = track === "video" ? ((clip as VideoClip).speed ?? 1) : 1;
           (patch as VideoClip).srcIn = Math.max(0, (clip as VideoClip).srcIn + delta * speed);
         }
@@ -274,7 +295,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   pasteAtPlayhead: () =>
     set((s) => {
       if (!s.clipboard) return s;
-      const track = s.clipboard.type === "video" ? "video" : s.clipboard.type === "text" ? "text" : "audio";
+      const track =
+        s.clipboard.type === "video" ? "video" :
+        s.clipboard.type === "text" ? "text" :
+        s.clipboard.type === "image" ? "image" : "audio";
       const copy = { ...structuredClone(s.clipboard), id: crypto.randomUUID(), timelineStart: s.currentTime };
       if (track === "video") {
         const video = placeVideoClip(s.doc.tracks.video, copy as VideoClip);

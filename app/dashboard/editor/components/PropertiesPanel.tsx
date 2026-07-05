@@ -7,6 +7,7 @@ import { useEditorStore } from "../store/editorStore";
 import VideoClipProps from "./properties/VideoClipProps";
 import TextClipProps from "./properties/TextClipProps";
 import AudioClipProps from "./properties/AudioClipProps";
+import ImageClipProps from "./properties/ImageClipProps";
 
 export default function PropertiesPanel() {
   const selection = useEditorStore((s) => s.selection);
@@ -20,6 +21,9 @@ export default function PropertiesPanel() {
     } else if (selection.track === "text") {
       const clip = doc.tracks.text.find((c) => c.id === selection.clipId);
       if (clip) content = <TextClipProps clip={clip} />;
+    } else if (selection.track === "image") {
+      const clip = doc.tracks.image.find((c) => c.id === selection.clipId);
+      if (clip) content = <ImageClipProps clip={clip} />;
     } else {
       const clip = doc.tracks.audio.find((c) => c.id === selection.clipId);
       if (clip) content = <AudioClipProps clip={clip} />;

@@ -24,6 +24,7 @@ export default function PreviewStage() {
 
   const { assets: videoAssets } = useAssets("video");
   const { assets: audioAssets } = useAssets("audio");
+  const { assets: imageAssets } = useAssets("image");
 
   const stageRef = useRef<HTMLDivElement>(null);
   const registry = useRef<MediaRegistry>({ videos: new Map(), audios: new Map() });
@@ -46,29 +47,32 @@ export default function PreviewStage() {
   const usedVideoAssetIds = [...new Set(doc.tracks.video.map((c) => c.assetId))];
   const usedAudioAssetIds = [...new Set(doc.tracks.audio.map((c) => c.assetId))];
   const assetUrl = (id: string) =>
-    videoAssets.find((a) => a.id === id)?.url ?? audioAssets.find((a) => a.id === id)?.url ?? "";
+    videoAssets.find((a) => a.id === id)?.url ??
+    audioAssets.find((a) => a.id === id)?.url ??
+    imageAssets.find((a) => a.id === id)?.url ??
+    "";
 
-  // Text drag-positioning
-  const dragState = useRef<{ clipId: string; before: ReturnType<typeof structuredClone<typeof doc>> } | null>(null);
+  // Text/image drag-positioning (shared — both are normalized x/y overlays)
+  const dragState = useRef<{ clipId: string; track: "text" | "image"; before: ReturnType<typeof structuredClone<typeof doc>> } | null>(null);
 
-  const onTextPointerDown = (e: React.PointerEvent, clipId: string) => {
+  const onOverlayPointerDown = (e: React.PointerEvent, clipId: string, track: "text" | "image") => {
     e.stopPropagation();
-    select({ clipId, track: "text" });
-    dragState.current = { clipId, before: structuredClone(useEditorStore.getState().doc) };
+    select({ clipId, track });
+    dragState.current = { clipId, track, before: structuredClone(useEditorStore.getState().doc) };
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   };
 
-  const onTextPointerMove = (e: React.PointerEvent) => {
+  const onOverlayPointerMove = (e: React.PointerEvent) => {
     const drag = dragState.current;
     const stage = stageRef.current;
     if (!drag || !stage) return;
     const rect = stage.getBoundingClientRect();
     const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
     const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
-    updateClip("text", drag.clipId, { x, y }, false);
+    updateClip(drag.track, drag.clipId, { x, y }, false);
   };
 
-  const onTextPointerUp = () => {
+  const onOverlayPointerUp = () => {
     if (dragState.current) {
       commitDrag(dragState.current.before);
       dragState.current = null;
@@ -78,8 +82,11 @@ export default function PreviewStage() {
   const activeTexts = doc.tracks.text.filter(
     (t) => currentTime >= t.timelineStart && currentTime < t.timelineStart + t.duration,
   );
+  const activeImages = doc.tracks.image.filter(
+    (im) => currentTime >= im.timelineStart && currentTime < im.timelineStart + im.duration,
+  );
 
-  const isEmpty = doc.tracks.video.length === 0 && doc.tracks.text.length === 0;
+  const isEmpty = doc.tracks.video.length === 0 && doc.tracks.text.length === 0 && doc.tracks.image.length === 0;
 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-3">
@@ -119,13 +126,35 @@ export default function PreviewStage() {
             />
           ))}
 
+          {/* Image/sticker overlays */}
+          {activeImages.map((im) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={im.id}
+              src={assetUrl(im.assetId)}
+              alt=""
+              onPointerDown={(e) => onOverlayPointerDown(e, im.id, "image")}
+              onPointerMove={onOverlayPointerMove}
+              onPointerUp={onOverlayPointerUp}
+              className={`absolute -translate-x-1/2 -translate-y-1/2 cursor-move select-none ${
+                selection?.clipId === im.id ? "ring-2 ring-violet-500" : ""
+              }`}
+              style={{
+                left: `${im.x * 100}%`,
+                top: `${im.y * 100}%`,
+                width: `${im.scalePct * 100}%`,
+                opacity: im.opacity,
+              }}
+            />
+          ))}
+
           {/* Text overlays */}
           {activeTexts.map((t) => (
             <div
               key={t.id}
-              onPointerDown={(e) => onTextPointerDown(e, t.id)}
-              onPointerMove={onTextPointerMove}
-              onPointerUp={onTextPointerUp}
+              onPointerDown={(e) => onOverlayPointerDown(e, t.id, "text")}
+              onPointerMove={onOverlayPointerMove}
+              onPointerUp={onOverlayPointerUp}
               className={`absolute -translate-x-1/2 -translate-y-1/2 cursor-move select-none whitespace-pre-wrap px-2 py-0.5 ${
                 selection?.clipId === t.id ? "ring-2 ring-violet-500" : ""
               }`}

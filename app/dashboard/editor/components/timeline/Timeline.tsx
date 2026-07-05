@@ -76,6 +76,7 @@ export default function Timeline() {
           </div>
           <div className="flex flex-col gap-1 py-1">
             <TimelineTrack kind="video" label="Video" />
+            <TimelineTrack kind="image" label="Image" />
             <TimelineTrack kind="text" label="Text" />
             <TimelineTrack kind="audio" label="Audio" />
           </div>

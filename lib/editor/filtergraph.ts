@@ -22,6 +22,8 @@ export interface ClipInput {
   filePath: string;
   /** whether the source file has an audio stream (probed at download time) */
   hasAudio: boolean;
+  /** still image (drawn with -loop 1 instead of decoded as a video stream) */
+  isImage?: boolean;
 }
 
 export interface FiltergraphInput {
@@ -59,6 +61,21 @@ const FONT_FILES: Record<string, { win: string; linux: string[]; mac: string }> 
     mac: "/Library/Fonts/Times New Roman.ttf",
   },
 };
+
+// Google Fonts bundled as static files (public/fonts) rather than relying on
+// an OS install — same file on every platform, so all three candidate lists
+// just point at the one bundled path.
+const BUNDLED_FONTS: Record<string, string> = {
+  Poppins: path.join(process.cwd(), "public/fonts/Poppins-Bold.ttf"),
+  Montserrat: path.join(process.cwd(), "public/fonts/Montserrat.ttf"),
+  "Bebas Neue": path.join(process.cwd(), "public/fonts/BebasNeue-Regular.ttf"),
+  Oswald: path.join(process.cwd(), "public/fonts/Oswald.ttf"),
+  "Playfair Display": path.join(process.cwd(), "public/fonts/PlayfairDisplay.ttf"),
+  Anton: path.join(process.cwd(), "public/fonts/Anton-Regular.ttf"),
+};
+for (const [family, file] of Object.entries(BUNDLED_FONTS)) {
+  FONT_FILES[family] = { win: file, linux: [file], mac: file };
+}
 
 export function resolveFontFile(family: string): string {
   const entry = FONT_FILES[family] ?? FONT_FILES.Arial;
@@ -117,11 +134,15 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
   let idx = 0;
   const uniqueVideoAssets = [...new Set(doc.tracks.video.map((c) => c.assetId))];
   const uniqueAudioAssets = [...new Set(doc.tracks.audio.map((c) => c.assetId))];
-  for (const assetId of [...uniqueVideoAssets, ...uniqueAudioAssets]) {
+  const uniqueImageAssets = [...new Set(doc.tracks.image.map((c) => c.assetId))];
+  for (const assetId of [...uniqueVideoAssets, ...uniqueAudioAssets, ...uniqueImageAssets]) {
     if (inputIndex.has(assetId)) continue;
     const asset = assets.get(assetId);
     if (!asset) throw new Error(`Missing downloaded asset ${assetId}`);
-    args.push("-i", asset.filePath);
+    // Stills need -loop 1 to behave as an (infinite) video stream; the
+    // overlay's own enable window bounds how long it's actually visible.
+    if (asset.isImage) args.push("-loop", "1", "-i", asset.filePath);
+    else args.push("-i", asset.filePath);
     inputIndex.set(assetId, idx++);
   }
 
@@ -191,6 +212,33 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
     videoOut = "[vbase]";
     baseAudio = "[abase]";
   }
+
+  // ── Image/sticker overlays: chained `overlay` with enable windows ──
+  // Renders below text so captions stay on top of any sticker/photo overlay.
+  doc.tracks.image.forEach((im, i) => {
+    const n = inputIndex.get(im.assetId)!;
+    const fadeIn = Math.min(im.fadeIn ?? 0, im.duration);
+    const fadeOut = Math.min(im.fadeOut ?? 0, im.duration);
+    const targetW = Math.max(2, Math.round(im.scalePct * W));
+    const procLabel = `[imgproc${i}]`;
+    const procChain = [
+      `scale=w=${targetW}:h=-2`,
+      `format=rgba`,
+      `colorchannelmixer=aa=${num(im.opacity)}`,
+      ...(fadeIn > 0 ? [`fade=t=in:st=${num(im.timelineStart)}:d=${num(fadeIn)}:alpha=1`] : []),
+      ...(fadeOut > 0 ? [`fade=t=out:st=${num(im.timelineStart + im.duration - fadeOut)}:d=${num(fadeOut)}:alpha=1`] : []),
+    ];
+    filters.push(`[${n}:v]${procChain.join(",")}${procLabel}`);
+
+    const outLabel = `[vi${i}]`;
+    const overlayArgs = [
+      `x=(main_w*${num(im.x)})-(overlay_w/2)`,
+      `y=(main_h*${num(im.y)})-(overlay_h/2)`,
+      `enable='between(t,${num(im.timelineStart)},${num(im.timelineStart + im.duration)})'`,
+    ];
+    filters.push(`${videoOut}${procLabel}overlay=${overlayArgs.join(":")}${outLabel}`);
+    videoOut = outLabel;
+  });
 
   // ── Text overlays: chained drawtext with enable windows ──
   doc.tracks.text.forEach((t, i) => {
