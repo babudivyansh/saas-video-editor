@@ -41,7 +41,7 @@ const SOCIALS = [
   { icon: <XIcon className="h-4 w-4" />, label: "X (Twitter)", href: "#" },
   { icon: <YoutubeIcon className="h-4 w-4" />, label: "YouTube", href: "#" },
   { icon: <GitHubIcon className="h-4 w-4" />, label: "GitHub", href: "#" },
-  { icon: <DiscordIcon className="h-4 w-4" />, label: "Discord", href: "#" },
+  { icon: <DiscordIcon className="h-4 w-4" />, label: "Discord", href: "/discord" },
 ];
 
 export default function SiteFooter() {

@@ -236,7 +236,7 @@ export default function DashboardPage() {
 
   async function handleDiscordQuest() {
     if (!token) return;
-    window.open("https://discord.gg/clipiro", "_blank");
+    window.open("/discord", "_blank");
     try {
       await fetch("/api/quests/complete", {
         method: "POST",
