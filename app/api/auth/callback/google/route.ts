@@ -33,7 +33,10 @@ export async function GET(req: NextRequest) {
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.json();
       console.error("[google-callback] Token exchange failed:", errorData);
-      return NextResponse.json({ error: "Failed to exchange authorization code" }, { status: 400 });
+      return NextResponse.json({
+        error: "Failed to exchange authorization code",
+        details: errorData
+      }, { status: 400 });
     }
 
     const { access_token } = await tokenResponse.json();
