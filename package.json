@@ -9,7 +9,8 @@
     "lint": "eslint",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
-    "test:ffmpeg": "tsx utils/test-ffmpeg.ts"
+    "test:ffmpeg": "tsx utils/test-ffmpeg.ts",
+    "postinstall": "prisma generate"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
