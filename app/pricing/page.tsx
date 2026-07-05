@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import SiteNavbar from "@/app/components/SiteNavbar";
+import SiteFooter from "@/app/components/SiteFooter";
 import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 
@@ -1018,23 +1019,7 @@ export default function PricingPage() {
         </div>
       </section>
 
-      {/* ── Footer ── */}
-      <footer className="border-t border-gray-100 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-2 font-black text-gray-900 text-lg">
-            <span className="bg-blue-600 text-white rounded-lg w-7 h-7 flex items-center justify-center">
-              <ZapIcon className="w-3.5 h-3.5" />
-            </span>
-            CLIPIRO
-          </Link>
-          <div className="flex items-center gap-6 text-sm text-gray-400">
-            <Link href="/privacy" className="hover:text-gray-700">Privacy</Link>
-            <Link href="/terms" className="hover:text-gray-700">Terms</Link>
-            <Link href="/refund" className="hover:text-gray-700">Refund</Link>
-            <Link href="/affiliate-tos" className="hover:text-gray-700">Affiliate TOS</Link>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

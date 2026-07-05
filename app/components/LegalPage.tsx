@@ -1,13 +1,5 @@
-import Link from "next/link";
 import SiteNavbar from "@/app/components/SiteNavbar";
-
-function ZapIcon() {
-  return (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-    </svg>
-  );
-}
+import SiteFooter from "@/app/components/SiteFooter";
 
 interface Section {
   id: string;
@@ -59,23 +51,7 @@ export default function LegalPage({ title, lastUpdated, sections, children }: Le
         </div>
       </div>
 
-      {/* Simple footer */}
-      <footer className="border-t border-gray-100 py-8 mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-2 font-black text-gray-900 text-lg">
-            <span className="bg-blue-600 text-white rounded-lg w-7 h-7 flex items-center justify-center">
-              <ZapIcon />
-            </span>
-            CLIPIRO
-          </Link>
-          <div className="flex items-center gap-6 text-sm text-gray-400">
-            <Link href="/privacy" className="hover:text-gray-700">Privacy Policy</Link>
-            <Link href="/terms" className="hover:text-gray-700">Terms of Service</Link>
-            <Link href="/refund" className="hover:text-gray-700">Refund Policy</Link>
-            <Link href="/affiliate-tos" className="hover:text-gray-700">Affiliate TOS</Link>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

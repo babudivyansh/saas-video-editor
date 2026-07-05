@@ -26,7 +26,7 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
       { label: "About", href: "/about" },
       { label: "Blog", href: "/blog" },
       { label: "Contact", href: "mailto:hello@clipiro.com" },
-      { label: "Affiliate Program", href: "/affiliate-tos" },
+      { label: "Affiliate Program", href: "/affiliate-program" },
       { label: "Privacy Policy", href: "/privacy" },
       { label: "Terms of Service", href: "/terms" },
     ],
