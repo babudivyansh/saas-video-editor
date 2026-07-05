@@ -126,6 +126,14 @@ export default function AuthForm({
   const [loginPassword, setLoginPassword] = useState("");
   const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
   const [devCode, setDevCode] = useState<string | null>(null);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown > 0) {
+      const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [cooldown]);
 
   const [reg, setReg] = useState({
     firstName: "",
@@ -196,6 +204,7 @@ export default function AuthForm({
       if (data.devCode) setDevCode(data.devCode);
       setOtpDigits(["", "", "", "", "", ""]);
       setLoginStep("otp");
+      setCooldown(60);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to send code");
     } finally {
@@ -468,7 +477,7 @@ export default function AuthForm({
 
           <button
             type="button"
-            onClick={() => alert("Google sign-in coming soon!")}
+            onClick={() => window.location.href = "/api/auth/google"}
             className="w-full flex items-center justify-center gap-2.5 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 active:bg-gray-100 rounded-full py-3 text-sm font-medium text-gray-700 transition-all shadow-sm"
           >
             <GoogleIcon />
@@ -588,11 +597,20 @@ export default function AuthForm({
             </PrimaryBtn>
           </form>
 
-          <div className="flex justify-center mt-5">
+          <div className="flex justify-between items-center mt-5">
+            <button
+              type="button"
+              onClick={handleSendOtp}
+              disabled={cooldown > 0 || loading}
+              className="text-sm font-semibold text-brand-deep hover:text-brand-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer bg-transparent border-none p-0"
+            >
+              {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend OTP"}
+            </button>
+
             <button
               type="button"
               onClick={() => goToStep("password")}
-              className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors"
+              className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors bg-transparent border-none p-0 cursor-pointer"
             >
               <BackArrow />
               Back
