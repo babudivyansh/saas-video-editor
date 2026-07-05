@@ -30,13 +30,13 @@ export async function GET(req: NextRequest) {
   ]);
 
   // Resolve admin email for display
-  const adminIds = [...new Set(logs.map(l => l.adminId))];
+  const adminIds = [...new Set(logs.map((l: any) => l.adminId))];
   const admins = adminIds.length
     ? await prisma.user.findMany({ where: { id: { in: adminIds } }, select: { id: true, email: true, name: true } })
     : [];
-  const adminMap = Object.fromEntries(admins.map(a => [a.id, a.email]));
+  const adminMap = Object.fromEntries(admins.map((a: any) => [a.id, a.email]));
 
-  const enriched = logs.map(l => ({ ...l, adminEmail: adminMap[l.adminId] ?? l.adminId }));
+  const enriched = logs.map((l: any) => ({ ...l, adminEmail: adminMap[l.adminId] ?? l.adminId }));
 
   return NextResponse.json({ logs: enriched, total, page, limit });
 }
