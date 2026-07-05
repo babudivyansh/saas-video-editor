@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { redis } from "./redis";
 import { sendOtpEmail, type DeliveryChannel } from "./email";
 import { sendOtpSms } from "./sms";
@@ -40,7 +41,16 @@ export async function consumeOtp(
   otp: string
 ): Promise<boolean> {
   const stored = await redis.get(otpKey(method, identifier));
-  if (!stored || stored !== String(otp)) return false;
+  if (!stored) return false;
+
+  const a = Buffer.from(stored);
+  const b = Buffer.from(String(otp));
+  // timingSafeEqual throws on length mismatch rather than just returning
+  // false, and the length itself isn't a secret here (codes are always the
+  // same length), so compare lengths first the normal way.
+  const match = a.length === b.length && crypto.timingSafeEqual(a, b);
+  if (!match) return false;
+
   await redis.del(otpKey(method, identifier));
   return true;
 }

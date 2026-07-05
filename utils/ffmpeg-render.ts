@@ -18,6 +18,20 @@ function resolveFfmpegBin(): string {
 
 const ffmpegBin = resolveFfmpegBin();
 
+// Renders run one at a time per queue with no other watchdog (see lib/job-queue.ts)
+// — a single wedged ffmpeg process (corrupt input, a codec that hangs) would
+// otherwise block every subsequent job in that queue forever. Kill anything
+// that runs past this and reject/resolve accordingly.
+const DEFAULT_FFMPEG_TIMEOUT_MS = 15 * 60 * 1000;
+
+function killAfterTimeout(proc: ReturnType<typeof spawn>, timeoutMs: number, onTimeout: () => void): () => void {
+  const timer = setTimeout(() => {
+    proc.kill("SIGKILL");
+    onTimeout();
+  }, timeoutMs);
+  return () => clearTimeout(timer);
+}
+
 export interface SubtitleStyle {
   fontName?: string;
   fontSize?: number;
@@ -82,7 +96,7 @@ export interface RenderOptions {
   outputPath: string;
 }
 
-export function runFFmpeg(opts: RenderOptions): Promise<void> {
+export function runFFmpeg(opts: RenderOptions, timeoutMs = DEFAULT_FFMPEG_TIMEOUT_MS): Promise<void> {
   return new Promise((resolve, reject) => {
     const { bgVideoPath, voiceAudioPath, musicAudioPath, assPath, outputPath } = opts;
 
@@ -127,6 +141,9 @@ export function runFFmpeg(opts: RenderOptions): Promise<void> {
     }
 
     const proc = spawn(ffmpegBin!, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => {
+      reject(new Error(`FFmpeg timed out after ${timeoutMs}ms and was killed`));
+    });
 
     let stderrBuf = "";
     proc.stderr.on("data", (chunk: Buffer) => {
@@ -134,6 +151,7 @@ export function runFFmpeg(opts: RenderOptions): Promise<void> {
     });
 
     proc.on("close", (code) => {
+      clearWatchdog();
       if (code === 0) {
         resolve();
       } else {
@@ -141,40 +159,46 @@ export function runFFmpeg(opts: RenderOptions): Promise<void> {
       }
     });
 
-    proc.on("error", (err) => reject(err));
+    proc.on("error", (err) => { clearWatchdog(); reject(err); });
   });
 }
 
 // ── Generic FFmpeg runner ────────────────────────────────────────────────────
 
-export function runFFmpegArgs(args: string[]): Promise<void> {
+export function runFFmpegArgs(args: string[], timeoutMs = DEFAULT_FFMPEG_TIMEOUT_MS): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn(ffmpegBin!, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => {
+      reject(new Error(`FFmpeg timed out after ${timeoutMs}ms and was killed`));
+    });
     let stderrBuf = "";
     proc.stderr.on("data", (chunk: Buffer) => { stderrBuf += chunk.toString(); });
     proc.on("close", (code) => {
+      clearWatchdog();
       if (code === 0) resolve();
       else reject(new Error(`FFmpeg exited ${code}:\n${stderrBuf.slice(-2000)}`));
     });
-    proc.on("error", (err) => reject(err));
+    proc.on("error", (err) => { clearWatchdog(); reject(err); });
   });
 }
 
 // Probe a media file's duration in seconds by reading FFmpeg's "Duration:" line.
 // Runs `ffmpeg -i <file>` (no output), which exits non-zero — that's expected;
 // we parse stderr regardless. Returns 0 if the duration can't be determined.
-export function getMediaDurationSec(filePath: string): Promise<number> {
+export function getMediaDurationSec(filePath: string, timeoutMs = 30_000): Promise<number> {
   return new Promise((resolve) => {
     const proc = spawn(ffmpegBin!, ["-i", filePath], { stdio: ["ignore", "ignore", "pipe"] });
+    const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => resolve(0));
     let stderrBuf = "";
     proc.stderr.on("data", (chunk: Buffer) => { stderrBuf += chunk.toString(); });
     const finish = () => {
+      clearWatchdog();
       const d = /Duration:\s*(\d+):(\d+):(\d+\.\d+)/.exec(stderrBuf);
       if (!d) return resolve(0);
       resolve(parseInt(d[1]) * 3600 + parseInt(d[2]) * 60 + parseFloat(d[3]));
     };
     proc.on("close", finish);
-    proc.on("error", () => resolve(0));
+    proc.on("error", () => { clearWatchdog(); resolve(0); });
   });
 }
 
@@ -183,9 +207,13 @@ export function getMediaDurationSec(filePath: string): Promise<number> {
 export function runFFmpegWithProgress(
   args: string[],
   onProgress: (pct: number) => void,
+  timeoutMs = DEFAULT_FFMPEG_TIMEOUT_MS,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn(ffmpegBin!, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => {
+      reject(new Error(`FFmpeg timed out after ${timeoutMs}ms and was killed`));
+    });
     let stderrBuf = "";
     let totalMs = 0;
 
@@ -212,10 +240,11 @@ export function runFFmpegWithProgress(
     });
 
     proc.on("close", (code) => {
+      clearWatchdog();
       if (code === 0) resolve();
       else reject(new Error(`FFmpeg exited ${code}:\n${stderrBuf.slice(-2000)}`));
     });
-    proc.on("error", (err) => reject(err));
+    proc.on("error", (err) => { clearWatchdog(); reject(err); });
   });
 }
 

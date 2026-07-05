@@ -53,19 +53,28 @@ export async function POST(req: NextRequest) {
   if (!url) return NextResponse.json({ error: "url required" }, { status: 400 });
 
   try {
-    // Basic validation of Reddit URL
-    if (!/reddit\.com\/r\//.test(url)) {
+    // Validate against the actual host + path (not a substring match) so a URL
+    // like https://internal-host/x?u=reddit.com/r/y can't sneak past validation
+    // and get fetched server-side (SSRF).
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      throw new Error("Invalid Reddit URL format");
+    }
+    const host = parsed.hostname.toLowerCase();
+    const isRedditHost = host === "reddit.com" || host === "www.reddit.com";
+    if (parsed.protocol !== "https:" || !isRedditHost || !parsed.pathname.startsWith("/r/")) {
       throw new Error("Invalid Reddit URL format");
     }
 
-    // Prepare JSON url. E.g. https://www.reddit.com/r/AskReddit/comments/123/title/ -> title.json
-    let jsonUrl = url;
+    // Rebuild the JSON url from the validated host/path only — never from the
+    // raw input string — so no other part of the original URL can carry through.
+    let jsonUrl = `https://${host}${parsed.pathname}`;
     if (jsonUrl.endsWith("/")) {
       jsonUrl = jsonUrl.slice(0, -1);
     }
-    if (!jsonUrl.endsWith(".json")) {
-      jsonUrl += ".json";
-    }
+    jsonUrl += ".json";
 
     // Try fetching with custom user agent to avoid 429
     const response = await fetch(jsonUrl, {

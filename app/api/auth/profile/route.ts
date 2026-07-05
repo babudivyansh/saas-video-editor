@@ -77,8 +77,10 @@ export async function PATCH(req: NextRequest) {
 // Permanently delete the caller's own account. Requires the current password as
 // confirmation. Affiliate/Referral/Commission rows have no onDelete: Cascade in
 // the schema, so they must be cleared before the User row can be deleted, or
-// Postgres throws a foreign-key violation. Everything else (Purchase, Project +
-// Clip, Asset, UserQuest, SocialAccount + its children) cascades automatically.
+// Postgres throws a foreign-key violation. Purchase is onDelete: Restrict (it's
+// a financial record, never silently destroyed) — handled by the purchase-count
+// check below. Everything else (Project + Clip, Asset, UserQuest, SocialAccount
+// + its children) cascades automatically.
 export async function DELETE(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -94,6 +96,17 @@ export async function DELETE(req: NextRequest) {
 
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) return NextResponse.json({ error: "Incorrect password" }, { status: 400 });
+
+  // Purchase rows are financial/audit records and can't cascade away with the
+  // account (Purchase.user is onDelete: Restrict) — refuse up front with a
+  // clear message rather than letting the transaction below throw.
+  const purchaseCount = await prisma.purchase.count({ where: { userId: auth.userId } });
+  if (purchaseCount > 0) {
+    return NextResponse.json(
+      { error: "Your account has billing history that must be retained for financial records, so it can't be fully deleted here. Contact support to request deletion." },
+      { status: 409 },
+    );
+  }
 
   await prisma.$transaction([
     prisma.commission.deleteMany({ where: { referral: { referredUserId: auth.userId } } }),

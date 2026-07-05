@@ -1,4 +1,5 @@
 import "dotenv/config";
+import crypto from "crypto";
 import { prisma } from "../lib/prisma";
 import bcrypt from "bcryptjs";
 
@@ -186,14 +187,20 @@ async function main() {
 
   // ── Admin bootstrap ──────────────────────────────────────────────────────
   // Promote the owner account to ADMIN. If it doesn't exist yet, create it with
-  // a default password (CHANGE THIS after first login via the profile page).
-  const adminHash = await bcrypt.hash("changeme123", 12);
+  // a random one-time password printed below — there is no static/default
+  // admin password checked into source.
+  const existingAdmin = await prisma.user.findUnique({ where: { email: ADMIN_EMAIL } });
+  const generatedPassword = existingAdmin ? null : crypto.randomBytes(12).toString("base64url");
+  const adminHash = generatedPassword ? await bcrypt.hash(generatedPassword, 12) : undefined;
   const admin = await prisma.user.upsert({
     where: { email: ADMIN_EMAIL },
     update: { role: "ADMIN" },
-    create: { email: ADMIN_EMAIL, passwordHash: adminHash, credits: 100, role: "ADMIN" },
+    create: { email: ADMIN_EMAIL, passwordHash: adminHash!, credits: 100, role: "ADMIN" },
   });
   console.log("Admin ready:", admin.email, "| role:", admin.role);
+  if (generatedPassword) {
+    console.log(`Admin one-time password: ${generatedPassword}  (save this now — it is not stored anywhere else; change it after first login)`);
+  }
 }
 
 main()

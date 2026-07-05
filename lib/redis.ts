@@ -10,6 +10,26 @@ const fallback =
   globalForRedis.redisFallback ?? new Map<string, { value: string; expiresAt: number | null }>();
 if (process.env.NODE_ENV !== "production") globalForRedis.redisFallback = fallback;
 
+// Separate fallback store for counters (incrWithExpire) — kept apart from the
+// string get/set map above since counters need numeric increment semantics.
+const globalForCounters = globalThis as unknown as {
+  redisCounterFallback: Map<string, { count: number; expiresAt: number }>;
+};
+const counterFallback =
+  globalForCounters.redisCounterFallback ?? new Map<string, { count: number; expiresAt: number }>();
+if (process.env.NODE_ENV !== "production") globalForCounters.redisCounterFallback = counterFallback;
+
+function fallbackIncr(key: string, ttlSeconds: number): number {
+  const now = Date.now();
+  const entry = counterFallback.get(key);
+  if (!entry || entry.expiresAt <= now) {
+    counterFallback.set(key, { count: 1, expiresAt: now + ttlSeconds * 1000 });
+    return 1;
+  }
+  entry.count += 1;
+  return entry.count;
+}
+
 function fallbackGet(key: string): string | null {
   const entry = fallback.get(key);
   if (!entry) return null;
@@ -76,6 +96,21 @@ export const redis = {
       await client.del(key);
     } catch {
       fallbackDel(key);
+    }
+  },
+  /**
+   * Atomically increments a counter and returns its new value, setting a TTL
+   * the first time the key is created (fixed-window counter). Used for rate
+   * limiting — a small race on the very first increment (INCR then EXPIRE,
+   * not a single atomic op) is an accepted tradeoff for a rate limiter.
+   */
+  async incrWithExpire(key: string, ttlSeconds: number): Promise<number> {
+    try {
+      const count = await client.incr(key);
+      if (count === 1) await client.expire(key, ttlSeconds);
+      return count;
+    } catch {
+      return fallbackIncr(key, ttlSeconds);
     }
   },
 };
