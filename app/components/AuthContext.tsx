@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 interface UserPlan {
   id: string;
@@ -79,6 +79,7 @@ function isPublicRoute(pathname: string) {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -136,6 +137,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
     }
   }, [pathname, user, isLoading]);
+
+  // Inverse case: a signed-in user shouldn't land back on the marketing page
+  // (e.g. clicking the logo, or opening a bookmark to "/") — send them to
+  // the dashboard instead.
+  useEffect(() => {
+    if (isLoading) return;
+    if (user && pathname === "/") {
+      router.replace("/dashboard");
+    }
+  }, [pathname, user, isLoading, router]);
 
   const openAuthModal = (mode: "login" | "register" = "login", feature?: string, isFree?: boolean) => {
     setAuthModal({ isOpen: true, mode, feature, isFree });
