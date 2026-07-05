@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import { ZapIcon, ChevronDownIcon } from "@/app/components/landing/icons";
+import ClipiroLogo from "@/app/components/ClipiroLogo";
 import {
   FREE_FEATURES, VIDEO_TOOLS, AI_TOOLS, RESOURCES,
   type FeatureLink as NavItem,
@@ -152,8 +153,7 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
 
           {/* Logo */}
           <Link href="/" className="flex items-center ml-15 md:ml-25" aria-label="Clipiro home">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/clipiro-wordmark.png" alt="Clipiro" className="h-15 w-auto" />
+            <ClipiroLogo className="h-9" />
           </Link>
 
           {/* Desktop nav */}

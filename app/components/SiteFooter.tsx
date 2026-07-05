@@ -3,6 +3,7 @@ import {
   LinkedInIcon, XIcon, YoutubeIcon, GitHubIcon, DiscordIcon,
 } from "@/app/components/landing/icons";
 import { FREE_FEATURES, VIDEO_TOOLS, AI_TOOLS, type FeatureLink } from "@/app/components/featureLinks";
+import ClipiroLogo from "@/app/components/ClipiroLogo";
 
 // Map the shared feature lists (title/desc/href) to footer link rows (label/href).
 const asLinks = (items: FeatureLink[]) => items.map((i) => ({ label: i.title, href: i.href }));
@@ -51,8 +52,7 @@ export default function SiteFooter() {
           {/* Brand blurb */}
           <div className="col-span-2 sm:col-span-3 lg:col-span-1">
             <Link href="/" className="inline-flex" aria-label="Clipiro home">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/clipiro-wordmark.png" alt="Clipiro" className="h-15 w-auto" />
+              <ClipiroLogo className="h-9" />
             </Link>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-gray-500">
               Turn long videos into viral short-form content with AI clipping, captions, and one-click export.
