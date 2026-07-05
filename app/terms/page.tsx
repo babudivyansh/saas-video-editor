@@ -25,6 +25,22 @@ export default function TermsPage() {
   return (
     <LegalPage title="Terms of Service" lastUpdated="June 14, 2026" sections={sections}>
 
+      <div className="mb-8 p-6 bg-blue-50/50 rounded-2xl border border-[#E8EDFF] flex items-start gap-4">
+        <div className="w-8 h-8 rounded-lg bg-[#335CFF]/10 text-[#335CFF] flex items-center justify-center flex-shrink-0 mt-0.5">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
+        </div>
+        <div>
+          <h4 className="text-sm font-bold text-gray-900">Terms of Service Highlights</h4>
+          <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+            • <strong>Account Ownership:</strong> You own the videos you generate using our service.<br />
+            • <strong>Acceptable Use:</strong> You agree not to use Clipiro to generate illegal, harmful, or defamatory content.<br />
+            • <strong>Credit System:</strong> Credits are non-transferable and can be purchased in packages processed by Razorpay.
+          </p>
+        </div>
+      </div>
+
       <p>
         These Terms of Service (&quot;Terms&quot;) govern your access to and use of the Clipiro
         platform, website, and services (collectively, the &quot;Service&quot;) operated by Clipiro

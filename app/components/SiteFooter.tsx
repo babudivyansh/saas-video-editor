@@ -25,7 +25,7 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
     links: [
       { label: "About", href: "/about" },
       { label: "Blog", href: "/blog" },
-      { label: "Contact", href: "mailto:hello@clipiro.com" },
+      { label: "Contact", href: "/contact" },
       { label: "Affiliate Program", href: "/affiliate-program" },
       { label: "Privacy Policy", href: "/privacy" },
       { label: "Terms of Service", href: "/terms" },
@@ -94,7 +94,7 @@ export default function SiteFooter() {
           <div className="flex items-center gap-6 text-sm text-gray-400">
             <Link href="/privacy" className="hover:text-gray-700">Privacy Policy</Link>
             <Link href="/terms" className="hover:text-gray-700">Terms</Link>
-            <Link href="/privacy" className="hover:text-gray-700">Cookies</Link>
+            <Link href="/cookies" className="hover:text-gray-700">Cookies</Link>
           </div>
         </div>
       </div>

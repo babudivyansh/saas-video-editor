@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone", // Optimizes build size for Node.js shared hosting
   // Keep ffmpeg-static out of the server bundle so its __dirname-based binary
   // path resolves correctly at runtime instead of being rewritten to "\ROOT\".
   serverExternalPackages: ["ffmpeg-static"],
