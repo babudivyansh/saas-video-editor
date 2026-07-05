@@ -19,6 +19,8 @@ export async function GET(req: NextRequest) {
       lastName: true,
       name: true,
       avatarUrl: true,
+      gender: true,
+      intendedUse: true,
       subscriptionEndsAt: true,
       nextRefillAt: true,
       monthlyCredits: true,

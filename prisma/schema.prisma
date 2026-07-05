@@ -23,6 +23,8 @@ model User {
   lastName     String?
   name         String?
   avatarUrl    String?
+  gender       String?    // "male" | "female" | "unspecified" — validated in the API layer
+  intendedUse  String?    // "content_creator" | "business_marketing" | "personal" | "other" — validated in the API layer
   planId       String?
   plan         Plan?      @relation(fields: [planId], references: [id])
   // Subscription state (Phase C)

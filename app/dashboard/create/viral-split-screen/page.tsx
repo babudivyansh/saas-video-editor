@@ -3,6 +3,7 @@ import { Suspense, useRef, useState, type ReactNode, type CSSProperties } from "
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
+import SidebarAccount from "@/app/components/SidebarAccount";
 import { useVideoGenerate, getStoredToken, type GenerateStatus } from "@/app/hooks/useVideoGenerate";
 import { useAuth } from "@/app/components/AuthContext";
 
@@ -223,6 +224,7 @@ function Header({
           <Link href="/login" className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm">
             <IcZap /> Login
           </Link>
+          <SidebarAccount />
         </div>
       </div>
 

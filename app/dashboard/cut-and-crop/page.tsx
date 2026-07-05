@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
+import SidebarAccount from "@/app/components/SidebarAccount";
 import { computeMask, type Aspect } from "@/lib/crop";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -493,6 +494,8 @@ export default function CutAndCropPage() {
                 )}
               </button>
             )}
+
+            <SidebarAccount />
           </div>
         </header>
 

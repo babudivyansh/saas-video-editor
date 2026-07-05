@@ -2,6 +2,7 @@
 import { Suspense, useState, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
+import SidebarAccount from "@/app/components/SidebarAccount";
 import { useVideoGenerate, getStoredToken } from "@/app/hooks/useVideoGenerate";
 import { useAuth } from "@/app/components/AuthContext";
 
@@ -338,6 +339,7 @@ function Header({ stepIndex, onNext, onBack, onGenerate, canNext, canGenerate, i
           </div>
           <h1 className="text-xl font-bold text-gray-900">Reddit Story Video</h1>
         </div>
+        <SidebarAccount />
       </div>
       <div className="flex items-center justify-between mt-5">
         <nav className="flex items-center gap-2">
