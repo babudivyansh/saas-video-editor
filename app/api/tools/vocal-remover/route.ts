@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/auth";
 import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { attachmentDisposition } from "@/utils/content-disposition";
+import { getMediaDurationSec } from "@/utils/ffmpeg-render";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -10,7 +11,13 @@ import { randomUUID } from "crypto";
 
 export const maxDuration = 300;
 
-const CREDIT_COST = 2;
+// fal.ai Demucs bills $0.0007/s of processing time. Cheap per second, but the
+// route only capped file size (50MB) with no duration limit — a long,
+// low-bitrate file could slip through uncapped. Cap input length so the
+// worst case (~₹20 at 5 min) stays under 3 credits' revenue even at the
+// cheapest per-credit plan (Studio Yearly, ~₹9.41/credit = ~₹28.2).
+const CREDIT_COST = 3;
+const MAX_DURATION_SEC = 300; // 5 minutes
 const FAL_MODEL = "fal-ai/demucs";
 
 interface Job {
@@ -130,7 +137,7 @@ export async function POST(req: NextRequest) {
   const cachedCredits = await redis.get(`credits:${auth.userId}`);
   const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
   if (cached !== null && cached < CREDIT_COST) {
-    return NextResponse.json({ error: "Insufficient credits (need 2)" }, { status: 402 });
+    return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
   }
 
   let formData: FormData;
@@ -148,6 +155,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "File too large (max 50 MB)" }, { status: 413 });
   }
 
+  const jobId = randomUUID();
+  const ext = (file.name.split(".").pop() ?? "mp3").toLowerCase();
+  const inputPath = path.join(os.tmpdir(), `${jobId}-input.${ext}`);
+  const outputPath = path.join(os.tmpdir(), `${jobId}-output.mp3`);
+  const downloadName = `instrumental-${file.name.replace(/\.[^.]+$/, "")}.mp3`;
+
+  // Write to disk first so we can probe duration BEFORE charging.
+  fs.writeFileSync(inputPath, Buffer.from(await file.arrayBuffer()));
+
+  const durationSec = await getMediaDurationSec(inputPath);
+  if (durationSec > MAX_DURATION_SEC) {
+    try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
+    return NextResponse.json(
+      { error: `Audio is too long (${Math.round(durationSec)}s). Max is ${MAX_DURATION_SEC / 60} minutes.` },
+      { status: 400 },
+    );
+  }
+
   // Deduct credits
   const user = await prisma.user.update({
     where: { id: auth.userId },
@@ -156,17 +181,10 @@ export async function POST(req: NextRequest) {
   });
   if (user.credits < 0) {
     await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
-    return NextResponse.json({ error: "Insufficient credits (need 2)" }, { status: 402 });
+    try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
+    return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
   }
   await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
-
-  const jobId = randomUUID();
-  const ext = (file.name.split(".").pop() ?? "mp3").toLowerCase();
-  const inputPath = path.join(os.tmpdir(), `${jobId}-input.${ext}`);
-  const outputPath = path.join(os.tmpdir(), `${jobId}-output.mp3`);
-  const downloadName = `instrumental-${file.name.replace(/\.[^.]+$/, "")}.mp3`;
-
-  fs.writeFileSync(inputPath, Buffer.from(await file.arrayBuffer()));
 
   const job: Job = {
     progress: 5,

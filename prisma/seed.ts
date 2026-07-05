@@ -31,16 +31,22 @@ interface SeedPlan {
 const YEARLY_DISCOUNT = 0.20;
 const yearly = (monthlyPaise: number) => Math.round((monthlyPaise * 12 * (1 - YEARLY_DISCOUNT)) / 100) * 100;
 
+// 2026-07 repricing: entry tier was $6.7-8.4/mo equivalent vs $13-35/mo for
+// comparable competitors (Crayo.ai, CapCut Pro, Descript, Veed, Opus Clip) —
+// see the pricing review. Existing subscribers are unaffected: their
+// credits/term live on the User row (monthlyCredits/nextRefillAt), not on a
+// live Plan price lookup, so bumping priceInPaise here only affects new
+// checkouts of these slugs going forward.
 const SUBSCRIPTIONS: SeedPlan[] = [
-  // Creator — 50 cr/mo (₹799/mo).
-  { slug: "sub_creator_1mo",  name: "Creator (Monthly)", priceInPaise: 79900,            intervalMonths: 1,  monthlyCredits: 50,  veo3Included: false, sortOrder: 10, features: ["50 credits / month", "All AI tools", "1080p exports"] },
-  { slug: "sub_creator_12mo", name: "Creator (Yearly)",  priceInPaise: yearly(79900),    intervalMonths: 12, monthlyCredits: 50,  veo3Included: true,  sortOrder: 13, features: ["50 credits / month", "Save 20% vs monthly", "Veo3 AI video included"] },
-  // Pro — 140 cr/mo (₹1,799/mo).
-  { slug: "sub_pro_1mo",  name: "Pro (Monthly)", priceInPaise: 179900,           intervalMonths: 1,  monthlyCredits: 140, veo3Included: false, sortOrder: 20, features: ["140 credits / month", "All AI tools", "Priority rendering"] },
-  { slug: "sub_pro_12mo", name: "Pro (Yearly)",  priceInPaise: yearly(179900),   intervalMonths: 12, monthlyCredits: 140, veo3Included: true,  sortOrder: 23, features: ["140 credits / month", "Save 20% vs monthly", "Veo3 AI video included"] },
-  // Studio — 340 cr/mo (₹3,999/mo).
-  { slug: "sub_studio_1mo",  name: "Studio (Monthly)", priceInPaise: 399900,          intervalMonths: 1,  monthlyCredits: 340, veo3Included: false, sortOrder: 30, features: ["340 credits / month", "Priority rendering", "Dedicated support"] },
-  { slug: "sub_studio_12mo", name: "Studio (Yearly)",  priceInPaise: yearly(399900),  intervalMonths: 12, monthlyCredits: 340, veo3Included: true,  sortOrder: 33, features: ["340 credits / month", "Save 20% vs monthly", "Veo3 AI video included"] },
+  // Creator — 50 cr/mo (₹999/mo).
+  { slug: "sub_creator_1mo",  name: "Creator (Monthly)", priceInPaise: 99900,            intervalMonths: 1,  monthlyCredits: 50,  veo3Included: false, sortOrder: 10, features: ["50 credits / month", "All AI tools", "1080p exports"] },
+  { slug: "sub_creator_12mo", name: "Creator (Yearly)",  priceInPaise: yearly(99900),    intervalMonths: 12, monthlyCredits: 50,  veo3Included: true,  sortOrder: 13, features: ["50 credits / month", "Save 20% vs monthly", "Veo3 AI video included"] },
+  // Pro — 140 cr/mo (₹2,199/mo).
+  { slug: "sub_pro_1mo",  name: "Pro (Monthly)", priceInPaise: 219900,           intervalMonths: 1,  monthlyCredits: 140, veo3Included: false, sortOrder: 20, features: ["140 credits / month", "All AI tools", "Priority rendering"] },
+  { slug: "sub_pro_12mo", name: "Pro (Yearly)",  priceInPaise: yearly(219900),   intervalMonths: 12, monthlyCredits: 140, veo3Included: true,  sortOrder: 23, features: ["140 credits / month", "Save 20% vs monthly", "Veo3 AI video included"] },
+  // Studio — 340 cr/mo (₹4,999/mo).
+  { slug: "sub_studio_1mo",  name: "Studio (Monthly)", priceInPaise: 499900,          intervalMonths: 1,  monthlyCredits: 340, veo3Included: false, sortOrder: 30, features: ["340 credits / month", "Priority rendering", "Dedicated support"] },
+  { slug: "sub_studio_12mo", name: "Studio (Yearly)",  priceInPaise: yearly(499900),  intervalMonths: 12, monthlyCredits: 340, veo3Included: true,  sortOrder: 33, features: ["340 credits / month", "Save 20% vs monthly", "Veo3 AI video included"] },
 ].map(p => ({ ...p, kind: "subscription" as const, credits: p.monthlyCredits * p.intervalMonths }));
 
 // Old 3-month / 6-month terms are retired. Deactivate them (keep rows for

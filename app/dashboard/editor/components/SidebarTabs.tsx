@@ -1,13 +1,21 @@
 "use client";
 
-// Left sidebar: icon rail (Media / Text / Audio) + the active panel, with a
-// collapse toggle that hides the panel and leaves just the icon rail.
+// Left sidebar: icon rail + the active panel, with a collapse toggle that
+// hides the panel and leaves just the icon rail.
 
 import React, { useState } from "react";
 import { useEditorStore, type PanelKind } from "../store/editorStore";
 import MediaPanel from "./panels/MediaPanel";
+import StockImagePanel from "./panels/StockImagePanel";
+import StockAudioPanel from "./panels/StockAudioPanel";
+import StockVideoPanel from "./panels/StockVideoPanel";
 import TextPanel from "./panels/TextPanel";
-import AudioPanel from "./panels/AudioPanel";
+import CaptionPanel from "./panels/CaptionPanel";
+import StickerPanel from "./panels/StickerPanel";
+import EffectPanel from "./panels/EffectPanel";
+import FilterPanel from "./panels/FilterPanel";
+import TransitionPanel from "./panels/TransitionPanel";
+import KeyboardPanel from "./panels/KeyboardPanel";
 
 const TABS: { id: PanelKind; label: string; icon: React.ReactNode }[] = [
   {
@@ -21,11 +29,23 @@ const TABS: { id: PanelKind; label: string; icon: React.ReactNode }[] = [
     ),
   },
   {
-    id: "text",
-    label: "Text",
+    id: "image",
+    label: "Image",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="h-5 w-5">
-        <path d="M4 6h16M12 6v13" strokeLinecap="round" />
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <circle cx="8.5" cy="9.5" r="1.5" />
+        <path d="M21 16l-5.5-5.5L7 19" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    id: "video",
+    label: "Video",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="h-5 w-5">
+        <rect x="2.5" y="6.5" width="13" height="11" rx="2" />
+        <path d="M15.5 10l6-3v10l-6-3" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     ),
   },
@@ -40,6 +60,77 @@ const TABS: { id: PanelKind; label: string; icon: React.ReactNode }[] = [
       </svg>
     ),
   },
+  {
+    id: "text",
+    label: "Text",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="h-5 w-5">
+        <path d="M4 6h16M12 6v13" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    id: "caption",
+    label: "Caption",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="h-5 w-5">
+        <rect x="3" y="6" width="18" height="12" rx="2" />
+        <path d="M6.5 15h4M12.5 15h5M6.5 11h11" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    id: "sticker",
+    label: "Sticker",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="h-5 w-5">
+        <path d="M8 3.5h8A4.5 4.5 0 0 1 20.5 8v8a4 4 0 0 1-4 4H8a4.5 4.5 0 0 1-4.5-4.5V8A4.5 4.5 0 0 1 8 3.5z" />
+        <path d="M20.5 8h-4A4 4 0 0 1 20.5 8z" />
+        <path d="M14.5 20l6-6" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    id: "effect",
+    label: "Effect",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="h-5 w-5">
+        <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" strokeLinecap="round" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    ),
+  },
+  {
+    id: "filter",
+    label: "Filter",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="h-5 w-5">
+        <path d="M4 5h16l-6 8v6l-4-2v-4L4 5z" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    id: "transition",
+    label: "Transition",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="h-5 w-5">
+        <rect x="2.5" y="6" width="8" height="12" rx="1.5" />
+        <rect x="13.5" y="6" width="8" height="12" rx="1.5" opacity="0.4" />
+        <path d="M10.5 12h4" strokeLinecap="round" />
+        <path d="M12.5 10l2 2-2 2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    id: "keyboard",
+    label: "Keys",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="h-5 w-5">
+        <rect x="2.5" y="6" width="19" height="12" rx="2" />
+        <path d="M6 10h.01M9.5 10h.01M13 10h.01M16.5 10h.01M6 14h12" strokeLinecap="round" />
+      </svg>
+    ),
+  },
 ];
 
 export default function SidebarTabs() {
@@ -50,7 +141,7 @@ export default function SidebarTabs() {
   return (
     <aside className="relative flex h-full flex-shrink-0 border-r border-zinc-800 bg-zinc-900">
       {/* Icon rail */}
-      <div className="flex w-16 flex-col items-center gap-1 border-r border-zinc-800 py-3">
+      <div className="flex w-16 flex-col items-center gap-1 overflow-y-auto border-r border-zinc-800 py-3">
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -60,7 +151,7 @@ export default function SidebarTabs() {
               setCollapsed(false);
             }}
             title={tab.label}
-            className={`flex w-14 flex-col items-center gap-1 rounded-xl py-2.5 text-[10px] font-semibold transition-colors cursor-pointer ${
+            className={`flex w-14 flex-shrink-0 flex-col items-center gap-1 rounded-xl py-2.5 text-[10px] font-semibold transition-colors cursor-pointer ${
               activePanel === tab.id && !collapsed
                 ? "bg-violet-600/15 text-violet-400"
                 : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
@@ -72,14 +163,26 @@ export default function SidebarTabs() {
         ))}
       </div>
 
-      {/* Active panel */}
+      {/* Active panel. Width lives only on the outer scroller — the old inner
+          w-72 duplicate didn't account for the vertical scrollbar's own
+          width, so content was a few pixels too wide and forced a second,
+          horizontal scrollbar. w-full here just fills whatever the outer
+          box actually has left. */}
       <div
-        className={`overflow-y-auto bg-zinc-950 transition-[width] duration-150 ${collapsed ? "w-0 overflow-hidden" : "w-72"}`}
+        className={`overflow-y-auto overflow-x-hidden bg-zinc-950 transition-[width] duration-150 ${collapsed ? "w-0 overflow-hidden" : "w-80"}`}
       >
-        <div className="w-72">
+        <div className="w-full">
           {activePanel === "media" && <MediaPanel />}
+          {activePanel === "image" && <StockImagePanel />}
+          {activePanel === "video" && <StockVideoPanel />}
+          {activePanel === "audio" && <StockAudioPanel />}
           {activePanel === "text" && <TextPanel />}
-          {activePanel === "audio" && <AudioPanel />}
+          {activePanel === "caption" && <CaptionPanel />}
+          {activePanel === "sticker" && <StickerPanel />}
+          {activePanel === "effect" && <EffectPanel />}
+          {activePanel === "filter" && <FilterPanel />}
+          {activePanel === "transition" && <TransitionPanel />}
+          {activePanel === "keyboard" && <KeyboardPanel />}
         </div>
       </div>
 

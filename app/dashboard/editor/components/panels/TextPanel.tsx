@@ -11,7 +11,7 @@ const PRESETS: { label: string; preview: string; partial: Partial<TextClip> }[] 
   {
     label: "Headline",
     preview: "BIG BOLD HOOK",
-    partial: { fontFamily: "Impact", fontSizePct: 0.07, color: "#ffffff", bold: true, y: 0.2, bgColor: null },
+    partial: { fontFamily: "Anton", fontSizePct: 0.07, color: "#ffffff", bold: true, y: 0.2, bgColor: null },
   },
   {
     label: "Caption",
@@ -21,12 +21,52 @@ const PRESETS: { label: string; preview: string; partial: Partial<TextClip> }[] 
   {
     label: "Lower third",
     preview: "Name · Title",
-    partial: { fontFamily: "Arial", fontSizePct: 0.035, color: "#ffffff", bold: false, x: 0.28, y: 0.78, bgColor: "#0a8f70" },
+    partial: { fontFamily: "Montserrat", fontSizePct: 0.035, color: "#ffffff", bold: false, x: 0.28, y: 0.78, bgColor: "#0a8f70" },
   },
   {
     label: "Serif quote",
     preview: "“something said”",
-    partial: { fontFamily: "Times New Roman", fontSizePct: 0.05, color: "#ffffff", bold: false, y: 0.5, bgColor: null },
+    partial: { fontFamily: "Playfair Display", fontSizePct: 0.05, color: "#ffffff", bold: false, y: 0.5, bgColor: null },
+  },
+  {
+    label: "Bold impact",
+    preview: "STOP SCROLLING",
+    partial: { fontFamily: "Impact", fontSizePct: 0.08, color: "#fbbf24", bold: true, y: 0.15, bgColor: null },
+  },
+  {
+    label: "Highlight tag",
+    preview: "NEW",
+    partial: { fontFamily: "Poppins", fontSizePct: 0.04, color: "#000000", bold: true, y: 0.12, bgColor: "#fbbf24" },
+  },
+  {
+    label: "Minimal caption",
+    preview: "quiet little line",
+    partial: { fontFamily: "Arial", fontSizePct: 0.032, color: "#e5e7eb", bold: false, y: 0.9, bgColor: null },
+  },
+  {
+    label: "Question hook",
+    preview: "Did you know this?",
+    partial: { fontFamily: "Poppins", fontSizePct: 0.06, color: "#ffffff", bold: true, y: 0.25, bgColor: "#dc2626" },
+  },
+  {
+    label: "Poster",
+    preview: "SALE ENDS SOON",
+    partial: { fontFamily: "Bebas Neue", fontSizePct: 0.09, color: "#ffffff", bold: false, y: 0.18, bgColor: null },
+  },
+  {
+    label: "Sporty",
+    preview: "GAME DAY",
+    partial: { fontFamily: "Oswald", fontSizePct: 0.065, color: "#ffffff", bold: true, y: 0.22, bgColor: "#111827" },
+  },
+  {
+    label: "Modern sans",
+    preview: "Clean & modern",
+    partial: { fontFamily: "Montserrat", fontSizePct: 0.045, color: "#ffffff", bold: true, y: 0.5, bgColor: null },
+  },
+  {
+    label: "Editorial",
+    preview: "A quiet moment",
+    partial: { fontFamily: "Playfair Display", fontSizePct: 0.045, color: "#f5f5f4", bold: false, y: 0.88, bgColor: null },
   },
 ];
 

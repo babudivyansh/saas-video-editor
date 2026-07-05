@@ -77,6 +77,8 @@ export async function editorRenderJob(payload: EditorRenderPayload): Promise<voi
     await setRenderProgress(projectId, "downloading", 5);
     await prisma.project.update({ where: { id: projectId }, data: { progress: 5 } });
 
+    const imageAssetIds = new Set(doc.tracks.image.map((c) => c.assetId));
+
     const assets = new Map<string, ClipInput>();
     const entries = Object.entries(assetUrls);
     for (let i = 0; i < entries.length; i++) {
@@ -85,8 +87,9 @@ export async function editorRenderJob(payload: EditorRenderPayload): Promise<voi
       const localPath = path.join(tmp, `editor-${projectId}-${assetId}${ext}`);
       await downloadFile(url, localPath);
       tempFiles.push(localPath);
-      const hasAudio = await hasAudioStream(localPath);
-      assets.set(assetId, { filePath: localPath, hasAudio });
+      const isImage = imageAssetIds.has(assetId);
+      const hasAudio = isImage ? false : await hasAudioStream(localPath);
+      assets.set(assetId, { filePath: localPath, hasAudio, isImage });
       const pct = 5 + Math.round(((i + 1) / entries.length) * 15);
       await setRenderProgress(projectId, "downloading", pct);
       await prisma.project.update({ where: { id: projectId }, data: { progress: pct } });

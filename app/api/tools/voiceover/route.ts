@@ -10,8 +10,14 @@ import { markQuestComplete } from "@/lib/quests";
 
 export const maxDuration = 120;
 
-const MAX_CHARS = 5000;
-const CREDIT_COST = 1;
+// ElevenLabs Flash TTS bills $0.05/1,000 chars — capped so the worst case
+// (~₹9.5 at 2,000 chars) stays well under 2 credits' revenue even at the
+// cheapest per-credit plan (Studio Yearly, ~₹9.41/credit = ~₹18.8).
+const MAX_CHARS = 2000;
+// Was 1 credit — that only broke even against the 2,000-char cap's ~₹9.5
+// worst-case cost at the cheapest per-credit plan. Matches the 2-credit
+// price already advertised via TOOL_DEFAULTS/tool-costs.
+const CREDIT_COST = 2;
 
 async function refundCredit(userId: string) {
   await prisma.user.update({

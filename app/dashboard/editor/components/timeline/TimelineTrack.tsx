@@ -12,13 +12,14 @@ const TRACK_HEIGHT: Record<TrackKind, string> = {
   video: "h-14",
   text: "h-9",
   audio: "h-9",
+  image: "h-9",
 };
 
 export default function TimelineTrack({ kind, label }: { kind: TrackKind; label: string }) {
   const clips = useEditorStore((s) => s.doc.tracks[kind]);
   // Fetched once per track (not per-clip) so N clips of the same asset don't
   // each trigger their own /api/assets request.
-  const { assets } = useAssets(kind === "audio" ? "audio" : "video");
+  const { assets } = useAssets(kind === "audio" ? "audio" : kind === "image" ? "image" : "video");
 
   return (
     <div className={`relative ${TRACK_HEIGHT[kind]} rounded-md bg-zinc-900`}>

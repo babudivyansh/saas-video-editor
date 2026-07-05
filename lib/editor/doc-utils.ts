@@ -7,7 +7,7 @@ import { MIN_CLIP_DURATION } from "./types";
 /** Total duration of the timeline: end of the last clip across all tracks. */
 export function docDuration(doc: TimelineDoc): number {
   let end = 0;
-  for (const track of [doc.tracks.video, doc.tracks.text, doc.tracks.audio] as const) {
+  for (const track of [doc.tracks.video, doc.tracks.text, doc.tracks.audio, doc.tracks.image] as const) {
     for (const c of track) end = Math.max(end, c.timelineStart + c.duration);
   }
   return end;
@@ -91,7 +91,7 @@ export function snapTime(t: number, candidates: number[], toleranceSec: number):
 /** All snap candidate times in the doc (clip edges on every track). */
 export function snapCandidates(doc: TimelineDoc, excludeClipId?: string): number[] {
   const out: number[] = [0];
-  for (const track of [doc.tracks.video, doc.tracks.text, doc.tracks.audio] as const) {
+  for (const track of [doc.tracks.video, doc.tracks.text, doc.tracks.audio, doc.tracks.image] as const) {
     for (const c of track) {
       if (c.id === excludeClipId) continue;
       out.push(c.timelineStart, c.timelineStart + c.duration);
