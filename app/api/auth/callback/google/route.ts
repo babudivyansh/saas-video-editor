@@ -13,6 +13,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Authorization code not provided" }, { status: 400 });
     }
 
+    const host = req.headers.get("host") || "clipiro.com";
+    const proto = req.headers.get("x-forwarded-proto") || (req.url.startsWith("https") ? "https" : "http");
+    const redirectUri = `${proto}://${host}/api/auth/callback/google`;
+
     // 1. Exchange code for access tokens
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
@@ -21,7 +25,7 @@ export async function GET(req: NextRequest) {
         code,
         client_id: process.env.GOOGLE_CLIENT_ID!,
         client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-        redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/callback/google`,
+        redirect_uri: redirectUri,
         grant_type: "authorization_code",
       }),
     });
