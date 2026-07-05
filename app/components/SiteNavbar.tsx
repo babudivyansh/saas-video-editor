@@ -153,7 +153,7 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
 
           {/* Logo */}
           <Link href="/" className="flex items-center ml-15 md:ml-25" aria-label="Clipiro home">
-            <ClipiroLogo className="h-11" />
+            <ClipiroLogo className="h-13" />
           </Link>
 
           {/* Desktop nav */}

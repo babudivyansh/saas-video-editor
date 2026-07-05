@@ -52,7 +52,7 @@ export default function SiteFooter() {
           {/* Brand blurb */}
           <div className="col-span-2 sm:col-span-3 lg:col-span-1">
             <Link href="/" className="inline-flex" aria-label="Clipiro home">
-              <ClipiroLogo className="h-11" />
+              <ClipiroLogo className="h-13" />
             </Link>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-gray-500">
               Turn long videos into viral short-form content with AI clipping, captions, and one-click export.
