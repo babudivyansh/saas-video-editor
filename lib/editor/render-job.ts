@@ -33,9 +33,19 @@ function hasAudioStream(filePath: string): Promise<boolean> {
     const ffmpegPath: string = require("ffmpeg-static") ?? "ffmpeg";
     const proc = spawn(ffmpegPath, ["-i", filePath], { windowsHide: true });
     let stderr = "";
+    let settled = false;
+    // A probe should be near-instant; if it hangs, kill it rather than let it
+    // block the render queue behind it (see utils/ffmpeg-render.ts).
+    const timer = setTimeout(() => { proc.kill("SIGKILL"); }, 30_000);
+    const finish = (value: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
     proc.stderr.on("data", (d) => (stderr += d.toString()));
-    proc.on("close", () => resolve(/Stream #\d+:\d+.*Audio/.test(stderr)));
-    proc.on("error", () => resolve(false));
+    proc.on("close", () => finish(/Stream #\d+:\d+.*Audio/.test(stderr)));
+    proc.on("error", () => finish(false));
   });
 }
 

@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { signToken, cacheSession } from "@/lib/auth";
 import { consumeOtp } from "@/lib/otp";
 import { normalizeIdentifier, findUserByMethod, type AuthMethod } from "@/lib/identifier";
+import { rateLimit } from "@/lib/rate-limit";
+
+// A 6-digit OTP has ~900k possible values with no lockout otherwise brute-
+// forceable well within its 10-minute TTL. Limit to 5 verify attempts per
+// identifier per 10 minutes — enough for a genuine typo, nowhere near enough
+// to guess a code.
+const MAX_ATTEMPTS = 5;
+const WINDOW_SECONDS = 600;
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,6 +20,14 @@ export async function POST(req: NextRequest) {
 
     if (!identifier || !otp) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    }
+
+    const limit = await rateLimit(`otp-verify:${method}:${identifier}`, MAX_ATTEMPTS, WINDOW_SECONDS);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: "Too many attempts. Request a new code and try again in a few minutes." },
+        { status: 429 },
+      );
     }
 
     const ok = await consumeOtp(method, identifier, otp);

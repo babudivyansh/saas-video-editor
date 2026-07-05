@@ -156,7 +156,35 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   });
   if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-  await prisma.user.delete({ where: { id } });
+  // Purchase rows are financial/audit records and can't cascade away with the
+  // account (Purchase.user is onDelete: Restrict) — refuse up front with a
+  // clear message instead of letting the delete below throw.
+  const purchaseCount = await prisma.purchase.count({ where: { userId: id } });
+  if (purchaseCount > 0) {
+    return NextResponse.json(
+      { error: "This user has billing history that must be retained for financial records, so the account can't be deleted." },
+      { status: 409 },
+    );
+  }
+
+  // Affiliate/Referral/Commission rows have no onDelete: Cascade, so they must
+  // be cleared before the User row can be deleted, or Postgres throws a
+  // foreign-key violation (this previously crashed with an unhandled 500 for
+  // any affiliate-linked or referred user — see DELETE /api/auth/profile for
+  // the same pattern used for self-service deletion).
+  try {
+    await prisma.$transaction([
+      prisma.commission.deleteMany({ where: { referral: { referredUserId: id } } }),
+      prisma.referral.deleteMany({ where: { referredUserId: id } }),
+      prisma.commission.deleteMany({ where: { affiliate: { userId: id } } }),
+      prisma.referral.deleteMany({ where: { affiliate: { userId: id } } }),
+      prisma.affiliate.deleteMany({ where: { userId: id } }),
+      prisma.user.delete({ where: { id } }),
+    ]);
+  } catch (err) {
+    console.error("[admin.deleteUser]", err);
+    return NextResponse.json({ error: "Could not delete this user — they may have related records that couldn't be cleared." }, { status: 409 });
+  }
 
   // Clean up Redis session and credit cache
   await Promise.allSettled([

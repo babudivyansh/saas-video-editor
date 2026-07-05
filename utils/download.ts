@@ -3,7 +3,12 @@ import path from "path";
 import https from "https";
 import http from "http";
 
-export function downloadFile(url: string, destPath: string): Promise<void> {
+// `timeoutMs` bounds socket idle time — it resets on every chunk received, so
+// it catches both a server that never responds AND a download that stalls
+// partway through, not just a slow-but-steady one. Without this, a single
+// wedged download could block its render queue forever (queues run one job
+// at a time with no other watchdog).
+export function downloadFile(url: string, destPath: string, timeoutMs = 5 * 60 * 1000): Promise<void> {
   return new Promise((resolve, reject) => {
     const dir = path.dirname(destPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -17,7 +22,7 @@ export function downloadFile(url: string, destPath: string): Promise<void> {
         file.close();
         fs.unlinkSync(destPath);
         const redirectUrl = res.headers.location!;
-        downloadFile(redirectUrl, destPath).then(resolve).catch(reject);
+        downloadFile(redirectUrl, destPath, timeoutMs).then(resolve).catch(reject);
         return;
       }
       if (res.statusCode !== 200) {
@@ -28,6 +33,10 @@ export function downloadFile(url: string, destPath: string): Promise<void> {
       }
       res.pipe(file);
       file.on("finish", () => file.close(() => resolve()));
+    });
+
+    request.setTimeout(timeoutMs, () => {
+      request.destroy(new Error(`Download timed out after ${timeoutMs}ms for ${url}`));
     });
 
     request.on("error", (err) => {

@@ -14,11 +14,9 @@ import { redis } from "@/lib/redis";
 // and revoke Veo3 access.
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const authz = req.headers.get("authorization");
-    if (authz !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  const authz = req.headers.get("authorization");
+  if (!secret || authz !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const now = new Date();

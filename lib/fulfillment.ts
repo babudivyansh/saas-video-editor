@@ -34,101 +34,129 @@ export interface FulfillResult {
   alreadyProcessed: boolean;
 }
 
+type GrantResult =
+  | { status: "already-processed" }
+  | { status: "no-target" }
+  | { status: "granted"; kind: string; credits: number; isVeo3Pack: boolean };
+
 export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> {
   const { paymentId, orderId, amountInPaise, notes } = args;
   if (!paymentId) return { fulfilled: false, alreadyProcessed: false };
 
-  // ── Idempotency claim ──────────────────────────────────────────────────────
-  // Create the event row up-front. If it already exists, another path (webhook
-  // or verify) already handled this payment — bail out without double-granting.
-  try {
-    await prisma.razorpayEvent.create({
-      data: { id: paymentId, event: args.eventName ?? "payment.captured" },
-    });
-  } catch (e) {
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-      return { fulfilled: false, alreadyProcessed: true };
-    }
-    throw e;
-  }
-
   const userId = notes?.userId;
   const planSlug = notes?.planId ?? notes?.packId;
-  if (!userId || !planSlug) return { fulfilled: false, alreadyProcessed: false };
 
-  // Resolve everything from the DB plan (single source of truth); fall back to
-  // the order notes only if the plan was since removed.
-  const plan = await prisma.plan.findUnique({ where: { slug: planSlug } });
-  const kind = plan?.kind ?? notes?.kind ?? "pack";
+  // ── Idempotency claim + credit/plan grant, atomically ─────────────────────
+  // Both the RazorpayEvent claim and the actual grant happen in one
+  // transaction. Previously these were separate calls: if the process crashed
+  // between them, the event row existed but no credits were ever granted, and
+  // every future retry (webhook redelivery or client verify) would see the
+  // event row and silently no-op forever — a paid purchase permanently lost.
+  // Now either both commit together, or the whole thing rolls back (including
+  // the event row) and a retry safely re-attempts the full grant.
+  const result: GrantResult = await prisma.$transaction(async (tx) => {
+    try {
+      await tx.razorpayEvent.create({
+        data: { id: paymentId, event: args.eventName ?? "payment.captured" },
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        return { status: "already-processed" };
+      }
+      throw e;
+    }
 
-  if (kind === "subscription" && plan) {
-    const months = plan.intervalMonths ?? 1;
-    const monthlyCredits = plan.monthlyCredits ?? plan.credits;
-    const now = new Date();
-    const endsAt = new Date(now); endsAt.setMonth(endsAt.getMonth() + months);
-    const nextRefill = new Date(now); nextRefill.setMonth(nextRefill.getMonth() + 1);
+    if (!userId || !planSlug) return { status: "no-target" };
 
-    let addonSlugs: string[] = [];
-    try { addonSlugs = notes?.addonIds ? JSON.parse(notes.addonIds) : []; } catch { /* ignore */ }
+    // Resolve everything from the DB plan (single source of truth); fall back
+    // to the order notes only if the plan was since removed.
+    const plan = await tx.plan.findUnique({ where: { slug: planSlug } });
+    const kind = plan?.kind ?? notes?.kind ?? "pack";
 
-    const addons = addonSlugs.length
-      ? await prisma.plan.findMany({ where: { slug: { in: addonSlugs }, kind: "pack" } })
-      : [];
-    const addonCredits = addons.reduce((s, a) => s + a.credits, 0);
+    if (kind === "subscription" && plan) {
+      const months = plan.intervalMonths ?? 1;
+      const monthlyCredits = plan.monthlyCredits ?? plan.credits;
+      const now = new Date();
+      const endsAt = new Date(now); endsAt.setMonth(endsAt.getMonth() + months);
+      const nextRefill = new Date(now); nextRefill.setMonth(nextRefill.getMonth() + 1);
 
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        credits: { increment: monthlyCredits + addonCredits },
-        planId: plan.id,
-        subscriptionId: orderId,
-        subscriptionEndsAt: endsAt,
-        nextRefillAt: months > 1 ? nextRefill : null,
-        monthlyCredits,
-        veo3Enabled: plan.veo3Included,
-      },
-      select: { credits: true },
-    });
-    await redis.set(`credits:${userId}`, String(user.credits), "EX", 3600);
-    await prisma.purchase.create({
-      data: { id: paymentId, userId, planId: plan.id, amountInPaise, credits: monthlyCredits + addonCredits, status: "captured" },
-    });
-  } else if (kind === "addon") {
-    await prisma.user.update({ where: { id: userId }, data: { veo3Enabled: true } });
-    await prisma.purchase.create({
-      data: { id: paymentId, userId, planId: plan?.id ?? null, amountInPaise, credits: 0, status: "captured" },
-    });
-  } else {
+      let addonSlugs: string[] = [];
+      try { addonSlugs = notes?.addonIds ? JSON.parse(notes.addonIds) : []; } catch { /* ignore */ }
+
+      const addons = addonSlugs.length
+        ? await tx.plan.findMany({ where: { slug: { in: addonSlugs }, kind: "pack" } })
+        : [];
+      const addonCredits = addons.reduce((s, a) => s + a.credits, 0);
+      const totalCredits = monthlyCredits + addonCredits;
+
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          credits: { increment: totalCredits },
+          planId: plan.id,
+          subscriptionId: orderId,
+          subscriptionEndsAt: endsAt,
+          nextRefillAt: months > 1 ? nextRefill : null,
+          monthlyCredits,
+          veo3Enabled: plan.veo3Included,
+        },
+      });
+      await tx.purchase.create({
+        data: { id: paymentId, userId, planId: plan.id, amountInPaise, credits: totalCredits, status: "captured" },
+      });
+      return { status: "granted", kind, credits: totalCredits, isVeo3Pack: false };
+    }
+
+    if (kind === "addon") {
+      await tx.user.update({ where: { id: userId }, data: { veo3Enabled: true } });
+      await tx.purchase.create({
+        data: { id: paymentId, userId, planId: plan?.id ?? null, amountInPaise, credits: 0, status: "captured" },
+      });
+      return { status: "granted", kind, credits: 0, isVeo3Pack: false };
+    }
+
     // One-time top-up pack: add credits to the appropriate pool.
     // Veo3 pack credits go into a restricted pool — they can ONLY be spent on Veo3.
     const credits = plan?.credits ?? parseInt(notes?.credits ?? "0", 10);
+    const isVeo3Pack = planSlug === "pack_veo3_5";
     if (credits > 0) {
-      const isVeo3Pack = planSlug === "pack_veo3_5";
-      const user = await prisma.user.update({
+      await tx.user.update({
         where: { id: userId },
         data: isVeo3Pack
           ? { veo3Credits: { increment: credits } }
           : { credits: { increment: credits } },
-        select: { credits: true },
       });
-      if (!isVeo3Pack) {
-        await redis.set(`credits:${userId}`, String(user.credits), "EX", 3600);
-      }
-      await prisma.purchase.create({
+      await tx.purchase.create({
         data: { id: paymentId, userId, planId: plan?.id ?? null, amountInPaise, credits, status: "captured" },
       });
     }
+    return { status: "granted", kind, credits, isVeo3Pack };
+  });
+
+  if (result.status === "already-processed") return { fulfilled: false, alreadyProcessed: true };
+  if (result.status === "no-target") return { fulfilled: false, alreadyProcessed: false };
+  const { kind, credits } = result;
+  // Guaranteed defined past the "no-target" check above (that's exactly the
+  // case where either was missing).
+  const uid = userId as string;
+
+  // ── Post-commit cache refresh (best-effort) ───────────────────────────────
+  // Redis is a cache with a TTL, not the source of truth, so it doesn't need
+  // to be part of the transaction above.
+  if (!result.isVeo3Pack) {
+    const fresh = await prisma.user.findUnique({ where: { id: uid }, select: { credits: true } });
+    if (fresh) await redis.set(`credits:${uid}`, String(fresh.credits), "EX", 3600);
   }
 
   // ── Purchase confirmation email (non-fatal) ───────────────────────────────
   try {
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: uid },
       select: { email: true, firstName: true, name: true },
     });
     if (user) {
-      const planForEmail = plan ?? await prisma.plan.findUnique({ where: { slug: planSlug } });
-      const creditsForEmail = planForEmail?.credits ?? parseInt(notes?.credits ?? "0", 10);
+      const planForEmail = await prisma.plan.findUnique({ where: { slug: planSlug } });
+      const creditsForEmail = planForEmail?.credits ?? credits;
       const isSubscription = (planForEmail?.kind ?? kind) === "subscription";
       await sendPurchaseConfirmationEmail({
         userEmail: user.email,
@@ -150,7 +178,7 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
       const discountInPaise = parseInt(notes.discountInPaise ?? "0", 10) || 0;
       await prisma.$transaction([
         prisma.couponRedemption.create({
-          data: { couponId: notes.couponId, userId, orderId, discountInPaise },
+          data: { couponId: notes.couponId, userId: uid, orderId, discountInPaise },
         }),
         prisma.coupon.update({
           where: { id: notes.couponId },
@@ -165,7 +193,7 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
   // ── Affiliate commission (non-fatal, first payment only) ───────────────────
   try {
     const referral = await prisma.referral.findUnique({
-      where: { referredUserId: userId },
+      where: { referredUserId: uid },
       include: { affiliate: true },
     });
     if (referral && referral.status === "signed_up" && referral.affiliate.status === "active") {

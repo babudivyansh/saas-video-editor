@@ -115,7 +115,11 @@ model Plan {
 model Purchase {
   id            String   @id
   userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Restrict, not Cascade: a Purchase row is a financial/audit record and must
+  // never be silently destroyed by deleting the user it belongs to. Both
+  // DELETE /api/auth/profile and the admin user-delete route explicitly check
+  // for purchase history and refuse the delete with a clear message instead.
+  user          User     @relation(fields: [userId], references: [id], onDelete: Restrict)
   planId        String?
   plan          Plan?    @relation(fields: [planId], references: [id])
   amountInPaise Int

@@ -4,6 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { signToken, cacheSession } from "@/lib/auth";
 import { normalizeIdentifier, findUserByMethod, type AuthMethod } from "@/lib/identifier";
 
+// Fixed-cost bcrypt hash with no matching password, compared against when the
+// account doesn't exist so the response takes the same time either way and
+// can't be used to enumerate valid identifiers.
+const DUMMY_HASH = "$2b$12$ipMR8KgUrP3uE9KmGnmsnu9652Wk4V/4DG8PcTNPmZashszFKZSHC";
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -16,10 +21,10 @@ export async function POST(req: NextRequest) {
     }
 
     const user = await findUserByMethod(method, identifier);
-    // Always run a compare to avoid leaking which identifiers exist via timing.
-    const valid = user
-      ? await bcrypt.compare(password, user.passwordHash || "")
-      : false;
+    // Always run a compare — against the dummy hash when the user doesn't
+    // exist — so both branches take the same time and timing can't be used
+    // to enumerate valid identifiers.
+    const valid = await bcrypt.compare(password, user?.passwordHash || DUMMY_HASH);
     if (!user || !valid) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
