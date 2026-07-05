@@ -10,7 +10,7 @@ import type { TimelineDoc } from "@/lib/editor/types";
 import { useEditorStore } from "./store/editorStore";
 import EditorShell from "./EditorShell";
 
-export default function EditorPage() {
+function EditorPageContent() {
   const { user, token, openAuthModal } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -87,4 +87,18 @@ export default function EditorPage() {
   }
 
   return <EditorShell />;
+}
+
+export default function EditorPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center bg-zinc-950">
+          <p className="text-sm text-zinc-400">Opening editor…</p>
+        </div>
+      }
+    >
+      <EditorPageContent />
+    </React.Suspense>
+  );
 }
