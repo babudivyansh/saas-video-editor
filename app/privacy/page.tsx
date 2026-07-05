@@ -20,6 +20,22 @@ export default function PrivacyPage() {
   return (
     <LegalPage title="Privacy Policy" lastUpdated="June 28, 2026" sections={sections}>
 
+      <div className="mb-8 p-6 bg-blue-50/50 rounded-2xl border border-[#E8EDFF] flex items-start gap-4">
+        <div className="w-8 h-8 rounded-lg bg-[#335CFF]/10 text-[#335CFF] flex items-center justify-center flex-shrink-0 mt-0.5">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
+        </div>
+        <div>
+          <h4 className="text-sm font-bold text-gray-900">Privacy Highlights</h4>
+          <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+            • <strong>Security First:</strong> Your passwords are encrypted with industry-standard bcrypt hashing.<br />
+            • <strong>No Data Selling:</strong> We do not sell your personal data or video configurations.<br />
+            • <strong>Secure Transactions:</strong> Billing is processed directly through Razorpay; we never handle your credit card data.
+          </p>
+        </div>
+      </div>
+
       <p>
         Welcome to Clipiro (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;). We are committed to protecting your personal
         information and your right to privacy. This Privacy Policy explains how we collect, use,
