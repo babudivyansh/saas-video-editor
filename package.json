@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "postbuild": "node -e \"const fs=require('fs');const path=require('path');[['public','.next/standalone/public'],['.next/static','.next/standalone/.next/static']].forEach(([src,dst])=>{if(fs.existsSync(src)){fs.cpSync(src,dst,{recursive:true,force:true});console.log('Copied '+src+' -> '+dst);}});if(fs.existsSync('.env')){fs.copyFileSync('.env','.next/standalone/.env');console.log('Copied .env -> .next/standalone/.env');}\"",
+    "postbuild": "node scripts/postbuild.js",
     "start": "node .next/standalone/server.js",
     "lint": "eslint",
 
