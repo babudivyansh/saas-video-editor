@@ -41,7 +41,7 @@ const SOCIALS = [
   { icon: <XIcon className="h-4 w-4" />, label: "X (Twitter)", href: "#" },
   { icon: <YoutubeIcon className="h-4 w-4" />, label: "YouTube", href: "#" },
   { icon: <GitHubIcon className="h-4 w-4" />, label: "GitHub", href: "#" },
-  { icon: <DiscordIcon className="h-4 w-4" />, label: "Discord", href: "#" },
+  { icon: <DiscordIcon className="h-4 w-4" />, label: "Discord", href: "/discord" },
 ];
 
 export default function SiteFooter() {
@@ -52,7 +52,7 @@ export default function SiteFooter() {
           {/* Brand blurb */}
           <div className="col-span-2 sm:col-span-3 lg:col-span-1">
             <Link href="/" className="inline-flex" aria-label="Clipiro home">
-              <ClipiroLogo className="h-9" />
+              <ClipiroLogo className="h-13" />
             </Link>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-gray-500">
               Turn long videos into viral short-form content with AI clipping, captions, and one-click export.

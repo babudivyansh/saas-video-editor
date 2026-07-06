@@ -47,5 +47,5 @@ export const AI_TOOLS: FeatureLink[] = [
 // Resources (non-feature links shown in the navbar dropdown).
 export const RESOURCES: FeatureLink[] = [
   { title: "Affiliate Program", desc: "Earn 20% recurring on every paid referral", href: "/affiliate-program" },
-  { title: "Community Discord", desc: "Get support & connect with fellow creators", href: "https://discord.gg/clipiro", external: true },
+  { title: "Community Discord", desc: "Get support & connect with fellow creators", href: "/discord", external: true },
 ];
