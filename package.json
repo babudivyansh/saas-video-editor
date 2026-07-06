@@ -5,8 +5,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "postbuild": "node -e \"const fs=require('fs');const path=require('path');[['public','.next/standalone/public'],['.next/static','.next/standalone/.next/static']].forEach(([src,dst])=>{if(fs.existsSync(src)){fs.cpSync(src,dst,{recursive:true,force:true});console.log('Copied '+src+' -> '+dst);}});if(fs.existsSync('.env')){fs.copyFileSync('.env','.next/standalone/.env');console.log('Copied .env -> .next/standalone/.env');}\"",
+    "start": "node .next/standalone/server.js",
     "lint": "eslint",
+
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "test:ffmpeg": "tsx utils/test-ffmpeg.ts",
