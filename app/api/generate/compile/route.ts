@@ -7,6 +7,7 @@ import { generateASS, runFFmpeg } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { downloadFile } from "@/utils/download";
 import { markQuestComplete } from "@/lib/quests";
+import { firePostCreditSpendEmails, fireZeroCreditsEmail } from "@/lib/credit-events";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -114,11 +115,15 @@ export async function POST(req: NextRequest) {
       where: { id: auth.userId },
       data: { credits: { increment: CREDIT_COST } },
     });
+    fireZeroCreditsEmail(auth.userId);
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
 
   // Sync Redis
   await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
+
+  // ── Post-spend email side effects (first video, low credits) ───────
+  firePostCreditSpendEmails(auth.userId, user.credits);
 
   await prisma.project.update({
     where: { id: body.projectId },

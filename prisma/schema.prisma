@@ -36,6 +36,15 @@ model User {
   veo3Credits        Int        @default(0)    // restricted pool from Veo3 pack — only spendable on Veo3
   // Affiliate program
   referredBy         String?    // affiliateId that referred this user
+  // Email lifecycle tracking
+  lastLoginAt              DateTime?  // updated on every successful login
+  firstVideoAt             DateTime?  // set on first successful render — triggers upsell email
+  lowCreditEmailSentAt     DateTime?  // reset each monthly refill; prevents duplicate low-credit alerts
+  expiryReminderSentAt     DateTime?  // tracks which expiry email (7d/3d/1d) was last sent
+  reengagementSentAt       DateTime?  // prevents duplicate re-engagement emails
+  onboardingDay1SentAt     DateTime?
+  onboardingDay3SentAt     DateTime?
+  onboardingDay7SentAt     DateTime?
   createdAt    DateTime   @default(now())
   projects             Project[]
   assets               Asset[]
@@ -89,6 +98,7 @@ model Commission {
   availableAt     DateTime
   paidAt          DateTime?
   payoutRef       String?
+  payoutEmailSent Boolean   @default(false)  // prevents duplicate "commission available" emails
 }
 
 model Plan {

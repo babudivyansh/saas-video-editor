@@ -7,6 +7,7 @@ import { uploadBufferToS3 } from "@/utils/s3-upload";
 import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { markQuestComplete } from "@/lib/quests";
+import { firePostCreditSpendEmails, fireZeroCreditsEmail } from "@/lib/credit-events";
 
 export const maxDuration = 120;
 
@@ -81,9 +82,11 @@ export async function POST(req: NextRequest) {
   });
   if (user.credits < 0) {
     await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
+    fireZeroCreditsEmail(auth.userId);
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
   await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
+  firePostCreditSpendEmails(auth.userId, user.credits);
 
   try {
     const voiceId = resolveVoiceId(voiceSlug);

@@ -3,6 +3,7 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { signToken, cacheSession } from "@/lib/auth";
+import { sendWelcomeEmail, sendAffiliateReferralSignupEmail } from "@/lib/email";
 
 export async function GET(req: NextRequest) {
   try {
@@ -116,6 +117,21 @@ export async function GET(req: NextRequest) {
               where: { id: user.id },
               data: { referredBy: affiliate.id },
             });
+
+            // ── Notify affiliate (non-fatal) ────────────────────────────
+            const affiliateUser = await prisma.user.findUnique({
+              where: { id: affiliate.userId },
+              select: { email: true, firstName: true, name: true },
+            });
+            const totalReferrals = await prisma.referral.count({ where: { affiliateId: affiliate.id } });
+            if (affiliateUser && !sameSubnet) {
+              sendAffiliateReferralSignupEmail(
+                affiliateUser.email,
+                affiliateUser.firstName ?? affiliateUser.name ?? "",
+                profile.given_name ?? name ?? "A new user",
+                totalReferrals,
+              ).catch((e) => console.error("[google-callback] affiliate referral email error", e));
+            }
           }
         } catch {
           // Non-fatal
@@ -157,6 +173,10 @@ export async function GET(req: NextRequest) {
     if (isNewUser) {
       // Clear the affiliate cookie after attribution
       res.cookies.set("affiliate_ref", "", { maxAge: 0, path: "/" });
+      // ── Welcome email for new Google signup (non-fatal) ───────────
+      sendWelcomeEmail(user.email, profile.given_name ?? "", user.credits ?? 10).catch(
+        (e) => console.error("[google-callback] welcome email error", e)
+      );
     }
 
     return res;

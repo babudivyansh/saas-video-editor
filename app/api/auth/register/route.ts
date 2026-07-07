@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { signToken, cacheSession } from "@/lib/auth";
+import { sendWelcomeEmail, sendAffiliateReferralSignupEmail } from "@/lib/email";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^\+?[0-9]{7,15}$/;
@@ -93,6 +94,21 @@ export async function POST(req: NextRequest) {
             where: { id: user.id },
             data: { referredBy: affiliate.id },
           });
+
+          // ── Notify affiliate about new referral (non-fatal) ──────────
+          const affiliateUser = await prisma.user.findUnique({
+            where: { id: affiliate.userId },
+            select: { email: true, firstName: true, name: true },
+          });
+          const totalReferrals = await prisma.referral.count({ where: { affiliateId: affiliate.id } });
+          if (affiliateUser && !sameSubnet) {
+            sendAffiliateReferralSignupEmail(
+              affiliateUser.email,
+              affiliateUser.firstName ?? affiliateUser.name ?? "",
+              firstName,
+              totalReferrals,
+            ).catch((e) => console.error("[register] affiliate referral email error", e));
+          }
         }
       } catch {
         // Non-fatal: referral attribution failure should not block registration
@@ -102,6 +118,12 @@ export async function POST(req: NextRequest) {
     const res = NextResponse.json({ token, user }, { status: 201 });
     // Clear the affiliate cookie after attribution
     res.cookies.set("affiliate_ref", "", { maxAge: 0, path: "/" });
+
+    // ── Welcome email (non-fatal) ────────────────────────────────────────
+    sendWelcomeEmail(user.email, firstName, user.credits).catch(
+      (e) => console.error("[register] welcome email error", e)
+    );
+
     return res;
   } catch (err) {
     console.error("[register]", err);

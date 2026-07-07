@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { signToken, cacheSession } from "@/lib/auth";
 import { normalizeIdentifier, findUserByMethod, type AuthMethod } from "@/lib/identifier";
+import { sendNewLoginAlertEmail } from "@/lib/email";
 
 // Fixed-cost bcrypt hash with no matching password, compared against when the
 // account doesn't exist so the response takes the same time either way and
@@ -31,6 +32,40 @@ export async function POST(req: NextRequest) {
 
     const token = signToken({ userId: user.id, email: user.email });
     await cacheSession(user.id, token);
+
+    // ── Update lastLoginAt + send security alert (non-fatal) ──────────
+    const now = new Date();
+    prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: now },
+    }).catch(() => { /* non-fatal */ });
+
+    // Parse device from User-Agent
+    const ua = req.headers.get("user-agent") ?? "";
+    const device = ua.includes("Mobile") ? "Mobile Browser"
+      : ua.includes("Chrome") ? "Chrome on Desktop"
+      : ua.includes("Firefox") ? "Firefox on Desktop"
+      : ua.includes("Safari") ? "Safari on Desktop"
+      : "Unknown device";
+
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
+    const timeStr = now.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
+
+    // Fire & forget — fetch location from free ip-api, then send alert
+    ;(async () => {
+      try {
+        let location = "Unknown location";
+        if (ip && ip !== "::1" && !ip.startsWith("127.")) {
+          const geo = await fetch(`http://ip-api.com/json/${ip}?fields=city,country`, { signal: AbortSignal.timeout(2000) })
+            .then((r) => r.json()).catch(() => null);
+          if (geo?.city) location = `${geo.city}, ${geo.country}`;
+        }
+        const displayName = user.firstName ?? user.name ?? "";
+        await sendNewLoginAlertEmail(user.email, displayName, timeStr, location, device);
+      } catch (e) {
+        console.error("[login] alert email error", e);
+      }
+    })();
 
     return NextResponse.json({
       token,
