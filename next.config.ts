@@ -10,9 +10,6 @@ const nextConfig: NextConfig = {
     // lockfile, which misplaces Turbopack's on-disk cache and can break dev.
     root: __dirname,
   },
-  typescript: {
-    ignoreBuildErrors: true, // Guarantees production build completes successfully
-  },
 };
 
 export default nextConfig;

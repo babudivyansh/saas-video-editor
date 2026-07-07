@@ -4,8 +4,12 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 // Automatically rewrite direct Supabase connection strings (IPv6-only) to the IPv4 Connection Pooler
 let dbUrl = process.env.DATABASE_URL;
-if (dbUrl && dbUrl.includes("supabase.co:5432")) {
-  const match = dbUrl.match(/postgresql:\/\/([^:]+):(.+)@db\.([^.]+)\.supabase\.co:5432\/(.+)/);
+if (dbUrl && dbUrl.includes("supabase")) {
+  // Format 1: postgresql://user:pass@db.<ref>.supabase.co:5432/<db>
+  const matchDirect = dbUrl.match(/postgresql:\/\/([^:]+):(.+)@db\.([^.]+)\.supabase\.co:5432\/(.+)/);
+  // Format 2: postgresql://user:pass@postgres.<ref>.supabase.co:5432/<db>  (or similar)
+  const matchPostgres = !matchDirect && dbUrl.match(/postgresql:\/\/([^:]+):(.+)@postgres\.([^.]+)\.supabase\.co(?::\d+)?\/(.+)/);
+  const match = matchDirect || matchPostgres;
   if (match) {
     const [_, user, password, projectRef, dbName] = match;
     dbUrl = `postgresql://${user}.${projectRef}:${password}@aws-0-ap-south-1.pooler.supabase.com:6543/${dbName}?pgbouncer=true&connection_limit=1`;
