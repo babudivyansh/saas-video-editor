@@ -105,7 +105,7 @@ const FAQS = [
   },
   {
     q: "What is a credit?",
-    a: "Credits are spent on AI tools — the cost depends on the tool (e.g. 1 credit for an image, 2 for a voiceover or video render, 35 for a Veo3 AI video). Subscription credits refill each month and do not roll over. The Veo3 Video Pack gives a separate Veo3-only credit pool that can only be used for Veo3 AI video generation — not voiceovers or other tools.",
+    a: "Credits are spent on AI tools — the cost depends on the tool (e.g. 1 credit for an image, 2 for a voiceover or video render, 35 for a Veo3 AI video). Subscription credits refill each month and do not roll over. Add-on credits (including the Veo3 Video Pack) are valid for as long as your subscription is active — they cannot be used without an active plan. The Veo3 Video Pack gives a separate Veo3-only credit pool that can only be used for Veo3 AI video generation — not voiceovers or other tools.",
   },
   {
     q: "How long can each video be?",
@@ -171,6 +171,7 @@ export default function PricingPage() {
   const [plansLoading, setPlansLoading] = useState(true);
   const [term, setTerm] = useState(1);
   const [toolCosts, setToolCosts] = useState<ToolCost[]>([]);
+  const [showAllCosts, setShowAllCosts] = useState(false);
 
   // Checkout state
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
@@ -312,12 +313,23 @@ export default function PricingPage() {
       {/* ── Hero ── */}
       <section className="pt-16 pb-4 text-center px-4">
         <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 mb-3">
-          Simple, transparent pricing
+          Pro video tools. One credit at a time.
         </h1>
         <p className="text-lg text-gray-500 max-w-xl mx-auto mb-2">
-          Free tools are open to everyone. Subscribe to unlock every AI tool — go <span className="font-semibold text-gray-700">yearly to save 20%</span> and get Veo3 AI video free.
+          Every AI tool — voiceovers, captions, Veo3 videos, and more — in one plan.
+          Go <span className="font-semibold text-gray-700">yearly to save 20%</span> and get Veo3 AI video included free on Studio.
         </p>
       </section>
+
+      {/* ── Trust Strip ── */}
+      <div className="border-y border-gray-100 bg-gray-50 py-5 px-4">
+        <div className="max-w-4xl mx-auto flex flex-wrap justify-center gap-x-10 gap-y-3 text-center text-sm">
+          <span className="text-gray-500">✓ <strong className="text-gray-700">3-day money-back</strong> guarantee</span>
+          <span className="text-gray-500">✓ <strong className="text-gray-700">No hidden fees</strong> — cancel anytime</span>
+          <span className="text-gray-500">✓ <strong className="text-gray-700">UPI, cards & wallets</strong> via Razorpay</span>
+          <span className="text-gray-500">✓ <strong className="text-gray-700">Commercial license</strong> on all plans</span>
+        </div>
+      </div>
 
       {/* ── Pricing Cards ── */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -413,6 +425,9 @@ export default function PricingPage() {
                         {plan.monthlyCredits} credits / month
                         {months > 1 && <> · ₹{price.toLocaleString("en-IN")} billed yearly</>}
                       </p>
+                      <p className={`text-[11px] mt-0.5 ${highlighted ? "text-blue-300/70" : "text-gray-400"}`}>
+                        Refills monthly · credits don&apos;t roll over
+                      </p>
                       {months > 1 && saved && saved > 0 && (
                         <p className={`text-xs font-bold mt-1 ${highlighted ? "text-green-300" : "text-green-600"}`}>
                           Save ₹{saved.toLocaleString("en-IN")} a year ({YEARLY_SAVE_PCT}% off)
@@ -420,10 +435,10 @@ export default function PricingPage() {
                       )}
                       {plan.monthlyCredits != null && (
                         <p className={`text-xs mt-1 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
-                          ≈ {plan.monthlyCredits} images, {Math.floor(plan.monthlyCredits / 2)} video renders, or {Math.floor(plan.monthlyCredits / 35)} Veo3 videos
+                          ≈ {plan.monthlyCredits} images or {Math.floor(plan.monthlyCredits / 2)} video renders
                         </p>
                       )}
-                      {plan.veo3Included && (
+                      {plan.veo3Included && tierOf(plan.slug) === "studio" && months > 1 && (
                         <span className={`inline-block mt-2 text-xs font-bold px-2 py-0.5 rounded-full ${highlighted ? "bg-white/20 text-white" : "bg-purple-100 text-purple-700"}`}>
                           ✦ Veo3 AI video included
                         </span>
@@ -448,8 +463,8 @@ export default function PricingPage() {
                       disabled={authLoading}
                       className={`w-full font-bold py-3 rounded-full transition-all disabled:opacity-60 disabled:cursor-wait ${
                         highlighted
-                          ? "bg-white text-blue-600 hover:bg-blue-50"
-                          : "bg-blue-600 text-white hover:bg-blue-700"
+                          ? "bg-white text-blue-600 hover:bg-blue-50 shadow-lg"
+                          : "bg-blue-600 text-white hover:bg-blue-700 ring-1 ring-blue-200"
                       }`}
                     >
                       {authLoading ? (
@@ -461,6 +476,11 @@ export default function PricingPage() {
                         `Get ${baseTier}`
                       )}
                     </button>
+
+                    {/* ── Guarantee micro-copy ── */}
+                    <p className={`text-center text-[11px] mt-2 ${highlighted ? "text-blue-300/80" : "text-gray-400"}`}>
+                      ✓ 3-day money-back guarantee
+                    </p>
                   </div>
                 );
               })}
@@ -479,11 +499,11 @@ export default function PricingPage() {
                 <span className="inline-block bg-blue-100 text-blue-700 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
                   {hasActivePlan ? "Top-up Credits" : "Optional Add-ons"}
                 </span>
-                <h3 className="text-2xl font-extrabold text-gray-900">Boost your credits</h3>
+                <h3 className="text-2xl font-extrabold text-gray-900">Need extra credits?</h3>
                 <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
                   {hasActivePlan
-                    ? "You have an active plan — buy any credit pack instantly. Credits never expire."
-                    : "Select any packs to bundle with your plan purchase. Credits never expire."}
+                    ? "Top-up anytime — add-on credits stack with your subscription and are valid while subscribed."
+                    : "Bundle any credit pack with your plan at checkout. Add-on credits are valid while your subscription is active."}
                 </p>
               </div>
 
@@ -510,7 +530,7 @@ export default function PricingPage() {
                         />
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-gray-900 text-sm leading-snug">{pack.name}</p>
-                          <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · never expire</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · valid while subscribed</p>
                           <p className="text-xl font-black text-gray-900 mt-3">₹{price.toLocaleString("en-IN")}</p>
                         </div>
                       </label>
@@ -561,7 +581,7 @@ export default function PricingPage() {
                               Veo3-only
                             </span>
                           </div>
-                          <p className="text-xs text-purple-600 font-semibold mt-0.5">5 Veo3 AI videos · never expire</p>
+                          <p className="text-xs text-purple-600 font-semibold mt-0.5">5 Veo3 AI videos · valid while subscribed</p>
                           <p className="text-2xl font-black text-gray-900 mt-2">₹{price.toLocaleString("en-IN")}</p>
                           <p className="text-xs text-gray-400 mt-1">₹199.80 per video · {veo3Pack.credits} Veo3 credits</p>
                         </div>
@@ -611,7 +631,7 @@ export default function PricingPage() {
         })()}
 
         <p className="text-center mt-10 text-gray-400 text-sm">
-          Free tools are always free · Longer terms include Veo3 · Powered by Razorpay
+          Free tools always free · Subscription credits refill monthly, don&apos;t roll over · Add-on credits valid while subscribed · Powered by Razorpay
         </p>
       </section>
 
@@ -707,9 +727,9 @@ export default function PricingPage() {
                             <div className="flex-1 min-w-0">
                               <p className="font-semibold text-gray-900 text-sm">{pack.name}</p>
                               {pack.slug === "pack_veo3_5" ? (
-                                <p className="text-xs text-purple-600 font-semibold mt-0.5">5 Veo3 AI videos · Veo3-only · never expire</p>
+                                <p className="text-xs text-purple-600 font-semibold mt-0.5">5 Veo3 AI videos · Veo3-only · valid while subscribed</p>
                               ) : (
-                                <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · never expire</p>
+                                <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · valid while subscribed</p>
                               )}
                             </div>
                             <p className="font-bold text-gray-900 whitespace-nowrap">
@@ -723,7 +743,7 @@ export default function PricingPage() {
                     {selectedAddons.length === 0 && (
                       <div className="mt-4 bg-amber-50 border border-amber-100 rounded-lg py-2.5 px-3 text-center">
                         <p className="text-xs text-amber-700 font-medium">
-                          💡 Add credits now — they never expire and save you more later!
+                          💡 Add credits now and use them throughout your subscription!
                         </p>
                       </div>
                     )}
@@ -843,6 +863,10 @@ export default function PricingPage() {
                   By continuing, you agree to our{" "}
                   <Link href="/terms" className="underline hover:text-gray-600">Terms of Service</Link>
                 </p>
+                <p className="text-xs text-gray-400 text-center mt-1">
+                  3-day money-back guarantee ·{" "}
+                  <Link href="/refund" className="underline hover:text-gray-600">Refund Policy</Link>
+                </p>
               </div>
             </div>
           </div>
@@ -863,7 +887,7 @@ export default function PricingPage() {
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {toolCosts.map(t => (
+            {(showAllCosts ? toolCosts : toolCosts.slice(0, 6)).map(t => (
               <div key={t.slug} className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-gray-900 truncate">{t.label}</p>
@@ -877,8 +901,18 @@ export default function PricingPage() {
               </div>
             ))}
           </div>
+          {toolCosts.length > 6 && (
+            <div className="text-center mt-5">
+              <button
+                onClick={() => setShowAllCosts(v => !v)}
+                className="text-sm font-semibold text-blue-600 hover:text-blue-800 underline underline-offset-2 transition-colors"
+              >
+                {showAllCosts ? "Show less ↑" : `See all ${toolCosts.length} tool costs ↓`}
+              </button>
+            </div>
+          )}
           <p className="text-center text-xs text-gray-400 mt-6">
-            Free tools never use credits. Credits refill monthly on subscriptions and never expire on top-ups.
+            Free tools never use credits. Subscription credits refill monthly and don&apos;t roll over. Add-on credits are valid while your subscription is active.
           </p>
         </section>
       )}
@@ -920,10 +954,13 @@ export default function PricingPage() {
                 <td className="text-center py-4 px-4"><CheckIcon className="w-5 h-5 text-blue-600 mx-auto" /></td>
               </tr>
               <tr className="bg-white">
-                <td className="py-4 px-6 text-sm text-gray-700">Veo3 AI video included</td>
-                <td className="text-center py-4 px-4 text-xs text-gray-500">6mo+</td>
-                <td className="text-center py-4 px-4 text-xs text-blue-700 bg-blue-50/50 font-medium">6mo+</td>
-                <td className="text-center py-4 px-4 text-xs text-gray-500">3mo+</td>
+                <td className="py-4 px-6 text-sm text-gray-700">
+                  Veo3 AI video included
+                  <span className="ml-1 text-[10px] text-gray-400">(free, no credits deducted)</span>
+                </td>
+                <td className="text-center py-4 px-4"><MinusIcon className="w-5 h-5 text-gray-300 mx-auto" /></td>
+                <td className="text-center py-4 px-4 bg-blue-50/50"><MinusIcon className="w-5 h-5 text-gray-300 mx-auto" /></td>
+                <td className="text-center py-4 px-4 text-xs font-semibold text-purple-700">Yearly only</td>
               </tr>
               <tr className="bg-gray-50">
                 <td className="py-4 px-6 text-sm text-gray-700">Support</td>
