@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { markQuestComplete } from "@/lib/quests";
+import { firePostCreditSpendEmails, fireZeroCreditsEmail } from "@/lib/credit-events";
 import {
   extractAudio,
   generateASS,
@@ -142,10 +143,12 @@ export async function POST(req: NextRequest) {
 
   if (user.credits < 0) {
     await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
+    fireZeroCreditsEmail(auth.userId);
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
 
   await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
+  firePostCreditSpendEmails(auth.userId, user.credits);
   await prisma.project.update({ where: { id: body.projectId }, data: { status: "rendering" } });
 
   getQueue().enqueue(body.projectId, {

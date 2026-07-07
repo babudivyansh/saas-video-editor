@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
-import { sendPurchaseConfirmationEmail } from "@/lib/email";
+import { sendPurchaseConfirmationEmail, sendAffiliateCommissionEmail } from "@/lib/email";
 
 // Single source of truth for granting a captured Razorpay payment. Called by
 // BOTH the client-side verify endpoint (app/api/billing/verify) and the webhook
@@ -223,6 +223,31 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
           data: { totalEarned: { increment: commission } },
         }),
       ]);
+
+      // ── Notify affiliate of commission (non-fatal) ─────────────────
+      try {
+        const affiliateUser = await prisma.user.findUnique({
+          where: { id: referral.affiliate.userId },
+          select: { email: true, firstName: true, name: true },
+        });
+        if (affiliateUser) {
+          const updatedAffiliate = await prisma.affiliate.findUnique({
+            where: { id: referral.affiliateId },
+            select: { totalEarned: true },
+          });
+          const availableAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+          sendAffiliateCommissionEmail(
+            affiliateUser.email,
+            affiliateUser.firstName ?? affiliateUser.name ?? "",
+            commission,
+            baseAmount,
+            updatedAffiliate?.totalEarned ?? commission,
+            availableAt,
+          ).catch((e) => console.error("[fulfillment] affiliate commission email error", e));
+        }
+      } catch (e) {
+        console.error("[fulfillment] affiliate commission email lookup error", e);
+      }
     }
   } catch (err) {
     console.error("[fulfillment] affiliate commission error", err);

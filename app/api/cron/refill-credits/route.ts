@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
+import { sendCreditsRefilledEmail } from "@/lib/email";
 
 // Monthly credit refill for active multi-month subscriptions, plus expiry of
 // lapsed terms. Intended to be hit by a scheduled trigger (cron) once an hour
@@ -63,10 +64,19 @@ export async function GET(req: NextRequest) {
 
     const updated = await prisma.user.update({
       where: { id: u.id },
-      data: { credits: { increment: grant }, nextRefillAt },
-      select: { credits: true },
+      data: { credits: { increment: grant }, nextRefillAt, lowCreditEmailSentAt: null },
+      select: { email: true, firstName: true, name: true, credits: true },
     });
     await redis.set(`credits:${u.id}`, String(updated.credits), "EX", 3600);
+
+    // ── Credits refill notification (non-fatal) ────────────────────
+    sendCreditsRefilledEmail(
+      updated.email,
+      updated.firstName ?? updated.name ?? "",
+      grant,
+      updated.credits,
+    ).catch((e) => console.error("[cron/refill-credits] email error for", u.id, e));
+
     refilled++;
   }
 

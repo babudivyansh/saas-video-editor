@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
+import { firePostCreditSpendEmails, fireZeroCreditsEmail } from "@/lib/credit-events";
 import { attachmentDisposition } from "@/utils/content-disposition";
 import os from "os";
 import path from "path";
@@ -181,9 +182,11 @@ export async function POST(req: NextRequest) {
     });
     if (user.credits < 0) {
       await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
+      fireZeroCreditsEmail(auth.userId);
       return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
     }
     await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
+    firePostCreditSpendEmails(auth.userId, user.credits);
   }
 
   const jobId = randomUUID();

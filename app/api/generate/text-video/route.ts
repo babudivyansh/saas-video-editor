@@ -6,6 +6,7 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { InProcessQueue } from "@/lib/job-queue";
+import { firePostCreditSpendEmails, fireZeroCreditsEmail } from "@/lib/credit-events";
 import { synthesizeVoice, WordTiming } from "@/utils/elevenlabs";
 import { runFFmpegArgs } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
@@ -494,9 +495,11 @@ export async function POST(req: NextRequest) {
   });
   if (user.credits < 0) {
     await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
+    fireZeroCreditsEmail(auth.userId);
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
   await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
+  firePostCreditSpendEmails(auth.userId, user.credits);
 
   const defaultTheme: ThemeColors = {
     bg: "#1C1C1E", headerBg: "#1C1C1E", headerText: "#ffffff",
