@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { downloadFile } from "@/utils/download";
 import { uploadFileToS3 } from "@/utils/s3-upload";
+import { logger } from "@/lib/logger";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -87,7 +88,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ asset });
   } catch (err) {
-    console.error("[stock/import]", err);
+    logger.error("stock/import", "request failed", err);
     const message = err instanceof Error ? err.message : "Import failed";
     return NextResponse.json({ error: message }, { status: 500 });
   } finally {

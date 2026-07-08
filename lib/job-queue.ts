@@ -6,6 +6,8 @@
  * the interface is identical so the swap is mechanical.
  */
 
+import { logger } from "@/lib/logger";
+
 type JobHandler<T> = (payload: T) => Promise<void>;
 
 interface Job<T> {
@@ -36,13 +38,13 @@ export class InProcessQueue<T> {
       try {
         await this.handler(job.payload);
       } catch (err) {
-        console.error(`[${this.name}] Job ${job.id} failed:`, err);
+        logger.error(this.name, `Job ${job.id} failed`, err);
         if (job.retries < this.MAX_RETRIES) {
           job.retries++;
           this.queue.push(job); // re-enqueue at end
-          console.log(`[${this.name}] Retrying job ${job.id} (attempt ${job.retries})`);
+          logger.info(this.name, `Retrying job ${job.id} (attempt ${job.retries})`);
         } else {
-          console.error(`[${this.name}] Job ${job.id} exceeded max retries.`);
+          logger.error(this.name, `Job ${job.id} exceeded max retries.`);
         }
       }
     }

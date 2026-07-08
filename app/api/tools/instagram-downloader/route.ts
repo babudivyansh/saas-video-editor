@@ -3,6 +3,8 @@ import { getAuthUser } from "@/lib/auth";
 import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { create as createYoutubeDl } from "youtube-dl-exec";
+import { withRateLimit } from "@/lib/with-rate-limit";
+import { logger } from "@/lib/logger";
 import ffmpegStatic from "ffmpeg-static";
 import fs from "fs";
 import path from "path";
@@ -127,7 +129,7 @@ function streamFileResponse(filePath: string, contentType: string, downloadName:
 // GET ?url=...&action=info    → JSON metadata + available formats
 // GET ?url=...&quality=720    → MP4 (merged)
 // GET ?url=...&quality=audio  → MP3
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -178,7 +180,7 @@ export async function GET(req: NextRequest) {
     } catch (err) {
       const e = err as { stderr?: string; message?: string };
       const msg = e.stderr?.split("\n").find(l => l.includes("ERROR")) ?? e.message ?? "Failed to fetch post info";
-      console.error("[ig-dl info]", e.stderr ?? msg);
+      logger.error("ig-dl-info", "info fetch failed", e.stderr ?? msg);
       return NextResponse.json(
         { error: cleanErr(msg) },
         { status: 500 }
@@ -287,10 +289,12 @@ export async function GET(req: NextRequest) {
     const e = err as { stderr?: string; message?: string };
     const stderrLine = e.stderr?.split("\n").find(l => l.includes("ERROR"));
     const msg = stderrLine ?? e.message ?? "Download failed";
-    console.error("[ig-dl]", e.stderr ?? msg);
+    logger.error("ig-dl", "download failed", e.stderr ?? msg);
     return NextResponse.json({ error: cleanErr(msg) }, { status: 500 });
   }
 }
+
+export const GET = withRateLimit(handleGET, { limit: 20, windowSec: 60, keyBy: "user", name: "tools:instagram-downloader" });
 
 // Make yt-dlp errors friendlier for the end user.
 function cleanErr(raw: string): string {

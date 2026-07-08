@@ -8,6 +8,7 @@ import { redis } from "@/lib/redis";
 import { extractAudio } from "@/utils/ffmpeg-render";
 import { transcribeAudio } from "@/utils/elevenlabs";
 import { downloadFile } from "@/utils/download";
+import { logger } from "@/lib/logger";
 
 const CREDIT_COST = 1;
 
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
       await redis.set(`credits:${auth.userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
     }
     const message = err instanceof Error ? err.message : "Transcription failed";
-    console.error("[editor-captions] failed:", err);
+    logger.error("editor-captions", "failed", err);
     return NextResponse.json({ error: message }, { status: 500 });
   } finally {
     for (const f of [mediaPath, audioPath]) {

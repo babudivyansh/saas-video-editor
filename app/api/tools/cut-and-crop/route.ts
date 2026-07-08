@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { runFFmpegArgs, runFFmpegWithProgress } from "@/utils/ffmpeg-render";
 import { attachmentDisposition } from "@/utils/content-disposition";
 import { getAuthUser } from "@/lib/auth";
+import { withRateLimit } from "@/lib/with-rate-limit";
 import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import os from "os";
@@ -67,7 +68,7 @@ async function refundCredit(userId: string) {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   sweep();
 
   const auth = await getAuthUser(req);
@@ -224,6 +225,8 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ jobId }, { status: 202 });
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 30, windowSec: 60, keyBy: "user", name: "tools:cut-and-crop" });
 
 export async function GET(req: NextRequest) {
   const jobId = req.nextUrl.searchParams.get("jobId");

@@ -2,35 +2,9 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useAuthUser, type AuthUser } from "./useAuthUser";
 
-interface UserPlan {
-  id: string;
-  slug: string;
-  name: string;
-  credits: number;
-  priceInPaise: number;
-}
-
-interface User {
-  id: string;
-  email: string;
-  phone: string | null;
-  credits: number;
-  createdAt: string;
-  role: "USER" | "ADMIN";
-  firstName: string | null;
-  lastName: string | null;
-  name: string | null;
-  avatarUrl: string | null;
-  gender: string | null;
-  intendedUse: string | null;
-  subscriptionEndsAt: string | null;
-  nextRefillAt: string | null;
-  monthlyCredits: number;
-  veo3Enabled: boolean;
-  veo3Credits: number;
-  plan: UserPlan | null;
-}
+type User = AuthUser;
 
 interface AuthModalState {
   isOpen: boolean;
@@ -46,7 +20,7 @@ interface AuthContextType {
   authModal: AuthModalState;
   openAuthModal: (mode?: "login" | "register", feature?: string, isFree?: boolean) => void;
   closeAuthModal: () => void;
-  signOut: () => void;
+  signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
@@ -81,47 +55,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Distinguishes "haven't checked localStorage yet" from "checked, no token"
+  // — without it there'd be a one-tick flash of logged-out state on mount.
+  const [hasCheckedStorage, setHasCheckedStorage] = useState(false);
   const [authModal, setAuthModal] = useState<AuthModalState>({
     isOpen: false,
     mode: "login",
   });
 
+  // Shared query — the billing page (and anywhere else) calling useAuthUser
+  // with the same token shares this cached request instead of independently
+  // re-fetching /api/auth/me.
+  const { data: user, isLoading: userLoading, isError, refetch } = useAuthUser(token);
+
+  useEffect(() => {
+    setToken(localStorage.getItem("token"));
+    setHasCheckedStorage(true);
+  }, []);
+
+  // fetchAuthUser resolves to null (not a thrown error) when the token is
+  // expired/invalid — clear it client-side. A thrown error (network/offline)
+  // leaves the stored token alone so a reconnect can retry.
+  useEffect(() => {
+    if (token && !userLoading && !isError && user === null) {
+      localStorage.removeItem("token");
+      setToken(null);
+    }
+  }, [token, userLoading, isError, user]);
+
+  const isLoading = !hasCheckedStorage || (!!token && userLoading);
+
   const refreshUser = async () => {
     const storedToken = localStorage.getItem("token");
-    if (!storedToken) {
-      setUser(null);
-      setToken(null);
-      setIsLoading(false);
-      return;
-    }
-
     setToken(storedToken);
-    try {
-      const res = await fetch("/api/auth/me", {
-        headers: { Authorization: `Bearer ${storedToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data.user);
-      } else {
-        // Token is expired/invalid
-        localStorage.removeItem("token");
-        setUser(null);
-        setToken(null);
-      }
-    } catch {
-      // Keep existing local token state in case of offline/network issues
-    } finally {
-      setIsLoading(false);
-    }
+    if (storedToken) await refetch();
   };
-
-  // Run on mount
-  useEffect(() => {
-    refreshUser();
-  }, []);
 
   // Monitor path changes to trigger login prompt for protected routes
   useEffect(() => {
@@ -156,9 +124,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthModal(prev => ({ ...prev, isOpen: false }));
   };
 
-  const signOut = () => {
+  const signOut = async () => {
+    const storedToken = localStorage.getItem("token");
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: storedToken ? { Authorization: `Bearer ${storedToken}` } : {},
+      });
+    } catch {
+      // Best-effort — still clear local state below even if this fails
+    }
     localStorage.removeItem("token");
-    setUser(null);
     setToken(null);
     window.location.href = "/";
   };
@@ -166,7 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        user,
+        user: user ?? null,
         token,
         isLoading,
         authModal,

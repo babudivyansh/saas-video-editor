@@ -4,6 +4,9 @@ import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { attachmentDisposition } from "@/utils/content-disposition";
 import { getMediaDurationSec } from "@/utils/ffmpeg-render";
+import { withRateLimit } from "@/lib/with-rate-limit";
+import { withRetry } from "@/lib/with-retry";
+import { env } from "@/lib/env";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -56,7 +59,7 @@ async function refundCredit(userId: string) {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   sweep();
 
   const auth = await getAuthUser(req);
@@ -136,11 +139,15 @@ export async function POST(req: NextRequest) {
 
       job.progress = 30;
 
-      const res = await fetch("https://api.elevenlabs.io/v1/audio-isolation", {
-        method: "POST",
-        headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY! },
-        body: elForm,
-      });
+      const res = await withRetry(
+        (signal) => fetch("https://api.elevenlabs.io/v1/audio-isolation", {
+          method: "POST",
+          headers: { "xi-api-key": env.ELEVENLABS_API_KEY! },
+          body: elForm,
+          signal,
+        }),
+        { timeoutMs: 60_000 },
+      );
 
       job.progress = 80;
 
@@ -168,6 +175,8 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ jobId }, { status: 202 });
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:enhance-speech" });
 
 export async function GET(req: NextRequest) {
   const jobId = req.nextUrl.searchParams.get("jobId");

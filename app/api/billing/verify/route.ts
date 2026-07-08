@@ -3,10 +3,11 @@ import crypto from "crypto";
 import Razorpay from "razorpay";
 import { getAuthUser } from "@/lib/auth";
 import { fulfillPayment, type FulfillNotes } from "@/lib/fulfillment";
+import { env } from "@/lib/env";
 
 const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID!,
-  key_secret: process.env.RAZORPAY_KEY_SECRET!,
+  key_id: env.RAZORPAY_KEY_ID,
+  key_secret: env.RAZORPAY_KEY_SECRET,
 });
 
 // Client-callback verification. The Razorpay checkout `handler` posts the
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
 
   // Verify the checkout signature: HMAC_SHA256(order_id + "|" + payment_id).
   const expected = crypto
-    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
+    .createHmac("sha256", env.RAZORPAY_KEY_SECRET)
     .update(`${orderId}|${paymentId}`)
     .digest("hex");
   const sigBuf = Buffer.from(signature);

@@ -3,10 +3,11 @@ import Razorpay from "razorpay";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { validateCoupon } from "@/lib/coupons";
+import { env } from "@/lib/env";
 
 const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID!,
-  key_secret: process.env.RAZORPAY_KEY_SECRET!,
+  key_id: env.RAZORPAY_KEY_ID,
+  key_secret: env.RAZORPAY_KEY_SECRET,
 });
 
 export async function POST(req: NextRequest) {
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
     orderId: order.id,
     amount: order.amount,
     currency: order.currency,
-    keyId: process.env.RAZORPAY_KEY_ID,
+    keyId: env.RAZORPAY_KEY_ID,
     packName,
     credits: totalCredits,
     discountInPaise: appliedDiscount,

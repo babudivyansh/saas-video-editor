@@ -4,6 +4,7 @@ import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { runFFmpegWithProgress } from "@/utils/ffmpeg-render";
 import { attachmentDisposition } from "@/utils/content-disposition";
+import { withRateLimit } from "@/lib/with-rate-limit";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -51,7 +52,7 @@ async function refundCredit(userId: string) {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   sweep();
 
   const auth = await getAuthUser(req);
@@ -139,6 +140,8 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ jobId }, { status: 202 });
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:subtitle-remover" });
 
 export async function GET(req: NextRequest) {
   const jobId = req.nextUrl.searchParams.get("jobId");

@@ -11,11 +11,38 @@ const nextConfig: NextConfig = {
     // lockfile, which misplaces Turbopack's on-disk cache and can break dev.
     root: __dirname,
   },
-  // No Content-Security-Policy yet — this app loads Razorpay checkout, Google
-  // OAuth, and Sentry from third-party origins, and a wrong CSP would silently
-  // break checkout/login. These headers are the safe subset that can't break
-  // existing functionality.
+  images: {
+    remotePatterns: [
+      // Generated/uploaded video+image assets (bucket/region are configurable
+      // via AWS_S3_BUCKET/AWS_REGION, hence the wildcard rather than one fixed host).
+      { protocol: "https", hostname: "*.s3.*.amazonaws.com" },
+      // Google OAuth profile avatar images.
+      { protocol: "https", hostname: "lh3.googleusercontent.com" },
+    ],
+  },
+  // Content-Security-Policy is Report-Only for now — enumerated from actual
+  // third-party origins the frontend loads/connects to (grepped, not guessed):
+  // Razorpay checkout script + its API/iframe, Sentry's error-ingest endpoint
+  // (host varies with NEXT_PUBLIC_SENTRY_DSN, hence the wildcard), S3 for
+  // uploaded video/image assets, and Google's avatar CDN (Google OAuth itself
+  // is a full-page redirect, not a CSP-governed fetch — no origin needed for it).
+  // Watch Sentry/browser console for violations in staging before flipping
+  // this to an enforcing Content-Security-Policy header.
   async headers() {
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https://*.amazonaws.com https://lh3.googleusercontent.com",
+      "media-src 'self' https://*.amazonaws.com",
+      "connect-src 'self' https://api.razorpay.com https://*.razorpay.com https://*.sentry.io https://*.ingest.sentry.io",
+      "frame-src 'self' https://api.razorpay.com https://*.razorpay.com",
+      "font-src 'self' data:",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; ");
+
     return [
       {
         source: "/:path*",
@@ -25,6 +52,7 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          { key: "Content-Security-Policy-Report-Only", value: csp },
         ],
       },
     ];

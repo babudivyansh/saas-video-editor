@@ -4,6 +4,9 @@ import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { attachmentDisposition } from "@/utils/content-disposition";
 import { getMediaDurationSec } from "@/utils/ffmpeg-render";
+import { withRateLimit } from "@/lib/with-rate-limit";
+import { withRetry } from "@/lib/with-retry";
+import { env } from "@/lib/env";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -59,15 +62,19 @@ async function refundCredit(userId: string) {
 }
 
 function falAuth() {
-  return { Authorization: `Key ${process.env.FAL_KEY}` };
+  return { Authorization: `Key ${env.FAL_KEY}` };
 }
 
 async function uploadToFal(buffer: Buffer, mimeType: string): Promise<string> {
-  const res = await fetch("https://storage.fal.run", {
-    method: "POST",
-    headers: { ...falAuth(), "Content-Type": mimeType },
-    body: new Uint8Array(buffer),
-  });
+  const res = await withRetry(
+    (signal) => fetch("https://storage.fal.run", {
+      method: "POST",
+      headers: { ...falAuth(), "Content-Type": mimeType },
+      body: new Uint8Array(buffer),
+      signal,
+    }),
+    { timeoutMs: 30_000 },
+  );
   if (!res.ok) {
     const txt = await res.text();
     throw new Error(`fal.ai storage upload failed ${res.status}: ${txt}`);
@@ -77,11 +84,15 @@ async function uploadToFal(buffer: Buffer, mimeType: string): Promise<string> {
 }
 
 async function falSubmit(audioUrl: string): Promise<string> {
-  const res = await fetch(`https://queue.fal.run/${FAL_MODEL}`, {
-    method: "POST",
-    headers: { ...falAuth(), "Content-Type": "application/json" },
-    body: JSON.stringify({ audio_url: audioUrl, stems: "2stems" }),
-  });
+  const res = await withRetry(
+    (signal) => fetch(`https://queue.fal.run/${FAL_MODEL}`, {
+      method: "POST",
+      headers: { ...falAuth(), "Content-Type": "application/json" },
+      body: JSON.stringify({ audio_url: audioUrl, stems: "2stems" }),
+      signal,
+    }),
+    { timeoutMs: 15_000 },
+  );
   if (!res.ok) {
     const txt = await res.text();
     throw new Error(`fal.ai submit error ${res.status}: ${txt}`);
@@ -124,13 +135,13 @@ async function falPollUntilDone(requestId: string): Promise<string> {
   throw new Error("fal.ai vocal removal timed out after 10 minutes");
 }
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   sweep();
 
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!process.env.FAL_KEY) {
+  if (!env.FAL_KEY) {
     return NextResponse.json({ error: "Vocal removal is not configured (missing FAL_KEY)" }, { status: 503 });
   }
 
@@ -248,6 +259,8 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ jobId }, { status: 202 });
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:vocal-remover" });
 
 export async function GET(req: NextRequest) {
   const jobId = req.nextUrl.searchParams.get("jobId");

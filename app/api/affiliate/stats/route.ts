@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { env } from "@/lib/env";
 
 export async function GET(req: NextRequest) {
   const user = await getAuthUser(req);
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ enrolled: false });
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://clipiro.ai";
+  const baseUrl = env.NEXT_PUBLIC_APP_URL ?? "https://clipiro.ai";
 
   const pendingAmount = affiliate.commissions
     .filter(c => c.status === "pending")

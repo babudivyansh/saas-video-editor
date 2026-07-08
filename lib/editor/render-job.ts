@@ -12,6 +12,7 @@ import { setRenderProgress } from "@/lib/render-queue";
 import { runFFmpegWithProgress } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { downloadFile } from "@/utils/download";
+import { logger } from "@/lib/logger";
 import type { TimelineDoc } from "./types";
 import { buildFilterGraph, maybeUseFilterScript, writeTextFiles, type ClipInput } from "./filtergraph";
 
@@ -67,7 +68,7 @@ async function refundCredit(projectId: string) {
       );
     }
   } catch (e) {
-    console.error(`[editor-render] refund failed for ${projectId}:`, e);
+    logger.error("editor-render", `refund failed for ${projectId}`, e);
   }
 }
 
@@ -132,7 +133,7 @@ export async function editorRenderJob(payload: EditorRenderPayload): Promise<voi
     });
     await setRenderProgress(projectId, "completed", 100);
   } catch (err) {
-    console.error(`[editor-render] failed for ${projectId}:`, err);
+    logger.error("editor-render", `failed for ${projectId}`, err);
     await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } }).catch(() => {});
     await setRenderProgress(projectId, "failed");
     await refundCredit(projectId);

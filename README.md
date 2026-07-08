@@ -90,6 +90,28 @@ Writes a test `.ass` caption file, runs FFmpeg with a synthetic input, and confi
 
 ---
 
+## Deployment
+
+`npm run build` (and `make build`) only runs `next build` — it no longer runs
+`prisma migrate deploy`. A build that depends on DB reachability means an
+unrelated DB/network hiccup can hang or fail an otherwise-unrelated build; the
+two are separate concerns with separate failure modes and should be separate
+steps. On a persistent single-host deploy (e.g. the Hostinger/cPanel target
+this repo currently runs on), the deploy sequence is:
+
+```bash
+npm run db:migrate:deploy   # or: make db-migrate-deploy — apply committed migrations
+npm run build               # next build — no DB access required
+# restart the app process (e.g. via cPanel's Node.js app manager, or your process manager)
+```
+
+Run migrations **before** restarting the process, not as part of the build —
+that keeps a temporarily-unreachable database from blocking or hanging an
+otherwise-unrelated build, and keeps "did the schema change land" a separate,
+explicit question from "did the code build."
+
+---
+
 ## GitHub remote (first push)
 
 After the initial commit, link to your repo:

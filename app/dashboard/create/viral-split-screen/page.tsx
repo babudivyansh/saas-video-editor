@@ -52,6 +52,8 @@ const STEPS = [
 // background videos are served from our own S3 bucket (the public gameplay CDN
 // is not a reachable source). Each catalogue title maps to one hosted clip;
 // override the base with NEXT_PUBLIC_BACKGROUNDS_BASE if needed.
+// Raw process.env, not lib/env.ts's `env` — this is a client component and
+// importing lib/env.ts would bundle its server-secret schema into client code.
 const CDN     = "https://gameplay-cdn.com/gameplay";
 const BACKGROUNDS_BASE =
   process.env.NEXT_PUBLIC_BACKGROUNDS_BASE ??

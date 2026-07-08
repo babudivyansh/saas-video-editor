@@ -9,6 +9,10 @@ import { uploadFileToS3 } from "@/utils/s3-upload";
 import { transcribeAudio } from "@/utils/elevenlabs";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { InProcessQueue } from "@/lib/job-queue";
+import { withRateLimit } from "@/lib/with-rate-limit";
+import { withRetry } from "@/lib/with-retry";
+import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -43,7 +47,7 @@ async function refundRenderCredit(projectId: string) {
       await redis.set(`credits:${proj.userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
     }
   } catch (e) {
-    console.error(`[auto-clip] failed to refund credit for project ${projectId}:`, e);
+    logger.error("auto-clip", `failed to refund credit for project ${projectId}`, e);
   }
 }
 
@@ -63,7 +67,7 @@ async function getClipsFromGemini(
   maxDuration: number,
   instructions: string,
 ): Promise<ClipSegment[]> {
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+  const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY!);
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   const hasTranscript = transcriptText.trim().length > 0;
@@ -101,7 +105,10 @@ ${instructions ? `User instructions: ${instructions}` : "Space clips across the 
 
 ${sharedRules}`;
 
-  const result = await model.generateContent(prompt);
+  const result = await withRetry(
+    (signal) => model.generateContent(prompt, { signal }),
+    { timeoutMs: 30_000 },
+  );
   const text = result.response.text().trim();
 
   // Strip accidental markdown code fences and extract the JSON array
@@ -153,7 +160,7 @@ async function renderJob(payload: AutoClipPayload): Promise<void> {
         .map(w => `[${(w.start / 1000).toFixed(2)}] ${w.word}`)
         .join(" ");
     } catch (err) {
-      console.warn("[auto-clip] transcription skipped, Gemini will work without transcript:", err);
+      logger.warn("auto-clip", "transcription skipped, Gemini will work without transcript", err);
     }
 
     // 4. Ask Gemini to pick the best clip timestamps
@@ -235,7 +242,7 @@ async function renderJob(payload: AutoClipPayload): Promise<void> {
         readyCount++;
         if (seg.score > bestScore) { bestScore = seg.score; bestUrl = videoUrl; }
       } catch (err) {
-        console.error(`[auto-clip] clip ${i} failed for ${projectId}:`, err);
+        logger.error("auto-clip", `clip ${i} failed for ${projectId}`, err);
         await prisma.clip.update({ where: { id: row.id }, data: { status: "failed" } }).catch(() => {});
       }
     }
@@ -248,7 +255,7 @@ async function renderJob(payload: AutoClipPayload): Promise<void> {
       await prisma.project.update({ where: { id: projectId }, data: { status: "completed", videoUrl: bestUrl } });
     }
   } catch (err) {
-    console.error(`[auto-clip] render failed for ${projectId}:`, err);
+    logger.error("auto-clip", `render failed for ${projectId}`, err);
     await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } });
     await refundRenderCredit(projectId);
   } finally {
@@ -264,11 +271,11 @@ function getQueue() {
   return _queue;
 }
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!process.env.GEMINI_API_KEY) {
+  if (!env.GEMINI_API_KEY) {
     return NextResponse.json({ error: "Auto-clip is not configured on this server" }, { status: 503 });
   }
 
@@ -318,3 +325,5 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ status: "rendering", creditsRemaining: user.credits });
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "generate:auto-clip" });

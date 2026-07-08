@@ -6,6 +6,7 @@ import { createState, makePkce } from "./oauth";
 import * as google from "./google";
 import * as meta from "./meta";
 import type { NormalizedAccount, OAuthProvider, OAuthTokens, ProviderId, ProviderSync } from "./types";
+import { logger } from "@/lib/logger";
 
 // Which OAuth app a requested platform authenticates through.
 export function oauthProviderFor(provider: ProviderId): OAuthProvider {
@@ -188,7 +189,7 @@ export async function refreshAccount(userId: string, accountId: string): Promise
 export async function refreshAllForUser(userId: string): Promise<void> {
   const accounts = await prisma.socialAccount.findMany({ where: { userId } });
   for (const a of accounts) {
-    try { await syncAccount(a); } catch (e) { console.error("[social] sync failed", a.id, e); }
+    try { await syncAccount(a); } catch (e) { logger.error("social", `sync failed for ${a.id}`, e); }
   }
   await invalidateOverview(userId);
 }
@@ -215,7 +216,7 @@ export async function refreshStaleAccounts(
       affected.add(a.userId);
     } catch (e) {
       failed++;
-      console.error("[social] stale sync failed", a.id, e);
+      logger.error("social", `stale sync failed for ${a.id}`, e);
     }
   }
   for (const uid of affected) await invalidateOverview(uid);

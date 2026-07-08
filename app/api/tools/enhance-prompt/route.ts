@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { env } from "@/lib/env";
 
 export const maxDuration = 30;
 
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
   }
 
-  if (!process.env.GEMINI_API_KEY) {
+  if (!env.GEMINI_API_KEY) {
     return NextResponse.json({ error: "Prompt enhancement not configured" }, { status: 503 });
   }
 
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
 
   if (!prompt) return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
 
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   const result = await model.generateContent(

@@ -1,22 +1,24 @@
 import nodemailer from "nodemailer";
 import { Resend } from "resend";
+import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
 
 const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST || "smtp.gmail.com",
-  port: Number(process.env.EMAIL_PORT) || 587,
+  host: env.EMAIL_HOST || "smtp.gmail.com",
+  port: Number(env.EMAIL_PORT) || 587,
   secure: false,
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: env.EMAIL_USER,
+    pass: env.EMAIL_PASS,
   },
 });
 
 export type DeliveryChannel = "email" | "sms" | "dev-console";
 
 export async function sendOtpEmail(to: string, otp: string): Promise<DeliveryChannel> {
-  const from = process.env.EMAIL_FROM || "onboarding@resend.dev";
+  const from = env.EMAIL_FROM || "onboarding@resend.dev";
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px;">
       <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 32px;">
@@ -55,13 +57,13 @@ export async function sendOtpEmail(to: string, otp: string): Promise<DeliveryCha
       });
       return "email";
     } catch (err) {
-      console.error("[email:resend] Failed to send OTP email:", err);
+      logger.error("email:resend", "Failed to send OTP email", err);
     }
   }
 
   // 2. Fallback to Nodemailer SMTP
-  if (process.env.EMAIL_USER) {
-    const smtpFrom = process.env.EMAIL_FROM || process.env.EMAIL_USER || "noreply@clipiro.app";
+  if (env.EMAIL_USER) {
+    const smtpFrom = env.EMAIL_FROM || env.EMAIL_USER || "noreply@clipiro.app";
     await transporter.sendMail({
       from: `"Clipiro" <${smtpFrom}>`,
       to,
@@ -72,12 +74,12 @@ export async function sendOtpEmail(to: string, otp: string): Promise<DeliveryCha
   }
 
   // 3. Fallback to Dev Console Logging
-  console.log(`[email:dev] OTP for ${to}: ${otp}`);
+  logger.info("email:dev", `OTP for ${to}: ${otp}`);
   return "dev-console";
 }
 
 export async function sendPasswordResetEmail(to: string, name: string, resetLink: string): Promise<void> {
-  const from = process.env.EMAIL_FROM || "onboarding@resend.dev";
+  const from = env.EMAIL_FROM || "onboarding@resend.dev";
   const greeting = name ? `Hi ${name}` : "Hi there";
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px;">
@@ -117,13 +119,13 @@ export async function sendPasswordResetEmail(to: string, name: string, resetLink
       });
       return;
     } catch (err) {
-      console.error("[email:resend] Failed to send password reset email:", err);
+      logger.error("email:resend", "Failed to send password reset email", err);
     }
   }
 
   // 2. Fallback to Nodemailer SMTP
-  if (process.env.EMAIL_USER) {
-    const smtpFrom = process.env.EMAIL_FROM || process.env.EMAIL_USER || "noreply@clipiro.app";
+  if (env.EMAIL_USER) {
+    const smtpFrom = env.EMAIL_FROM || env.EMAIL_USER || "noreply@clipiro.app";
     await transporter.sendMail({
       from: `"Clipiro" <${smtpFrom}>`,
       to,
@@ -134,7 +136,7 @@ export async function sendPasswordResetEmail(to: string, name: string, resetLink
   }
 
   // 3. Fallback to Dev Console Logging
-  console.log(`[email:dev] Password reset for ${to}: ${resetLink}`);
+  logger.info("email:dev", `Password reset for ${to}: ${resetLink}`);
 }
 
 export interface PurchaseEmailData {
@@ -148,7 +150,7 @@ export interface PurchaseEmailData {
 }
 
 export async function sendPurchaseConfirmationEmail(data: PurchaseEmailData): Promise<void> {
-  const from = process.env.EMAIL_FROM || "onboarding@resend.dev";
+  const from = env.EMAIL_FROM || "onboarding@resend.dev";
   const amountFormatted = `₹${(data.amountInPaise / 100).toFixed(2)}`;
   const greeting = data.userName ? `Hi ${data.userName}` : "Hi there";
   const html = `
@@ -210,13 +212,13 @@ export async function sendPurchaseConfirmationEmail(data: PurchaseEmailData): Pr
       });
       return;
     } catch (err) {
-      console.error("[email:resend] Failed to send purchase confirmation email:", err);
+      logger.error("email:resend", "Failed to send purchase confirmation email", err);
     }
   }
 
   // 2. Fallback to Nodemailer SMTP
-  if (process.env.EMAIL_USER) {
-    const smtpFrom = process.env.EMAIL_FROM || process.env.EMAIL_USER || "noreply@clipiro.app";
+  if (env.EMAIL_USER) {
+    const smtpFrom = env.EMAIL_FROM || env.EMAIL_USER || "noreply@clipiro.app";
     await transporter.sendMail({
       from: `"Clipiro" <${smtpFrom}>`,
       to: data.userEmail,
@@ -228,29 +230,29 @@ export async function sendPurchaseConfirmationEmail(data: PurchaseEmailData): Pr
 
 
   // 3. Fallback to Dev Console Logging
-  console.log(`[email:dev] Purchase confirmation for ${data.userEmail}: ${data.planName} (+${data.creditsAdded} credits)`);
+  logger.info("email:dev", `Purchase confirmation for ${data.userEmail}: ${data.planName} (+${data.creditsAdded} credits)`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: shared send wrapper (Resend → SMTP → console)
 // ─────────────────────────────────────────────────────────────────────────────
 async function sendEmail(to: string, subject: string, html: string, logTag: string): Promise<void> {
-  const from = process.env.EMAIL_FROM || "onboarding@resend.dev";
+  const from = env.EMAIL_FROM || "onboarding@resend.dev";
 
   if (resend) {
     try {
       await resend.emails.send({ from: `Clipiro <${from}>`, to: [to], subject, html });
       return;
     } catch (err) {
-      console.error(`[email:resend][${logTag}]`, err);
+      logger.error(`email:resend:${logTag}`, "send failed", err);
     }
   }
-  if (process.env.EMAIL_USER) {
-    const smtpFrom = process.env.EMAIL_FROM || process.env.EMAIL_USER;
+  if (env.EMAIL_USER) {
+    const smtpFrom = env.EMAIL_FROM || env.EMAIL_USER;
     await transporter.sendMail({ from: `"Clipiro" <${smtpFrom}>`, to, subject, html });
     return;
   }
-  console.log(`[email:dev][${logTag}] to=${to} subject=${subject}`);
+  logger.info(`email:dev:${logTag}`, `to=${to} subject=${subject}`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

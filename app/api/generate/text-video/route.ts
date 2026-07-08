@@ -14,6 +14,9 @@ import { resolveVoiceId } from "@/utils/voice-ids";
 import { downloadFile } from "@/utils/download";
 import { markQuestComplete } from "@/lib/quests";
 import { renderChatFrame, type CanvasTheme, type CanvasMessage } from "@/utils/chat-canvas";
+import { withRateLimit } from "@/lib/with-rate-limit";
+import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 
 const CREDIT_COST = 2;
 
@@ -28,7 +31,7 @@ async function refundRenderCredit(projectId: string) {
       await redis.set(`credits:${proj.userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
     }
   } catch (e) {
-    console.error(`[refund] failed to refund credit for project ${projectId}:`, e);
+    logger.error("refund", `failed to refund credit for project ${projectId}`, e);
   }
 }
 
@@ -201,19 +204,19 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
       languageCode: language && language !== "auto" ? language : undefined,
     } : undefined;
 
-  const hasElevenLabs = !!process.env.ELEVENLABS_API_KEY;
-  const hasAWS = !!process.env.AWS_ACCESS_KEY_ID && !!process.env.AWS_SECRET_ACCESS_KEY && !!process.env.AWS_S3_BUCKET;
+  const hasElevenLabs = !!env.ELEVENLABS_API_KEY;
+  const hasAWS = !!env.AWS_ACCESS_KEY_ID && !!env.AWS_SECRET_ACCESS_KEY && !!env.AWS_S3_BUCKET;
 
   if (!hasElevenLabs || !hasAWS) {
     if (process.env.NODE_ENV === "development") {
-      console.warn("[text-video] Missing credentials — simulating render (dev only)");
+      logger.warn("text-video", "Missing credentials — simulating render (dev only)");
       await new Promise(r => setTimeout(r, 3000));
       const fallback = bgVideoUrl || "https://saas-video-editor-assets.s3.ap-south-1.amazonaws.com/backgrounds/subway-surfers.mp4";
       await prisma.project.update({ where: { id: projectId }, data: { status: "completed", videoUrl: fallback } });
       return;
     }
     const missing = [!hasElevenLabs && "ELEVENLABS_API_KEY", !hasAWS && "AWS credentials"].filter(Boolean).join(", ");
-    console.error(`[text-video] Missing required credentials: ${missing}`);
+    logger.error("text-video", `Missing required credentials: ${missing}`);
     await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } });
     await refundRenderCredit(projectId);
     return;
@@ -223,7 +226,7 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
   fs.mkdirSync(tmpDir, { recursive: true });
 
   try {
-    console.log(`[text-video] Starting render for ${projectId} (${messages.length} messages)`);
+    logger.info("text-video", `Starting render for ${projectId} (${messages.length} messages)`);
     await setProgress(projectId, 5);
 
     const resolvedReceiverVoice = resolveVoiceId(receiverVoiceId);
@@ -250,7 +253,7 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
       const msg = messages[i];
       const voiceId = msg.type === "receiver" ? resolvedReceiverVoice : resolvedNarratorVoice;
 
-      console.log(`[text-video] TTS message ${i + 1}/${messages.length}...`);
+      logger.info("text-video", `TTS message ${i + 1}/${messages.length}...`);
       const result = await synthesizeVoice(msg.text, voiceId, elevenLabsSettings);
       const audioPath = path.join(tmpDir, `msg_${i}.mp3`);
       fs.writeFileSync(audioPath, result.audioBuffer);
@@ -269,13 +272,13 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
     }
 
     // 2. Concatenate all message audio
-    console.log("[text-video] Concatenating audio...");
+    logger.info("text-video", "Concatenating audio...");
     const combinedAudioPath = path.join(tmpDir, "voice.mp3");
     await concatAudioFiles(audioPiecesForConcat, combinedAudioPath);
     await setProgress(projectId, 40);
 
     // 3. Download background video
-    console.log("[text-video] Downloading background video...");
+    logger.info("text-video", "Downloading background video...");
     const bgVideoPath = path.join(tmpDir, "bg.mp4");
     await downloadFile(bgVideoUrl, bgVideoPath);
     await setProgress(projectId, 55);
@@ -283,19 +286,19 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
     // 4. Download background music (only from our own S3 — reject third-party CDNs)
     let musicPath: string | undefined;
     if (bgMusicUrl && bgMusicUrl.includes(S3_HOST)) {
-      console.log("[text-video] Downloading background music...");
+      logger.info("text-video", "Downloading background music...");
       const candidate = path.join(tmpDir, "music.mp3");
       try {
         await downloadFile(bgMusicUrl, candidate);
         musicPath = candidate;
       } catch (err) {
-        console.warn("[text-video] Background music unavailable, continuing without it:", err);
+        logger.warn("text-video", "Background music unavailable, continuing without it", err);
         musicPath = undefined;
       }
     }
 
     // 5. Render canvas chat frames
-    console.log("[text-video] Rendering canvas chat frames...");
+    logger.info("text-video", "Rendering canvas chat frames...");
     const canvasTheme: CanvasTheme = { ...theme };
     const canvasMessages: CanvasMessage[] = messages.map(m => ({ type: m.type, text: m.text }));
 
@@ -360,7 +363,7 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
     await setProgress(projectId, 60);
 
     // 6. FFmpeg — compose final video with canvas overlay frames
-    console.log("[text-video] Running FFmpeg (canvas overlay)...");
+    logger.info("text-video", "Running FFmpeg (canvas overlay)...");
     const outputPath = path.join(tmpDir, "output.mp4");
 
     // Build -filter_complex for sequential overlays (each frame starts at its time and stays until next)
@@ -434,7 +437,7 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
     await setProgress(projectId, 90);
 
     // 7. Upload to S3
-    console.log("[text-video] Uploading to S3...");
+    logger.info("text-video", "Uploading to S3...");
     const s3Key = `text-videos/${projectId}/output.mp4`;
     const videoUrl = await uploadFileToS3(outputPath, s3Key, "video/mp4");
     await setProgress(projectId, 95);
@@ -444,10 +447,10 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
       where: { id: projectId },
       data: { status: "completed", videoUrl, progress: 100 },
     });
-    console.log(`[text-video] Done: ${videoUrl}`);
+    logger.info("text-video", `Done: ${videoUrl}`);
 
   } catch (err) {
-    console.error(`[text-video] render failed for ${projectId}:`, err);
+    logger.error("text-video", `render failed for ${projectId}`, err);
     await prisma.project.update({
       where: { id: projectId },
       data: { status: "failed" },
@@ -468,7 +471,7 @@ function getQueue() {
 
 // ── POST handler ──────────────────────────────────────────────────────────────
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -534,3 +537,5 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ status: "rendering", creditsRemaining: user.credits });
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "generate:text-video" });

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { signToken, cacheSession } from "@/lib/auth";
+import { signToken, cacheSession, setSessionCookie } from "@/lib/auth";
 import { consumeOtp } from "@/lib/otp";
 import { normalizeIdentifier, findUserByMethod, type AuthMethod } from "@/lib/identifier";
 import { rateLimit } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 
 // A 6-digit OTP has ~900k possible values with no lockout otherwise brute-
 // forceable well within its 10-minute TTL. Limit to 5 verify attempts per
@@ -43,12 +44,14 @@ export async function POST(req: NextRequest) {
     const token = signToken({ userId: user.id, email: user.email });
     await cacheSession(user.id, token);
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       token,
       user: { id: user.id, email: user.email, credits: user.credits },
     });
+    setSessionCookie(res, token);
+    return res;
   } catch (err) {
-    console.error("[verify-otp]", err);
+    logger.error("verify-otp", "request failed", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

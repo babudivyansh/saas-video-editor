@@ -1,4 +1,6 @@
 import type { DeliveryChannel } from "./email";
+import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 
 /**
  * Sends an OTP code over SMS.
@@ -11,14 +13,14 @@ import type { DeliveryChannel } from "./email";
  * TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_NUMBER.
  */
 export async function sendOtpSms(to: string, otp: string): Promise<DeliveryChannel> {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_FROM_NUMBER;
+  const accountSid = env.TWILIO_ACCOUNT_SID;
+  const authToken = env.TWILIO_AUTH_TOKEN;
+  const from = env.TWILIO_FROM_NUMBER;
 
   const configured = Boolean(accountSid && authToken && from);
 
   if (!configured) {
-    console.log(`[sms:dev] OTP for ${to}: ${otp}`);
+    logger.info("sms:dev", `OTP for ${to}: ${otp}`);
     return "dev-console";
   }
 
@@ -39,13 +41,13 @@ export async function sendOtpSms(to: string, otp: string): Promise<DeliveryChann
 
     if (!response.ok) {
       const err = await response.json();
-      console.error("[sms:twilio] Failed to send SMS via Twilio API:", err);
+      logger.error("sms:twilio", "Failed to send SMS via Twilio API", err);
       return "dev-console";
     }
 
     return "sms";
   } catch (error) {
-    console.error("[sms:twilio] Error calling Twilio REST API:", error);
+    logger.error("sms:twilio", "Error calling Twilio REST API", error);
     return "dev-console";
   }
 }

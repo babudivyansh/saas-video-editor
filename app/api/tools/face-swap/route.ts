@@ -7,6 +7,10 @@ import os from "os";
 import path from "path";
 import fs from "fs";
 import { fal } from "@fal-ai/client";
+import { withRateLimit } from "@/lib/with-rate-limit";
+import { withRetry } from "@/lib/with-retry";
+import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 
 export const maxDuration = 120;
 
@@ -52,24 +56,28 @@ async function refundCredit(userId: string) {
 }
 
 function falAuth() {
-  return { Authorization: `Key ${process.env.FAL_KEY}` };
+  return { Authorization: `Key ${env.FAL_KEY}` };
 }
 
 async function uploadToFal(buffer: Buffer, mimeType: string): Promise<string> {
-  fal.config({ credentials: process.env.FAL_KEY! });
+  fal.config({ credentials: env.FAL_KEY! });
   const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
   return fal.storage.upload(blob);
 }
 
 async function submitToFal(swapImageUrl: string, baseImageUrl: string): Promise<string> {
-  const res = await fetch(`https://queue.fal.run/${FAL_MODEL}`, {
-    method: "POST",
-    headers: { ...falAuth(), "Content-Type": "application/json" },
-    body: JSON.stringify({
-      swap_image_url: swapImageUrl,   // the face to use (character image)
-      base_image_url: baseImageUrl,   // the target to swap into
+  const res = await withRetry(
+    (signal) => fetch(`https://queue.fal.run/${FAL_MODEL}`, {
+      method: "POST",
+      headers: { ...falAuth(), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        swap_image_url: swapImageUrl,   // the face to use (character image)
+        base_image_url: baseImageUrl,   // the target to swap into
+      }),
+      signal,
     }),
-  });
+    { timeoutMs: 15_000 },
+  );
   if (!res.ok) throw new Error(`fal.ai submit error ${res.status}: ${await res.text()}`);
   const data = await res.json();
   return data.request_id as string;
@@ -102,13 +110,13 @@ async function pollFal(requestId: string): Promise<string> {
 }
 
 // POST – start job
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   sweep();
 
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!process.env.FAL_KEY) {
+  if (!env.FAL_KEY) {
     return NextResponse.json({ error: "Face swap not configured (missing FAL_KEY)" }, { status: 503 });
   }
 
@@ -203,12 +211,12 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       const cause = err instanceof Error ? (err as NodeJS.ErrnoException).cause : undefined;
-      console.error("[face-swap] job failed:", msg, cause ?? "");
+      logger.error("face-swap", `job failed: ${msg}`, cause ?? undefined);
       job.status = "error";
       job.error = msg;
       if (!job.refunded) {
         job.refunded = true;
-        await refundCredit(auth.userId).catch(console.error);
+        await refundCredit(auth.userId).catch((e) => logger.error("face-swap", "refund failed", e));
       }
     } finally {
       for (const p of [charPath, targPath]) {
@@ -219,6 +227,8 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ jobId });
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:face-swap" });
 
 // GET – poll or download
 export async function GET(req: NextRequest) {

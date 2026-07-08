@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
+import { withRateLimit } from "@/lib/with-rate-limit";
+import { withRetry } from "@/lib/with-retry";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 
 type Tone = "funny" | "dramatic" | "romantic" | "scary";
 
@@ -16,11 +20,11 @@ const TONE_PROMPTS: Record<Tone, string> = {
   scary:    "The conversation should be unsettling and creepy, building dread gradually with eerie implications or a disturbing reveal.",
 };
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!process.env.GEMINI_API_KEY) {
+  if (!env.GEMINI_API_KEY) {
     return NextResponse.json({ error: "AI script generation not configured" }, { status: 503 });
   }
 
@@ -54,9 +58,12 @@ Example format:
 [{"type":"receiver","text":"omg did you see what just happened"},{"type":"sender","text":"no what?"},{"type":"receiver","text":"i cant even explain it rn"}]`;
 
   try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY!);
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const result = await model.generateContent(systemPrompt);
+    const result = await withRetry(
+      (signal) => model.generateContent(systemPrompt, { signal }),
+      { timeoutMs: 20_000 },
+    );
     const raw = result.response.text().trim();
 
     // Strip markdown code fences if Gemini adds them
@@ -71,13 +78,15 @@ Example format:
       );
       if (messages.length < 2) throw new Error("too few messages");
     } catch {
-      console.error("[text-video-script] Bad Gemini JSON:", raw.slice(0, 200));
+      logger.error("text-video-script", "Bad Gemini JSON", raw.slice(0, 200));
       return NextResponse.json({ error: "AI returned invalid script — please try again" }, { status: 500 });
     }
 
     return NextResponse.json({ messages });
   } catch (err) {
-    console.error("[text-video-script] Gemini error:", err);
+    logger.error("text-video-script", "Gemini error", err);
     return NextResponse.json({ error: "Script generation failed — please try again" }, { status: 500 });
   }
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "generate:text-video-script" });

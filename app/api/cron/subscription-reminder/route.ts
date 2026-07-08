@@ -4,6 +4,8 @@ import {
   sendSubscriptionExpiryWarningEmail,
   sendSubscriptionExpiredEmail,
 } from "@/lib/email";
+import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 
 // Daily cron — fires subscription expiry warnings (7d, 3d, 1d before) and
 // "subscription expired" emails the day after expiry.
@@ -15,7 +17,7 @@ import {
 // so each user gets at most one email per threshold per subscription term.
 
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
+  const secret = env.CRON_SECRET;
   const authz = req.headers.get("authorization");
   if (!secret || authz !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -63,12 +65,12 @@ export async function GET(req: NextRequest) {
         await prisma.user.update({ where: { id: u.id }, data: { expiryReminderSentAt: windowStart } });
         results.warned7d++;
       } catch (e) {
-        console.error("[cron/sub-reminder] 7d error for", u.id, e);
+        logger.error("cron/sub-reminder", `7d error for ${u.id}`, e);
         results.errors++;
       }
     }
   } catch (e) {
-    console.error("[cron/sub-reminder] 7d batch error", e);
+    logger.error("cron/sub-reminder", "7d batch error", e);
   }
 
   // ── 2. 3-day warning ─────────────────────────────────────────────────────
@@ -99,12 +101,12 @@ export async function GET(req: NextRequest) {
         await prisma.user.update({ where: { id: u.id }, data: { expiryReminderSentAt: windowStart } });
         results.warned3d++;
       } catch (e) {
-        console.error("[cron/sub-reminder] 3d error for", u.id, e);
+        logger.error("cron/sub-reminder", `3d error for ${u.id}`, e);
         results.errors++;
       }
     }
   } catch (e) {
-    console.error("[cron/sub-reminder] 3d batch error", e);
+    logger.error("cron/sub-reminder", "3d batch error", e);
   }
 
   // ── 3. 1-day warning ─────────────────────────────────────────────────────
@@ -135,12 +137,12 @@ export async function GET(req: NextRequest) {
         await prisma.user.update({ where: { id: u.id }, data: { expiryReminderSentAt: windowStart } });
         results.warned1d++;
       } catch (e) {
-        console.error("[cron/sub-reminder] 1d error for", u.id, e);
+        logger.error("cron/sub-reminder", `1d error for ${u.id}`, e);
         results.errors++;
       }
     }
   } catch (e) {
-    console.error("[cron/sub-reminder] 1d batch error", e);
+    logger.error("cron/sub-reminder", "1d batch error", e);
   }
 
   // ── 4. Expired yesterday ──────────────────────────────────────────────────
@@ -169,12 +171,12 @@ export async function GET(req: NextRequest) {
         await prisma.user.update({ where: { id: u.id }, data: { expiryReminderSentAt: null } });
         results.expired++;
       } catch (e) {
-        console.error("[cron/sub-reminder] expired email error for", u.id, e);
+        logger.error("cron/sub-reminder", `expired email error for ${u.id}`, e);
         results.errors++;
       }
     }
   } catch (e) {
-    console.error("[cron/sub-reminder] expired batch error", e);
+    logger.error("cron/sub-reminder", "expired batch error", e);
   }
 
   return NextResponse.json({ ok: true, ...results, at: now.toISOString() });

@@ -21,6 +21,14 @@ export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   const { startSocialRefreshWorker } = await import("./lib/social/refresh-queue");
   startSocialRefreshWorker();
+
+  // Start the editor-render BullMQ worker at boot (default driver — see
+  // lib/render-queue.ts) rather than waiting for the first render request to
+  // import the route module. createRenderQueue is cached by name, so this and
+  // app/api/editor/render/route.ts's own call resolve to the same Queue/Worker.
+  const { createRenderQueue } = await import("./lib/render-queue");
+  const { editorRenderJob } = await import("./lib/editor/render-job");
+  createRenderQueue("editor-render", editorRenderJob);
 }
 
 export const onRequestError: Instrumentation.onRequestError = Sentry.captureRequestError;

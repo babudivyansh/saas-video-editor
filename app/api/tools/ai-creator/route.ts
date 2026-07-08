@@ -5,6 +5,10 @@ import { prisma } from "@/lib/prisma";
 import { uploadBufferToS3 } from "@/utils/s3-upload";
 import { runFFmpegArgs } from "@/utils/ffmpeg-render";
 import { attachmentDisposition } from "@/utils/content-disposition";
+import { withRateLimit } from "@/lib/with-rate-limit";
+import { withRetry } from "@/lib/with-retry";
+import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -18,8 +22,8 @@ const CREDIT_COST = 2;
 // If not configured, those preset options return a clear error asking the user
 // to upload their own face image instead.
 const PRESET_AVATAR_URLS: Record<string, string | undefined> = {
-  "nano-banana": process.env.PRESET_AVATAR_NANO_BANANA_URL,
-  "face-swap":   process.env.PRESET_AVATAR_FACE_SWAP_URL,
+  "nano-banana": env.PRESET_AVATAR_NANO_BANANA_URL,
+  "face-swap":   env.PRESET_AVATAR_FACE_SWAP_URL,
 };
 
 interface Job {
@@ -59,15 +63,19 @@ async function refundCredit(userId: string) {
 }
 
 function falAuth() {
-  return { Authorization: `Key ${process.env.FAL_KEY}` };
+  return { Authorization: `Key ${env.FAL_KEY}` };
 }
 
 async function falSubmit(input: Record<string, unknown>): Promise<string> {
-  const res = await fetch("https://queue.fal.run/fal-ai/sadtalker", {
-    method: "POST",
-    headers: { ...falAuth(), "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
+  const res = await withRetry(
+    (signal) => fetch("https://queue.fal.run/fal-ai/sadtalker", {
+      method: "POST",
+      headers: { ...falAuth(), "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+      signal,
+    }),
+    { timeoutMs: 15_000 },
+  );
   if (!res.ok) {
     const txt = await res.text();
     throw new Error(`fal.ai submit error ${res.status}: ${txt}`);
@@ -106,16 +114,16 @@ async function falPollUntilDone(requestId: string): Promise<string> {
   throw new Error("SadTalker generation timed out after 10 minutes");
 }
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   sweep();
 
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!process.env.FAL_KEY) {
+  if (!env.FAL_KEY) {
     return NextResponse.json({ error: "AI Creator is not configured (missing FAL_KEY)" }, { status: 503 });
   }
-  if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY || !process.env.AWS_S3_BUCKET) {
+  if (!env.AWS_ACCESS_KEY_ID || !env.AWS_SECRET_ACCESS_KEY || !env.AWS_S3_BUCKET) {
     return NextResponse.json({ error: "AI Creator is not configured (missing AWS credentials)" }, { status: 503 });
   }
 
@@ -271,7 +279,7 @@ export async function POST(req: NextRequest) {
       job.progress = 100;
       job.status = "done";
     } catch (err) {
-      console.error(`[ai-creator] job ${jobId} failed:`, err);
+      logger.error("ai-creator", `job ${jobId} failed`, err);
       job.status = "error";
       job.error = err instanceof Error ? err.message : "AI Creator generation failed";
       if (!job.refunded) {
@@ -287,6 +295,8 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ jobId }, { status: 202 });
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:ai-creator" });
 
 export async function GET(req: NextRequest) {
   const jobId = req.nextUrl.searchParams.get("jobId");

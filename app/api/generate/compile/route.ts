@@ -8,6 +8,8 @@ import { uploadFileToS3 } from "@/utils/s3-upload";
 import { downloadFile } from "@/utils/download";
 import { markQuestComplete } from "@/lib/quests";
 import { firePostCreditSpendEmails, fireZeroCreditsEmail } from "@/lib/credit-events";
+import { withRateLimit } from "@/lib/with-rate-limit";
+import { logger } from "@/lib/logger";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -26,7 +28,7 @@ async function refundRenderCredit(projectId: string) {
       await redis.set(`credits:${proj.userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
     }
   } catch (e) {
-    console.error(`[refund] failed to refund credit for project ${projectId}:`, e);
+    logger.error("refund", `failed to refund credit for project ${projectId}`, e);
   }
 }
 
@@ -65,7 +67,7 @@ async function renderJob(payload: RenderJobPayload): Promise<void> {
       data: { status: "completed", videoUrl },
     });
   } catch (err) {
-    console.error(`[compile] render failed for ${projectId}:`, err);
+    logger.error("compile", `render failed for ${projectId}`, err);
     await prisma.project.update({
       where: { id: projectId },
       data: { status: "failed" },
@@ -80,7 +82,7 @@ async function renderJob(payload: RenderJobPayload): Promise<void> {
 
 const renderQueue = getRenderQueue(renderJob);
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -146,3 +148,5 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ status: "rendering", creditsRemaining: user.credits });
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "generate:compile" });

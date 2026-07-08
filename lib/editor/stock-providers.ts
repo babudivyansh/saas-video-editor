@@ -13,6 +13,7 @@
 // still frame per clip) instead of needing a second, animated-overlay path.
 
 import { GiphyFetch } from "@giphy/js-fetch-api";
+import { env } from "@/lib/env";
 
 export interface StockItem {
   id: string;
@@ -32,7 +33,7 @@ export class StockNotConfiguredError extends Error {
 }
 
 export async function searchStockImages(query: string, page = 1): Promise<StockItem[]> {
-  const key = process.env.PEXELS_API_KEY;
+  const key = env.PEXELS_API_KEY;
   if (!key) throw new StockNotConfiguredError("Stock images", "PEXELS_API_KEY");
 
   const res = await fetch(
@@ -57,7 +58,7 @@ export async function searchStockImages(query: string, page = 1): Promise<StockI
 }
 
 export async function searchStockVideos(query: string, page = 1): Promise<StockItem[]> {
-  const key = process.env.PEXELS_API_KEY;
+  const key = env.PEXELS_API_KEY;
   if (!key) throw new StockNotConfiguredError("Stock video", "PEXELS_API_KEY");
 
   const res = await fetch(
@@ -89,7 +90,7 @@ export async function searchStockVideos(query: string, page = 1): Promise<StockI
 }
 
 export async function searchStockAudio(query: string, page = 1): Promise<StockItem[]> {
-  const clientId = process.env.JAMENDO_CLIENT_ID;
+  const clientId = env.JAMENDO_CLIENT_ID;
   if (!clientId) throw new StockNotConfiguredError("Stock audio", "JAMENDO_CLIENT_ID");
 
   const offset = (page - 1) * 24;
@@ -113,7 +114,7 @@ export async function searchStockAudio(query: string, page = 1): Promise<StockIt
 }
 
 export async function searchStockStickers(query: string, page = 1): Promise<StockItem[]> {
-  const key = process.env.GIPHY_API_KEY;
+  const key = env.GIPHY_API_KEY;
   if (!key) throw new StockNotConfiguredError("Stickers", "GIPHY_API_KEY");
 
   const gf = new GiphyFetch(key);
@@ -136,7 +137,7 @@ export async function searchStockStickers(query: string, page = 1): Promise<Stoc
 // Same GIPHY_API_KEY as stickers, just the regular "gifs" type instead of
 // "stickers".
 export async function searchStockGifs(query: string, limit = 1): Promise<StockItem[]> {
-  const key = process.env.GIPHY_API_KEY;
+  const key = env.GIPHY_API_KEY;
   if (!key) throw new StockNotConfiguredError("Preset preview", "GIPHY_API_KEY");
 
   const gf = new GiphyFetch(key);

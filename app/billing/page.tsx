@@ -3,6 +3,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
+import { useAuthUser } from "@/app/components/useAuthUser";
 
 interface DbPlan {
   id: string;
@@ -12,14 +13,6 @@ interface DbPlan {
   currency: string;
   credits: number;
   kind: string;
-}
-
-interface MeUser {
-  credits: number;
-  monthlyCredits: number | null;
-  subscriptionEndsAt: string | null;
-  veo3Enabled: boolean;
-  plan: { name: string; slug: string } | null;
 }
 
 interface LaunchCoupon {
@@ -72,11 +65,14 @@ function BillingContent() {
   const success = params.get("success");
   const { startCheckout, activeId } = useRazorpayCheckout();
 
-  const [user, setUser] = useState<MeUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [packs, setPacks] = useState<DbPlan[]>([]);
   const [addons, setAddons] = useState<DbPlan[]>([]);
+
+  // Shared query — mounting alongside AuthContext (same token) shares one
+  // cached /api/auth/me request instead of firing an independent fetch.
+  const { data: user } = useAuthUser(token() || null);
 
   // Launch offer banner
   const [launch, setLaunch] = useState<LaunchCoupon | null>(null);
@@ -93,11 +89,9 @@ function BillingContent() {
     if (!t) { router.push("/login"); return; }
 
     Promise.all([
-      fetch("/api/auth/me", { headers: { Authorization: `Bearer ${t}` } }).then(r => r.json()),
       fetch("/api/plans").then(r => r.ok ? r.json() : { plans: [] }),
       fetch("/api/coupons/active").then(r => r.ok ? r.json() : { coupons: [] }),
-    ]).then(([meData, plansData, couponData]) => {
-      if (meData.user) setUser(meData.user);
+    ]).then(([plansData, couponData]) => {
       const all: DbPlan[] = plansData.plans ?? [];
       setPacks(all.filter(p => p.kind === "pack"));
       setAddons(all.filter(p => p.kind === "addon"));

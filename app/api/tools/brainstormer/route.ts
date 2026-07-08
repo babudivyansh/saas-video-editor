@@ -3,6 +3,9 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getAuthUser } from "@/lib/auth";
 import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
+import { withRateLimit } from "@/lib/with-rate-limit";
+import { withRetry } from "@/lib/with-retry";
+import { env } from "@/lib/env";
 
 export const maxDuration = 30;
 
@@ -19,8 +22,8 @@ async function refundCredit(userId: string) {
   }
 }
 
-export async function POST(req: NextRequest) {
-  if (!process.env.GEMINI_API_KEY) {
+async function handlePOST(req: NextRequest) {
+  if (!env.GEMINI_API_KEY) {
     return NextResponse.json({ error: "Brainstormer not configured" }, { status: 503 });
   }
 
@@ -60,7 +63,7 @@ export async function POST(req: NextRequest) {
   await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
 
   try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = `You are a viral content strategist for short-form video creators. Generate exactly 5 creative and highly engaging content ideas.
@@ -76,7 +79,10 @@ Rules:
 - Ideas must be viral-worthy and specifically tailored to the topic and audience
 - Return ONLY the JSON array — no markdown code blocks, no extra text, no explanation`;
 
-    const result = await model.generateContent(prompt);
+    const result = await withRetry(
+      (signal) => model.generateContent(prompt, { signal }),
+      { timeoutMs: 20_000 },
+    );
     const raw = result.response.text().trim();
 
     let ideas: { title: string; description: string }[];
@@ -99,3 +105,5 @@ Rules:
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:brainstormer" });
