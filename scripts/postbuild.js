@@ -1,3 +1,6 @@
+// Plain CommonJS — invoked directly via `node scripts/postbuild.js`, not
+// bundled/transpiled, so this can't be switched to ESM imports.
+/* eslint-disable @typescript-eslint/no-require-imports */
 const fs = require('fs');
 const path = require('path');
 

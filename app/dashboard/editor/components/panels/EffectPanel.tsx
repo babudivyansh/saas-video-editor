@@ -86,7 +86,7 @@ export default function EffectPanel() {
         ))}
       </div>
       <p className="mt-1 px-1 text-[10px] leading-snug text-zinc-500">
-        Preview only for now — effects aren't applied to the exported video yet.
+        Preview only for now — effects aren&apos;t applied to the exported video yet.
       </p>
     </div>
   );
