@@ -113,4 +113,18 @@ export const redis = {
       return fallbackIncr(key, ttlSeconds);
     }
   },
+  /**
+   * Real connectivity check with no in-memory fallback — used by the health
+   * endpoint. Every other method above intentionally swallows a down Redis
+   * into the fallback map, which would make a health check lie about an
+   * actual outage.
+   */
+  async ping(): Promise<boolean> {
+    try {
+      await client.ping();
+      return true;
+    } catch {
+      return false;
+    }
+  },
 };
