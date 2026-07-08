@@ -1,6 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { withRetry } from "@/lib/with-retry";
+import { env } from "@/lib/env";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY!);
 
 export interface GeneratedScript {
   hook: string;
@@ -26,7 +28,10 @@ Return a JSON object with exactly these keys:
 
 Return ONLY valid JSON, no markdown fences.`;
 
-  const result = await model.generateContent(prompt);
+  const result = await withRetry(
+    (signal) => model.generateContent(prompt, { signal }),
+    { timeoutMs: 20_000 },
+  );
   const text = result.response.text().trim();
 
   // Strip markdown fences if the model includes them despite instructions

@@ -1,10 +1,13 @@
 import jwt from "jsonwebtoken";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { redis } from "./redis";
 import { prisma } from "./prisma";
+import { env } from "@/lib/env";
 
-const JWT_SECRET = process.env.JWT_SECRET!;
+const JWT_SECRET = env.JWT_SECRET;
 const SESSION_TTL = 60 * 60 * 24 * 7; // 7 days in seconds
+
+export const SESSION_COOKIE_NAME = "session";
 
 export interface TokenPayload {
   userId: string;
@@ -17,6 +20,24 @@ export function signToken(payload: TokenPayload): string {
 
 export function verifyToken(token: string): TokenPayload {
   return jwt.verify(token, JWT_SECRET) as TokenPayload;
+}
+
+/**
+ * Sets the httpOnly session cookie alongside the Bearer token flow. Mirrors
+ * the JWT's own expiry so the cookie never outlives the token it carries.
+ */
+export function setSessionCookie(res: NextResponse, token: string): void {
+  res.cookies.set(SESSION_COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: SESSION_TTL,
+    path: "/",
+  });
+}
+
+export function clearSessionCookie(res: NextResponse): void {
+  res.cookies.set(SESSION_COOKIE_NAME, "", { maxAge: 0, path: "/" });
 }
 
 export async function cacheSession(userId: string, token: string): Promise<void> {

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { signToken, cacheSession } from "@/lib/auth";
+import { signToken, cacheSession, setSessionCookie } from "@/lib/auth";
 import { normalizeIdentifier, findUserByMethod, type AuthMethod } from "@/lib/identifier";
 import { sendNewLoginAlertEmail } from "@/lib/email";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 
 // Fixed-cost bcrypt hash with no matching password, compared against when the
 // account doesn't exist so the response takes the same time either way and
@@ -75,16 +76,18 @@ export async function POST(req: NextRequest) {
         const displayName = user.firstName ?? user.name ?? "";
         await sendNewLoginAlertEmail(user.email, displayName, timeStr, location, device);
       } catch (e) {
-        console.error("[login] alert email error", e);
+        logger.error("login", "alert email error", e);
       }
     })();
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       token,
       user: { id: user.id, email: user.email, credits: user.credits },
     });
+    setSessionCookie(res, token);
+    return res;
   } catch (err) {
-    console.error("[login]", err);
+    logger.error("login", "request failed", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { sendPurchaseConfirmationEmail, sendAffiliateCommissionEmail } from "@/lib/email";
+import { logger } from "@/lib/logger";
 
 // Single source of truth for granting a captured Razorpay payment. Called by
 // BOTH the client-side verify endpoint (app/api/billing/verify) and the webhook
@@ -169,7 +170,7 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
       });
     }
   } catch (err) {
-    console.error("[fulfillment] purchase confirmation email error", err);
+    logger.error("fulfillment", "purchase confirmation email error", err);
   }
 
   // ── Coupon redemption (non-fatal) ──────────────────────────────────────────
@@ -187,9 +188,9 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
       ]);
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-        console.warn("[fulfillment] coupon already redeemed by user, skipping duplicate");
+        logger.warn("fulfillment", "coupon already redeemed by user, skipping duplicate");
       } else {
-        console.error("[fulfillment] coupon redemption error", err);
+        logger.error("fulfillment", "coupon redemption error", err);
       }
     }
   }
@@ -247,14 +248,14 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
             baseAmount,
             updatedAffiliate?.totalEarned ?? commission,
             availableAt,
-          ).catch((e) => console.error("[fulfillment] affiliate commission email error", e));
+          ).catch((e) => logger.error("fulfillment", "affiliate commission email error", e));
         }
       } catch (e) {
-        console.error("[fulfillment] affiliate commission email lookup error", e);
+        logger.error("fulfillment", "affiliate commission email lookup error", e);
       }
     }
   } catch (err) {
-    console.error("[fulfillment] affiliate commission error", err);
+    logger.error("fulfillment", "affiliate commission error", err);
   }
 
   return { fulfilled: true, alreadyProcessed: false };

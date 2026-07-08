@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendReengagement7DayEmail, sendReengagement30DayEmail, sendUnusedCreditsReminderEmail } from "@/lib/email";
+import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 
 // Weekly cron — re-engages inactive users and sends mid-month unused-credits reminders.
 //
@@ -12,7 +14,7 @@ import { sendReengagement7DayEmail, sendReengagement30DayEmail, sendUnusedCredit
 // Unused credits: active subscribers who've used <20% of monthly credits (runs on 15th of month)
 
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
+  const secret = env.CRON_SECRET;
   const authz = req.headers.get("authorization");
   if (!secret || authz !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -46,12 +48,12 @@ export async function GET(req: NextRequest) {
         await prisma.user.update({ where: { id: u.id }, data: { reengagementSentAt: now } });
         results.reengaged7d++;
       } catch (e) {
-        console.error("[cron/reengagement] 7d error for", u.id, e);
+        logger.error("cron/reengagement", `7d error for ${u.id}`, e);
         results.errors++;
       }
     }
   } catch (e) {
-    console.error("[cron/reengagement] 7d batch error", e);
+    logger.error("cron/reengagement", "7d batch error", e);
   }
 
   // ── 30-day inactive win-back ─────────────────────────────────────────────
@@ -76,12 +78,12 @@ export async function GET(req: NextRequest) {
         await prisma.user.update({ where: { id: u.id }, data: { reengagementSentAt: now } });
         results.reengaged30d++;
       } catch (e) {
-        console.error("[cron/reengagement] 30d error for", u.id, e);
+        logger.error("cron/reengagement", `30d error for ${u.id}`, e);
         results.errors++;
       }
     }
   } catch (e) {
-    console.error("[cron/reengagement] 30d batch error", e);
+    logger.error("cron/reengagement", "30d batch error", e);
   }
 
   // ── Unused credits (only on 15th of the month) ───────────────────────────
@@ -111,12 +113,12 @@ export async function GET(req: NextRequest) {
             results.unusedCredits++;
           }
         } catch (e) {
-          console.error("[cron/reengagement] unused-credits error for", u.id, e);
+          logger.error("cron/reengagement", `unused-credits error for ${u.id}`, e);
           results.errors++;
         }
       }
     } catch (e) {
-      console.error("[cron/reengagement] unused-credits batch error", e);
+      logger.error("cron/reengagement", "unused-credits batch error", e);
     }
   }
 

@@ -1,5 +1,6 @@
 import { redirectUri } from "./oauth";
 import type { NormalizedAccount, NormalizedPost, OAuthTokens, ProviderSync } from "./types";
+import { env } from "@/lib/env";
 
 // YouTube via Google OAuth. Read-only scopes only:
 //   youtube.readonly       — channel + uploads + public video statistics
@@ -16,12 +17,12 @@ const API = "https://www.googleapis.com/youtube/v3";
 const ANALYTICS = "https://youtubeanalytics.googleapis.com/v2/reports";
 
 function clientId() {
-  const id = process.env.GOOGLE_CLIENT_ID;
+  const id = env.GOOGLE_CLIENT_ID;
   if (!id) throw new Error("GOOGLE_CLIENT_ID is not configured");
   return id;
 }
 function clientSecret() {
-  const s = process.env.GOOGLE_CLIENT_SECRET;
+  const s = env.GOOGLE_CLIENT_SECRET;
   if (!s) throw new Error("GOOGLE_CLIENT_SECRET is not configured");
   return s;
 }

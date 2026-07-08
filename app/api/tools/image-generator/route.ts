@@ -5,6 +5,9 @@ import { uploadBufferToS3 } from "@/utils/s3-upload";
 import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { markQuestComplete } from "@/lib/quests";
+import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
+import { withRateLimit } from "@/lib/with-rate-limit";
 
 export const maxDuration = 120;
 
@@ -21,11 +24,11 @@ async function refundCredit(userId: string) {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!process.env.GEMINI_API_KEY) {
+  if (!env.GEMINI_API_KEY) {
     return NextResponse.json({ error: "Image generation is not configured (missing GEMINI_API_KEY)" }, { status: 503 });
   }
 
@@ -63,7 +66,7 @@ export async function POST(req: NextRequest) {
     let geminiRes: Response | null = null;
     for (let attempt = 0; attempt < 3; attempt++) {
       geminiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${env.GEMINI_API_KEY}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -73,13 +76,13 @@ export async function POST(req: NextRequest) {
         },
       );
       if (geminiRes.status !== 503) break;
-      console.warn(`[image-generator] gemini-2.5-flash-image 503 (attempt ${attempt + 1}/3), retrying...`);
+      logger.warn("image-generator", `gemini-2.5-flash-image 503 (attempt ${attempt + 1}/3), retrying...`);
       await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
     }
 
     if (!geminiRes || !geminiRes.ok) {
       const err = geminiRes ? await geminiRes.text() : "no response";
-      console.error(`[image-generator] gemini-2.5-flash-image error ${geminiRes?.status}:`, err);
+      logger.error("image-generator", `gemini-2.5-flash-image error ${geminiRes?.status}`, err);
       await refundCredit(auth.userId);
       const msg = geminiRes?.status === 503
         ? "Image service is busy right now. Please try again in a moment."
@@ -103,8 +106,10 @@ export async function POST(req: NextRequest) {
     void markQuestComplete(auth.userId, "picture-this");
     return NextResponse.json({ imageUrl });
   } catch (err) {
-    console.error("[image-generator]", err);
+    logger.error("image-generator", "request failed", err);
     try { await refundCredit(auth.userId); } catch { /* swallow */ }
     return NextResponse.json({ error: "Image generation failed. Please try again." }, { status: 500 });
   }
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:image-generator" });

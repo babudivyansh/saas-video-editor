@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { sendCreditsRefilledEmail } from "@/lib/email";
+import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 
 // Monthly credit refill for active multi-month subscriptions, plus expiry of
 // lapsed terms. Intended to be hit by a scheduled trigger (cron) once an hour
@@ -14,7 +16,7 @@ import { sendCreditsRefilledEmail } from "@/lib/email";
 // term end). For each user whose term has ended, clear the subscription state
 // and revoke Veo3 access.
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
+  const secret = env.CRON_SECRET;
   const authz = req.headers.get("authorization");
   if (!secret || authz !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -75,7 +77,7 @@ export async function GET(req: NextRequest) {
       updated.firstName ?? updated.name ?? "",
       grant,
       updated.credits,
-    ).catch((e) => console.error("[cron/refill-credits] email error for", u.id, e));
+    ).catch((e) => logger.error("cron/refill-credits", `email error for ${u.id}`, e));
 
     refilled++;
   }

@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { writeAuditLog } from "@/lib/tool-config";
+import { logger } from "@/lib/logger";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const admin = await requireAdmin(req);
@@ -182,7 +183,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       prisma.user.delete({ where: { id } }),
     ]);
   } catch (err) {
-    console.error("[admin.deleteUser]", err);
+    logger.error("admin.deleteUser", "request failed", err);
     return NextResponse.json({ error: "Could not delete this user — they may have related records that couldn't be cleared." }, { status: 409 });
   }
 

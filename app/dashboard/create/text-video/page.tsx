@@ -141,6 +141,8 @@ const THEMES: Theme[] = [
 ];
 
 // ── Background Videos ─────────────────────────────────────────────────────────
+// Raw process.env below (not lib/env.ts's `env`) — this is a client component
+// and importing lib/env.ts would bundle its server-secret schema into client code.
 const BACKDROP_CDN = "https://gameplay-cdn.com/gameplay";
 const BACKGROUNDS_BASE =
   process.env.NEXT_PUBLIC_BACKGROUNDS_BASE ??

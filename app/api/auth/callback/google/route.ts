@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { signToken, cacheSession } from "@/lib/auth";
+import { signToken, cacheSession, setSessionCookie } from "@/lib/auth";
 import { sendWelcomeEmail, sendAffiliateReferralSignupEmail } from "@/lib/email";
+import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 
 export async function GET(req: NextRequest) {
   try {
@@ -24,8 +26,8 @@ export async function GET(req: NextRequest) {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         code,
-        client_id: process.env.GOOGLE_CLIENT_ID!,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+        client_id: env.GOOGLE_CLIENT_ID!,
+        client_secret: env.GOOGLE_CLIENT_SECRET!,
         redirect_uri: redirectUri,
         grant_type: "authorization_code",
       }),
@@ -33,7 +35,7 @@ export async function GET(req: NextRequest) {
 
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.json();
-      console.error("[google-callback] Token exchange failed:", errorData);
+      logger.error("google-callback", "Token exchange failed", errorData);
       return NextResponse.json({
         error: "Failed to exchange authorization code",
         details: errorData
@@ -130,7 +132,7 @@ export async function GET(req: NextRequest) {
                 affiliateUser.firstName ?? affiliateUser.name ?? "",
                 profile.given_name ?? name ?? "A new user",
                 totalReferrals,
-              ).catch((e) => console.error("[google-callback] affiliate referral email error", e));
+              ).catch((e) => logger.error("google-callback", "affiliate referral email error", e));
             }
           }
         } catch {
@@ -169,19 +171,20 @@ export async function GET(req: NextRequest) {
     const res = new NextResponse(html, {
       headers: { "Content-Type": "text/html" },
     });
+    setSessionCookie(res, token);
 
     if (isNewUser) {
       // Clear the affiliate cookie after attribution
       res.cookies.set("affiliate_ref", "", { maxAge: 0, path: "/" });
       // ── Welcome email for new Google signup (non-fatal) ───────────
       sendWelcomeEmail(user.email, profile.given_name ?? "", user.credits ?? 10).catch(
-        (e) => console.error("[google-callback] welcome email error", e)
+        (e) => logger.error("google-callback", "welcome email error", e)
       );
     }
 
     return res;
   } catch (err) {
-    console.error("[google-callback]", err);
+    logger.error("google-callback", "request failed", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

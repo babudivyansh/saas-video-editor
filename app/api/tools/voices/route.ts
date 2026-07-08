@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { VOICE_ID_MAP } from "@/utils/voice-ids";
 import { listVoices } from "@/utils/elevenlabs";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { env } from "@/lib/env";
 
 // Returns { [slug]: previewUrl } — no auth required, preview URLs are public.
 // Called once by the voice picker modal to populate play-preview buttons.
@@ -11,7 +12,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
   }
 
-  if (!process.env.ELEVENLABS_API_KEY) {
+  if (!env.ELEVENLABS_API_KEY) {
     return NextResponse.json({});
   }
   try {

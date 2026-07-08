@@ -17,6 +17,8 @@ import os from "os";
 import path from "path";
 import fs from "fs";
 import { InProcessQueue } from "@/lib/job-queue";
+import { withRateLimit } from "@/lib/with-rate-limit";
+import { logger } from "@/lib/logger";
 
 export const maxDuration = 300;
 
@@ -33,7 +35,7 @@ async function refundRenderCredit(projectId: string) {
       await redis.set(`credits:${proj.userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
     }
   } catch (e) {
-    console.error(`[refund] failed to refund credit for project ${projectId}:`, e);
+    logger.error("refund", `failed to refund credit for project ${projectId}`, e);
   }
 }
 
@@ -80,7 +82,7 @@ async function renderJob(payload: SplitScreenPayload): Promise<void> {
     try {
       wordTimings = await transcribeAudio(fs.readFileSync(audioPath));
     } catch (err) {
-      console.warn("[split-screen] transcription failed, rendering without subtitles:", err);
+      logger.warn("split-screen", "transcription failed, rendering without subtitles", err);
     }
 
     const subtitleStyle = styleIndexToSubtitleStyle(subtitleStyleIndex, mode);
@@ -93,7 +95,7 @@ async function renderJob(payload: SplitScreenPayload): Promise<void> {
 
     await prisma.project.update({ where: { id: projectId }, data: { status: "completed", videoUrl } });
   } catch (err) {
-    console.error(`[split-screen] render failed for ${projectId}:`, err);
+    logger.error("split-screen", `render failed for ${projectId}`, err);
     await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } });
     await refundRenderCredit(projectId);
   } finally {
@@ -112,7 +114,7 @@ function getQueue() {
 
 // ── Route handler ────────────────────────────────────────────────────────────
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -161,3 +163,5 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ status: "rendering", creditsRemaining: user.credits });
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "generate:split-screen" });

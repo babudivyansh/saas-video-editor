@@ -3,6 +3,10 @@ import { getAuthUser } from "@/lib/auth";
 import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { randomUUID } from "crypto";
+import { withRateLimit } from "@/lib/with-rate-limit";
+import { withRetry } from "@/lib/with-retry";
+import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -52,15 +56,19 @@ async function refundCredit(userId: string) {
 }
 
 function falAuth() {
-  return { Authorization: `Key ${process.env.FAL_KEY}` };
+  return { Authorization: `Key ${env.FAL_KEY}` };
 }
 
 async function uploadToFal(buffer: Buffer, mimeType: string): Promise<string> {
-  const res = await fetch("https://storage.fal.run", {
-    method: "POST",
-    headers: { ...falAuth(), "Content-Type": mimeType },
-    body: new Uint8Array(buffer),
-  });
+  const res = await withRetry(
+    (signal) => fetch("https://storage.fal.run", {
+      method: "POST",
+      headers: { ...falAuth(), "Content-Type": mimeType },
+      body: new Uint8Array(buffer),
+      signal,
+    }),
+    { timeoutMs: 30_000 },
+  );
   if (!res.ok) {
     const txt = await res.text();
     throw new Error(`fal.ai upload failed ${res.status}: ${txt}`);
@@ -70,11 +78,15 @@ async function uploadToFal(buffer: Buffer, mimeType: string): Promise<string> {
 }
 
 async function submitToFal(imageUrl: string): Promise<string> {
-  const res = await fetch(`https://queue.fal.run/${FAL_MODEL}`, {
-    method: "POST",
-    headers: { ...falAuth(), "Content-Type": "application/json" },
-    body: JSON.stringify({ image_url: imageUrl }),
-  });
+  const res = await withRetry(
+    (signal) => fetch(`https://queue.fal.run/${FAL_MODEL}`, {
+      method: "POST",
+      headers: { ...falAuth(), "Content-Type": "application/json" },
+      body: JSON.stringify({ image_url: imageUrl }),
+      signal,
+    }),
+    { timeoutMs: 15_000 },
+  );
   if (!res.ok) {
     const txt = await res.text();
     throw new Error(`fal.ai submit error ${res.status}: ${txt}`);
@@ -112,13 +124,13 @@ async function pollFal(requestId: string): Promise<string> {
 }
 
 // POST – start a job
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   sweep();
 
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!process.env.FAL_KEY) {
+  if (!env.FAL_KEY) {
     return NextResponse.json({ error: "Background remover not configured (missing FAL_KEY)" }, { status: 503 });
   }
 
@@ -215,7 +227,7 @@ export async function POST(req: NextRequest) {
       job.error = err instanceof Error ? err.message : "Unknown error";
       if (!job.refunded) {
         job.refunded = true;
-        await refundCredit(auth.userId).catch(console.error);
+        await refundCredit(auth.userId).catch((e) => logger.error("background-remover", "refund failed", e));
       }
     } finally {
       try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
@@ -224,6 +236,8 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ jobId });
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:background-remover" });
 
 // GET – poll status or download
 export async function GET(req: NextRequest) {

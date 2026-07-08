@@ -8,6 +8,10 @@ import { z } from "zod";
 // call site ("not configured" UI, feature disabled) rather than needing the
 // whole server to refuse to boot.
 
+// NODE_ENV is deliberately not in this schema (and not on `env`) — Next.js
+// sets it automatically, it's never user-configured, and treating it as an
+// app secret would be framework-internal noise in a schema meant to catch
+// deployment misconfiguration. Call sites keep reading it as `process.env.NODE_ENV`.
 const schema = z.object({
   // Foundational — nothing works without these.
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
@@ -43,6 +47,7 @@ const schema = z.object({
   // Optional AI/feature providers — each already shows a "not configured"
   // state at the call site when unset.
   GEMINI_API_KEY: z.string().optional(),
+  GOOGLE_GEMINI_API_KEY: z.string().optional(),
   ELEVENLABS_API_KEY: z.string().optional(),
   FAL_KEY: z.string().optional(),
   PEXELS_API_KEY: z.string().optional(),
@@ -58,9 +63,64 @@ const schema = z.object({
   EMAIL_USER: z.string().optional(),
   EMAIL_PASS: z.string().optional(),
   EMAIL_FROM: z.string().optional(),
+  RESEND_API_KEY: z.string().optional(),
+
+  // Preset avatar assets for the AI-creator tool — public S3 URLs, feature
+  // degrades to "upload your own face" when unset.
+  PRESET_AVATAR_NANO_BANANA_URL: z.string().optional(),
+  PRESET_AVATAR_FACE_SWAP_URL: z.string().optional(),
+
+  // Social-account OAuth token encryption (lib/encryption.ts). Required in
+  // production; falls back to a JWT_SECRET-derived key in dev.
+  SOCIAL_TOKEN_KEY: z.string().optional(),
+  // Meta (Facebook/Instagram) OAuth — social account linking.
+  META_APP_ID: z.string().optional(),
+  META_APP_SECRET: z.string().optional(),
+  // Self-contained BullMQ scheduler for social-account refresh — off by
+  // default; see lib/social/refresh-queue.ts.
+  SOCIAL_REFRESH_DRIVER: z.string().optional(),
+  SOCIAL_REFRESH_INTERVAL_MIN: z.string().optional(),
+  // Render worker concurrency — defaults to 2 (lib/render-queue.ts).
+  RENDER_CONCURRENCY: z.string().optional(),
+
+  // Custom/cloned ElevenLabs voice IDs — each falls back to a stock voice
+  // when unset (utils/voice-ids.ts).
+  ELEVENLABS_VOICE_WILLIAM: z.string().optional(),
+  ELEVENLABS_VOICE_ADAM: z.string().optional(),
+  ELEVENLABS_VOICE_DANDAN: z.string().optional(),
+  ELEVENLABS_VOICE_CHARLIE: z.string().optional(),
+  ELEVENLABS_VOICE_CLYDE: z.string().optional(),
+  ELEVENLABS_VOICE_DANIEL: z.string().optional(),
+  ELEVENLABS_VOICE_DAVE: z.string().optional(),
+  ELEVENLABS_VOICE_ETHAN: z.string().optional(),
+  ELEVENLABS_VOICE_FIN: z.string().optional(),
+  ELEVENLABS_VOICE_HARRY: z.string().optional(),
+  ELEVENLABS_VOICE_JOSH: z.string().optional(),
+  ELEVENLABS_VOICE_LIAM: z.string().optional(),
+  ELEVENLABS_VOICE_MATTHEW: z.string().optional(),
+  ELEVENLABS_VOICE_PATRICK: z.string().optional(),
+  ELEVENLABS_VOICE_SAM: z.string().optional(),
+  ELEVENLABS_VOICE_THOMAS: z.string().optional(),
+  ELEVENLABS_VOICE_NATASHA: z.string().optional(),
+  ELEVENLABS_VOICE_ALICE: z.string().optional(),
+  ELEVENLABS_VOICE_ARIA: z.string().optional(),
+  ELEVENLABS_VOICE_BELLA: z.string().optional(),
+  ELEVENLABS_VOICE_CHARLOTTE: z.string().optional(),
+  ELEVENLABS_VOICE_ELLI: z.string().optional(),
+  ELEVENLABS_VOICE_EMILY: z.string().optional(),
+  ELEVENLABS_VOICE_FREYA: z.string().optional(),
+  ELEVENLABS_VOICE_GRACE: z.string().optional(),
+  ELEVENLABS_VOICE_MATILDA: z.string().optional(),
+  ELEVENLABS_VOICE_RACHEL: z.string().optional(),
+  ELEVENLABS_VOICE_SARAH: z.string().optional(),
+  ELEVENLABS_VOICE_SERENA: z.string().optional(),
+  ELEVENLABS_VOICE_AMIR1: z.string().optional(),
+  ELEVENLABS_VOICE_AMIR2: z.string().optional(),
+  ELEVENLABS_VOICE_SPONGEBOB: z.string().optional(),
 
   NEXT_PUBLIC_APP_URL: z.string().default("http://localhost:3000"),
   NEXT_PUBLIC_BACKGROUNDS_BASE: z.string().optional(),
+  NEXT_PUBLIC_MUSIC_BASE: z.string().optional(),
   NEXT_PUBLIC_DISCORD_INVITE_URL: z.string().optional(),
 });
 
@@ -71,3 +131,18 @@ export function validateEnv(): void {
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
 }
+
+/**
+ * Every validated var as a typed property, so call sites read `env.X`
+ * instead of scattering raw `process.env.X` (and a typo'd var name is a
+ * TypeScript error instead of a silent `undefined`). Parsed eagerly at
+ * import time with the same schema `validateEnv()` uses — in the running
+ * server this is a no-op re-check (instrumentation.ts already called
+ * `validateEnv()` at boot), so it throws the same descriptive error, just
+ * the moment something imports this module rather than only at boot.
+ *
+ * A var read via `process.env.X` that ISN'T in `schema` above is either dead
+ * code or a schema gap — add it to the schema (required or `.optional()`)
+ * rather than reading around this file.
+ */
+export const env: z.infer<typeof schema> = schema.parse(process.env);

@@ -2,6 +2,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { redis } from "@/lib/redis";
 import type { OAuthProvider } from "./types";
+import { env } from "@/lib/env";
 
 // OAuth handshake helpers shared by every provider. Two anti-abuse mechanisms:
 //   1. `state` — a short-lived JWT signed with JWT_SECRET carrying the userId, so
@@ -10,7 +11,7 @@ import type { OAuthProvider } from "./types";
 //   2. PKCE — a per-attempt code_verifier kept server-side in Redis (never in the
 //      browser) and exchanged alongside the auth code.
 
-const JWT_SECRET = process.env.JWT_SECRET!;
+const JWT_SECRET = env.JWT_SECRET;
 const STATE_TTL = 600; // seconds (10 min) — both the JWT and the Redis verifier
 
 interface StatePayload {
@@ -20,7 +21,7 @@ interface StatePayload {
 }
 
 export function appUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+  return env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
 }
 
 // Exact redirect URI registered with the provider; one per OAuth app.

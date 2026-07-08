@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createUniqueCode } from "@/lib/affiliate";
+import { env } from "@/lib/env";
 
 export async function POST(req: NextRequest) {
   const user = await getAuthUser(req);
@@ -9,7 +10,7 @@ export async function POST(req: NextRequest) {
 
   const existing = await prisma.affiliate.findUnique({ where: { userId: user.userId } });
   if (existing) {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://clipiro.ai";
+    const baseUrl = env.NEXT_PUBLIC_APP_URL ?? "https://clipiro.ai";
     return NextResponse.json({
       code: existing.code,
       referralLink: `${baseUrl}/signup?ref=${existing.code}`,
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
     data: { userId: user.userId, code },
   });
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://clipiro.ai";
+  const baseUrl = env.NEXT_PUBLIC_APP_URL ?? "https://clipiro.ai";
   return NextResponse.json({
     code: affiliate.code,
     referralLink: `${baseUrl}/signup?ref=${affiliate.code}`,

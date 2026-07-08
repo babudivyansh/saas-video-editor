@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { env } from "@/lib/env";
 
 // Authenticated symmetric encryption for secrets we must store but never expose
 // (OAuth access/refresh tokens for linked social accounts). AES-256-GCM gives
@@ -15,7 +16,7 @@ const ALGO = "aes-256-gcm";
 // derive a stable key from JWT_SECRET so the feature works locally before a
 // dedicated key is provisioned — never allowed in production.
 function getKey(): Buffer {
-  const b64 = process.env.SOCIAL_TOKEN_KEY;
+  const b64 = env.SOCIAL_TOKEN_KEY;
   if (b64) {
     const key = Buffer.from(b64, "base64");
     if (key.length === 32) return key;
@@ -24,7 +25,7 @@ function getKey(): Buffer {
   if (process.env.NODE_ENV === "production") {
     throw new Error("SOCIAL_TOKEN_KEY must be set in production");
   }
-  const seed = process.env.JWT_SECRET;
+  const seed = env.JWT_SECRET;
   if (!seed) {
     throw new Error("SOCIAL_TOKEN_KEY (or JWT_SECRET in dev) must be set to encrypt social tokens");
   }

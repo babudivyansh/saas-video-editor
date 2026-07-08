@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 import crypto from "crypto";
 
 const RESET_TTL = 60 * 15; // 15 minutes
@@ -38,12 +40,12 @@ export async function POST(req: NextRequest) {
   const token = crypto.randomBytes(32).toString("hex");
   await redis.set(`pwd-reset:${token}`, user.id, "EX", RESET_TTL);
 
-  const resetLink = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
+  const resetLink = `${env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
 
   try {
     await sendPasswordResetEmail(user.email, user.firstName ?? user.name ?? "", resetLink);
   } catch (err) {
-    console.error("[forgot-password] email send failed:", err);
+    logger.error("forgot-password", "email send failed", err);
   }
 
   return NextResponse.json({ ok: true });

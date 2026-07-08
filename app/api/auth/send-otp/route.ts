@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { issueOtp } from "@/lib/otp";
 import { normalizeIdentifier, findUserByMethod, type AuthMethod } from "@/lib/identifier";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
   try {
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, channel, devCode });
   } catch (err) {
-    console.error("[send-otp]", err);
+    logger.error("send-otp", "request failed", err);
     return NextResponse.json({ error: "Failed to send code" }, { status: 500 });
   }
 }

@@ -8,6 +8,9 @@ import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { markQuestComplete } from "@/lib/quests";
 import { firePostCreditSpendEmails, fireZeroCreditsEmail } from "@/lib/credit-events";
+import { withRateLimit } from "@/lib/with-rate-limit";
+import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 
 export const maxDuration = 120;
 
@@ -34,7 +37,7 @@ async function refundCredit(userId: string) {
 // Standalone voiceover generator (no project needed). Takes a script + voice,
 // runs ElevenLabs TTS, stores the mp3 on S3, and returns a playable URL plus
 // the spoken duration so the UI can show a player and history entry.
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -63,7 +66,7 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
-  if (!process.env.ELEVENLABS_API_KEY) {
+  if (!env.ELEVENLABS_API_KEY) {
     return NextResponse.json({ error: "Voice generation is not configured" }, { status: 503 });
   }
 
@@ -110,8 +113,10 @@ export async function POST(req: NextRequest) {
       title: (body.title ?? "").trim() || "Untitled voiceover",
     });
   } catch (err) {
-    console.error("[tools/voiceover]", err);
+    logger.error("tools/voiceover", "request failed", err);
     try { await refundCredit(auth.userId); } catch { /* swallow */ }
     return NextResponse.json({ error: "Voice generation failed. Please try again." }, { status: 500 });
   }
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:voiceover" });

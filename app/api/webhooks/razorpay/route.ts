@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { fulfillPayment, type FulfillNotes } from "@/lib/fulfillment";
+import { env } from "@/lib/env";
 
 // Backup fulfillment path. The primary path is the client-side verify endpoint
 // (app/api/billing/verify); this webhook catches payments where the browser
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
 
   // Verify HMAC-SHA256 signature of the raw body.
   const expected = crypto
-    .createHmac("sha256", process.env.RAZORPAY_WEBHOOK_SECRET!)
+    .createHmac("sha256", env.RAZORPAY_WEBHOOK_SECRET)
     .update(body)
     .digest("hex");
   const sigBuf = Buffer.from(sig);

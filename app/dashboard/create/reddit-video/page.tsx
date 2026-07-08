@@ -56,6 +56,9 @@ let currentPreviewAudio: HTMLAudioElement | null = null;
 
 // ── Backgrounds ───────────────────────────────────────────────────────────────
 const BACKDROP_CDN = "https://gameplay-cdn.com/gameplay";
+// Reads raw process.env rather than lib/env.ts's `env` object deliberately —
+// this is a client component, and importing lib/env.ts here would bundle its
+// whole zod schema (including server secrets) into client code.
 const BACKGROUNDS_BASE =
   process.env.NEXT_PUBLIC_BACKGROUNDS_BASE ??
   "https://saas-video-editor-assets.s3.ap-south-1.amazonaws.com/backgrounds";

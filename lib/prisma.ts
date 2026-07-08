@@ -2,7 +2,13 @@ import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
-// Automatically rewrite direct Supabase connection strings (IPv6-only) to the IPv4 Connection Pooler
+import { logger } from "@/lib/logger";
+// Automatically rewrite direct Supabase connection strings (IPv6-only) to the IPv4 Connection Pooler.
+// Deliberately reads/writes raw `process.env.DATABASE_URL` rather than lib/env.ts's `env.DATABASE_URL`:
+// `env` is parsed once, eagerly, at that module's own import time, so if anything imports lib/env.ts
+// before this rewrite runs, `env.DATABASE_URL` would freeze on the pre-rewrite value. The `pg.Pool`
+// below reads `process.env.DATABASE_URL` again (not `dbUrl`) for the same reason — it must observe
+// this rewrite, not a value captured before it.
 let dbUrl = process.env.DATABASE_URL;
 if (dbUrl && dbUrl.includes("supabase")) {
   // Format 1: postgresql://user:pass@db.<ref>.supabase.co:5432/<db>
@@ -14,7 +20,7 @@ if (dbUrl && dbUrl.includes("supabase")) {
     const [_, user, password, projectRef, dbName] = match;
     dbUrl = `postgresql://${user}.${projectRef}:${password}@aws-0-ap-south-1.pooler.supabase.com:6543/${dbName}?pgbouncer=true&connection_limit=1`;
     process.env.DATABASE_URL = dbUrl;
-    console.log("Automatically rewrote direct Supabase URL to IPv4 connection pooler");
+    logger.info("prisma", "Automatically rewrote direct Supabase URL to IPv4 connection pooler");
   }
 }
 

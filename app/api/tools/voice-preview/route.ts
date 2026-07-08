@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveVoiceId } from "@/utils/voice-ids";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 
 export const maxDuration = 30;
 
@@ -14,7 +16,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
   }
 
-  if (!process.env.ELEVENLABS_API_KEY) {
+  if (!env.ELEVENLABS_API_KEY) {
     return NextResponse.json({ error: "Voice generation is not configured" }, { status: 503 });
   }
 
@@ -35,7 +37,7 @@ export async function POST(req: NextRequest) {
     {
       method: "POST",
       headers: {
-        "xi-api-key": process.env.ELEVENLABS_API_KEY,
+        "xi-api-key": env.ELEVENLABS_API_KEY,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -49,7 +51,7 @@ export async function POST(req: NextRequest) {
 
   if (!res.ok) {
     const err = await res.text();
-    console.error("[voice-preview]", res.status, err);
+    logger.error("voice-preview", `ElevenLabs error ${res.status}`, err);
     return NextResponse.json({ error: "Preview generation failed" }, { status: 502 });
   }
 

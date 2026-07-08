@@ -14,6 +14,9 @@ import { resolveVoiceId } from "@/utils/voice-ids";
 import { downloadFile } from "@/utils/download";
 import { markQuestComplete } from "@/lib/quests";
 import { renderRedditCard } from "@/utils/reddit-canvas";
+import { withRateLimit } from "@/lib/with-rate-limit";
+import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 
 const CREDIT_COST = 2;
 const S3_HOST = "saas-video-editor-assets.s3.ap-south-1.amazonaws.com";
@@ -28,7 +31,7 @@ async function refundRenderCredit(projectId: string) {
       await redis.set(`credits:${proj.userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
     }
   } catch (e) {
-    console.error(`[refund] failed to refund credit for project ${projectId}:`, e);
+    logger.error("refund", `failed to refund credit for project ${projectId}`, e);
   }
 }
 
@@ -88,19 +91,19 @@ async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
     upvotes = "0", comments = "0",
   } = payload;
 
-  const hasElevenLabs = !!process.env.ELEVENLABS_API_KEY;
-  const hasAWS = !!process.env.AWS_ACCESS_KEY_ID && !!process.env.AWS_SECRET_ACCESS_KEY && !!process.env.AWS_S3_BUCKET;
+  const hasElevenLabs = !!env.ELEVENLABS_API_KEY;
+  const hasAWS = !!env.AWS_ACCESS_KEY_ID && !!env.AWS_SECRET_ACCESS_KEY && !!env.AWS_S3_BUCKET;
 
   if (!hasElevenLabs || !hasAWS) {
     if (process.env.NODE_ENV === "development") {
-      console.warn("[reddit-video] Missing credentials — simulating render (dev only)");
+      logger.warn("reddit-video", "Missing credentials — simulating render (dev only)");
       await new Promise(r => setTimeout(r, 3000));
       const fallbackUrl = bgVideoUrl || "https://saas-video-editor-assets.s3.ap-south-1.amazonaws.com/backgrounds/subway-surfers.mp4";
       await prisma.project.update({ where: { id: projectId }, data: { status: "completed", videoUrl: fallbackUrl, progress: 100 } });
       return;
     }
     const missing = [!hasElevenLabs && "ELEVENLABS_API_KEY", !hasAWS && "AWS credentials"].filter(Boolean).join(", ");
-    console.error(`[reddit-video] Missing required credentials: ${missing}`);
+    logger.error("reddit-video", `Missing required credentials: ${missing}`);
     await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } });
     await refundRenderCredit(projectId);
     return;
@@ -111,7 +114,7 @@ async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
 
   try {
     await setProgress(projectId, 5);
-    console.log(`[reddit-video] Starting render for ${projectId}`);
+    logger.info("reddit-video", `Starting render for ${projectId}`);
 
     // Build ElevenLabs settings from payload
     const elevenLabsSettings: import("@/utils/elevenlabs").VoiceSettings | undefined =
@@ -127,7 +130,7 @@ async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
     const resolvedIntroId = resolveVoiceId(introVoiceId);
     const resolvedScriptId = resolveVoiceId(scriptVoiceId);
 
-    console.log("[reddit-video] Generating intro TTS...");
+    logger.info("reddit-video", "Generating intro TTS...");
     const introResult = await synthesizeVoice(introText, resolvedIntroId, elevenLabsSettings);
     const introAudioPath = path.join(tmpDir, "intro.mp3");
     fs.writeFileSync(introAudioPath, introResult.audioBuffer);
@@ -135,14 +138,14 @@ async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
     await setProgress(projectId, 10);
 
     // 2. TTS — main script
-    console.log("[reddit-video] Generating script TTS...");
+    logger.info("reddit-video", "Generating script TTS...");
     const scriptResult = await synthesizeVoice(script, resolvedScriptId, elevenLabsSettings);
     const scriptAudioPath = path.join(tmpDir, "script.mp3");
     fs.writeFileSync(scriptAudioPath, scriptResult.audioBuffer);
     await setProgress(projectId, 25);
 
     // 3. Concatenate audio (intro + 500ms gap + script)
-    console.log("[reddit-video] Concatenating audio...");
+    logger.info("reddit-video", "Concatenating audio...");
     const combinedAudioPath = path.join(tmpDir, "voice.mp3");
     const silencePath = path.join(tmpDir, "silence.mp3");
     await runFFmpegArgs([
@@ -160,7 +163,7 @@ async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
     ];
 
     // 5. Generate ASS subtitles
-    console.log("[reddit-video] Generating subtitles...");
+    logger.info("reddit-video", "Generating subtitles...");
     const subtitleStyle = styleIndexToSubtitleStyle(subtitleStyleIndex, subtitleMode);
     const assPath = path.join(tmpDir, "subs.ass");
     generateASS(combinedTimings, subtitleStyle, assPath);
@@ -168,14 +171,14 @@ async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
     // 6. Render Reddit card PNG (optional)
     let introCardPath: string | undefined;
     if (showIntroCard) {
-      console.log("[reddit-video] Rendering Reddit intro card...");
+      logger.info("reddit-video", "Rendering Reddit intro card...");
       const cardBuf = await renderRedditCard({ postTitle, username, upvotes, comments, darkMode });
       introCardPath = path.join(tmpDir, "reddit_card.png");
       fs.writeFileSync(introCardPath, cardBuf);
     }
 
     // 7. Download background video
-    console.log("[reddit-video] Downloading background video...");
+    logger.info("reddit-video", "Downloading background video...");
     const bgVideoPath = path.join(tmpDir, "bg.mp4");
     await downloadFile(bgVideoUrl, bgVideoPath);
     await setProgress(projectId, 55);
@@ -183,19 +186,19 @@ async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
     // 8. Download background music (only from our S3 — reject 3rd-party CDNs)
     let musicPath: string | undefined;
     if (bgMusicUrl && bgMusicUrl.includes(S3_HOST)) {
-      console.log("[reddit-video] Downloading background music...");
+      logger.info("reddit-video", "Downloading background music...");
       const candidate = path.join(tmpDir, "music.mp3");
       try {
         await downloadFile(bgMusicUrl, candidate);
         musicPath = candidate;
       } catch (err) {
-        console.warn("[reddit-video] Background music unavailable, continuing without it:", err);
+        logger.warn("reddit-video", "Background music unavailable, continuing without it", err);
       }
     }
     await setProgress(projectId, 60);
 
     // 9. FFmpeg — compose final video
-    console.log("[reddit-video] Running FFmpeg...");
+    logger.info("reddit-video", "Running FFmpeg...");
     const outputPath = path.join(tmpDir, "output.mp4");
 
     if (introCardPath) {
@@ -254,7 +257,7 @@ async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
     await setProgress(projectId, 90);
 
     // 10. Upload to S3
-    console.log("[reddit-video] Uploading to S3...");
+    logger.info("reddit-video", "Uploading to S3...");
     const s3Key = `reddit-videos/${projectId}/output.mp4`;
     const videoUrl = await uploadFileToS3(outputPath, s3Key, "video/mp4");
     await setProgress(projectId, 95);
@@ -264,10 +267,10 @@ async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
       where: { id: projectId },
       data: { status: "completed", videoUrl, progress: 100 },
     });
-    console.log(`[reddit-video] Done: ${videoUrl}`);
+    logger.info("reddit-video", `Done: ${videoUrl}`);
 
   } catch (err) {
-    console.error(`[reddit-video] render failed for ${projectId}:`, err);
+    logger.error("reddit-video", `render failed for ${projectId}`, err);
     await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } });
     await refundRenderCredit(projectId);
   } finally {
@@ -285,7 +288,7 @@ function getQueue() {
 
 // ── POST handler ──────────────────────────────────────────────────────────────
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -352,3 +355,5 @@ export async function POST(req: NextRequest) {
   void markQuestComplete(auth.userId, "first-clip");
   return NextResponse.json({ status: "rendering", creditsRemaining: user.credits });
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "generate:reddit-video" });

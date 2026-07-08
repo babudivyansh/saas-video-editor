@@ -8,6 +8,7 @@ import {
   searchStockGifs,
   StockNotConfiguredError,
 } from "@/lib/editor/stock-providers";
+import { logger } from "@/lib/logger";
 
 // GET /api/editor/stock/search?type=image|video|audio|sticker|gif&q=...&page=1
 // Proxies to the relevant provider so API keys stay server-side.
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest) {
     if (err instanceof StockNotConfiguredError) {
       return NextResponse.json({ error: err.message }, { status: 503 });
     }
-    console.error("[stock/search]", err);
+    logger.error("stock/search", "request failed", err);
     return NextResponse.json({ error: "Stock search failed" }, { status: 500 });
   }
 }

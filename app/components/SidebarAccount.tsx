@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useAuth } from "@/app/components/AuthContext";
 
 function IcGlobe() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18" /></svg>; }
@@ -60,11 +61,10 @@ export default function SidebarAccount() {
       <button
         onClick={() => setOpen((p) => !p)}
         title="Account"
-        className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-[#335CFF] text-white text-sm font-bold select-none hover:opacity-90 transition-opacity flex-shrink-0"
+        className="relative w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-[#335CFF] text-white text-sm font-bold select-none hover:opacity-90 transition-opacity flex-shrink-0"
       >
         {user.avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
+          <Image src={user.avatarUrl} alt="" fill sizes="40px" className="object-cover" />
         ) : initial}
       </button>
 

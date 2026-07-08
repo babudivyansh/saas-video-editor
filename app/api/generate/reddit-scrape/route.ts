@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
+import { withRateLimit } from "@/lib/with-rate-limit";
+import { logger } from "@/lib/logger";
 
 interface RedditPostJSON {
   kind: string;
@@ -45,7 +47,7 @@ const POPULAR_REDDIT_STORIES = [
   }
 ];
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -103,10 +105,12 @@ export async function POST(req: NextRequest) {
       comments: postData.num_comments || 99
     });
   } catch (err) {
-    console.warn("[reddit-scrape] Scraping failed:", err);
+    logger.warn("reddit-scrape", "Scraping failed", err);
     return NextResponse.json(
       { error: "Could not fetch this Reddit post — Reddit may be blocking the request. Try a different post URL." },
       { status: 502 },
     );
   }
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 20, windowSec: 60, keyBy: "user", name: "generate:reddit-scrape" });

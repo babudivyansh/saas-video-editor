@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { env } from "@/lib/env";
 
 export async function GET(req: NextRequest) {
   const host = req.headers.get("host") || "clipiro.com";
@@ -8,7 +9,7 @@ export async function GET(req: NextRequest) {
   const rootUrl = "https://accounts.google.com/o/oauth2/v2/auth";
   const options = {
     redirect_uri: redirectUri,
-    client_id: process.env.GOOGLE_CLIENT_ID!,
+    client_id: env.GOOGLE_CLIENT_ID!,
     access_type: "offline",
     response_type: "code",
     prompt: "consent",

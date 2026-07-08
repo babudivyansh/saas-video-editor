@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { generateScript } from "@/utils/gemini";
+import { logger } from "@/lib/logger";
+import { withRateLimit } from "@/lib/with-rate-limit";
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -13,7 +15,9 @@ export async function POST(req: NextRequest) {
     const result = await generateScript(topic, style ?? "engaging and informative");
     return NextResponse.json(result);
   } catch (err) {
-    console.error("[generate/script]", err);
+    logger.error("generate/script", "request failed", err);
     return NextResponse.json({ error: "Script generation failed" }, { status: 500 });
   }
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "generate:script" });

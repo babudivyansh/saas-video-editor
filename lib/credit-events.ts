@@ -11,6 +11,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 import {
   sendFirstVideoSuccessEmail,
   sendLowCreditsEmail,
@@ -51,7 +52,7 @@ export function firePostCreditSpendEmails(userId: string, newBalance: number): v
         // Schedule via setTimeout so the response goes out first
         setTimeout(() => {
           sendFirstVideoSuccessEmail(user.email, displayName)
-            .catch((e) => console.error("[credit-events] first-video email error", e));
+            .catch((e) => logger.error("credit-events", "first-video email error", e));
         }, 60 * 60 * 1000); // 1 hour
       }
 
@@ -67,7 +68,7 @@ export function firePostCreditSpendEmails(userId: string, newBalance: number): v
           const estimatedVideos = Math.floor(newBalance / 2); // assume avg 2 credits/video
           await prisma.user.update({ where: { id: userId }, data: { lowCreditEmailSentAt: now } });
           sendLowCreditsEmail(user.email, displayName, newBalance, estimatedVideos)
-            .catch((e) => console.error("[credit-events] low-credits email error", e));
+            .catch((e) => logger.error("credit-events", "low-credits email error", e));
         }
       } else {
         // Free user: warn at ≤2 credits remaining (out of 10 default)
@@ -75,11 +76,11 @@ export function firePostCreditSpendEmails(userId: string, newBalance: number): v
           const estimatedVideos = newBalance;
           await prisma.user.update({ where: { id: userId }, data: { lowCreditEmailSentAt: now } });
           sendLowCreditsEmail(user.email, displayName, newBalance, estimatedVideos)
-            .catch((e) => console.error("[credit-events] low-credits email error (free user)", e));
+            .catch((e) => logger.error("credit-events", "low-credits email error (free user)", e));
         }
       }
     } catch (e) {
-      console.error("[credit-events] post-credit-spend error", e);
+      logger.error("credit-events", "post-credit-spend error", e);
     }
   })();
 }
@@ -105,9 +106,9 @@ export function fireZeroCreditsEmail(userId: string): void {
 
       await prisma.user.update({ where: { id: userId }, data: { lowCreditEmailSentAt: new Date() } });
       sendZeroCreditsEmail(user.email, user.firstName ?? user.name ?? "")
-        .catch((e) => console.error("[credit-events] zero-credits email error", e));
+        .catch((e) => logger.error("credit-events", "zero-credits email error", e));
     } catch (e) {
-      console.error("[credit-events] zero-credits lookup error", e);
+      logger.error("credit-events", "zero-credits lookup error", e);
     }
   })();
 }

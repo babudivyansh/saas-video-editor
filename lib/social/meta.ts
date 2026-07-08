@@ -1,5 +1,6 @@
 import { redirectUri } from "./oauth";
 import type { NormalizedAccount, NormalizedPost, OAuthTokens, ProviderId, ProviderSync } from "./types";
+import { env } from "@/lib/env";
 
 // Instagram + Facebook via one Meta app (Facebook Login + Graph API v22.0).
 // A single OAuth grant yields a long-lived USER token; from it we derive a
@@ -20,12 +21,12 @@ const SCOPES = [
 ];
 
 function appId() {
-  const id = process.env.META_APP_ID;
+  const id = env.META_APP_ID;
   if (!id) throw new Error("META_APP_ID is not configured");
   return id;
 }
 function appSecret() {
-  const s = process.env.META_APP_SECRET;
+  const s = env.META_APP_SECRET;
   if (!s) throw new Error("META_APP_SECRET is not configured");
   return s;
 }

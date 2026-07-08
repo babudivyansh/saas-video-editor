@@ -1,5 +1,5 @@
 .PHONY: dev build start lint install \
-        db-migrate db-seed db-reset db-studio \
+        db-migrate db-migrate-deploy db-seed db-reset db-studio \
         test-ffmpeg generate setup
 
 # ── Dev ────────────────────────────────────────────────────────────────────────
@@ -25,6 +25,13 @@ install:
 # kept in the repo for production/optional use, but is not required for dev.
 db-migrate:
 	npx prisma migrate dev
+
+# Production/deploy migrations — applies committed migrations without
+# generating new ones or prompting. Run this as its own pre-traffic deploy
+# step; `make build` / `npm run build` no longer runs migrations (see README
+# "Deployment" section) so a build never depends on DB reachability.
+db-migrate-deploy:
+	npx prisma migrate deploy
 
 db-seed:
 	npx tsx prisma/seed.ts

@@ -1,3 +1,6 @@
+import { withRetry } from "@/lib/with-retry";
+import { env } from "@/lib/env";
+
 // TTS model used for all synthesis (voiceover + video renders).
 // eleven_flash_v2_5 is multilingual, supports /with-timestamps, and costs
 // ~5-6x less than eleven_multilingual_v2 (the single biggest margin win).
@@ -27,7 +30,7 @@ export async function synthesizeVoice(
   voiceId: string,
   settings?: VoiceSettings
 ): Promise<VoiceResult> {
-  const apiKey = process.env.ELEVENLABS_API_KEY!;
+  const apiKey = env.ELEVENLABS_API_KEY!;
 
   const clamp = (n: number) => Math.min(1, Math.max(0, n));
   const stability = settings?.stability != null ? clamp(settings.stability) : 0.5;
@@ -35,22 +38,26 @@ export async function synthesizeVoice(
   const style = settings?.style != null ? clamp(settings.style) : 0.5;
 
   // Request with word-level timestamps
-  const res = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps`,
-    {
-      method: "POST",
-      headers: {
-        "xi-api-key": apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        text,
-        model_id: TTS_MODEL_ID,
-        voice_settings: { stability, similarity_boost, style, use_speaker_boost: true },
-        output_format: "mp3_44100_128",
-        ...(settings?.languageCode && settings.languageCode !== "auto" ? { language_code: settings.languageCode } : {}),
-      }),
-    }
+  const res = await withRetry(
+    (signal) => fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps`,
+      {
+        method: "POST",
+        headers: {
+          "xi-api-key": apiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text,
+          model_id: TTS_MODEL_ID,
+          voice_settings: { stability, similarity_boost, style, use_speaker_boost: true },
+          output_format: "mp3_44100_128",
+          ...(settings?.languageCode && settings.languageCode !== "auto" ? { language_code: settings.languageCode } : {}),
+        }),
+        signal,
+      }
+    ),
+    { timeoutMs: 30_000 },
   );
 
   if (!res.ok) {
@@ -114,18 +121,22 @@ export async function transcribeAudio(
   audioBuffer: Buffer,
   mimeType = "audio/mpeg"
 ): Promise<WordTiming[]> {
-  const apiKey = process.env.ELEVENLABS_API_KEY;
+  const apiKey = env.ELEVENLABS_API_KEY;
   if (!apiKey) return [];
 
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(audioBuffer)], { type: mimeType }), "audio.mp3");
   form.append("model_id", "scribe_v1");
 
-  const res = await fetch("https://api.elevenlabs.io/v1/speech-to-text", {
-    method: "POST",
-    headers: { "xi-api-key": apiKey },
-    body: form,
-  });
+  const res = await withRetry(
+    (signal) => fetch("https://api.elevenlabs.io/v1/speech-to-text", {
+      method: "POST",
+      headers: { "xi-api-key": apiKey },
+      body: form,
+      signal,
+    }),
+    { timeoutMs: 60_000 },
+  );
 
   if (!res.ok) {
     const err = await res.text();
@@ -153,7 +164,7 @@ export async function transcribeAudio(
 export interface DubbingJob { dubbingId: string; expectedDurationSec?: number }
 
 export async function startDubbing(videoUrl: string, targetLang: string, sourceLang = "auto"): Promise<DubbingJob> {
-  const apiKey = process.env.ELEVENLABS_API_KEY;
+  const apiKey = env.ELEVENLABS_API_KEY;
   if (!apiKey) throw new Error("ElevenLabs API key not configured");
 
   const form = new FormData();
@@ -162,19 +173,26 @@ export async function startDubbing(videoUrl: string, targetLang: string, sourceL
   form.append("source_lang", sourceLang);
   form.append("num_speakers", "0"); // auto-detect
 
-  const res = await fetch("https://api.elevenlabs.io/v1/dubbing", {
-    method: "POST",
-    headers: { "xi-api-key": apiKey },
-    body: form,
-  });
+  const res = await withRetry(
+    (signal) => fetch("https://api.elevenlabs.io/v1/dubbing", {
+      method: "POST",
+      headers: { "xi-api-key": apiKey },
+      body: form,
+      signal,
+    }),
+    { timeoutMs: 30_000 },
+  );
   if (!res.ok) throw new Error(`ElevenLabs dubbing error ${res.status}: ${await res.text()}`);
   const json = (await res.json()) as { dubbing_id: string; expected_duration_sec?: number };
   return { dubbingId: json.dubbing_id, expectedDurationSec: json.expected_duration_sec };
 }
 
 export async function getDubbingStatus(dubbingId: string): Promise<"dubbing" | "dubbed" | "failed"> {
-  const apiKey = process.env.ELEVENLABS_API_KEY!;
-  const res = await fetch(`https://api.elevenlabs.io/v1/dubbing/${dubbingId}`, { headers: { "xi-api-key": apiKey } });
+  const apiKey = env.ELEVENLABS_API_KEY!;
+  const res = await withRetry(
+    (signal) => fetch(`https://api.elevenlabs.io/v1/dubbing/${dubbingId}`, { headers: { "xi-api-key": apiKey }, signal }),
+    { timeoutMs: 10_000 },
+  );
   if (!res.ok) throw new Error(`ElevenLabs dubbing status error ${res.status}`);
   const json = (await res.json()) as { status: string };
   if (json.status === "dubbed") return "dubbed";
@@ -183,8 +201,11 @@ export async function getDubbingStatus(dubbingId: string): Promise<"dubbing" | "
 }
 
 export async function getDubbedAudio(dubbingId: string, lang: string): Promise<Buffer> {
-  const apiKey = process.env.ELEVENLABS_API_KEY!;
-  const res = await fetch(`https://api.elevenlabs.io/v1/dubbing/${dubbingId}/audio/${lang}`, { headers: { "xi-api-key": apiKey } });
+  const apiKey = env.ELEVENLABS_API_KEY!;
+  const res = await withRetry(
+    (signal) => fetch(`https://api.elevenlabs.io/v1/dubbing/${dubbingId}/audio/${lang}`, { headers: { "xi-api-key": apiKey }, signal }),
+    { timeoutMs: 30_000 },
+  );
   if (!res.ok) throw new Error(`ElevenLabs dubbed audio error ${res.status}`);
   return Buffer.from(await res.arrayBuffer());
 }
@@ -200,10 +221,11 @@ export const DUB_LANGUAGES: { code: string; label: string }[] = [
 ];
 
 export async function listVoices(): Promise<{ voice_id: string; name: string; preview_url: string }[]> {
-  const apiKey = process.env.ELEVENLABS_API_KEY!;
-  const res = await fetch("https://api.elevenlabs.io/v1/voices", {
-    headers: { "xi-api-key": apiKey },
-  });
+  const apiKey = env.ELEVENLABS_API_KEY!;
+  const res = await withRetry(
+    (signal) => fetch("https://api.elevenlabs.io/v1/voices", { headers: { "xi-api-key": apiKey }, signal }),
+    { timeoutMs: 10_000 },
+  );
   if (!res.ok) throw new Error(`ElevenLabs voices error ${res.status}`);
   const json = (await res.json()) as { voices: { voice_id: string; name: string; preview_url: string }[] };
   return json.voices;

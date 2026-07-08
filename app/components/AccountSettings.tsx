@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { useAuth } from "@/app/components/AuthContext";
 
 // Self-contained account settings (avatar, profile, password, sign-out). Single
@@ -105,8 +106,13 @@ export default function AccountSettings() {
       <div className="flex items-center gap-4">
         <div className="relative flex-shrink-0">
           {user?.avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={user.avatarUrl} alt="avatar" className="w-16 h-16 rounded-2xl object-cover shadow-sm" />
+            <Image
+              src={user.avatarUrl}
+              alt="avatar"
+              width={64}
+              height={64}
+              className="w-16 h-16 rounded-2xl object-cover shadow-sm"
+            />
           ) : (
             <div className="w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center text-white text-2xl font-extrabold select-none shadow-sm">
               {(user?.name?.[0] ?? user?.email?.[0] ?? "?").toUpperCase()}

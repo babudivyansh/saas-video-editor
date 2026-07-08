@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { consumeState } from "@/lib/social/oauth";
 import { handleCallback, oauthProviderFor } from "@/lib/social/service";
 import type { OAuthProvider, ProviderId } from "@/lib/social/types";
+import { logger } from "@/lib/logger";
 
 // OAuth redirect target. This is a top-level browser navigation (no Authorization
 // header), so the caller's identity comes from the signed `state` we minted at
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
     const connected = await handleCallback(provider as OAuthProvider, consumed.userId, code, consumed.verifier);
     return NextResponse.redirect(dest(req, { connected: connected.join(",") }));
   } catch (e) {
-    console.error("[social callback]", e);
+    logger.error("social-callback", "request failed", e);
     return NextResponse.redirect(dest(req, { error: "connect_failed" }));
   }
 }

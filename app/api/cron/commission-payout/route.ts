@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendCommissionAvailableEmail } from "@/lib/email";
+import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 
 // Daily cron — notifies affiliates when their commission hold period (30 days)
 // has ended and payout is now available.
@@ -11,7 +13,7 @@ import { sendCommissionAvailableEmail } from "@/lib/email";
 // Uses payoutEmailSent flag on Commission to prevent duplicate notifications.
 
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
+  const secret = env.CRON_SECRET;
   const authz = req.headers.get("authorization");
   if (!secret || authz !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -49,7 +51,7 @@ export async function GET(req: NextRequest) {
       });
       notified++;
     } catch (e) {
-      console.error("[cron/commission-payout] error for commission", commission.id, e);
+      logger.error("cron/commission-payout", `error for commission ${commission.id}`, e);
       errors++;
     }
   }

@@ -1,4 +1,5 @@
 import Redis from "ioredis";
+import { env } from "@/lib/env";
 
 const globalForRedis = globalThis as unknown as {
   redis: Redis;
@@ -52,7 +53,7 @@ function fallbackDel(key: string) {
 const isNewClient = !globalForRedis.redis;
 const client =
   globalForRedis.redis ??
-  new Redis(process.env.REDIS_URL ?? "redis://localhost:6379", {
+  new Redis(env.REDIS_URL ?? "redis://localhost:6379", {
     // Looser than a local-dev Redis needs, since production talks to a remote
     // instance over the public internet (Hostinger -> Upstash) where a single
     // transient blip shouldn't immediately drop to the in-memory fallback.

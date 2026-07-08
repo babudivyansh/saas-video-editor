@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
+import { withRateLimit } from "@/lib/with-rate-limit";
 import { synthesizeVoice } from "@/utils/elevenlabs";
 import { uploadBufferToS3 } from "@/utils/s3-upload";
+import { logger } from "@/lib/logger";
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -19,7 +21,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ audioUrl, wordTimings });
   } catch (err) {
-    console.error("[generate/voice]", err);
+    logger.error("generate/voice", "request failed", err);
     return NextResponse.json({ error: "Voice generation failed" }, { status: 500 });
   }
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "generate:voice" });

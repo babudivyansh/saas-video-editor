@@ -7,6 +7,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/app/components/AuthContext";
 
@@ -126,8 +127,13 @@ export default function AccountNav() {
         <div className="flex flex-col items-center text-center">
           <div className="relative">
             {user?.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={user.avatarUrl} alt="avatar" className="w-20 h-20 rounded-full object-cover shadow-sm" />
+              <Image
+                src={user.avatarUrl}
+                alt="avatar"
+                width={80}
+                height={80}
+                className="w-20 h-20 rounded-full object-cover shadow-sm"
+              />
             ) : (
               <div className="w-20 h-20 rounded-full bg-blue-600 flex items-center justify-center text-white text-3xl font-extrabold select-none shadow-sm">
                 {(user?.name?.[0] ?? user?.email?.[0] ?? "?").toUpperCase()}

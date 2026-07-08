@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import * as Sentry from "@sentry/nextjs";
+import { logger } from "@/lib/logger";
 
 function BoltIcon() {
   return (
@@ -24,8 +24,7 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[GlobalError]", error);
-    Sentry.captureException(error);
+    logger.error("GlobalError", "Unhandled error", error);
   }, [error]);
 
   return (

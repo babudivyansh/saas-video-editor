@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendOnboardingDay1Email, sendOnboardingDay3Email, sendOnboardingDay7Email } from "@/lib/email";
+import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 
 // Daily cron — drives the 3-email onboarding sequence for new users.
 //
@@ -12,7 +14,7 @@ import { sendOnboardingDay1Email, sendOnboardingDay3Email, sendOnboardingDay7Ema
 // Day 7: Upgrade prompt
 
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
+  const secret = env.CRON_SECRET;
   const authz = req.headers.get("authorization");
   if (!secret || authz !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -46,12 +48,12 @@ export async function GET(req: NextRequest) {
         await prisma.user.update({ where: { id: u.id }, data: { onboardingDay1SentAt: now } });
         results.day1++;
       } catch (e) {
-        console.error("[cron/onboarding] day1 error for", u.id, e);
+        logger.error("cron/onboarding", `day1 error for ${u.id}`, e);
         results.errors++;
       }
     }
   } catch (e) {
-    console.error("[cron/onboarding] day1 batch error", e);
+    logger.error("cron/onboarding", "day1 batch error", e);
   }
 
   // ── Day 3: signed up ~3 days ago ─────────────────────────────────────────
@@ -76,12 +78,12 @@ export async function GET(req: NextRequest) {
         await prisma.user.update({ where: { id: u.id }, data: { onboardingDay3SentAt: now } });
         results.day3++;
       } catch (e) {
-        console.error("[cron/onboarding] day3 error for", u.id, e);
+        logger.error("cron/onboarding", `day3 error for ${u.id}`, e);
         results.errors++;
       }
     }
   } catch (e) {
-    console.error("[cron/onboarding] day3 batch error", e);
+    logger.error("cron/onboarding", "day3 batch error", e);
   }
 
   // ── Day 7: signed up ~7 days ago ─────────────────────────────────────────
@@ -104,12 +106,12 @@ export async function GET(req: NextRequest) {
         await prisma.user.update({ where: { id: u.id }, data: { onboardingDay7SentAt: now } });
         results.day7++;
       } catch (e) {
-        console.error("[cron/onboarding] day7 error for", u.id, e);
+        logger.error("cron/onboarding", `day7 error for ${u.id}`, e);
         results.errors++;
       }
     }
   } catch (e) {
-    console.error("[cron/onboarding] day7 batch error", e);
+    logger.error("cron/onboarding", "day7 batch error", e);
   }
 
   return NextResponse.json({ ok: true, ...results, at: now.toISOString() });
