@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { issueOtp } from "@/lib/otp";
 import { normalizeIdentifier, findUserByMethod, type AuthMethod } from "@/lib/identifier";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,11 +13,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
-    // OTP is a sign-in method, so the account must already exist.
+    const [idLimit, ipLimit] = await Promise.all([
+      rateLimit(`otp-send:${method}:${identifier}`, 3, 600),
+      rateLimit(`otp-send:ip:${getClientIp(req)}`, 10, 600),
+    ]);
+    if (!idLimit.allowed || !ipLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many attempts. Please try again in a few minutes." },
+        { status: 429 },
+      );
+    }
+
+    // OTP is a sign-in method, so the account must already exist — but we
+    // don't reveal that: a non-existent identifier gets the same success
+    // response as a real one (no code is actually sent), so responses can't
+    // be used to enumerate accounts. Mirrors forgot-password's approach.
     const user = await findUserByMethod(method, identifier);
     if (!user) {
-      const label = method === "email" ? "email" : "phone number";
-      return NextResponse.json({ error: `No account found with this ${label}` }, { status: 404 });
+      return NextResponse.json({ success: true, channel: "otp-sent" });
     }
 
     const { code, channel } = await issueOtp(method, identifier);

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { signToken, cacheSession } from "@/lib/auth";
 import { normalizeIdentifier, findUserByMethod, type AuthMethod } from "@/lib/identifier";
 import { sendNewLoginAlertEmail } from "@/lib/email";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 // Fixed-cost bcrypt hash with no matching password, compared against when the
 // account doesn't exist so the response takes the same time either way and
@@ -19,6 +20,18 @@ export async function POST(req: NextRequest) {
 
     if (!identifier || !password) {
       return NextResponse.json({ error: "Credentials are required" }, { status: 400 });
+    }
+
+    const ip = getClientIp(req);
+    const [idLimit, ipLimit] = await Promise.all([
+      rateLimit(`login:id:${identifier}`, 8, 900),
+      rateLimit(`login:ip:${ip}`, 30, 900),
+    ]);
+    if (!idLimit.allowed || !ipLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many attempts. Please try again in a few minutes." },
+        { status: 429 },
+      );
     }
 
     const user = await findUserByMethod(method, identifier);
@@ -48,14 +61,13 @@ export async function POST(req: NextRequest) {
       : ua.includes("Safari") ? "Safari on Desktop"
       : "Unknown device";
 
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
     const timeStr = now.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
 
     // Fire & forget — fetch location from free ip-api, then send alert
     ;(async () => {
       try {
         let location = "Unknown location";
-        if (ip && ip !== "::1" && !ip.startsWith("127.")) {
+        if (ip !== "unknown" && ip !== "::1" && !ip.startsWith("127.")) {
           const geo = await fetch(`http://ip-api.com/json/${ip}?fields=city,country`, { signal: AbortSignal.timeout(2000) })
             .then((r) => r.json()).catch(() => null);
           if (geo?.city) location = `${geo.city}, ${geo.country}`;

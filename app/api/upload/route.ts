@@ -33,6 +33,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "File too large (max 500 MB)" }, { status: 413 });
   }
 
+  // Stored objects are served back with this exact Content-Type and no
+  // Content-Disposition/CDN layer forces a download, so an unrestricted
+  // upload (e.g. text/html) would be a stored-XSS vector on the S3 origin.
+  const ALLOWED_MIME = /^(video|audio|image)\/(mp4|mpeg|quicktime|webm|x-matroska|mp3|wav|ogg|png|jpeg|jpg|webp|gif)$/;
+  if (!ALLOWED_MIME.test(file.type)) {
+    return NextResponse.json({ error: "Unsupported file type" }, { status: 415 });
+  }
+
   const ext = (file.name.split(".").pop() ?? "mp4").toLowerCase();
   const key = `uploads/${auth.userId}/${randomUUID()}.${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());

@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const maxDuration = 30;
 
 // Uses Gemini to rewrite a short image prompt into a detailed, vivid description
 // that produces better results from image generation models.
 export async function POST(req: NextRequest) {
+  const limit = await rateLimit(`enhance-prompt:ip:${getClientIp(req)}`, 20, 3600);
+  if (!limit.allowed) {
+    return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+  }
+
   if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json({ error: "Prompt enhancement not configured" }, { status: 503 });
   }

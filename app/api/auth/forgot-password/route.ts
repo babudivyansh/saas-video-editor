@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { sendPasswordResetEmail } from "@/lib/email";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import crypto from "crypto";
 
 const RESET_TTL = 60 * 15; // 15 minutes
@@ -12,8 +13,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Email is required" }, { status: 400 });
   }
 
+  const normalizedEmail = email.toLowerCase().trim();
+  const [idLimit, ipLimit] = await Promise.all([
+    rateLimit(`pwd-reset:${normalizedEmail}`, 3, 900),
+    rateLimit(`pwd-reset:ip:${getClientIp(req)}`, 10, 900),
+  ]);
+  if (!idLimit.allowed || !ipLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many attempts. Please try again in a few minutes." },
+      { status: 429 },
+    );
+  }
+
   const user = await prisma.user.findUnique({
-    where: { email: email.toLowerCase().trim() },
+    where: { email: normalizedEmail },
     select: { id: true, email: true, firstName: true, name: true },
   });
 

@@ -1,8 +1,14 @@
+import { NextRequest } from "next/server";
 import { redis } from "./redis";
 
 export interface RateLimitResult {
   allowed: boolean;
   remaining: number;
+}
+
+/** Client IP for rate-limit keying (best-effort — not for fraud/trust decisions). */
+export function getClientIp(req: NextRequest): string {
+  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
 }
 
 /**

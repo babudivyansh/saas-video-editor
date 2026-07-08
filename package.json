@@ -66,5 +66,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "uuid": "^14.0.0"
   }
 }

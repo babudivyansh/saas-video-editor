@@ -11,6 +11,24 @@ const nextConfig: NextConfig = {
     // lockfile, which misplaces Turbopack's on-disk cache and can break dev.
     root: __dirname,
   },
+  // No Content-Security-Policy yet — this app loads Razorpay checkout, Google
+  // OAuth, and Sentry from third-party origins, and a wrong CSP would silently
+  // break checkout/login. These headers are the safe subset that can't break
+  // existing functionality.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        ],
+      },
+    ];
+  },
 };
 
 // Source-map upload only runs when SENTRY_AUTH_TOKEN/ORG/PROJECT are set;

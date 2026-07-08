@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runFFmpegWithProgress } from "@/utils/ffmpeg-render";
 import { attachmentDisposition } from "@/utils/content-disposition";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -44,6 +45,11 @@ function sweep() {
 
 // ── POST: start a conversion, return a jobId immediately ──────────────────────
 export async function POST(req: NextRequest) {
+  const limit = await rateLimit(`mp3-converter:ip:${getClientIp(req)}`, 5, 3600);
+  if (!limit.allowed) {
+    return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+  }
+
   sweep();
 
   let formData: FormData;
