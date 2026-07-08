@@ -67,7 +67,12 @@ export async function POST(req: NextRequest) {
       try {
         const affiliate = await prisma.affiliate.findUnique({ where: { code: affiliateRef } });
         if (affiliate && affiliate.userId !== user.id && affiliate.status === "active") {
-          // IP-based fraud detection — flag if same /24 subnet as affiliate's last signup
+          // IP-based fraud detection — flag if same /24 subnet as affiliate's last signup.
+          // Trustworthy only because the app runs behind cPanel's Apache/LiteSpeed
+          // reverse proxy on Hostinger, which sets/overwrites these headers itself —
+          // if the deploy target ever changes to something that doesn't terminate
+          // and rewrite them (a raw Node process with nothing in front), a client
+          // could spoof this header and evade or falsely trigger the fraud check.
           const signupIp =
             req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
             req.headers.get("x-real-ip") ??
