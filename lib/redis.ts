@@ -53,10 +53,13 @@ const isNewClient = !globalForRedis.redis;
 const client =
   globalForRedis.redis ??
   new Redis(process.env.REDIS_URL ?? "redis://localhost:6379", {
-    maxRetriesPerRequest: 1,
+    // Looser than a local-dev Redis needs, since production talks to a remote
+    // instance over the public internet (Hostinger -> Upstash) where a single
+    // transient blip shouldn't immediately drop to the in-memory fallback.
+    maxRetriesPerRequest: 3,
     lazyConnect: true,
     enableOfflineQueue: false,
-    connectTimeout: 2000,
+    connectTimeout: 5000,
   });
 
 if (process.env.NODE_ENV !== "production") globalForRedis.redis = client;
