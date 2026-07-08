@@ -5,10 +5,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 // can't reproduce it. Skips gracefully when no database is reachable; CI (see
 // .github/workflows/ci.yml) runs this against a Postgres service container.
 //
-// EXPECTED TO FAIL until Branch 2 (H7) adds `@@unique([couponId, userId])` to
-// CouponRedemption — that's intentional, this is the regression guard for the
-// fix, written ahead of it per the agreed "tests first" sequencing.
-
 const hasDb = !!process.env.DATABASE_URL;
 
 describe.skipIf(!hasDb)("coupon perUserLimit race (H7 regression guard)", () => {
@@ -35,10 +31,7 @@ describe.skipIf(!hasDb)("coupon perUserLimit race (H7 regression guard)", () => 
     await prisma.user.delete({ where: { id: userId } });
   });
 
-  // it.fails: this assertion is expected to fail until Branch 2 (H7) lands.
-  // Once the unique constraint is added, remove `.fails` so this becomes a
-  // real regression test instead of a forward-reference placeholder.
-  it.fails("only allows one redemption per user even when two requests race", async () => {
+  it("only allows one redemption per user even when two requests race", async () => {
     const redeem = () =>
       prisma.couponRedemption
         .create({ data: { couponId, userId, discountInPaise: 100 } })

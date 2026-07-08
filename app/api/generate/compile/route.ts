@@ -102,6 +102,18 @@ export async function POST(req: NextRequest) {
   });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
+  // Atomic double-submit guard (H6): only one concurrent request can flip a
+  // project from draft/failed into rendering. A stale `findFirst` read above
+  // can't serve as this guard — two concurrent requests would both see the
+  // same pre-transition status — so the transition itself must be the check.
+  const claimed = await prisma.project.updateMany({
+    where: { id: body.projectId, userId: auth.userId, status: { in: ["draft", "failed"] } },
+    data: { status: "rendering" },
+  });
+  if (claimed.count === 0) {
+    return NextResponse.json({ error: "Render already in progress" }, { status: 409 });
+  }
+
   // Reconcile credits against Postgres and decrement atomically
   const user = await prisma.user.update({
     where: { id: auth.userId },
@@ -115,6 +127,10 @@ export async function POST(req: NextRequest) {
       where: { id: auth.userId },
       data: { credits: { increment: CREDIT_COST } },
     });
+    await prisma.project.update({
+      where: { id: body.projectId },
+      data: { status: "draft" },
+    });
     fireZeroCreditsEmail(auth.userId);
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
@@ -124,11 +140,6 @@ export async function POST(req: NextRequest) {
 
   // ── Post-spend email side effects (first video, low credits) ───────
   firePostCreditSpendEmails(auth.userId, user.credits);
-
-  await prisma.project.update({
-    where: { id: body.projectId },
-    data: { status: "rendering" },
-  });
 
   renderQueue.enqueue(body.projectId, body);
   void markQuestComplete(auth.userId, "first-clip");

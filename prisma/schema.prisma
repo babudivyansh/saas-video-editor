@@ -170,7 +170,7 @@ model CouponRedemption {
   discountInPaise Int
   createdAt       DateTime @default(now())
 
-  @@index([couponId])
+  @@unique([couponId, userId])
   @@index([userId])
 }
 

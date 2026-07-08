@@ -186,7 +186,11 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
         }),
       ]);
     } catch (err) {
-      console.error("[fulfillment] coupon redemption error", err);
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        console.warn("[fulfillment] coupon already redeemed by user, skipping duplicate");
+      } else {
+        console.error("[fulfillment] coupon redemption error", err);
+      }
     }
   }
 

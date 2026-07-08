@@ -5,10 +5,6 @@ import { NextRequest } from "next/server";
 // double-submit today — a double-click (or a client retry) reliably charges
 // twice and enqueues the render twice. This test calls the real route handler
 // twice with the same project and asserts a single charge/enqueue.
-//
-// EXPECTED TO FAIL until Branch 2 (H6) adds an atomic status guard to this
-// route — that's intentional, written ahead of the fix per the agreed
-// "tests first" sequencing.
 
 vi.mock("@/lib/auth", () => ({
   getAuthUser: vi.fn(async () => ({ userId: "user-1", email: "user-1@test.com" })),
@@ -38,14 +34,25 @@ vi.mock("@/lib/job-queue", () => ({
 }));
 
 let credits = 5;
+let projectStatus = "draft";
 const projectUpdates: unknown[] = [];
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     project: {
-      findFirst: vi.fn(async () => ({ id: "project-1", userId: "user-1", status: "draft" })),
+      findFirst: vi.fn(async () => ({ id: "project-1", userId: "user-1", status: projectStatus })),
       update: vi.fn(async (args: unknown) => {
         projectUpdates.push(args);
+      }),
+      // Mirrors real Prisma: `updateMany` only affects rows matching the
+      // `where`, so it's the atomic guard — two concurrent calls against the
+      // same row can't both see it as still "draft"/"failed".
+      updateMany: vi.fn(async (args: { where: { status?: { in?: string[] } }; data: { status: string } }) => {
+        if (args.where.status?.in?.includes(projectStatus)) {
+          projectStatus = args.data.status;
+          return { count: 1 };
+        }
+        return { count: 0 };
       }),
     },
     user: {
@@ -76,14 +83,12 @@ function makeRequest() {
 describe("POST /api/generate/compile — double submit", () => {
   beforeEach(() => {
     credits = 5;
+    projectStatus = "draft";
     projectUpdates.length = 0;
   });
   afterEach(() => vi.clearAllMocks());
 
-  // it.fails: this assertion is expected to fail until Branch 2 (H6) lands.
-  // Once the guard is added, remove `.fails` so this becomes a real
-  // regression test instead of a forward-reference placeholder.
-  it.fails("charges credits and enqueues exactly once even when the same project is submitted twice", async () => {
+  it("charges credits and enqueues exactly once even when the same project is submitted twice", async () => {
     const [first, second] = await Promise.all([POST(makeRequest()), POST(makeRequest())]);
 
     expect(first.status).toBe(200);
