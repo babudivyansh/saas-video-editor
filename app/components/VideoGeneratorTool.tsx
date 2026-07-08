@@ -358,18 +358,6 @@ export default function VideoGeneratorTool() {
   const fileInputRef  = useRef<HTMLInputElement>(null);
   const textareaRef   = useRef<HTMLTextAreaElement>(null);
 
-  // Keyboard shortcut
-  useEffect(() => {
-    function h(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && stage === "idle" && prompt.trim()) {
-        e.preventDefault();
-        handleGenerate();
-      }
-    }
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  });
-
   const handleGenerate = async () => {
     if (!prompt.trim() || stage === "generating") return;
 
@@ -439,6 +427,18 @@ export default function VideoGeneratorTool() {
       setStage("error");
     }
   };
+
+  // Keyboard shortcut
+  useEffect(() => {
+    function h(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && stage === "idle" && prompt.trim()) {
+        e.preventDefault();
+        handleGenerate();
+      }
+    }
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  });
 
   const handleReset = () => {
     setStage("idle");

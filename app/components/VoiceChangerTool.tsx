@@ -286,6 +286,10 @@ export default function VoiceChangerTool() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  // Set alongside downloadUrl in the response handler below rather than
+  // computed inline in JSX — Date.now() is an impure call and isn't allowed
+  // during render (including inside useMemo, which is still render).
+  const [downloadFilename, setDownloadFilename] = useState("voice-changed.mp3");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -360,6 +364,7 @@ export default function VoiceChangerTool() {
       const blob = await fileRes.blob();
       const url = URL.createObjectURL(blob);
       setDownloadUrl(url);
+      setDownloadFilename(`voice-changed-${Date.now()}.mp3`);
       setProgress(100);
       setStage("complete");
 
@@ -509,7 +514,7 @@ export default function VoiceChangerTool() {
               {stage === "complete" && downloadUrl && (
                 <a
                   href={downloadUrl}
-                  download={`voice-changed-${Date.now()}.mp3`}
+                  download={downloadFilename}
                   className="flex items-center justify-center gap-2 w-full rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm font-semibold py-2.5 hover:bg-emerald-100 transition-colors"
                 >
                   <IcDownload /> Download again

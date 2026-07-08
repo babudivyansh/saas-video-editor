@@ -112,7 +112,7 @@ export default function CaptionPanel() {
       </div>
       <p className="mt-1 px-1 text-[10px] leading-snug text-zinc-500">
         These drop a styled caption at the playhead. For captions auto-synced to speech, select a video clip
-        and use "Auto captions" in the properties panel on the right (1 credit).
+        and use &quot;Auto captions&quot; in the properties panel on the right (1 credit).
       </p>
     </div>
   );

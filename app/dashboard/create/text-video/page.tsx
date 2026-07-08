@@ -565,7 +565,7 @@ function AiScriptModal({
 
         <div>
           <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide block mb-1.5">
-            What's the scenario?
+            What&apos;s the scenario?
           </label>
           <textarea
             value={prompt}

@@ -96,7 +96,7 @@ export default function VideoClipProps({ clip }: { clip: VideoClip }) {
           <p className="text-[10px] leading-snug text-red-400">{captionError}</p>
         )}
         <p className="text-[10px] leading-snug text-zinc-500">
-          Transcribes this clip's speech and adds caption text to the timeline, aligned word-by-word.
+          Transcribes this clip&apos;s speech and adds caption text to the timeline, aligned word-by-word.
         </p>
       </Section>
 

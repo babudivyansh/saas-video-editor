@@ -147,6 +147,10 @@ export default function CutAndCropPage() {
   const [progress, setProgress] = useState(0);
   const [exportError, setExportError] = useState<string | null>(null);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
+  // Set alongside outputUrl in the response handler below rather than
+  // computed inline in JSX — Date.now() is an impure call and isn't allowed
+  // during render (including inside useMemo, which is still render).
+  const [outputFilename, setOutputFilename] = useState("cut-and-crop.mp4");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -401,6 +405,7 @@ export default function CutAndCropPage() {
       const blob = await fileRes.blob();
       const url = URL.createObjectURL(blob);
       setOutputUrl(url);
+      setOutputFilename(`cut-and-crop-${Date.now()}.mp4`);
       setProgress(100);
       setStage("complete");
 
@@ -455,7 +460,7 @@ export default function CutAndCropPage() {
             {stage === "complete" && outputUrl && (
               <a
                 href={outputUrl}
-                download={`cut-and-crop-${Date.now()}.mp4`}
+                download={outputFilename}
                 className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-1.5 hover:bg-emerald-100 transition-colors"
               >
                 Download again

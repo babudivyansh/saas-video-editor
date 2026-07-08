@@ -87,7 +87,7 @@ export default function TransitionPanel() {
         ))}
       </div>
       <p className="mt-1 px-1 text-[10px] leading-snug text-zinc-500">
-        Preview only for now — transitions aren't applied to the exported video yet.
+        Preview only for now — transitions aren&apos;t applied to the exported video yet.
       </p>
     </div>
   );
