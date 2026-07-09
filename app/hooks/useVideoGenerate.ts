@@ -278,9 +278,10 @@ export function useVideoGenerate() {
     clipCount: number;
     aspectRatio: string;
     instructions: string;
+    captionStyleIndex: number;
     token: string;
   }) => {
-    const { file, minDuration, maxDuration, clipCount, aspectRatio, instructions, token } = params;
+    const { file, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionStyleIndex, token } = params;
     setStatus("uploading");
     setError(null);
     setVideoUrl(null);
@@ -293,6 +294,10 @@ export function useVideoGenerate() {
         productType: "auto-clip",
       });
       setProjectId(pid);
+      // This only kicks off analysis (transcribe + Gemini pick) — no clips are
+      // rendered and no credits are charged yet. The page polls
+      // /api/projects/{pid}/clips and shows a review step once picks land;
+      // rendering (and the actual charge) happens after the user confirms.
       await callGenerate("/api/generate/auto-clip", token, {
         projectId: pid,
         minDuration,
@@ -300,10 +305,9 @@ export function useVideoGenerate() {
         clipCount,
         aspectRatio,
         instructions,
+        captionStyleIndex,
       });
       setStatus("rendering");
-      // Auto Clip shows every clip individually: the page polls
-      // /api/projects/{pid}/clips, so no single merged-video poll here.
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unknown error");
       setStatus("failed");

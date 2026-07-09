@@ -68,8 +68,13 @@ export default function SidebarAccount() {
         ) : initial}
       </button>
 
-      {open && (
-        <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-xl border border-[#D7DBEA] shadow-xl z-50 overflow-hidden">
+      {/* Always mounted so both open and close animate, instead of the
+          previous instant conditional-render mount/unmount. */}
+      <div
+        className={`absolute top-full right-0 mt-2 w-64 bg-white rounded-xl border border-[#D7DBEA] shadow-xl z-50 overflow-hidden origin-top-right transition-all duration-200 ease-out ${
+          open ? "opacity-100 scale-100 translate-y-0 visible" : "opacity-0 scale-95 -translate-y-1 invisible pointer-events-none"
+        }`}
+      >
           <div className="px-4 py-3 border-b border-[#D7DBEA]">
             <p className="text-sm font-semibold text-gray-900 truncate">{user.name || "User"}</p>
             <p className="text-xs text-[#868C98] truncate">{user.email}</p>
@@ -103,8 +108,7 @@ export default function SidebarAccount() {
               <IcLogout /> Sign Out
             </button>
           </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }

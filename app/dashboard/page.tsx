@@ -2,8 +2,6 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
-import ToolsSidebar from "@/app/components/ToolsSidebar";
-import SidebarAccount from "@/app/components/SidebarAccount";
 import { xpToLevel, levelColor, TOTAL_XP } from "@/lib/quest-config";
 
 interface QuestItem {
@@ -24,11 +22,7 @@ interface QuestData {
 }
 
 
-// ── Avatar Menu ───────────────────────────────────────────────────────────────
 // ── Misc Icons ─────────────────────────────────────────────────────────────────
-function IcZap() {
-  return <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>;
-}
 function IcChevron() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M9 18l6-6-6-6"/></svg>;
 }
@@ -223,7 +217,7 @@ const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
-  const { user, token, openAuthModal } = useAuth();
+  const { user, token } = useAuth();
   const [questData, setQuestData] = useState<QuestData | null>(null);
 
   useEffect(() => {
@@ -255,37 +249,8 @@ export default function DashboardPage() {
 
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white">
-
-      <ToolsSidebar active="home" />
-
-      {/* ── Main ── */}
-      <main className="flex-1 overflow-y-auto bg-white">
-
-        {/* Top bar */}
-        <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3 gap-3">
-          {user ? (
-            <>
-              <div className="flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1.5">
-                <IcZap />
-                <span className="text-sm font-bold text-gray-700">{user.credits ?? 0}</span>
-                <span className="text-xs text-gray-400 font-medium">credits</span>
-              </div>
-              <SidebarAccount />
-            </>
-          ) : (
-            <button
-              onClick={() => openAuthModal("login")}
-              className="inline-flex items-center gap-1.5 bg-[#335CFF] text-white text-sm font-semibold px-4 py-2 rounded-full transition-transform duration-200 hover:scale-[1.01] cursor-pointer"
-            >
-              <IcZap />
-              Login
-            </button>
-          )}
-        </div>
-
-
-        <div className="mx-auto w-full max-w-[1440px] px-8 pb-10 space-y-5">
+    <>
+        <div className="mx-auto w-full max-w-[1440px] px-8 pt-6 pb-10 space-y-5">
 
           {/* ── Editor cards ── */}
           <div className="flex gap-3">
@@ -477,7 +442,6 @@ export default function DashboardPage() {
 
           </div>
         </div>
-      </main>
-    </div>
+    </>
   );
 }

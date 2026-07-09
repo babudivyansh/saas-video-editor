@@ -202,6 +202,26 @@ export function getMediaDurationSec(filePath: string, timeoutMs = 30_000): Promi
   });
 }
 
+// Probe a video's pixel dimensions from FFmpeg's "Video: ... WxH" stderr line.
+// Returns {w:0,h:0} if it can't be determined (callers should treat that as
+// "dimensions unknown" and skip anything that depends on them).
+export function getMediaDimensions(filePath: string, timeoutMs = 30_000): Promise<{ w: number; h: number }> {
+  return new Promise((resolve) => {
+    const proc = spawn(ffmpegBin!, ["-i", filePath], { stdio: ["ignore", "ignore", "pipe"] });
+    const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => resolve({ w: 0, h: 0 }));
+    let stderrBuf = "";
+    proc.stderr.on("data", (chunk: Buffer) => { stderrBuf += chunk.toString(); });
+    const finish = () => {
+      clearWatchdog();
+      const m = /Video:.*?(\d{2,5})x(\d{2,5})/.exec(stderrBuf);
+      if (!m) return resolve({ w: 0, h: 0 });
+      resolve({ w: parseInt(m[1], 10), h: parseInt(m[2], 10) });
+    };
+    proc.on("close", finish);
+    proc.on("error", () => { clearWatchdog(); resolve({ w: 0, h: 0 }); });
+  });
+}
+
 // Like runFFmpegArgs but parses FFmpeg's stderr for the input "Duration:" and the
 // running "time=" markers to report real conversion progress (0–99).
 export function runFFmpegWithProgress(
@@ -252,6 +272,40 @@ export function runFFmpegWithProgress(
 
 export function extractAudio(videoPath: string, audioPath: string): Promise<void> {
   return runFFmpegArgs(["-y", "-i", videoPath, "-vn", "-acodec", "libmp3lame", "-q:a", "3", audioPath]);
+}
+
+// ── Audio analysis (for AutoClip's calibrated virality score) ──────────────
+
+export interface AudioAnalysis { meanVolumeDb: number; maxVolumeDb: number; silenceSec: number }
+
+// Best-effort loudness/silence analysis via ffmpeg's silencedetect+volumedetect
+// audio filters. Never rejects — a failed/timed-out analysis resolves with
+// neutral defaults so a scoring pass can never block a render.
+export function analyzeAudio(filePath: string, timeoutMs = 60_000): Promise<AudioAnalysis> {
+  const NEUTRAL: AudioAnalysis = { meanVolumeDb: -30, maxVolumeDb: -10, silenceSec: 0 };
+  return new Promise((resolve) => {
+    const proc = spawn(ffmpegBin!, [
+      "-i", filePath,
+      "-af", "silencedetect=noise=-30dB:d=0.3,volumedetect",
+      "-f", "null", "-",
+    ], { stdio: ["ignore", "ignore", "pipe"] });
+    const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => resolve(NEUTRAL));
+    let buf = "";
+    proc.stderr.on("data", (chunk: Buffer) => { buf += chunk.toString(); });
+    proc.on("close", () => {
+      clearWatchdog();
+      const mean = /mean_volume:\s*(-?\d+(?:\.\d+)?)/.exec(buf);
+      const max = /max_volume:\s*(-?\d+(?:\.\d+)?)/.exec(buf);
+      const silenceSec = [...buf.matchAll(/silence_duration:\s*(\d+(?:\.\d+)?)/g)]
+        .reduce((sum, m) => sum + parseFloat(m[1]), 0);
+      resolve({
+        meanVolumeDb: mean ? parseFloat(mean[1]) : NEUTRAL.meanVolumeDb,
+        maxVolumeDb: max ? parseFloat(max[1]) : NEUTRAL.maxVolumeDb,
+        silenceSec,
+      });
+    });
+    proc.on("error", () => { clearWatchdog(); resolve(NEUTRAL); });
+  });
 }
 
 // ── Split-screen (vstack) ────────────────────────────────────────────────────

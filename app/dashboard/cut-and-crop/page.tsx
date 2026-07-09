@@ -3,8 +3,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
-import ToolsSidebar from "@/app/components/ToolsSidebar";
-import SidebarAccount from "@/app/components/SidebarAccount";
 import { computeMask, type Aspect } from "@/lib/crop";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -426,11 +424,7 @@ export default function CutAndCropPage() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen overflow-hidden bg-white">
-      <ToolsSidebar active="create" />
-
-      {/* Right column */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <div className="flex flex-col min-w-0 h-full overflow-hidden bg-white">
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <header className="flex items-center gap-3 px-6 h-12 flex-shrink-0 border-b border-gray-100 bg-white">
@@ -467,40 +461,18 @@ export default function CutAndCropPage() {
               </a>
             )}
 
-            {/* Credits */}
-            {user && (
-              <div className="flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1.5">
-                <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 text-blue-500 flex-shrink-0">
-                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                </svg>
-                <span className="text-sm font-bold text-gray-700">{user.credits}</span>
-                <span className="text-xs text-gray-400 font-medium">credits</span>
-              </div>
-            )}
-
-            {/* Export / Login */}
-            {!user ? (
-              <button
-                onClick={() => openAuthModal("login", "Cut & Crop Editor")}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm"
-              >
-                Login
-              </button>
-            ) : (
-              <button
-                onClick={handleExport}
-                disabled={clips.length === 0 || stage === "exporting"}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <IconUpload />
-                Export
-                {clips.length > 0 && (
-                  <span className="text-[10px] bg-white/25 px-1.5 py-0.5 rounded-full font-medium">1 credit</span>
-                )}
-              </button>
-            )}
-
-            <SidebarAccount />
+            {/* Export */}
+            <button
+              onClick={handleExport}
+              disabled={clips.length === 0 || stage === "exporting"}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <IconUpload />
+              Export
+              {clips.length > 0 && (
+                <span className="text-[10px] bg-white/25 px-1.5 py-0.5 rounded-full font-medium">1 credit</span>
+              )}
+            </button>
           </div>
         </header>
 
@@ -799,6 +771,5 @@ export default function CutAndCropPage() {
           </div>
         </div>
       </div>
-    </div>
   );
 }

@@ -6,9 +6,11 @@ export async function GET(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const productType = req.nextUrl.searchParams.get("productType") ?? undefined;
   const projects = await prisma.project.findMany({
-    where: { userId: auth.userId },
+    where: { userId: auth.userId, ...(productType ? { productType } : {}) },
     orderBy: { createdAt: "desc" },
+    include: { _count: { select: { clips: true } } },
   });
   return NextResponse.json({ projects });
 }

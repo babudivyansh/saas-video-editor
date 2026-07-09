@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { refreshStaleAccounts } from "@/lib/social/service";
+import { refreshClipPublishMetrics } from "@/lib/autoclip-publish";
 import { env } from "@/lib/env";
 
 // Scheduled refresh entrypoint for an external scheduler (cron-job.org, Vercel
@@ -19,5 +20,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const result = await refreshStaleAccounts();
-  return NextResponse.json({ ok: true, ...result });
+  const clipPublishResult = await refreshClipPublishMetrics().catch(() => ({ updated: 0 }));
+  return NextResponse.json({ ok: true, ...result, clipPublishMetricsUpdated: clipPublishResult.updated });
 }

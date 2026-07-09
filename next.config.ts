@@ -11,6 +11,16 @@ const nextConfig: NextConfig = {
     // lockfile, which misplaces Turbopack's on-disk cache and can break dev.
     root: __dirname,
   },
+  experimental: {
+    // proxy.ts runs an auth gate on every /api/* request, and this fork
+    // buffers the request body (to let both proxy and the route handler read
+    // it) up to this limit before silently truncating the rest — the default
+    // 10MB was truncating /api/upload's multipart body for any video over
+    // that size, which the route then rejects as an invalid/incomplete
+    // upload. Match /api/upload's own 500MB cap (utils intentionally reject
+    // anything larger there already) rather than raising this without bound.
+    proxyClientMaxBodySize: "500mb",
+  },
   images: {
     remotePatterns: [
       // Generated/uploaded video+image assets (bucket/region are configurable

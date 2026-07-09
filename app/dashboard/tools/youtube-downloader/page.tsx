@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import ToolsSidebar, { ToolsTopbar } from "@/app/components/ToolsSidebar";
 import { useAuth } from "@/app/components/AuthContext";
 
 interface VideoInfo {
@@ -111,12 +110,8 @@ export default function YouTubeDownloaderPage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white">
-      <ToolsSidebar active="create" />
-      <main className="flex-1 overflow-y-auto bg-slate-50">
-        <ToolsTopbar />
-
-        <div className="mx-auto w-full max-w-2xl px-6 py-8">
+    <div className="min-h-full bg-slate-50">
+      <div className="mx-auto w-full max-w-2xl px-6 py-8">
           {/* Header */}
           <div className="flex items-center gap-3 mb-1">
             <div className="w-10 h-10 rounded-xl bg-red-500 flex items-center justify-center text-white flex-shrink-0">
@@ -262,7 +257,6 @@ export default function YouTubeDownloaderPage() {
             </div>
           )}
         </div>
-      </main>
     </div>
   );
 }

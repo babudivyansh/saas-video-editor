@@ -97,8 +97,14 @@ export default function PreviewStage() {
           style={{ aspectRatio: `${aspectRatio}`, height: "100%", maxWidth: "100%" }}
           onClick={() => select(null)}
         >
-          {/* Video layers */}
-          {usedVideoAssetIds.map((assetId) => (
+          {/* Video layers — skip mounting until the asset library cache has
+              resolved a URL for it (e.g. right after MediaPanel.tsx's
+              useAssets() cache fetch is still in flight, or a freshly-created
+              asset hasn't been registered into it yet). Rendering <video
+              src=""> in that gap is exactly what triggers React's own "pass
+              null instead of an empty string" warning, and briefly points
+              the element at nothing. */}
+          {usedVideoAssetIds.filter((id) => assetUrl(id)).map((assetId) => (
             <video
               key={assetId}
               ref={(el) => {
@@ -113,8 +119,8 @@ export default function PreviewStage() {
             />
           ))}
 
-          {/* Audio layers (hidden) */}
-          {usedAudioAssetIds.map((assetId) => (
+          {/* Audio layers (hidden) — same not-yet-resolved guard as above. */}
+          {usedAudioAssetIds.filter((id) => assetUrl(id)).map((assetId) => (
             <audio
               key={assetId}
               ref={(el) => {
@@ -126,8 +132,8 @@ export default function PreviewStage() {
             />
           ))}
 
-          {/* Image/sticker overlays */}
-          {activeImages.map((im) => (
+          {/* Image/sticker overlays — same not-yet-resolved guard as the video/audio layers above. */}
+          {activeImages.filter((im) => assetUrl(im.assetId)).map((im) => (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               key={im.id}
