@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getStoredToken } from "@/app/hooks/useVideoGenerate";
+import { ProjectStatusBadge } from "@/app/components/dashboard/ProjectStatusBadge";
 
 interface ProjectRow {
   id: string;
@@ -10,11 +11,6 @@ interface ProjectRow {
   createdAt: string;
   _count: { clips: number };
 }
-
-const STATUS_LABEL: Record<string, string> = {
-  draft: "Draft", analyzing: "Analyzing", pending_review: "Awaiting review",
-  rendering: "Rendering", completed: "Completed", failed: "Failed",
-};
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -67,15 +63,7 @@ export default function ClipsLibraryPage() {
                   <p className="text-xs text-gray-400">{fmtDate(p.createdAt)}</p>
                   <div className="flex items-center justify-between mt-auto pt-2">
                     <span className="text-xs font-medium text-gray-500">{p._count.clips} clip{p._count.clips === 1 ? "" : "s"}</span>
-                    <span
-                      className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                        p.status === "completed" ? "bg-green-50 text-green-700"
-                        : p.status === "failed" ? "bg-red-50 text-red-700"
-                        : "bg-blue-50 text-blue-700"
-                      }`}
-                    >
-                      {STATUS_LABEL[p.status] ?? p.status}
-                    </span>
+                    <ProjectStatusBadge status={p.status} />
                   </div>
                 </Link>
               ))}

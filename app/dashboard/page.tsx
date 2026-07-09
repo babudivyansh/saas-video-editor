@@ -3,6 +3,39 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import { xpToLevel, levelColor, TOTAL_XP } from "@/lib/quest-config";
+import { ProjectStatusBadge } from "@/app/components/dashboard/ProjectStatusBadge";
+
+const HAS_PROJECTS_STORAGE_KEY = "clipiro:hasAnyProjects";
+
+interface InProgressProject {
+  id: string;
+  title: string;
+  status: string;
+  progress: number;
+  productType: string;
+  createdAt: string;
+  clipCount: number;
+}
+
+interface DashboardSummary {
+  stats: { totalProjects: number; activeProjects: number; completedProjects: number; totalClips: number };
+  inProgress: InProgressProject[];
+  hasAnyProjects: boolean;
+}
+
+function inProgressHref(p: InProgressProject): string {
+  if (p.productType === "editor") return `/dashboard/editor?projectId=${p.id}`;
+  return `/dashboard/create/auto-clip?project=${p.id}`;
+}
+
+function StatTile({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-2xl border border-gray-200 px-4 py-3.5">
+      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{label}</p>
+      <p className="text-xl font-extrabold text-gray-900 mt-1">{value}</p>
+    </div>
+  );
+}
 
 interface QuestItem {
   id: string;
@@ -219,12 +252,34 @@ const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
 export default function DashboardPage() {
   const { user, token } = useAuth();
   const [questData, setQuestData] = useState<QuestData | null>(null);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  // Avoids a first-time-layout flash for known-returning users while the real
+  // summary fetch is in flight (this client page has no server-fetch seam).
+  // Starts false so server-rendered HTML and the first client render match
+  // (sessionStorage isn't readable during SSR) — set for real just after
+  // mount, one tick before the summary fetch would otherwise resolve.
+  const [optimisticReturning, setOptimisticReturning] = useState(false);
+
+  useEffect(() => {
+    setOptimisticReturning(sessionStorage.getItem(HAS_PROJECTS_STORAGE_KEY) === "true");
+  }, []);
 
   useEffect(() => {
     if (!user || !token) return;
     fetch("/api/quests", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(setQuestData)
+      .catch(() => {});
+  }, [user, token]);
+
+  useEffect(() => {
+    if (!user || !token) return;
+    fetch("/api/dashboard/summary", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then((d: DashboardSummary) => {
+        setSummary(d);
+        if (d.hasAnyProjects) sessionStorage.setItem(HAS_PROJECTS_STORAGE_KEY, "true");
+      })
       .catch(() => {});
   }, [user, token]);
 
@@ -251,6 +306,50 @@ export default function DashboardPage() {
   return (
     <>
         <div className="mx-auto w-full max-w-[1440px] px-8 pt-6 pb-10 space-y-5">
+
+          {/* ── Continue where you left off ── */}
+          {summary === null && optimisticReturning && (
+            <div className="space-y-3">
+              <div className="h-5 w-52 bg-gray-100 rounded animate-pulse" />
+              <div className="grid grid-cols-4 gap-3">
+                {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-[72px] rounded-2xl bg-gray-100 animate-pulse" />)}
+              </div>
+              <div className="grid grid-cols-5 gap-3">
+                {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-[104px] rounded-2xl bg-gray-100 animate-pulse" />)}
+              </div>
+            </div>
+          )}
+          {summary?.hasAnyProjects && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-bold text-gray-900">Continue where you left off</h2>
+                <Link href="/dashboard/clips" className="text-sm font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors">
+                  View All Clips <IcChevron />
+                </Link>
+              </div>
+              <div className="grid grid-cols-4 gap-3">
+                <StatTile label="Total clips" value={summary.stats.totalClips} />
+                <StatTile label="Active projects" value={summary.stats.activeProjects} />
+                <StatTile label="Completed" value={summary.stats.completedProjects} />
+                <StatTile label="Credits remaining" value={user?.credits ?? 0} />
+              </div>
+              {summary.inProgress.length > 0 && (
+                <div className="grid grid-cols-5 gap-3">
+                  {summary.inProgress.map(p => (
+                    <Link
+                      key={p.id}
+                      href={inProgressHref(p)}
+                      className="rounded-2xl border border-gray-200 bg-white p-4 flex flex-col gap-2 hover:border-blue-200 hover:shadow-sm transition-all"
+                    >
+                      <p className="text-sm font-semibold text-gray-900 line-clamp-2">{p.title}</p>
+                      <p className="text-xs text-gray-400">{p.clipCount} clip{p.clipCount === 1 ? "" : "s"}</p>
+                      <div className="mt-auto pt-2"><ProjectStatusBadge status={p.status} /></div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── Editor cards ── */}
           <div className="flex gap-3">
