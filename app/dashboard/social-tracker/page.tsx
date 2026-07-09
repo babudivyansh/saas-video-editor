@@ -2,8 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import ToolsSidebar from "@/app/components/ToolsSidebar";
-import SidebarAccount from "@/app/components/SidebarAccount";
 import { useAuth } from "@/app/components/AuthContext";
 
 type Provider = "youtube" | "instagram" | "facebook";
@@ -216,10 +214,7 @@ export default function SocialTrackerPage() {
   const connectedProviders = new Set((accounts ?? []).map((a) => a.provider));
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white">
-      <ToolsSidebar active="social" />
-
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-gray-50">
+    <div className="flex flex-col min-w-0 h-full bg-gray-50">
         {/* Header */}
         <div className="bg-white border-b border-gray-100 px-8 py-5 sticky top-0 z-10">
           <div className="flex items-center justify-between gap-3">
@@ -235,7 +230,6 @@ export default function SocialTrackerPage() {
                 <p className="text-sm text-gray-500">Connect your accounts to monitor growth and post analytics</p>
               </div>
             </div>
-            <SidebarAccount />
           </div>
         </div>
 
@@ -291,7 +285,6 @@ export default function SocialTrackerPage() {
             </>
           )}
         </div>
-      </div>
 
       {/* Toast */}
       {toast && (

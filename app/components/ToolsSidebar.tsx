@@ -78,13 +78,6 @@ export default function ToolsSidebar({ active = "home" }: { active?: string }) {
       className="flex flex-col items-center pt-5 pb-5 flex-shrink-0 border-r border-gray-100"
       style={{ width: 88, background: "#ffffff" }}
     >
-      {/* Logo */}
-      <Link href="/dashboard" className="w-11 h-11 rounded-2xl bg-blue-600 hover:bg-blue-700 flex items-center justify-center flex-shrink-0 transition-colors shadow-sm">
-        <span className="text-white font-extrabold text-xl leading-none select-none">C</span>
-      </Link>
-
-      <div className="w-8 h-px bg-gray-200 my-5 flex-shrink-0" />
-
       {/* Main nav */}
       <nav className="flex flex-col items-center gap-2.5 flex-1 w-full px-3.5">
         {NAV.map(item => (

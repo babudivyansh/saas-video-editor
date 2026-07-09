@@ -190,13 +190,21 @@ model Project {
   uploadedVideoUrl String?
   productType      String   @default("split-screen")
   editorDoc        Json?    // browser-editor timeline document (productType "editor")
+  // Auto Clip: default caption style applied to newly-picked clips (index into
+  // lib/caption-styles.ts CAPTION_STYLES; -1 = captions off). See lib/render/auto-clip.
+  autoClipCaptionStyle Int?
+  // Auto Clip: non-fatal problems surfaced to the user as a banner instead of
+  // silently degrading (e.g. ["transcription_failed"]).
+  warnings         Json?
   createdAt        DateTime @default(now())
   clips            Clip[]
 }
 
-// An individual clip produced by Auto Clip. The job creates one row per AI-picked
-// segment, then renders + uploads each separately so the UI can show every clip
-// as its own card with live progress and an Opus-style virality score.
+// An individual clip produced by Auto Clip. The pick job creates one row per
+// AI-picked segment (status "pending_review"); the user reviews/edits picks,
+// then confirming moves kept clips to "queued" and renders + uploads each
+// separately so the UI can show every clip as its own card with live progress
+// and an Opus-style virality score.
 model Clip {
   id           String   @id @default(cuid())
   projectId    String
@@ -207,14 +215,77 @@ model Clip {
   endSec       Float
   durationSec  Float
   aspectRatio  String   @default("9:16")
-  score        Int?     // virality 0–99
-  status       String   @default("queued") // queued | rendering | ready | failed
+  score        Int?     // calibrated virality 0–99, see lib/virality-score.ts
+  scoreBreakdown Json?  // {hook, pacing, payoff, engagement, audio, speechRate} sub-scores for transparency
+  mood         String?  // AI-detected content mood, drives auto color grade (P2.3)
+  status       String   @default("queued") // pending_review | queued | rendering | ready | failed
   progress     Int      @default(0)        // 0–100
   videoUrl     String?
   thumbnailUrl String?
+  // Captioning (P0.3) — transcript is sliced/re-baselined to this clip's own
+  // timeline so re-render (P1.3) never needs to re-run STT.
+  transcriptJson    Json?
+  captionStyleIndex Int?
+  hasCaptions       Boolean @default(false)
+  // Speaker-tracking reframe (P1.1) — smoothed crop path in source-pixel
+  // coordinates, [{tSec, x, y, w, h}]. Null = static center crop (fallback).
+  cropKeyframes     Json?
+  // Auto B-roll (P2.3) — a Pexels stock clip spliced in for [brollStartSec,
+  // brollEndSec) (clip-relative) while the original audio continues. Null
+  // brollUrl = no B-roll for this clip (Gemini found no natural opportunity,
+  // clip too short, or Pexels unavailable/unconfigured).
+  brollQuery   String?
+  brollUrl     String?
+  brollStartSec Float?
+  brollEndSec   Float?
   createdAt    DateTime @default(now())
+  dubs         ClipDub[]
+  publishes    ClipPublish[]
 
   @@index([projectId])
+  @@index([projectId, status])
+}
+
+// A dubbed-audio variant of a Clip in another language (P2.2). Captions stay
+// in the source language for v1 — re-aligning captions to dubbed audio would
+// require re-running STT on the dub, deferred as a known limitation shared by
+// several competitors.
+model ClipDub {
+  id          String   @id @default(cuid())
+  clipId      String
+  clip        Clip     @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  targetLang  String
+  status      String   @default("dubbing") // dubbing | ready | failed
+  videoUrl    String?
+  createdAt   DateTime @default(now())
+
+  @@index([clipId])
+}
+
+// A publish record linking a Clip to a connected SocialAccount. Actually
+// pushing new video content to YouTube/Instagram/Facebook needs write-scope
+// OAuth grants this app doesn't request today (SocialAccount is read-only
+// analytics per its own doc comment) plus platform app review — out of scope
+// to silently wire up. This model instead tracks "I posted this externally"
+// (user pastes the permalink after manually publishing) so the existing
+// social-refresh sync can pull real performance data back onto the clip,
+// closing the analytics loop without requiring new OAuth scopes.
+model ClipPublish {
+  id              String        @id @default(cuid())
+  clipId          String
+  clip            Clip          @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  socialAccountId String
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  providerPostId  String?       // set once the user links the live post/permalink
+  permalink       String?
+  status          String        @default("pending") // pending | linked | failed
+  metricsJson     Json?         // cached NormalizedPost-shaped snapshot, refreshed by lib/social/refresh-queue.ts
+  scheduledFor    DateTime?
+  publishedAt     DateTime?
+  createdAt       DateTime      @default(now())
+
+  @@index([clipId])
+  @@index([socialAccountId])
 }
 
 model RazorpayEvent {
@@ -279,6 +350,7 @@ model SocialAccount {
   updatedAt         DateTime @updatedAt
   posts             SocialPost[]
   snapshots         SocialAccountSnapshot[]
+  clipPublishes     ClipPublish[]
 
   @@unique([userId, provider, providerAccountId])
   @@index([userId])

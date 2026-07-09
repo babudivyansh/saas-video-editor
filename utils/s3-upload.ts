@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import fs from "fs";
 import { env } from "@/lib/env";
@@ -70,4 +70,12 @@ export function s3KeyToPublicUrl(key: string): string {
 
 export async function deleteS3Object(key: string): Promise<void> {
   await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+}
+
+// Used when adopting an already-uploaded render (e.g. an AutoClip clip) as an
+// Asset without re-uploading it — Asset.size is required, so this fetches it
+// via a HEAD request instead of re-reading the file.
+export async function getS3ObjectSize(key: string): Promise<number> {
+  const res = await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }));
+  return res.ContentLength ?? 0;
 }

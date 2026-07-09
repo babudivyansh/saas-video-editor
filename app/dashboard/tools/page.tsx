@@ -1,11 +1,5 @@
 "use client";
 import Link from "next/link";
-import ToolsSidebar from "@/app/components/ToolsSidebar";
-import SidebarAccount from "@/app/components/SidebarAccount";
-import { useAuth } from "@/app/components/AuthContext";
-function IcZap() {
-  return <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>;
-}
 function IcArrow() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M5 12h14M12 5l7 7-7 7"/></svg>;
 }
@@ -375,38 +369,9 @@ const TOOLS = [
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function ToolsPage() {
-  const { user, openAuthModal } = useAuth();
-
   return (
-    <div className="flex h-screen overflow-hidden bg-white">
-      <ToolsSidebar active="create" />
-
-      {/* ── Main ── */}
-      <main className="flex-1 overflow-y-auto bg-white">
-
-        {/* Top bar */}
-        <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3 gap-3">
-          {user ? (
-            <>
-              <div className="flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1.5">
-                <IcZap />
-                <span className="text-sm font-bold text-gray-700">{user.credits ?? 0}</span>
-                <span className="text-xs text-gray-400 font-medium">credits</span>
-              </div>
-              <SidebarAccount />
-            </>
-          ) : (
-            <button
-              onClick={() => openAuthModal("login")}
-              className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm cursor-pointer"
-            >
-              <IcZap />
-              Login
-            </button>
-          )}
-        </div>
-
-        <div className="mx-auto w-full max-w-[1440px] px-8 pb-12 space-y-5">
+    <>
+        <div className="mx-auto w-full max-w-[1440px] px-8 pt-6 pb-12 space-y-5">
 
           {/* ── Top row cards ── */}
           <div className="grid grid-cols-3 gap-4">
@@ -448,7 +413,6 @@ export default function ToolsPage() {
             ))}
           </div>
         </div>
-      </main>
-    </div>
+    </>
   );
 }

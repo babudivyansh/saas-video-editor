@@ -2,18 +2,31 @@ import { redirectUri } from "./oauth";
 import type { NormalizedAccount, NormalizedPost, OAuthTokens, ProviderSync } from "./types";
 import { env } from "@/lib/env";
 
-// YouTube via Google OAuth. Read-only scopes only:
+// YouTube via Google OAuth.
 //   youtube.readonly       — channel + uploads + public video statistics
 //   yt-analytics.readonly  — per-video watch time (estimatedMinutesWatched)
+//   youtube.upload         — publish AutoClip clips directly (P2.5). A
+//                            sensitive scope: Google may show an
+//                            "unverified app" warning on new connects until
+//                            this Google Cloud project completes OAuth
+//                            verification for it — that's a Google Cloud
+//                            Console step outside this codebase's control.
+//                            Accounts connected before this scope existed
+//                            cannot publish until the user reconnects
+//                            (refreshing a token never adds scope it wasn't
+//                            originally granted) — see uploadVideo's
+//                            needsReauth handling.
 const SCOPES = [
   "https://www.googleapis.com/auth/youtube.readonly",
   "https://www.googleapis.com/auth/yt-analytics.readonly",
+  "https://www.googleapis.com/auth/youtube.upload",
 ];
 
 const AUTH = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN = "https://oauth2.googleapis.com/token";
 const REVOKE = "https://oauth2.googleapis.com/revoke";
 const API = "https://www.googleapis.com/youtube/v3";
+const UPLOAD_API = "https://www.googleapis.com/upload/youtube/v3/videos";
 const ANALYTICS = "https://youtubeanalytics.googleapis.com/v2/reports";
 
 function clientId() {
@@ -182,6 +195,54 @@ export async function sync(accessToken: string): Promise<ProviderSync> {
   }
 
   return { account, posts };
+}
+
+export class NeedsReauthError extends Error {
+  constructor() { super("This YouTube account was connected before publish access existed — reconnect it to enable publishing."); }
+}
+
+// Publishes a rendered clip to YouTube (Shorts, since AutoClip output is
+// vertical) via the resumable-upload protocol. Single-shot PUT rather than
+// chunked — AutoClip clips are short/small enough (seconds, low-res) that
+// this is well within what a single request handles; chunking only matters
+// for large long-form uploads.
+export async function uploadVideo(
+  accessToken: string,
+  params: { buffer: Buffer; title: string; description?: string; privacyStatus?: "public" | "unlisted" | "private" },
+): Promise<{ videoId: string; permalink: string }> {
+  const initRes = await fetch(`${UPLOAD_API}?uploadType=resumable&part=snippet,status`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json; charset=UTF-8",
+      "X-Upload-Content-Type": "video/mp4",
+      "X-Upload-Content-Length": String(params.buffer.length),
+    },
+    body: JSON.stringify({
+      snippet: { title: params.title.slice(0, 100), description: params.description?.slice(0, 5000) ?? "" },
+      status: { privacyStatus: params.privacyStatus ?? "unlisted", selfDeclaredMadeForKids: false },
+    }),
+  });
+
+  if (initRes.status === 401 || initRes.status === 403) {
+    const body = await initRes.text();
+    if (/insufficient|scope/i.test(body)) throw new NeedsReauthError();
+    throw new Error(`youtube upload init failed: ${initRes.status} ${body}`);
+  }
+  if (!initRes.ok) throw new Error(`youtube upload init failed: ${initRes.status} ${await initRes.text()}`);
+
+  const uploadUrl = initRes.headers.get("location");
+  if (!uploadUrl) throw new Error("youtube upload init returned no upload URL");
+
+  const putRes = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": "video/mp4", "Content-Length": String(params.buffer.length) },
+    body: new Uint8Array(params.buffer),
+  });
+  if (!putRes.ok) throw new Error(`youtube upload failed: ${putRes.status} ${await putRes.text()}`);
+
+  const video = (await putRes.json()) as { id: string };
+  return { videoId: video.id, permalink: `https://www.youtube.com/watch?v=${video.id}` };
 }
 
 // ISO-8601 duration <= 60s (PT#M#S / PT#S) → treat as a Short.

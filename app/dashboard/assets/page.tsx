@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import ToolsSidebar from "@/app/components/ToolsSidebar";
-import SidebarAccount from "@/app/components/SidebarAccount";
 import { useAuth } from "@/app/components/AuthContext";
 
 interface Asset {
@@ -188,10 +186,7 @@ export default function AssetsPage() {
   const uploadingCount = Object.keys(uploadProgress).length;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white">
-      <ToolsSidebar active="assets" />
-
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-gray-50">
+    <div className="flex flex-col min-w-0 h-full bg-gray-50">
         {/* Header */}
         <div className="bg-white border-b border-gray-100 px-8 py-4 flex-shrink-0">
           <div className="flex items-center justify-between gap-4">
@@ -222,7 +217,6 @@ export default function AssetsPage() {
               </svg>
               Upload
             </button>
-            <SidebarAccount />
             <input ref={fileRef} type="file" accept="video/*,audio/*,image/*" multiple className="hidden"
               onChange={e => handleFiles(e.target.files)} />
           </div>
@@ -315,7 +309,6 @@ export default function AssetsPage() {
             </div>
           )}
         </div>
-      </div>
 
       {/* Toast */}
       {toast && (

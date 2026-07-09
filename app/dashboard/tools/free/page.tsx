@@ -1,5 +1,4 @@
 import Link from "next/link";
-import ToolsSidebar, { ToolsTopbar } from "@/app/components/ToolsSidebar";
 
 function IcEqualizer() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-5 h-5"><path d="M4 12v3M8 8v10M12 5v14M16 9v7M20 11v4"/></svg>;
@@ -19,30 +18,22 @@ const FREE_TOOLS = [
 
 export default function FreeToolsPage() {
   return (
-    <div className="flex h-screen overflow-hidden bg-white">
-      <ToolsSidebar active="create" />
-
-      <main className="flex-1 overflow-y-auto bg-white">
-        <ToolsTopbar />
-
-        <div className="mx-auto w-full max-w-[1440px] px-8 pb-12">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {FREE_TOOLS.map((t, i) => (
-              <Link
-                key={i}
-                href={t.href}
-                className="rounded-2xl border border-gray-200 bg-white p-5 hover:shadow-md hover:border-gray-300 transition-all"
-              >
-                <div className={`w-10 h-10 rounded-xl ${t.iconBg} flex items-center justify-center text-white mb-4`}>
-                  {t.icon}
-                </div>
-                <h3 className="text-[15px] font-bold text-gray-900 leading-tight">{t.title}</h3>
-                <p className="text-[13px] text-gray-500 mt-1.5 leading-relaxed">{t.desc}</p>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </main>
+    <div className="mx-auto w-full max-w-[1440px] px-8 pt-6 pb-12">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {FREE_TOOLS.map((t, i) => (
+          <Link
+            key={i}
+            href={t.href}
+            className="rounded-2xl border border-gray-200 bg-white p-5 hover:shadow-md hover:border-gray-300 transition-all"
+          >
+            <div className={`w-10 h-10 rounded-xl ${t.iconBg} flex items-center justify-center text-white mb-4`}>
+              {t.icon}
+            </div>
+            <h3 className="text-[15px] font-bold text-gray-900 leading-tight">{t.title}</h3>
+            <p className="text-[13px] text-gray-500 mt-1.5 leading-relaxed">{t.desc}</p>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
