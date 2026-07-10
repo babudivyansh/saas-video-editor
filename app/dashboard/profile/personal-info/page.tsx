@@ -13,10 +13,10 @@ function IcUser() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentC
 function IcLock() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>; }
 function IcCopy() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>; }
 function IcCheck() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M5 13l4 4L19 7" /></svg>; }
-function IcSpinner() { return <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />; }
+function IcSpinner() { return <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />; }
 
-const inputCls = "w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all";
-const labelCls = "text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5";
+const inputCls = "w-full bg-white border border-card-border rounded-xl px-4 py-3 text-sm text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all";
+const labelCls = "text-xs font-semibold text-ink-soft uppercase tracking-wide block mb-1.5";
 
 const GENDERS = [
   { value: "male", label: "Male" },
@@ -158,22 +158,22 @@ export default function PersonalInfoPage() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <h1 className="text-xl font-bold text-gray-900">Personal Info</h1>
+      <h1 className="text-2xl font-extrabold grad-text inline-block">Personal Info</h1>
 
       {/* UID */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+      <div className="bg-white rounded-[var(--radius-card)] border border-card-border p-6">
         <label className={labelCls}>UID</label>
-        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+        <div className="flex items-center gap-2 bg-surface border border-card-border rounded-xl px-4 py-3">
           <span className="text-xs text-gray-500 font-mono flex-1 truncate">{user?.id ?? "—"}</span>
-          <button onClick={copyUid} title="Copy UID" className="text-gray-400 hover:text-blue-600 transition-colors cursor-pointer">
+          <button onClick={copyUid} title="Copy UID" className="text-ink-soft/60 hover:text-brand transition-colors cursor-pointer">
             {uidCopied ? <IcCheck /> : <IcCopy />}
           </button>
         </div>
       </div>
 
       {/* Nickname + Phone */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
-        <div className="flex items-center gap-2"><IcUser /><h2 className="text-base font-bold text-gray-900">Edit Profile</h2></div>
+      <div className="bg-white rounded-[var(--radius-card)] border border-card-border p-6 space-y-4">
+        <div className="flex items-center gap-2"><IcUser /><h2 className="text-base font-extrabold text-ink">Edit Profile</h2></div>
         <form onSubmit={handleSaveName} className="space-y-4">
           <div>
             <label className={labelCls}>Nickname</label>
@@ -185,25 +185,25 @@ export default function PersonalInfoPage() {
           </div>
           <div>
             <label className={labelCls}>Email Address</label>
-            <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+            <div className="flex items-center gap-2 bg-surface border border-card-border rounded-xl px-4 py-3">
               <span className="text-sm text-gray-700 flex-1 truncate">{user?.email ?? "—"}</span>
               <span className="text-[10px] font-semibold text-gray-400 bg-gray-200 px-2 py-0.5 rounded-full flex-shrink-0">Read only</span>
             </div>
           </div>
           {nameMsg && (
-            <div className={`text-sm font-medium px-4 py-3 rounded-xl ${nameMsg.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>{nameMsg.text}</div>
+            <div className={`text-sm font-medium px-4 py-3 rounded-xl ${nameMsg.type === "success" ? "bg-tint-emerald text-green-700" : "bg-red-50 text-red-600"}`}>{nameMsg.text}</div>
           )}
-          <button type="submit" disabled={savingName} className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold py-3 rounded-xl transition-colors">
+          <button type="submit" disabled={savingName} className="w-full flex items-center justify-center gap-2 grad-brand hover:brightness-105 disabled:opacity-60 text-white text-sm font-semibold py-3 rounded-full shadow-glow hover:shadow-glow-hover transition-all cursor-pointer">
             {savingName ? <><IcSpinner /> Saving…</> : "Save Changes"}
           </button>
         </form>
       </div>
 
       {/* Password */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+      <div className="bg-white rounded-[var(--radius-card)] border border-card-border p-6">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2"><IcLock /><h2 className="text-base font-bold text-gray-900">Password</h2></div>
-          <button onClick={() => setPwOpen((o) => !o)} className="text-sm font-semibold text-blue-600 hover:underline cursor-pointer">
+          <div className="flex items-center gap-2"><IcLock /><h2 className="text-base font-extrabold text-ink">Password</h2></div>
+          <button onClick={() => setPwOpen((o) => !o)} className="text-sm font-semibold text-brand hover:underline cursor-pointer">
             {pwOpen ? "Cancel" : "Reset Password"}
           </button>
         </div>
@@ -222,9 +222,9 @@ export default function PersonalInfoPage() {
               </div>
             ))}
             {pwMsg && (
-              <div className={`text-sm font-medium px-4 py-3 rounded-xl ${pwMsg.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>{pwMsg.text}</div>
+              <div className={`text-sm font-medium px-4 py-3 rounded-xl ${pwMsg.type === "success" ? "bg-tint-emerald text-green-700" : "bg-red-50 text-red-600"}`}>{pwMsg.text}</div>
             )}
-            <button type="submit" disabled={pwLoading} className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold py-3 rounded-xl transition-colors">
+            <button type="submit" disabled={pwLoading} className="w-full flex items-center justify-center gap-2 grad-brand hover:brightness-105 disabled:opacity-60 text-white text-sm font-semibold py-3 rounded-full shadow-glow hover:shadow-glow-hover transition-all cursor-pointer">
               {pwLoading ? <><IcSpinner /> Updating…</> : "Update Password"}
             </button>
           </form>
@@ -232,7 +232,7 @@ export default function PersonalInfoPage() {
       </div>
 
       {/* Gender */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+      <div className="bg-white rounded-[var(--radius-card)] border border-card-border p-6">
         <label className={labelCls}>Gender</label>
         <div className="flex items-center gap-5 mt-2">
           {GENDERS.map((g) => (
@@ -243,7 +243,7 @@ export default function PersonalInfoPage() {
                 checked={gender === g.value}
                 onChange={() => saveChoice("gender", g.value)}
                 disabled={savingChoice === "gender"}
-                className="accent-blue-600"
+                className="accent-brand"
               />
               {g.label}
             </label>
@@ -252,7 +252,7 @@ export default function PersonalInfoPage() {
       </div>
 
       {/* Intended use */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+      <div className="bg-white rounded-[var(--radius-card)] border border-card-border p-6">
         <label className={labelCls}>What is your intended use for Clipiro?</label>
         <div className="flex flex-wrap gap-2 mt-2">
           {INTENDED_USES.map((o) => (
@@ -261,7 +261,7 @@ export default function PersonalInfoPage() {
               onClick={() => saveChoice("intendedUse", o.value)}
               disabled={savingChoice === "intendedUse"}
               className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                intendedUse === o.value ? "bg-blue-600 text-white" : "bg-white border border-gray-200 text-gray-600 hover:border-gray-300"
+                intendedUse === o.value ? "grad-brand text-white shadow-glow" : "bg-white border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
               }`}
             >
               {o.label}
@@ -271,12 +271,12 @@ export default function PersonalInfoPage() {
       </div>
 
       {/* Danger zone */}
-      <div className="bg-white rounded-2xl border border-red-100 shadow-sm p-6 space-y-5">
-        <h2 className="text-base font-bold text-red-600">Danger Zone</h2>
+      <div className="bg-white rounded-[var(--radius-card)] border border-red-100 p-6 space-y-5">
+        <h2 className="text-base font-extrabold text-red-600">Danger Zone</h2>
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4 border-t border-red-50">
           <div>
-            <p className="text-sm font-semibold text-gray-800">Sign out of all devices</p>
+            <p className="text-sm font-semibold text-ink">Sign out of all devices</p>
             <p className="text-xs text-gray-400 mt-0.5">Invalidates your current session and signs you out.</p>
           </div>
           <button onClick={signOut} className="flex-shrink-0 text-sm font-semibold text-red-600 border border-red-200 hover:bg-red-50 px-5 py-2 rounded-xl transition-colors cursor-pointer">
@@ -287,7 +287,7 @@ export default function PersonalInfoPage() {
         <div className="pt-4 border-t border-red-50">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold text-gray-800">Delete Account</p>
+              <p className="text-sm font-semibold text-ink">Delete Account</p>
               <p className="text-xs text-gray-400 mt-0.5">Permanently deletes your account, videos, and purchase history.</p>
             </div>
             {!deleteOpen ? (

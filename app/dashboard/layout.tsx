@@ -44,11 +44,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-gray-50">
+    <div className="flex h-screen flex-col overflow-hidden bg-surface">
       <DashboardHeader />
       <div className="flex flex-1 overflow-hidden">
         <ToolsSidebar active={activeIdFor(pathname)} />
-        <main className="flex-1 overflow-y-auto bg-white">{children}</main>
+        <main className="flex-1 overflow-y-auto bg-surface">{children}</main>
       </div>
     </div>
   );

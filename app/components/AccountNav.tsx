@@ -20,7 +20,7 @@ function IcCamera() {
   );
 }
 function IcSpinner() {
-  return <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />;
+  return <div className="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin" />;
 }
 function IcVideo() {
   return (
@@ -122,7 +122,7 @@ export default function AccountNav() {
 
   return (
     <aside className="w-72 flex-shrink-0 sticky top-8">
-      <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-6">
+      <div className="rounded-[var(--radius-card)] border border-card-border bg-white p-6">
         {/* Avatar + identity */}
         <div className="flex flex-col items-center text-center">
           <div className="relative">
@@ -135,7 +135,7 @@ export default function AccountNav() {
                 className="w-20 h-20 rounded-full object-cover shadow-sm"
               />
             ) : (
-              <div className="w-20 h-20 rounded-full bg-blue-600 flex items-center justify-center text-white text-3xl font-extrabold select-none shadow-sm">
+              <div className="w-20 h-20 rounded-full grad-brand flex items-center justify-center text-white text-3xl font-extrabold select-none shadow-sm">
                 {(user?.name?.[0] ?? user?.email?.[0] ?? "?").toUpperCase()}
               </div>
             )}
@@ -143,15 +143,15 @@ export default function AccountNav() {
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadingAvatar}
               title="Change avatar"
-              className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-white shadow border border-gray-100 flex items-center justify-center text-gray-600 hover:text-blue-600 transition-colors cursor-pointer"
+              className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-white shadow border border-card-border flex items-center justify-center text-ink-soft hover:text-brand transition-colors cursor-pointer"
             >
               {uploadingAvatar ? <IcSpinner /> : <IcCamera />}
             </button>
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
           </div>
-          <p className="mt-3 text-base font-bold text-gray-900 truncate max-w-full">{user?.name || user?.email || "—"}</p>
+          <p className="mt-3 text-base font-bold text-ink truncate max-w-full">{user?.name || user?.email || "—"}</p>
           {user?.email && (
-            <p className="mt-1 flex items-center gap-1 text-xs text-gray-400 truncate max-w-full">
+            <p className="mt-1 flex items-center gap-1 text-xs text-ink-soft/70 truncate max-w-full">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 flex-shrink-0">
                 <rect x="3" y="5" width="18" height="14" rx="2" />
                 <path d="M3 7l9 6 9-6" strokeLinecap="round" strokeLinejoin="round" />
@@ -170,10 +170,11 @@ export default function AccountNav() {
               <Link
                 key={href}
                 href={href}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors ${
-                  active ? "bg-blue-50 text-blue-600" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                className={`relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors ${
+                  active ? "bg-tint-violet text-brand" : "text-ink-soft hover:bg-tint-blue hover:text-ink"
                 }`}
               >
+                {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full grad-brand" />}
                 <Icon />
                 {label}
               </Link>

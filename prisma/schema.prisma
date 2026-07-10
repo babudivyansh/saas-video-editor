@@ -198,6 +198,9 @@ model Project {
   warnings         Json?
   createdAt        DateTime @default(now())
   clips            Clip[]
+
+  @@index([userId])
+  @@index([userId, status])
 }
 
 // An individual clip produced by Auto Clip. The pick job creates one row per

@@ -27,12 +27,15 @@ function ChevronIcon({ className = "" }: { className?: string }) {
   );
 }
 
-export function DropdownItem({ item, onNavigate }: { item: NavItem; onNavigate: () => void }) {
-  const className = "flex flex-col gap-0.5 rounded-xl px-3 py-2.5 transition-colors hover:bg-gray-50 group";
+export function DropdownItem({ item, onNavigate, chip }: { item: NavItem; onNavigate: () => void; chip?: React.ReactNode }) {
+  const className = `flex ${chip ? "items-center gap-3" : "flex-col gap-0.5"} rounded-xl px-3 py-2 transition-colors hover:bg-tint-blue group`;
   const content = (
     <>
-      <span className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">{item.title}</span>
-      <span className="text-xs leading-snug text-gray-500">{item.desc}</span>
+      {chip}
+      <span className="flex flex-col gap-0.5 min-w-0">
+        <span className="text-sm font-semibold text-ink group-hover:text-brand transition-colors">{item.title}</span>
+        <span className="text-xs leading-snug text-ink-soft">{item.desc}</span>
+      </span>
     </>
   );
   if (item.external) {
@@ -51,8 +54,10 @@ export function DropdownItem({ item, onNavigate }: { item: NavItem; onNavigate: 
 
 // Opens on hover (with a short close delay so crossing the gap between
 // trigger and panel doesn't flicker it shut) and on click (for touch).
-// `align` controls anchoring: "center" (narrow menu under its trigger) or
-// "screen" (wide mega-menu centered under the header).
+// `align` controls anchoring: "center" (narrow menu centered under its
+// trigger), "left" (panel's left edge flush with the trigger — for wider
+// menus near the screen edge), or "screen" (mega-menu centered under the
+// header).
 export function NavDropdown({
   label,
   children,
@@ -62,7 +67,7 @@ export function NavDropdown({
   label: string;
   children: React.ReactNode;
   width: number;
-  align?: "center" | "screen";
+  align?: "center" | "left" | "screen";
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -92,7 +97,9 @@ export function NavDropdown({
   const positionClass =
     align === "screen"
       ? "fixed top-[72px] left-1/2 -translate-x-1/2"
-      : "absolute top-full mt-3 left-1/2 -translate-x-1/2";
+      : align === "left"
+        ? "absolute top-full mt-3 left-0"
+        : "absolute top-full mt-3 left-1/2 -translate-x-1/2";
 
   return (
     <div
@@ -111,7 +118,7 @@ export function NavDropdown({
 
       {/* Always mounted so both open and close animate — see file header. */}
       <div
-        className={`${positionClass} origin-top rounded-2xl border border-gray-100 bg-white shadow-xl z-50 transition-all duration-200 ease-out ${
+        className={`${positionClass} origin-top rounded-[var(--radius-card)] border border-card-border bg-white shadow-xl z-50 overflow-hidden transition-all duration-200 ease-out ${
           open ? "opacity-100 scale-100 translate-y-0 visible" : "opacity-0 scale-95 -translate-y-1 invisible pointer-events-none"
         }`}
         style={{ width, maxWidth: "calc(100vw - 1.5rem)" }}

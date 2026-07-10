@@ -1,0 +1,23 @@
+export type StatAccent = "blue" | "violet" | "fuchsia" | "emerald";
+
+interface StatTileProps {
+  label: string;
+  value: number | string;
+  accent?: StatAccent;
+}
+
+const ACCENT: Record<StatAccent, string> = {
+  blue: "bg-tint-blue border-blue-100",
+  violet: "bg-tint-violet border-violet-100",
+  fuchsia: "bg-tint-fuchsia border-fuchsia-100",
+  emerald: "bg-tint-emerald border-emerald-100",
+};
+
+export function StatTile({ label, value, accent = "blue" }: StatTileProps) {
+  return (
+    <div className={`rounded-[var(--radius-card)] border px-4 py-3.5 ${ACCENT[accent]}`}>
+      <p className="text-[10px] font-bold text-ink-soft uppercase tracking-widest">{label}</p>
+      <p className="text-xl font-extrabold grad-text inline-block mt-1">{value}</p>
+    </div>
+  );
+}

@@ -1,8 +1,38 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import { xpToLevel, levelColor, TOTAL_XP } from "@/lib/quest-config";
+import { ProjectStatusBadge } from "@/app/components/dashboard/ProjectStatusBadge";
+import { AutoClipPreview, CutCropPreview, VoiceChangerPreview, SubtitleRemoverPreview, AICreatorPreview } from "@/app/components/dashboard/toolPreviews";
+import { Button } from "@/app/components/ui/Button";
+import { Card } from "@/app/components/ui/Card";
+import { SectionHeader } from "@/app/components/ui/SectionHeader";
+import { StatTile, type StatAccent } from "@/app/components/ui/StatTile";
+import { ToolCard } from "@/app/components/ui/ToolCard";
+
+const HAS_PROJECTS_STORAGE_KEY = "clipiro:hasAnyProjects";
+
+interface InProgressProject {
+  id: string;
+  title: string;
+  status: string;
+  progress: number;
+  productType: string;
+  createdAt: string;
+  clipCount: number;
+}
+
+interface DashboardSummary {
+  stats: { totalProjects: number; activeProjects: number; completedProjects: number; totalClips: number };
+  inProgress: InProgressProject[];
+  hasAnyProjects: boolean;
+}
+
+function inProgressHref(p: InProgressProject): string {
+  if (p.productType === "editor") return `/dashboard/editor?projectId=${p.id}`;
+  return `/dashboard/create/auto-clip?project=${p.id}`;
+}
 
 interface QuestItem {
   id: string;
@@ -38,12 +68,6 @@ function IcMic() {
 function IcImage() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>;
 }
-function IcFlame() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/></svg>;
-}
-function IcTrophy() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M6 9H4a2 2 0 000 4h2M18 9h2a2 2 0 010 4h-2"/><path d="M6 5h12v8a6 6 0 01-12 0V5zM9 21h6M12 17v4"/></svg>;
-}
 function IcVideo() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>;
 }
@@ -57,141 +81,13 @@ function IcYoutube() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M22.54 6.42a2.78 2.78 0 00-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46A2.78 2.78 0 001.46 6.42 29 29 0 001 12a29 29 0 00.46 5.58A2.78 2.78 0 003.41 19.6C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 001.95-1.95A29 29 0 0023 12a29 29 0 00-.46-5.58z"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02"/></svg>;
 }
 
-
-// ── Tool Card Preview Illustrations ───────────────────────────────────────────
-function AutoClipPreview() {
-  return (
-    <div className="h-[160px] bg-gradient-to-br from-orange-50 to-amber-50 flex items-center justify-center gap-3 px-4 overflow-hidden">
-      <div className="flex gap-1.5 items-center">
-        {[{ c: "from-rose-400 to-red-700", r: -7 }, { c: "from-amber-400 to-orange-600", r: 0 }, { c: "from-yellow-300 to-amber-500", r: 7 }].map((s, i) => (
-          <div key={i} className={`w-[54px] h-[90px] rounded-xl overflow-hidden shadow-md border border-black/10 bg-gradient-to-b ${s.c}`} style={{ transform: `rotate(${s.r}deg)` }} />
-        ))}
-      </div>
-      <div className="bg-white rounded-xl shadow-lg p-2.5 min-w-[112px]">
-        <p className="text-gray-400 text-[9px] font-medium mb-1.5">How many viral clips do you want to cut</p>
-        <div className="flex gap-0.5 mb-2">
-          {[1, 2, 3, 4, 5].map(n => (
-            <span key={n} className={`w-5 h-5 rounded text-[9px] font-bold flex items-center justify-center ${n === 5 ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-500"}`}>{n}</span>
-          ))}
-        </div>
-        {["Stream ✓", "Podcast", "Interview", "Lecture"].map(t => (
-          <div key={t} className="flex items-center gap-1 mb-0.5">
-            <div className={`w-2 h-2 rounded-sm border ${t.includes("✓") ? "bg-blue-500 border-blue-500" : "border-gray-300"}`} />
-            <span className="text-[9px] text-gray-600">{t.replace(" ✓", "")}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function CutCropPreview() {
-  return (
-    <div className="h-[160px] bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center gap-3 px-4 overflow-hidden">
-      <div className="flex gap-1">
-        {["from-gray-500 to-gray-800", "from-gray-400 to-gray-600", "from-gray-300 to-gray-500"].map((g, i) => (
-          <div key={i} className={`w-[52px] h-[90px] rounded-lg bg-gradient-to-b ${g} shadow border border-white/10`} />
-        ))}
-      </div>
-      <svg className="w-5 h-5 text-blue-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/></svg>
-      <div className="flex gap-1">
-        {[0, 1].map(i => (
-          <div key={i} className="w-[52px] h-[90px] rounded-lg border-2 border-blue-500 bg-blue-100/50 flex items-center justify-center">
-            <div className="flex gap-0.5">{[...Array(3)].map((_, j) => <div key={j} className="w-0.5 h-5 bg-blue-400 rounded-full" />)}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function VoiceChangerPreview() {
-  const bars = [8, 14, 20, 12, 18, 24, 10, 16, 22, 8, 20, 14, 18, 26, 12, 20, 16, 10, 22, 14, 8, 18, 24, 12, 20, 16, 14, 10];
-  return (
-    <div className="h-[140px] bg-gradient-to-br from-purple-50 to-blue-50 flex items-center justify-center gap-3 px-5 overflow-hidden">
-      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 shadow-md flex-shrink-0" />
-      <div className="flex-1 flex flex-col gap-1.5 items-center">
-        <div className="flex items-end gap-px h-7">
-          {bars.map((h, i) => <div key={i} className="w-[3px] rounded-full bg-blue-400" style={{ height: `${h}px` }} />)}
-        </div>
-        <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center shadow">
-          <div className="w-2 h-2 rounded-full bg-white" />
-        </div>
-      </div>
-      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-pink-400 to-rose-600 shadow-md flex-shrink-0" />
-    </div>
-  );
-}
-
-function SubtitleRemoverPreview() {
-  return (
-    <div className="h-[140px] bg-gradient-to-br from-gray-50 to-slate-100 flex items-center justify-center gap-4 px-6 overflow-hidden">
-      {[true, false].map((hasSub, i) => (
-        <div key={i} className="relative w-[88px] h-[108px] rounded-xl overflow-hidden shadow border border-gray-200">
-          <div className="w-full h-full bg-gradient-to-b from-gray-600 to-gray-900 flex items-end justify-center p-2">
-            {hasSub
-              ? <div className="bg-black/75 rounded px-1.5 py-0.5 text-[8px] text-white font-medium text-center">Hello World</div>
-              : <div className="w-full h-2 rounded bg-white/10" />}
-          </div>
-          {!hasSub && (
-            <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
-              <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function AICreatorPreview() {
-  return (
-    <div className="h-[140px] bg-gradient-to-br from-emerald-50 to-teal-50 flex items-center justify-center gap-2.5 px-5 overflow-hidden">
-      {[
-        { g: "from-emerald-400 to-teal-600", scale: false },
-        { g: "from-blue-400 to-indigo-600", scale: true },
-        { g: "from-purple-400 to-pink-600", scale: false },
-      ].map((s, i) => (
-        <div key={i} className="relative">
-          <div className={`w-[58px] h-[86px] rounded-xl bg-gradient-to-b ${s.g} shadow border border-white/20 ${s.scale ? "scale-110 shadow-xl" : ""}`} />
-          {i < 2 && (
-            <div className="absolute -right-2.5 top-1/2 -translate-y-1/2 z-10 w-4 h-4 rounded-full bg-white shadow border border-gray-200 flex items-center justify-center">
-              <svg className="w-2 h-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path d="M9 18l6-6-6-6" strokeLinecap="round"/></svg>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function VocalRemoverPreview() {
-  const wave = [10, 20, 14, 28, 18, 34, 12, 26, 16, 30, 22, 36, 14, 24, 18, 32, 20, 28, 12, 34, 16, 26, 20, 30, 14, 24, 18, 28];
-  return (
-    <div className="h-[140px] bg-gray-50 flex flex-col gap-3 p-4 justify-center overflow-hidden">
-      <div className="flex items-center gap-3">
-        <div className="relative w-10 h-10 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
-          <span className="text-blue-500"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="w-4 h-4"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" strokeLinecap="round"/></svg></span>
-          <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-500 text-white text-[8px] flex items-center justify-center">✕</span>
-        </div>
-        <div className="flex items-center gap-px h-5 flex-1">
-          {wave.map((h, i) => <div key={i} className="w-[3px] rounded-full bg-rose-300" style={{ height: `${h * 0.6}px` }} />)}
-        </div>
-      </div>
-      <div className="flex items-center gap-px h-6">
-        {wave.map((h, i) => <div key={i} className="w-[3px] rounded-full bg-gray-300" style={{ height: `${h * 0.75}px` }} />)}
-      </div>
-    </div>
-  );
-}
-
 // ── Data ───────────────────────────────────────────────────────────────────────
 
 const QUESTS = [
   { icon: <IcDiscord />, title: "Join the community", xp: 500, desc: "Connect your Discord and join the Clipiro server.", color: "#5865F2" },
-  { icon: <IcFilm />, title: "First clip", xp: 300, desc: "Walk through the Simple Editor and make your first clip.", color: "#3b82f6" },
-  { icon: <IcMic />, title: "Hear yourself out", xp: 200, desc: "Generate your first AI voiceover.", color: "#a855f7" },
-  { icon: <IcImage />, title: "Picture this", xp: 200, desc: "Generate your first AI image.", color: "#ec4899" },
+  { icon: <IcFilm />, title: "First clip", xp: 300, desc: "Walk through the Simple Editor and make your first clip.", color: "#335cff" },
+  { icon: <IcMic />, title: "Hear yourself out", xp: 200, desc: "Generate your first AI voiceover.", color: "#7c3aed" },
+  { icon: <IcImage />, title: "Picture this", xp: 200, desc: "Generate your first AI image.", color: "#d946ef" },
 ];
 
 const TOOLS_LARGE = [
@@ -204,27 +100,50 @@ const TOOLS_SMALL = [
   { title: "AI Creator", desc: "Become an AI content creator in 3 steps", preview: <AICreatorPreview />, href: "/dashboard/ai-creator" },
 ];
 
+// Icon chips cycle through the tint washes with a matching accent color.
 const MINI_TOOLS = [
-  { icon: <IcImage />,  label: "Image Generator",    href: "/dashboard/tools/image-generator" },
-  { icon: <IcUser />,   label: "AI Face Swap",        href: "/dashboard/tools/face-swap" },
-  { icon: <IcMic />,    label: "Voiceover Generator", href: "/dashboard/tools/voiceover" },
-  { icon: <IcEraser />, label: "Background Remover",  href: "/dashboard/tools/background-remover" },
-  { icon: <IcVideo />,  label: "VEO3 Generator",      href: "/dashboard/tools/video-generator" },
-  { icon: <IcYoutube />,label: "YouTube Downloader",  href: "/dashboard/tools/youtube-downloader" },
+  { icon: <IcImage />,  label: "Image Generator",     href: "/dashboard/tools/image-generator",    chip: "bg-tint-blue text-brand" },
+  { icon: <IcUser />,   label: "AI Face Swap",        href: "/dashboard/tools/face-swap",          chip: "bg-tint-violet text-accent-violet" },
+  { icon: <IcMic />,    label: "Voiceover Generator", href: "/dashboard/tools/voiceover",          chip: "bg-tint-fuchsia text-accent-fuchsia" },
+  { icon: <IcEraser />, label: "Background Remover",  href: "/dashboard/tools/background-remover", chip: "bg-tint-amber text-amber-500" },
+  { icon: <IcVideo />,  label: "VEO3 Generator",      href: "/dashboard/tools/video-generator",    chip: "bg-tint-emerald text-emerald-500" },
+  { icon: <IcYoutube />,label: "YouTube Downloader",  href: "/dashboard/tools/youtube-downloader", chip: "bg-tint-rose text-accent-pink" },
 ];
 
-const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
+const STAT_ACCENTS: StatAccent[] = ["blue", "violet", "fuchsia", "emerald"];
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { user, token } = useAuth();
   const [questData, setQuestData] = useState<QuestData | null>(null);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  // Avoids a first-time-layout flash for known-returning users while the real
+  // summary fetch is in flight (this client page has no server-fetch seam).
+  // Starts false so server-rendered HTML and the first client render match
+  // (sessionStorage isn't readable during SSR) — set for real just after
+  // mount, one tick before the summary fetch would otherwise resolve.
+  const [optimisticReturning, setOptimisticReturning] = useState(false);
+
+  useEffect(() => {
+    setOptimisticReturning(sessionStorage.getItem(HAS_PROJECTS_STORAGE_KEY) === "true");
+  }, []);
 
   useEffect(() => {
     if (!user || !token) return;
     fetch("/api/quests", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(setQuestData)
+      .catch(() => {});
+  }, [user, token]);
+
+  useEffect(() => {
+    if (!user || !token) return;
+    fetch("/api/dashboard/summary", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then((d: DashboardSummary) => {
+        setSummary(d);
+        if (d.hasAnyProjects) sessionStorage.setItem(HAS_PROJECTS_STORAGE_KEY, "true");
+      })
       .catch(() => {});
   }, [user, token]);
 
@@ -246,55 +165,83 @@ export default function DashboardPage() {
   const remaining = questData?.remaining ?? 4;
   const level = questData ? questData.level : (user ? xpToLevel(0) : null);
   const progressPct = Math.round((earnedXp / TOTAL_XP) * 100);
+  const firstName = user?.name?.split(" ")[0];
 
 
   return (
     <>
-        <div className="mx-auto w-full max-w-[1440px] px-8 pt-6 pb-10 space-y-5">
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-8 pt-6 pb-12 space-y-8">
 
-          {/* ── Editor cards ── */}
-          <div className="flex gap-3">
-            {/* Free Tools */}
-            <Link href="/dashboard/tools/free" className="flex items-center gap-3 px-5 py-3.5 rounded-2xl flex-1 border border-gray-200 hover:bg-gray-50 transition-colors">
-              <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
-                <svg className="w-4 h-4 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4l7.07 17 2.51-7.39L21 11.07z" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          {/* ── Gradient hero ── */}
+          <div className="relative overflow-hidden rounded-[var(--radius-card)] grad-hero px-6 sm:px-10 py-8 sm:py-10">
+            <div className="clipiro-blob absolute -top-16 -right-10 w-64 h-64 rounded-full bg-white/15 blur-3xl pointer-events-none" />
+            <div className="clipiro-blob absolute -bottom-20 left-1/4 w-72 h-72 rounded-full bg-fuchsia-400/30 blur-3xl pointer-events-none" style={{ animationDelay: "-9s" }} />
+            <div className="relative">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-white/70 mb-2">
+                {firstName ? `Welcome back, ${firstName} · AI Clip Studio` : "AI Clip Studio"}
+              </p>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-white leading-tight max-w-xl">
+                Turn long videos into viral clips
+              </h1>
+              <p className="text-sm text-white/75 mt-2 max-w-lg">
+                Drop in a stream, podcast, or interview — AutoClip finds the moments, captions them, and cuts them for every platform.
+              </p>
+              <div className="flex flex-wrap items-center gap-3 mt-5">
+                <Button variant="inverse" size="lg" href="/dashboard/create/auto-clip" icon={<IcChevron />}>
+                  Start AutoClipping
+                </Button>
+                <Button variant="ghost" size="lg" href="/dashboard/editor">
+                  Open Editor
+                </Button>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-gray-900 font-bold text-sm leading-tight">Try our <span className="text-green-500">FREE</span> Tools</p>
-                <p className="text-gray-400 text-xs mt-0.5">Audio balancer, video compressor, and more</p>
-              </div>
-              <div className="text-gray-300 flex-shrink-0">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M9 18l6-6-6-6" strokeLinecap="round"/></svg>
-              </div>
-            </Link>
-
-            {/* Editor */}
-            <Link href="/dashboard/editor" className="flex items-center gap-3 px-5 py-3.5 rounded-2xl flex-1 border border-gray-200 hover:bg-gray-50 transition-colors">
-              <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
-                <svg className="w-4 h-4 text-[#335CFF]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="2.18" strokeLinecap="round" strokeLinejoin="round"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M17 7h5M2 17h5M17 17h5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-gray-900 font-bold text-sm leading-tight">Open the <span className="text-[#335CFF]">Editor</span></p>
-                <p className="text-gray-400 text-xs mt-0.5">Multi-track timeline editor in your browser</p>
-              </div>
-              <div className="text-gray-300 flex-shrink-0">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M9 18l6-6-6-6" strokeLinecap="round"/></svg>
-              </div>
-            </Link>
+            </div>
           </div>
 
-          {/* ── Two-column layout ── */}
-          <div className="flex gap-4 items-start">
+          {/* ── Continue where you left off ── */}
+          {summary === null && optimisticReturning && (
+            <div className="space-y-4">
+              <div className="h-5 w-52 bg-gray-200/60 rounded animate-pulse" />
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-[76px] rounded-[var(--radius-card)] bg-gray-200/60 animate-pulse" />)}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-[104px] rounded-[var(--radius-card)] bg-gray-200/60 animate-pulse" />)}
+              </div>
+            </div>
+          )}
+          {summary?.hasAnyProjects && (
+            <div className="space-y-4">
+              <SectionHeader title="Continue where you left off" action={{ label: "View All Clips", href: "/dashboard/clips" }} />
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatTile label="Total clips" value={summary.stats.totalClips} accent={STAT_ACCENTS[0]} />
+                <StatTile label="Active projects" value={summary.stats.activeProjects} accent={STAT_ACCENTS[1]} />
+                <StatTile label="Completed" value={summary.stats.completedProjects} accent={STAT_ACCENTS[2]} />
+                <StatTile label="Credits remaining" value={user?.credits ?? 0} accent={STAT_ACCENTS[3]} />
+              </div>
+              {summary.inProgress.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                  {summary.inProgress.map(p => (
+                    <Card key={p.id} href={inProgressHref(p)} className="p-4 flex flex-col gap-2 hover:border-violet-200">
+                      <p className="text-sm font-semibold text-ink line-clamp-2">{p.title}</p>
+                      <p className="text-xs text-ink-soft">{p.clipCount} clip{p.clipCount === 1 ? "" : "s"}</p>
+                      <div className="mt-auto pt-2"><ProjectStatusBadge status={p.status} /></div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
-            {/* ── Left column ── */}
-            <div className="flex-1 min-w-0 space-y-4">
+          {/* ── Onboarding + quick-start row: quest card on the left, the two
+                 entry cards stacked to the same total height on the right ── */}
+          <div className="flex flex-col lg:flex-row gap-4 items-stretch">
 
               {/* Onboarding */}
-              <div className="rounded-2xl border border-gray-200 overflow-hidden">
+              <Card className="bg-white lg:flex-[3] min-w-0">
                 <div className="px-5 py-4 flex items-center justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2 mb-0.5">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Onboarding</p>
+                      <p className="text-[10px] font-bold text-ink-soft uppercase tracking-widest">Onboarding</p>
                       {level && (
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
                           style={{ background: levelColor(level) + "18", color: levelColor(level) }}>
@@ -305,12 +252,12 @@ export default function DashboardPage() {
                     {questData === null && user ? (
                       <div className="h-5 w-40 bg-gray-100 rounded animate-pulse mt-0.5" />
                     ) : (
-                      <p className="text-gray-900 font-bold text-[15px]">
+                      <p className="text-ink font-bold text-[15px]">
                         {remaining === 0 ? "All quests complete!" : `${remaining} quest${remaining !== 1 ? "s" : ""} to go`}
                       </p>
                     )}
                     <div className="mt-2 h-1 bg-gray-100 rounded-full w-64 overflow-hidden">
-                      <div className="h-full bg-blue-600 rounded-full transition-all duration-500"
+                      <div className="h-full grad-brand rounded-full transition-all duration-500"
                         style={{ width: `${progressPct}%` }} />
                     </div>
                   </div>
@@ -319,8 +266,8 @@ export default function DashboardPage() {
                       <div className="h-7 w-24 bg-gray-100 rounded animate-pulse ml-auto" />
                     ) : (
                       <>
-                        <span className="text-xl font-extrabold text-gray-900">{earnedXp}</span>
-                        <span className="text-sm text-gray-400 font-normal"> / 1200 XP</span>
+                        <span className="text-xl font-extrabold grad-text inline-block">{earnedXp}</span>
+                        <span className="text-sm text-ink-soft font-normal"> / 1200 XP</span>
                       </>
                     )}
                   </div>
@@ -339,17 +286,17 @@ export default function DashboardPage() {
                         className={`flex items-start gap-3 px-4 py-3.5 text-left transition-colors group
                           ${i % 2 === 0 ? "border-r border-gray-100" : ""}
                           ${i >= 2 ? "border-t border-gray-100" : ""}
-                          ${done ? "bg-green-50 cursor-default" : "hover:bg-gray-50"}`}
+                          ${done ? "bg-tint-emerald cursor-default" : "hover:bg-tint-blue"}`}
                       >
                         <span className="mt-0.5 flex-shrink-0 opacity-60" style={{ color: q.color }}>{q.icon}</span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                            <span className={`text-sm font-semibold ${done ? "line-through text-gray-400" : "text-gray-800"}`}>{q.title}</span>
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${done ? "bg-green-50 text-green-600 border-green-100" : "bg-blue-50 text-blue-600 border-blue-100"}`}>
+                            <span className={`text-sm font-semibold ${done ? "line-through text-gray-400" : "text-ink"}`}>{q.title}</span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${done ? "bg-tint-emerald text-green-600 border-green-100" : "bg-tint-violet text-accent-violet border-violet-100"}`}>
                               +{q.xp} XP
                             </span>
                           </div>
-                          <p className="text-xs text-gray-400 leading-relaxed">{q.desc}</p>
+                          <p className="text-xs text-ink-soft leading-relaxed">{q.desc}</p>
                         </div>
                         {done ? (
                           <span className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
@@ -358,7 +305,7 @@ export default function DashboardPage() {
                             </svg>
                           </span>
                         ) : (
-                          <span className="text-gray-300 group-hover:text-gray-500 transition-colors mt-0.5 flex-shrink-0"><IcChevron /></span>
+                          <span className="text-gray-300 group-hover:text-brand transition-colors mt-0.5 flex-shrink-0"><IcChevron /></span>
                         )}
                       </button>
                     );
@@ -366,80 +313,80 @@ export default function DashboardPage() {
                 </div>
 
                 {questData?.allComplete && (
-                  <div className="border-t border-green-100 bg-green-50 px-5 py-3 flex items-center gap-2.5">
+                  <div className="border-t border-green-100 bg-tint-emerald px-5 py-3 flex items-center gap-2.5">
                     <span className="text-green-500 text-lg">🎉</span>
                     <p className="text-sm font-semibold text-green-700">All quests complete! +5 credits have been added to your account.</p>
                   </div>
                 )}
-              </div>
+              </Card>
 
-              {/* Large tool cards — 2 col */}
-              <div className="grid grid-cols-2 gap-3">
-                {TOOLS_LARGE.map((tool, i) => (
-                  <div key={i} className="rounded-2xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow bg-white">
-                    {tool.preview}
-                    <div className="px-4 py-3 flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-[14px] font-bold text-gray-900 leading-tight">{tool.title}</p>
-                        <p className="text-xs text-blue-500 mt-0.5 leading-relaxed">{tool.desc}</p>
-                      </div>
-                      <Link href={tool.href} className="flex-shrink-0 inline-flex items-center gap-1 border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
-                        Try Now <IcChevron />
-                      </Link>
-                    </div>
+              {/* Quick-start entry cards — stretch to match the quest card */}
+              <div className="flex flex-col sm:flex-row lg:flex-col gap-4 lg:flex-[2] min-w-0">
+                {/* Free Tools */}
+                <Card tint="emerald" href="/dashboard/tools/free" className="flex items-center gap-3 px-5 py-4 flex-1">
+                  <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <svg className="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4l7.07 17 2.51-7.39L21 11.07z" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   </div>
-                ))}
-              </div>
-
-              {/* Small tool cards — 3 col */}
-              <div className="grid grid-cols-3 gap-3">
-                {TOOLS_SMALL.map((tool, i) => (
-                  <div key={i} className="rounded-2xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow bg-white">
-                    {tool.preview}
-                    <div className="px-3 py-3 flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-[13px] font-bold text-gray-900 leading-tight">{tool.title}</p>
-                        <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">{tool.desc}</p>
-                      </div>
-                      {tool.href ? (
-                        <Link href={tool.href} className="flex-shrink-0 inline-flex items-center gap-0.5 border border-gray-200 hover:bg-gray-50 text-gray-700 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap">
-                          Try Now <IcChevron />
-                        </Link>
-                      ) : (
-                        <button className="flex-shrink-0 inline-flex items-center gap-0.5 border border-gray-200 hover:bg-gray-50 text-gray-700 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap">
-                          Try Now <IcChevron />
-                        </button>
-                      )}
-                    </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-ink font-bold text-sm leading-tight">Try our <span className="text-emerald-600">FREE</span> Tools</p>
+                    <p className="text-ink-soft text-xs mt-0.5">Audio balancer, video compressor, and more</p>
                   </div>
-                ))}
+                  <div className="text-emerald-400 flex-shrink-0">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M9 18l6-6-6-6" strokeLinecap="round"/></svg>
+                  </div>
+                </Card>
+
+                {/* Editor */}
+                <Card tint="blue" href="/dashboard/editor" className="flex items-center gap-3 px-5 py-4 flex-1">
+                  <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <svg className="w-4 h-4 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="2.18" strokeLinecap="round" strokeLinejoin="round"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M17 7h5M2 17h5M17 17h5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-ink font-bold text-sm leading-tight">Open the <span className="text-brand">Editor</span></p>
+                    <p className="text-ink-soft text-xs mt-0.5">Multi-track timeline editor in your browser</p>
+                  </div>
+                  <div className="text-brand/40 flex-shrink-0">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M9 18l6-6-6-6" strokeLinecap="round"/></svg>
+                  </div>
+                </Card>
               </div>
 
-              {/* ── Clipiro Tools section ── */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-base font-bold text-gray-900">Clipiro Tools</h2>
-                  <Link href="/dashboard/tools" className="text-sm font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors">
-                    View All Tools <IcChevron />
-                  </Link>
-                </div>
-                <div className="grid grid-cols-6 gap-2.5">
-                  {MINI_TOOLS.map((tool, i) => (
-                    <Link
-                      key={i}
-                      href={tool.href}
-                      className="flex flex-col items-center gap-2 px-2 py-3.5 rounded-2xl border border-gray-200 hover:border-blue-200 hover:bg-blue-50/30 transition-all group"
-                    >
-                      <div className="w-10 h-10 rounded-xl bg-indigo-50 group-hover:bg-indigo-100 flex items-center justify-center transition-colors text-indigo-500">
-                        {tool.icon}
-                      </div>
-                      <span className="text-[11px] font-medium text-gray-700 text-center leading-tight">{tool.label}</span>
-                    </Link>
-                  ))}
-                </div>
-              </div>
+          </div>
+
+          {/* ── Start creating ── */}
+          <div className="space-y-4">
+            <SectionHeader title="Start creating" />
+            {/* Large tool cards — 2 col */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {TOOLS_LARGE.map((tool, i) => (
+                <ToolCard key={i} size="md" {...tool} />
+              ))}
             </div>
+            {/* Small tool cards — 3 col */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {TOOLS_SMALL.map((tool, i) => (
+                <ToolCard key={i} size="sm" {...tool} />
+              ))}
+            </div>
+          </div>
 
+          {/* ── Clipiro Tools section ── */}
+          <div className="space-y-4">
+            <SectionHeader title="Clipiro Tools" action={{ label: "View All Tools", href: "/dashboard/tools" }} />
+            <div className="grid grid-cols-3 lg:grid-cols-6 gap-4">
+              {MINI_TOOLS.map((tool, i) => (
+                <Link
+                  key={i}
+                  href={tool.href}
+                  className="flex flex-col items-center justify-center gap-2 px-2 py-4 rounded-[var(--radius-card)] border border-card-border bg-white hover:border-violet-200 hover:shadow-card transition-all group"
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110 ${tool.chip}`}>
+                    {tool.icon}
+                  </div>
+                  <span className="text-[11px] font-medium text-gray-700 text-center leading-tight">{tool.label}</span>
+                </Link>
+              ))}
+            </div>
           </div>
         </div>
     </>
