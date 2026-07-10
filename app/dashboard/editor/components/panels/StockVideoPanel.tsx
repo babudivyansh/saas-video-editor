@@ -5,20 +5,19 @@
 // Media panel's own uploads.
 
 import React, { useState } from "react";
+import { Search } from "lucide-react";
 import { useEditorStore } from "../../store/editorStore";
 import { docDuration } from "@/lib/editor/doc-utils";
+import { fmtDuration } from "./shared/assetData";
 import { useStockSearch, importStockItem, type StockItem } from "./useStockSearch";
-
-function fmtDuration(sec: number | undefined): string {
-  if (sec == null || !Number.isFinite(sec)) return "";
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
+import { Button } from "../ui";
+import AssetCard from "./shared/AssetCard";
+import SearchField from "./shared/SearchField";
+import PanelStatus from "./shared/PanelStatus";
 
 export default function StockVideoPanel() {
   const addVideoClip = useEditorStore((s) => s.addVideoClip);
-  const { query, setQuery, items, loading, error } = useStockSearch("video");
+  const { query, setQuery, items, loading, error, hasMore, loadMore } = useStockSearch("video");
   const [adding, setAdding] = useState<string | null>(null);
 
   const add = async (item: StockItem) => {
@@ -45,43 +44,36 @@ export default function StockVideoPanel() {
 
   return (
     <div className="flex flex-col gap-3 p-3">
-      <input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search stock video…"
-        className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-violet-500"
-      />
+      <SearchField value={query} onChange={setQuery} placeholder="Search stock video…" />
+
       {error && <p className="text-xs text-red-400">{error}</p>}
       {!error && items.length === 0 && !loading && (
-        <p className="p-2 text-xs text-zinc-500">Search for video clips — powered by Pexels.</p>
+        <PanelStatus state="empty" icon={<Search className="h-5 w-5" />} message="Search for video clips — powered by Pexels." />
       )}
-      {loading && <p className="p-2 text-xs text-zinc-500">Searching…</p>}
+      {loading && items.length === 0 && <PanelStatus state="loading" message="Searching…" />}
 
       {items.length > 0 && (
         <div className="grid grid-cols-2 gap-2">
           {items.map((item) => (
-            <button
+            <AssetCard
               key={item.id}
               onClick={() => add(item)}
-              disabled={adding === item.id}
-              title={item.attribution}
-              className="group overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900 text-left transition-all hover:border-violet-500 disabled:opacity-50 cursor-pointer"
-            >
-              <div className="relative flex aspect-video items-center justify-center bg-black">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
+              adding={adding === item.id}
+              attribution={item.attribution}
+              durationLabel={item.durationSec != null ? fmtDuration(item.durationSec) : undefined}
+              thumb={
+                // eslint-disable-next-line @next/next/no-img-element
                 <img src={item.thumbUrl} alt={item.name} className="h-full w-full object-cover" />
-                <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-all group-hover:bg-black/50 group-hover:opacity-100">
-                  {adding === item.id ? "Adding…" : "+ Add"}
-                </span>
-                {item.durationSec != null && (
-                  <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 text-[9px] text-zinc-100">
-                    {fmtDuration(item.durationSec)}
-                  </span>
-                )}
-              </div>
-            </button>
+              }
+            />
           ))}
         </div>
+      )}
+
+      {hasMore && (
+        <Button variant="subtle" size="sm" onClick={loadMore} disabled={loading} className="self-center">
+          {loading ? "Loading…" : "Load more"}
+        </Button>
       )}
     </div>
   );

@@ -42,7 +42,7 @@ export default function Playhead({
   return (
     <div ref={lineRef} className="pointer-events-none absolute bottom-0 top-0 left-0 z-10 w-0">
       <div
-        className="pointer-events-auto absolute -left-[7px] -top-0 h-3.5 w-3.5 cursor-ew-resize touch-none rounded-b-sm rounded-t-full bg-violet-500"
+        className="pointer-events-auto absolute -top-0 -left-[7px] h-3.5 w-3.5 cursor-ew-resize touch-none rounded-t-full rounded-b-sm bg-editor-accent shadow-editor-glow"
         onPointerDown={(e) => {
           dragging.current = true;
           (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -51,7 +51,7 @@ export default function Playhead({
         onPointerUp={() => (dragging.current = false)}
         aria-label="Playhead"
       />
-      <div className="absolute bottom-0 top-0 w-px bg-violet-500" />
+      <div className="absolute top-0 bottom-0 w-px bg-editor-accent" />
     </div>
   );
 }

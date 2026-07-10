@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./dashboard/editor/editor-theme.css";
 
 /* Editor text/caption fonts — bundled locally (public/fonts) so the browser
    preview renders the exact same file the export's ffmpeg drawtext burns in.

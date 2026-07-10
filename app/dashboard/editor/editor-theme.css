@@ -1,0 +1,81 @@
+/* Editor-only design tokens — deliberately separate from the marketing/
+   dashboard "vibrant-gradient" light theme in app/globals.css. The editor is
+   its own dark surface (see .clipiro-editor's scrollbar override already in
+   globals.css); these tokens only take a value inside that scope, so the new
+   Tailwind utilities below (bg-editor-*, text-editor-*, etc.) are inert
+   outside the editor.
+
+   Pulled into the build via an @import in globals.css rather than a
+   component-level CSS import, since Tailwind v4's @theme block only merges
+   into the generated utility set when it lives in the same import graph as
+   the root `@import "tailwindcss"`. */
+
+.clipiro-editor {
+  /* Background layers */
+  --editor-bg: #0d0d11;
+  --editor-panel: #131318;
+  --editor-card: #181a20;
+  --editor-elevated: #1e2128;
+
+  /* Accent */
+  --editor-accent: #7c5cff;
+  --editor-accent-hover: #9377ff;
+
+  /* Borders */
+  --editor-border: rgba(255, 255, 255, 0.06);
+  --editor-border-strong: rgba(255, 255, 255, 0.12);
+
+  /* Text */
+  --editor-text: #f2f2f5;
+  --editor-text-muted: #8b8b96;
+  --editor-text-faint: #55555f;
+
+  /* Shadows (elevation scale) */
+  --editor-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --editor-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --editor-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --editor-shadow-glow: 0 0 0 1px rgba(124, 92, 255, 0.4), 0 4px 20px rgba(124, 92, 255, 0.25);
+
+  /* Glass */
+  --editor-glass-bg: rgba(19, 19, 24, 0.72);
+  --editor-glass-blur: 12px;
+
+  /* Timeline track colors — one hue per track kind, used with Tailwind's
+     /opacity modifier (e.g. bg-editor-track-video/70) for fill vs border. */
+  --editor-track-video: #7c5cff;
+  --editor-track-text: #fbbf24;
+  --editor-track-audio: #34d399;
+  --editor-track-image: #38bdf8;
+}
+
+@theme inline {
+  --color-editor-bg: var(--editor-bg);
+  --color-editor-panel: var(--editor-panel);
+  --color-editor-card: var(--editor-card);
+  --color-editor-elevated: var(--editor-elevated);
+  --color-editor-accent: var(--editor-accent);
+  --color-editor-accent-hover: var(--editor-accent-hover);
+  --color-editor-border: var(--editor-border);
+  --color-editor-border-strong: var(--editor-border-strong);
+  --color-editor-text: var(--editor-text);
+  --color-editor-text-muted: var(--editor-text-muted);
+  --color-editor-text-faint: var(--editor-text-faint);
+  --color-editor-glass: var(--editor-glass-bg);
+
+  --shadow-editor-sm: var(--editor-shadow-sm);
+  --shadow-editor-md: var(--editor-shadow-md);
+  --shadow-editor-lg: var(--editor-shadow-lg);
+  --shadow-editor-glow: var(--editor-shadow-glow);
+
+  --radius-editor-sm: 6px;
+  --radius-editor-md: 10px;
+  --radius-editor-lg: 16px;
+  --radius-editor-full: 9999px;
+
+  --blur-editor-glass: var(--editor-glass-blur);
+
+  --color-editor-track-video: var(--editor-track-video);
+  --color-editor-track-text: var(--editor-track-text);
+  --color-editor-track-audio: var(--editor-track-audio);
+  --color-editor-track-image: var(--editor-track-image);
+}
