@@ -1,9 +1,5 @@
 "use client";
 import Link from "next/link";
-import { useAuth } from "./AuthContext";
-import SidebarAccount from "./SidebarAccount";
-// SidebarAccount is exported here for ToolsTopbar's use (below) — no longer
-// rendered directly in the rail itself, see ToolsTopbar.
 
 function IcHome() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>;
@@ -42,30 +38,25 @@ const BOTTOM_NAV = [
 
 function NavLink({ id, icon, label, href, active }: { id: string; icon: React.ReactNode; label: string; href: string; active: string }) {
   const isActive = active === id;
+  // "billing" is the one monetization affordance in the rail — always gradient
+  const isUpgrade = id === "billing";
   return (
     <Link
       href={href}
       title={label}
-      className="group relative w-12 h-12 flex items-center justify-center rounded-2xl transition-all duration-100 flex-shrink-0"
-      style={{
-        background: isActive ? "#eff6ff" : "transparent",
-        color: isActive ? "#2563eb" : "#64748b",
-      }}
-      onMouseEnter={e => {
-        if (!isActive) {
-          (e.currentTarget as HTMLElement).style.background = "#f1f5f9";
-          (e.currentTarget as HTMLElement).style.color = "#334155";
-        }
-      }}
-      onMouseLeave={e => {
-        if (!isActive) {
-          (e.currentTarget as HTMLElement).style.background = "transparent";
-          (e.currentTarget as HTMLElement).style.color = "#64748b";
-        }
-      }}
+      className={`group relative w-12 h-12 flex items-center justify-center rounded-2xl transition-all duration-100 flex-shrink-0 ${
+        isUpgrade
+          ? "grad-brand text-white shadow-glow hover:shadow-glow-hover hover:brightness-105"
+          : isActive
+            ? "bg-tint-violet text-brand"
+            : "text-ink-soft hover:bg-tint-blue hover:text-ink"
+      }`}
     >
+      {isActive && !isUpgrade && (
+        <span className="absolute -left-3.5 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full grad-brand" />
+      )}
       {icon}
-      <span className="pointer-events-none absolute left-full ml-3 px-2 py-1 text-xs font-semibold text-white bg-gray-800 rounded-md opacity-0 group-hover:opacity-100 whitespace-nowrap z-50 shadow-lg transition-opacity">
+      <span className="pointer-events-none absolute left-full ml-3 px-2 py-1 text-xs font-semibold text-white bg-ink rounded-lg opacity-0 group-hover:opacity-100 whitespace-nowrap z-50 shadow-lg transition-opacity">
         {label}
       </span>
     </Link>
@@ -75,8 +66,8 @@ function NavLink({ id, icon, label, href, active }: { id: string; icon: React.Re
 export default function ToolsSidebar({ active = "home" }: { active?: string }) {
   return (
     <aside
-      className="flex flex-col items-center pt-5 pb-5 flex-shrink-0 border-r border-gray-100"
-      style={{ width: 88, background: "#ffffff" }}
+      className="flex flex-col items-center pt-5 pb-5 flex-shrink-0 border-r border-gray-100 bg-white"
+      style={{ width: 88 }}
     >
       {/* Main nav */}
       <nav className="flex flex-col items-center gap-2.5 flex-1 w-full px-3.5">
@@ -94,47 +85,5 @@ export default function ToolsSidebar({ active = "home" }: { active?: string }) {
       </div>
 
     </aside>
-  );
-}
-
-export function ToolsTopbar() {
-  const { user, openAuthModal } = useAuth();
-  const hasActivePlan =
-    !!user?.subscriptionEndsAt && new Date(user.subscriptionEndsAt) > new Date();
-  return (
-    <div className="mx-auto w-full max-w-[1440px] px-8 flex items-center justify-end pt-5 pb-3 gap-3">
-      {user ? (
-        <>
-          <div className="flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1.5">
-            <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 text-blue-500 flex-shrink-0">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-            </svg>
-            <span className="text-sm font-bold text-gray-700">{user.credits ?? 0}</span>
-            <span className="text-xs text-gray-400 font-medium">credits</span>
-          </div>
-
-          {hasActivePlan && (
-            <Link
-              href="/billing"
-              className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5">
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-              Top Up
-            </Link>
-          )}
-          <SidebarAccount />
-        </>
-      ) : (
-        <button
-          onClick={() => openAuthModal("login")}
-          className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors shadow-sm cursor-pointer"
-        >
-          <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-          Login
-        </button>
-      )}
-    </div>
   );
 }

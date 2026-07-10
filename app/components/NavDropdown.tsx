@@ -28,11 +28,11 @@ function ChevronIcon({ className = "" }: { className?: string }) {
 }
 
 export function DropdownItem({ item, onNavigate }: { item: NavItem; onNavigate: () => void }) {
-  const className = "flex flex-col gap-0.5 rounded-xl px-3 py-2.5 transition-colors hover:bg-gray-50 group";
+  const className = "flex flex-col gap-0.5 rounded-xl px-3 py-2.5 transition-colors hover:bg-tint-blue group";
   const content = (
     <>
-      <span className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">{item.title}</span>
-      <span className="text-xs leading-snug text-gray-500">{item.desc}</span>
+      <span className="text-sm font-semibold text-ink group-hover:text-brand transition-colors">{item.title}</span>
+      <span className="text-xs leading-snug text-ink-soft">{item.desc}</span>
     </>
   );
   if (item.external) {
@@ -111,7 +111,7 @@ export function NavDropdown({
 
       {/* Always mounted so both open and close animate — see file header. */}
       <div
-        className={`${positionClass} origin-top rounded-2xl border border-gray-100 bg-white shadow-xl z-50 transition-all duration-200 ease-out ${
+        className={`${positionClass} origin-top rounded-[var(--radius-card)] border border-card-border bg-white shadow-xl z-50 transition-all duration-200 ease-out ${
           open ? "opacity-100 scale-100 translate-y-0 visible" : "opacity-0 scale-95 -translate-y-1 invisible pointer-events-none"
         }`}
         style={{ width, maxWidth: "calc(100vw - 1.5rem)" }}

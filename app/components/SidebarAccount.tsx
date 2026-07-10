@@ -1,8 +1,8 @@
 "use client";
 
-// Top-right account avatar + popover. Lives in the shared ToolsTopbar (and a
-// couple of pages with their own inline top bar) so it appears consistently
-// in the same place across the dashboard, next to the credits badge.
+// Top-right account avatar + popover. Rendered by DashboardHeader so it
+// appears consistently in the same place across the dashboard, next to the
+// credits pill.
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -22,7 +22,7 @@ const STORAGE_LIMIT_GB = 2; // flat placeholder limit — no per-plan storage ti
 
 function MenuLink({ href, onClick, icon, children, trailing }: { href: string; onClick: () => void; icon: React.ReactNode; children: React.ReactNode; trailing?: React.ReactNode }) {
   return (
-    <Link href={href} onClick={onClick} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#525866] hover:bg-gray-50 hover:text-gray-900 transition-colors">
+    <Link href={href} onClick={onClick} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#525866] hover:bg-tint-blue hover:text-ink transition-colors">
       {icon}
       <span className="flex-1">{children}</span>
       {trailing}
@@ -61,7 +61,7 @@ export default function SidebarAccount() {
       <button
         onClick={() => setOpen((p) => !p)}
         title="Account"
-        className="relative w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-[#335CFF] text-white text-sm font-bold select-none hover:opacity-90 transition-opacity flex-shrink-0"
+        className="relative w-10 h-10 rounded-full overflow-hidden flex items-center justify-center grad-brand text-white text-sm font-bold select-none hover:opacity-90 transition-opacity flex-shrink-0"
       >
         {user.avatarUrl ? (
           <Image src={user.avatarUrl} alt="" fill sizes="40px" className="object-cover" />
@@ -71,11 +71,11 @@ export default function SidebarAccount() {
       {/* Always mounted so both open and close animate, instead of the
           previous instant conditional-render mount/unmount. */}
       <div
-        className={`absolute top-full right-0 mt-2 w-64 bg-white rounded-xl border border-[#D7DBEA] shadow-xl z-50 overflow-hidden origin-top-right transition-all duration-200 ease-out ${
+        className={`absolute top-full right-0 mt-2 w-64 bg-white rounded-2xl border border-card-border shadow-xl z-50 overflow-hidden origin-top-right transition-all duration-200 ease-out ${
           open ? "opacity-100 scale-100 translate-y-0 visible" : "opacity-0 scale-95 -translate-y-1 invisible pointer-events-none"
         }`}
       >
-          <div className="px-4 py-3 border-b border-[#D7DBEA]">
+          <div className="px-4 py-3 border-b border-card-border">
             <p className="text-sm font-semibold text-gray-900 truncate">{user.name || "User"}</p>
             <p className="text-xs text-[#868C98] truncate">{user.email}</p>
           </div>
@@ -100,7 +100,7 @@ export default function SidebarAccount() {
             <MenuLink href="/dashboard/assets" onClick={() => setOpen(false)} icon={<IcBriefcase />}>My Workspace</MenuLink>
           </div>
 
-          <div className="border-t border-[#D7DBEA] py-1.5">
+          <div className="border-t border-card-border py-1.5">
             <button
               onClick={() => { setOpen(false); signOut(); }}
               className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors cursor-pointer"

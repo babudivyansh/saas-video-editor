@@ -47,6 +47,22 @@
   --ink-soft: #475569;
   --surface: #f7faf9;
   --card-border: #e5efeb;
+
+  /* Vibrant-gradient dashboard palette — brand (#335cff) running to fuchsia */
+  --accent-violet: #7c3aed;
+  --accent-fuchsia: #d946ef;
+  --accent-pink: #ec4899;
+
+  /* Pastel washes for tinted cards/chips */
+  --tint-blue: #eef2ff;
+  --tint-violet: #f5f3ff;
+  --tint-fuchsia: #fdf4ff;
+  --tint-amber: #fffbeb;
+  --tint-emerald: #ecfdf5;
+  --tint-rose: #fff1f2;
+
+  /* Canonical brand gradient — single source for fills, text, and hero */
+  --gradient-brand: linear-gradient(135deg, var(--brand) 0%, var(--accent-violet) 55%, var(--accent-fuchsia) 100%);
 }
 
 @theme inline {
@@ -64,9 +80,42 @@
   --color-surface: var(--surface);
   --color-card-border: var(--card-border);
 
+  --color-accent-violet: var(--accent-violet);
+  --color-accent-fuchsia: var(--accent-fuchsia);
+  --color-accent-pink: var(--accent-pink);
+  --color-tint-blue: var(--tint-blue);
+  --color-tint-violet: var(--tint-violet);
+  --color-tint-fuchsia: var(--tint-fuchsia);
+  --color-tint-amber: var(--tint-amber);
+  --color-tint-emerald: var(--tint-emerald);
+  --color-tint-rose: var(--tint-rose);
+
   --shadow-card: 0 1px 2px rgba(14, 18, 27, 0.06), 0 8px 24px rgba(14, 18, 27, 0.08);
   --shadow-card-hover: 0 2px 4px rgba(14, 18, 27, 0.08), 0 16px 40px rgba(14, 18, 27, 0.12);
-  --radius-card: 20px;
+  --shadow-glow: 0 8px 30px rgba(51, 92, 255, 0.28);
+  --shadow-glow-hover: 0 10px 36px rgba(124, 58, 237, 0.32);
+  --radius-card: 24px;
+}
+
+/* ── Vibrant-gradient utilities (dashboard redesign) ───────────────────── */
+@utility grad-brand {
+  /* Filled gradient surfaces: primary buttons, badges, indicator bars */
+  background-image: var(--gradient-brand);
+}
+@utility grad-text {
+  /* Gradient-clipped headings. Keep usages inline-block with short text —
+     background-clip:text drops the fallback color entirely. */
+  background-image: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+@utility grad-hero {
+  /* Hero banner: brand gradient with two soft radial highlights layered on */
+  background-image:
+    radial-gradient(1200px 400px at 85% -20%, rgba(255, 255, 255, 0.22), transparent 60%),
+    radial-gradient(800px 300px at 10% 120%, rgba(217, 70, 239, 0.35), transparent 60%),
+    var(--gradient-brand);
 }
 
 body {
