@@ -46,6 +46,7 @@ interface EditorState {
   activePanel: PanelKind;
   exportOpen: boolean;
   saveState: SaveState;
+  focusTextClipId: string | null; // set by "Add Text"/double-click-on-canvas to focus the Lexical editor in the properties panel
 
   // Lifecycle
   loadProject: (projectId: string, doc: TimelineDoc | null) => void;
@@ -57,6 +58,8 @@ interface EditorState {
   setZoom: (z: number) => void;
   toggleSnap: () => void;
   setExportOpen: (open: boolean) => void;
+  requestTextFocus: (clipId: string) => void;
+  clearTextFocus: () => void;
 
   // Playback (rAF clock writes through these)
   setPlaying: (p: boolean) => void;
@@ -97,6 +100,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   activePanel: "media",
   exportOpen: false,
   saveState: "saved",
+  focusTextClipId: null,
 
   loadProject: (projectId, doc) =>
     set({
@@ -107,6 +111,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       playing: false,
       currentTime: 0,
       saveState: "saved",
+      focusTextClipId: null,
     }),
 
   markSaved: (state) => set({ saveState: state }),
@@ -116,6 +121,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setZoom: (z) => set({ zoom: Math.min(300, Math.max(10, z)) }),
   toggleSnap: () => set((s) => ({ snapEnabled: !s.snapEnabled })),
   setExportOpen: (open) => set({ exportOpen: open }),
+  requestTextFocus: (clipId) => set({ focusTextClipId: clipId }),
+  clearTextFocus: () => set({ focusTextClipId: null }),
 
   setPlaying: (p) => set({ playing: p }),
   setCurrentTime: (t) => set({ currentTime: Math.max(0, t) }),

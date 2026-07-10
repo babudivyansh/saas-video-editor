@@ -5,7 +5,7 @@ import { useAuth } from "@/app/components/AuthContext";
 import { useEditorStore } from "../../store/editorStore";
 import type { EffectPreset, FilterPreset, TextClip, TransitionPreset, VideoClip } from "@/lib/editor/types";
 import { EFFECT_PRESETS, FILTER_PRESETS, MAX_FADE_SEC, SPEED_OPTIONS, TRANSITION_PRESETS } from "@/lib/editor/types";
-import { Field, NumberField, Section, SliderField } from "./fields";
+import { Button, FieldRow, NumberField, PillGroup, PropertyCard, Slider, Switch } from "../ui";
 
 const CAPTION_WORDS_PER_LINE = 4;
 
@@ -45,7 +45,11 @@ function wordsToCaptionClips(
   return clips;
 }
 
-export default function VideoClipProps({ clip }: { clip: VideoClip }) {
+const PREVIEW_ONLY = (
+  <span className="text-[9px] font-normal normal-case tracking-normal text-editor-text-faint">Preview only</span>
+);
+
+export default function VideoClipProps({ clip, activeTab }: { clip: VideoClip; activeTab: string }) {
   const updateClip = useEditorStore((s) => s.updateClip);
   const addTextClips = useEditorStore((s) => s.addTextClips);
   const { user, refreshUser } = useAuth();
@@ -82,151 +86,116 @@ export default function VideoClipProps({ clip }: { clip: VideoClip }) {
     }
   };
 
+  if (activeTab === "basic") {
+    return (
+      <div className="flex flex-col gap-3 p-3">
+        <PropertyCard title="Video clip" collapsible={false}>
+          <NumberField label="Start (s)" value={clip.timelineStart} min={0} step={0.1} onChange={(v) => patch({ timelineStart: v })} />
+          <NumberField label="Duration (s)" value={clip.duration} min={0.05} step={0.1} onChange={(v) => patch({ duration: v })} />
+          <NumberField label="Trim in (s)" value={clip.srcIn} min={0} step={0.1} onChange={(v) => patch({ srcIn: v })} />
+        </PropertyCard>
+      </div>
+    );
+  }
+
+  if (activeTab === "animation") {
+    return (
+      <div className="flex flex-col gap-3 p-3">
+        <PropertyCard title="Speed">
+          <PillGroup
+            layoutId="video-speed"
+            value={clip.speed ?? 1}
+            onChange={(s) => patch({ speed: s === 1 ? undefined : s })}
+            options={SPEED_OPTIONS.map((s) => ({ key: s, label: `${s}×` }))}
+          />
+        </PropertyCard>
+        <PropertyCard title="Fade">
+          <NumberField
+            label="Fade in (s)"
+            value={clip.fadeIn ?? 0}
+            min={0}
+            max={MAX_FADE_SEC}
+            step={0.1}
+            onChange={(v) => patch({ fadeIn: v > 0 ? Math.min(v, MAX_FADE_SEC) : undefined })}
+          />
+          <NumberField
+            label="Fade out (s)"
+            value={clip.fadeOut ?? 0}
+            min={0}
+            max={MAX_FADE_SEC}
+            step={0.1}
+            onChange={(v) => patch({ fadeOut: v > 0 ? Math.min(v, MAX_FADE_SEC) : undefined })}
+          />
+        </PropertyCard>
+      </div>
+    );
+  }
+
+  if (activeTab === "adjust") {
+    return (
+      <div className="flex flex-col gap-3 p-3">
+        <PropertyCard title="Filter" collapsible={false}>
+          <PillGroup
+            layoutId="video-filter"
+            value={clip.filter ?? "none"}
+            onChange={(key) => patch({ filter: key === "none" ? undefined : (key as FilterPreset) })}
+            options={(Object.keys(FILTER_PRESETS) as FilterPreset[]).map((key) => ({ key, label: FILTER_PRESETS[key].label }))}
+          />
+        </PropertyCard>
+      </div>
+    );
+  }
+
+  if (activeTab === "audio") {
+    return (
+      <div className="flex flex-col gap-3 p-3">
+        <PropertyCard title="Audio" collapsible={false}>
+          <Slider label="Volume" value={clip.volume} min={0} max={1} step={0.05} onChange={(v) => patch({ volume: v })} />
+          <FieldRow label="Mute">
+            <Switch checked={clip.muted} onChange={(v) => patch({ muted: v })} />
+          </FieldRow>
+        </PropertyCard>
+      </div>
+    );
+  }
+
+  if (activeTab === "effects") {
+    return (
+      <div className="flex flex-col gap-3 p-3">
+        <PropertyCard title="Effect" trailing={PREVIEW_ONLY}>
+          <PillGroup
+            layoutId="video-effect"
+            value={clip.effect ?? "none"}
+            onChange={(key) => patch({ effect: key === "none" ? undefined : (key as EffectPreset) })}
+            options={(Object.keys(EFFECT_PRESETS) as EffectPreset[]).map((key) => ({ key, label: EFFECT_PRESETS[key].label }))}
+          />
+          <p className="text-[10px] leading-snug text-editor-text-faint">Preview only — not yet applied to exports.</p>
+        </PropertyCard>
+        <PropertyCard title="Transition (out)" trailing={PREVIEW_ONLY}>
+          <PillGroup
+            layoutId="video-transition"
+            value={clip.transitionOut ?? "none"}
+            onChange={(key) => patch({ transitionOut: key === "none" ? undefined : (key as TransitionPreset) })}
+            options={(Object.keys(TRANSITION_PRESETS) as TransitionPreset[]).map((key) => ({ key, label: TRANSITION_PRESETS[key].label }))}
+          />
+          <p className="text-[10px] leading-snug text-editor-text-faint">Preview only — not yet applied to exports.</p>
+        </PropertyCard>
+      </div>
+    );
+  }
+
+  // activeTab === "ai"
   return (
-    <div className="flex flex-col gap-4 p-4">
-      <Section title="Captions">
-        <button
-          onClick={generateCaptions}
-          disabled={captionState === "working"}
-          className="w-full rounded-lg bg-violet-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-violet-500 disabled:opacity-50 cursor-pointer"
-        >
+    <div className="flex flex-col gap-3 p-3">
+      <PropertyCard title="Captions" collapsible={false}>
+        <Button variant="primary" onClick={generateCaptions} disabled={captionState === "working"} className="w-full">
           {captionState === "working" ? "Transcribing…" : "Auto captions (1 credit)"}
-        </button>
-        {captionState === "error" && captionError && (
-          <p className="text-[10px] leading-snug text-red-400">{captionError}</p>
-        )}
-        <p className="text-[10px] leading-snug text-zinc-500">
+        </Button>
+        {captionState === "error" && captionError && <p className="text-[10px] leading-snug text-red-400">{captionError}</p>}
+        <p className="text-[10px] leading-snug text-editor-text-faint">
           Transcribes this clip&apos;s speech and adds caption text to the timeline, aligned word-by-word.
         </p>
-      </Section>
-
-      <Section title="Video clip">
-        <NumberField
-          label="Start (s)"
-          value={clip.timelineStart}
-          min={0}
-          step={0.1}
-          onChange={(v) => patch({ timelineStart: v })}
-        />
-        <NumberField
-          label="Duration (s)"
-          value={clip.duration}
-          min={0.05}
-          step={0.1}
-          onChange={(v) => patch({ duration: v })}
-        />
-        <NumberField
-          label="Trim in (s)"
-          value={clip.srcIn}
-          min={0}
-          step={0.1}
-          onChange={(v) => patch({ srcIn: v })}
-        />
-      </Section>
-
-      <Section title="Speed">
-        <div className="flex flex-wrap gap-1">
-          {SPEED_OPTIONS.map((s) => (
-            <button
-              key={s}
-              onClick={() => patch({ speed: s === 1 ? undefined : s })}
-              className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors cursor-pointer ${
-                (clip.speed ?? 1) === s ? "bg-violet-600/15 text-violet-400" : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
-              }`}
-            >
-              {s}×
-            </button>
-          ))}
-        </div>
-      </Section>
-
-      <Section title="Fade">
-        <NumberField
-          label="Fade in (s)"
-          value={clip.fadeIn ?? 0}
-          min={0}
-          max={MAX_FADE_SEC}
-          step={0.1}
-          onChange={(v) => patch({ fadeIn: v > 0 ? Math.min(v, MAX_FADE_SEC) : undefined })}
-        />
-        <NumberField
-          label="Fade out (s)"
-          value={clip.fadeOut ?? 0}
-          min={0}
-          max={MAX_FADE_SEC}
-          step={0.1}
-          onChange={(v) => patch({ fadeOut: v > 0 ? Math.min(v, MAX_FADE_SEC) : undefined })}
-        />
-      </Section>
-
-      <Section title="Filter">
-        <div className="flex flex-wrap gap-1">
-          {(Object.keys(FILTER_PRESETS) as FilterPreset[]).map((key) => (
-            <button
-              key={key}
-              onClick={() => patch({ filter: key === "none" ? undefined : key })}
-              className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors cursor-pointer ${
-                (clip.filter ?? "none") === key ? "bg-violet-600/15 text-violet-400" : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
-              }`}
-            >
-              {FILTER_PRESETS[key].label}
-            </button>
-          ))}
-        </div>
-      </Section>
-
-      <Section title="Effect">
-        <div className="flex flex-wrap gap-1">
-          {(Object.keys(EFFECT_PRESETS) as EffectPreset[]).map((key) => (
-            <button
-              key={key}
-              onClick={() => patch({ effect: key === "none" ? undefined : key })}
-              className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors cursor-pointer ${
-                (clip.effect ?? "none") === key ? "bg-violet-600/15 text-violet-400" : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
-              }`}
-            >
-              {EFFECT_PRESETS[key].label}
-            </button>
-          ))}
-        </div>
-        <p className="text-[10px] leading-snug text-zinc-500">Preview only — not yet applied to exports.</p>
-      </Section>
-
-      <Section title="Transition (out)">
-        <div className="flex flex-wrap gap-1">
-          {(Object.keys(TRANSITION_PRESETS) as TransitionPreset[]).map((key) => (
-            <button
-              key={key}
-              onClick={() => patch({ transitionOut: key === "none" ? undefined : key })}
-              className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors cursor-pointer ${
-                (clip.transitionOut ?? "none") === key ? "bg-violet-600/15 text-violet-400" : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
-              }`}
-            >
-              {TRANSITION_PRESETS[key].label}
-            </button>
-          ))}
-        </div>
-        <p className="text-[10px] leading-snug text-zinc-500">Preview only — not yet applied to exports.</p>
-      </Section>
-
-      <Section title="Audio">
-        <SliderField
-          label="Volume"
-          value={clip.volume}
-          min={0}
-          max={1}
-          step={0.05}
-          onChange={(v) => patch({ volume: v })}
-        />
-        <Field label="Mute">
-          <input
-            type="checkbox"
-            checked={clip.muted}
-            onChange={(e) => patch({ muted: e.target.checked })}
-            className="h-4 w-4 accent-violet-500"
-          />
-        </Field>
-      </Section>
+      </PropertyCard>
     </div>
   );
 }

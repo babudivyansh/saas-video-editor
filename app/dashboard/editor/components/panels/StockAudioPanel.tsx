@@ -4,19 +4,18 @@
 // Asset, then drops it on the audio track at the playhead.
 
 import React, { useState } from "react";
+import { Music2, Search } from "lucide-react";
 import { useEditorStore } from "../../store/editorStore";
+import { fmtDuration } from "./shared/assetData";
 import { useStockSearch, importStockItem, type StockItem } from "./useStockSearch";
-
-function fmtDuration(sec: number | undefined): string {
-  if (sec == null || !Number.isFinite(sec)) return "";
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
+import { Button } from "../ui";
+import AssetCard from "./shared/AssetCard";
+import SearchField from "./shared/SearchField";
+import PanelStatus from "./shared/PanelStatus";
 
 export default function StockAudioPanel() {
   const addAudioClip = useEditorStore((s) => s.addAudioClip);
-  const { query, setQuery, items, loading, error } = useStockSearch("audio");
+  const { query, setQuery, items, loading, error, hasMore, loadMore } = useStockSearch("audio");
   const [adding, setAdding] = useState<string | null>(null);
 
   const add = async (item: StockItem) => {
@@ -40,49 +39,44 @@ export default function StockAudioPanel() {
 
   return (
     <div className="flex flex-col gap-3 p-3">
-      <input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search stock music…"
-        className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-violet-500"
-      />
+      <SearchField value={query} onChange={setQuery} placeholder="Search stock music…" />
+
       {error && <p className="text-xs text-red-400">{error}</p>}
       {!error && items.length === 0 && !loading && (
-        <p className="p-2 text-xs text-zinc-500">Search CC-licensed music — powered by Jamendo.</p>
+        <PanelStatus state="empty" icon={<Search className="h-5 w-5" />} message="Search CC-licensed music — powered by Jamendo." />
       )}
-      {loading && <p className="p-2 text-xs text-zinc-500">Searching…</p>}
+      {loading && items.length === 0 && <PanelStatus state="loading" message="Searching…" />}
 
       {items.length > 0 && (
         <div className="flex flex-col gap-1.5">
           {items.map((item) => (
-            <button
+            <AssetCard
               key={item.id}
+              layout="row"
               onClick={() => add(item)}
-              disabled={adding === item.id}
-              title={item.attribution}
-              className="flex items-center gap-2.5 rounded-lg border border-zinc-800 bg-zinc-900 px-2.5 py-2 text-left transition-all hover:border-violet-500 cursor-pointer disabled:opacity-50"
-            >
-              {item.thumbUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={item.thumbUrl} alt="" className="h-8 w-8 flex-shrink-0 rounded-lg object-cover" />
-              ) : (
-                <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-violet-600/15 text-violet-400">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="h-4 w-4">
-                    <path d="M9 18V6l10-2v12" strokeLinecap="round" strokeLinejoin="round" />
-                    <circle cx="6.5" cy="18" r="2.5" />
-                    <circle cx="16.5" cy="16" r="2.5" />
-                  </svg>
-                </span>
-              )}
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-xs font-semibold text-zinc-200">{item.name}</span>
-                <span className="text-[10px] text-zinc-500">
-                  {adding === item.id ? "Adding…" : fmtDuration(item.durationSec)}
-                </span>
-              </span>
-            </button>
+              adding={adding === item.id}
+              attribution={item.attribution}
+              title={item.name}
+              durationLabel={fmtDuration(item.durationSec ?? null)}
+              thumb={
+                item.thumbUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={item.thumbUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="flex h-full w-full items-center justify-center bg-editor-accent/15 text-editor-accent">
+                    <Music2 className="h-4 w-4" />
+                  </span>
+                )
+              }
+            />
           ))}
         </div>
+      )}
+
+      {hasMore && (
+        <Button variant="subtle" size="sm" onClick={loadMore} disabled={loading} className="self-center">
+          {loading ? "Loading…" : "Load more"}
+        </Button>
       )}
     </div>
   );

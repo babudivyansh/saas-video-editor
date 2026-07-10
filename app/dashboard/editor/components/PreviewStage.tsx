@@ -7,11 +7,15 @@
 // placement identical.
 
 import React, { useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import { useEditorStore } from "../store/editorStore";
 import { usePlayback, type MediaRegistry } from "../hooks/usePlayback";
 import { docDuration } from "@/lib/editor/doc-utils";
 import { ASPECT_DIMENSIONS } from "@/lib/editor/types";
-import { useAssets } from "./panels/MediaPanel";
+import { useAssets } from "./panels/shared/assetData";
+import { buildTextCss } from "./text/textStyle";
+import { renderRichTextToReact } from "./text/renderRichText";
+import { getTextMotion } from "./text/textAnimations";
 import PreviewControls from "./PreviewControls";
 
 export default function PreviewStage() {
@@ -21,6 +25,7 @@ export default function PreviewStage() {
   const selection = useEditorStore((s) => s.selection);
   const updateClip = useEditorStore((s) => s.updateClip);
   const commitDrag = useEditorStore((s) => s.commitDrag);
+  const requestTextFocus = useEditorStore((s) => s.requestTextFocus);
 
   const { assets: videoAssets } = useAssets("video");
   const { assets: audioAssets } = useAssets("audio");
@@ -33,6 +38,7 @@ export default function PreviewStage() {
   const [stageH, setStageH] = useState(360);
   const dims = ASPECT_DIMENSIONS[doc.aspect];
   const aspectRatio = dims.w / dims.h;
+  const stageW = stageH * aspectRatio;
 
   // Track rendered stage height so text font sizes (pct of canvas height) scale.
   useEffect(() => {
@@ -80,7 +86,7 @@ export default function PreviewStage() {
   };
 
   const activeTexts = doc.tracks.text.filter(
-    (t) => currentTime >= t.timelineStart && currentTime < t.timelineStart + t.duration,
+    (t) => !t.hidden && currentTime >= t.timelineStart && currentTime < t.timelineStart + t.duration,
   );
   const activeImages = doc.tracks.image.filter(
     (im) => currentTime >= im.timelineStart && currentTime < im.timelineStart + im.duration,
@@ -155,32 +161,46 @@ export default function PreviewStage() {
           ))}
 
           {/* Text overlays */}
-          {activeTexts.map((t) => (
-            <div
-              key={t.id}
-              onPointerDown={(e) => onOverlayPointerDown(e, t.id, "text")}
-              onPointerMove={onOverlayPointerMove}
-              onPointerUp={onOverlayPointerUp}
-              className={`absolute -translate-x-1/2 -translate-y-1/2 cursor-move select-none whitespace-pre-wrap px-2 py-0.5 ${
-                selection?.clipId === t.id ? "ring-2 ring-violet-500" : ""
-              }`}
-              style={{
-                left: `${t.x * 100}%`,
-                top: `${t.y * 100}%`,
-                fontFamily: t.fontFamily,
-                fontWeight: t.bold ? 700 : 400,
-                fontSize: `${t.fontSizePct * stageH}px`,
-                color: t.color,
-                textAlign: t.align,
-                backgroundColor: t.bgColor ?? "transparent",
-                borderRadius: t.bgColor ? 6 : 0,
-                lineHeight: 1.2,
-                maxWidth: "90%",
-              }}
-            >
-              {t.text}
-            </div>
-          ))}
+          {activeTexts.map((t) => {
+            const baseStyle = buildTextCss(t, stageH, stageW);
+            const motion_ = getTextMotion(t, currentTime);
+            const finalOpacity = (t.opacity ?? 1) * motion_.opacityMultiplier;
+            const finalTransform = `${baseStyle.transform ?? ""} ${motion_.transformExtra}`.trim();
+            const showTypewriter = t.entrance?.type === "typewriter" && motion_.typewriterProgress !== undefined;
+
+            return (
+              <motion.div
+                key={t.id}
+                animate={motion_.loopAnimate}
+                transition={motion_.loopTransition}
+                onPointerDown={(e) => {
+                  if (!t.locked) onOverlayPointerDown(e, t.id, "text");
+                }}
+                onPointerMove={t.locked ? undefined : onOverlayPointerMove}
+                onPointerUp={t.locked ? undefined : onOverlayPointerUp}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  select({ clipId: t.id, track: "text" });
+                  requestTextFocus(t.id);
+                }}
+                className={`absolute select-none whitespace-pre-wrap px-2 py-0.5 ${t.locked ? "cursor-default" : "cursor-move"} ${
+                  selection?.clipId === t.id ? "ring-2 ring-violet-500" : ""
+                }`}
+                style={{
+                  left: `${t.x * 100}%`,
+                  top: `${t.y * 100}%`,
+                  ...baseStyle,
+                  ...motion_.style,
+                  opacity: finalOpacity,
+                  transform: finalTransform,
+                }}
+              >
+                {showTypewriter
+                  ? t.text.slice(0, Math.round((motion_.typewriterProgress ?? 0) * t.text.length))
+                  : renderRichTextToReact(t.richText, t.text)}
+              </motion.div>
+            );
+          })}
 
           {isEmpty && (
             <div className="absolute inset-0 flex items-center justify-center">

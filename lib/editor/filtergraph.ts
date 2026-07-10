@@ -13,7 +13,7 @@
 
 import fs from "fs";
 import path from "path";
-import type { TimelineDoc } from "./types";
+import type { TextClip, TimelineDoc } from "./types";
 import { ASPECT_DIMENSIONS, FILTER_PRESETS } from "./types";
 import { docDuration, videoSegments } from "./doc-utils";
 
@@ -242,25 +242,66 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
 
   // ── Text overlays: chained drawtext with enable windows ──
   doc.tracks.text.forEach((t, i) => {
+    if (t.hidden) return; // excluded from export, matching PreviewStage's activeTexts filter
     const textFile = textFiles.get(t.id);
     if (!textFile) throw new Error(`Missing textfile for text clip ${t.id}`);
-    const font = resolveFontFile(t.fontFamily + (t.bold && t.fontFamily === "Impact" ? "" : ""));
+    const font = resolveFontFile(t.fontFamily);
     const fontSize = Math.round(t.fontSizePct * H);
     const color = t.color;
-    const outLabel = `[vt${i}]`;
-    const parts = [
+
+    // normalized position → drawtext top-left x. "center" (default) keeps t.x
+    // as the midpoint; "left"/"right" instead treat t.x as the anchor edge —
+    // this is the one place preview and export intentionally diverge, since
+    // the canvas always block-centers on t.x for drag-to-position ergonomics.
+    const xExpr =
+      t.align === "left" ? `(w*${num(t.x)})` :
+      t.align === "right" ? `(w*${num(t.x)})-text_w` :
+      `(w*${num(t.x)})-(text_w/2)`;
+
+    const baseParts = [
       `textfile='${escapeFilterPath(textFile)}'`,
       `fontfile='${escapeFilterPath(font)}'`,
       `fontsize=${fontSize}`,
       `fontcolor=${color}`,
-      // normalized center position → drawtext top-left coordinates
-      `x=(w*${num(t.x)})-(text_w/2)`,
+      `x=${xExpr}`,
       `y=(h*${num(t.y)})-(text_h/2)`,
       `enable='between(t,${num(t.timelineStart)},${num(t.timelineStart + t.duration)})'`,
     ];
-    if (t.bgColor) parts.push(`box=1`, `boxcolor=${t.bgColor}@0.75`, `boxborderw=14`);
-    if (t.bold) parts.push(`borderw=1`, `bordercolor=${color}`); // faux-bold stroke for fonts without bold file
-    filters.push(`${videoOut}drawtext=${parts.join(":")}${outLabel}`);
+    if (t.bgColor) baseParts.push(`box=1`, `boxcolor=${t.bgColor}@0.75`, `boxborderw=14`);
+    if (t.strokeColor) {
+      const strokeW = Math.max(1, Math.round((t.strokeWidthPct ?? 0.01) * H));
+      baseParts.push(`borderw=${strokeW}`, `bordercolor=${t.strokeColor}`);
+    }
+    if (t.shadow) {
+      baseParts.push(
+        `shadowx=${Math.round(t.shadow.offsetXPct * W)}`,
+        `shadowy=${Math.round(t.shadow.offsetYPct * H)}`,
+        `shadowcolor=${t.shadow.color}@${num(t.shadow.opacity)}`,
+      );
+    }
+    baseParts.push(`alpha=${num(t.opacity ?? 1)}`); // alpha=1 is drawtext's own default — a no-op for docs that never set opacity
+    // Only emit line_spacing when the doc explicitly sets lineHeight — drawtext's
+    // own default (no param) is what every pre-existing doc already rendered
+    // with, so defaulting this to 1.2 here would silently reflow legacy exports.
+    if (t.lineHeight !== undefined) {
+      const lineSpacing = Math.round((t.lineHeight - 1) * fontSize);
+      if (lineSpacing !== 0) baseParts.push(`line_spacing=${lineSpacing}`);
+    }
+
+    // Faux-bold: none of the 9 whitelisted fonts ship a bold .ttf, so "Bold"
+    // instead redraws the same glyphs offset by ~1-2px — the overlapping
+    // strokes read as heavier weight. Skipped when an explicit stroke is
+    // already set (the stroke itself already thickens the glyph edges, and
+    // stacking both looks smudged).
+    if (t.bold && !t.strokeColor) {
+      const offset = Math.max(1, Math.round(fontSize * 0.02));
+      const offsetParts = baseParts.map((p) => (p.startsWith("x=") ? `x=${xExpr}+${offset}` : p));
+      filters.push(`${videoOut}drawtext=${offsetParts.join(":")}[vtb${i}]`);
+      videoOut = `[vtb${i}]`;
+    }
+
+    const outLabel = `[vt${i}]`;
+    filters.push(`${videoOut}drawtext=${baseParts.join(":")}${outLabel}`);
     videoOut = outLabel;
   });
 
@@ -319,13 +360,27 @@ export function maybeUseFilterScript(result: FiltergraphResult, scriptPath: stri
   return args;
 }
 
+function applyTextTransform(text: string, transform: TextClip["textTransform"]): string {
+  switch (transform) {
+    case "uppercase":
+      return text.toUpperCase();
+    case "lowercase":
+      return text.toLowerCase();
+    case "capitalize":
+      return text.replace(/\b\w/g, (c) => c.toUpperCase());
+    default:
+      return text;
+  }
+}
+
 /** Write each text clip's content to a UTF-8 textfile; returns id → path. */
 export function writeTextFiles(doc: TimelineDoc, dir: string, prefix: string): Map<string, string> {
   const map = new Map<string, string>();
   for (const t of doc.tracks.text) {
     const p = path.join(dir, `${prefix}-text-${t.id}.txt`);
     // drawtext renders the file contents literally; strip trailing newline noise
-    fs.writeFileSync(p, t.text.replace(/\r/g, ""), "utf8");
+    const content = applyTextTransform(t.text.replace(/\r/g, ""), t.textTransform);
+    fs.writeFileSync(p, content, "utf8");
     map.set(t.id, p);
   }
   return map;

@@ -1,15 +1,27 @@
 "use client";
 
-// Bottom timeline dock: toolbar + ruler + three track rows + playhead.
-// Time↔pixel mapping is linear: x = t * zoom (px/second).
+// Bottom timeline dock: toolbar + [frozen track headers | ruler + tracks +
+// playhead, scrollable together]. Time↔pixel mapping is linear: x = t * zoom
+// (px/second).
 
 import React, { useRef } from "react";
+import { ZoomIn, ZoomOut } from "lucide-react";
 import { useEditorStore } from "../../store/editorStore";
 import { docDuration } from "@/lib/editor/doc-utils";
+import { IconButton } from "../ui";
+import { SLIDER_THUMB_CLASSES, sliderTrackStyle } from "../ui/sliderStyles";
 import TimeRuler from "./TimeRuler";
-import TimelineTrack from "./TimelineTrack";
+import TimelineTrack, { TRACK_HEIGHT } from "./TimelineTrack";
+import TrackHeader from "./TrackHeader";
 import Playhead from "./Playhead";
 import EditToolbar from "../EditToolbar";
+
+const TRACKS = [
+  { kind: "video" as const, label: "Video" },
+  { kind: "image" as const, label: "Image" },
+  { kind: "text" as const, label: "Text" },
+  { kind: "audio" as const, label: "Audio" },
+];
 
 export default function Timeline() {
   const doc = useEditorStore((s) => s.doc);
@@ -31,56 +43,49 @@ export default function Timeline() {
   };
 
   return (
-    <div className="flex h-60 flex-shrink-0 flex-col border-t border-zinc-800 bg-zinc-900">
+    <div className="flex h-60 flex-shrink-0 flex-col border-t border-editor-border bg-editor-panel">
       {/* Toolbar: edit tools left, zoom right */}
-      <div className="flex h-10 flex-shrink-0 items-center justify-between border-b border-zinc-800 px-3">
+      <div className="flex h-10 flex-shrink-0 items-center justify-between border-b border-editor-border px-3">
         <EditToolbar />
         <div className="flex items-center gap-2">
-          <button
-            aria-label="Zoom out"
-            onClick={() => setZoom(zoom - 20)}
-            className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-200 cursor-pointer"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
-              <circle cx="11" cy="11" r="7" />
-              <path d="M8 11h6M21 21l-4.3-4.3" strokeLinecap="round" />
-            </svg>
-          </button>
+          <IconButton icon={<ZoomOut className="h-3.5 w-3.5" />} label="Zoom out" size="sm" onClick={() => setZoom(zoom - 20)} />
           <input
             type="range"
             min={10}
             max={300}
             value={zoom}
             onChange={(e) => setZoom(parseInt(e.target.value))}
-            className="w-24 accent-violet-500"
+            style={sliderTrackStyle(zoom, 10, 300)}
+            className={`h-1.5 w-24 cursor-pointer appearance-none rounded-editor-full border border-editor-border outline-none ${SLIDER_THUMB_CLASSES}`}
             aria-label="Timeline zoom"
           />
-          <button
-            aria-label="Zoom in"
-            onClick={() => setZoom(zoom + 20)}
-            className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-200 cursor-pointer"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
-              <circle cx="11" cy="11" r="7" />
-              <path d="M11 8v6M8 11h6M21 21l-4.3-4.3" strokeLinecap="round" />
-            </svg>
-          </button>
+          <IconButton icon={<ZoomIn className="h-3.5 w-3.5" />} label="Zoom in" size="sm" onClick={() => setZoom(zoom + 20)} />
         </div>
       </div>
 
-      {/* Scrollable track area */}
-      <div ref={scrollRef} className="relative flex-1 overflow-x-auto overflow-y-hidden bg-zinc-950">
-        <div className="relative" style={{ width: contentWidth, minWidth: "100%" }}>
-          <div onMouseDown={seekFromEvent}>
-            <TimeRuler totalSeconds={total} zoom={zoom} />
-          </div>
+      {/* Track area: frozen headers column + scrollable ruler/tracks/playhead */}
+      <div className="flex min-h-0 flex-1">
+        <div className="flex flex-shrink-0 flex-col border-r border-editor-border bg-editor-panel">
+          <div className="h-6 w-14 flex-shrink-0" />
           <div className="flex flex-col gap-1 py-1">
-            <TimelineTrack kind="video" label="Video" />
-            <TimelineTrack kind="image" label="Image" />
-            <TimelineTrack kind="text" label="Text" />
-            <TimelineTrack kind="audio" label="Audio" />
+            {TRACKS.map((t) => (
+              <TrackHeader key={t.kind} kind={t.kind} label={t.label} height={TRACK_HEIGHT[t.kind]} />
+            ))}
           </div>
-          <Playhead zoom={zoom} scrollRef={scrollRef} />
+        </div>
+
+        <div ref={scrollRef} className="relative flex-1 overflow-x-auto overflow-y-hidden bg-editor-bg">
+          <div className="relative" style={{ width: contentWidth, minWidth: "100%" }}>
+            <div onMouseDown={seekFromEvent}>
+              <TimeRuler totalSeconds={total} zoom={zoom} />
+            </div>
+            <div className="flex flex-col gap-1 py-1">
+              {TRACKS.map((t) => (
+                <TimelineTrack key={t.kind} kind={t.kind} />
+              ))}
+            </div>
+            <Playhead zoom={zoom} scrollRef={scrollRef} />
+          </div>
         </div>
       </div>
     </div>

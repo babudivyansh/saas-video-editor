@@ -24,11 +24,11 @@ export default function TimeRuler({ totalSeconds, zoom }: { totalSeconds: number
   for (let t = 0; t <= totalSeconds + interval; t += interval) ticks.push(t);
 
   return (
-    <div className="relative h-6 cursor-pointer select-none border-b border-zinc-800 bg-zinc-900">
+    <div className="relative h-6 cursor-pointer select-none border-b border-editor-border bg-editor-panel">
       {ticks.map((t) => (
         <div key={t} className="absolute bottom-0 top-0 flex items-end" style={{ left: t * zoom }}>
-          <span className="h-2 w-px bg-zinc-600" />
-          <span className="mb-0.5 ml-1 text-[9px] text-zinc-500">{fmt(Math.round(t * 100) / 100)}</span>
+          <span className="h-2 w-px bg-editor-border-strong" />
+          <span className="mb-0.5 ml-1 text-[9px] text-editor-text-faint">{fmt(Math.round(t * 100) / 100)}</span>
         </div>
       ))}
     </div>

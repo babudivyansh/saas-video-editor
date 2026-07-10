@@ -3,7 +3,7 @@ import { Suspense, useRef, useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import SubtitleStylePicker from "@/app/components/SubtitleStylePicker";
 import { useVideoGenerate, getStoredToken, type GenerateStatus } from "@/app/hooks/useVideoGenerate";
-import { registerAsset, type AssetRow } from "@/app/dashboard/editor/components/panels/MediaPanel";
+import { registerAsset, type AssetRow } from "@/app/dashboard/editor/components/panels/shared/assetData";
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 function IcFilm() {

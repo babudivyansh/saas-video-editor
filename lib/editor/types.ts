@@ -34,7 +34,18 @@ export interface ClipBase {
   id: string; // uuid
   timelineStart: number; // seconds on the timeline
   duration: number; // seconds on the timeline
+  locked?: boolean; // when true, timeline drag/trim is disabled (still selectable)
+  hidden?: boolean; // when true, excluded from live preview AND export
+  name?: string; // user-set label; falls back to clip content when unset
 }
+
+// Structural stand-in for Lexical's SerializedEditorState. Deliberately not
+// importing from `lexical` here — this file must stay dependency-free (see
+// header comment), since it's shared by both client components and the
+// server render job. Only shallow-shape validated by validateDoc(); the real
+// reader/writer lives in Lexical-aware client code under components/text/ and
+// properties/text/.
+export type RichTextState = { root: unknown; [k: string]: unknown };
 
 // Color-filter presets. Preview uses the css value; export uses the ffmpeg
 // filter expression — both tuned to look as close as practical.
@@ -74,15 +85,38 @@ export interface VideoClip extends ClipBase {
 
 export interface TextClip extends ClipBase {
   type: "text";
-  text: string;
+  text: string; // flat plain-text projection, auto-synced from richText — what drawtext/export consumes. Never hand-edited once richText exists.
+  richText?: RichTextState; // Lexical SerializedEditorState — source of truth for rich editing/preview. Undefined = legacy clip, falls back to `text`.
   fontFamily: FontFamily;
   fontSizePct: number; // % of canvas HEIGHT (0..1) — resolution independent
   color: string; // #rrggbb
-  bold: boolean;
-  align: "left" | "center" | "right";
-  x: number; // 0..1 normalized center position
+  bold: boolean; // whole-clip base/dominant bold — also the export-flattening fallback for mixed-run bold set via the rich editor
+  align: "left" | "center" | "right"; // wired into real export (filtergraph.ts) — see x/y semantics note there
+  x: number; // 0..1 normalized position — center point when align="center", left/right anchor otherwise
   y: number; // 0..1 normalized center position
   bgColor: string | null; // optional pill background behind the text
+
+  // ── Exported for real (filtergraph.ts honors these via native drawtext options) ──
+  strokeColor?: string | null; // #rrggbb; null/undefined = no stroke
+  strokeWidthPct?: number; // 0..0.05, % of canvas height (resolution-independent, mirrors fontSizePct)
+  shadow?: {
+    color: string; // #rrggbb
+    offsetXPct: number; // signed, % of canvas width
+    offsetYPct: number; // signed, % of canvas height
+    opacity: number; // 0..1
+    blurPx?: number; // PREVIEW-ONLY softening (CSS text-shadow blur) — drawtext has no blur, ignored at export
+  } | null;
+  opacity?: number; // 0..1, default 1 when unset (backward-compat with pre-existing docs) — drawtext `alpha`
+  lineHeight?: number; // multiplier, default 1.2; 0.8..3 — approximated via drawtext `line_spacing`
+  textTransform?: "none" | "uppercase" | "lowercase" | "capitalize"; // default "none" — real string transform before export
+
+  // ── Preview-only (validated for shape/range, ignored by filtergraph.ts) ──
+  gradient?: { from: string; to: string; angleDeg: number } | null; // CSS background-clip:text; export falls back to flat `color`
+  letterSpacingPx?: number; // -5..30
+  rotationDeg?: number; // -180..180
+  entrance?: { type: TextEntrancePreset; duration: number; delay: number } | null;
+  loop?: { type: TextLoopPreset; speed: number } | null;
+  exit?: { type: TextExitPreset; duration: number; delay: number } | null;
 }
 
 export interface AudioClip extends ClipBase {
@@ -137,6 +171,39 @@ export const TRANSITION_PRESETS = {
 } as const;
 export type TransitionPreset = keyof typeof TRANSITION_PRESETS;
 
+// Text animation presets — PREVIEW-ONLY (see TextClip.entrance/loop/exit).
+// Live preview drives these via components/text/textAnimations.ts; the
+// render pipeline (filtergraph.ts) does not apply them.
+export const TEXT_ENTRANCE_PRESETS = {
+  none: { label: "None" },
+  fade: { label: "Fade" },
+  pop: { label: "Pop" },
+  slideUp: { label: "Slide up" },
+  slideDown: { label: "Slide down" },
+  zoom: { label: "Zoom" },
+  bounce: { label: "Bounce" },
+  blur: { label: "Blur" },
+  typewriter: { label: "Typewriter" },
+} as const;
+export type TextEntrancePreset = keyof typeof TEXT_ENTRANCE_PRESETS;
+
+export const TEXT_LOOP_PRESETS = {
+  none: { label: "None" },
+  float: { label: "Float" },
+  pulse: { label: "Pulse" },
+  wiggle: { label: "Wiggle" },
+  glow: { label: "Glow" },
+} as const;
+export type TextLoopPreset = keyof typeof TEXT_LOOP_PRESETS;
+
+export const TEXT_EXIT_PRESETS = {
+  none: { label: "None" },
+  fade: { label: "Fade" },
+  slide: { label: "Slide" },
+  zoom: { label: "Zoom" },
+} as const;
+export type TextExitPreset = keyof typeof TEXT_EXIT_PRESETS;
+
 export type AnyClip = VideoClip | TextClip | AudioClip | ImageClip;
 export type TrackKind = "video" | "text" | "audio" | "image";
 
@@ -173,7 +240,15 @@ function validateBase(c: ClipBase): string | null {
   if (typeof c.id !== "string" || !c.id) return "clip missing id";
   if (!isFiniteNonNeg(c.timelineStart)) return "invalid timelineStart";
   if (!isFiniteNonNeg(c.duration) || c.duration < MIN_CLIP_DURATION) return "invalid duration";
+  if (c.locked !== undefined && typeof c.locked !== "boolean") return "invalid locked";
+  if (c.hidden !== undefined && typeof c.hidden !== "boolean") return "invalid hidden";
+  if (c.name !== undefined && (typeof c.name !== "string" || c.name.length > 200)) return "invalid name";
   return null;
+}
+
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+function isFiniteInRange(n: unknown, min: number, max: number): n is number {
+  return typeof n === "number" && Number.isFinite(n) && n >= min && n <= max;
 }
 
 /** Returns null if valid, otherwise a human-readable error string. */
@@ -217,10 +292,61 @@ export function validateDoc(doc: unknown): string | null {
     if (typeof t.text !== "string") return "text clip missing text";
     if (!FONT_WHITELIST.includes(t.fontFamily)) return "text clip font not allowed";
     if (typeof t.fontSizePct !== "number" || t.fontSizePct <= 0 || t.fontSizePct > 0.5) return "text clip invalid fontSizePct";
-    if (!/^#[0-9a-fA-F]{6}$/.test(t.color)) return "text clip invalid color";
-    if (t.bgColor !== null && !/^#[0-9a-fA-F]{6}$/.test(t.bgColor)) return "text clip invalid bgColor";
+    if (!HEX_COLOR.test(t.color)) return "text clip invalid color";
+    if (t.bgColor !== null && !HEX_COLOR.test(t.bgColor)) return "text clip invalid bgColor";
     if (typeof t.x !== "number" || t.x < 0 || t.x > 1 || typeof t.y !== "number" || t.y < 0 || t.y > 1)
       return "text clip invalid position";
+    if (t.align !== undefined && !["left", "center", "right"].includes(t.align)) return "text clip invalid align";
+
+    // Shallow structural check only — this file stays Lexical-free.
+    if (t.richText !== undefined && (typeof t.richText !== "object" || t.richText === null || !("root" in t.richText)))
+      return "text clip invalid richText";
+
+    if (t.strokeColor !== undefined && t.strokeColor !== null && !HEX_COLOR.test(t.strokeColor))
+      return "text clip invalid strokeColor";
+    if (t.strokeWidthPct !== undefined && !isFiniteInRange(t.strokeWidthPct, 0, 0.05))
+      return "text clip invalid strokeWidthPct";
+    if (t.shadow !== undefined && t.shadow !== null) {
+      const s = t.shadow;
+      if (
+        typeof s !== "object" ||
+        !HEX_COLOR.test(s.color) ||
+        !isFiniteInRange(s.offsetXPct, -1, 1) ||
+        !isFiniteInRange(s.offsetYPct, -1, 1) ||
+        !isFiniteInRange(s.opacity, 0, 1) ||
+        (s.blurPx !== undefined && !isFiniteInRange(s.blurPx, 0, 100))
+      )
+        return "text clip invalid shadow";
+    }
+    if (t.opacity !== undefined && !isFiniteInRange(t.opacity, 0, 1)) return "text clip invalid opacity";
+    if (t.lineHeight !== undefined && !isFiniteInRange(t.lineHeight, 0.8, 3)) return "text clip invalid lineHeight";
+    if (t.textTransform !== undefined && !["none", "uppercase", "lowercase", "capitalize"].includes(t.textTransform))
+      return "text clip invalid textTransform";
+
+    if (t.gradient !== undefined && t.gradient !== null) {
+      const g = t.gradient;
+      if (typeof g !== "object" || !HEX_COLOR.test(g.from) || !HEX_COLOR.test(g.to) || !isFiniteInRange(g.angleDeg, -360, 360))
+        return "text clip invalid gradient";
+    }
+    if (t.letterSpacingPx !== undefined && !isFiniteInRange(t.letterSpacingPx, -5, 30))
+      return "text clip invalid letterSpacingPx";
+    if (t.rotationDeg !== undefined && !isFiniteInRange(t.rotationDeg, -180, 180))
+      return "text clip invalid rotationDeg";
+
+    for (const [field, presets] of [
+      ["entrance", TEXT_ENTRANCE_PRESETS],
+      ["exit", TEXT_EXIT_PRESETS],
+    ] as const) {
+      const v = t[field];
+      if (v === undefined || v === null) continue;
+      if (typeof v !== "object" || !(v.type in presets) || !isFiniteNonNeg(v.duration) || !isFiniteNonNeg(v.delay))
+        return `text clip invalid ${field}`;
+    }
+    if (t.loop !== undefined && t.loop !== null) {
+      const l = t.loop;
+      if (typeof l !== "object" || !(l.type in TEXT_LOOP_PRESETS) || !isFiniteInRange(l.speed, 0.1, 5))
+        return "text clip invalid loop";
+    }
   }
   for (const a of d.tracks.audio) {
     if (typeof a.assetId !== "string" || !a.assetId) return "audio clip missing assetId";
