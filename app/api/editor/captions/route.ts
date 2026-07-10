@@ -12,17 +12,20 @@ import { logger } from "@/lib/logger";
 
 const CREDIT_COST = 1;
 
-// POST /api/editor/captions { assetId }
+// POST /api/editor/captions { assetId, languageCode? }
 // Transcribes a video asset from the user's library and returns word-level
 // timings (source-time seconds). The client turns these into caption text
 // clips aligned to wherever the clip sits on the timeline. Costs 1 credit;
-// refunded if transcription fails.
+// refunded if transcription fails. languageCode is optional — omitted or
+// "auto" lets Scribe auto-detect the spoken language (the previous, only
+// behavior before the Caption panel's language selector existed).
 export async function POST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
   const assetId = body.assetId as string | undefined;
+  const languageCode = body.languageCode as string | undefined;
   if (!assetId) return NextResponse.json({ error: "assetId required" }, { status: 400 });
 
   const asset = await prisma.asset.findFirst({ where: { id: assetId, userId: auth.userId } });
@@ -48,7 +51,7 @@ export async function POST(req: NextRequest) {
   try {
     await downloadFile(asset.url, mediaPath);
     await extractAudio(mediaPath, audioPath);
-    const words = await transcribeAudio(fs.readFileSync(audioPath));
+    const words = await transcribeAudio(fs.readFileSync(audioPath), "audio/mpeg", languageCode);
     if (words.length === 0) {
       throw new Error("No speech detected (or transcription unavailable)");
     }

@@ -3,7 +3,7 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { createRenderQueue } from "@/lib/render-queue";
-import { validateDoc, type TimelineDoc } from "@/lib/editor/types";
+import { normalizeDoc, validateDoc, type TimelineDoc } from "@/lib/editor/types";
 import {
   editorRenderJob,
   EDITOR_RENDER_CREDIT_COST,
@@ -31,8 +31,9 @@ export async function POST(req: NextRequest) {
   }
 
   // Validate the saved timeline document.
-  const doc = project.editorDoc as unknown as TimelineDoc | null;
-  if (!doc) return NextResponse.json({ error: "Nothing to export yet" }, { status: 400 });
+  const raw = project.editorDoc as unknown as TimelineDoc | null;
+  if (!raw) return NextResponse.json({ error: "Nothing to export yet" }, { status: 400 });
+  const doc = normalizeDoc(raw); // backfills track arrays missing from an older saved doc (e.g. no caption track)
   const docError = validateDoc(doc);
   if (docError) return NextResponse.json({ error: `Invalid timeline: ${docError}` }, { status: 400 });
   if (doc.tracks.video.length === 0) {

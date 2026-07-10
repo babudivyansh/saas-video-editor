@@ -32,6 +32,8 @@ export interface FiltergraphInput {
   assets: Map<string, ClipInput>;
   /** textClipId → path of a UTF-8 file containing the clip's text */
   textFiles: Map<string, string>;
+  /** path to a generated ASS file covering the whole caption track (undefined/omitted when there are no captions) */
+  captionAssPath?: string;
   outputPath: string;
 }
 
@@ -121,7 +123,7 @@ function atempoChain(speed: number): string {
 }
 
 export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
-  const { doc, assets, textFiles, outputPath } = input;
+  const { doc, assets, textFiles, captionAssPath, outputPath } = input;
   const { w: W, h: H } = ASPECT_DIMENSIONS[doc.aspect];
   const total = docDuration(doc);
   if (total <= 0) throw new Error("Timeline is empty");
@@ -304,6 +306,24 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
     filters.push(`${videoOut}drawtext=${baseParts.join(":")}${outLabel}`);
     videoOut = outLabel;
   });
+
+  // ── Captions: one `subtitles=` filter burns the WHOLE caption track,
+  // regardless of cue count — the caption-ass.ts-generated ASS file already
+  // encodes per-cue style/position/karaoke via inline override tags, so this
+  // stays a single filter node instead of chaining one drawtext per cue.
+  // Renders on top of text/image overlays (CapCut-standard subtitle layering).
+  // fontsdir points libass at the same bundled TTF files drawtext resolves
+  // via explicit file paths — without it, libass can only resolve fonts by
+  // NAME through the OS font system, which won't know about our bundled
+  // (not OS-installed) Google Fonts.
+  if (captionAssPath) {
+    const fontsDir = path.join(process.cwd(), "public/fonts");
+    const outLabel = "[vcap]";
+    filters.push(
+      `${videoOut}subtitles=filename='${escapeFilterPath(captionAssPath)}':fontsdir='${escapeFilterPath(fontsDir)}'${outLabel}`,
+    );
+    videoOut = outLabel;
+  }
 
   // ── Music/audio track: adelay + amix over the base audio ──
   let audioOut = baseAudio;

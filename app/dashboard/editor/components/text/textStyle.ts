@@ -7,7 +7,29 @@
 // export for real; gradient/letterSpacing/rotation are preview-only).
 
 import type { CSSProperties } from "react";
-import type { TextClip } from "@/lib/editor/types";
+
+// Covers exactly the fields this function reads — TextClip and CaptionClip
+// both structurally satisfy this without any cast. CaptionClip doesn't carry
+// align/gradient/rotationDeg (all optional here, safely no-op when absent —
+// align defaults to "center" below, matching how captions are always
+// center-block per subtitle convention).
+export interface TypographyLike {
+  fontFamily: string;
+  fontSizePct: number;
+  color: string;
+  bold: boolean;
+  bgColor: string | null;
+  align?: "left" | "center" | "right";
+  lineHeight?: number;
+  opacity?: number;
+  letterSpacingPx?: number;
+  textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
+  strokeColor?: string | null;
+  strokeWidthPct?: number;
+  shadow?: { color: string; offsetXPct: number; offsetYPct: number; opacity: number; blurPx?: number } | null;
+  gradient?: { from: string; to: string; angleDeg: number } | null;
+  rotationDeg?: number;
+}
 
 function hexWithAlpha(hex: string, alpha: number): string {
   const a = Math.round(Math.max(0, Math.min(1, alpha)) * 255)
@@ -16,13 +38,13 @@ function hexWithAlpha(hex: string, alpha: number): string {
   return `${hex}${a}`;
 }
 
-export function buildTextCss(clip: TextClip, stageH: number, stageW: number): CSSProperties {
+export function buildTextCss(clip: TypographyLike, stageH: number, stageW: number): CSSProperties {
   const style: CSSProperties = {
     fontFamily: clip.fontFamily,
     fontWeight: clip.bold ? 700 : 400,
     fontSize: `${clip.fontSizePct * stageH}px`,
     color: clip.color,
-    textAlign: clip.align,
+    textAlign: clip.align ?? "center",
     backgroundColor: clip.bgColor ?? "transparent",
     borderRadius: clip.bgColor ? 6 : 0,
     lineHeight: clip.lineHeight ?? 1.2,

@@ -2,7 +2,7 @@
 // concern, reused across clip types. Each clip type only lists the tabs it
 // actually has content for (see PropertiesPanelShell.tsx).
 
-import { SlidersHorizontal, Move, Wand2, Sparkles, Volume2, Layers, Bot } from "lucide-react";
+import { SlidersHorizontal, Move, Wand2, Sparkles, Volume2, Layers, Bot, Highlighter } from "lucide-react";
 import type { TabItem } from "../ui";
 
 const TAB_DEFS: Record<string, Omit<TabItem, "id">> = {
@@ -13,13 +13,18 @@ const TAB_DEFS: Record<string, Omit<TabItem, "id">> = {
   audio: { label: "Audio", icon: <Volume2 className="h-4 w-4" /> },
   effects: { label: "Effects", icon: <Layers className="h-4 w-4" /> },
   ai: { label: "AI", icon: <Bot className="h-4 w-4" /> },
+  highlight: { label: "Highlight", icon: <Highlighter className="h-4 w-4" /> },
 };
 
 function items(ids: string[]): TabItem[] {
   return ids.map((id) => ({ id, ...TAB_DEFS[id] }));
 }
 
-export const VIDEO_TAB_ITEMS = items(["basic", "animation", "adjust", "audio", "effects", "ai"]);
+export const VIDEO_TAB_ITEMS = items(["basic", "animation", "adjust", "audio", "effects"]);
 export const TEXT_TAB_ITEMS = items(["basic", "adjust", "transform", "animation", "ai"]);
 export const AUDIO_TAB_ITEMS = items(["basic"]);
 export const IMAGE_TAB_ITEMS = items(["basic", "transform", "animation"]);
+// No "ai" tab here — all 8 caption AI actions (fix grammar, remove filler
+// words, etc.) are whole-track operations, so they live once on the left
+// Caption panel instead of being duplicated per-cue.
+export const CAPTION_TAB_ITEMS = items(["basic", "highlight", "transform", "adjust", "animation"]);

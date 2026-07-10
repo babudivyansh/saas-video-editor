@@ -39,7 +39,7 @@ export interface SubtitleStyle {
   baseColor?: string;      // ASS color e.g. "&H00FFFFFF"
 }
 
-function toASSTime(ms: number): string {
+export function toASSTime(ms: number): string {
   const h = Math.floor(ms / 3_600_000);
   const m = Math.floor((ms % 3_600_000) / 60_000);
   const s = ((ms % 60_000) / 1000).toFixed(2).padStart(5, "0");

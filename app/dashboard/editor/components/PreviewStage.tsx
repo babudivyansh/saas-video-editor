@@ -16,6 +16,7 @@ import { useAssets } from "./panels/shared/assetData";
 import { buildTextCss } from "./text/textStyle";
 import { renderRichTextToReact } from "./text/renderRichText";
 import { getTextMotion } from "./text/textAnimations";
+import { renderCaptionWords } from "./captions/renderCaptionWords";
 import PreviewControls from "./PreviewControls";
 
 export default function PreviewStage() {
@@ -58,10 +59,10 @@ export default function PreviewStage() {
     imageAssets.find((a) => a.id === id)?.url ??
     "";
 
-  // Text/image drag-positioning (shared — both are normalized x/y overlays)
-  const dragState = useRef<{ clipId: string; track: "text" | "image"; before: ReturnType<typeof structuredClone<typeof doc>> } | null>(null);
+  // Text/image/caption drag-positioning (shared — all three are normalized x/y overlays)
+  const dragState = useRef<{ clipId: string; track: "text" | "image" | "caption"; before: ReturnType<typeof structuredClone<typeof doc>> } | null>(null);
 
-  const onOverlayPointerDown = (e: React.PointerEvent, clipId: string, track: "text" | "image") => {
+  const onOverlayPointerDown = (e: React.PointerEvent, clipId: string, track: "text" | "image" | "caption") => {
     e.stopPropagation();
     select({ clipId, track });
     dragState.current = { clipId, track, before: structuredClone(useEditorStore.getState().doc) };
@@ -91,8 +92,15 @@ export default function PreviewStage() {
   const activeImages = doc.tracks.image.filter(
     (im) => currentTime >= im.timelineStart && currentTime < im.timelineStart + im.duration,
   );
+  const activeCaptions = doc.tracks.caption.filter(
+    (c) => !c.hidden && currentTime >= c.timelineStart && currentTime < c.timelineStart + c.duration,
+  );
 
-  const isEmpty = doc.tracks.video.length === 0 && doc.tracks.text.length === 0 && doc.tracks.image.length === 0;
+  const isEmpty =
+    doc.tracks.video.length === 0 &&
+    doc.tracks.text.length === 0 &&
+    doc.tracks.image.length === 0 &&
+    doc.tracks.caption.length === 0;
 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-3">
@@ -198,6 +206,44 @@ export default function PreviewStage() {
                 {showTypewriter
                   ? t.text.slice(0, Math.round((motion_.typewriterProgress ?? 0) * t.text.length))
                   : renderRichTextToReact(t.richText, t.text)}
+              </motion.div>
+            );
+          })}
+
+          {/* Caption overlays — same overlay machinery as text (drag, entrance/
+              loop/exit via getTextMotion, base typography via buildTextCss),
+              rendered on top of Text-panel overlays and images, with
+              word/phrase/karaoke highlighting via renderCaptionWords instead
+              of renderRichTextToReact. */}
+          {activeCaptions.map((c) => {
+            const baseStyle = buildTextCss(c, stageH, stageW);
+            const motion_ = getTextMotion(c, currentTime);
+            const finalOpacity = (c.opacity ?? 1) * motion_.opacityMultiplier;
+            const finalTransform = `${baseStyle.transform ?? ""} ${motion_.transformExtra}`.trim();
+
+            return (
+              <motion.div
+                key={c.id}
+                animate={motion_.loopAnimate}
+                transition={motion_.loopTransition}
+                onPointerDown={(e) => {
+                  if (!c.locked) onOverlayPointerDown(e, c.id, "caption");
+                }}
+                onPointerMove={c.locked ? undefined : onOverlayPointerMove}
+                onPointerUp={c.locked ? undefined : onOverlayPointerUp}
+                className={`absolute select-none whitespace-pre-wrap px-2 py-0.5 ${c.locked ? "cursor-default" : "cursor-move"} ${
+                  selection?.clipId === c.id ? "ring-2 ring-violet-500" : ""
+                }`}
+                style={{
+                  left: `${c.x * 100}%`,
+                  top: `${c.y * 100}%`,
+                  ...baseStyle,
+                  ...motion_.style,
+                  opacity: finalOpacity,
+                  transform: finalTransform,
+                }}
+              >
+                {renderCaptionWords(c, currentTime)}
               </motion.div>
             );
           })}

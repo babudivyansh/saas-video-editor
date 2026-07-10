@@ -16,9 +16,20 @@
 
 import type { CSSProperties, ComponentProps } from "react";
 import type { motion } from "framer-motion";
-import type { TextClip } from "@/lib/editor/types";
+import type { TextEntrancePreset, TextExitPreset, TextLoopPreset } from "@/lib/editor/types";
 
 type MotionDivProps = ComponentProps<typeof motion.div>;
+
+// Covers exactly the fields this function reads — TextClip and CaptionClip
+// both structurally satisfy this without any cast (both reuse the same
+// TEXT_ENTRANCE_PRESETS/TEXT_LOOP_PRESETS/TEXT_EXIT_PRESETS shapes).
+export interface AnimatableClip {
+  timelineStart: number;
+  duration: number;
+  entrance?: { type: TextEntrancePreset; duration: number; delay: number } | null;
+  loop?: { type: TextLoopPreset; speed: number } | null;
+  exit?: { type: TextExitPreset; duration: number; delay: number } | null;
+}
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
@@ -48,7 +59,7 @@ export interface TextMotionResult {
   loopTransition?: MotionDivProps["transition"];
 }
 
-function entranceStyle(type: Exclude<NonNullable<TextClip["entrance"]>["type"], "none" | "typewriter">, progress: number) {
+function entranceStyle(type: Exclude<NonNullable<AnimatableClip["entrance"]>["type"], "none" | "typewriter">, progress: number) {
   const eased = easeOutCubic(progress);
   switch (type) {
     case "fade":
@@ -68,7 +79,7 @@ function entranceStyle(type: Exclude<NonNullable<TextClip["entrance"]>["type"], 
   }
 }
 
-function exitStyle(type: Exclude<NonNullable<TextClip["exit"]>["type"], "none">, progress: number) {
+function exitStyle(type: Exclude<NonNullable<AnimatableClip["exit"]>["type"], "none">, progress: number) {
   switch (type) {
     case "fade":
       return { opacity: 1 - progress, transform: "" };
@@ -79,7 +90,7 @@ function exitStyle(type: Exclude<NonNullable<TextClip["exit"]>["type"], "none">,
   }
 }
 
-export function getTextMotion(clip: TextClip, currentTime: number): TextMotionResult {
+export function getTextMotion(clip: AnimatableClip, currentTime: number): TextMotionResult {
   const elapsed = currentTime - clip.timelineStart;
 
   let opacity = 1;

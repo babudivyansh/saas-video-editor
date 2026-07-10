@@ -1,13 +1,13 @@
 // Pure helpers over TimelineDoc — no React, no DOM, no server imports.
 // Used by the client store/preview and the server filtergraph builder.
 
-import type { AudioClip, TimelineDoc, VideoClip } from "./types";
+import type { AudioClip, CaptionClip, CaptionWord, TimelineDoc, VideoClip } from "./types";
 import { MIN_CLIP_DURATION } from "./types";
 
 /** Total duration of the timeline: end of the last clip across all tracks. */
 export function docDuration(doc: TimelineDoc): number {
   let end = 0;
-  for (const track of [doc.tracks.video, doc.tracks.text, doc.tracks.audio, doc.tracks.image] as const) {
+  for (const track of [doc.tracks.video, doc.tracks.text, doc.tracks.audio, doc.tracks.image, doc.tracks.caption] as const) {
     for (const c of track) end = Math.max(end, c.timelineStart + c.duration);
   }
   return end;
@@ -91,7 +91,7 @@ export function snapTime(t: number, candidates: number[], toleranceSec: number):
 /** All snap candidate times in the doc (clip edges on every track). */
 export function snapCandidates(doc: TimelineDoc, excludeClipId?: string): number[] {
   const out: number[] = [0];
-  for (const track of [doc.tracks.video, doc.tracks.text, doc.tracks.audio, doc.tracks.image] as const) {
+  for (const track of [doc.tracks.video, doc.tracks.text, doc.tracks.audio, doc.tracks.image, doc.tracks.caption] as const) {
     for (const c of track) {
       if (c.id === excludeClipId) continue;
       out.push(c.timelineStart, c.timelineStart + c.duration);
@@ -114,4 +114,62 @@ export function placeVideoClip(track: VideoClip[], moved: VideoClip): VideoClip[
   }
   const placed = { ...moved, timelineStart: start };
   return [...others, placed].sort((a, b) => a.timelineStart - b.timelineStart);
+}
+
+/**
+ * Re-place a caption clip after a drag — deliberately a duplicate of
+ * placeVideoClip's push-past-neighbor body (not a shared generic) so the
+ * working video-track code path stays completely unaffected. Captions get
+ * this instead of the freeform overlap-tolerant placement text/audio/image
+ * clips use, since real subtitle cues shouldn't overlap.
+ */
+export function placeCaptionClip(track: CaptionClip[], moved: CaptionClip): CaptionClip[] {
+  const others = track.filter((c) => c.id !== moved.id).sort((a, b) => a.timelineStart - b.timelineStart);
+  let start = Math.max(0, moved.timelineStart);
+  for (const o of others) {
+    const oEnd = o.timelineStart + o.duration;
+    const overlaps = start < oEnd && start + moved.duration > o.timelineStart;
+    if (overlaps) start = oEnd;
+  }
+  const placed = { ...moved, timelineStart: start };
+  return [...others, placed].sort((a, b) => a.timelineStart - b.timelineStart);
+}
+
+/**
+ * Split a caption cue at absolute timeline time t. Returns [left, right] or
+ * null if t isn't meaningfully inside the clip. Unlike splitVideoClip, this
+ * must also partition clip.words (when present) so karaoke timing survives
+ * the split — each word goes to whichever side its start falls in, and the
+ * right half's words are re-baselined to its own (later) timelineStart.
+ * Manually-typed cues with no words[] fall back to a text-only split: the
+ * left half keeps the full text, the right half gets an empty string (no
+ * word-boundary data to split on).
+ */
+export function splitCaptionClip(clip: CaptionClip, t: number, newId: string): [CaptionClip, CaptionClip] | null {
+  const offset = t - clip.timelineStart;
+  if (offset < MIN_CLIP_DURATION || clip.duration - offset < MIN_CLIP_DURATION) return null;
+  const offsetMs = offset * 1000;
+
+  if (clip.words && clip.words.length > 0) {
+    const leftWords: CaptionWord[] = [];
+    const rightWords: CaptionWord[] = [];
+    for (const w of clip.words) {
+      if (w.startMs < offsetMs) leftWords.push(w);
+      else rightWords.push({ ...w, startMs: w.startMs - offsetMs, endMs: w.endMs - offsetMs });
+    }
+    const left: CaptionClip = { ...clip, duration: offset, text: leftWords.map((w) => w.word).join(" "), words: leftWords };
+    const right: CaptionClip = {
+      ...clip,
+      id: newId,
+      timelineStart: t,
+      duration: clip.duration - offset,
+      text: rightWords.map((w) => w.word).join(" "),
+      words: rightWords,
+    };
+    return [left, right];
+  }
+
+  const left: CaptionClip = { ...clip, duration: offset };
+  const right: CaptionClip = { ...clip, id: newId, timelineStart: t, duration: clip.duration - offset, text: "" };
+  return [left, right];
 }

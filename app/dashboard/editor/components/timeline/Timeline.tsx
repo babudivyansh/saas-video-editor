@@ -4,7 +4,7 @@
 // playhead, scrollable together]. Time↔pixel mapping is linear: x = t * zoom
 // (px/second).
 
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ZoomIn, ZoomOut } from "lucide-react";
 import { useEditorStore } from "../../store/editorStore";
 import { docDuration } from "@/lib/editor/doc-utils";
@@ -12,6 +12,7 @@ import { IconButton } from "../ui";
 import { SLIDER_THUMB_CLASSES, sliderTrackStyle } from "../ui/sliderStyles";
 import TimeRuler from "./TimeRuler";
 import TimelineTrack, { TRACK_HEIGHT } from "./TimelineTrack";
+import CaptionTrack from "./CaptionTrack";
 import TrackHeader from "./TrackHeader";
 import Playhead from "./Playhead";
 import EditToolbar from "../EditToolbar";
@@ -30,6 +31,19 @@ export default function Timeline() {
   const setCurrentTime = useEditorStore((s) => s.setCurrentTime);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Feeds CaptionTrack's viewport time-range windowing — recomputed on
+  // scroll/resize, same ResizeObserver pattern PreviewStage.tsx uses for stageH.
+  const [scrollLeft, setScrollLeft] = useState(0);
+  const [viewportWidth, setViewportWidth] = useState(0);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setViewportWidth(el.clientWidth));
+    ro.observe(el);
+    setViewportWidth(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
 
   const total = Math.max(docDuration(doc), 10);
   const contentWidth = total * zoom + 240; // trailing space to drop clips into
@@ -71,10 +85,15 @@ export default function Timeline() {
             {TRACKS.map((t) => (
               <TrackHeader key={t.kind} kind={t.kind} label={t.label} height={TRACK_HEIGHT[t.kind]} />
             ))}
+            <TrackHeader kind="caption" label="Caption" height={TRACK_HEIGHT.caption} />
           </div>
         </div>
 
-        <div ref={scrollRef} className="relative flex-1 overflow-x-auto overflow-y-hidden bg-editor-bg">
+        <div
+          ref={scrollRef}
+          onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
+          className="relative flex-1 overflow-x-auto overflow-y-hidden bg-editor-bg"
+        >
           <div className="relative" style={{ width: contentWidth, minWidth: "100%" }}>
             <div onMouseDown={seekFromEvent}>
               <TimeRuler totalSeconds={total} zoom={zoom} />
@@ -83,6 +102,7 @@ export default function Timeline() {
               {TRACKS.map((t) => (
                 <TimelineTrack key={t.kind} kind={t.kind} />
               ))}
+              <CaptionTrack scrollLeft={scrollLeft} viewportWidth={viewportWidth} />
             </div>
             <Playhead zoom={zoom} scrollRef={scrollRef} />
           </div>
