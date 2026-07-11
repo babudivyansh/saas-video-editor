@@ -17,7 +17,6 @@ export async function GET() {
       kind: true,
       intervalMonths: true,
       monthlyCredits: true,
-      veo3Included: true,
       tier: true,
     },
   });

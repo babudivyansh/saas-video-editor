@@ -16,13 +16,12 @@ interface Plan {
   kind: string;
   intervalMonths: number | null;
   monthlyCredits: number | null;
-  veo3Included: boolean;
   tier: string | null;
 }
 
 const EMPTY = {
   slug: "", name: "", priceInPaise: 0, credits: 0, features: "", sortOrder: 0,
-  kind: "pack", intervalMonths: "", monthlyCredits: "", veo3Included: false, tier: "",
+  kind: "pack", intervalMonths: "", monthlyCredits: "", tier: "",
 };
 const input = "w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
 
@@ -62,7 +61,6 @@ export default function AdminPricingPage() {
           kind: p.kind,
           intervalMonths: p.intervalMonths ?? null,
           monthlyCredits: p.monthlyCredits ?? null,
-          veo3Included: p.veo3Included,
           tier: p.tier ?? null,
         }),
       });
@@ -102,7 +100,6 @@ export default function AdminPricingPage() {
           kind: form.kind,
           intervalMonths: form.intervalMonths !== "" ? Number(form.intervalMonths) : null,
           monthlyCredits: form.monthlyCredits !== "" ? Number(form.monthlyCredits) : null,
-          veo3Included: form.veo3Included,
           tier: form.tier !== "" ? form.tier : null,
           features: form.features.split("\n").map(s => s.trim()).filter(Boolean),
         }),
@@ -199,12 +196,6 @@ export default function AdminPricingPage() {
                     </div>
                   </>
                 )}
-                <div className="flex items-end pb-1">
-                  <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer">
-                    <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={p.veo3Included} onChange={e => edit(p.id, { veo3Included: e.target.checked })} />
-                    Veo3 Included
-                  </label>
-                </div>
               </div>
 
               <div className="mt-4">
@@ -275,12 +266,6 @@ export default function AdminPricingPage() {
                   </div>
                 </>
               )}
-              <div className="flex items-end pb-1">
-                <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer">
-                  <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={form.veo3Included} onChange={e => setForm({ ...form, veo3Included: e.target.checked })} />
-                  Veo3 Included
-                </label>
-              </div>
             </div>
             <div className="mt-4">
               <label className="text-xs font-semibold text-gray-400 block mb-1">Features (one per line)</label>

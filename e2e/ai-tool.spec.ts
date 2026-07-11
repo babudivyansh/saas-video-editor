@@ -27,8 +27,6 @@ test("brainstormer generates ideas from a mocked provider response", async ({ pa
           subscriptionEndsAt: null,
           nextRefillAt: null,
           monthlyCredits: 0,
-          veo3Enabled: false,
-          veo3Credits: 0,
           plan: null,
         },
       }),

@@ -35,9 +35,9 @@ export const TIER_LABEL: Record<Exclude<TierId, "free">, string> = {
 // Business policy cap, not a provider limit — applies uniformly across all
 // video models (and ai-creator). If a specific model's real provider ceiling
 // is lower, that model's own maxDurationSeconds wins via the min() at the
-// call site. A "free" (no active plan) user is capped at the same ceiling as
-// Creator when they reach a video model via an overridePool unlock (e.g. the
-// Veo3 addon/pack), since "free" has no tier of its own to look up here.
+// call site. "free" has no tier of its own, so it's capped at the same
+// ceiling as Creator — it should never actually reach a video model, since
+// every video model's allowedTiers excludes "free".
 export const TIER_MAX_DURATION_SECONDS: Record<Exclude<TierId, "free">, number> = {
   creator: 5,
   pro: 10,

@@ -59,7 +59,6 @@ interface DbPlan {
   kind: "subscription" | "pack" | "addon";
   intervalMonths: number | null;
   monthlyCredits: number | null;
-  veo3Included: boolean;
   tier: Exclude<TierId, "free"> | null;
 }
 
@@ -104,6 +103,18 @@ function computeRecommendation(selections: CalcSelection[], subs: DbPlan[], term
   return { totalCredits, eligibleTiers, recommendedPlan };
 }
 
+// Cheapest a single video render actually costs at this tier — used for the
+// "≈ N video renders" estimate on each pricing card, mirroring the
+// calculator's own math instead of a flat guess.
+function cheapestVideoCostPerRender(tier: Exclude<TierId, "free">): number | null {
+  const models = VIDEO_MODELS.filter(m => m.allowedTiers.includes(tier));
+  if (models.length === 0) return null;
+  return Math.min(...models.map(m => {
+    const dur = typeof m.defaultValues.duration === "number" ? m.defaultValues.duration : m.minDurationSeconds;
+    return Math.ceil(m.creditsPerSecond * dur);
+  }));
+}
+
 const TERMS = [
   { months: 1,  label: "Monthly" },
   { months: 12, label: "Yearly" },
@@ -111,23 +122,24 @@ const TERMS = [
 const YEARLY_SAVE_PCT = 20; // yearly plans are 20% cheaper than 12× monthly
 
 const WORKFLOWS = [
-  { name: "Reddit Story Videos", starter: true, creator: true, studio: true },
-  { name: "Fake Texts Videos", starter: true, creator: true, studio: true },
-  { name: "Split-Screen Videos", starter: true, creator: true, studio: true },
-  { name: "Streamer Highlight Videos", starter: true, creator: true, studio: true },
-  { name: "Text / Faceless Story Videos", starter: true, creator: true, studio: true },
+  { name: "Reddit Story Videos", creator: true, pro: true, studio: true },
+  { name: "Fake Texts Videos", creator: true, pro: true, studio: true },
+  { name: "Split-Screen Videos", creator: true, pro: true, studio: true },
+  { name: "Streamer Highlight Videos", creator: true, pro: true, studio: true },
+  { name: "Text / Faceless Story Videos", creator: true, pro: true, studio: true },
 ];
 
 const TOOLS = [
-  { name: "AI Voiceover (50+ voices)", starter: true, creator: true, studio: true },
-  { name: "Karaoke Captions", starter: true, creator: true, studio: true },
-  { name: "AI Image Generator", starter: true, creator: true, studio: true },
-  { name: "AI Video Generator (Veo3)", starter: true, creator: true, studio: true },
-  { name: "AI Vocal Remover", starter: true, creator: true, studio: true },
-  { name: "AI Voice Changer", starter: true, creator: true, studio: true },
-  { name: "AI Speech Enhancer", starter: true, creator: true, studio: true },
-  { name: "AI Brainstormer", starter: true, creator: true, studio: true },
-  { name: "Subtitle Remover", starter: true, creator: true, studio: true },
+  { name: "AI Voiceover (50+ voices)", creator: true, pro: true, studio: true },
+  { name: "Karaoke Captions", creator: true, pro: true, studio: true },
+  { name: "AI Image Generator", creator: true, pro: true, studio: true },
+  // Veo3 (veo3-fast) has allowedTiers: ["pro","studio"] — not available on Creator.
+  { name: "AI Video Generator (Veo3)", creator: false, pro: true, studio: true },
+  { name: "AI Vocal Remover", creator: true, pro: true, studio: true },
+  { name: "AI Voice Changer", creator: true, pro: true, studio: true },
+  { name: "AI Speech Enhancer", creator: true, pro: true, studio: true },
+  { name: "AI Brainstormer", creator: true, pro: true, studio: true },
+  { name: "Subtitle Remover", creator: true, pro: true, studio: true },
 ];
 
 const FAQS = [
@@ -137,15 +149,15 @@ const FAQS = [
   },
   {
     q: "What is a credit?",
-    a: "Credits are spent on AI tools — the cost depends on the tool (e.g. 1 credit for an image, 2 for a voiceover or video render, 35 for a Veo3 AI video). Subscription credits refill each month and do not roll over. Add-on credits (including the Veo3 Video Pack) are valid for as long as your subscription is active — they cannot be used without an active plan. The Veo3 Video Pack gives a separate Veo3-only credit pool that can only be used for Veo3 AI video generation — not voiceovers or other tools.",
+    a: "Credits are spent on AI tools — the cost depends on the tool and model you pick (e.g. 1-8 credits for an image, 2 credits for a voiceover, and per-second pricing for video, including Veo3 AI video). Subscription credits refill each month and do not roll over. Add-on credit packs are valid for as long as your subscription is active.",
   },
   {
     q: "How long can each video be?",
-    a: "Videos can be up to 3 minutes long on Starter, up to 5 minutes on Creator, and up to 10 minutes on Studio.",
+    a: "Videos can be up to 5 seconds long on Creator, up to 10 seconds on Pro, and up to 15 seconds on Studio — some models cap lower depending on the provider.",
   },
   {
     q: "Do longer terms cost less?",
-    a: "Yes — the yearly plan is 20% cheaper than paying month-to-month, and it bundles Veo3 AI video for free. You're billed once upfront for the full year.",
+    a: "Yes — the yearly plan is 20% cheaper than paying month-to-month. You're billed once upfront for the full year.",
   },
   {
     q: "Can I switch plans later?",
@@ -209,8 +221,8 @@ function ModelBadgeRow({ tier, highlighted }: { tier: Exclude<TierId, "free">; h
 }
 
 // ── CompareRow ─────────────────────────────────────────────────────────────
-function CompareRow({ feature, starter, creator, studio, shaded }: {
-  feature: string; starter: boolean; creator: boolean; studio: boolean; shaded: boolean;
+function CompareRow({ feature, creator, pro, studio, shaded }: {
+  feature: string; creator: boolean; pro: boolean; studio: boolean; shaded: boolean;
 }) {
   const cell = (val: boolean, highlight: boolean) => (
     <td className={`text-center py-4 px-4 ${highlight ? "bg-blue-50/50" : ""}`}>
@@ -222,8 +234,8 @@ function CompareRow({ feature, starter, creator, studio, shaded }: {
   return (
     <tr className={shaded ? "bg-gray-50" : "bg-white"}>
       <td className="py-4 px-6 text-sm text-gray-700">{feature}</td>
-      {cell(starter, false)}
-      {cell(creator, true)}
+      {cell(creator, false)}
+      {cell(pro, true)}
       {cell(studio, false)}
     </tr>
   );
@@ -409,7 +421,7 @@ export default function PricingPage() {
         </h1>
         <p className="text-lg text-gray-500 max-w-xl mx-auto mb-2">
           Every AI tool — voiceovers, captions, Veo3 videos, and more — in one plan.
-          Go <span className="font-semibold text-gray-700">yearly to save 20%</span> and get Veo3 AI video included free on Studio.
+          Go <span className="font-semibold text-gray-700">yearly to save 20%</span>.
         </p>
       </section>
 
@@ -525,16 +537,15 @@ export default function PricingPage() {
                           Save ₹{saved.toLocaleString("en-IN")} a year ({YEARLY_SAVE_PCT}% off)
                         </p>
                       )}
-                      {plan.monthlyCredits != null && (
-                        <p className={`text-xs mt-1 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
-                          ≈ {plan.monthlyCredits} images or {Math.floor(plan.monthlyCredits / 2)} video renders
-                        </p>
-                      )}
-                      {plan.veo3Included && plan.tier === "studio" && months > 1 && (
-                        <span className={`inline-block mt-2 text-xs font-bold px-2 py-0.5 rounded-full ${highlighted ? "bg-white/20 text-white" : "bg-purple-100 text-purple-700"}`}>
-                          ✦ Veo3 AI video included
-                        </span>
-                      )}
+                      {plan.monthlyCredits != null && (() => {
+                        const perRender = plan.tier ? cheapestVideoCostPerRender(plan.tier) : null;
+                        return (
+                          <p className={`text-xs mt-1 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
+                            ≈ {plan.monthlyCredits} images
+                            {perRender && <> or {Math.floor(plan.monthlyCredits / perRender)} video renders</>}
+                          </p>
+                        );
+                      })()}
                     </div>
 
                     {plan.tier && <ModelBadgeRow tier={plan.tier} highlighted={highlighted} />}
@@ -584,11 +595,8 @@ export default function PricingPage() {
 
         {/* ── Add-on Credit Packs ── */}
         {!plansLoading && packs.length > 0 && (() => {
-          const regularPacks = packs.filter(p => p.slug !== "pack_veo3_5");
-          const veo3Pack     = packs.find(p => p.slug === "pack_veo3_5");
           return (
             <div className="mt-16">
-              {/* Regular credit packs */}
               <div className="text-center mb-8">
                 <span className="inline-block bg-blue-100 text-blue-700 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
                   {hasActivePlan ? "Top-up Credits" : "Optional Add-ons"}
@@ -602,7 +610,7 @@ export default function PricingPage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {regularPacks.map(pack => {
+                {packs.map(pack => {
                   const checked   = selectedAddons.includes(pack.slug);
                   const price     = Math.round(pack.priceInPaise / 100);
                   const isLoading = buyingPack === pack.slug;
@@ -643,68 +651,6 @@ export default function PricingPage() {
                   );
                 })}
               </div>
-
-              {/* Veo3 Video Pack — visually separate, purple accent */}
-              {veo3Pack && (() => {
-                const checked   = selectedAddons.includes(veo3Pack.slug);
-                const price     = Math.round(veo3Pack.priceInPaise / 100);
-                const isLoading = buyingPack === veo3Pack.slug;
-                return (
-                  <div className="mt-6">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="h-px flex-1 bg-gray-200" />
-                      <span className="text-xs font-bold text-purple-600 uppercase tracking-widest whitespace-nowrap px-2">
-                        ✦ Veo3 AI Video Pack
-                      </span>
-                      <div className="h-px flex-1 bg-gray-200" />
-                    </div>
-                    <div className={`flex flex-col sm:flex-row bg-white rounded-2xl border-2 shadow-sm transition-all overflow-hidden max-w-2xl mx-auto ${
-                      checked ? "border-purple-500 ring-1 ring-purple-500/20 bg-purple-50/10" : "border-purple-200 hover:border-purple-400"
-                    }`}>
-                      <label className="flex items-start gap-3 p-5 cursor-pointer flex-1">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleAddon(veo3Pack.slug)}
-                          className="mt-0.5 w-4 h-4 accent-purple-600 flex-shrink-0"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-bold text-gray-900 text-sm leading-snug">Veo3 Video Pack</p>
-                            <span className="bg-purple-100 text-purple-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wide">
-                              Veo3-only
-                            </span>
-                          </div>
-                          <p className="text-xs text-purple-600 font-semibold mt-0.5">5 Veo3 AI videos · valid while subscribed</p>
-                          <p className="text-2xl font-black text-gray-900 mt-2">₹{price.toLocaleString("en-IN")}</p>
-                          <p className="text-xs text-gray-400 mt-1">₹199.80 per video · {veo3Pack.credits} Veo3 credits</p>
-                        </div>
-                      </label>
-
-                      <div className="px-5 pb-5 sm:pb-0 sm:pr-5 sm:flex sm:items-center">
-                        <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 text-xs text-purple-700 sm:max-w-[220px]">
-                          <span className="font-bold block mb-1">What are Veo3 credits?</span>
-                          These credits live in a separate pool and can <strong>only</strong> be spent on Veo3 AI video generation — not voiceovers, images, or other tools.
-                        </div>
-                      </div>
-
-                      {hasActivePlan && (
-                        <div className="px-5 pb-5 sm:py-5 sm:pr-5 sm:flex sm:items-center">
-                          <button
-                            onClick={() => handleBuyPack(veo3Pack)}
-                            disabled={!!buyingPack}
-                            className="w-full sm:w-auto px-6 py-2 rounded-lg bg-purple-600 text-white text-sm font-bold hover:bg-purple-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
-                          >
-                            {isLoading ? (
-                              <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Buying...</>
-                            ) : "Buy Now"}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
 
               {hasActivePlan ? (
                 <p className="text-center text-sm text-gray-400 mt-5">
@@ -901,11 +847,7 @@ export default function PricingPage() {
                             />
                             <div className="flex-1 min-w-0">
                               <p className="font-semibold text-gray-900 text-sm">{pack.name}</p>
-                              {pack.slug === "pack_veo3_5" ? (
-                                <p className="text-xs text-purple-600 font-semibold mt-0.5">5 Veo3 AI videos · Veo3-only · valid while subscribed</p>
-                              ) : (
-                                <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · valid while subscribed</p>
-                              )}
+                              <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · valid while subscribed</p>
                             </div>
                             <p className="font-bold text-gray-900 whitespace-nowrap">
                               ₹{price.toLocaleString("en-IN")}
@@ -1136,15 +1078,6 @@ export default function PricingPage() {
                 <td className="text-center py-4 px-4"><CheckIcon className="w-5 h-5 text-blue-600 mx-auto" /></td>
               </tr>
               <tr className="bg-white">
-                <td className="py-4 px-6 text-sm text-gray-700">
-                  Veo3 AI video included
-                  <span className="ml-1 text-[10px] text-gray-400">(free, no credits deducted)</span>
-                </td>
-                <td className="text-center py-4 px-4"><MinusIcon className="w-5 h-5 text-gray-300 mx-auto" /></td>
-                <td className="text-center py-4 px-4 bg-blue-50/50"><MinusIcon className="w-5 h-5 text-gray-300 mx-auto" /></td>
-                <td className="text-center py-4 px-4 text-xs font-semibold text-purple-700">Yearly only</td>
-              </tr>
-              <tr className="bg-gray-50">
                 <td className="py-4 px-6 text-sm text-gray-700">Support</td>
                 <td className="text-center py-4 px-4 text-sm text-gray-700">Email</td>
                 <td className="text-center py-4 px-4 text-sm text-blue-700 bg-blue-50/50 font-medium">Priority</td>
@@ -1159,7 +1092,7 @@ export default function PricingPage() {
                 </td>
               </tr>
               {WORKFLOWS.map((row, i) => (
-                <CompareRow key={row.name} feature={row.name} starter={row.starter} creator={row.creator} studio={row.studio} shaded={i % 2 === 0} />
+                <CompareRow key={row.name} feature={row.name} creator={row.creator} pro={row.pro} studio={row.studio} shaded={i % 2 === 0} />
               ))}
             </tbody>
 
@@ -1170,7 +1103,7 @@ export default function PricingPage() {
                 </td>
               </tr>
               {TOOLS.map((row, i) => (
-                <CompareRow key={row.name} feature={row.name} starter={row.starter} creator={row.creator} studio={row.studio} shaded={i % 2 === 0} />
+                <CompareRow key={row.name} feature={row.name} creator={row.creator} pro={row.pro} studio={row.studio} shaded={i % 2 === 0} />
               ))}
             </tbody>
           </table>

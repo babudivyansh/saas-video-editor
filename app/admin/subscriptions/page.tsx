@@ -9,7 +9,6 @@ interface Subscriber {
   name: string | null;
   credits: number;
   monthlyCredits: number;
-  veo3Enabled: boolean;
   subscriptionEndsAt: string | null;
   nextRefillAt: string | null;
   plan: { id: string; name: string; slug: string } | null;
@@ -103,7 +102,6 @@ export default function AdminSubscriptionsPage() {
                   <th className="py-3.5 px-3">Days Left</th>
                   <th className="py-3.5 px-3">Mo. Credits</th>
                   <th className="py-3.5 px-3">Next Refill</th>
-                  <th className="py-3.5 px-3">Veo3</th>
                   <th className="py-3.5 px-3">Balance</th>
                   <th className="py-3.5 px-3">Actions</th>
                 </tr>
@@ -130,11 +128,6 @@ export default function AdminSubscriptionsPage() {
                       </td>
                       <td className="py-3 px-3 text-gray-600">{s.monthlyCredits}</td>
                       <td className="py-3 px-3 text-xs text-gray-400">{fmt(s.nextRefillAt)}</td>
-                      <td className="py-3 px-3">
-                        {s.veo3Enabled
-                          ? <span className="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full">ON</span>
-                          : <span className="text-[10px] text-gray-400">off</span>}
-                      </td>
                       <td className="py-3 px-3 font-semibold text-gray-900">{s.credits} cr</td>
                       <td className="py-3 px-3">
                         <div className="flex flex-col gap-1.5">

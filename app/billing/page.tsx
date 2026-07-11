@@ -311,7 +311,6 @@ function BillingContent() {
             hasActivePlan={hasActivePlan}
             packs={packs}
             addons={addons}
-            user={user}
             activeId={activeId}
             onBuy={handleBuy}
             coupon={coupon}
@@ -351,9 +350,6 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used }
                   Active Plan
                 </span>
                 <span className="text-sm font-semibold text-ink truncate">{user?.plan?.name ?? "Subscription"}</span>
-                {user?.veo3Enabled && (
-                  <span className="text-xs font-bold bg-tint-violet text-accent-violet px-2 py-0.5 rounded-full">✦ Veo3 enabled</span>
-                )}
               </div>
               <p className={`text-sm font-medium ${expiringSoon ? "text-red-600" : "text-ink-soft"}`}>
                 {daysLeft <= 0 ? "Expires today" : daysLeft === 1 ? "Expires tomorrow" : `Expires in ${daysLeft} days`}
@@ -470,11 +466,10 @@ function UsageTab({ summary, history, historyCursor, historyLoadingMore, onLoadM
 }
 
 // ── Top Up tab ───────────────────────────────────────────────────────────────
-function TopupTab({ hasActivePlan, packs, addons, user, activeId, onBuy, coupon }: {
+function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon }: {
   hasActivePlan: boolean;
   packs: DbPlan[];
   addons: DbPlan[];
-  user: ReturnType<typeof useAuth>["user"];
   activeId: string | null;
   onBuy: (slug: string) => void;
   coupon: ReturnType<typeof useTopupCoupon>;
@@ -570,39 +565,24 @@ function TopupTab({ hasActivePlan, packs, addons, user, activeId, onBuy, coupon 
           </div>
           <div className="space-y-3">
             {addons.map(addon => {
-              const isVeo3 = addon.slug === "addon_veo3";
-              const alreadyUnlocked = isVeo3 && user?.veo3Enabled;
               const isLoading = activeId === addon.slug;
               return (
-                <Card
-                  key={addon.id}
-                  tint={alreadyUnlocked ? "emerald" : "none"}
-                  className={`flex items-center gap-5 px-6 py-5 ${alreadyUnlocked ? "" : "hover:border-violet-200 transition-colors"}`}
-                >
-                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${alreadyUnlocked ? "bg-green-100 text-green-600" : "grad-brand text-white"}`}>
+                <Card key={addon.id} className="flex items-center gap-5 px-6 py-5 hover:border-violet-200 transition-colors">
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 grad-brand text-white">
                     <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="font-bold text-ink text-sm">{isVeo3 ? "Veo3 AI Video" : addon.name}</p>
+                      <p className="font-bold text-ink text-sm">{addon.name}</p>
                       <span className="text-[10px] font-bold bg-tint-violet text-accent-violet px-2 py-0.5 rounded-full uppercase tracking-wide">One-time unlock</span>
                     </div>
-                    <p className="text-xs text-ink-soft mt-0.5">
-                      {isVeo3 ? "Generate AI videos with Google Veo3. Usage draws from your existing credits." : `Unlock ${addon.name} for your plan.`}
-                    </p>
+                    <p className="text-xs text-ink-soft mt-0.5">Unlock {addon.name} for your plan.</p>
                   </div>
                   <div className="flex-shrink-0 flex items-center gap-4">
                     <p className="text-lg font-extrabold text-ink">{formatPrice(addon.priceInPaise)}</p>
-                    {alreadyUnlocked ? (
-                      <span className="inline-flex items-center gap-1.5 bg-green-100 text-green-700 font-bold text-sm px-4 py-2.5 rounded-full">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5"><path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                        Unlocked
-                      </span>
-                    ) : (
-                      <Button variant="primary" size="md" onClick={() => onBuy(addon.slug)} disabled={!!activeId}>
-                        {isLoading ? (<><Spinner /> Opening…</>) : "Unlock Veo3"}
-                      </Button>
-                    )}
+                    <Button variant="primary" size="md" onClick={() => onBuy(addon.slug)} disabled={!!activeId}>
+                      {isLoading ? (<><Spinner /> Opening…</>) : `Unlock ${addon.name}`}
+                    </Button>
                   </div>
                 </Card>
               );

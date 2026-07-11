@@ -24,7 +24,7 @@ interface Db {
   razorpayEvents: Set<string>;
   users: Map<string, { credits: number; email: string; firstName: string | null; name: string | null }>;
   purchases: Map<string, unknown>;
-  plans: Map<string, { id: string; slug: string; kind: string; credits: number; name: string; intervalMonths: number | null; monthlyCredits: number | null; veo3Included: boolean }>;
+  plans: Map<string, { id: string; slug: string; kind: string; credits: number; name: string; intervalMonths: number | null; monthlyCredits: number | null }>;
 }
 
 let db: Db;
@@ -36,7 +36,7 @@ function resetDb() {
     users: new Map([["user-1", { credits: 30, email: "a@test.com", firstName: "A", name: null }]]),
     purchases: new Map(),
     plans: new Map([
-      ["pack_starter", { id: "plan-1", slug: "pack_starter", kind: "pack", credits: 60, name: "Starter", intervalMonths: null, monthlyCredits: null, veo3Included: false }],
+      ["pack_starter", { id: "plan-1", slug: "pack_starter", kind: "pack", credits: 60, name: "Starter", intervalMonths: null, monthlyCredits: null }],
     ]),
   };
   failNextUserUpdate = false;

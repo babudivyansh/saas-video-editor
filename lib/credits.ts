@@ -18,12 +18,9 @@ import { tierAtLeast, lowestTier, type TierId } from "@/lib/plans/tiers";
 // one request — not hardened further here to avoid changing latency/lock
 // behavior on hot paths for a property the current design already has.
 
-export type CreditPool = "standard" | "veo3";
-
 export interface ChargeCreditsParams {
   userId: string;
   amount: number;
-  pool?: CreditPool;
   toolSlug: string;
   log?: {
     modelId?: string;
@@ -38,55 +35,29 @@ export type ChargeCreditsResult =
   | { ok: false; reason: "insufficient_credits"; balance: number }
   | { ok: false; reason: "tool_disabled" };
 
-async function decrementPool(userId: string, pool: CreditPool, amount: number): Promise<number> {
-  if (pool === "veo3") {
-    const updated = await prisma.user.update({
-      where: { id: userId },
-      data: { veo3Credits: { decrement: amount } },
-      select: { veo3Credits: true },
-    });
-    return updated.veo3Credits;
-  }
-  const updated = await prisma.user.update({
-    where: { id: userId },
-    data: { credits: { decrement: amount } },
-    select: { credits: true },
-  });
-  return updated.credits;
-}
-
-async function incrementPool(userId: string, pool: CreditPool, amount: number): Promise<void> {
-  if (pool === "veo3") {
-    await prisma.user.update({ where: { id: userId }, data: { veo3Credits: { increment: amount } } });
-  } else {
-    await prisma.user.update({ where: { id: userId }, data: { credits: { increment: amount } } });
-  }
-}
-
 export async function chargeCredits(params: ChargeCreditsParams): Promise<ChargeCreditsResult> {
-  const pool = params.pool ?? "standard";
-
   const toolCfg = await getToolConfig(params.toolSlug);
   if (!toolCfg.enabled) return { ok: false, reason: "tool_disabled" };
 
-  if (pool === "standard") {
-    const cachedCredits = await redis.get(`credits:${params.userId}`);
-    const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
-    if (cached !== null && cached < params.amount) {
-      return { ok: false, reason: "insufficient_credits", balance: cached };
-    }
+  const cachedCredits = await redis.get(`credits:${params.userId}`);
+  const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
+  if (cached !== null && cached < params.amount) {
+    return { ok: false, reason: "insufficient_credits", balance: cached };
   }
 
-  const balance = await decrementPool(params.userId, pool, params.amount);
+  const updated = await prisma.user.update({
+    where: { id: params.userId },
+    data: { credits: { decrement: params.amount } },
+    select: { credits: true },
+  });
+  const balance = updated.credits;
 
   if (balance < 0) {
-    await incrementPool(params.userId, pool, params.amount);
+    await prisma.user.update({ where: { id: params.userId }, data: { credits: { increment: params.amount } } });
     return { ok: false, reason: "insufficient_credits", balance: balance + params.amount };
   }
 
-  if (pool === "standard") {
-    await redis.set(`credits:${params.userId}`, String(balance), "EX", 3600);
-  }
+  await redis.set(`credits:${params.userId}`, String(balance), "EX", 3600);
 
   let generationId: string | undefined;
   if (params.log) {
@@ -98,7 +69,6 @@ export async function chargeCredits(params: ChargeCreditsParams): Promise<Charge
           modelId: params.log.modelId ?? null,
           generationType: params.log.generationType,
           creditsCost: params.amount,
-          creditPool: pool,
           estimatedCostUsd: params.log.estimatedCostUsd ?? null,
           prompt: params.log.prompt ?? null,
           status: "pending",
@@ -117,19 +87,14 @@ export async function chargeCredits(params: ChargeCreditsParams): Promise<Charge
 export interface RefundCreditsParams {
   userId: string;
   amount: number;
-  pool?: CreditPool;
   generationId?: string;
 }
 
 export async function refundCredits(params: RefundCreditsParams): Promise<void> {
-  const pool = params.pool ?? "standard";
-
-  await incrementPool(params.userId, pool, params.amount);
-  if (pool === "standard") {
-    const cached = await redis.get(`credits:${params.userId}`);
-    if (cached !== null) {
-      await redis.set(`credits:${params.userId}`, String(parseInt(cached, 10) + params.amount), "EX", 3600);
-    }
+  await prisma.user.update({ where: { id: params.userId }, data: { credits: { increment: params.amount } } });
+  const cached = await redis.get(`credits:${params.userId}`);
+  if (cached !== null) {
+    await redis.set(`credits:${params.userId}`, String(parseInt(cached, 10) + params.amount), "EX", 3600);
   }
   if (params.generationId) {
     try {
@@ -158,22 +123,13 @@ export async function markGenerationStatus(
   }
 }
 
-export async function hasEnoughCredits(userId: string, amount: number, pool: CreditPool = "standard"): Promise<boolean> {
-  if (pool !== "standard") {
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { veo3Credits: true } });
-    return (user?.veo3Credits ?? 0) >= amount;
-  }
+export async function hasEnoughCredits(userId: string, amount: number): Promise<boolean> {
   const cached = await redis.get(`credits:${userId}`);
   if (cached !== null) return parseInt(cached, 10) >= amount;
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { credits: true } });
   return (user?.credits ?? 0) >= amount;
 }
 
-// Generalizes Veo3's veo3Enabled/veo3Credits special access into a named,
-// reusable mechanism instead of an isVeo3 branch: a model is accessible to a
-// user EITHER because their plan tier is in allowedTiers, OR — if the model
-// declares an overridePool — because they hold that pool's unlock, regardless
-// of tier. Only "veo3" exists as an override pool today.
 export interface ModelAccessCheck {
   allowed: boolean;
   requiredTier?: TierId; // present only when allowed === false
@@ -181,18 +137,9 @@ export interface ModelAccessCheck {
 
 export async function checkModelAccess(
   userId: string,
-  entry: { allowedTiers: readonly TierId[]; overridePool?: "veo3" },
+  entry: { allowedTiers: readonly TierId[] },
 ): Promise<ModelAccessCheck> {
   const userTier = await getUserTier(userId);
   if (tierAtLeast(userTier, lowestTier(entry.allowedTiers))) return { allowed: true };
-
-  if (entry.overridePool === "veo3") {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { veo3Enabled: true, veo3Credits: true },
-    });
-    if (user?.veo3Enabled || (user?.veo3Credits ?? 0) > 0) return { allowed: true };
-  }
-
   return { allowed: false, requiredTier: lowestTier(entry.allowedTiers) };
 }

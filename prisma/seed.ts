@@ -11,7 +11,6 @@ const ADMIN_EMAIL = "divyansh.verma525@gmail.com";
 //   kind="subscription" → recurring tier; refills `monthlyCredits` each month
 //     for `intervalMonths`. priceInPaise is the (discounted) prepaid term total.
 //   kind="pack"         → one-time credit top-up (subscriber-only).
-//   kind="addon"        → ₹599 Veo3 unlock for shorter subscription terms.
 
 interface SeedPlan {
   slug: string;
@@ -20,16 +19,14 @@ interface SeedPlan {
   credits: number;            // total credits the purchase ultimately grants
   sortOrder: number;
   features: string[];
-  kind: "subscription" | "pack" | "addon";
+  kind: "subscription" | "pack";
   intervalMonths?: number;
   monthlyCredits?: number;
-  veo3Included?: boolean;
   tier?: "creator" | "pro" | "studio"; // subscription rows only; see lib/plans/tiers.ts
 }
 
 // ── Subscriptions ───────────────────────────────────────────────────────────
-// Two terms only: Monthly + Yearly. Yearly = monthly × 12 × 0.80 (20% off) and
-// bundles Veo3 free. Monthly plans need the ₹599 addon_veo3 to unlock Veo3.
+// Two terms only: Monthly + Yearly. Yearly = monthly × 12 × 0.80 (20% off).
 const YEARLY_DISCOUNT = 0.20;
 const yearly = (monthlyPaise: number) => Math.round((monthlyPaise * 12 * (1 - YEARLY_DISCOUNT)) / 100) * 100;
 
@@ -41,22 +38,25 @@ const yearly = (monthlyPaise: number) => Math.round((monthlyPaise * 12 * (1 - YE
 // checkouts of these slugs going forward.
 const SUBSCRIPTIONS: SeedPlan[] = [
   // Creator — 50 cr/mo (₹999/mo).
-  { slug: "sub_creator_1mo",  name: "Creator (Monthly)", priceInPaise: 99900,            intervalMonths: 1,  monthlyCredits: 50,  veo3Included: false, sortOrder: 10, tier: "creator" as const, features: ["50 credits / month", "All AI tools", "1080p exports"] },
-  { slug: "sub_creator_12mo", name: "Creator (Yearly)",  priceInPaise: yearly(99900),    intervalMonths: 12, monthlyCredits: 50,  veo3Included: true,  sortOrder: 13, tier: "creator" as const, features: ["50 credits / month", "Save 20% vs monthly", "Veo3 AI video included"] },
+  { slug: "sub_creator_1mo",  name: "Creator (Monthly)", priceInPaise: 99900,            intervalMonths: 1,  monthlyCredits: 50,  sortOrder: 10, tier: "creator" as const, features: ["50 credits / month", "All AI tools", "1080p exports"] },
+  { slug: "sub_creator_12mo", name: "Creator (Yearly)",  priceInPaise: yearly(99900),    intervalMonths: 12, monthlyCredits: 50,  sortOrder: 13, tier: "creator" as const, features: ["50 credits / month", "Save 20% vs monthly"] },
   // Pro — 140 cr/mo (₹2,199/mo).
-  { slug: "sub_pro_1mo",  name: "Pro (Monthly)", priceInPaise: 219900,           intervalMonths: 1,  monthlyCredits: 140, veo3Included: false, sortOrder: 20, tier: "pro" as const, features: ["140 credits / month", "All AI tools", "Priority rendering"] },
-  { slug: "sub_pro_12mo", name: "Pro (Yearly)",  priceInPaise: yearly(219900),   intervalMonths: 12, monthlyCredits: 140, veo3Included: true,  sortOrder: 23, tier: "pro" as const, features: ["140 credits / month", "Save 20% vs monthly", "Veo3 AI video included"] },
+  { slug: "sub_pro_1mo",  name: "Pro (Monthly)", priceInPaise: 219900,           intervalMonths: 1,  monthlyCredits: 140, sortOrder: 20, tier: "pro" as const, features: ["140 credits / month", "All AI tools", "Priority rendering"] },
+  { slug: "sub_pro_12mo", name: "Pro (Yearly)",  priceInPaise: yearly(219900),   intervalMonths: 12, monthlyCredits: 140, sortOrder: 23, tier: "pro" as const, features: ["140 credits / month", "Save 20% vs monthly"] },
   // Studio — 340 cr/mo (₹4,999/mo).
-  { slug: "sub_studio_1mo",  name: "Studio (Monthly)", priceInPaise: 499900,          intervalMonths: 1,  monthlyCredits: 340, veo3Included: false, sortOrder: 30, tier: "studio" as const, features: ["340 credits / month", "Priority rendering", "Dedicated support"] },
-  { slug: "sub_studio_12mo", name: "Studio (Yearly)",  priceInPaise: yearly(499900),  intervalMonths: 12, monthlyCredits: 340, veo3Included: true,  sortOrder: 33, tier: "studio" as const, features: ["340 credits / month", "Save 20% vs monthly", "Veo3 AI video included"] },
+  { slug: "sub_studio_1mo",  name: "Studio (Monthly)", priceInPaise: 499900,          intervalMonths: 1,  monthlyCredits: 340, sortOrder: 30, tier: "studio" as const, features: ["340 credits / month", "Priority rendering", "Dedicated support"] },
+  { slug: "sub_studio_12mo", name: "Studio (Yearly)",  priceInPaise: yearly(499900),  intervalMonths: 12, monthlyCredits: 340, sortOrder: 33, tier: "studio" as const, features: ["340 credits / month", "Save 20% vs monthly"] },
 ].map(p => ({ ...p, kind: "subscription" as const, credits: p.monthlyCredits * p.intervalMonths }));
 
 // Old 3-month / 6-month terms are retired. Deactivate them (keep rows for
 // purchase history) so they disappear from /pricing and admin shows them inactive.
+// pack_veo3_5 / addon_veo3 are retired for the same reason: Veo3 is no longer
+// a separately-priced/pooled model, it's just a normal tier-gated video model.
 const RETIRED_SUB_SLUGS = [
   "sub_creator_3mo", "sub_creator_6mo",
   "sub_pro_3mo", "sub_pro_6mo",
   "sub_studio_3mo", "sub_studio_6mo",
+  "pack_veo3_5", "addon_veo3",
 ];
 
 // ── Top-up packs (open to all users) ────────────────────────────────────────
@@ -65,17 +65,9 @@ const PACKS: SeedPlan[] = [
   { slug: "pack_starter", name: "Starter Pack", priceInPaise: 159900, credits: 100, sortOrder: 41, kind: "pack", features: ["100 credits", "One-time top-up", "Never expires"] },
   { slug: "pack_pro",     name: "Pro Pack",     priceInPaise: 399900, credits: 280, sortOrder: 42, kind: "pack", features: ["280 credits", "One-time top-up", "Never expires"] },
   { slug: "pack_studio",  name: "Studio Pack",  priceInPaise: 899900, credits: 640, sortOrder: 43, kind: "pack", features: ["640 credits", "Best value", "Never expires"] },
-  // Veo3-specific pack: 5 videos × 35 credits = 175 credits, ₹999 flat.
-  // Keeps Veo3 economics separate so subscription credits aren't drained unexpectedly.
-  { slug: "pack_veo3_5",  name: "Veo3 Video Pack", priceInPaise: 99900, credits: 175, sortOrder: 44, kind: "pack", features: ["5 Veo3 AI videos", "175 credits", "Never expires", "₹199.80 per video"] },
 ];
 
-// ── Veo3 add-on (unlock for shorter subscription terms) ─────────────────────
-const ADDONS: SeedPlan[] = [
-  { slug: "addon_veo3", name: "Veo3 AI Video Add-on", priceInPaise: 59900, credits: 0, sortOrder: 50, kind: "addon", veo3Included: true, features: ["Unlocks Veo3 AI video on your plan", "Usage draws from your credits"] },
-];
-
-const PLANS: SeedPlan[] = [...SUBSCRIPTIONS, ...PACKS, ...ADDONS];
+const PLANS: SeedPlan[] = [...SUBSCRIPTIONS, ...PACKS];
 
 // ── Launch coupons ──────────────────────────────────────────────────────────
 interface SeedCoupon {
@@ -114,7 +106,6 @@ async function main() {
         kind: p.kind,
         intervalMonths: p.intervalMonths ?? null,
         monthlyCredits: p.monthlyCredits ?? null,
-        veo3Included: p.veo3Included ?? false,
         tier: p.tier ?? null,
         active: true,
       },
@@ -128,7 +119,6 @@ async function main() {
         kind: p.kind,
         intervalMonths: p.intervalMonths ?? null,
         monthlyCredits: p.monthlyCredits ?? null,
-        veo3Included: p.veo3Included ?? false,
         tier: p.tier ?? null,
         currency: "INR",
         active: true,

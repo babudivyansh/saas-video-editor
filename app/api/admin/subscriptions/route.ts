@@ -16,7 +16,6 @@ export async function GET(req: NextRequest) {
       name: true,
       credits: true,
       monthlyCredits: true,
-      veo3Enabled: true,
       subscriptionEndsAt: true,
       nextRefillAt: true,
       plan: { select: { id: true, name: true, slug: true } },

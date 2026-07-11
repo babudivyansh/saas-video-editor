@@ -39,15 +39,6 @@ interface BaseModelEntry<TParam extends string> {
   costUsd: number;
   /** Plan tiers whose users may select this model. Non-empty. */
   allowedTiers: readonly TierId[];
-  /**
-   * Generalizes Veo3's veo3Enabled/veo3Credits special access into a named,
-   * reusable mechanism instead of an isVeo3 branch: a model tagged with an
-   * overridePool is accessible to a user EITHER because their plan tier is
-   * in allowedTiers, OR because they hold that pool's unlock (checked via
-   * lib/credits.ts's checkModelAccess), regardless of tier. Only "veo3"
-   * exists as a pool today.
-   */
-  overridePool?: "veo3";
   supportedParameters: readonly TParam[];
   defaultValues: Partial<Record<TParam, string | number>>;
   /** Whether the frontend must require/allow/hide a reference-image upload for this model. */
