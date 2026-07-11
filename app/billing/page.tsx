@@ -2,13 +2,17 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
-import { useAuthUser } from "@/app/components/useAuthUser";
+import { useTopupCoupon } from "@/app/components/useTopupCoupon";
 import ClipiroLogo from "@/app/components/ClipiroLogo";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
 import { CreditsPill } from "@/app/components/ui/CreditsPill";
 import { CreditRing } from "@/app/components/ui/CreditRing";
+import { StatTile } from "@/app/components/ui/StatTile";
+import { UsageBarChart } from "@/app/components/ui/UsageBarChart";
+import { formatDate, formatINR } from "@/lib/format";
 
 interface DbPlan {
   id: string;
@@ -29,8 +33,31 @@ interface LaunchCoupon {
   expiresAt: string | null;
 }
 
-function token() {
-  return typeof window !== "undefined" ? localStorage.getItem("token") ?? "" : "";
+interface GenerationSummary {
+  totalCreditsUsed: number;
+  byModel: { modelId: string | null; toolSlug: string; displayName: string; count: number; creditsCost: number }[];
+  byDay: { date: string; credits: number }[];
+  byTool: { toolSlug: string; count: number; creditsCost: number }[];
+}
+
+interface GenerationRow {
+  id: string;
+  toolSlug: string;
+  modelId: string | null;
+  displayName: string;
+  generationType: string;
+  creditsCost: number;
+  status: string;
+  createdAt: string;
+}
+
+interface Purchase {
+  id: string;
+  amountInPaise: number;
+  credits: number;
+  status: string;
+  createdAt: string;
+  plan: { name: string; slug: string } | null;
 }
 
 function formatPrice(paise: number) {
@@ -45,93 +72,120 @@ function Spinner() {
   return <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />;
 }
 
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    completed: "bg-tint-emerald text-green-700",
+    pending: "bg-tint-blue text-brand",
+    failed: "bg-red-50 text-red-600",
+    refunded: "bg-gray-100 text-gray-500",
+  };
+  return (
+    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${map[status] ?? "bg-gray-100 text-gray-500"}`}>
+      {status}
+    </span>
+  );
+}
+
+const TABS = [
+  { key: "overview", label: "Overview" },
+  { key: "usage", label: "Usage" },
+  { key: "topup", label: "Top Up" },
+  { key: "history", label: "Payment History" },
+] as const;
+type TabKey = typeof TABS[number]["key"];
+
 function BillingContent() {
   const router = useRouter();
   const params = useSearchParams();
   const success = params.get("success");
+  const tab: TabKey = (TABS.find(t => t.key === params.get("tab"))?.key) ?? "overview";
+  const { user, token, refreshUser } = useAuth();
   const { startCheckout, activeId } = useRazorpayCheckout();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [packs, setPacks] = useState<DbPlan[]>([]);
   const [addons, setAddons] = useState<DbPlan[]>([]);
-
-  // Shared query — mounting alongside AuthContext (same token) shares one
-  // cached /api/auth/me request instead of firing an independent fetch.
-  const { data: user } = useAuthUser(token() || null);
-
-  // Launch offer banner
   const [launch, setLaunch] = useState<LaunchCoupon | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Top-up coupon (applies to the next pack / add-on purchase)
-  const [couponInput, setCouponInput] = useState("");
-  const [couponApplying, setCouponApplying] = useState(false);
-  const [couponError, setCouponError] = useState("");
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; label: string } | null>(null);
+  // Usage tab data — real Generation-ledger-backed (Phase 1/3), replacing the
+  // old Project-derived bar chart and its hardcoded "−1 credit" display.
+  const [summary, setSummary] = useState<GenerationSummary | null>(null);
+  const [history, setHistory] = useState<GenerationRow[]>([]);
+  const [historyCursor, setHistoryCursor] = useState<string | null>(null);
+  const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
+
+  // Payment history tab data
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [purchasesLoaded, setPurchasesLoaded] = useState(false);
+
+  // Top-up coupon — shared hook, validated against the cheapest pack as a
+  // representative preview (server-side checkout re-validates against the
+  // real cart regardless, so this only affects the discount preview shown
+  // before a specific pack is chosen, not what's actually charged).
+  const cheapestPackSlug = [...packs].sort((a, b) => a.priceInPaise - b.priceInPaise)[0]?.slug ?? "";
+  const coupon = useTopupCoupon({ planId: cheapestPackSlug });
 
   useEffect(() => {
-    const t = token();
-    if (!t) { router.push("/login"); return; }
+    if (!token) { router.push("/login"); return; }
 
     Promise.all([
       fetch("/api/plans").then(r => r.ok ? r.json() : { plans: [] }),
       fetch("/api/coupons/active").then(r => r.ok ? r.json() : { coupons: [] }),
-    ]).then(([plansData, couponData]) => {
+      fetch("/api/generations/summary?range=30d", { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : null),
+      fetch("/api/generations?limit=20", { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : { generations: [], nextCursor: null }),
+      fetch("/api/auth/purchases", { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : { purchases: [] }),
+    ]).then(([plansData, couponData, summaryData, historyData, purchasesData]) => {
       const all: DbPlan[] = plansData.plans ?? [];
       setPacks(all.filter(p => p.kind === "pack"));
       setAddons(all.filter(p => p.kind === "addon"));
       const featured: LaunchCoupon[] = couponData.coupons ?? [];
       if (featured.length > 0) setLaunch(featured[0]);
+      if (summaryData) setSummary(summaryData);
+      setHistory(historyData.generations ?? []);
+      setHistoryCursor(historyData.nextCursor ?? null);
+      setPurchases(purchasesData.purchases ?? []);
+      setPurchasesLoaded(true);
     }).catch(() => setError("Failed to load billing data."))
       .finally(() => setLoading(false));
-  }, [router]);
+  }, [token, router]);
+
+  async function loadMoreHistory() {
+    if (!historyCursor || historyLoadingMore) return;
+    setHistoryLoadingMore(true);
+    try {
+      const res = await fetch(`/api/generations?limit=20&cursor=${historyCursor}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setHistory(prev => [...prev, ...(data.generations ?? [])]);
+        setHistoryCursor(data.nextCursor ?? null);
+      }
+    } finally {
+      setHistoryLoadingMore(false);
+    }
+  }
 
   const endsAt = user?.subscriptionEndsAt ? new Date(user.subscriptionEndsAt) : null;
   const hasActivePlan = !!endsAt && endsAt > new Date();
   const daysLeft = endsAt ? daysUntil(endsAt) : 0;
 
-  // Monthly credits used this cycle: monthlyCredits is the allowance; credits is the current balance
-  // Used = allowance - (balance - any topups). Since we don't track topups separately, show balance vs allowance.
   const allowance = user?.monthlyCredits ?? 0;
   const balance = user?.credits ?? 0;
   const used = Math.max(0, allowance - balance);
+
+  function setTab(next: TabKey) {
+    router.push(next === "overview" ? "/billing" : `/billing?tab=${next}`);
+  }
 
   function handleBuy(slug: string) {
     setError("");
     startCheckout({
       planId: slug,
-      couponCode: appliedCoupon?.code,
-      onSuccess: () => router.push("/billing?success=1"),
+      couponCode: coupon.appliedCoupon?.code,
+      onSuccess: () => { refreshUser(); router.push("/billing?success=1"); },
       onError: setError,
     });
-  }
-
-  // Validate the top-up coupon against the cheapest pack as a proxy (per-user /
-  // first-purchase rules are user-level; min-amount only relaxes on pricier packs).
-  async function applyTopupCoupon() {
-    const cheapest = [...packs].sort((a, b) => a.priceInPaise - b.priceInPaise)[0];
-    if (!couponInput.trim() || !cheapest) return;
-    setCouponApplying(true);
-    setCouponError("");
-    try {
-      const res = await fetch("/api/coupons/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
-        body: JSON.stringify({ planId: cheapest.slug, code: couponInput.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        setAppliedCoupon(null);
-        setCouponError(data.error ?? "Could not apply coupon.");
-        return;
-      }
-      setAppliedCoupon({ code: data.code, label: data.label });
-    } catch {
-      setCouponError("Could not apply coupon. Try again.");
-    } finally {
-      setCouponApplying(false);
-    }
   }
 
   function copyLaunchCode() {
@@ -168,10 +222,10 @@ function BillingContent() {
         <CreditsPill credits={balance} />
       </nav>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-8">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-6">
         <div>
           <h1 className="text-2xl font-extrabold grad-text inline-block">Billing</h1>
-          <p className="text-sm text-ink-soft mt-1">Manage your credits and feature add-ons.</p>
+          <p className="text-sm text-ink-soft mt-1">Manage your plan, credits, and usage.</p>
         </div>
 
         {/* ── Launch offer banner ── */}
@@ -216,26 +270,95 @@ function BillingContent() {
           </div>
         )}
 
-        {/* ── Status Card ── */}
-        {hasActivePlan ? (
-          <Card className="p-6 flex flex-col sm:flex-row gap-6 items-start sm:items-center">
-            {/* Left: plan info */}
+        {/* ── Tabs ── */}
+        <div className="flex gap-1 border-b border-gray-100 -mb-1 overflow-x-auto">
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`px-4 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors ${
+                tab === t.key ? "border-brand text-brand" : "border-transparent text-ink-soft hover:text-ink"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "overview" && (
+          <OverviewTab
+            user={user}
+            hasActivePlan={hasActivePlan}
+            daysLeft={daysLeft}
+            allowance={allowance}
+            balance={balance}
+            used={used}
+          />
+        )}
+
+        {tab === "usage" && (
+          <UsageTab
+            summary={summary}
+            history={history}
+            historyCursor={historyCursor}
+            historyLoadingMore={historyLoadingMore}
+            onLoadMore={loadMoreHistory}
+          />
+        )}
+
+        {tab === "topup" && (
+          <TopupTab
+            hasActivePlan={hasActivePlan}
+            packs={packs}
+            addons={addons}
+            user={user}
+            activeId={activeId}
+            onBuy={handleBuy}
+            coupon={coupon}
+          />
+        )}
+
+        {tab === "history" && <HistoryTab purchases={purchases} purchasesLoaded={purchasesLoaded} />}
+
+        <p className="text-center text-xs text-ink-soft/60 pb-6">
+          Payments powered by Razorpay · Secure &amp; encrypted
+        </p>
+      </main>
+    </div>
+  );
+}
+
+// ── Overview tab ─────────────────────────────────────────────────────────────
+function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used }: {
+  user: ReturnType<typeof useAuth>["user"];
+  hasActivePlan: boolean;
+  daysLeft: number;
+  allowance: number;
+  balance: number;
+  used: number;
+}) {
+  const expiringSoon = hasActivePlan && daysLeft <= 7;
+  const memberSince = user?.createdAt ? formatDate(user.createdAt) : "—";
+
+  return (
+    <div className="space-y-6">
+      {hasActivePlan ? (
+        <Card className="p-6 space-y-5">
+          <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <span className="inline-block bg-tint-emerald text-green-700 text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wide">
                   Active Plan
                 </span>
-                <span className="text-sm font-semibold text-ink truncate">
-                  {user?.plan?.name ?? "Subscription"}
-                </span>
+                <span className="text-sm font-semibold text-ink truncate">{user?.plan?.name ?? "Subscription"}</span>
+                {user?.veo3Enabled && (
+                  <span className="text-xs font-bold bg-tint-violet text-accent-violet px-2 py-0.5 rounded-full">✦ Veo3 enabled</span>
+                )}
               </div>
-              <p className={`text-sm font-medium ${daysLeft <= 7 ? "text-red-600" : "text-ink-soft"}`}>
-                {daysLeft <= 0
-                  ? "Expires today"
-                  : daysLeft === 1
-                  ? "Expires tomorrow"
-                  : `Expires in ${daysLeft} days`}
+              <p className={`text-sm font-medium ${expiringSoon ? "text-red-600" : "text-ink-soft"}`}>
+                {daysLeft <= 0 ? "Expires today" : daysLeft === 1 ? "Expires tomorrow" : `Expires in ${daysLeft} days`}
               </p>
+              <p className="text-xs text-ink-soft/70 mt-1">Member since {memberSince}</p>
               <Link href="/pricing" className="inline-flex items-center gap-1 text-xs text-brand hover:text-brand-dark font-medium mt-2 transition-colors">
                 Manage plan
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
@@ -244,7 +367,6 @@ function BillingContent() {
               </Link>
             </div>
 
-            {/* Right: credit ring */}
             {allowance > 0 && (
               <div className="flex items-center gap-4 bg-tint-violet rounded-2xl px-5 py-4">
                 <CreditRing used={used} total={allowance} />
@@ -255,185 +377,285 @@ function BillingContent() {
                 </div>
               </div>
             )}
-          </Card>
-        ) : (
-          /* No active plan callout */
-          <Card tint="violet" className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <p className="font-semibold text-ink">You don&apos;t have an active subscription</p>
-              <p className="text-sm text-ink-soft mt-1">Top-up credit packs and feature add-ons require an active subscription plan.</p>
-            </div>
-            <Button variant="primary" size="lg" href="/pricing" className="flex-shrink-0">
-              View Plans
-            </Button>
-          </Card>
-        )}
+          </div>
 
-        {/* ── Top-up Credits ── */}
-        {hasActivePlan && (
-          <section>
-            <div className="mb-5 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-extrabold text-ink">Top-up Credits</h2>
-                <p className="text-sm text-ink-soft mt-0.5">One-time purchase · credits never expire · added to your account instantly.</p>
-              </div>
-
-              {/* Top-up coupon */}
-              <div className="flex-shrink-0">
-                {appliedCoupon ? (
-                  <div className="flex items-center gap-2 bg-tint-emerald border border-green-200 rounded-full px-3 py-2">
-                    <span className="text-xs font-bold text-green-700">🎟 {appliedCoupon.code} · {appliedCoupon.label}</span>
-                    <button onClick={() => { setAppliedCoupon(null); setCouponInput(""); }} className="text-xs text-green-700 hover:text-green-900 underline cursor-pointer">Remove</button>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="flex gap-2">
-                      <input
-                        value={couponInput}
-                        onChange={e => { setCouponInput(e.target.value.toUpperCase()); setCouponError(""); }}
-                        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); applyTopupCoupon(); } }}
-                        placeholder="Coupon code"
-                        className="w-36 bg-white border border-card-border rounded-full px-3.5 py-2 text-sm font-semibold uppercase tracking-wide outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
-                      />
-                      <Button
-                        variant="secondary"
-                        size="md"
-                        onClick={applyTopupCoupon}
-                        disabled={couponApplying || !couponInput.trim()}
-                      >
-                        {couponApplying ? "…" : "Apply"}
-                      </Button>
-                    </div>
-                    {couponError && <p className="text-xs text-red-600 mt-1.5 text-right">{couponError}</p>}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {appliedCoupon && (
-              <p className="text-xs text-green-600 -mt-2 mb-4">Discount applies at checkout to the pack you buy.</p>
-            )}
-
-            {packs.length === 0 ? (
-              <p className="text-sm text-ink-soft/60 py-6 text-center">Loading credit packs…</p>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {packs.map((pack, i) => {
-                  const isLoading = activeId === pack.slug;
-                  const isPopular = i === 1; // Starter Pack (100 credits)
-                  return (
-                    <div
-                      key={pack.id}
-                      className={`relative bg-white rounded-[var(--radius-card)] border transition-all flex flex-col overflow-hidden hover:shadow-card-hover hover:-translate-y-0.5 ${
-                        isPopular ? "border-violet-300 shadow-glow" : "border-card-border hover:border-violet-200"
-                      }`}
-                    >
-                      {isPopular && (
-                        <div className="grad-brand text-white text-[10px] font-bold text-center py-1 tracking-widest uppercase">
-                          Most Popular
-                        </div>
-                      )}
-                      <div className="p-5 flex flex-col flex-1">
-                        <p className="text-sm font-bold text-ink">{pack.name}</p>
-                        <p className="text-3xl font-black grad-text inline-block my-3">{pack.credits}</p>
-                        <p className="text-xs text-ink-soft mb-4">credits · never expire</p>
-                        <p className="text-lg font-extrabold text-ink mb-5">{formatPrice(pack.priceInPaise)}</p>
-                        <Button
-                          variant="primary"
-                          size="md"
-                          onClick={() => handleBuy(pack.slug)}
-                          disabled={!!activeId}
-                          className="mt-auto w-full"
-                        >
-                          {isLoading ? (<><Spinner /> Opening…</>) : "Buy now"}
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* ── Feature Add-ons ── */}
-        {hasActivePlan && addons.length > 0 && (
-          <section>
-            <div className="mb-5">
-              <h2 className="text-lg font-extrabold text-ink">Feature Add-ons</h2>
-              <p className="text-sm text-ink-soft mt-0.5">One-time unlocks that enhance your plan.</p>
-            </div>
-
-            <div className="space-y-3">
-              {addons.map(addon => {
-                const isVeo3 = addon.slug === "addon_veo3";
-                const alreadyUnlocked = isVeo3 && user?.veo3Enabled;
-                const isLoading = activeId === addon.slug;
-                return (
-                  <Card
-                    key={addon.id}
-                    tint={alreadyUnlocked ? "emerald" : "none"}
-                    className={`flex items-center gap-5 px-6 py-5 ${alreadyUnlocked ? "" : "hover:border-violet-200 transition-colors"}`}
-                  >
-                    {/* Icon */}
-                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                      alreadyUnlocked ? "bg-green-100 text-green-600" : "grad-brand text-white"
-                    }`}>
-                      <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                      </svg>
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-bold text-ink text-sm">
-                          {isVeo3 ? "Veo3 AI Video" : addon.name}
-                        </p>
-                        <span className="text-[10px] font-bold bg-tint-violet text-accent-violet px-2 py-0.5 rounded-full uppercase tracking-wide">
-                          One-time unlock
-                        </span>
-                      </div>
-                      <p className="text-xs text-ink-soft mt-0.5">
-                        {isVeo3
-                          ? "Generate AI videos with Google Veo3. Usage draws from your existing credits."
-                          : `Unlock ${addon.name} for your plan.`}
-                      </p>
-                    </div>
-
-                    {/* Price + button */}
-                    <div className="flex-shrink-0 flex items-center gap-4">
-                      <p className="text-lg font-extrabold text-ink">{formatPrice(addon.priceInPaise)}</p>
-                      {alreadyUnlocked ? (
-                        <span className="inline-flex items-center gap-1.5 bg-green-100 text-green-700 font-bold text-sm px-4 py-2.5 rounded-full">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
-                            <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                          Unlocked
-                        </span>
-                      ) : (
-                        <Button
-                          variant="primary"
-                          size="md"
-                          onClick={() => handleBuy(addon.slug)}
-                          disabled={!!activeId}
-                        >
-                          {isLoading ? (<><Spinner /> Opening…</>) : "Unlock Veo3"}
-                        </Button>
-                      )}
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        <p className="text-center text-xs text-ink-soft/60 pb-6">
-          Payments powered by Razorpay · Secure &amp; encrypted
-        </p>
-      </main>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <StatTile label="Monthly credits" value={allowance || "—"} accent="blue" />
+            <StatTile label="Renews / expires" value={user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "—"} accent="violet" />
+            <StatTile label="Next refill" value={user?.nextRefillAt ? formatDate(user.nextRefillAt) : "—"} accent="fuchsia" />
+          </div>
+        </Card>
+      ) : (
+        <Card tint="violet" className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <p className="font-semibold text-ink">You don&apos;t have an active subscription</p>
+            <p className="text-sm text-ink-soft mt-1">Subscribe to get monthly credits and unlock top-up packs.</p>
+          </div>
+          <Button variant="primary" size="lg" href="/pricing" className="flex-shrink-0">View Plans</Button>
+        </Card>
+      )}
     </div>
+  );
+}
+
+// ── Usage tab ────────────────────────────────────────────────────────────────
+function UsageTab({ summary, history, historyCursor, historyLoadingMore, onLoadMore }: {
+  summary: GenerationSummary | null;
+  history: GenerationRow[];
+  historyCursor: string | null;
+  historyLoadingMore: boolean;
+  onLoadMore: () => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-extrabold text-ink">Usage (last 30 days)</h2>
+          <p className="text-sm font-bold grad-text inline-block">{summary?.totalCreditsUsed ?? 0} credits</p>
+        </div>
+        <UsageBarChart data={summary?.byDay ?? []} />
+      </Card>
+
+      <Card className="p-6">
+        <h2 className="text-base font-extrabold text-ink mb-4">Top models</h2>
+        {!summary || summary.byModel.length === 0 ? (
+          <p className="text-sm text-ink-soft/70 py-4 text-center">No usage yet — generate something to see a breakdown here.</p>
+        ) : (
+          <div className="space-y-2">
+            {summary.byModel.slice(0, 8).map(m => (
+              <div key={`${m.toolSlug}-${m.modelId ?? "none"}`} className="flex items-center justify-between py-2 px-3 bg-surface rounded-lg">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ink truncate">{m.displayName}</p>
+                  <p className="text-xs text-ink-soft/70">{m.count} generation{m.count === 1 ? "" : "s"}</p>
+                </div>
+                <p className="text-sm font-bold text-ink flex-shrink-0">{m.creditsCost} cr</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card className="p-6">
+        <h2 className="text-base font-extrabold text-ink mb-4">History</h2>
+        {history.length === 0 ? (
+          <p className="text-sm text-ink-soft/70 py-4 text-center">No generations yet.</p>
+        ) : (
+          <>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {history.map(g => (
+                <div key={g.id} className="flex items-center justify-between py-2.5 px-4 bg-surface rounded-xl">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-ink truncate">{g.displayName}</p>
+                    <p className="text-xs text-ink-soft/70">{formatDate(g.createdAt)}</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <StatusBadge status={g.status} />
+                    <span className="text-xs font-bold text-ink">−{g.creditsCost}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {historyCursor && (
+              <div className="text-center mt-4">
+                <Button variant="secondary" size="sm" onClick={onLoadMore} disabled={historyLoadingMore}>
+                  {historyLoadingMore ? <><Spinner /> Loading…</> : "Load more"}
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ── Top Up tab ───────────────────────────────────────────────────────────────
+function TopupTab({ hasActivePlan, packs, addons, user, activeId, onBuy, coupon }: {
+  hasActivePlan: boolean;
+  packs: DbPlan[];
+  addons: DbPlan[];
+  user: ReturnType<typeof useAuth>["user"];
+  activeId: string | null;
+  onBuy: (slug: string) => void;
+  coupon: ReturnType<typeof useTopupCoupon>;
+}) {
+  if (!hasActivePlan) {
+    return (
+      <Card tint="violet" className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <p className="font-semibold text-ink">Top-up packs require an active subscription</p>
+          <p className="text-sm text-ink-soft mt-1">Subscribe to any plan, then buy credit packs anytime.</p>
+        </div>
+        <Button variant="primary" size="lg" href="/pricing" className="flex-shrink-0">View Plans</Button>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <section>
+        <div className="mb-5 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-extrabold text-ink">Top-up Credits</h2>
+            <p className="text-sm text-ink-soft mt-0.5">One-time purchase · credits never expire · added to your account instantly.</p>
+          </div>
+          <div className="flex-shrink-0">
+            {coupon.appliedCoupon ? (
+              <div className="flex items-center gap-2 bg-tint-emerald border border-green-200 rounded-full px-3 py-2">
+                <span className="text-xs font-bold text-green-700">🎟 {coupon.appliedCoupon.code} · {coupon.appliedCoupon.label}</span>
+                <button onClick={coupon.clear} className="text-xs text-green-700 hover:text-green-900 underline cursor-pointer">Remove</button>
+              </div>
+            ) : (
+              <div>
+                <div className="flex gap-2">
+                  <input
+                    value={coupon.couponInput}
+                    onChange={e => coupon.setCouponInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); coupon.apply(); } }}
+                    placeholder="Coupon code"
+                    className="w-36 bg-white border border-card-border rounded-full px-3.5 py-2 text-sm font-semibold uppercase tracking-wide outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
+                  />
+                  <Button variant="secondary" size="md" onClick={coupon.apply} disabled={coupon.applying || !coupon.couponInput.trim()}>
+                    {coupon.applying ? "…" : "Apply"}
+                  </Button>
+                </div>
+                {coupon.error && <p className="text-xs text-red-600 mt-1.5 text-right">{coupon.error}</p>}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {coupon.appliedCoupon && (
+          <p className="text-xs text-green-600 -mt-2 mb-4">Discount applies at checkout to the pack you buy.</p>
+        )}
+
+        {packs.length === 0 ? (
+          <p className="text-sm text-ink-soft/60 py-6 text-center">No credit packs are available right now.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {packs.map((pack, i) => {
+              const isLoading = activeId === pack.slug;
+              const isPopular = i === 1;
+              return (
+                <div
+                  key={pack.id}
+                  className={`relative bg-white rounded-[var(--radius-card)] border transition-all flex flex-col overflow-hidden hover:shadow-card-hover hover:-translate-y-0.5 ${
+                    isPopular ? "border-violet-300 shadow-glow" : "border-card-border hover:border-violet-200"
+                  }`}
+                >
+                  {isPopular && (
+                    <div className="grad-brand text-white text-[10px] font-bold text-center py-1 tracking-widest uppercase">Most Popular</div>
+                  )}
+                  <div className="p-5 flex flex-col flex-1 text-center">
+                    <p className="text-sm font-bold text-ink">{pack.name}</p>
+                    <p className="text-3xl font-black grad-text inline-block my-3">{pack.credits}</p>
+                    <p className="text-xs text-ink-soft mb-4">credits · never expire</p>
+                    <p className="text-lg font-extrabold text-ink mb-5">{formatPrice(pack.priceInPaise)}</p>
+                    <Button variant="primary" size="md" onClick={() => onBuy(pack.slug)} disabled={!!activeId} className="mt-auto w-full">
+                      {isLoading ? (<><Spinner /> Opening…</>) : "Buy now"}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {addons.length > 0 && (
+        <section>
+          <div className="mb-5">
+            <h2 className="text-lg font-extrabold text-ink">Feature Add-ons</h2>
+            <p className="text-sm text-ink-soft mt-0.5">One-time unlocks that enhance your plan.</p>
+          </div>
+          <div className="space-y-3">
+            {addons.map(addon => {
+              const isVeo3 = addon.slug === "addon_veo3";
+              const alreadyUnlocked = isVeo3 && user?.veo3Enabled;
+              const isLoading = activeId === addon.slug;
+              return (
+                <Card
+                  key={addon.id}
+                  tint={alreadyUnlocked ? "emerald" : "none"}
+                  className={`flex items-center gap-5 px-6 py-5 ${alreadyUnlocked ? "" : "hover:border-violet-200 transition-colors"}`}
+                >
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${alreadyUnlocked ? "bg-green-100 text-green-600" : "grad-brand text-white"}`}>
+                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-ink text-sm">{isVeo3 ? "Veo3 AI Video" : addon.name}</p>
+                      <span className="text-[10px] font-bold bg-tint-violet text-accent-violet px-2 py-0.5 rounded-full uppercase tracking-wide">One-time unlock</span>
+                    </div>
+                    <p className="text-xs text-ink-soft mt-0.5">
+                      {isVeo3 ? "Generate AI videos with Google Veo3. Usage draws from your existing credits." : `Unlock ${addon.name} for your plan.`}
+                    </p>
+                  </div>
+                  <div className="flex-shrink-0 flex items-center gap-4">
+                    <p className="text-lg font-extrabold text-ink">{formatPrice(addon.priceInPaise)}</p>
+                    {alreadyUnlocked ? (
+                      <span className="inline-flex items-center gap-1.5 bg-green-100 text-green-700 font-bold text-sm px-4 py-2.5 rounded-full">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5"><path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                        Unlocked
+                      </span>
+                    ) : (
+                      <Button variant="primary" size="md" onClick={() => onBuy(addon.slug)} disabled={!!activeId}>
+                        {isLoading ? (<><Spinner /> Opening…</>) : "Unlock Veo3"}
+                      </Button>
+                    )}
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+// ── Payment History tab ──────────────────────────────────────────────────────
+function HistoryTab({ purchases, purchasesLoaded }: { purchases: Purchase[]; purchasesLoaded: boolean }) {
+  return (
+    <Card className="p-6">
+      <h2 className="text-base font-extrabold text-ink mb-4">Purchase History</h2>
+      {!purchasesLoaded ? (
+        <div className="flex items-center gap-2 text-sm text-ink-soft py-6"><Spinner /> Loading…</div>
+      ) : purchases.length === 0 ? (
+        <div className="text-center py-10">
+          <p className="text-sm text-ink font-semibold">No purchases yet</p>
+          <p className="text-xs text-ink-soft mt-1">Your credit pack purchases will appear here.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {purchases.map(p => (
+            <div key={p.id} className="flex items-center justify-between py-3 px-4 bg-surface rounded-xl">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-ink truncate">{p.plan?.name ?? "Credit Pack"}</p>
+                <p className="text-xs text-ink-soft/70">{formatDate(p.createdAt)} · +{p.credits} credits</p>
+              </div>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <div className="text-right">
+                  <p className="text-sm font-bold text-ink">{formatINR(p.amountInPaise)}</p>
+                  <span className="text-[10px] font-semibold text-green-700 bg-tint-emerald px-2 py-0.5 rounded-full capitalize">{p.status}</span>
+                </div>
+                <Link
+                  href={`/dashboard/profile/receipt/${p.id}`}
+                  target="_blank"
+                  title="View receipt"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-card-border hover:bg-tint-blue hover:text-brand text-ink-soft/60 transition-colors"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                    <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1z" />
+                    <path d="M8 7h8M8 11h8M8 15h5" />
+                  </svg>
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }
 

@@ -18,6 +18,7 @@ export async function GET() {
       intervalMonths: true,
       monthlyCredits: true,
       veo3Included: true,
+      tier: true,
     },
   });
   return NextResponse.json({ plans });

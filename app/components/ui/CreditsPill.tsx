@@ -20,7 +20,7 @@ interface CreditsPillProps {
   href?: string;
 }
 
-export function CreditsPill({ credits, href = "/dashboard/profile/credits" }: CreditsPillProps) {
+export function CreditsPill({ credits, href = "/billing?tab=usage" }: CreditsPillProps) {
   return (
     <Link
       href={href}

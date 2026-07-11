@@ -38,13 +38,6 @@ function IcUser() {
     </svg>
   );
 }
-function IcBadge() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
-      <path d="M12 2l3 5.5 6 .9-4.4 4.2 1 6-5.6-3-5.6 3 1-6L3 8.4l6-.9z" />
-    </svg>
-  );
-}
 function IcCoin() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
@@ -61,22 +54,14 @@ function IcMessage() {
     </svg>
   );
 }
-function IcReceipt() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
-      <path d="M5 3h14v18l-2.5-1.5L14 21l-2-1.5L10 21l-2.5-1.5L5 21V3z" />
-      <path d="M8 8h8M8 12h8M8 16h5" />
-    </svg>
-  );
-}
 
 const NAV_ITEMS = [
   { label: "My Videos", href: "/dashboard/profile/my-videos", icon: IcVideo },
   { label: "Personal Info", href: "/dashboard/profile/personal-info", icon: IcUser },
-  { label: "Subscription", href: "/dashboard/profile/subscription", icon: IcBadge },
-  { label: "Credits", href: "/dashboard/profile/credits", icon: IcCoin },
+  // Subscription / Credits / Payment History consolidated into the single
+  // tabbed /billing surface (see app/billing/page.tsx).
+  { label: "Billing", href: "/billing", icon: IcCoin },
   { label: "Message", href: "/dashboard/profile/message", icon: IcMessage },
-  { label: "Payment History", href: "/dashboard/profile/payment-history", icon: IcReceipt },
 ];
 
 export default function AccountNav() {

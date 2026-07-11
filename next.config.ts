@@ -67,6 +67,17 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // Subscription/Credits/Payment-History were consolidated into the single
+  // tabbed /billing page (see app/billing/page.tsx) — permanent redirects so
+  // existing bookmarks/emails linking to the old profile sub-pages still land
+  // on the right content.
+  async redirects() {
+    return [
+      { source: "/dashboard/profile/subscription", destination: "/billing", permanent: true },
+      { source: "/dashboard/profile/credits", destination: "/billing?tab=usage", permanent: true },
+      { source: "/dashboard/profile/payment-history", destination: "/billing?tab=history", permanent: true },
+    ];
+  },
 };
 
 // Source-map upload only runs when SENTRY_AUTH_TOKEN/ORG/PROJECT are set;

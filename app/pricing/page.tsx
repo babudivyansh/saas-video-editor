@@ -6,6 +6,9 @@ import SiteNavbar from "@/app/components/SiteNavbar";
 import SiteFooter from "@/app/components/SiteFooter";
 import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
+import { PURCHASABLE_TIER_ORDER, TIER_LABEL, type TierId } from "@/lib/plans/tiers";
+import { IMAGE_MODELS, getImageModel } from "@/lib/models/imageModels";
+import { VIDEO_MODELS, getVideoModel } from "@/lib/models/videoModels";
 
 // ── Icons ──────────────────────────────────────────────────────────────────
 function ZapIcon({ className = "" }: { className?: string }) {
@@ -57,6 +60,7 @@ interface DbPlan {
   intervalMonths: number | null;
   monthlyCredits: number | null;
   veo3Included: boolean;
+  tier: Exclude<TierId, "free"> | null;
 }
 
 interface ToolCost {
@@ -64,6 +68,40 @@ interface ToolCost {
   label: string;
   service: string;
   creditCost: number;
+  creditCostMin?: number;
+  creditCostMax?: number;
+}
+
+interface CalcSelection {
+  kind: "image" | "video";
+  modelId: string;
+  qty: number;
+}
+
+interface CalcResult {
+  totalCredits: number;
+  eligibleTiers: Exclude<TierId, "free">[];
+  recommendedPlan: DbPlan | null;
+}
+
+function computeRecommendation(selections: CalcSelection[], subs: DbPlan[], term: number): CalcResult {
+  const active = selections.filter(s => s.qty > 0);
+  const totalCredits = active.reduce((sum, s) => {
+    if (s.kind === "image") return sum + getImageModel(s.modelId).creditCost * s.qty;
+    const m = getVideoModel(s.modelId);
+    const dur = typeof m.defaultValues.duration === "number" ? m.defaultValues.duration : m.minDurationSeconds;
+    return sum + m.creditsPerSecond * dur * s.qty;
+  }, 0);
+
+  const requiredTierSets = active.map(s =>
+    (s.kind === "image" ? getImageModel(s.modelId) : getVideoModel(s.modelId)).allowedTiers
+  );
+  const eligibleTiers = PURCHASABLE_TIER_ORDER.filter(t => requiredTierSets.every(allowed => allowed.includes(t)));
+  const recommendedPlan = eligibleTiers
+    .map(t => subs.find(p => p.tier === t && p.intervalMonths === term))
+    .find((p): p is DbPlan => !!p && (p.monthlyCredits ?? 0) >= totalCredits) ?? null;
+
+  return { totalCredits, eligibleTiers, recommendedPlan };
 }
 
 const TERMS = [
@@ -71,12 +109,6 @@ const TERMS = [
   { months: 12, label: "Yearly" },
 ];
 const YEARLY_SAVE_PCT = 20; // yearly plans are 20% cheaper than 12× monthly
-
-const TIER_ORDER = ["creator", "pro", "studio"] as const;
-function tierOf(slug: string): string | null {
-  const m = /^sub_([a-z]+)_/.exec(slug);
-  return m ? m[1] : null;
-}
 
 const WORKFLOWS = [
   { name: "Reddit Story Videos", starter: true, creator: true, studio: true },
@@ -141,6 +173,41 @@ const FAQS = [
   },
 ];
 
+// ── ModelBadgeRow ────────────────────────────────────────────────────────────
+// Shows which AI models a tier unlocks, using each registry entry's own
+// `allowedTiers` field — the single source of truth Phase 1 introduced.
+function ModelNameList({ tier, kind, highlighted }: { tier: Exclude<TierId, "free">; kind: "image" | "video"; highlighted: boolean }) {
+  const models = (kind === "image" ? IMAGE_MODELS : VIDEO_MODELS).filter(m => m.allowedTiers.includes(tier));
+  if (models.length === 0) return null;
+  const shown = models.slice(0, 4);
+  const rest = models.slice(4);
+  return (
+    <p className={`text-xs ${highlighted ? "text-blue-100" : "text-gray-600"}`}>
+      <span className={`font-semibold ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
+        {kind === "image" ? "Images" : "Video"}:
+      </span>{" "}
+      {shown.map(m => m.displayName).join(" · ")}
+      {rest.length > 0 && (
+        <span title={rest.map(m => m.displayName).join(", ")} className="cursor-help">
+          {" "}· +{rest.length} more
+        </span>
+      )}
+    </p>
+  );
+}
+
+function ModelBadgeRow({ tier, highlighted }: { tier: Exclude<TierId, "free">; highlighted: boolean }) {
+  return (
+    <div className={`mb-6 pb-6 border-b space-y-1.5 ${highlighted ? "border-white/20" : "border-gray-100"}`}>
+      <p className={`text-[11px] font-bold uppercase tracking-widest mb-2 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
+        Models included
+      </p>
+      <ModelNameList tier={tier} kind="image" highlighted={highlighted} />
+      <ModelNameList tier={tier} kind="video" highlighted={highlighted} />
+    </div>
+  );
+}
+
 // ── CompareRow ─────────────────────────────────────────────────────────────
 function CompareRow({ feature, starter, creator, studio, shaded }: {
   feature: string; starter: boolean; creator: boolean; studio: boolean; shaded: boolean;
@@ -185,6 +252,13 @@ export default function PricingPage() {
   const [couponError, setCouponError] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; label: string; discountInPaise: number } | null>(null);
 
+  // Credit calculator state — lets a visitor estimate monthly credit usage
+  // and see which plan (if any) covers both the credit total and every
+  // selected model's tier requirement.
+  const [calcSelections, setCalcSelections] = useState<CalcSelection[]>([
+    { kind: "image", modelId: IMAGE_MODELS[0].id, qty: 0 },
+  ]);
+
   // Derived loading flags from the shared checkout hook.
   const checkoutLoading = checkoutPlan != null && activeId === checkoutPlan.slug;
   const buyingPack = activeId;
@@ -221,6 +295,24 @@ export default function PricingPage() {
   // True only while the subscription period hasn't lapsed.
   const hasActivePlan =
     !!user?.subscriptionEndsAt && new Date(user.subscriptionEndsAt) > new Date();
+
+  const addCalcRow = () => {
+    setCalcSelections(prev => [...prev, { kind: "image", modelId: IMAGE_MODELS[0].id, qty: 0 }]);
+  };
+  const updateCalcRow = (idx: number, patch: Partial<CalcSelection>) => {
+    setCalcSelections(prev => prev.map((s, i) => {
+      if (i !== idx) return s;
+      const next = { ...s, ...patch };
+      // Switching kind means the previously-selected modelId is invalid — reset to that kind's first model.
+      if (patch.kind && patch.kind !== s.kind) {
+        next.modelId = (patch.kind === "image" ? IMAGE_MODELS[0] : VIDEO_MODELS[0]).id;
+      }
+      return next;
+    }));
+  };
+  const removeCalcRow = (idx: number) => {
+    setCalcSelections(prev => prev.filter((_, i) => i !== idx));
+  };
 
   const toggleAddon = (slug: string) => {
     setSelectedAddons(prev =>
@@ -364,8 +456,8 @@ export default function PricingPage() {
             ))}
           </div>
         ) : (() => {
-          const cards = TIER_ORDER
-            .map(tier => subs.find(p => tierOf(p.slug) === tier && p.intervalMonths === term))
+          const cards = PURCHASABLE_TIER_ORDER
+            .map(tier => subs.find(p => p.tier === tier && p.intervalMonths === term))
             .filter((p): p is DbPlan => !!p);
 
           if (cards.length === 0) {
@@ -383,10 +475,10 @@ export default function PricingPage() {
                 const price    = Math.round(plan.priceInPaise / 100);
                 const months   = plan.intervalMonths ?? 1;
                 const perMonth = Math.round(price / months);
-                const baseTier = plan.name.replace(/\s*\(.*\)$/, "");
+                const baseTier = plan.tier ? TIER_LABEL[plan.tier] : plan.name.replace(/\s*\(.*\)$/, "");
                 // For yearly, find the matching monthly plan to show savings.
-                const monthlyPlan = months > 1
-                  ? subs.find(p => tierOf(p.slug) === tierOf(plan.slug) && p.intervalMonths === 1)
+                const monthlyPlan = months > 1 && plan.tier
+                  ? subs.find(p => p.tier === plan.tier && p.intervalMonths === 1)
                   : null;
                 const monthlyEquiv = monthlyPlan ? Math.round(monthlyPlan.priceInPaise / 100) : null;
                 const fullYear = monthlyEquiv ? monthlyEquiv * 12 : null;
@@ -438,12 +530,14 @@ export default function PricingPage() {
                           ≈ {plan.monthlyCredits} images or {Math.floor(plan.monthlyCredits / 2)} video renders
                         </p>
                       )}
-                      {plan.veo3Included && tierOf(plan.slug) === "studio" && months > 1 && (
+                      {plan.veo3Included && plan.tier === "studio" && months > 1 && (
                         <span className={`inline-block mt-2 text-xs font-bold px-2 py-0.5 rounded-full ${highlighted ? "bg-white/20 text-white" : "bg-purple-100 text-purple-700"}`}>
                           ✦ Veo3 AI video included
                         </span>
                       )}
                     </div>
+
+                    {plan.tier && <ModelBadgeRow tier={plan.tier} highlighted={highlighted} />}
 
                     <ul className="space-y-3 mb-8 flex-1">
                       {plan.features.map((f) => (
@@ -634,6 +728,87 @@ export default function PricingPage() {
           Free tools always free · Subscription credits refill monthly, don&apos;t roll over · Add-on credits valid while subscribed · Powered by Razorpay
         </p>
       </section>
+
+      {/* ── Credit Calculator ── */}
+      {!plansLoading && subs.length > 0 && (() => {
+        const result = computeRecommendation(calcSelections, subs, term);
+        return (
+          <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16 border-t border-gray-100">
+            <div className="text-center mb-8">
+              <span className="inline-block bg-blue-100 text-blue-700 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
+                Credit calculator
+              </span>
+              <h2 className="text-3xl font-extrabold text-gray-900">Estimate your monthly usage</h2>
+              <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
+                Pick the models you plan to use and how often — we&apos;ll estimate your monthly credits and recommend a plan.
+              </p>
+            </div>
+
+            <div className="bg-gray-50 rounded-2xl border border-gray-100 p-6 space-y-3">
+              {calcSelections.map((sel, idx) => {
+                const models = sel.kind === "image" ? IMAGE_MODELS : VIDEO_MODELS;
+                return (
+                  <div key={idx} className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={sel.kind}
+                      onChange={e => updateCalcRow(idx, { kind: e.target.value as "image" | "video" })}
+                      className="bg-white border border-gray-200 rounded-lg px-2.5 py-2 text-sm font-medium"
+                    >
+                      <option value="image">Image</option>
+                      <option value="video">Video</option>
+                    </select>
+                    <select
+                      value={sel.modelId}
+                      onChange={e => updateCalcRow(idx, { modelId: e.target.value })}
+                      className="flex-1 min-w-[160px] bg-white border border-gray-200 rounded-lg px-2.5 py-2 text-sm font-medium"
+                    >
+                      {models.map(m => <option key={m.id} value={m.id}>{m.displayName}</option>)}
+                    </select>
+                    <input
+                      type="number"
+                      min={0}
+                      value={sel.qty}
+                      onChange={e => updateCalcRow(idx, { qty: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                      className="w-20 bg-white border border-gray-200 rounded-lg px-2.5 py-2 text-sm font-medium text-center"
+                    />
+                    <span className="text-xs text-gray-400 whitespace-nowrap">per month</span>
+                    {calcSelections.length > 1 && (
+                      <button onClick={() => removeCalcRow(idx)} className="text-gray-400 hover:text-red-500 p-1" aria-label="Remove">
+                        <XIcon className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              <button onClick={addCalcRow} className="text-sm font-semibold text-blue-600 hover:text-blue-800">
+                + Add another model
+              </button>
+            </div>
+
+            <div className="mt-6 rounded-2xl border-2 border-blue-100 bg-blue-50/40 p-6 text-center">
+              <p className="text-sm text-gray-500">Estimated monthly credits</p>
+              <p className="text-4xl font-black text-gray-900 mt-1">{result.totalCredits.toLocaleString("en-IN")}</p>
+
+              {result.recommendedPlan ? (
+                <p className="text-sm text-gray-700 mt-3">
+                  <strong>{TIER_LABEL[result.recommendedPlan.tier!]}</strong> covers your selection
+                  ({result.recommendedPlan.monthlyCredits} credits/month).
+                </p>
+              ) : result.eligibleTiers.length === 0 && calcSelections.some(s => s.qty > 0) ? (
+                <p className="text-sm text-amber-700 mt-3">
+                  No single plan unlocks every model you picked — check each model&apos;s minimum plan above and choose the highest one to unlock everything.
+                </p>
+              ) : calcSelections.some(s => s.qty > 0) ? (
+                <p className="text-sm text-amber-700 mt-3">
+                  Even Studio&apos;s monthly allowance may be short for this much usage — consider a top-up pack alongside your plan.
+                </p>
+              ) : (
+                <p className="text-sm text-gray-400 mt-3">Add a model and quantity above to see an estimate.</p>
+              )}
+            </div>
+          </section>
+        );
+      })()}
 
       {/* ── Checkout Modal ── */}
       {checkoutPlan && (
@@ -896,7 +1071,9 @@ export default function PricingPage() {
                 <span className={`flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${
                   t.creditCost === 0 ? "bg-green-100 text-green-700" : t.creditCost >= 20 ? "bg-purple-100 text-purple-700" : "bg-blue-50 text-blue-700"
                 }`}>
-                  {t.creditCost === 0 ? "Free" : `${t.creditCost} ${t.creditCost === 1 ? "credit" : "credits"}`}
+                  {t.creditCostMin != null && t.creditCostMax != null && t.creditCostMax > t.creditCostMin
+                    ? `${t.creditCostMin}–${t.creditCostMax} credits`
+                    : t.creditCost === 0 ? "Free" : `${t.creditCost} ${t.creditCost === 1 ? "credit" : "credits"}`}
                 </span>
               </div>
             ))}
@@ -943,9 +1120,14 @@ export default function PricingPage() {
               </tr>
               <tr className="bg-white border-b border-gray-50">
                 <td className="py-4 px-6 text-sm text-gray-700">Credits per month</td>
-                <td className="text-center py-4 px-4 text-sm font-semibold text-gray-900">50</td>
-                <td className="text-center py-4 px-4 text-sm font-semibold text-blue-600 bg-blue-50/50">140</td>
-                <td className="text-center py-4 px-4 text-sm font-semibold text-gray-900">340</td>
+                {PURCHASABLE_TIER_ORDER.map(t => (
+                  <td
+                    key={t}
+                    className={`text-center py-4 px-4 text-sm font-semibold ${t === "pro" ? "text-blue-600 bg-blue-50/50" : "text-gray-900"}`}
+                  >
+                    {subs.find(p => p.tier === t && p.intervalMonths === term)?.monthlyCredits ?? "—"}
+                  </td>
+                ))}
               </tr>
               <tr className="bg-gray-50">
                 <td className="py-4 px-6 text-sm text-gray-700">Priority rendering</td>

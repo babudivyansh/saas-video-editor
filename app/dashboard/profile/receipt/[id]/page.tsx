@@ -43,7 +43,7 @@ export default function ReceiptPage() {
       <div className="max-w-lg mx-auto">
         {/* Controls — hidden when printing */}
         <div className="flex items-center justify-between mb-6 print:hidden">
-          <Link href="/dashboard/profile/payment-history" className="text-sm font-semibold text-ink-soft hover:text-ink inline-flex items-center gap-1.5">
+          <Link href="/billing?tab=history" className="text-sm font-semibold text-ink-soft hover:text-ink inline-flex items-center gap-1.5">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M15 18l-6-6 6-6"/></svg>
             Back to profile
           </Link>
