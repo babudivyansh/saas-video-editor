@@ -5,8 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { firePostCreditSpendEmails, fireZeroCreditsEmail } from "@/lib/credit-events";
 import { attachmentDisposition } from "@/utils/content-disposition";
 import { withRateLimit } from "@/lib/with-rate-limit";
-import { withRetry } from "@/lib/with-retry";
 import { env } from "@/lib/env";
+import { getVideoModel } from "@/lib/models/videoModels";
+import { falSubmit, falPollUntilDone, extractResultUrl } from "@/lib/fal";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -18,10 +19,7 @@ export const maxDuration = 300;
 // be $0.40/s). 8s w/ audio now costs ~$1.20 = ~₹114 at ₹95/$1, well under the
 // 35-credit price even on the cheapest per-credit plan. Standard/4K can be
 // reintroduced as a premium tier later.
-const CREDIT_COST = 35;
 const MAX_DURATION = 8;
-
-const VEO3_FAST_MODEL = "fal-ai/veo3/fast";
 
 interface Job {
   progress: number;
@@ -32,6 +30,7 @@ interface Job {
   createdAt: number;
   userId: string;
   refunded: boolean;
+  creditCost: number;
   usedVeo3Credits: boolean; // which pool was deducted from — needed for refund
 }
 
@@ -48,74 +47,22 @@ function sweep() {
   }
 }
 
-async function refundCredit(userId: string, useVeo3Credits: boolean) {
+async function refundCredit(userId: string, creditCost: number, useVeo3Credits: boolean) {
   if (useVeo3Credits) {
     await prisma.user.update({
       where: { id: userId },
-      data: { veo3Credits: { increment: CREDIT_COST } },
+      data: { veo3Credits: { increment: creditCost } },
     });
   } else {
     await prisma.user.update({
       where: { id: userId },
-      data: { credits: { increment: CREDIT_COST } },
+      data: { credits: { increment: creditCost } },
     });
     const cached = await redis.get(`credits:${userId}`);
     if (cached !== null) {
-      await redis.set(`credits:${userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
+      await redis.set(`credits:${userId}`, String(parseInt(cached, 10) + creditCost), "EX", 3600);
     }
   }
-}
-
-function falAuth() {
-  return { Authorization: `Key ${env.FAL_KEY}` };
-}
-
-async function falSubmit(modelId: string, input: Record<string, unknown>): Promise<string> {
-  const res = await withRetry(
-    (signal) => fetch(`https://queue.fal.run/${modelId}`, {
-      method: "POST",
-      headers: { ...falAuth(), "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-      signal,
-    }),
-    { timeoutMs: 15_000 },
-  );
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`fal.ai submit error ${res.status}: ${txt}`);
-  }
-  const data = await res.json();
-  return data.request_id as string;
-}
-
-async function falPollUntilDone(modelId: string, requestId: string): Promise<string> {
-  const deadline = Date.now() + 12 * 60 * 1000;
-  while (Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, 5000));
-    const statusRes = await fetch(
-      `https://queue.fal.run/${modelId}/requests/${requestId}/status`,
-      { headers: falAuth() },
-    );
-    if (!statusRes.ok) continue;
-    const statusData = await statusRes.json();
-    const status = statusData.status as string;
-    if (status === "COMPLETED") {
-      const resultRes = await fetch(
-        `https://queue.fal.run/${modelId}/requests/${requestId}`,
-        { headers: falAuth() },
-      );
-      if (!resultRes.ok) throw new Error("fal.ai result fetch failed");
-      const result = await resultRes.json();
-      const videoUrl = result.video?.url as string | undefined;
-      if (!videoUrl) throw new Error("No video URL in fal.ai result");
-      return videoUrl;
-    }
-    if (status === "FAILED") {
-      const err = statusData.error ?? "fal.ai generation failed";
-      throw new Error(typeof err === "string" ? err : JSON.stringify(err));
-    }
-  }
-  throw new Error("fal.ai generation timed out after 12 minutes");
 }
 
 async function handlePOST(req: NextRequest) {
@@ -128,32 +75,17 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "Video generation is not configured (missing FAL_KEY)" }, { status: 503 });
   }
 
-  // Fetch veo3Credits + regular credits + gate flag in one query.
-  const me = await prisma.user.findUnique({
-    where: { id: auth.userId },
-    select: { veo3Enabled: true, veo3Credits: true },
-  });
-
-  // Gate: must have veo3Enabled OR have veo3Credits from the Veo3 pack.
-  const hasVeo3Access = me?.veo3Enabled || (me?.veo3Credits ?? 0) >= CREDIT_COST;
-  if (!hasVeo3Access) {
-    return NextResponse.json(
-      { error: "AI Video (Veo3) is locked. Upgrade to a yearly plan or buy a Veo3 Video Pack." },
-      { status: 403 },
-    );
-  }
-
-  // Decide which pool to use: veo3Credits first, then regular credits.
-  const useVeo3Credits = (me?.veo3Credits ?? 0) >= CREDIT_COST;
-  if (!useVeo3Credits) {
-    const cachedCredits = await redis.get(`credits:${auth.userId}`);
-    const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
-    if (cached !== null && cached < CREDIT_COST) {
-      return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
-    }
-  }
-
-  let body: { prompt?: string; model?: string; duration?: number; aspectRatio?: string; referenceImageUrl?: string };
+  let body: {
+    prompt?: string;
+    model?: string;
+    duration?: number;
+    aspectRatio?: string;
+    resolution?: string;
+    fps?: number;
+    motion?: string;
+    seed?: number;
+    referenceImageUrl?: string;
+  };
   try {
     body = await req.json();
   } catch {
@@ -164,11 +96,54 @@ async function handlePOST(req: NextRequest) {
   if (!prompt) return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
   if (prompt.length > 2000) return NextResponse.json({ error: "Prompt too long (max 2000 chars)" }, { status: 400 });
 
-  // Locked to the fast model and capped at 8s to bound API cost.
-  const falModelId = VEO3_FAST_MODEL;
-  const duration = Math.min(body.duration ?? MAX_DURATION, MAX_DURATION);
-  const aspectRatio = body.aspectRatio ?? "16:9";
+  const modelEntry = getVideoModel(body.model);
+  const CREDIT_COST = modelEntry.creditCost;
+  const isVeo3 = modelEntry.integration === "direct-veo3-fast";
   const referenceImageUrl = body.referenceImageUrl ?? null;
+
+  if (modelEntry.imageInput === "required" && !referenceImageUrl) {
+    return NextResponse.json(
+      { error: `${modelEntry.displayName} requires a reference image upload` },
+      { status: 400 },
+    );
+  }
+
+  // Decide which pool to use. Only Veo3 may ever draw from the restricted
+  // veo3Credits pool — every other model always uses the regular credits pool
+  // with its own registry-defined cost, even if the user has leftover veo3Credits.
+  let useVeo3Credits = false;
+  if (isVeo3) {
+    // Fetch veo3Credits + regular credits + gate flag in one query.
+    const me = await prisma.user.findUnique({
+      where: { id: auth.userId },
+      select: { veo3Enabled: true, veo3Credits: true },
+    });
+
+    // Gate: must have veo3Enabled OR have veo3Credits from the Veo3 pack.
+    const hasVeo3Access = me?.veo3Enabled || (me?.veo3Credits ?? 0) >= CREDIT_COST;
+    if (!hasVeo3Access) {
+      return NextResponse.json(
+        { error: "AI Video (Veo3) is locked. Upgrade to a yearly plan or buy a Veo3 Video Pack." },
+        { status: 403 },
+      );
+    }
+
+    // Decide which pool to use: veo3Credits first, then regular credits.
+    useVeo3Credits = (me?.veo3Credits ?? 0) >= CREDIT_COST;
+  }
+
+  if (!useVeo3Credits) {
+    const cachedCredits = await redis.get(`credits:${auth.userId}`);
+    const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
+    if (cached !== null && cached < CREDIT_COST) {
+      return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
+    }
+  }
+
+  // Locked to the fast model and capped at 8s to bound API cost (Veo3 only).
+  const falModelId = modelEntry.falEndpoint;
+  const duration = isVeo3 ? Math.min(body.duration ?? MAX_DURATION, MAX_DURATION) : (body.duration ?? MAX_DURATION);
+  const aspectRatio = body.aspectRatio ?? "16:9";
 
   // Deduct from the chosen pool.
   if (useVeo3Credits) {
@@ -208,6 +183,7 @@ async function handlePOST(req: NextRequest) {
     createdAt: Date.now(),
     userId: auth.userId,
     refunded: false,
+    creditCost: CREDIT_COST,
     usedVeo3Credits: useVeo3Credits,
   };
   jobs.set(jobId, job);
@@ -216,12 +192,33 @@ async function handlePOST(req: NextRequest) {
     try {
       job.progress = 10;
 
-      const falInput: Record<string, unknown> = {
-        prompt,
-        duration,
-        aspect_ratio: aspectRatio,
-      };
-      if (referenceImageUrl) falInput.image_url = referenceImageUrl;
+      let falInput: Record<string, unknown>;
+      let resultPath: string[];
+      if (isVeo3) {
+        // Exactly today's Veo3 input shape/result extraction — unchanged.
+        falInput = { prompt, duration, aspect_ratio: aspectRatio };
+        if (referenceImageUrl) falInput.image_url = referenceImageUrl;
+        resultPath = ["video.url"];
+      } else {
+        const bodyValues: Partial<Record<typeof modelEntry.supportedParameters[number], string | number>> = {
+          duration,
+          aspectRatio,
+          resolution: body.resolution,
+          fps: body.fps,
+          motion: body.motion,
+          seed: body.seed,
+        };
+        falInput = {};
+        for (const p of modelEntry.supportedParameters) {
+          if (p === "imageUpload") continue;
+          const key = modelEntry.integration === "fal" ? (modelEntry.inputMap[p] ?? p) : p;
+          if (p === "prompt") falInput[key] = prompt;
+          else if (bodyValues[p] !== undefined) falInput[key] = bodyValues[p];
+          else if (modelEntry.defaultValues[p] !== undefined) falInput[key] = modelEntry.defaultValues[p];
+        }
+        if (referenceImageUrl) falInput.image_url = referenceImageUrl;
+        resultPath = modelEntry.integration === "fal" ? modelEntry.resultPath : ["video.url"];
+      }
 
       const requestId = await falSubmit(falModelId, falInput);
       job.progress = 15;
@@ -233,7 +230,8 @@ async function handlePOST(req: NextRequest) {
 
       let videoUrl: string;
       try {
-        videoUrl = await falPollUntilDone(falModelId, requestId);
+        const raw = await falPollUntilDone(falModelId, requestId);
+        videoUrl = extractResultUrl(raw, resultPath);
       } finally {
         clearInterval(progressTimer);
       }
@@ -252,7 +250,7 @@ async function handlePOST(req: NextRequest) {
       job.error = err instanceof Error ? err.message : "Video generation failed";
       if (!job.refunded) {
         job.refunded = true;
-        try { await refundCredit(job.userId, job.usedVeo3Credits); } catch { /* swallow */ }
+        try { await refundCredit(job.userId, job.creditCost, job.usedVeo3Credits); } catch { /* swallow */ }
       }
     }
   })();

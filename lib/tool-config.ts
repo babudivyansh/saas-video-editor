@@ -12,6 +12,14 @@ export interface ToolConfig {
 export type ToolConfigMap = Record<string, ToolConfig>;
 
 // Defaults for every tool. These are used when no DB config row exists yet.
+//
+// image-generator / video-generator: creditCost here is display-only — it
+// feeds the public "starting at N credits" price (app/api/tool-costs/route.ts)
+// and the admin pricing editor. Actual per-generation deduction is read from
+// the selected model's own creditCost in lib/models/imageModels.ts /
+// videoModels.ts (see app/api/tools/image-generator/route.ts and
+// app/api/tools/video-generator/route.ts). Keep these two values in sync with
+// the cheapest model in each registry.
 export const TOOL_DEFAULTS: ToolConfigMap = {
   "audio-balancer":   { enabled: true, creditCost: 0 },
   "mp3-converter":    { enabled: true, creditCost: 0 },

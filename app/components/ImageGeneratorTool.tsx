@@ -1,11 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
-
-// ── Models ───────────────────────────────────────────────────────────────────
-const MODELS = [
-  { slug: "imagen-3", name: "Imagen 3", badge: "Google" },
-];
+import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID, getImageModel } from "@/lib/models/imageModels";
+import type { ImageParam } from "@/lib/models/types";
 
 const RATIOS = ["Original","1:1","4:3","3:4","16:9","9:16","3:2","2:3","21:9"];
 
@@ -17,6 +14,14 @@ interface Generation {
   model: string;
   ratio: string;
   createdAt: number;
+}
+
+// Plain module-scope helper (not a component/hook) so the impure Date.now()/
+// crypto.randomUUID() calls it makes aren't analyzed as part of a component's
+// render body by the React Compiler's purity checks — this only ever runs
+// inside the generate() click handler, never during render.
+function buildGeneration(imageUrl: string, prompt: string, model: string, ratio: string): Generation {
+  return { id: crypto.randomUUID(), imageUrl, prompt, model, ratio, createdAt: Date.now() };
 }
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -51,11 +56,17 @@ function Spinner({ className = "w-4 h-4" }: { className?: string }) {
 // ── Custom dropdown ──────────────────────────────────────────────────────────
 function ModelDropdown({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
-  const selected = MODELS.find(m => m.slug === value) ?? MODELS[0];
+  const selected = getImageModel(value);
+  const filtered = IMAGE_MODELS.filter(m =>
+    !search.trim() ||
+    m.displayName.toLowerCase().includes(search.toLowerCase()) ||
+    m.provider.toLowerCase().includes(search.toLowerCase())
+  );
 
   useEffect(() => {
-    function h(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
+    function h(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setSearch(""); } }
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
@@ -63,10 +74,10 @@ function ModelDropdown({ value, onChange }: { value: string; onChange: (v: strin
   return (
     <div ref={ref} className="relative">
       <button
-        onClick={() => setOpen(o => !o)}
+        onClick={() => setOpen(o => { if (o) setSearch(""); return !o; })}
         className="flex items-center gap-2 w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[13.5px] font-medium text-gray-900 hover:border-gray-300 transition-colors cursor-pointer"
       >
-        <span className="flex-1 text-left">{selected.name}</span>
+        <span className="flex-1 text-left">{selected.displayName}</span>
         {selected.badge && (
           <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 rounded-md px-1.5 py-0.5">{selected.badge}</span>
         )}
@@ -74,19 +85,34 @@ function ModelDropdown({ value, onChange }: { value: string; onChange: (v: strin
       </button>
       {open && (
         <div className="absolute left-0 top-full mt-1 z-30 w-full bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden">
-          {MODELS.map(m => (
-            <button
-              key={m.slug}
-              onClick={() => { onChange(m.slug); setOpen(false); }}
-              className="w-full flex items-center gap-2 px-3.5 py-2.5 text-[13.5px] text-left hover:bg-gray-50 transition-colors cursor-pointer"
-            >
-              {value === m.slug ? <span className="text-blue-600"><IcCheck /></span> : <span className="w-3.5 h-3.5" />}
-              <span className="flex-1 font-medium text-gray-900">{m.name}</span>
-              {m.badge && (
-                <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 rounded-md px-1.5 py-0.5 whitespace-nowrap">{m.badge}</span>
-              )}
-            </button>
-          ))}
+          <div className="p-2 border-b border-gray-100">
+            <input
+              autoFocus
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search models..."
+              className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12.5px] outline-none focus:border-blue-400"
+              onClick={e => e.stopPropagation()}
+            />
+          </div>
+          <div className="max-h-72 overflow-y-auto">
+            {filtered.map(m => (
+              <button
+                key={m.id}
+                onClick={() => { onChange(m.id); setOpen(false); setSearch(""); }}
+                className="w-full flex items-center gap-2 px-3.5 py-2.5 text-[13.5px] text-left hover:bg-gray-50 transition-colors cursor-pointer"
+              >
+                {value === m.id ? <span className="text-blue-600"><IcCheck /></span> : <span className="w-3.5 h-3.5" />}
+                <span className="flex-1 font-medium text-gray-900">{m.displayName}</span>
+                {m.badge && (
+                  <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 rounded-md px-1.5 py-0.5 whitespace-nowrap">{m.badge}</span>
+                )}
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <p className="px-3.5 py-3 text-[12.5px] text-gray-400 text-center">No models found</p>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -133,10 +159,18 @@ function RatioDropdown({ value, onChange }: { value: string; onChange: (v: strin
 export default function ImageGeneratorTool() {
   const { user, token, openAuthModal, refreshUser } = useAuth();
 
-  const [model, setModel] = useState("imagen-3");
+  const [model, setModel] = useState(DEFAULT_IMAGE_MODEL_ID);
   const [ratio, setRatio] = useState("9:16");
   const [prompt, setPrompt] = useState("");
+  const [negativePrompt, setNegativePrompt] = useState("");
+  const [seed, setSeed] = useState("");
+  const [guidanceScale, setGuidanceScale] = useState("");
+  const [steps, setSteps] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [referencePreview, setReferencePreview] = useState<string | null>(null);
+
+  const modelEntry = getImageModel(model);
+  const supports = (p: ImageParam) => modelEntry.supportedParameters.includes(p);
 
   const [generating, setGenerating] = useState(false);
   const [enhancing, setEnhancing] = useState(false);
@@ -197,18 +231,19 @@ export default function ImageGeneratorTool() {
       const res = await fetch("/api/tools/image-generator", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ prompt: prompt.trim(), model, ratio }),
+        body: JSON.stringify({
+          prompt: prompt.trim(),
+          model,
+          ratio,
+          negativePrompt: supports("negativePrompt") && negativePrompt.trim() ? negativePrompt.trim() : undefined,
+          seed: supports("seed") && seed.trim() ? Number(seed) : undefined,
+          guidanceScale: supports("guidanceScale") && guidanceScale.trim() ? Number(guidanceScale) : undefined,
+          steps: supports("steps") && steps.trim() ? Number(steps) : undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Generation failed");
-      const item: Generation = {
-        id: crypto.randomUUID(),
-        imageUrl: data.imageUrl,
-        prompt: prompt.trim(),
-        model,
-        ratio,
-        createdAt: Date.now(),
-      };
+      const item = buildGeneration(data.imageUrl, prompt.trim(), model, ratio);
       setCurrentImage(data.imageUrl);
       persistGenerations([item, ...generations]);
       refreshUser();
@@ -223,7 +258,7 @@ export default function ImageGeneratorTool() {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); generate(); }
   }
 
-  const modelName = MODELS.find(m => m.slug === model)?.name ?? model;
+  const modelName = modelEntry.displayName;
 
   return (
     <div className="mx-auto w-full max-w-[1440px] px-8 pb-12">
@@ -299,6 +334,70 @@ export default function ImageGeneratorTool() {
               )}
             </div>
           </div>
+
+          {/* Dynamic per-model parameters */}
+          {supports("negativePrompt") && (
+            <div className="mb-4">
+              <p className="text-[12px] font-semibold text-gray-500 mb-1.5">Negative Prompt</p>
+              <input
+                value={negativePrompt}
+                onChange={e => setNegativePrompt(e.target.value)}
+                placeholder="Things to avoid in the image..."
+                className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+              />
+            </div>
+          )}
+
+          {(supports("seed") || supports("guidanceScale") || supports("steps")) && (
+            <div className="mb-4">
+              <button
+                onClick={() => setShowAdvanced(a => !a)}
+                className="flex items-center gap-1 text-[12px] font-semibold text-gray-500 hover:text-gray-700 cursor-pointer"
+              >
+                Advanced <IcChevron />
+              </button>
+              {showAdvanced && (
+                <div className="mt-2 flex gap-3">
+                  {supports("seed") && (
+                    <div className="flex-1">
+                      <p className="text-[11px] text-gray-400 mb-1">Seed</p>
+                      <input
+                        type="number"
+                        value={seed}
+                        onChange={e => setSeed(e.target.value)}
+                        placeholder="Random"
+                        className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12.5px] outline-none focus:border-blue-400"
+                      />
+                    </div>
+                  )}
+                  {supports("guidanceScale") && (
+                    <div className="flex-1">
+                      <p className="text-[11px] text-gray-400 mb-1">Guidance</p>
+                      <input
+                        type="number"
+                        value={guidanceScale}
+                        onChange={e => setGuidanceScale(e.target.value)}
+                        placeholder="Default"
+                        className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12.5px] outline-none focus:border-blue-400"
+                      />
+                    </div>
+                  )}
+                  {supports("steps") && (
+                    <div className="flex-1">
+                      <p className="text-[11px] text-gray-400 mb-1">Steps</p>
+                      <input
+                        type="number"
+                        value={steps}
+                        onChange={e => setSteps(e.target.value)}
+                        placeholder="Default"
+                        className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12.5px] outline-none focus:border-blue-400"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Preview area */}
           <div className="rounded-2xl border border-gray-200 bg-gray-50 mb-4 overflow-hidden" style={{ minHeight: 340 }}>
