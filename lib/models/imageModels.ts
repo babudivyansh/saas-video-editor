@@ -2,8 +2,14 @@ import { ImageModelEntry } from "./types";
 
 // Adding a model only requires adding an entry here — no other file needs to change
 // (app/api/tools/image-generator/route.ts and app/components/ImageGeneratorTool.tsx both
-// read this registry generically). Credit costs are rough placeholders reflecting relative
-// FAL pricing tiers; adjust to match actual billed usage before shipping.
+// read this registry generically).
+//
+// creditCost is computed as ceil(costUsd * margin / 0.099), where $0.099/credit
+// is the revenue floor at the cheapest live plan (Studio Yearly ≈ ₹9.41/credit
+// at ₹95/$1), margin 3x standard / 4-5x flagship. A few entries deliberately
+// keep a higher price than the formula would compute (see inline notes) —
+// don't cut revenue on an already-profitable model just because the formula
+// says you could charge less.
 export const IMAGE_MODELS: readonly ImageModelEntry[] = [
   {
     id: "gemini-flash-2.0",
@@ -12,7 +18,9 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     badge: "Google",
     category: "image",
     integration: "direct-gemini",
-    creditCost: 1,
+    costUsd: 0.04, // Google direct API
+    creditCost: 2, // ceil(0.04*3/0.099); default/free model, raised from 1
+    allowedTiers: ["free", "creator", "pro", "studio"],
     supportedParameters: ["prompt"],
     defaultValues: {},
     imageInput: "none",
@@ -25,7 +33,9 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     category: "image",
     integration: "fal",
     falEndpoint: "bytedance/seedream/v5/lite/text-to-image",
-    creditCost: 2,
+    costUsd: 0.03,
+    creditCost: 2, // kept current — formula would cut to 1, no reason to
+    allowedTiers: ["creator", "pro", "studio"],
     supportedParameters: ["prompt", "negativePrompt", "aspectRatio", "seed"],
     defaultValues: { aspectRatio: "1:1" },
     inputMap: { negativePrompt: "negative_prompt", aspectRatio: "aspect_ratio" },
@@ -40,7 +50,9 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     category: "image",
     integration: "fal",
     falEndpoint: "openai/gpt-image-2",
-    creditCost: 6,
+    costUsd: 0.02, // medium quality
+    creditCost: 6, // kept current — premium brand pricing, formula would cut to 1
+    allowedTiers: ["pro", "studio"],
     supportedParameters: ["prompt", "aspectRatio"],
     defaultValues: { aspectRatio: "1:1" },
     inputMap: { aspectRatio: "aspect_ratio" },
@@ -55,7 +67,9 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     category: "image",
     integration: "fal",
     falEndpoint: "fal-ai/flux-2-pro",
-    creditCost: 3,
+    costUsd: 0.03,
+    creditCost: 3, // kept current
+    allowedTiers: ["creator", "pro", "studio"],
     supportedParameters: ["prompt", "aspectRatio", "seed", "guidanceScale", "steps"],
     defaultValues: { aspectRatio: "1:1" },
     inputMap: { aspectRatio: "aspect_ratio", guidanceScale: "guidance_scale", steps: "num_inference_steps" },
@@ -70,7 +84,9 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     category: "image",
     integration: "fal",
     falEndpoint: "fal-ai/nano-banana-2",
-    creditCost: 2,
+    costUsd: 0.08,
+    creditCost: 4, // ceil(0.08*4/0.099); raised from 2, was underpriced at 2.48x margin
+    allowedTiers: ["pro", "studio"],
     supportedParameters: ["prompt", "aspectRatio"],
     defaultValues: { aspectRatio: "1:1" },
     inputMap: { aspectRatio: "aspect_ratio" },
@@ -86,7 +102,9 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     integration: "fal",
     // TODO verify-before-ship: confirm exact tier slug (`/fast` vs `/instant`).
     falEndpoint: "ideogram/v4/fast",
-    creditCost: 3,
+    costUsd: 0.015,
+    creditCost: 3, // kept current
+    allowedTiers: ["creator", "pro", "studio"],
     supportedParameters: ["prompt", "negativePrompt", "aspectRatio", "seed"],
     defaultValues: { aspectRatio: "1:1" },
     inputMap: { negativePrompt: "negative_prompt", aspectRatio: "aspect_ratio" },
@@ -101,7 +119,9 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     category: "image",
     integration: "fal",
     falEndpoint: "fal-ai/krea-2/turbo",
-    creditCost: 2,
+    costUsd: 0.03,
+    creditCost: 2, // kept current
+    allowedTiers: ["creator", "pro", "studio"],
     supportedParameters: ["prompt", "aspectRatio", "seed"],
     defaultValues: { aspectRatio: "1:1" },
     inputMap: { aspectRatio: "aspect_ratio" },
@@ -116,7 +136,9 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     category: "image",
     integration: "fal",
     falEndpoint: "fal-ai/nano-banana-pro",
-    creditCost: 4,
+    costUsd: 0.15, // 1K output
+    creditCost: 8, // ceil(0.15*5/0.099); raised from 4, flagship, studio-exclusive
+    allowedTiers: ["studio"],
     supportedParameters: ["prompt", "aspectRatio"],
     defaultValues: { aspectRatio: "1:1" },
     inputMap: { aspectRatio: "aspect_ratio" },
@@ -131,7 +153,9 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     category: "image",
     integration: "fal",
     falEndpoint: "fal-ai/qwen-image-2/text-to-image",
-    creditCost: 1,
+    costUsd: 0.0275,
+    creditCost: 1, // matches formula
+    allowedTiers: ["free", "creator", "pro", "studio"],
     supportedParameters: ["prompt", "negativePrompt", "aspectRatio", "seed", "guidanceScale"],
     defaultValues: { aspectRatio: "1:1" },
     inputMap: { negativePrompt: "negative_prompt", aspectRatio: "image_size", guidanceScale: "cfg_scale" },

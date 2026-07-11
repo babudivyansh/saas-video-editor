@@ -13,47 +13,48 @@ enum Role {
 }
 
 model User {
-  id           String     @id @default(uuid())
-  email        String     @unique
-  phone        String?    @unique
-  passwordHash String
-  credits      Int        @default(0)
-  role         Role       @default(USER)
-  firstName    String?
-  lastName     String?
-  name         String?
-  avatarUrl    String?
-  gender       String?    // "male" | "female" | "unspecified" — validated in the API layer
-  intendedUse  String?    // "content_creator" | "business_marketing" | "personal" | "other" — validated in the API layer
-  planId       String?
-  plan         Plan?      @relation(fields: [planId], references: [id])
+  id                   String          @id @default(uuid())
+  email                String          @unique
+  phone                String?         @unique
+  passwordHash         String
+  credits              Int             @default(0)
+  role                 Role            @default(USER)
+  firstName            String?
+  lastName             String?
+  name                 String?
+  avatarUrl            String?
+  gender               String? // "male" | "female" | "unspecified" — validated in the API layer
+  intendedUse          String? // "content_creator" | "business_marketing" | "personal" | "other" — validated in the API layer
+  planId               String?
+  plan                 Plan?           @relation(fields: [planId], references: [id])
   // Subscription state (Phase C)
-  subscriptionId     String?    // Razorpay subscription/order id for the active term
-  subscriptionEndsAt DateTime?  // when the prepaid term expires (null = no active sub)
-  nextRefillAt       DateTime?  // when the next monthly credit grant is due
-  monthlyCredits     Int        @default(0) // credits granted on each refill for the active tier
-  veo3Enabled        Boolean    @default(false) // Veo3 unlocked (bundled term or paid add-on)
-  veo3Credits        Int        @default(0)    // restricted pool from Veo3 pack — only spendable on Veo3
+  subscriptionId       String? // Razorpay subscription/order id for the active term
+  subscriptionEndsAt   DateTime? // when the prepaid term expires (null = no active sub)
+  nextRefillAt         DateTime? // when the next monthly credit grant is due
+  monthlyCredits       Int             @default(0) // credits granted on each refill for the active tier
+  veo3Enabled          Boolean         @default(false) // Veo3 unlocked (bundled term or paid add-on)
+  veo3Credits          Int             @default(0) // restricted pool from Veo3 pack — only spendable on Veo3
   // Affiliate program
-  referredBy         String?    // affiliateId that referred this user
+  referredBy           String? // affiliateId that referred this user
   // Email lifecycle tracking
-  lastLoginAt              DateTime?  // updated on every successful login
-  firstVideoAt             DateTime?  // set on first successful render — triggers upsell email
-  lowCreditEmailSentAt     DateTime?  // reset each monthly refill; prevents duplicate low-credit alerts
-  expiryReminderSentAt     DateTime?  // tracks which expiry email (7d/3d/1d) was last sent
-  reengagementSentAt       DateTime?  // prevents duplicate re-engagement emails
-  onboardingDay1SentAt     DateTime?
-  onboardingDay3SentAt     DateTime?
-  onboardingDay7SentAt     DateTime?
-  createdAt    DateTime   @default(now())
+  lastLoginAt          DateTime? // updated on every successful login
+  firstVideoAt         DateTime? // set on first successful render — triggers upsell email
+  lowCreditEmailSentAt DateTime? // reset each monthly refill; prevents duplicate low-credit alerts
+  expiryReminderSentAt DateTime? // tracks which expiry email (7d/3d/1d) was last sent
+  reengagementSentAt   DateTime? // prevents duplicate re-engagement emails
+  onboardingDay1SentAt DateTime?
+  onboardingDay3SentAt DateTime?
+  onboardingDay7SentAt DateTime?
+  createdAt            DateTime        @default(now())
   projects             Project[]
   assets               Asset[]
   purchases            Purchase[]
   quests               UserQuest[]
-  questRewardClaimed   Boolean    @default(false)
+  questRewardClaimed   Boolean         @default(false)
   affiliate            Affiliate?
-  referral             Referral?  @relation("ReferredByAffiliate")
+  referral             Referral?       @relation("ReferredByAffiliate")
   socialAccounts       SocialAccount[]
+  generations          Generation[]
 }
 
 model Affiliate {
@@ -61,7 +62,7 @@ model Affiliate {
   userId         String       @unique
   user           User         @relation(fields: [userId], references: [id])
   code           String       @unique
-  status         String       @default("active")  // active | suspended | banned
+  status         String       @default("active") // active | suspended | banned
   commissionRate Float        @default(0.20)
   totalEarned    Float        @default(0)
   totalPaid      Float        @default(0)
@@ -71,14 +72,14 @@ model Affiliate {
 }
 
 model Referral {
-  id             String      @id @default(cuid())
+  id             String       @id @default(cuid())
   affiliateId    String
-  affiliate      Affiliate   @relation(fields: [affiliateId], references: [id])
-  referredUserId String      @unique
-  referredUser   User        @relation("ReferredByAffiliate", fields: [referredUserId], references: [id])
-  status         String      @default("signed_up")  // signed_up | converted | flagged | fraudulent
+  affiliate      Affiliate    @relation(fields: [affiliateId], references: [id])
+  referredUserId String       @unique
+  referredUser   User         @relation("ReferredByAffiliate", fields: [referredUserId], references: [id])
+  status         String       @default("signed_up") // signed_up | converted | flagged | fraudulent
   signupIp       String?
-  signedUpAt     DateTime    @default(now())
+  signedUpAt     DateTime     @default(now())
   convertedAt    DateTime?
   commissions    Commission[]
 }
@@ -93,33 +94,38 @@ model Commission {
   baseAmount      Float
   commissionRate  Float
   amount          Float
-  status          String    @default("pending")  // pending | available | paid | rejected
+  status          String    @default("pending") // pending | available | paid | rejected
   createdAt       DateTime  @default(now())
   availableAt     DateTime
   paidAt          DateTime?
   payoutRef       String?
-  payoutEmailSent Boolean   @default(false)  // prevents duplicate "commission available" emails
+  payoutEmailSent Boolean   @default(false) // prevents duplicate "commission available" emails
 }
 
 model Plan {
-  id           String     @id @default(uuid())
-  slug         String     @unique
-  name         String
-  priceInPaise Int
-  currency     String     @default("INR")
-  credits      Int
-  features     String[]   @default([])
-  active       Boolean    @default(true)
-  sortOrder    Int        @default(0)
+  id             String     @id @default(uuid())
+  slug           String     @unique
+  name           String
+  priceInPaise   Int
+  currency       String     @default("INR")
+  credits        Int
+  features       String[]   @default([])
+  active         Boolean    @default(true)
+  sortOrder      Int        @default(0)
   // Plan type (Phase C). "pack" = one-time top-up (subscriber-only),
   // "subscription" = recurring tier with monthly credit refills.
-  kind           String   @default("pack")
-  intervalMonths Int?     // subscription term length: 1 / 3 / 6 / 12
-  monthlyCredits Int?     // credits granted each month of the term
-  veo3Included   Boolean  @default(false) // Veo3 bundled free on this plan
-  createdAt    DateTime   @default(now())
-  users        User[]
-  purchases    Purchase[]
+  kind           String     @default("pack")
+  intervalMonths Int? // subscription term length: 1 / 3 / 6 / 12
+  monthlyCredits Int? // credits granted each month of the term
+  veo3Included   Boolean    @default(false) // Veo3 bundled free on this plan
+  // "creator" | "pro" | "studio" — meaningful only when kind == "subscription";
+  // null for pack/addon rows. See lib/plans/tiers.ts for the TierId union and
+  // gating helpers. "free" is not a Plan row — it's the sentinel tier for a
+  // user with no active subscription.
+  tier           String?
+  createdAt      DateTime   @default(now())
+  users          User[]
+  purchases      Purchase[]
 }
 
 model Purchase {
@@ -141,23 +147,23 @@ model Purchase {
 // Admin-created discount codes applied at checkout. The discount lowers the
 // Razorpay order amount only — credits granted are always based on the plan.
 model Coupon {
-  id                String   @id @default(uuid())
-  code              String   @unique            // stored UPPERCASE
+  id                String             @id @default(uuid())
+  code              String             @unique // stored UPPERCASE
   description       String?
-  discountType      String   @default("percent") // "percent" | "fixed"
-  discountValue     Int                          // percent 1–100, or paise for fixed
-  appliesTo         String   @default("all")      // "all" | "subscription" | "pack"
-  planSlugs         String[] @default([])          // optional: restrict to specific plan slugs
-  minAmountInPaise  Int      @default(0)
-  maxRedemptions    Int?                          // null = unlimited
-  perUserLimit      Int      @default(1)
-  timesRedeemed     Int      @default(0)
-  firstPurchaseOnly Boolean  @default(false)
-  featured          Boolean  @default(false)      // surfaced on the billing launch banner
-  active            Boolean  @default(true)
+  discountType      String             @default("percent") // "percent" | "fixed"
+  discountValue     Int // percent 1–100, or paise for fixed
+  appliesTo         String             @default("all") // "all" | "subscription" | "pack"
+  planSlugs         String[]           @default([]) // optional: restrict to specific plan slugs
+  minAmountInPaise  Int                @default(0)
+  maxRedemptions    Int? // null = unlimited
+  perUserLimit      Int                @default(1)
+  timesRedeemed     Int                @default(0)
+  firstPurchaseOnly Boolean            @default(false)
+  featured          Boolean            @default(false) // surfaced on the billing launch banner
+  active            Boolean            @default(true)
   expiresAt         DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
   redemptions       CouponRedemption[]
 }
 
@@ -175,29 +181,29 @@ model CouponRedemption {
 }
 
 model Project {
-  id             String   @id @default(uuid())
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title          String
-  script         String   @default("")
-  voiceId        String   @default("")
-  musicUrl       String?
-  backgroundUrl    String   @default("")
-  subtitlesStyle   Json     @default("{}")
-  status           String   @default("draft")
-  progress         Int      @default(0)        // 0–100 render progress for polling
-  videoUrl         String?
-  uploadedVideoUrl String?
-  productType      String   @default("split-screen")
-  editorDoc        Json?    // browser-editor timeline document (productType "editor")
+  id                   String   @id @default(uuid())
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title                String
+  script               String   @default("")
+  voiceId              String   @default("")
+  musicUrl             String?
+  backgroundUrl        String   @default("")
+  subtitlesStyle       Json     @default("{}")
+  status               String   @default("draft")
+  progress             Int      @default(0) // 0–100 render progress for polling
+  videoUrl             String?
+  uploadedVideoUrl     String?
+  productType          String   @default("split-screen")
+  editorDoc            Json? // browser-editor timeline document (productType "editor")
   // Auto Clip: default caption style applied to newly-picked clips (index into
   // lib/caption-styles.ts CAPTION_STYLES; -1 = captions off). See lib/render/auto-clip.
   autoClipCaptionStyle Int?
   // Auto Clip: non-fatal problems surfaced to the user as a banner instead of
   // silently degrading (e.g. ["transcription_failed"]).
-  warnings         Json?
-  createdAt        DateTime @default(now())
-  clips            Clip[]
+  warnings             Json?
+  createdAt            DateTime @default(now())
+  clips                Clip[]
 
   @@index([userId])
   @@index([userId, status])
@@ -209,27 +215,27 @@ model Project {
 // separately so the UI can show every clip as its own card with live progress
 // and an Opus-style virality score.
 model Clip {
-  id           String   @id @default(cuid())
-  projectId    String
-  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  index        Int      // generation order
-  title        String?  // AI-generated catchy title / hook
-  startSec     Float
-  endSec       Float
-  durationSec  Float
-  aspectRatio  String   @default("9:16")
-  score        Int?     // calibrated virality 0–99, see lib/virality-score.ts
-  scoreBreakdown Json?  // {hook, pacing, payoff, engagement, audio, speechRate} sub-scores for transparency
-  mood         String?  // AI-detected content mood, drives auto color grade (P2.3)
-  status       String   @default("queued") // pending_review | queued | rendering | ready | failed
-  progress     Int      @default(0)        // 0–100
-  videoUrl     String?
-  thumbnailUrl String?
+  id                String        @id @default(cuid())
+  projectId         String
+  project           Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  index             Int // generation order
+  title             String? // AI-generated catchy title / hook
+  startSec          Float
+  endSec            Float
+  durationSec       Float
+  aspectRatio       String        @default("9:16")
+  score             Int? // calibrated virality 0–99, see lib/virality-score.ts
+  scoreBreakdown    Json? // {hook, pacing, payoff, engagement, audio, speechRate} sub-scores for transparency
+  mood              String? // AI-detected content mood, drives auto color grade (P2.3)
+  status            String        @default("queued") // pending_review | queued | rendering | ready | failed
+  progress          Int           @default(0) // 0–100
+  videoUrl          String?
+  thumbnailUrl      String?
   // Captioning (P0.3) — transcript is sliced/re-baselined to this clip's own
   // timeline so re-render (P1.3) never needs to re-run STT.
   transcriptJson    Json?
   captionStyleIndex Int?
-  hasCaptions       Boolean @default(false)
+  hasCaptions       Boolean       @default(false)
   // Speaker-tracking reframe (P1.1) — smoothed crop path in source-pixel
   // coordinates, [{tSec, x, y, w, h}]. Null = static center crop (fallback).
   cropKeyframes     Json?
@@ -237,13 +243,13 @@ model Clip {
   // brollEndSec) (clip-relative) while the original audio continues. Null
   // brollUrl = no B-roll for this clip (Gemini found no natural opportunity,
   // clip too short, or Pexels unavailable/unconfigured).
-  brollQuery   String?
-  brollUrl     String?
-  brollStartSec Float?
-  brollEndSec   Float?
-  createdAt    DateTime @default(now())
-  dubs         ClipDub[]
-  publishes    ClipPublish[]
+  brollQuery        String?
+  brollUrl          String?
+  brollStartSec     Float?
+  brollEndSec       Float?
+  createdAt         DateTime      @default(now())
+  dubs              ClipDub[]
+  publishes         ClipPublish[]
 
   @@index([projectId])
   @@index([projectId, status])
@@ -254,13 +260,13 @@ model Clip {
 // require re-running STT on the dub, deferred as a known limitation shared by
 // several competitors.
 model ClipDub {
-  id          String   @id @default(cuid())
-  clipId      String
-  clip        Clip     @relation(fields: [clipId], references: [id], onDelete: Cascade)
-  targetLang  String
-  status      String   @default("dubbing") // dubbing | ready | failed
-  videoUrl    String?
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  clipId     String
+  clip       Clip     @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  targetLang String
+  status     String   @default("dubbing") // dubbing | ready | failed
+  videoUrl   String?
+  createdAt  DateTime @default(now())
 
   @@index([clipId])
 }
@@ -279,10 +285,10 @@ model ClipPublish {
   clip            Clip          @relation(fields: [clipId], references: [id], onDelete: Cascade)
   socialAccountId String
   socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
-  providerPostId  String?       // set once the user links the live post/permalink
+  providerPostId  String? // set once the user links the live post/permalink
   permalink       String?
   status          String        @default("pending") // pending | linked | failed
-  metricsJson     Json?         // cached NormalizedPost-shaped snapshot, refreshed by lib/social/refresh-queue.ts
+  metricsJson     Json? // cached NormalizedPost-shaped snapshot, refreshed by lib/social/refresh-queue.ts
   scheduledFor    DateTime?
   publishedAt     DateTime?
   createdAt       DateTime      @default(now())
@@ -321,7 +327,7 @@ model Asset {
   s3Key     String
   url       String
   mimeType  String
-  kind      String   // "video" | "audio" | "image"
+  kind      String // "video" | "audio" | "image"
   size      Int
   duration  Float?
   width     Int?
@@ -334,23 +340,23 @@ model Asset {
 // OAuth tokens are stored ONLY as AES-256-GCM ciphertext (lib/encryption.ts) and
 // are never returned to the client. Read-only analytics scopes only.
 model SocialAccount {
-  id                String   @id @default(cuid())
+  id                String                  @id @default(cuid())
   userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  provider          String   // "youtube" | "instagram" | "facebook"
-  providerAccountId String   // channel id / IG user id / Page id
+  user              User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          String // "youtube" | "instagram" | "facebook"
+  providerAccountId String // channel id / IG user id / Page id
   username          String?
   displayName       String?
   avatarUrl         String?
-  accessTokenEnc    String   // AES-256-GCM ciphertext
-  refreshTokenEnc   String?  // AES-256-GCM ciphertext
+  accessTokenEnc    String // AES-256-GCM ciphertext
+  refreshTokenEnc   String? // AES-256-GCM ciphertext
   tokenExpiresAt    DateTime?
-  scopes            String[] @default([])
-  status            String   @default("active") // active | needs_reauth | revoked
-  followers         Int?     // convenience copy of the latest snapshot
+  scopes            String[]                @default([])
+  status            String                  @default("active") // active | needs_reauth | revoked
+  followers         Int? // convenience copy of the latest snapshot
   lastSyncedAt      DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
   posts             SocialPost[]
   snapshots         SocialAccountSnapshot[]
   clipPublishes     ClipPublish[]
@@ -393,19 +399,45 @@ model SocialPost {
   reach          Int?
   watchTimeSec   Float?
   metricsJson    Json? // full provider payload for future-proofing
-  fetchedAt      DateTime @default(now())
+  fetchedAt      DateTime      @default(now())
 
   @@unique([accountId, providerPostId])
   @@index([accountId, publishedAt])
+}
+
+// Usage ledger for AI-tool generations — records what a user generated, with
+// which model, for how many credits, and at what real provider cost. Phase 1
+// only writes rows from image-generator, video-generator, and ai-creator; the
+// other tool routes are an explicit fast-follow once they migrate onto
+// lib/credits.ts's chargeCredits() (see lib/credits.ts doc comment).
+model Generation {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  toolSlug         String // "image-generator" | "video-generator" | "ai-creator" | ...
+  modelId          String? // registry model id, e.g. "flux-2"; null for non-registry tools
+  generationType   String // "image" | "video" | "audio" | "utility"
+  creditsCost      Int // credits actually charged (pre-refund)
+  creditPool       String    @default("standard") // "standard" | "veo3"
+  estimatedCostUsd Float? // researched real provider $ cost, for margin analytics
+  prompt           String?
+  status           String    @default("pending") // "pending" | "completed" | "failed" | "refunded"
+  errorMessage     String?
+  createdAt        DateTime  @default(now())
+  completedAt      DateTime?
+
+  @@index([userId, createdAt])
+  @@index([modelId])
+  @@index([toolSlug, createdAt])
 }
 
 // Immutable log of every admin action for accountability.
 model AuditLog {
   id        String   @id @default(uuid())
   adminId   String
-  action    String   // e.g. "user.credits_set", "plan.deactivated", "veo3.enabled"
+  action    String // e.g. "user.credits_set", "plan.deactivated", "veo3.enabled"
   targetId  String?
-  before    String?  // JSON snapshot
-  after     String?  // JSON snapshot
+  before    String? // JSON snapshot
+  after     String? // JSON snapshot
   createdAt DateTime @default(now())
 }

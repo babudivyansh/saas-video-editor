@@ -2,27 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { getAuthUser } from "@/lib/auth";
 import { uploadBufferToS3 } from "@/utils/s3-upload";
-import { redis } from "@/lib/redis";
-import { prisma } from "@/lib/prisma";
 import { markQuestComplete } from "@/lib/quests";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { getImageModel } from "@/lib/models/imageModels";
 import { falSubmit, falPollUntilDone, extractResultUrl } from "@/lib/fal";
+import { chargeCredits, refundCredits, markGenerationStatus, checkModelAccess } from "@/lib/credits";
 
 export const maxDuration = 120;
-
-async function refundCredit(userId: string, creditCost: number) {
-  await prisma.user.update({
-    where: { id: userId },
-    data: { credits: { increment: creditCost } },
-  });
-  const cached = await redis.get(`credits:${userId}`);
-  if (cached !== null) {
-    await redis.set(`credits:${userId}`, String(parseInt(cached, 10) + creditCost), "EX", 3600);
-  }
-}
 
 async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
@@ -57,23 +45,28 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "Image generation is not configured (missing FAL_KEY)" }, { status: 503 });
   }
 
-  const cachedCredits = await redis.get(`credits:${auth.userId}`);
-  const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
-  if (cached !== null && cached < CREDIT_COST) {
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
+  const access = await checkModelAccess(auth.userId, modelEntry);
+  if (!access.allowed) {
+    return NextResponse.json(
+      { error: `${modelEntry.displayName} requires the ${access.requiredTier} plan or higher.`,
+        requiredTier: access.requiredTier, upgradeUrl: "/pricing" },
+      { status: 403 },
+    );
   }
 
-  // Deduct credit before the paid call; refund on any failure below
-  const user = await prisma.user.update({
-    where: { id: auth.userId },
-    data: { credits: { decrement: CREDIT_COST } },
-    select: { credits: true },
+  const charge = await chargeCredits({
+    userId: auth.userId,
+    amount: CREDIT_COST,
+    toolSlug: "image-generator",
+    log: { modelId: modelEntry.id, generationType: "image", prompt, estimatedCostUsd: modelEntry.costUsd },
   });
-  if (user.credits < 0) {
-    await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
+  if (!charge.ok) {
+    if (charge.reason === "tool_disabled") {
+      return NextResponse.json({ error: "Image generation is temporarily disabled." }, { status: 503 });
+    }
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
-  await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
+  const generationId = charge.generationId;
 
   try {
     if (modelEntry.integration === "fal") {
@@ -103,6 +96,7 @@ async function handlePOST(req: NextRequest) {
       const imageUrl = await uploadBufferToS3(buffer, key, "image/png");
 
       void markQuestComplete(auth.userId, "picture-this");
+      if (generationId) void markGenerationStatus(generationId, "completed");
       return NextResponse.json({ imageUrl });
     }
 
@@ -128,7 +122,8 @@ async function handlePOST(req: NextRequest) {
     if (!geminiRes || !geminiRes.ok) {
       const err = geminiRes ? await geminiRes.text() : "no response";
       logger.error("image-generator", `gemini-2.5-flash-image error ${geminiRes?.status}`, err);
-      await refundCredit(auth.userId, CREDIT_COST);
+      await refundCredits({ userId: auth.userId, amount: CREDIT_COST });
+      if (generationId) void markGenerationStatus(generationId, "failed", "gemini-2.5-flash-image error");
       const msg = geminiRes?.status === 503
         ? "Image service is busy right now. Please try again in a moment."
         : "Image generation failed. Please try again.";
@@ -140,7 +135,8 @@ async function handlePOST(req: NextRequest) {
     };
     const b64 = json.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
     if (!b64) {
-      await refundCredit(auth.userId, CREDIT_COST);
+      await refundCredits({ userId: auth.userId, amount: CREDIT_COST });
+      if (generationId) void markGenerationStatus(generationId, "failed", "No image returned");
       return NextResponse.json({ error: "No image returned" }, { status: 502 });
     }
 
@@ -149,10 +145,14 @@ async function handlePOST(req: NextRequest) {
     const imageUrl = await uploadBufferToS3(buffer, key, "image/png");
 
     void markQuestComplete(auth.userId, "picture-this");
+    if (generationId) void markGenerationStatus(generationId, "completed");
     return NextResponse.json({ imageUrl });
   } catch (err) {
     logger.error("image-generator", "request failed", err);
-    try { await refundCredit(auth.userId, CREDIT_COST); } catch { /* swallow */ }
+    try {
+      await refundCredits({ userId: auth.userId, amount: CREDIT_COST });
+      if (generationId) void markGenerationStatus(generationId, "failed", err instanceof Error ? err.message : "unknown error");
+    } catch { /* swallow */ }
     return NextResponse.json({ error: "Image generation failed. Please try again." }, { status: 500 });
   }
 }
