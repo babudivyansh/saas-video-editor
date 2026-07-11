@@ -1,6 +1,10 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
+import { useJobPolling } from "./useJobPolling";
+import { TOOL_COSTS } from "@/lib/tool-costs";
+
+const VOICE_CHANGER_CREDIT_COST = TOOL_COSTS["voice-changer"].creditCost;
 
 // ── Voice catalogue ──────────────────────────────────────────────────────────
 interface Voice {
@@ -271,28 +275,31 @@ function VoicePickerModal({
 }
 
 // ── Main tool ────────────────────────────────────────────────────────────────
-type Stage = "idle" | "processing" | "complete" | "error";
-
 export default function VoiceChangerTool() {
-  const { user, openAuthModal, refreshUser } = useAuth();
+  const { user, token, openAuthModal, refreshUser } = useAuth();
+  const job = useJobPolling({ toolSlug: "voice-changer", token });
 
   const [voiceSlug, setVoiceSlug] = useState("adam");
   const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [originalPreviewUrl, setOriginalPreviewUrl] = useState<string | null>(null);
   const [removeNoise, setRemoveNoise] = useState(false);
+  const [speed, setSpeed] = useState(1);
   const [showPicker, setShowPicker] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [compareView, setCompareView] = useState<"before" | "after">("after");
 
-  const [stage, setStage] = useState<Stage>("idle");
-  const [progress, setProgress] = useState(0);
-  const [error, setError] = useState<string | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   // Set alongside downloadUrl in the response handler below rather than
   // computed inline in JSX — Date.now() is an impure call and isn't allowed
   // during render (including inside useMemo, which is still render).
   const [downloadFilename, setDownloadFilename] = useState("voice-changed.mp3");
+  const downloadedForJobId = useRef<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Closes the window between a click and the state update that disables the
+  // button — two rapid clicks could otherwise both pass the disabled check
+  // and fire two charged requests.
+  const submittingRef = useRef(false);
 
   const selectedVoice = voiceBySlug(voiceSlug);
 
@@ -302,86 +309,94 @@ export default function VoiceChangerTool() {
   function handleFileChange(file: File | null) {
     if (!file) return;
     if (file.size > MAX_MB * 1024 * 1024) {
-      setError(`File exceeds ${MAX_MB} MB limit.`);
+      job.reset();
       return;
     }
+    if (originalPreviewUrl) URL.revokeObjectURL(originalPreviewUrl);
     setAudioFile(file);
-    setError(null);
-    setStage("idle");
+    setOriginalPreviewUrl(URL.createObjectURL(file));
+    setCompareView("after");
+    job.reset();
     if (downloadUrl) { URL.revokeObjectURL(downloadUrl); setDownloadUrl(null); }
   }
+
+  // Revoke held object URLs on unmount.
+  useEffect(() => {
+    return () => {
+      if (originalPreviewUrl) URL.revokeObjectURL(originalPreviewUrl);
+      if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSubmit = useCallback(async () => {
     if (!user) { openAuthModal("login", "AI Voice Changer"); return; }
     if (!audioFile) return;
-
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
     if (!token) { openAuthModal("login", "AI Voice Changer"); return; }
+    if (submittingRef.current) return;
 
-    setStage("processing");
-    setProgress(0);
-    setError(null);
     if (downloadUrl) { URL.revokeObjectURL(downloadUrl); setDownloadUrl(null); }
+    submittingRef.current = true;
 
+    const idempotencyKey = crypto.randomUUID();
     try {
-      const form = new FormData();
-      form.append("audio", audioFile);
-      form.append("voiceSlug", voiceSlug);
-      form.append("removeNoise", String(removeNoise));
+      await job.start(async () => {
+        const form = new FormData();
+        form.append("audio", audioFile);
+        form.append("voiceSlug", voiceSlug);
+        form.append("removeNoise", String(removeNoise));
+        form.append("speed", String(speed));
+        form.append("idempotencyKey", idempotencyKey);
 
-      const startRes = await fetch("/api/tools/voice-changer", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
+        const startRes = await fetch("/api/tools/voice-changer", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: form,
+        });
+        if (!startRes.ok) {
+          const j = await startRes.json().catch(() => ({})) as { error?: string };
+          throw new Error(j.error ?? `Server error (${startRes.status})`);
+        }
+        return (await startRes.json()) as { jobId: string };
       });
-      if (!startRes.ok) {
-        const j = await startRes.json().catch(() => ({})) as { error?: string };
-        throw new Error(j.error ?? `Server error (${startRes.status})`);
-      }
-      const { jobId } = await startRes.json() as { jobId: string };
-
-      await new Promise<void>((resolve, reject) => {
-        if (pollTimer.current) clearInterval(pollTimer.current);
-        pollTimer.current = setInterval(async () => {
-          try {
-            const r = await fetch(`/api/tools/voice-changer?jobId=${jobId}`);
-            if (!r.ok) return;
-            const data = await r.json() as { progress: number; status: string; error?: string };
-            setProgress(data.progress);
-            if (data.status === "done") {
-              clearInterval(pollTimer.current!); pollTimer.current = null;
-              resolve();
-            } else if (data.status === "error") {
-              clearInterval(pollTimer.current!); pollTimer.current = null;
-              reject(new Error(data.error ?? "Voice change failed"));
-            }
-          } catch { /* transient */ }
-        }, 500);
-      });
-
-      const fileRes = await fetch(`/api/tools/voice-changer?jobId=${jobId}&download=1`);
-      if (!fileRes.ok) throw new Error("Failed to download result");
-      const blob = await fileRes.blob();
-      const url = URL.createObjectURL(blob);
-      setDownloadUrl(url);
-      setDownloadFilename(`voice-changed-${Date.now()}.mp3`);
-      setProgress(100);
-      setStage("complete");
-
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `voice-changed-${Date.now()}.mp3`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-
-      void refreshUser();
-    } catch (err) {
-      if (pollTimer.current) { clearInterval(pollTimer.current); pollTimer.current = null; }
-      setError(err instanceof Error ? err.message : "Something went wrong");
-      setStage("error");
+    } finally {
+      submittingRef.current = false;
     }
-  }, [user, audioFile, voiceSlug, removeNoise, downloadUrl, openAuthModal, refreshUser]);
+  }, [user, audioFile, voiceSlug, removeNoise, speed, downloadUrl, token, openAuthModal, job]);
+
+  // Once the job is done, fetch the result and trigger a download — mirrors
+  // the previous inline behavior but now driven by the shared poll status.
+  useEffect(() => {
+    if (job.status !== "done" || !job.jobId || !token) return;
+    if (downloadedForJobId.current === job.jobId) return;
+    downloadedForJobId.current = job.jobId;
+
+    (async () => {
+      try {
+        const fileRes = await fetch(`/api/tools/voice-changer?jobId=${job.jobId}&download=1`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!fileRes.ok) throw new Error("Failed to download result");
+        const blob = await fileRes.blob();
+        const url = URL.createObjectURL(blob);
+        const filename = `voice-changed-${Date.now()}.mp3`;
+        setDownloadUrl(url);
+        setDownloadFilename(filename);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        void refreshUser();
+      } catch {
+        // The job itself succeeded; a failed download fetch just means the
+        // user has to use "Download again" — no need to flip to an error state.
+      }
+    })();
+  }, [job.status, job.jobId, token, refreshUser]);
 
   return (
     <>
@@ -441,7 +456,7 @@ export default function VoiceChangerTool() {
                       <p className="text-[11px] text-slate-400">{(audioFile.size / 1024 / 1024).toFixed(2)} MB</p>
                     </div>
                     <button
-                      onClick={() => { setAudioFile(null); setStage("idle"); }}
+                      onClick={() => { setAudioFile(null); job.reset(); }}
                       className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors"
                     >
                       <IcX />
@@ -492,42 +507,100 @@ export default function VoiceChangerTool() {
                 <span className="text-sm text-slate-600">Remove background noise</span>
               </label>
 
+              {/* Speed */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Speed</label>
+                  <span className="text-xs font-medium text-slate-600 tabular-nums">{speed.toFixed(2)}x</span>
+                </div>
+                <input
+                  type="range"
+                  min={0.7}
+                  max={1.2}
+                  step={0.01}
+                  value={speed}
+                  onChange={e => setSpeed(parseFloat(e.target.value))}
+                  className="w-full accent-[#335CFF]"
+                />
+              </div>
+
               {/* Progress */}
-              {stage === "processing" && (
+              {job.status === "processing" && (
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-xs text-slate-500">Changing voice…</span>
-                    <span className="text-xs font-medium text-slate-600">{progress}%</span>
+                    <span className="text-xs font-medium text-slate-600">{job.progress}%</span>
                   </div>
                   <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-[#335CFF] rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+                    <div className="h-full bg-[#335CFF] rounded-full transition-all duration-300" style={{ width: `${job.progress}%` }} />
                   </div>
+                  <button
+                    onClick={() => void job.cancel()}
+                    className="mt-2 text-xs font-medium text-slate-400 hover:text-red-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
                 </div>
               )}
 
               {/* Error */}
-              {error && (
-                <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+              {job.status === "error" && job.error && (
+                <div className="flex items-center justify-between gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  <span>{job.error}</span>
+                  <button onClick={() => void handleSubmit()} className="font-semibold underline underline-offset-2 hover:text-red-800 flex-shrink-0">
+                    Retry
+                  </button>
+                </div>
               )}
 
-              {/* Download again */}
-              {stage === "complete" && downloadUrl && (
-                <a
-                  href={downloadUrl}
-                  download={downloadFilename}
-                  className="flex items-center justify-center gap-2 w-full rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm font-semibold py-2.5 hover:bg-emerald-100 transition-colors"
-                >
-                  <IcDownload /> Download again
-                </a>
+              {job.status === "cancelled" && (
+                <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                  Cancelled — your credit was refunded.
+                </p>
+              )}
+
+              {/* Before/after comparison + download */}
+              {job.status === "done" && downloadUrl && (
+                <div className="space-y-2">
+                  <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50">
+                    <button
+                      onClick={() => setCompareView("before")}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${compareView === "before" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}
+                    >
+                      Before
+                    </button>
+                    <button
+                      onClick={() => setCompareView("after")}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${compareView === "after" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}
+                    >
+                      After
+                    </button>
+                  </div>
+                  {originalPreviewUrl && (
+                    <audio
+                      key={compareView}
+                      src={compareView === "before" ? originalPreviewUrl : downloadUrl}
+                      controls
+                      className="w-full"
+                    />
+                  )}
+                  <a
+                    href={downloadUrl}
+                    download={downloadFilename}
+                    className="flex items-center justify-center gap-2 w-full rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm font-semibold py-2.5 hover:bg-emerald-100 transition-colors"
+                  >
+                    <IcDownload /> Download again
+                  </a>
+                </div>
               )}
 
               {/* Submit */}
               <button
                 onClick={handleSubmit}
-                disabled={!audioFile || stage === "processing"}
+                disabled={!audioFile || job.status === "processing"}
                 className="w-full rounded-xl bg-[#335CFF] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold py-3 transition-opacity flex items-center justify-center gap-2"
               >
-                {stage === "processing" ? (
+                {job.status === "processing" ? (
                   <>
                     <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -540,7 +613,7 @@ export default function VoiceChangerTool() {
 
               {user && (
                 <p className="text-center text-[11px] text-slate-400">
-                  Uses 1 credit &bull; You have {user.credits} credit{user.credits !== 1 ? "s" : ""}
+                  Uses {VOICE_CHANGER_CREDIT_COST} credit{VOICE_CHANGER_CREDIT_COST !== 1 ? "s" : ""} &bull; You have {user.credits} credit{user.credits !== 1 ? "s" : ""}
                 </p>
               )}
             </div>

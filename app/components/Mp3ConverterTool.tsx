@@ -1,7 +1,6 @@
 "use client";
-import { useRef, useState, useEffect } from "react";
-
-type Stage = "idle" | "ready" | "converting" | "complete" | "error";
+import { useCallback, useRef, useState, useEffect } from "react";
+import { useJobPolling } from "./useJobPolling";
 
 interface QualityOption {
   id: string;
@@ -80,36 +79,45 @@ function Spinner() {
 
 export default function Mp3ConverterTool() {
   const inputRef = useRef<HTMLInputElement>(null);
+  const job = useJobPolling({ toolSlug: "mp3-converter", token: null, requireAuth: false });
+  const submittingRef = useRef(false);
+  const downloadedForJobId = useRef<string | null>(null);
+
   const [file, setFile] = useState<File | null>(null);
-  const [stage, setStage] = useState<Stage>("idle");
   const [dragging, setDragging] = useState(false);
   const [quality, setQuality] = useState("medium");
-  const [progress, setProgress] = useState(0);
   const [realtime, setRealtime] = useState(0);
-  const [error, setError] = useState<string | null>(null);
 
   const [durationSec, setDurationSec] = useState(0);
   const [outputBlob, setOutputBlob] = useState<Blob | null>(null);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
 
-  const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef(0);
 
   useEffect(() => {
     return () => {
-      if (progressTimer.current) clearInterval(progressTimer.current);
       if (outputUrl) URL.revokeObjectURL(outputUrl);
     };
-  }, [outputUrl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Real-time-multiple estimate, recomputed whenever the poll loop reports
+  // fresh progress.
+  useEffect(() => {
+    if (job.status !== "processing") return;
+    const elapsed = (Date.now() - startTimeRef.current) / 1000;
+    if (durationSec > 0 && elapsed > 0) {
+      setRealtime((durationSec * (job.progress / 100)) / elapsed);
+    }
+  }, [job.progress, job.status, durationSec]);
 
   function onPick(list: FileList | null) {
     if (!list || list.length === 0) return;
     const f = list[0];
     setFile(f);
-    setStage("ready");
-    setError(null);
-    setProgress(0);
+    job.reset();
     setOutputBlob(null);
+    if (outputUrl) { URL.revokeObjectURL(outputUrl); setOutputUrl(null); }
     // Read real media duration so the "real-time" multiplier is grounded.
     const url = URL.createObjectURL(f);
     const media = document.createElement("video");
@@ -124,71 +132,54 @@ export default function Mp3ConverterTool() {
 
   function clearFile() {
     setFile(null);
-    setStage("idle");
-    setProgress(0);
+    job.reset();
     setOutputBlob(null);
     if (outputUrl) { URL.revokeObjectURL(outputUrl); setOutputUrl(null); }
   }
 
-  function stopPolling() {
-    if (progressTimer.current) { clearInterval(progressTimer.current); progressTimer.current = null; }
-  }
+  const handleConvert = useCallback(async () => {
+    if (!file || job.status === "processing") return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
 
-  async function handleConvert() {
-    if (!file || stage === "converting") return;
-    setStage("converting");
-    setError(null);
-    setProgress(0);
     setRealtime(0);
     startTimeRef.current = Date.now();
     try {
-      // 1. Start the job — server returns a jobId immediately.
-      const form = new FormData();
-      form.append("file", file);
-      form.append("quality", quality);
-      const startRes = await fetch("/api/tools/mp3-converter", { method: "POST", body: form });
-      if (!startRes.ok) {
-        const json = await startRes.json().catch(() => ({})) as { error?: string };
-        throw new Error(json.error ?? `Server error (${startRes.status})`);
-      }
-      const { jobId } = await startRes.json() as { jobId: string };
-
-      // 2. Poll real FFmpeg progress until the job finishes.
-      await new Promise<void>((resolve, reject) => {
-        stopPolling();
-        progressTimer.current = setInterval(async () => {
-          try {
-            const res = await fetch(`/api/tools/mp3-converter?jobId=${jobId}`);
-            if (!res.ok) return;
-            const data = await res.json() as { progress: number; status: string; error?: string };
-            setProgress(data.progress);
-            const elapsed = (Date.now() - startTimeRef.current) / 1000;
-            if (durationSec > 0 && elapsed > 0) {
-              setRealtime((durationSec * (data.progress / 100)) / elapsed);
-            }
-            if (data.status === "done") { stopPolling(); resolve(); }
-            else if (data.status === "error") { stopPolling(); reject(new Error(data.error ?? "Conversion failed")); }
-          } catch {
-            // transient — keep polling
-          }
-        }, 400);
+      await job.start(async () => {
+        const form = new FormData();
+        form.append("file", file);
+        form.append("quality", quality);
+        const startRes = await fetch("/api/tools/mp3-converter", { method: "POST", body: form });
+        if (!startRes.ok) {
+          const json = await startRes.json().catch(() => ({})) as { error?: string };
+          throw new Error(json.error ?? `Server error (${startRes.status})`);
+        }
+        return (await startRes.json()) as { jobId: string };
       });
-
-      // 3. Download the finished file.
-      const fileRes = await fetch(`/api/tools/mp3-converter?jobId=${jobId}&download=1`);
-      if (!fileRes.ok) throw new Error("Failed to fetch converted file");
-      const blob = await fileRes.blob();
-      setProgress(100);
-      const url = URL.createObjectURL(blob);
-      setOutputBlob(blob);
-      setOutputUrl(url);
-      setStage("complete");
-    } catch (err: unknown) {
-      stopPolling();
-      setError(err instanceof Error ? err.message : "Conversion failed");
-      setStage("ready");
+    } finally {
+      submittingRef.current = false;
     }
-  }
+  }, [file, quality, job]);
+
+  // Once the job is done, fetch the converted file.
+  useEffect(() => {
+    if (job.status !== "done" || !job.jobId) return;
+    if (downloadedForJobId.current === job.jobId) return;
+    downloadedForJobId.current = job.jobId;
+
+    (async () => {
+      try {
+        const fileRes = await fetch(`/api/tools/mp3-converter?jobId=${job.jobId}&download=1`);
+        if (!fileRes.ok) throw new Error("Failed to fetch converted file");
+        const blob = await fileRes.blob();
+        const url = URL.createObjectURL(blob);
+        setOutputBlob(blob);
+        setOutputUrl(url);
+      } catch {
+        // Leave stage at "done" with no output — user can hit "Convert Again".
+      }
+    })();
+  }, [job.status, job.jobId]);
 
   function handleDownload() {
     if (!outputUrl || !file) return;
@@ -202,15 +193,16 @@ export default function Mp3ConverterTool() {
   }
 
   function convertAgain() {
-    setStage("ready");
-    setProgress(0);
+    job.reset();
     setOutputBlob(null);
     if (outputUrl) { URL.revokeObjectURL(outputUrl); setOutputUrl(null); }
   }
 
-  const busy = stage === "converting";
+  const stage = file ? (job.status === "idle" ? "ready" : job.status) : "idle";
+  const canSubmit = stage === "ready" || stage === "error";
+  const busy = stage === "processing";
   // Quality is locked once conversion starts and stays locked on the result screen.
-  const qualityLocked = stage === "converting" || stage === "complete";
+  const qualityLocked = stage === "processing" || stage === "done";
 
   return (
     <div className="mx-auto w-full max-w-[1440px] px-8 pb-10">
@@ -298,10 +290,10 @@ export default function Mp3ConverterTool() {
             </div>
           )}
 
-          {error && <p className="mt-3 text-sm text-red-500 text-center">{error}</p>}
+          {stage === "error" && job.error && <p className="mt-3 text-sm text-red-500 text-center">{job.error}</p>}
 
           {/* Converting progress */}
-          {stage === "converting" && (
+          {stage === "processing" && (
             <div className="mt-5">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-600">
@@ -310,14 +302,14 @@ export default function Mp3ConverterTool() {
                 {realtime > 0 && <span className="text-gray-400">~{realtime.toFixed(1)}x real time</span>}
               </div>
               <div className="mt-2 h-2 rounded-full bg-gray-100 overflow-hidden">
-                <div className="h-full bg-blue-500 transition-all duration-150" style={{ width: `${progress}%` }} />
+                <div className="h-full bg-blue-500 transition-all duration-150" style={{ width: `${job.progress}%` }} />
               </div>
-              <p className="text-xs text-gray-500 mt-1">{Math.round(progress)}% complete</p>
+              <p className="text-xs text-gray-500 mt-1">{Math.round(job.progress)}% complete</p>
             </div>
           )}
 
           {/* Conversion complete */}
-          {stage === "complete" && file && outputBlob && (
+          {stage === "done" && file && outputBlob && (
             <div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
               <div className="flex items-center gap-2 text-green-700 font-semibold">
                 <IcCheck className="w-5 h-5" /> Conversion Complete
@@ -336,10 +328,10 @@ export default function Mp3ConverterTool() {
           )}
 
           {/* Action buttons */}
-          {stage === "ready" && (
+          {canSubmit && (
             <button
               type="button"
-              onClick={handleConvert}
+              onClick={() => void handleConvert()}
               className="mt-4 w-full inline-flex items-center justify-center gap-2 text-white text-sm font-semibold py-3 rounded-xl transition-colors"
               style={{ background: "#2563eb" }}
             >
@@ -347,7 +339,7 @@ export default function Mp3ConverterTool() {
             </button>
           )}
 
-          {stage === "converting" && (
+          {stage === "processing" && (
             <button
               type="button"
               disabled
@@ -358,7 +350,7 @@ export default function Mp3ConverterTool() {
             </button>
           )}
 
-          {stage === "complete" && (
+          {stage === "done" && (
             <div className="mt-4 grid grid-cols-2 gap-3">
               <button
                 type="button"

@@ -36,7 +36,13 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   "enhance-prompt":   { creditCost: 0, costUsd: 0, costBasis: "Google Gemini text, negligible cost", generationType: "utility" },
   "brainstormer":     { creditCost: 1, costUsd: null, costBasis: "Google Gemini text, near-zero real cost", generationType: "utility" },
   "cut-and-crop":     { creditCost: 1, costUsd: 0, costBasis: "FFmpeg (local compute only)", generationType: "utility" },
-  "subtitle-remover": { creditCost: 1, costUsd: null, costBasis: "FFmpeg (local compute only)", generationType: "utility" },
+  // Duration-scaled (2-20 credits — see creditCostForDuration in the route)
+  // since Phase 2 replaced the old fixed-band blur with real per-frame OCR
+  // detection (fal-ai/florence-2-large/ocr-with-region) — no longer FFmpeg-only.
+  // TODO verify-before-ship: real per-call OCR cost couldn't be confirmed
+  // live (fal.ai account balance was exhausted during implementation); this
+  // display value and the route's cost formula are both placeholders.
+  "subtitle-remover": { creditCost: 4, costUsd: null, costBasis: "fal-ai/florence-2-large OCR per sampled frame + FFmpeg render, cost not yet confirmed", generationType: "video" },
   "voiceover":        { creditCost: 2, costUsd: 0.10, costBasis: "$0.05/1,000 chars (ElevenLabs Flash TTS), 2,000-char cap", generationType: "audio" },
   "vocal-remover":    { creditCost: 3, costUsd: 0.21, costBasis: "$0.0007/s (fal.ai Demucs), 5-min worst case", generationType: "audio" },
   // Fixed in Phase 1: was 2cr flat (≈$0.20 revenue) against real cost that could

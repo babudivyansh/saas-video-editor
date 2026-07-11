@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "./AuthContext";
+import { useJobPolling } from "./useJobPolling";
 
 // ── Voice catalogue (same as VoiceChangerTool) ───────────────────────────────
 interface Voice {
@@ -227,13 +228,74 @@ type AvatarChoice =
   | { type: "face-swap" }
   | { type: "upload"; file: File; previewUrl: string };
 
+interface RecentGeneration {
+  id: string;
+  status: string;
+  creditsCost: number;
+  createdAt: string;
+}
+
+function timeAgo(iso: string): string {
+  const diffSec = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (diffSec < 60) return "just now";
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+  return `${Math.floor(diffSec / 86400)}d ago`;
+}
+
+// Recent-generations panel — Phase 1's credit-engine work made ai-creator
+// write real Generation rows for the first time, and this app already has a
+// cursor-paginated history endpoint (GET /api/generations); this is just a
+// small read-only view onto both, filtered to this tool.
+function RecentGenerationsPanel({ token, refreshKey }: { token: string | null; refreshKey: unknown }) {
+  const [items, setItems] = useState<RecentGeneration[] | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    fetch("/api/generations?toolSlug=ai-creator&limit=5", { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => (res.ok ? res.json() : { generations: [] }))
+      .then((data: { generations: RecentGeneration[] }) => { if (!cancelled) setItems(data.generations ?? []); })
+      .catch(() => { if (!cancelled) setItems([]); });
+    return () => { cancelled = true; };
+  }, [token, refreshKey]);
+
+  if (!items || items.length === 0) return null;
+
+  const statusStyle: Record<string, string> = {
+    completed: "bg-green-100 text-green-700",
+    failed: "bg-red-100 text-red-700",
+    refunded: "bg-gray-100 text-gray-500",
+    cancelled: "bg-gray-100 text-gray-500",
+    pending: "bg-blue-100 text-blue-700",
+  };
+
+  return (
+    <div className="mt-2 pt-3 border-t border-gray-100">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-2">Recent generations</p>
+      <ul className="space-y-1.5">
+        {items.map(g => (
+          <li key={g.id} className="flex items-center justify-between gap-2 text-xs">
+            <span className="text-gray-500">{timeAgo(g.createdAt)}</span>
+            <span className="text-gray-400">{g.creditsCost} credits</span>
+            <span className={`px-1.5 py-0.5 rounded-full font-semibold ${statusStyle[g.status] ?? "bg-gray-100 text-gray-500"}`}>
+              {g.status}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 // ── Main wizard ───────────────────────────────────────────────────────────────
 export default function AICreatorWizard() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const step = (searchParams.get("step") ?? "upload-video") as Step;
 
-  const { refreshUser } = useAuth();
+  const { token, refreshUser } = useAuth();
+  const job = useJobPolling({ toolSlug: "ai-creator" as const, token });
 
   // Wizard state (persists across step navigation via refs so router.push doesn't reset)
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -245,11 +307,11 @@ export default function AICreatorWizard() {
   const videoFileInputRef = useRef<HTMLInputElement>(null);
 
   // Generation state
-  const [generating, setGenerating] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [errorMsg, setErrorMsg] = useState("");
   const [resultUrl, setResultUrl] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const downloadedForJobId = useRef<string | null>(null);
+  const submittingRef = useRef(false);
+  const generating = job.status === "processing";
+  const done = job.status === "done";
 
   const steps: Step[] = ["upload-video", "select-avatar", "select-voiceover"];
   const stepIdx = steps.indexOf(step);
@@ -260,10 +322,15 @@ export default function AICreatorWizard() {
     "select-voiceover": "Select Voiceover",
   };
 
+  // Every step requires all PRIOR steps' state too, not just its own — a
+  // direct URL visit / back-forward navigation to a later step (e.g.
+  // `?step=select-voiceover`) used to leave this unconditionally `true` on
+  // the final step even with no video/avatar chosen yet, rendering Generate
+  // as clickable but completely inert.
   const nextEnabled =
     (step === "upload-video" && videoFile !== null) ||
-    (step === "select-avatar" && avatarChoice !== null) ||
-    (step === "select-voiceover");
+    (step === "select-avatar" && videoFile !== null && avatarChoice !== null) ||
+    (step === "select-voiceover" && videoFile !== null && avatarChoice !== null);
 
   function goToStep(s: Step) {
     router.push(`/dashboard/ai-creator?step=${s}`);
@@ -280,8 +347,8 @@ export default function AICreatorWizard() {
     if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
     setVideoFile(f);
     setVideoPreviewUrl(URL.createObjectURL(f));
-    setErrorMsg("");
-  }, [videoPreviewUrl]);
+    job.reset();
+  }, [videoPreviewUrl, job]);
 
   // ── Avatar selection ──────────────────────────────────────────────────────
   const onAvatarImageFile = useCallback((f: File) => {
@@ -290,76 +357,70 @@ export default function AICreatorWizard() {
   }, [avatarChoice]);
 
   // ── Generation ────────────────────────────────────────────────────────────
-  async function handleGenerate() {
+  const handleGenerate = useCallback(async () => {
     if (generating || !videoFile || !avatarChoice) return;
+    if (!token) return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
 
-    const token = localStorage.getItem("token");
-    if (!token) { setErrorMsg("Please log in to use this feature."); return; }
-
-    setGenerating(true);
-    setProgress(5);
-    setErrorMsg("");
-    setResultUrl(null);
-    setDone(false);
+    if (resultUrl) { URL.revokeObjectURL(resultUrl); setResultUrl(null); }
+    const idempotencyKey = crypto.randomUUID();
 
     try {
-      const form = new FormData();
-      form.append("video", videoFile);
-      form.append("avatarType", avatarChoice.type);
-      if (avatarChoice.type === "upload") form.append("avatarImage", avatarChoice.file);
-      form.append("voiceChoice", voiceSlug);
+      await job.start(async () => {
+        const form = new FormData();
+        form.append("video", videoFile);
+        form.append("avatarType", avatarChoice.type);
+        if (avatarChoice.type === "upload") form.append("avatarImage", avatarChoice.file);
+        form.append("voiceChoice", voiceSlug);
+        form.append("idempotencyKey", idempotencyKey);
 
-      const res = await fetch("/api/tools/ai-creator", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
+        const res = await fetch("/api/tools/ai-creator", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: form,
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({})) as { error?: string };
+          throw new Error(data.error ?? `Error ${res.status}`);
+        }
+        return (await res.json()) as { jobId: string };
       });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? `Error ${res.status}`);
-      }
-
-      const { jobId } = await res.json();
-
-      await new Promise<void>((resolve, reject) => {
-        const interval = setInterval(async () => {
-          try {
-            const poll = await fetch(`/api/tools/ai-creator?jobId=${jobId}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            const data = await poll.json();
-            if (data.progress != null) setProgress(data.progress);
-            if (data.status === "done") { clearInterval(interval); resolve(); }
-            else if (data.status === "error") { clearInterval(interval); reject(new Error(data.error ?? "Generation failed")); }
-          } catch (err) { clearInterval(interval); reject(err); }
-        }, 2000);
-      });
-
-      setProgress(100);
-
-      const dlRes = await fetch(`/api/tools/ai-creator?jobId=${jobId}&download=1`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!dlRes.ok) throw new Error("Download failed");
-
-      const blob = await dlRes.blob();
-      const url = URL.createObjectURL(blob);
-      setResultUrl(url);
-
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "ai-creator-video.mp4";
-      a.click();
-
-      await refreshUser();
-      setDone(true);
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
-      setGenerating(false);
+      submittingRef.current = false;
     }
-  }
+  }, [generating, videoFile, avatarChoice, voiceSlug, token, resultUrl, job]);
+
+  // Once the job is done, fetch the result and trigger a download.
+  useEffect(() => {
+    if (job.status !== "done" || !job.jobId || !token) return;
+    if (downloadedForJobId.current === job.jobId) return;
+    downloadedForJobId.current = job.jobId;
+
+    (async () => {
+      try {
+        const dlRes = await fetch(`/api/tools/ai-creator?jobId=${job.jobId}&download=1`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!dlRes.ok) throw new Error("Download failed");
+        const blob = await dlRes.blob();
+        const url = URL.createObjectURL(blob);
+        setResultUrl(url);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "ai-creator-video.mp4";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        void refreshUser();
+      } catch {
+        // Generation succeeded server-side; a failed download fetch just
+        // means the user needs "Again" rather than a hard error state.
+      }
+    })();
+  }, [job.status, job.jobId, token, refreshUser]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   const isLastStep = step === "select-voiceover";
@@ -595,26 +656,50 @@ export default function AICreatorWizard() {
                 </div>
 
                 {/* Error / progress */}
-                {errorMsg && (
-                  <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{errorMsg}</p>
+                {job.status === "error" && job.error && (
+                  <div className="flex items-center justify-between gap-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">
+                    <span>{job.error}</span>
+                    <button onClick={() => void handleGenerate()} className="font-semibold underline underline-offset-2 hover:text-red-800 flex-shrink-0">
+                      Retry
+                    </button>
+                  </div>
+                )}
+                {job.status === "cancelled" && (
+                  <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                    Cancelled — your credit was refunded.
+                  </p>
                 )}
                 {generating && (
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs text-gray-500">
-                      <span>Generating…</span><span>{progress}%</span>
+                      <span>Generating…</span><span>{job.progress}%</span>
                     </div>
                     <div className="w-full bg-gray-100 rounded-full h-1.5">
-                      <div className="bg-blue-600 h-1.5 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
+                      <div className="bg-blue-600 h-1.5 rounded-full transition-all duration-500" style={{ width: `${job.progress}%` }} />
                     </div>
+                    <button
+                      onClick={() => void job.cancel()}
+                      className="text-xs font-medium text-gray-400 hover:text-red-600 transition-colors"
+                    >
+                      Cancel
+                    </button>
                   </div>
+                )}
+                {done && job.meta?.trimmedToSeconds != null && (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    Your video was trimmed to {String(job.meta.trimmedToSeconds)}s to fit your plan
+                    (uploaded video was {String(job.meta.sourceDurationSeconds)}s).
+                  </p>
                 )}
                 {done && resultUrl && (
                   <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2.5">
                     <span className="text-green-600 text-sm">✓</span>
                     <p className="text-xs text-green-700 font-medium flex-1">Done! Video downloaded.</p>
-                    <a href={resultUrl} download="ai-creator-video.mp4" className="text-xs text-blue-600 font-medium hover:underline">Again</a>
+                    <a href={resultUrl} download="ai-creator-video.mp4" className="text-xs text-blue-600 font-medium hover:underline">Download again</a>
                   </div>
                 )}
+
+                <RecentGenerationsPanel token={token} refreshKey={job.status} />
               </>
             )}
           </div>

@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
-import { redis } from "@/lib/redis";
-import { prisma } from "@/lib/prisma";
-import { attachmentDisposition } from "@/utils/content-disposition";
 import { getMediaDurationSec } from "@/utils/ffmpeg-render";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { withRetry } from "@/lib/with-retry";
 import { env } from "@/lib/env";
+import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
+import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -23,16 +22,11 @@ const CREDIT_COST = 3;
 const MAX_DURATION_SEC = 300; // 5 minutes
 const FAL_MODEL = "fal-ai/demucs";
 
-interface Job {
-  progress: number;
-  status: "processing" | "done" | "error";
-  inputPath: string;
-  outputPath: string;
-  downloadName: string;
-  error?: string;
-  createdAt: number;
+interface Job extends CancellableJob {
+  status: "processing" | "done" | "error" | "cancelled";
   userId: string;
-  refunded: boolean;
+  inputPath: string;
+  createdAt: number;
 }
 
 const g = globalThis as unknown as { __vocalRemoverJobs?: Map<string, Job> };
@@ -47,17 +41,6 @@ function sweep() {
       }
       jobs.delete(id);
     }
-  }
-}
-
-async function refundCredit(userId: string) {
-  await prisma.user.update({
-    where: { id: userId },
-    data: { credits: { increment: CREDIT_COST } },
-  });
-  const cached = await redis.get(`credits:${userId}`);
-  if (cached !== null) {
-    await redis.set(`credits:${userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
   }
 }
 
@@ -145,12 +128,6 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "Vocal removal is not configured (missing FAL_KEY)" }, { status: 503 });
   }
 
-  const cachedCredits = await redis.get(`credits:${auth.userId}`);
-  const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
-  if (cached !== null && cached < CREDIT_COST) {
-    return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
-  }
-
   let formData: FormData;
   try {
     formData = await req.formData();
@@ -184,18 +161,21 @@ async function handlePOST(req: NextRequest) {
     );
   }
 
-  // Deduct credits
-  const user = await prisma.user.update({
-    where: { id: auth.userId },
-    data: { credits: { decrement: CREDIT_COST } },
-    select: { credits: true },
+  const idempotencyKey = (formData.get("idempotencyKey") as string | null) ?? undefined;
+  const charge = await chargeCredits({
+    userId: auth.userId,
+    amount: CREDIT_COST,
+    toolSlug: "vocal-remover",
+    idempotencyKey,
+    log: { generationType: "audio" },
   });
-  if (user.credits < 0) {
-    await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
+  if (!charge.ok) {
     try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
+    if (charge.reason === "tool_disabled") {
+      return NextResponse.json({ error: "Vocal remover is temporarily disabled." }, { status: 503 });
+    }
     return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
   }
-  await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
 
   const job: Job = {
     progress: 5,
@@ -206,6 +186,8 @@ async function handlePOST(req: NextRequest) {
     createdAt: Date.now(),
     userId: auth.userId,
     refunded: false,
+    creditCost: CREDIT_COST,
+    generationId: charge.generationId,
   };
   jobs.set(jobId, job);
 
@@ -222,10 +204,12 @@ async function handlePOST(req: NextRequest) {
       // Submit to Demucs queue
       const requestId = await falSubmit(falUrl);
       job.progress = 20;
+      if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
 
       // Simulate progress while waiting
       const progressTimer = setInterval(() => {
         if (job.progress < 88) job.progress += 3;
+        if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
       }, 8000);
 
       let resultUrl: string;
@@ -235,6 +219,7 @@ async function handlePOST(req: NextRequest) {
         clearInterval(progressTimer);
       }
 
+      if ((job.status as string) === "cancelled") return;
       job.progress = 90;
 
       // Download the instrumental track
@@ -245,12 +230,20 @@ async function handlePOST(req: NextRequest) {
 
       job.progress = 100;
       job.status = "done";
+      if (job.generationId) {
+        void updateGenerationProgress(job.generationId, 100);
+        void markGenerationStatus(job.generationId, "completed");
+      }
     } catch (err) {
+      if ((job.status as string) === "cancelled") return;
       job.status = "error";
       job.error = err instanceof Error ? err.message : "Vocal removal failed";
       if (!job.refunded) {
         job.refunded = true;
-        try { await refundCredit(job.userId); } catch { /* swallow */ }
+        try {
+          await refundCredits({ userId: job.userId, amount: job.creditCost, generationId: job.generationId });
+          if (job.generationId) await markGenerationStatus(job.generationId, "failed", job.error);
+        } catch { /* swallow */ }
       }
     } finally {
       try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
@@ -262,31 +255,12 @@ async function handlePOST(req: NextRequest) {
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:vocal-remover" });
 
-export async function GET(req: NextRequest) {
-  const jobId = req.nextUrl.searchParams.get("jobId");
-  const download = req.nextUrl.searchParams.get("download");
-  if (!jobId) return NextResponse.json({ error: "Missing jobId" }, { status: 400 });
+export const GET = withRateLimit(
+  createJobStatusHandler(jobs, { contentType: "audio/mpeg", deleteOnDownload: true }),
+  { limit: 30, windowSec: 60, keyBy: "user", name: "tools:vocal-remover:status" },
+);
 
-  const job = jobs.get(jobId);
-  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
-
-  if (download) {
-    if (job.status !== "done") return NextResponse.json({ error: "Not ready" }, { status: 409 });
-    const buffer = fs.readFileSync(job.outputPath);
-    try { fs.unlinkSync(job.outputPath); } catch { /* ignore */ }
-    jobs.delete(jobId);
-    return new NextResponse(buffer, {
-      headers: {
-        "Content-Type": "audio/mpeg",
-        "Content-Disposition": attachmentDisposition(job.downloadName),
-        "Content-Length": String(buffer.length),
-      },
-    });
-  }
-
-  return NextResponse.json({
-    progress: Math.round(job.progress),
-    status: job.status,
-    error: job.error,
-  });
-}
+export const DELETE = withRateLimit(
+  createJobCancelHandler(jobs),
+  { limit: 10, windowSec: 60, keyBy: "user", name: "tools:vocal-remover:cancel" },
+);

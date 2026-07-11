@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
+import { useJobPolling } from "@/app/components/useJobPolling";
 import { computeMask, type Aspect } from "@/lib/crop";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -16,7 +17,6 @@ interface Clip {
   trimEnd: number;
 }
 type CropAspect = Aspect;
-type Stage = "idle" | "exporting" | "complete" | "error";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function fmt(sec: number): string {
@@ -92,6 +92,34 @@ function IconPlus() {
     </svg>
   );
 }
+function IconUndo() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+      <path d="M9 14L4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 010 11H11" />
+    </svg>
+  );
+}
+function IconRedo() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+      <path d="M15 14l5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 000 11H13" />
+    </svg>
+  );
+}
+function IconRotate() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+      <path d="M21 12a9 9 0 11-3.05-6.75" /><path d="M21 3v5h-5" />
+    </svg>
+  );
+}
+function IconFlip() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+      <path d="M12 3v18" /><path d="M16 7l4 5-4 5" /><path d="M8 7l-4 5 4 5" />
+    </svg>
+  );
+}
 function IconUpload() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
@@ -130,29 +158,40 @@ function IconZoomIn() {
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function CutAndCropPage() {
-  const { user, openAuthModal, refreshUser } = useAuth();
+  const { user, token, openAuthModal, refreshUser } = useAuth();
+  const job = useJobPolling({ toolSlug: "cut-and-crop", token });
 
   const [clips, setClips] = useState<Clip[]>([]);
+  // Undo/redo history — snapshots of the whole `clips` array taken before
+  // each discrete action (add/remove/split/trim-gesture). Continuous
+  // pointermove updates during a single trim drag do NOT each push a new
+  // snapshot (see startTrimDrag) — one drag gesture is one undo step, not
+  // one step per pixel of movement.
+  const [past, setPast] = useState<Clip[][]>([]);
+  const [future, setFuture] = useState<Clip[][]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [crop, setCrop] = useState<CropAspect>("original");
+  const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(0);
+  const [flipH, setFlipH] = useState(false);
   const [zoom, setZoom] = useState(55);
   const [muted, setMuted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [draggingOver, setDraggingOver] = useState(false);
   const [videoNatSize, setVideoNatSize] = useState<{ w: number; h: number } | null>(null);
-  const [stage, setStage] = useState<Stage>("idle");
-  const [progress, setProgress] = useState(0);
-  const [exportError, setExportError] = useState<string | null>(null);
+  // Pre-flight validation error (e.g. "still reading metadata") — kept
+  // separate from job.error since it happens before a job even starts.
+  const [preflightError, setPreflightError] = useState<string | null>(null);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
   // Set alongside outputUrl in the response handler below rather than
   // computed inline in JSX — Date.now() is an impure call and isn't allowed
   // during render (including inside useMemo, which is still render).
   const [outputFilename, setOutputFilename] = useState("cut-and-crop.mp4");
+  const downloadedForJobId = useRef<string | null>(null);
+  const submittingRef = useRef(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const activeClip = useMemo(() => clips.find(c => c.id === activeId) ?? null, [clips, activeId]);
   const totalDuration = useMemo(
@@ -160,12 +199,37 @@ export default function CutAndCropPage() {
     [clips]
   );
 
+  // Call before any discrete clip-mutating action to make it undoable.
+  const pushHistory = useCallback(() => {
+    setPast(prev => [...prev, clips]);
+    setFuture([]);
+  }, [clips]);
+
+  const undo = useCallback(() => {
+    setPast(prev => {
+      if (prev.length === 0) return prev;
+      const last = prev[prev.length - 1];
+      setFuture(f => [clips, ...f]);
+      setClips(last);
+      return prev.slice(0, -1);
+    });
+  }, [clips]);
+
+  const redo = useCallback(() => {
+    setFuture(prev => {
+      if (prev.length === 0) return prev;
+      const [next, ...rest] = prev;
+      setPast(p => [...p, clips]);
+      setClips(next);
+      return rest;
+    });
+  }, [clips]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       clips.forEach(c => URL.revokeObjectURL(c.url));
       if (outputUrl) URL.revokeObjectURL(outputUrl);
-      if (pollTimer.current) clearInterval(pollTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -203,6 +267,7 @@ export default function CutAndCropPage() {
   // File ingestion
   function handleFiles(list: FileList | null) {
     if (!list || list.length === 0) return;
+    pushHistory();
     const added: Clip[] = [];
     for (const file of Array.from(list)) {
       if (!file.type.startsWith("video/")) continue;
@@ -233,6 +298,7 @@ export default function CutAndCropPage() {
   }
 
   function removeClip(id: string) {
+    pushHistory();
     setClips(prev => {
       const next = prev.filter(c => c.id !== id);
       if (activeId === id) setActiveId(next[0]?.id ?? null);
@@ -276,6 +342,9 @@ export default function CutAndCropPage() {
     const rect = trackEl.getBoundingClientRect();
     const clip = clips.find(c => c.id === clipId);
     if (!clip || clip.duration <= 0) return;
+
+    // One snapshot per whole drag gesture, not per pointermove tick.
+    pushHistory();
 
     // Switch active clip and pause
     if (activeId !== clipId) setActiveId(clipId);
@@ -325,6 +394,7 @@ export default function CutAndCropPage() {
     if (!activeClip) return;
     const t = currentTime;
     if (t <= activeClip.trimStart + 0.1 || t >= activeClip.trimEnd - 0.1) return;
+    pushHistory();
     const newId = crypto.randomUUID();
     const head = { ...activeClip, trimEnd: t };
     const tail: Clip = { ...activeClip, id: newId, trimStart: t };
@@ -334,93 +404,96 @@ export default function CutAndCropPage() {
     });
   }
 
-  // Space shortcut
+  // Space / undo / redo shortcuts
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      if (e.code === "Space" && activeClip) { e.preventDefault(); togglePlay(); }
+      if (e.code === "Space" && activeClip) { e.preventDefault(); togglePlay(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redo(); else undo();
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeClip, isPlaying]);
+  }, [activeClip, isPlaying, undo, redo]);
 
   // Export
   const handleExport = useCallback(async () => {
     if (!user) { openAuthModal("login", "Cut & Crop Editor"); return; }
     if (clips.length === 0) return;
     if (clips.some(c => c.duration === 0)) {
-      setExportError("Still reading file metadata — try again in a moment.");
+      setPreflightError("Still reading file metadata — try again in a moment.");
       return;
     }
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
     if (!token) { openAuthModal("login", "Cut & Crop Editor"); return; }
+    if (submittingRef.current) return;
+    submittingRef.current = true;
 
-    setStage("exporting");
-    setProgress(0);
-    setExportError(null);
+    setPreflightError(null);
     if (outputUrl) { URL.revokeObjectURL(outputUrl); setOutputUrl(null); }
+    const idempotencyKey = crypto.randomUUID();
 
     try {
-      const form = new FormData();
-      clips.forEach((c, i) => form.append(`file_${i}`, c.file));
-      form.append("trims", JSON.stringify(clips.map(c => ({ start: c.trimStart, end: c.trimEnd }))));
-      form.append("crop", crop);
+      await job.start(async () => {
+        const form = new FormData();
+        clips.forEach((c, i) => form.append(`file_${i}`, c.file));
+        form.append("trims", JSON.stringify(clips.map(c => ({ start: c.trimStart, end: c.trimEnd }))));
+        form.append("crop", crop);
+        form.append("rotation", String(rotation));
+        form.append("flipH", String(flipH));
+        form.append("idempotencyKey", idempotencyKey);
 
-      const startRes = await fetch("/api/tools/cut-and-crop", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
+        const startRes = await fetch("/api/tools/cut-and-crop", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: form,
+        });
+        if (!startRes.ok) {
+          const j = await startRes.json().catch(() => ({})) as { error?: string };
+          throw new Error(j.error ?? `Server error (${startRes.status})`);
+        }
+        return (await startRes.json()) as { jobId: string };
       });
-      if (!startRes.ok) {
-        const j = await startRes.json().catch(() => ({})) as { error?: string };
-        throw new Error(j.error ?? `Server error (${startRes.status})`);
-      }
-      const { jobId } = await startRes.json() as { jobId: string };
-
-      await new Promise<void>((resolve, reject) => {
-        if (pollTimer.current) clearInterval(pollTimer.current);
-        pollTimer.current = setInterval(async () => {
-          try {
-            const r = await fetch(`/api/tools/cut-and-crop?jobId=${jobId}`);
-            if (!r.ok) return;
-            const data = await r.json() as { progress: number; status: string; error?: string };
-            setProgress(data.progress);
-            if (data.status === "done") {
-              if (pollTimer.current) { clearInterval(pollTimer.current); pollTimer.current = null; }
-              resolve();
-            } else if (data.status === "error") {
-              if (pollTimer.current) { clearInterval(pollTimer.current); pollTimer.current = null; }
-              reject(new Error(data.error ?? "Export failed"));
-            }
-          } catch { /* transient */ }
-        }, 500);
-      });
-
-      const fileRes = await fetch(`/api/tools/cut-and-crop?jobId=${jobId}&download=1`);
-      if (!fileRes.ok) throw new Error("Failed to download result");
-      const blob = await fileRes.blob();
-      const url = URL.createObjectURL(blob);
-      setOutputUrl(url);
-      setOutputFilename(`cut-and-crop-${Date.now()}.mp4`);
-      setProgress(100);
-      setStage("complete");
-
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `cut-and-crop-${Date.now()}.mp4`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-
-      void refreshUser();
-    } catch (err) {
-      if (pollTimer.current) { clearInterval(pollTimer.current); pollTimer.current = null; }
-      setExportError(err instanceof Error ? err.message : "Export failed");
-      setStage("error");
+    } finally {
+      submittingRef.current = false;
     }
-  }, [user, clips, crop, outputUrl, openAuthModal, refreshUser]);
+  }, [user, clips, crop, rotation, flipH, outputUrl, token, openAuthModal, job]);
+
+  // Once the job is done, fetch the result and trigger a download.
+  useEffect(() => {
+    if (job.status !== "done" || !job.jobId || !token) return;
+    if (downloadedForJobId.current === job.jobId) return;
+    downloadedForJobId.current = job.jobId;
+
+    (async () => {
+      try {
+        const fileRes = await fetch(`/api/tools/cut-and-crop?jobId=${job.jobId}&download=1`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!fileRes.ok) throw new Error("Failed to download result");
+        const blob = await fileRes.blob();
+        const url = URL.createObjectURL(blob);
+        const filename = `cut-and-crop-${Date.now()}.mp4`;
+        setOutputUrl(url);
+        setOutputFilename(filename);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        void refreshUser();
+      } catch {
+        // The export itself succeeded; a failed download fetch just means
+        // the user needs "Download again" rather than a hard error state.
+      }
+    })();
+  }, [job.status, job.jobId, token, refreshUser]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -436,22 +509,42 @@ export default function CutAndCropPage() {
           {/* Right cluster */}
           <div className="flex items-center gap-2">
             {/* Exporting indicator */}
-            {stage === "exporting" && (
+            {job.status === "processing" && (
               <div className="flex items-center gap-2 text-sm text-gray-600">
                 <div className="w-3.5 h-3.5 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin" />
-                <span className="font-medium text-xs">{progress}%</span>
+                <span className="font-medium text-xs">{job.progress}%</span>
+                <button
+                  onClick={() => void job.cancel()}
+                  className="text-xs font-medium text-gray-400 hover:text-red-600 transition-colors"
+                >
+                  Cancel
+                </button>
               </div>
             )}
 
             {/* Error toast */}
-            {exportError && stage === "error" && (
-              <span className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-1.5 max-w-[200px] truncate" title={exportError}>
-                {exportError}
+            {(preflightError || (job.status === "error" && job.error)) && (
+              <span
+                className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-1.5 max-w-[280px] truncate"
+                title={preflightError ?? job.error ?? undefined}
+              >
+                {preflightError ?? job.error}
+                {job.status === "error" && (
+                  <button onClick={() => void handleExport()} className="ml-1.5 font-semibold underline underline-offset-2 hover:text-red-800">
+                    Retry
+                  </button>
+                )}
+              </span>
+            )}
+
+            {job.status === "cancelled" && (
+              <span className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5">
+                Cancelled — credit refunded
               </span>
             )}
 
             {/* Download again */}
-            {stage === "complete" && outputUrl && (
+            {job.status === "done" && outputUrl && (
               <a
                 href={outputUrl}
                 download={outputFilename}
@@ -464,7 +557,7 @@ export default function CutAndCropPage() {
             {/* Export */}
             <button
               onClick={handleExport}
-              disabled={clips.length === 0 || stage === "exporting"}
+              disabled={clips.length === 0 || job.status === "processing"}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <IconUpload />
@@ -482,10 +575,9 @@ export default function CutAndCropPage() {
           {/* Preview canvas */}
           <div
             className="flex-1 min-h-0 flex items-center justify-center bg-[#111318] relative overflow-hidden"
-            onDragOver={e => { if (clips.length === 0) { e.preventDefault(); setDraggingOver(true); } }}
+            onDragOver={e => { e.preventDefault(); setDraggingOver(true); }}
             onDragLeave={() => setDraggingOver(false)}
             onDrop={e => {
-              if (clips.length > 0) return;
               e.preventDefault();
               setDraggingOver(false);
               if (!user) { openAuthModal("login", "Cut & Crop Editor"); return; }
@@ -521,7 +613,13 @@ export default function CutAndCropPage() {
               <div style={{ display: "inline-block", position: "relative" }}>
                 <video
                   ref={videoRef}
-                  style={{ display: "block", maxHeight: "calc(100vh - 256px)", maxWidth: "calc(100vw - 90px)", borderRadius: "0.5rem" }}
+                  style={{
+                    display: "block",
+                    maxHeight: "calc(100vh - 256px)",
+                    maxWidth: "calc(100vw - 90px)",
+                    borderRadius: "0.5rem",
+                    transform: `rotate(${rotation}deg)${flipH ? " scaleX(-1)" : ""}`,
+                  }}
                   onTimeUpdate={handleTimeUpdate}
                   onPlay={() => setIsPlaying(true)}
                   onPause={() => setIsPlaying(false)}
@@ -567,6 +665,15 @@ export default function CutAndCropPage() {
                     </div>
                   );
                 })()}
+              </div>
+            )}
+
+            {/* Drag-over indicator when clips already exist — dropping here adds
+                another clip, but the empty-state's own indicator only renders
+                before the first clip is added, so this covers the rest. */}
+            {draggingOver && clips.length > 0 && (
+              <div className="absolute inset-0 flex items-center justify-center bg-blue-500/10 border-2 border-dashed border-blue-400 rounded-2xl pointer-events-none">
+                <p className="text-white text-sm font-medium bg-black/60 px-4 py-2 rounded-full">Drop to add another clip</p>
               </div>
             )}
 
@@ -619,6 +726,27 @@ export default function CutAndCropPage() {
               {/* Divider */}
               <div className="w-px h-5 bg-gray-200 mx-2" />
 
+              {/* Undo / redo */}
+              <button
+                onClick={undo}
+                disabled={past.length === 0}
+                title="Undo (Ctrl+Z)"
+                className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-colors"
+              >
+                <IconUndo />
+              </button>
+              <button
+                onClick={redo}
+                disabled={future.length === 0}
+                title="Redo (Ctrl+Shift+Z)"
+                className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-colors"
+              >
+                <IconRedo />
+              </button>
+
+              {/* Divider */}
+              <div className="w-px h-5 bg-gray-200 mx-2" />
+
               {/* Edit tools */}
               <button
                 onClick={splitAtPlayhead}
@@ -641,6 +769,20 @@ export default function CutAndCropPage() {
                   <option value="16:9">16:9</option>
                 </select>
               </div>
+              <button
+                onClick={() => setRotation(r => (r === 270 ? 0 : (r + 90) as 0 | 90 | 180 | 270))}
+                title={`Rotate (currently ${rotation}°)`}
+                className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors ${rotation !== 0 ? "bg-blue-50 text-blue-600" : "text-gray-500 hover:bg-gray-100"}`}
+              >
+                <IconRotate />
+              </button>
+              <button
+                onClick={() => setFlipH(v => !v)}
+                title="Flip horizontal"
+                className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors ${flipH ? "bg-blue-50 text-blue-600" : "text-gray-500 hover:bg-gray-100"}`}
+              >
+                <IconFlip />
+              </button>
               <button
                 onClick={() => activeClip && removeClip(activeClip.id)}
                 disabled={!activeClip}

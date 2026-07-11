@@ -1,32 +1,43 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { useAuth } from "@/app/components/AuthContext";
-
-type Stage = "idle" | "ready" | "processing" | "complete" | "error";
+import { useJobPolling } from "@/app/components/useJobPolling";
 
 export default function SubtitleRemoverTool() {
-  const { refreshUser } = useAuth();
+  const { token, refreshUser } = useAuth();
+  const job = useJobPolling({ toolSlug: "subtitle-remover", token });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [stage, setStage] = useState<Stage>("idle");
   const [file, setFile] = useState<File | null>(null);
-  const [progress, setProgress] = useState(0);
+  const [originalPreviewUrl, setOriginalPreviewUrl] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [downloadName, setDownloadName] = useState("subtitle-removed.mp4");
   const [dragging, setDragging] = useState(false);
+  const [compareView, setCompareView] = useState<"before" | "after">("after");
+  const downloadedForJobId = useRef<string | null>(null);
+  const submittingRef = useRef(false);
+
+  const MAX_MB = 500;
 
   const acceptFile = useCallback((f: File) => {
     if (!f.type.startsWith("video/")) {
       setErrorMsg("Please upload a video file (MP4, MOV, WEBM).");
       return;
     }
+    if (f.size > MAX_MB * 1024 * 1024) {
+      setErrorMsg(`File exceeds ${MAX_MB} MB limit.`);
+      return;
+    }
+    if (originalPreviewUrl) URL.revokeObjectURL(originalPreviewUrl);
     setFile(f);
-    setStage("ready");
+    setOriginalPreviewUrl(URL.createObjectURL(f));
     setErrorMsg("");
     setDownloadUrl(null);
-  }, []);
+    setCompareView("after");
+    job.reset();
+  }, [job, originalPreviewUrl]);
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -42,107 +53,106 @@ export default function SubtitleRemoverTool() {
   };
 
   const removeFile = () => {
+    if (originalPreviewUrl) URL.revokeObjectURL(originalPreviewUrl);
     setFile(null);
-    setStage("idle");
+    setOriginalPreviewUrl(null);
     setErrorMsg("");
     setDownloadUrl(null);
-    setProgress(0);
+    job.reset();
   };
 
-  const handleRemove = async () => {
-    if (!file || stage === "processing") return;
+  // Revoke any held object URLs on unmount.
+  useEffect(() => {
+    return () => {
+      if (originalPreviewUrl) URL.revokeObjectURL(originalPreviewUrl);
+      if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    const token = localStorage.getItem("token");
+  const handleRemove = useCallback(async () => {
+    if (!file || job.status === "processing") return;
     if (!token) {
       setErrorMsg("Please log in to use this tool.");
       return;
     }
+    if (submittingRef.current) return;
+    submittingRef.current = true;
 
-    setStage("processing");
-    setProgress(5);
     setErrorMsg("");
+    const name = `subtitle-removed-${file.name}`;
+    setDownloadName(name);
+    const idempotencyKey = crypto.randomUUID();
 
     try {
-      const form = new FormData();
-      form.append("video", file);
+      await job.start(async () => {
+        const form = new FormData();
+        form.append("video", file);
+        form.append("idempotencyKey", idempotencyKey);
 
-      const res = await fetch("/api/tools/subtitle-remover", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
+        const res = await fetch("/api/tools/subtitle-remover", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: form,
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({})) as { error?: string };
+          throw new Error(data.error ?? `Error ${res.status}`);
+        }
+        return (await res.json()) as { jobId: string };
       });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? `Error ${res.status}`);
-      }
-
-      const { jobId } = await res.json();
-      const name = `subtitle-removed-${file.name}`;
-      setDownloadName(name);
-
-      // Poll for progress
-      await new Promise<void>((resolve, reject) => {
-        const interval = setInterval(async () => {
-          try {
-            const poll = await fetch(`/api/tools/subtitle-remover?jobId=${jobId}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            const data = await poll.json();
-            if (data.progress != null) setProgress(data.progress);
-            if (data.status === "done") {
-              clearInterval(interval);
-              resolve();
-            } else if (data.status === "error") {
-              clearInterval(interval);
-              reject(new Error(data.error ?? "Processing failed"));
-            }
-          } catch (err) {
-            clearInterval(interval);
-            reject(err);
-          }
-        }, 500);
-      });
-
-      setProgress(100);
-
-      // Download the result
-      const dlRes = await fetch(`/api/tools/subtitle-remover?jobId=${jobId}&download=1`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!dlRes.ok) throw new Error("Download failed");
-
-      const blob = await dlRes.blob();
-      const url = URL.createObjectURL(blob);
-      setDownloadUrl(url);
-
-      // Auto-download
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = name;
-      a.click();
-
-      await refreshUser();
-      setStage("complete");
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Something went wrong.");
-      setStage("error");
+    } finally {
+      submittingRef.current = false;
     }
-  };
+  }, [file, job, token]);
+
+  // Once the job is done, fetch and auto-download the result.
+  useEffect(() => {
+    if (job.status !== "done" || !job.jobId || !token) return;
+    if (downloadedForJobId.current === job.jobId) return;
+    downloadedForJobId.current = job.jobId;
+
+    (async () => {
+      try {
+        const dlRes = await fetch(`/api/tools/subtitle-remover?jobId=${job.jobId}&download=1`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!dlRes.ok) throw new Error("Download failed");
+        const blob = await dlRes.blob();
+        const url = URL.createObjectURL(blob);
+        setDownloadUrl(url);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = downloadName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        void refreshUser();
+      } catch {
+        // Job succeeded server-side; a failed download fetch just means the
+        // user needs "Download again" rather than a hard error state.
+      }
+    })();
+  }, [job.status, job.jobId, token, downloadName, refreshUser]);
 
   const handleAgain = () => {
+    if (originalPreviewUrl) URL.revokeObjectURL(originalPreviewUrl);
     setFile(null);
-    setStage("idle");
-    setProgress(0);
+    setOriginalPreviewUrl(null);
     setErrorMsg("");
     if (downloadUrl) {
       URL.revokeObjectURL(downloadUrl);
       setDownloadUrl(null);
     }
+    job.reset();
   };
 
+  const isComplete = job.status === "done";
+
   return (
-    <div className="min-h-screen bg-slate-50 flex items-start justify-center p-8">
+    <div className="min-h-screen bg-slate-50 flex items-start justify-center p-4 sm:p-8">
       <div className="w-full max-w-lg bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
         {/* Header */}
         <div className="p-6 pb-5">
@@ -196,7 +206,7 @@ export default function SubtitleRemoverTool() {
                   />
                 </svg>
                 <p className="text-sm font-medium text-gray-700">Click to upload video</p>
-                <p className="text-xs text-gray-400 mt-1">MP4, MOV, WEBM</p>
+                <p className="text-xs text-gray-400 mt-1">MP4, MOV, WEBM &bull; Max {MAX_MB} MB</p>
               </div>
             ) : (
               <div className="border border-gray-200 rounded-xl p-4 flex items-center gap-3 bg-gray-50">
@@ -210,7 +220,7 @@ export default function SubtitleRemoverTool() {
                   <p className="text-sm font-medium text-gray-800 truncate">{file.name}</p>
                   <p className="text-xs text-gray-400">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
                 </div>
-                {stage !== "processing" && stage !== "complete" && (
+                {job.status !== "processing" && !isComplete && (
                   <button
                     onClick={removeFile}
                     className="text-gray-400 hover:text-gray-600 transition-colors p-1"
@@ -225,52 +235,109 @@ export default function SubtitleRemoverTool() {
           </div>
 
           {/* Progress bar */}
-          {stage === "processing" && (
+          {job.status === "processing" && (
             <div className="space-y-1.5">
               <div className="flex justify-between text-xs text-gray-500">
                 <span>Removing subtitles…</span>
-                <span>{progress}%</span>
+                <span>{job.progress}%</span>
               </div>
               <div className="w-full bg-gray-100 rounded-full h-2">
                 <div
                   className="bg-[#335CFF] h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${progress}%` }}
+                  style={{ width: `${job.progress}%` }}
                 />
               </div>
+              <button
+                onClick={() => void job.cancel()}
+                className="text-xs font-medium text-gray-400 hover:text-red-600 transition-colors"
+              >
+                Cancel
+              </button>
             </div>
           )}
 
           {/* Error */}
-          {errorMsg && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{errorMsg}</p>
-          )}
-
-          {/* Complete actions */}
-          {stage === "complete" && downloadUrl && (
-            <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-3">
-              <svg className="w-5 h-5 text-green-600 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-sm text-green-700 font-medium flex-1">Done! File downloaded.</p>
-              <a
-                href={downloadUrl}
-                download={downloadName}
-                className="text-xs text-[#335CFF] font-medium hover:underline"
-              >
-                Download again
-              </a>
+          {(errorMsg || (job.status === "error" && job.error)) && (
+            <div className="flex items-center justify-between gap-2 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
+              <span>{errorMsg || job.error}</span>
+              {job.status === "error" && (
+                <button onClick={() => void handleRemove()} className="text-xs font-semibold underline underline-offset-2 hover:text-red-800 flex-shrink-0">
+                  Retry
+                </button>
+              )}
             </div>
           )}
 
+          {job.status === "cancelled" && (
+            <p className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+              Cancelled — your credit was refunded.
+            </p>
+          )}
+
+          {/* Complete actions */}
+          {isComplete && downloadUrl && (
+            <>
+              <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-3">
+                <svg className="w-5 h-5 text-green-600 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-sm text-green-700 font-medium flex-1">Done! File downloaded.</p>
+                <a
+                  href={downloadUrl}
+                  download={downloadName}
+                  className="text-xs text-[#335CFF] font-medium hover:underline"
+                >
+                  Download again
+                </a>
+              </div>
+
+              {job.meta?.regionsDetected === 0 ? (
+                <p className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                  No on-screen text was detected in this video, so nothing was changed.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {typeof job.meta?.regionsDetected === "number" && (
+                    <p className="text-xs text-gray-400">
+                      {job.meta.regionsDetected} text region{job.meta.regionsDetected === 1 ? "" : "s"} detected and removed.
+                    </p>
+                  )}
+                  <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
+                    <button
+                      onClick={() => setCompareView("before")}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${compareView === "before" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}
+                    >
+                      Before
+                    </button>
+                    <button
+                      onClick={() => setCompareView("after")}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${compareView === "after" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}
+                    >
+                      After
+                    </button>
+                  </div>
+                  {originalPreviewUrl && (
+                    <video
+                      key={compareView}
+                      src={compareView === "before" ? originalPreviewUrl : downloadUrl}
+                      controls
+                      className="w-full rounded-xl border border-gray-200 bg-black"
+                    />
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
           {/* Main CTA */}
-          {stage !== "complete" ? (
+          {!isComplete ? (
             <button
               onClick={handleRemove}
-              disabled={stage !== "ready" && stage !== "error"}
+              disabled={!file || job.status === "processing"}
               className="w-full py-3 rounded-xl text-sm font-semibold text-white transition-opacity disabled:opacity-40"
               style={{ background: "linear-gradient(135deg, #335CFF 0%, #7B5EA7 100%)" }}
             >
-              {stage === "processing" ? "Removing…" : "Remove Subtitles"}
+              {job.status === "processing" ? "Removing…" : "Remove Subtitles"}
             </button>
           ) : (
             <button

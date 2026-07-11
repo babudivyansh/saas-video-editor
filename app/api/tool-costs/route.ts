@@ -37,6 +37,8 @@ const VIDEO_COSTS = VIDEO_MODELS.map(m => m.creditsPerSecond * m.minDurationSeco
 const RANGES: Record<string, { min: number; max: number }> = {
   "image-generator": { min: Math.min(...IMAGE_COSTS), max: Math.max(...IMAGE_COSTS) },
   "video-generator": { min: Math.min(...VIDEO_COSTS), max: Math.max(...VIDEO_COSTS) },
+  // Matches creditCostForDuration's clamp in app/api/tools/subtitle-remover/route.ts.
+  "subtitle-remover": { min: 2, max: 20 },
 };
 
 export async function GET() {

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
-import { redis } from "@/lib/redis";
-import { prisma } from "@/lib/prisma";
 import { resolveVoiceId } from "@/utils/voice-ids";
-import { attachmentDisposition } from "@/utils/content-disposition";
 import { getMediaDurationSec } from "@/utils/ffmpeg-render";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { withRetry } from "@/lib/with-retry";
+import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
+import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
+import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -22,16 +22,11 @@ export const maxDuration = 300;
 const CREDIT_COST = 6;
 const MAX_DURATION_SEC = 90;
 
-interface Job {
-  progress: number;
-  status: "processing" | "done" | "error";
-  inputPath: string;
-  outputPath: string;
-  downloadName: string;
-  error?: string;
-  createdAt: number;
+interface Job extends CancellableJob {
+  status: "processing" | "done" | "error" | "cancelled";
   userId: string;
-  refunded: boolean;
+  inputPath: string;
+  createdAt: number;
 }
 
 const g = globalThis as unknown as { __voiceChangerJobs?: Map<string, Job> };
@@ -53,28 +48,11 @@ function cleanupJob(job: Job) {
   }
 }
 
-async function refundCredit(userId: string) {
-  await prisma.user.update({
-    where: { id: userId },
-    data: { credits: { increment: CREDIT_COST } },
-  });
-  const cached = await redis.get(`credits:${userId}`);
-  if (cached !== null) {
-    await redis.set(`credits:${userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
-  }
-}
-
 async function handlePOST(req: NextRequest) {
   sweep();
 
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const cachedCredits = await redis.get(`credits:${auth.userId}`);
-  const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
-  if (cached !== null && cached < CREDIT_COST) {
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
-  }
 
   let formData: FormData;
   try {
@@ -93,6 +71,11 @@ async function handlePOST(req: NextRequest) {
 
   const voiceSlug = (formData.get("voiceSlug") as string | null) ?? "adam";
   const removeNoise = (formData.get("removeNoise") as string | null) === "true";
+  // ElevenLabs' documented voice_settings.speed range is 0.7-1.2; clamp
+  // defensively in case a stale/tampered client sends something outside it.
+  const speedRaw = Number(formData.get("speed") ?? 1);
+  const speed = Number.isFinite(speedRaw) ? Math.min(1.2, Math.max(0.7, speedRaw)) : 1;
+  const idempotencyKey = (formData.get("idempotencyKey") as string | null) ?? undefined;
 
   // Write the upload to disk first so we can probe its duration BEFORE charging.
   const jobId = randomUUID();
@@ -103,28 +86,34 @@ async function handlePOST(req: NextRequest) {
 
   fs.writeFileSync(inputPath, Buffer.from(await audioFile.arrayBuffer()));
 
-  // Enforce the length cap (no credit charged yet).
+  // Enforce the length cap (no credit charged yet). A duration of 0 means
+  // ffmpeg couldn't probe the file at all (unreadable/unsupported container)
+  // rather than a genuinely empty clip — treat that as a rejection too,
+  // since letting it through silently bypassed the cost-control cap for any
+  // file whose duration couldn't be determined.
   const durationSec = await getMediaDurationSec(inputPath);
-  if (durationSec > MAX_DURATION_SEC) {
+  if (durationSec <= 0 || durationSec > MAX_DURATION_SEC) {
     try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
-    return NextResponse.json(
-      { error: `Audio is too long (${Math.round(durationSec)}s). Max is ${MAX_DURATION_SEC / 60} minutes.` },
-      { status: 400 },
-    );
+    const message = durationSec <= 0
+      ? "Couldn't read this file's duration — it may be corrupted or an unsupported format."
+      : `Audio is too long (${Math.round(durationSec)}s). Max is ${MAX_DURATION_SEC / 60} minutes.`;
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  // Deduct credit
-  const user = await prisma.user.update({
-    where: { id: auth.userId },
-    data: { credits: { decrement: CREDIT_COST } },
-    select: { credits: true },
+  const charge = await chargeCredits({
+    userId: auth.userId,
+    amount: CREDIT_COST,
+    toolSlug: "voice-changer",
+    idempotencyKey,
+    log: { generationType: "audio" },
   });
-  if (user.credits < 0) {
-    await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
+  if (!charge.ok) {
     try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
+    if (charge.reason === "tool_disabled") {
+      return NextResponse.json({ error: "Voice changer is temporarily disabled." }, { status: 503 });
+    }
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
-  await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
 
   const job: Job = {
     progress: 5,
@@ -135,6 +124,8 @@ async function handlePOST(req: NextRequest) {
     createdAt: Date.now(),
     userId: auth.userId,
     refunded: false,
+    creditCost: CREDIT_COST,
+    generationId: charge.generationId,
   };
   jobs.set(jobId, job);
 
@@ -148,10 +139,11 @@ async function handlePOST(req: NextRequest) {
       const inputBlob = new Blob([fs.readFileSync(inputPath)], { type: audioFile.type || "audio/mpeg" });
       elForm.append("audio", inputBlob, audioFile.name);
       elForm.append("model_id", "eleven_multilingual_sts_v2");
-      elForm.append("voice_settings", JSON.stringify({ stability: 0.5, similarity_boost: 0.75 }));
+      elForm.append("voice_settings", JSON.stringify({ stability: 0.5, similarity_boost: 0.75, speed }));
       elForm.append("remove_background_noise", String(removeNoise));
 
       job.progress = 20;
+      if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
 
       const res = await withRetry(
         (signal) => fetch(`https://api.elevenlabs.io/v1/speech-to-speech/${voiceId}`, {
@@ -163,11 +155,19 @@ async function handlePOST(req: NextRequest) {
         { timeoutMs: 60_000 },
       );
 
+      if ((job.status as string) === "cancelled") return;
       job.progress = 60;
+      if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
 
       if (!res.ok) {
         const errText = await res.text();
-        throw new Error(`ElevenLabs error ${res.status}: ${errText}`);
+        logger.error("voice-changer", `ElevenLabs error ${res.status}`, errText);
+        const friendly = res.status === 429
+          ? "The voice engine is busy right now — please try again in a moment."
+          : res.status >= 500
+            ? "The voice engine is temporarily unavailable — please try again."
+            : "Couldn't convert this audio — try a different voice or file.";
+        throw new Error(friendly);
       }
 
       const audioBuffer = Buffer.from(await res.arrayBuffer());
@@ -176,12 +176,20 @@ async function handlePOST(req: NextRequest) {
       fs.writeFileSync(outputPath, audioBuffer);
       job.progress = 100;
       job.status = "done";
+      if (job.generationId) {
+        void updateGenerationProgress(job.generationId, 100);
+        void markGenerationStatus(job.generationId, "completed");
+      }
     } catch (err) {
+      if ((job.status as string) === "cancelled") return;
       job.status = "error";
       job.error = err instanceof Error ? err.message : "Voice change failed";
       if (!job.refunded) {
         job.refunded = true;
-        try { await refundCredit(job.userId); } catch { /* swallow */ }
+        try {
+          await refundCredits({ userId: job.userId, amount: job.creditCost, generationId: job.generationId });
+          if (job.generationId) await markGenerationStatus(job.generationId, "failed", job.error);
+        } catch { /* swallow */ }
       }
     } finally {
       try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
@@ -193,31 +201,12 @@ async function handlePOST(req: NextRequest) {
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:voice-changer" });
 
-export async function GET(req: NextRequest) {
-  const jobId = req.nextUrl.searchParams.get("jobId");
-  const download = req.nextUrl.searchParams.get("download");
-  if (!jobId) return NextResponse.json({ error: "Missing jobId" }, { status: 400 });
+export const GET = withRateLimit(
+  createJobStatusHandler(jobs, { contentType: "audio/mpeg", deleteOnDownload: true }),
+  { limit: 30, windowSec: 60, keyBy: "user", name: "tools:voice-changer:status" },
+);
 
-  const job = jobs.get(jobId);
-  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
-
-  if (download) {
-    if (job.status !== "done") return NextResponse.json({ error: "Not ready" }, { status: 409 });
-    const buffer = fs.readFileSync(job.outputPath);
-    try { fs.unlinkSync(job.outputPath); } catch { /* ignore */ }
-    jobs.delete(jobId);
-    return new NextResponse(buffer, {
-      headers: {
-        "Content-Type": "audio/mpeg",
-        "Content-Disposition": attachmentDisposition(job.downloadName),
-        "Content-Length": String(buffer.length),
-      },
-    });
-  }
-
-  return NextResponse.json({
-    progress: Math.round(job.progress),
-    status: job.status,
-    error: job.error,
-  });
-}
+export const DELETE = withRateLimit(
+  createJobCancelHandler(jobs),
+  { limit: 10, windowSec: 60, keyBy: "user", name: "tools:voice-changer:cancel" },
+);

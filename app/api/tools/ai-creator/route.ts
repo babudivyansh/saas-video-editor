@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser, getUserTier } from "@/lib/auth";
-import { uploadBufferToS3 } from "@/utils/s3-upload";
+import { uploadBufferToS3, getPresignedUrl, deleteS3Object } from "@/utils/s3-upload";
 import { runFFmpegArgs, getMediaDurationSec } from "@/utils/ffmpeg-render";
-import { attachmentDisposition } from "@/utils/content-disposition";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { withRetry } from "@/lib/with-retry";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { TOOL_COSTS } from "@/lib/tool-costs";
-import { chargeCredits, refundCredits, markGenerationStatus, checkModelAccess } from "@/lib/credits";
+import { chargeCredits, refundCredits, markGenerationStatus, checkModelAccess, updateGenerationProgress } from "@/lib/credits";
 import { maxDurationForTier } from "@/lib/plans/tiers";
+import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -32,18 +32,16 @@ const PRESET_AVATAR_URLS: Record<string, string | undefined> = {
   "face-swap":   env.PRESET_AVATAR_FACE_SWAP_URL,
 };
 
-interface Job {
-  progress: number;
-  status: "processing" | "done" | "error";
-  outputPath: string;
-  downloadName: string;
-  error?: string;
-  createdAt: number;
+interface Job extends CancellableJob {
+  status: "processing" | "done" | "error" | "cancelled";
   userId: string;
-  refunded: boolean;
-  creditCost: number;
-  generationId?: string;
+  createdAt: number;
   tempFiles: string[];
+  meta?: { trimmedToSeconds: number; sourceDurationSeconds: number };
+  /** S3 keys uploaded for this job (user's audio/face image) — deleted once
+   * fal.ai has consumed them, since they're privacy-sensitive and were
+   * previously left on a permanent public URL indefinitely. */
+  s3Keys: string[];
 }
 
 const g = globalThis as unknown as { __aiCreatorJobs?: Map<string, Job> };
@@ -54,8 +52,15 @@ function sweep() {
   for (const [id, job] of jobs) {
     if (job.createdAt < cutoff) {
       for (const f of job.tempFiles) { try { fs.unlinkSync(f); } catch { /* ignore */ } }
+      for (const key of job.s3Keys) { void deleteS3Object(key).catch(() => {}); }
       jobs.delete(id);
     }
+  }
+}
+
+async function deleteJobS3Objects(job: Job) {
+  for (const key of job.s3Keys) {
+    try { await deleteS3Object(key); } catch { /* best-effort */ }
   }
 }
 
@@ -150,6 +155,7 @@ async function handlePOST(req: NextRequest) {
 
   const avatarType = (formData.get("avatarType") as string | null) ?? "upload";
   const avatarImageFile = formData.get("avatarImage") as File | null;
+  const idempotencyKey = (formData.get("idempotencyKey") as string | null) ?? undefined;
 
   if (avatarType !== "upload") {
     if (!PRESET_AVATAR_URLS[avatarType]) {
@@ -180,13 +186,22 @@ async function handlePOST(req: NextRequest) {
   const userTier = await getUserTier(auth.userId);
   const tierCap = maxDurationForTier(userTier);
   const rawDuration = await getMediaDurationSec(inputVideoPath);
-  const duration = Math.min(Math.max(rawDuration || TOOL_COST.defaultDurationSeconds!, TOOL_COST.minDurationSeconds!), Math.min(TOOL_COST.maxDurationSeconds!, tierCap));
+  const effectiveDuration = rawDuration || TOOL_COST.defaultDurationSeconds!;
+  const ceiling = Math.min(TOOL_COST.maxDurationSeconds!, tierCap);
+  // Bill (and produce) only what's actually achievable — previously this
+  // also applied a `minDurationSeconds` floor here, which overcharged a
+  // short upload: ffmpeg's `-t` can't extend audio past what the source
+  // actually contains, so a source shorter than that floor was billed for
+  // seconds the output could never contain.
+  const duration = Math.min(effectiveDuration, ceiling);
+  const wasClampedByCeiling = effectiveDuration > ceiling;
   const CREDIT_COST = Math.ceil(TOOL_COST.creditsPerSecond! * duration);
 
   const charge = await chargeCredits({
     userId: auth.userId,
     amount: CREDIT_COST,
     toolSlug: "ai-creator",
+    idempotencyKey,
     log: { generationType: "video", estimatedCostUsd: (TOOL_COST.costUsd ?? 0) * duration },
   });
   if (!charge.ok) {
@@ -216,6 +231,7 @@ async function handlePOST(req: NextRequest) {
     creditCost: CREDIT_COST,
     generationId: charge.generationId,
     tempFiles,
+    s3Keys: [],
   };
   jobs.set(jobId, job);
 
@@ -241,27 +257,28 @@ async function handlePOST(req: NextRequest) {
         ]);
       }
 
-      // 2. Upload audio to S3 — fal.ai requires a public URL
+      // 2. Upload audio to S3 and hand fal.ai a short-lived signed URL rather
+      // than the permanent public one — this is a user's voice recording.
       job.progress = 25;
       const audioBuffer = fs.readFileSync(audioPath);
-      const audioS3Url = await uploadBufferToS3(
-        audioBuffer,
-        `ai-creator/${jobId}/audio.mp3`,
-        "audio/mpeg",
-      );
+      const audioKey = `ai-creator/${jobId}/audio.mp3`;
+      await uploadBufferToS3(audioBuffer, audioKey, "audio/mpeg");
+      job.s3Keys.push(audioKey);
+      const audioS3Url = await getPresignedUrl(audioKey, 3600);
       try { fs.unlinkSync(audioPath); } catch { /* ignore */ }
 
-      // 3. Resolve avatar image URL
+      // 3. Resolve avatar image URL — same signed-URL treatment when it's a
+      // user upload (a face photo); preset avatars are already public assets
+      // we control, so they're used as-is.
       job.progress = 35;
       let avatarImageUrl: string;
       if (avatarType === "upload" && avatarImagePath) {
         const imgBuffer = fs.readFileSync(avatarImagePath);
         const imgExt = path.extname(avatarImagePath).replace(".", "") || "jpg";
-        avatarImageUrl = await uploadBufferToS3(
-          imgBuffer,
-          `ai-creator/${jobId}/avatar.${imgExt}`,
-          "image/jpeg",
-        );
+        const avatarKey = `ai-creator/${jobId}/avatar.${imgExt}`;
+        await uploadBufferToS3(imgBuffer, avatarKey, "image/jpeg");
+        job.s3Keys.push(avatarKey);
+        avatarImageUrl = await getPresignedUrl(avatarKey, 3600);
         try { fs.unlinkSync(avatarImagePath); } catch { /* ignore */ }
       } else {
         avatarImageUrl = PRESET_AVATAR_URLS[avatarType]!;
@@ -276,8 +293,10 @@ async function handlePOST(req: NextRequest) {
 
       // 5. Poll until done (progress ticks 45 → 88 while waiting)
       job.progress = 45;
+      if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
       const progressTimer = setInterval(() => {
         if (job.progress < 88) job.progress += 3;
+        if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
       }, 10000);
 
       let videoUrl: string;
@@ -287,23 +306,39 @@ async function handlePOST(req: NextRequest) {
         clearInterval(progressTimer);
       }
 
+      // fal.ai has now fetched both signed URLs — clean up the S3 objects,
+      // whether or not the rest of the job succeeds.
+      await deleteJobS3Objects(job);
+      job.s3Keys = [];
+
+      if ((job.status as string) === "cancelled") return;
+
       // 6. Download result and write to temp output file
       job.progress = 92;
       const dlRes = await fetch(videoUrl);
       if (!dlRes.ok) throw new Error("Failed to download SadTalker output");
       fs.writeFileSync(outputPath, Buffer.from(await dlRes.arrayBuffer()));
 
+      if (wasClampedByCeiling) {
+        job.meta = { trimmedToSeconds: duration, sourceDurationSeconds: Math.round(effectiveDuration) };
+      }
       job.progress = 100;
       job.status = "done";
-      if (job.generationId) void markGenerationStatus(job.generationId, "completed");
+      if (job.generationId) {
+        void updateGenerationProgress(job.generationId, 100);
+        void markGenerationStatus(job.generationId, "completed");
+      }
     } catch (err) {
+      await deleteJobS3Objects(job);
+      job.s3Keys = [];
+      if ((job.status as string) === "cancelled") return;
       logger.error("ai-creator", `job ${jobId} failed`, err);
       job.status = "error";
       job.error = err instanceof Error ? err.message : "AI Creator generation failed";
       if (!job.refunded) {
         job.refunded = true;
         try {
-          await refundCredits({ userId: job.userId, amount: job.creditCost });
+          await refundCredits({ userId: job.userId, amount: job.creditCost, generationId: job.generationId });
           if (job.generationId) await markGenerationStatus(job.generationId, "failed", job.error);
         } catch { /* swallow */ }
       }
@@ -319,31 +354,12 @@ async function handlePOST(req: NextRequest) {
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:ai-creator" });
 
-export async function GET(req: NextRequest) {
-  const jobId = req.nextUrl.searchParams.get("jobId");
-  const download = req.nextUrl.searchParams.get("download");
-  if (!jobId) return NextResponse.json({ error: "Missing jobId" }, { status: 400 });
+export const GET = withRateLimit(
+  createJobStatusHandler(jobs, { contentType: "video/mp4", deleteOnDownload: true }),
+  { limit: 30, windowSec: 60, keyBy: "user", name: "tools:ai-creator:status" },
+);
 
-  const job = jobs.get(jobId);
-  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
-
-  if (download) {
-    if (job.status !== "done") return NextResponse.json({ error: "Not ready" }, { status: 409 });
-    const buffer = fs.readFileSync(job.outputPath);
-    try { fs.unlinkSync(job.outputPath); } catch { /* ignore */ }
-    jobs.delete(jobId);
-    return new NextResponse(buffer, {
-      headers: {
-        "Content-Type": "video/mp4",
-        "Content-Disposition": attachmentDisposition(job.downloadName),
-        "Content-Length": String(buffer.length),
-      },
-    });
-  }
-
-  return NextResponse.json({
-    progress: Math.round(job.progress),
-    status: job.status,
-    error: job.error,
-  });
-}
+export const DELETE = withRateLimit(
+  createJobCancelHandler(jobs),
+  { limit: 10, windowSec: 60, keyBy: "user", name: "tools:ai-creator:cancel" },
+);
