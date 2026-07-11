@@ -13,6 +13,7 @@ export const TRACK_HEIGHT: Record<TrackKind, string> = {
   text: "h-9",
   audio: "h-9",
   image: "h-9",
+  caption: "h-9", // caption cues render via the separate CaptionTrack component, not this one
 };
 
 export default function TimelineTrack({ kind }: { kind: TrackKind }) {

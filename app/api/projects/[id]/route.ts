@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { MAX_DOC_BYTES } from "@/lib/editor/types";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await getAuthUser(req);
@@ -31,7 +32,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if ("editorDoc" in data) {
     const doc = data.editorDoc;
     if (doc !== null) {
-      if (JSON.stringify(doc).length > 200_000) {
+      if (JSON.stringify(doc).length > MAX_DOC_BYTES) {
         return NextResponse.json({ error: "Editor document too large" }, { status: 413 });
       }
       const d = doc as { version?: unknown; tracks?: unknown };

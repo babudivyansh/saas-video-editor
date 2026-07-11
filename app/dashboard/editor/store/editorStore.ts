@@ -6,9 +6,9 @@
 // call the *Transient variants per-frame and commit once on pointer-up.
 
 import { create } from "zustand";
-import type { AnyClip, Aspect, AudioClip, ImageClip, TextClip, TimelineDoc, TrackKind, VideoClip } from "@/lib/editor/types";
-import { DEFAULT_DOC, MIN_CLIP_DURATION } from "@/lib/editor/types";
-import { placeVideoClip, splitVideoClip, videoClipAt } from "@/lib/editor/doc-utils";
+import type { AnyClip, Aspect, AudioClip, CaptionClip, ImageClip, TextClip, TimelineDoc, TrackKind, VideoClip } from "@/lib/editor/types";
+import { DEFAULT_DOC, MIN_CLIP_DURATION, normalizeDoc } from "@/lib/editor/types";
+import { placeCaptionClip, placeVideoClip, splitCaptionClip, splitVideoClip, videoClipAt } from "@/lib/editor/doc-utils";
 import { emptyHistory, pushHistory, redo, undo, type HistoryState } from "./history";
 
 export type SaveState = "saved" | "dirty" | "saving" | "error";
@@ -72,6 +72,12 @@ interface EditorState {
   addTextClips: (clips: TextClip[]) => void;
   addAudioClip: (clip: AudioClip) => void;
   addImageClip: (clip: ImageClip) => void;
+  addCaptionClip: (clip: CaptionClip) => void;
+  addCaptionClips: (clips: CaptionClip[], opts?: { replace?: boolean }) => void;
+  splitCaptionClip: (atTime: number) => void;
+  mergeCaptionClips: (clipIdA: string, clipIdB: string) => void;
+  moveCaptionClipTransient: (clipId: string, newStart: number) => void;
+  applyCaptionStyle: (patch: Partial<CaptionClip>) => void;
   updateClip: (track: TrackKind, clipId: string, patch: Record<string, unknown>, undoable?: boolean) => void;
   commitDrag: (before: TimelineDoc) => void;
   moveVideoClipTransient: (clipId: string, newStart: number) => void;
@@ -105,7 +111,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   loadProject: (projectId, doc) =>
     set({
       projectId,
-      doc: doc ?? structuredClone(DEFAULT_DOC),
+      // normalizeDoc backfills any track arrays missing from an older saved
+      // doc (e.g. one predating the caption track) — every other client
+      // reader assumes all five track arrays always exist, so this is the
+      // one place that guarantee has to actually be established.
+      doc: doc ? normalizeDoc(doc) : structuredClone(DEFAULT_DOC),
       history: emptyHistory(),
       selection: null,
       playing: false,
@@ -174,6 +184,94 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       saveState: "dirty",
     })),
 
+  addCaptionClip: (clip) =>
+    set((s) => ({
+      history: pushHistory(s.history, s.doc),
+      doc: { ...s.doc, tracks: { ...s.doc.tracks, caption: placeCaptionClip(s.doc.tracks.caption, clip) } },
+      selection: { clipId: clip.id, track: "caption" },
+      saveState: "dirty",
+    })),
+
+  // Batch insert (whole-timeline generation) — one history entry for the
+  // whole set, mirrors addTextClips. Generation-time cues are trusted
+  // pre-sorted/non-overlapping (derived from the non-overlapping video
+  // track), so this is a simple concat+sort, not routed through
+  // placeCaptionClip. opts.replace clears existing captions first (Regenerate).
+  addCaptionClips: (clips, opts) =>
+    set((s) => {
+      const merged = opts?.replace ? clips : [...s.doc.tracks.caption, ...clips];
+      const caption = [...merged].sort((a, b) => a.timelineStart - b.timelineStart);
+      return {
+        history: pushHistory(s.history, s.doc),
+        doc: { ...s.doc, tracks: { ...s.doc.tracks, caption } },
+        saveState: "dirty",
+      };
+    }),
+
+  splitCaptionClip: (atTime) =>
+    set((s) => {
+      const clip = s.doc.tracks.caption.find(
+        (c) => atTime >= c.timelineStart && atTime < c.timelineStart + c.duration,
+      );
+      if (!clip) return s;
+      const parts = splitCaptionClip(clip, atTime, crypto.randomUUID());
+      if (!parts) return s;
+      const caption = s.doc.tracks.caption
+        .flatMap((c) => (c.id === clip.id ? parts : [c]))
+        .sort((a, b) => a.timelineStart - b.timelineStart);
+      return {
+        history: pushHistory(s.history, s.doc),
+        doc: { ...s.doc, tracks: { ...s.doc.tracks, caption } },
+        selection: { clipId: parts[1].id, track: "caption" },
+        saveState: "dirty",
+      };
+    }),
+
+  mergeCaptionClips: (clipIdA, clipIdB) =>
+    set((s) => {
+      const list = s.doc.tracks.caption;
+      const a = list.find((c) => c.id === clipIdA);
+      const b = list.find((c) => c.id === clipIdB);
+      if (!a || !b) return s;
+      const [earlier, later] = a.timelineStart <= b.timelineStart ? [a, b] : [b, a];
+      const laterOffsetMs = (later.timelineStart - earlier.timelineStart) * 1000;
+      const words =
+        earlier.words || later.words
+          ? [...(earlier.words ?? []), ...(later.words ?? []).map((w) => ({ ...w, startMs: w.startMs + laterOffsetMs, endMs: w.endMs + laterOffsetMs }))]
+          : undefined;
+      const merged: CaptionClip = {
+        ...earlier,
+        duration: later.timelineStart + later.duration - earlier.timelineStart,
+        text: [earlier.text, later.text].filter(Boolean).join(" "),
+        words,
+      };
+      const caption = list.filter((c) => c.id !== earlier.id && c.id !== later.id).concat(merged).sort((x, y) => x.timelineStart - y.timelineStart);
+      return {
+        history: pushHistory(s.history, s.doc),
+        doc: { ...s.doc, tracks: { ...s.doc.tracks, caption } },
+        selection: { clipId: merged.id, track: "caption" },
+        saveState: "dirty",
+      };
+    }),
+
+  moveCaptionClipTransient: (clipId, newStart) =>
+    set((s) => {
+      const clip = s.doc.tracks.caption.find((c) => c.id === clipId);
+      if (!clip) return s;
+      const moved = { ...clip, timelineStart: Math.max(0, newStart) };
+      return { doc: { ...s.doc, tracks: { ...s.doc.tracks, caption: placeCaptionClip(s.doc.tracks.caption, moved) } } };
+    }),
+
+  // Batch-patches every caption clip (e.g. applying a template to the whole
+  // track when nothing is selected) — one history entry, mirrors addTextClips'
+  // batch convention.
+  applyCaptionStyle: (patch) =>
+    set((s) => ({
+      history: pushHistory(s.history, s.doc),
+      doc: { ...s.doc, tracks: { ...s.doc.tracks, caption: s.doc.tracks.caption.map((c) => ({ ...c, ...patch })) } },
+      saveState: "dirty",
+    })),
+
   updateClip: (track, clipId, patch, undoable = true) =>
     set((s) => {
       const list = s.doc.tracks[track] as { id: string }[];
@@ -209,7 +307,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   trimClipTransient: (track, clipId, edge, newTime) =>
     set((s) => {
-      const list = s.doc.tracks[track] as (VideoClip | TextClip | AudioClip)[];
+      const list = s.doc.tracks[track] as (VideoClip | TextClip | AudioClip | CaptionClip)[];
       const clip = list.find((c) => c.id === clipId);
       if (!clip) return s;
       const end = clip.timelineStart + clip.duration;
@@ -233,7 +331,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return { doc: { ...s.doc, tracks: { ...s.doc.tracks, [track]: nextTrack } } };
     }),
 
-  splitAtPlayhead: () =>
+  splitAtPlayhead: () => {
+    const s0 = get();
+    // A selected caption cue delegates to the caption-specific split (needs
+    // words[]-aware partitioning splitVideoClip can't do) — the existing "S"
+    // shortcut/toolbar button works for both without a second control. Every
+    // other selection state falls through to the unchanged video-only body below.
+    if (s0.selection?.track === "caption") {
+      get().splitCaptionClip(s0.currentTime);
+      return;
+    }
     set((s) => {
       const t = s.currentTime;
       const clip = videoClipAt(s.doc, t);
@@ -249,7 +356,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         selection: { clipId: parts[1].id, track: "video" },
         saveState: "dirty",
       };
-    }),
+    });
+  },
 
   deleteSelected: () =>
     set((s) => {
@@ -291,6 +399,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           saveState: "dirty",
         };
       }
+      if (track === "caption") {
+        const caption = placeCaptionClip(s.doc.tracks.caption, copy as CaptionClip);
+        return {
+          history: pushHistory(s.history, s.doc),
+          doc: { ...s.doc, tracks: { ...s.doc.tracks, caption } },
+          selection: { clipId: copy.id, track: "caption" },
+          saveState: "dirty",
+        };
+      }
       return {
         history: pushHistory(s.history, s.doc),
         doc: { ...s.doc, tracks: { ...s.doc.tracks, [track]: [...list, copy] } },
@@ -305,7 +422,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const track =
         s.clipboard.type === "video" ? "video" :
         s.clipboard.type === "text" ? "text" :
-        s.clipboard.type === "image" ? "image" : "audio";
+        s.clipboard.type === "image" ? "image" :
+        s.clipboard.type === "caption" ? "caption" : "audio";
       const copy = { ...structuredClone(s.clipboard), id: crypto.randomUUID(), timelineStart: s.currentTime };
       if (track === "video") {
         const video = placeVideoClip(s.doc.tracks.video, copy as VideoClip);
@@ -313,6 +431,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           history: pushHistory(s.history, s.doc),
           doc: { ...s.doc, tracks: { ...s.doc.tracks, video } },
           selection: { clipId: copy.id, track: "video" },
+          saveState: "dirty",
+        };
+      }
+      if (track === "caption") {
+        const caption = placeCaptionClip(s.doc.tracks.caption, copy as CaptionClip);
+        return {
+          history: pushHistory(s.history, s.doc),
+          doc: { ...s.doc, tracks: { ...s.doc.tracks, caption } },
+          selection: { clipId: copy.id, track: "caption" },
           saveState: "dirty",
         };
       }

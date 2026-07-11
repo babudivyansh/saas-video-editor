@@ -6,7 +6,7 @@
 // interactivity in this pass.
 
 import React from "react";
-import { Video, Image as ImageIcon, Type, Music2 } from "lucide-react";
+import { Video, Image as ImageIcon, Type, Music2, Captions } from "lucide-react";
 import type { TrackKind } from "@/lib/editor/types";
 
 const TRACK_ICONS: Record<TrackKind, React.ReactNode> = {
@@ -14,6 +14,7 @@ const TRACK_ICONS: Record<TrackKind, React.ReactNode> = {
   image: <ImageIcon className="h-3.5 w-3.5" />,
   text: <Type className="h-3.5 w-3.5" />,
   audio: <Music2 className="h-3.5 w-3.5" />,
+  caption: <Captions className="h-3.5 w-3.5" />,
 };
 
 const TRACK_TEXT_COLOR: Record<TrackKind, string> = {
@@ -21,6 +22,7 @@ const TRACK_TEXT_COLOR: Record<TrackKind, string> = {
   image: "text-editor-track-image",
   text: "text-editor-track-text",
   audio: "text-editor-track-audio",
+  caption: "text-editor-track-caption",
 };
 
 export default function TrackHeader({ kind, label, height }: { kind: TrackKind; label: string; height: string }) {

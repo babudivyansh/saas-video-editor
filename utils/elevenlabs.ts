@@ -119,7 +119,8 @@ function buildWordTimings(alignment: {
 // degrade gracefully (e.g. render without subtitles).
 export async function transcribeAudio(
   audioBuffer: Buffer,
-  mimeType = "audio/mpeg"
+  mimeType = "audio/mpeg",
+  languageCode?: string, // undefined/"auto" = Scribe auto-detects the spoken language (previous, unchanged default)
 ): Promise<WordTiming[]> {
   const apiKey = env.ELEVENLABS_API_KEY;
   if (!apiKey) return [];
@@ -127,6 +128,7 @@ export async function transcribeAudio(
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(audioBuffer)], { type: mimeType }), "audio.mp3");
   form.append("model_id", "scribe_v1");
+  if (languageCode && languageCode !== "auto") form.append("language_code", languageCode);
 
   const res = await withRetry(
     (signal) => fetch("https://api.elevenlabs.io/v1/speech-to-text", {
@@ -210,15 +212,10 @@ export async function getDubbedAudio(dubbingId: string, lang: string): Promise<B
   return Buffer.from(await res.arrayBuffer());
 }
 
-// Supported dubbing target languages (code → label). Subset of ElevenLabs' 29+.
-export const DUB_LANGUAGES: { code: string; label: string }[] = [
-  { code: "es", label: "Spanish" }, { code: "fr", label: "French" }, { code: "de", label: "German" },
-  { code: "hi", label: "Hindi" }, { code: "pt", label: "Portuguese" }, { code: "it", label: "Italian" },
-  { code: "ja", label: "Japanese" }, { code: "ko", label: "Korean" }, { code: "zh", label: "Chinese" },
-  { code: "ar", label: "Arabic" }, { code: "ru", label: "Russian" }, { code: "id", label: "Indonesian" },
-  { code: "nl", label: "Dutch" }, { code: "tr", label: "Turkish" }, { code: "pl", label: "Polish" },
-  { code: "en", label: "English" },
-];
+// Moved to lib/languages.ts (dependency-free, safe for client import) —
+// re-exported here so existing server-side imports of DUB_LANGUAGES from
+// this module keep working unchanged.
+export { DUB_LANGUAGES } from "@/lib/languages";
 
 export async function listVoices(): Promise<{ voice_id: string; name: string; preview_url: string }[]> {
   const apiKey = env.ELEVENLABS_API_KEY!;

@@ -204,8 +204,80 @@ export const TEXT_EXIT_PRESETS = {
 } as const;
 export type TextExitPreset = keyof typeof TEXT_EXIT_PRESETS;
 
-export type AnyClip = VideoClip | TextClip | AudioClip | ImageClip;
-export type TrackKind = "video" | "text" | "audio" | "image";
+// ── Captions — timeline-synced subtitles, deliberately NOT TextClip/Lexical.
+// A caption "cue" is a short flat string (optionally with word-level timing
+// for karaoke), styled/positioned/animated much like TextClip, but edited via
+// a dedicated timeline-based panel, not rich text editing. See CaptionClip.
+
+export interface CaptionWord {
+  word: string;
+  startMs: number; // CLIP-RELATIVE: 0 = this cue's own timelineStart
+  endMs: number;
+}
+
+export const CAPTION_HIGHLIGHT_MODES = {
+  none: { label: "None" },
+  word: { label: "Word" }, // hard-cut per-word color switch
+  phrase: { label: "Phrase" }, // whole cue highlights together
+  karaoke: { label: "Karaoke" }, // progressive per-word fill sweep
+} as const;
+export type CaptionHighlightMode = keyof typeof CAPTION_HIGHLIGHT_MODES;
+
+export const CAPTION_POSITION_PRESETS = {
+  top: { label: "Top" },
+  center: { label: "Center" },
+  bottom: { label: "Bottom" },
+  custom: { label: "Custom" },
+} as const;
+export type CaptionPositionPreset = keyof typeof CAPTION_POSITION_PRESETS;
+
+export interface CaptionClip extends ClipBase {
+  type: "caption";
+  text: string;
+  words?: CaptionWord[]; // absent = manually-typed cue, no karaoke data; highlightMode should be "none" for these
+
+  fontFamily: FontFamily;
+  fontSizePct: number;
+  color: string; // #rrggbb
+  bold: boolean;
+  bgColor: string | null; // PREVIEW-ONLY — ASS has no simple per-line background-box override tag; ignored by caption-ass.ts
+
+  // ── Exported for real (caption-ass.ts honors these via ASS override tags) ──
+  strokeColor?: string | null;
+  strokeWidthPct?: number;
+  shadow?: {
+    color: string;
+    offsetXPct: number;
+    offsetYPct: number;
+    opacity: number;
+    blurPx?: number; // PREVIEW-ONLY, same as TextClip.shadow
+  } | null;
+  opacity?: number;
+  lineHeight?: number;
+  textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
+
+  // ── Preview-only ──
+  letterSpacingPx?: number;
+
+  x: number; // 0..1 normalized center position — same semantics as TextClip
+  y: number;
+  positionPreset?: CaptionPositionPreset; // UI convenience; picking one writes derived x/y
+  safeMarginPct?: number; // 0..0.2, used by top/bottom presets
+
+  highlightMode: CaptionHighlightMode;
+  highlightColor?: string; // #rrggbb
+  activeWordScale?: number; // 1..2, PREVIEW-ONLY
+  activeWordOpacity?: number; // 0..1, PREVIEW-ONLY
+  highlightSpeed?: number; // 0.25..3, REAL — scales exported \k/\kf durations too
+
+  // Reuses TextClip's animation presets — preview-only, same as TextClip.
+  entrance?: { type: TextEntrancePreset; duration: number; delay: number } | null;
+  loop?: { type: TextLoopPreset; speed: number } | null;
+  exit?: { type: TextExitPreset; duration: number; delay: number } | null;
+}
+
+export type AnyClip = VideoClip | TextClip | AudioClip | ImageClip | CaptionClip;
+export type TrackKind = "video" | "text" | "audio" | "image" | "caption";
 
 export interface TimelineDoc {
   version: 1;
@@ -216,6 +288,7 @@ export interface TimelineDoc {
     text: TextClip[];
     audio: AudioClip[];
     image: ImageClip[]; // free-form overlay track, like text
+    caption: CaptionClip[]; // sorted by timelineStart, non-overlapping — like video, real subtitle cues don't overlap
   };
 }
 
@@ -223,12 +296,29 @@ export const DEFAULT_DOC: TimelineDoc = {
   version: 1,
   aspect: "9:16",
   fps: 30,
-  tracks: { video: [], text: [], audio: [], image: [] },
+  tracks: { video: [], text: [], audio: [], image: [], caption: [] },
 };
 
 export const MIN_CLIP_DURATION = 0.05; // seconds
 export const MAX_CLIPS_PER_TRACK = 50;
-export const MAX_DOC_BYTES = 200_000;
+// Cues (grouped lines), not words — a video generates roughly one cue per
+// 2-4s of speech, so even a very long video stays well under this.
+export const MAX_CAPTION_CLIPS_PER_TRACK = 1000;
+// Was 200_000 — captions carry a words[] sub-array per cue (~450-500 bytes/cue
+// including style fields), so up to 1000 cues alone can reach ~450-500KB;
+// this gives ~2x headroom over that realistic worst case.
+export const MAX_DOC_BYTES = 1_000_000;
+
+/** Backfills any track arrays missing from an older saved doc (e.g. one
+ *  predating the caption track) so validateDoc()/every downstream reader can
+ *  assume all five track arrays always exist. `doc.tracks` is treated as
+ *  possibly-partial here even though TimelineDoc's own type claims it's always
+ *  complete — that claim is exactly what old, pre-caption-track saved JSON
+ *  violates at runtime, which is the whole reason this function exists. */
+export function normalizeDoc(doc: TimelineDoc): TimelineDoc {
+  const tracks = doc.tracks as Partial<TimelineDoc["tracks"]> | undefined;
+  return { ...doc, tracks: { video: [], text: [], audio: [], image: [], caption: [], ...tracks } };
+}
 
 // ── Validation (shared client/server; server calls this before rendering) ──
 
@@ -254,15 +344,16 @@ function isFiniteInRange(n: unknown, min: number, max: number): n is number {
 /** Returns null if valid, otherwise a human-readable error string. */
 export function validateDoc(doc: unknown): string | null {
   if (!doc || typeof doc !== "object") return "doc is not an object";
-  const d = doc as TimelineDoc;
-  if (d.version !== 1) return "unsupported version";
+  if ((doc as TimelineDoc).version !== 1) return "unsupported version";
+  const d = normalizeDoc(doc as TimelineDoc); // backfills missing track arrays (e.g. pre-caption-track saved docs)
   if (!ASPECT_DIMENSIONS[d.aspect]) return "invalid aspect";
   if (!d.tracks || typeof d.tracks !== "object") return "missing tracks";
 
-  for (const kind of ["video", "text", "audio", "image"] as const) {
+  for (const kind of ["video", "text", "audio", "image", "caption"] as const) {
     const track = d.tracks[kind];
     if (!Array.isArray(track)) return `track ${kind} is not an array`;
-    if (track.length > MAX_CLIPS_PER_TRACK) return `too many clips on ${kind} track`;
+    const cap = kind === "caption" ? MAX_CAPTION_CLIPS_PER_TRACK : MAX_CLIPS_PER_TRACK;
+    if (track.length > cap) return `too many clips on ${kind} track`;
     for (const clip of track) {
       const baseErr = validateBase(clip);
       if (baseErr) return `${kind}: ${baseErr}`;
@@ -275,6 +366,13 @@ export function validateDoc(doc: unknown): string | null {
   for (let i = 1; i < vids.length; i++) {
     const prevEnd = vids[i - 1].timelineStart + vids[i - 1].duration;
     if (vids[i].timelineStart < prevEnd - 0.001) return "video clips overlap or are unsorted";
+  }
+
+  // Caption cues, like video clips, model real (non-overlapping) subtitle timing.
+  const caps = d.tracks.caption;
+  for (let i = 1; i < caps.length; i++) {
+    const prevEnd = caps[i - 1].timelineStart + caps[i - 1].duration;
+    if (caps[i].timelineStart < prevEnd - 0.001) return "caption clips overlap or are unsorted";
   }
 
   for (const v of d.tracks.video) {
@@ -361,6 +459,81 @@ export function validateDoc(doc: unknown): string | null {
     if (typeof im.opacity !== "number" || im.opacity < 0 || im.opacity > 1) return "image clip invalid opacity";
     if (im.fadeIn !== undefined && (!isFiniteNonNeg(im.fadeIn) || im.fadeIn > MAX_FADE_SEC)) return "image clip invalid fadeIn";
     if (im.fadeOut !== undefined && (!isFiniteNonNeg(im.fadeOut) || im.fadeOut > MAX_FADE_SEC)) return "image clip invalid fadeOut";
+  }
+  for (const c of d.tracks.caption) {
+    if (typeof c.text !== "string") return "caption clip missing text";
+    if (!FONT_WHITELIST.includes(c.fontFamily)) return "caption clip font not allowed";
+    if (typeof c.fontSizePct !== "number" || c.fontSizePct <= 0 || c.fontSizePct > 0.5) return "caption clip invalid fontSizePct";
+    if (!HEX_COLOR.test(c.color)) return "caption clip invalid color";
+    if (c.bgColor !== null && !HEX_COLOR.test(c.bgColor)) return "caption clip invalid bgColor";
+    if (typeof c.x !== "number" || c.x < 0 || c.x > 1 || typeof c.y !== "number" || c.y < 0 || c.y > 1)
+      return "caption clip invalid position";
+
+    if (c.strokeColor !== undefined && c.strokeColor !== null && !HEX_COLOR.test(c.strokeColor))
+      return "caption clip invalid strokeColor";
+    if (c.strokeWidthPct !== undefined && !isFiniteInRange(c.strokeWidthPct, 0, 0.05))
+      return "caption clip invalid strokeWidthPct";
+    if (c.shadow !== undefined && c.shadow !== null) {
+      const s = c.shadow;
+      if (
+        typeof s !== "object" ||
+        !HEX_COLOR.test(s.color) ||
+        !isFiniteInRange(s.offsetXPct, -1, 1) ||
+        !isFiniteInRange(s.offsetYPct, -1, 1) ||
+        !isFiniteInRange(s.opacity, 0, 1) ||
+        (s.blurPx !== undefined && !isFiniteInRange(s.blurPx, 0, 100))
+      )
+        return "caption clip invalid shadow";
+    }
+    if (c.opacity !== undefined && !isFiniteInRange(c.opacity, 0, 1)) return "caption clip invalid opacity";
+    if (c.lineHeight !== undefined && !isFiniteInRange(c.lineHeight, 0.8, 3)) return "caption clip invalid lineHeight";
+    if (c.textTransform !== undefined && !["none", "uppercase", "lowercase", "capitalize"].includes(c.textTransform))
+      return "caption clip invalid textTransform";
+    if (c.letterSpacingPx !== undefined && !isFiniteInRange(c.letterSpacingPx, -5, 30))
+      return "caption clip invalid letterSpacingPx";
+
+    if (c.positionPreset !== undefined && !(c.positionPreset in CAPTION_POSITION_PRESETS))
+      return "caption clip invalid positionPreset";
+    if (c.safeMarginPct !== undefined && !isFiniteInRange(c.safeMarginPct, 0, 0.2))
+      return "caption clip invalid safeMarginPct";
+
+    if (!(c.highlightMode in CAPTION_HIGHLIGHT_MODES)) return "caption clip invalid highlightMode";
+    if (c.highlightColor !== undefined && !HEX_COLOR.test(c.highlightColor)) return "caption clip invalid highlightColor";
+    if (c.activeWordScale !== undefined && !isFiniteInRange(c.activeWordScale, 1, 2))
+      return "caption clip invalid activeWordScale";
+    if (c.activeWordOpacity !== undefined && !isFiniteInRange(c.activeWordOpacity, 0, 1))
+      return "caption clip invalid activeWordOpacity";
+    if (c.highlightSpeed !== undefined && !isFiniteInRange(c.highlightSpeed, 0.25, 3))
+      return "caption clip invalid highlightSpeed";
+
+    if (c.words !== undefined) {
+      if (!Array.isArray(c.words)) return "caption clip invalid words";
+      for (const w of c.words) {
+        if (
+          typeof w !== "object" ||
+          typeof w.word !== "string" ||
+          !isFiniteNonNeg(w.startMs) ||
+          !isFiniteNonNeg(w.endMs) ||
+          w.startMs > w.endMs
+        )
+          return "caption clip invalid word timing";
+      }
+    }
+
+    for (const [field, presets] of [
+      ["entrance", TEXT_ENTRANCE_PRESETS],
+      ["exit", TEXT_EXIT_PRESETS],
+    ] as const) {
+      const v = c[field];
+      if (v === undefined || v === null) continue;
+      if (typeof v !== "object" || !(v.type in presets) || !isFiniteNonNeg(v.duration) || !isFiniteNonNeg(v.delay))
+        return `caption clip invalid ${field}`;
+    }
+    if (c.loop !== undefined && c.loop !== null) {
+      const l = c.loop;
+      if (typeof l !== "object" || !(l.type in TEXT_LOOP_PRESETS) || !isFiniteInRange(l.speed, 0.1, 5))
+        return "caption clip invalid loop";
+    }
   }
 
   if (JSON.stringify(doc).length > MAX_DOC_BYTES) return "doc too large";

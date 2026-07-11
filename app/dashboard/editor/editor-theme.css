@@ -46,6 +46,7 @@
   --editor-track-text: #fbbf24;
   --editor-track-audio: #34d399;
   --editor-track-image: #38bdf8;
+  --editor-track-caption: #f472b6;
 }
 
 @theme inline {
@@ -78,4 +79,5 @@
   --color-editor-track-text: var(--editor-track-text);
   --color-editor-track-audio: var(--editor-track-audio);
   --color-editor-track-image: var(--editor-track-image);
+  --color-editor-track-caption: var(--editor-track-caption);
 }

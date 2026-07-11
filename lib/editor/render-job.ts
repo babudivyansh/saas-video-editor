@@ -14,7 +14,9 @@ import { uploadFileToS3 } from "@/utils/s3-upload";
 import { downloadFile } from "@/utils/download";
 import { logger } from "@/lib/logger";
 import type { TimelineDoc } from "./types";
+import { normalizeDoc } from "./types";
 import { buildFilterGraph, maybeUseFilterScript, writeTextFiles, type ClipInput } from "./filtergraph";
+import { generateCaptionASS } from "./caption-ass";
 
 export const EDITOR_RENDER_CREDIT_COST = 1;
 
@@ -82,7 +84,11 @@ export async function editorRenderJob(payload: EditorRenderPayload): Promise<voi
   try {
     const project = await prisma.project.findUnique({ where: { id: projectId } });
     if (!project?.editorDoc) throw new Error("Project has no editor document");
-    const doc = project.editorDoc as unknown as TimelineDoc;
+    // Backfills any track arrays missing from an older saved doc (e.g. one
+    // predating the caption track) — this re-fetches editorDoc independently
+    // of whatever validation already ran when the render was enqueued, so it
+    // must normalize defensively rather than assume an upstream caller did.
+    const doc = normalizeDoc(project.editorDoc as unknown as TimelineDoc);
 
     // ── Download unique assets ──
     await setRenderProgress(projectId, "downloading", 5);
@@ -110,7 +116,14 @@ export async function editorRenderJob(payload: EditorRenderPayload): Promise<voi
     const textFiles = writeTextFiles(doc, tmp, `editor-${projectId}`);
     for (const p of textFiles.values()) tempFiles.push(p);
 
-    const result = buildFilterGraph({ doc, assets, textFiles, outputPath: outPath });
+    let captionAssPath: string | undefined;
+    if (doc.tracks.caption.length > 0) {
+      captionAssPath = path.join(tmp, `editor-${projectId}-captions.ass`);
+      generateCaptionASS(doc.tracks.caption, doc.aspect, captionAssPath);
+      tempFiles.push(captionAssPath);
+    }
+
+    const result = buildFilterGraph({ doc, assets, textFiles, captionAssPath, outputPath: outPath });
     const scriptPath = path.join(tmp, `editor-${projectId}-graph.txt`);
     const args = maybeUseFilterScript(result, scriptPath);
     if (args !== result.args) tempFiles.push(scriptPath);

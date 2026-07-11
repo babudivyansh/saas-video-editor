@@ -96,7 +96,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     version: 1,
     aspect,
     fps: 30,
-    tracks: { video: [videoClip], text: textClips, audio: [], image: [] },
+    tracks: { video: [videoClip], text: textClips, audio: [], image: [], caption: [] },
   };
 
   const editorProject = await prisma.project.create({

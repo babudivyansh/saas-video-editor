@@ -1,49 +1,17 @@
 "use client";
 
-import React, { useState } from "react";
-import { useAuth } from "@/app/components/AuthContext";
+// Auto-captioning used to live here (a "generate captions for this clip"
+// button) — superseded by the dedicated Caption panel's whole-timeline
+// generation flow (see panels/caption/GenerateSection.tsx), which transcribes
+// every video clip at once and produces real timeline-synced CaptionClips
+// with word-level karaoke data, instead of this clip's one-off plain-text
+// TextClips. Removed here rather than left as a second, now-redundant entry point.
+
+import React from "react";
 import { useEditorStore } from "../../store/editorStore";
-import type { EffectPreset, FilterPreset, TextClip, TransitionPreset, VideoClip } from "@/lib/editor/types";
+import type { EffectPreset, FilterPreset, TransitionPreset, VideoClip } from "@/lib/editor/types";
 import { EFFECT_PRESETS, FILTER_PRESETS, MAX_FADE_SEC, SPEED_OPTIONS, TRANSITION_PRESETS } from "@/lib/editor/types";
-import { Button, FieldRow, NumberField, PillGroup, PropertyCard, Slider, Switch } from "../ui";
-
-const CAPTION_WORDS_PER_LINE = 4;
-
-// Convert word timings (source-time seconds) into caption text clips aligned
-// to where this video clip sits on the timeline, honoring its trim and speed.
-function wordsToCaptionClips(
-  words: { word: string; start: number; end: number }[],
-  clip: VideoClip,
-): TextClip[] {
-  const speed = clip.speed ?? 1;
-  const srcOut = clip.srcIn + clip.duration * speed;
-  const inWindow = words.filter((w) => w.end > clip.srcIn && w.start < srcOut);
-  const clips: TextClip[] = [];
-
-  for (let i = 0; i < inWindow.length; i += CAPTION_WORDS_PER_LINE) {
-    const group = inWindow.slice(i, i + CAPTION_WORDS_PER_LINE);
-    const srcStart = Math.max(group[0].start, clip.srcIn);
-    const srcEnd = Math.min(group[group.length - 1].end, srcOut);
-    const timelineStart = clip.timelineStart + (srcStart - clip.srcIn) / speed;
-    const duration = Math.max((srcEnd - srcStart) / speed, 0.2);
-    clips.push({
-      type: "text",
-      id: crypto.randomUUID(),
-      timelineStart,
-      duration,
-      text: group.map((w) => w.word).join(" "),
-      fontFamily: "Arial",
-      fontSizePct: 0.04,
-      color: "#ffffff",
-      bold: true,
-      align: "center",
-      x: 0.5,
-      y: 0.85,
-      bgColor: "#000000",
-    });
-  }
-  return clips;
-}
+import { FieldRow, NumberField, PillGroup, PropertyCard, Slider, Switch } from "../ui";
 
 const PREVIEW_ONLY = (
   <span className="text-[9px] font-normal normal-case tracking-normal text-editor-text-faint">Preview only</span>
@@ -51,40 +19,7 @@ const PREVIEW_ONLY = (
 
 export default function VideoClipProps({ clip, activeTab }: { clip: VideoClip; activeTab: string }) {
   const updateClip = useEditorStore((s) => s.updateClip);
-  const addTextClips = useEditorStore((s) => s.addTextClips);
-  const { user, refreshUser } = useAuth();
-  const [captionState, setCaptionState] = useState<"idle" | "working" | "error">("idle");
-  const [captionError, setCaptionError] = useState<string | null>(null);
   const patch = (p: Partial<VideoClip>) => updateClip("video", clip.id, p);
-
-  const generateCaptions = async () => {
-    if ((user?.credits ?? 0) < 1) {
-      setCaptionError("Not enough credits (1 needed).");
-      setCaptionState("error");
-      return;
-    }
-    setCaptionState("working");
-    setCaptionError(null);
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch("/api/editor/captions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ assetId: clip.assetId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Transcription failed");
-      const captions = wordsToCaptionClips(data.words, clip);
-      if (captions.length === 0) throw new Error("No speech found inside this clip's trim range");
-      addTextClips(captions);
-      setCaptionState("idle");
-      refreshUser();
-    } catch (e) {
-      setCaptionError(e instanceof Error ? e.message : "Transcription failed");
-      setCaptionState("error");
-      refreshUser();
-    }
-  };
 
   if (activeTab === "basic") {
     return (
@@ -184,18 +119,5 @@ export default function VideoClipProps({ clip, activeTab }: { clip: VideoClip; a
     );
   }
 
-  // activeTab === "ai"
-  return (
-    <div className="flex flex-col gap-3 p-3">
-      <PropertyCard title="Captions" collapsible={false}>
-        <Button variant="primary" onClick={generateCaptions} disabled={captionState === "working"} className="w-full">
-          {captionState === "working" ? "Transcribing…" : "Auto captions (1 credit)"}
-        </Button>
-        {captionState === "error" && captionError && <p className="text-[10px] leading-snug text-red-400">{captionError}</p>}
-        <p className="text-[10px] leading-snug text-editor-text-faint">
-          Transcribes this clip&apos;s speech and adds caption text to the timeline, aligned word-by-word.
-        </p>
-      </PropertyCard>
-    </div>
-  );
+  return null;
 }
