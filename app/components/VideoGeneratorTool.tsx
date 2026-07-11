@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
+import { VIDEO_MODELS, DEFAULT_VIDEO_MODEL_ID, getVideoModel } from "@/lib/models/videoModels";
+import type { VideoParam } from "@/lib/models/types";
 
-// ── Models / options ──────────────────────────────────────────────────────────
-const MODELS = [
-  { slug: "veo3-fast", name: "VEO3 Fast", badge: "20 credits" },
-];
+// ── Options ────────────────────────────────────────────────────────────────────
 const DURATIONS = ["5s", "8s"];
 const RATIOS    = ["16:9", "9:16", "1:1"];
+const RESOLUTIONS = ["480p", "720p", "1080p"];
+const FPS_OPTIONS = ["16", "24", "30"];
 
 type PromptEntry = { id: string; category: string; label: string; text: string; gradient: string };
 
@@ -90,22 +91,33 @@ function Dropdown<T extends { slug?: string; label?: string; name?: string; badg
   getSlug,
   getLabel,
   getBadge,
+  getSubtext,
+  searchable,
   onChange,
 }: {
   label: string;
   value: string;
-  options: T[];
+  options: readonly T[];
   getSlug: (o: T) => string;
   getLabel: (o: T) => string;
   getBadge?: (o: T) => string | null | undefined;
+  getSubtext?: (o: T) => string | null | undefined;
+  searchable?: boolean;
   onChange: (v: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   const selected = options.find(o => getSlug(o) === value) ?? options[0];
+  const filtered = searchable && search.trim()
+    ? options.filter(o =>
+        getLabel(o).toLowerCase().includes(search.toLowerCase()) ||
+        (getSubtext?.(o) ?? "").toLowerCase().includes(search.toLowerCase())
+      )
+    : options;
 
   useEffect(() => {
-    function h(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
+    function h(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setSearch(""); } }
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
@@ -115,7 +127,7 @@ function Dropdown<T extends { slug?: string; label?: string; name?: string; badg
       <p className="text-xs font-semibold text-gray-500 mb-1.5">{label}</p>
       <div ref={ref} className="relative">
         <button
-          onClick={() => setOpen(o => !o)}
+          onClick={() => setOpen(o => { if (o) setSearch(""); return !o; })}
           className="flex items-center gap-2 w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[13px] font-medium text-gray-900 hover:border-gray-300 transition-colors"
         >
           <span className="flex-1 text-left truncate">{getLabel(selected)}</span>
@@ -128,27 +140,44 @@ function Dropdown<T extends { slug?: string; label?: string; name?: string; badg
         </button>
         {open && (
           <div className="absolute top-full mt-1 left-0 w-full z-30 bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
-            {options.map(opt => {
-              const slug = getSlug(opt);
-              const badge = getBadge?.(opt);
-              return (
-                <button
-                  key={slug}
-                  onClick={() => { onChange(slug); setOpen(false); }}
-                  className="flex items-center gap-2 w-full px-3.5 py-2.5 text-[13px] text-left hover:bg-gray-50 transition-colors"
-                >
-                  <span className={`flex-shrink-0 w-3.5 ${value === slug ? "text-blue-600" : "text-transparent"}`}>
-                    <IcCheck />
-                  </span>
-                  <span className="flex-1 font-medium text-gray-900 truncate">{getLabel(opt)}</span>
-                  {badge && (
-                    <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 rounded-md px-1.5 py-0.5 flex-shrink-0">
-                      {badge}
+            {searchable && (
+              <div className="p-2 border-b border-gray-100">
+                <input
+                  autoFocus
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search models..."
+                  className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12.5px] outline-none focus:border-blue-400"
+                  onClick={e => e.stopPropagation()}
+                />
+              </div>
+            )}
+            <div className="max-h-72 overflow-y-auto">
+              {filtered.map(opt => {
+                const slug = getSlug(opt);
+                const badge = getBadge?.(opt);
+                return (
+                  <button
+                    key={slug}
+                    onClick={() => { onChange(slug); setOpen(false); setSearch(""); }}
+                    className="flex items-center gap-2 w-full px-3.5 py-2.5 text-[13px] text-left hover:bg-gray-50 transition-colors"
+                  >
+                    <span className={`flex-shrink-0 w-3.5 ${value === slug ? "text-blue-600" : "text-transparent"}`}>
+                      <IcCheck />
                     </span>
-                  )}
-                </button>
-              );
-            })}
+                    <span className="flex-1 font-medium text-gray-900 truncate">{getLabel(opt)}</span>
+                    {badge && (
+                      <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 rounded-md px-1.5 py-0.5 flex-shrink-0">
+                        {badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+              {filtered.length === 0 && (
+                <p className="px-3.5 py-3 text-[12.5px] text-gray-400 text-center">No models found</p>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -342,9 +371,12 @@ type Stage = "idle" | "generating" | "complete" | "error";
 export default function VideoGeneratorTool() {
   const { refreshUser } = useAuth();
 
-  const [model,       setModel]       = useState("veo3-fast");
+  const [model,       setModel]       = useState(DEFAULT_VIDEO_MODEL_ID);
   const [duration,    setDuration]    = useState("8s");
   const [ratio,       setRatio]       = useState("16:9");
+  const [resolution,  setResolution]  = useState("720p");
+  const [fps,         setFps]         = useState("24");
+  const [seed,        setSeed]        = useState("");
   const [prompt,      setPrompt]      = useState("");
   const [stage,       setStage]       = useState<Stage>("idle");
   const [progress,    setProgress]    = useState(0);
@@ -354,12 +386,17 @@ export default function VideoGeneratorTool() {
   const [showLibrary, setShowLibrary] = useState(false);
   const [showDocs,    setShowDocs]    = useState(false);
   const [refImage,    setRefImage]    = useState<File | null>(null);
+  const [uploadingRef,setUploadingRef]= useState(false);
 
   const fileInputRef  = useRef<HTMLInputElement>(null);
   const textareaRef   = useRef<HTMLTextAreaElement>(null);
 
+  const modelEntry = getVideoModel(model);
+  const supports = (p: VideoParam) => modelEntry.supportedParameters.includes(p);
+  const needsImage = modelEntry.imageInput === "required" && !refImage;
+
   const handleGenerate = async () => {
-    if (!prompt.trim() || stage === "generating") return;
+    if (!prompt.trim() || stage === "generating" || needsImage) return;
 
     const token = localStorage.getItem("token");
     if (!token) { setErrorMsg("Please log in to use this tool."); return; }
@@ -370,11 +407,34 @@ export default function VideoGeneratorTool() {
     setVideoUrl(null);
 
     try {
+      let referenceImageUrl: string | undefined;
+      if (refImage) {
+        setUploadingRef(true);
+        try {
+          const fd = new FormData();
+          fd.append("image", refImage);
+          const upRes = await fetch("/api/tools/upload-reference-image", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: fd,
+          });
+          const upData = await upRes.json();
+          if (!upRes.ok) throw new Error(upData.error ?? "Reference image upload failed");
+          referenceImageUrl = upData.url;
+        } finally {
+          setUploadingRef(false);
+        }
+      }
+
       const body: Record<string, unknown> = {
         prompt: prompt.trim(),
         model,
         duration: parseInt(duration),
         aspectRatio: ratio,
+        resolution: supports("resolution") ? resolution : undefined,
+        fps: supports("fps") ? Number(fps) : undefined,
+        seed: supports("seed") && seed.trim() ? Number(seed) : undefined,
+        referenceImageUrl,
       };
 
       const res = await fetch("/api/tools/video-generator", {
@@ -431,7 +491,7 @@ export default function VideoGeneratorTool() {
   // Keyboard shortcut
   useEffect(() => {
     function h(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && stage === "idle" && prompt.trim()) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && stage === "idle" && prompt.trim() && !needsImage) {
         e.preventDefault();
         handleGenerate();
       }
@@ -447,8 +507,10 @@ export default function VideoGeneratorTool() {
     if (videoUrl) { URL.revokeObjectURL(videoUrl); setVideoUrl(null); }
   };
 
-  const durationOptions = DURATIONS.map(d => ({ slug: d, name: d }));
-  const ratioOptions    = RATIOS.map(r => ({ slug: r, name: r }));
+  const durationOptions   = DURATIONS.map(d => ({ slug: d, name: d }));
+  const ratioOptions      = RATIOS.map(r => ({ slug: r, name: r }));
+  const resolutionOptions = RESOLUTIONS.map(r => ({ slug: r, name: r }));
+  const fpsOptions        = FPS_OPTIONS.map(f => ({ slug: f, name: `${f} fps` }));
 
   return (
     <div className="min-h-screen bg-slate-50 p-8">
@@ -463,33 +525,71 @@ export default function VideoGeneratorTool() {
           <div className="p-6 space-y-5">
 
             {/* Dropdowns row */}
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
               <Dropdown
                 label="Model"
                 value={model}
-                options={MODELS}
-                getSlug={o => o.slug}
-                getLabel={o => o.name}
+                options={VIDEO_MODELS}
+                getSlug={o => o.id}
+                getLabel={o => o.displayName}
                 getBadge={o => o.badge}
+                getSubtext={o => o.provider}
+                searchable
                 onChange={setModel}
               />
-              <Dropdown
-                label="Duration"
-                value={duration}
-                options={durationOptions}
-                getSlug={o => o.slug}
-                getLabel={o => o.name}
-                onChange={setDuration}
-              />
-              <Dropdown
-                label="Aspect Ratio"
-                value={ratio}
-                options={ratioOptions}
-                getSlug={o => o.slug}
-                getLabel={o => o.name}
-                onChange={setRatio}
-              />
+              {supports("duration") && (
+                <Dropdown
+                  label="Duration"
+                  value={duration}
+                  options={durationOptions}
+                  getSlug={o => o.slug}
+                  getLabel={o => o.name}
+                  onChange={setDuration}
+                />
+              )}
+              {supports("aspectRatio") && (
+                <Dropdown
+                  label="Aspect Ratio"
+                  value={ratio}
+                  options={ratioOptions}
+                  getSlug={o => o.slug}
+                  getLabel={o => o.name}
+                  onChange={setRatio}
+                />
+              )}
+              {supports("resolution") && (
+                <Dropdown
+                  label="Resolution"
+                  value={resolution}
+                  options={resolutionOptions}
+                  getSlug={o => o.slug}
+                  getLabel={o => o.name}
+                  onChange={setResolution}
+                />
+              )}
+              {supports("fps") && (
+                <Dropdown
+                  label="FPS"
+                  value={fps}
+                  options={fpsOptions}
+                  getSlug={o => o.slug}
+                  getLabel={o => o.name}
+                  onChange={setFps}
+                />
+              )}
             </div>
+            {supports("seed") && (
+              <div className="w-32">
+                <p className="text-xs font-semibold text-gray-500 mb-1.5">Seed</p>
+                <input
+                  type="number"
+                  value={seed}
+                  onChange={e => setSeed(e.target.value)}
+                  placeholder="Random"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-[13px] outline-none focus:border-blue-400"
+                />
+              </div>
+            )}
 
             {/* Buttons row */}
             <div className="flex items-center gap-2 flex-wrap relative">
@@ -516,9 +616,13 @@ export default function VideoGeneratorTool() {
               {!refImage ? (
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-xs font-medium text-gray-600 transition-colors"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                    modelEntry.imageInput === "required"
+                      ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                      : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                  }`}
                 >
-                  <IcImage /> Add reference image
+                  <IcImage /> {modelEntry.imageInput === "required" ? "Reference image required" : "Add reference image"}
                 </button>
               ) : (
                 <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-xs font-medium text-blue-700">
@@ -593,12 +697,14 @@ export default function VideoGeneratorTool() {
             {stage !== "complete" && (
               <button
                 onClick={handleGenerate}
-                disabled={!prompt.trim() || stage === "generating"}
+                disabled={!prompt.trim() || stage === "generating" || uploadingRef || needsImage}
                 className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40"
                 style={{ background: "linear-gradient(135deg, #335CFF 0%, #7B5EA7 100%)" }}
               >
-                {stage === "generating" ? (
-                  <><Spinner /> Generating…</>
+                {stage === "generating" || uploadingRef ? (
+                  <><Spinner /> {uploadingRef ? "Uploading reference image…" : "Generating…"}</>
+                ) : needsImage ? (
+                  <>Upload a reference image to continue</>
                 ) : (
                   <>Generate Video <kbd className="text-[10px] text-white/60 font-normal bg-white/10 px-1.5 py-0.5 rounded">⌘+Enter</kbd></>
                 )}
