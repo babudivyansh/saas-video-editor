@@ -1,25 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth";
-import { redis } from "@/lib/redis";
-import { prisma } from "@/lib/prisma";
-import { firePostCreditSpendEmails, fireZeroCreditsEmail } from "@/lib/credit-events";
+import { getAuthUser, getUserTier } from "@/lib/auth";
 import { attachmentDisposition } from "@/utils/content-disposition";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { env } from "@/lib/env";
 import { getVideoModel } from "@/lib/models/videoModels";
 import { falSubmit, falPollUntilDone, extractResultUrl } from "@/lib/fal";
+import { chargeCredits, refundCredits, markGenerationStatus, hasEnoughCredits, checkModelAccess } from "@/lib/credits";
+import { maxDurationForTier } from "@/lib/plans/tiers";
 import os from "os";
 import path from "path";
 import fs from "fs";
 import { randomUUID } from "crypto";
 
 export const maxDuration = 300;
-
-// Veo3 Fast is $0.15/s with audio (fal.ai cut this ~50% in 2026 — it used to
-// be $0.40/s). 8s w/ audio now costs ~$1.20 = ~₹114 at ₹95/$1, well under the
-// 35-credit price even on the cheapest per-credit plan. Standard/4K can be
-// reintroduced as a premium tier later.
-const MAX_DURATION = 8;
 
 interface Job {
   progress: number;
@@ -32,6 +25,7 @@ interface Job {
   refunded: boolean;
   creditCost: number;
   usedVeo3Credits: boolean; // which pool was deducted from — needed for refund
+  generationId?: string;
 }
 
 const g = globalThis as unknown as { __videoGenJobs?: Map<string, Job> };
@@ -43,24 +37,6 @@ function sweep() {
     if (job.createdAt < cutoff) {
       try { fs.unlinkSync(job.outputPath); } catch { /* ignore */ }
       jobs.delete(id);
-    }
-  }
-}
-
-async function refundCredit(userId: string, creditCost: number, useVeo3Credits: boolean) {
-  if (useVeo3Credits) {
-    await prisma.user.update({
-      where: { id: userId },
-      data: { veo3Credits: { increment: creditCost } },
-    });
-  } else {
-    await prisma.user.update({
-      where: { id: userId },
-      data: { credits: { increment: creditCost } },
-    });
-    const cached = await redis.get(`credits:${userId}`);
-    if (cached !== null) {
-      await redis.set(`credits:${userId}`, String(parseInt(cached, 10) + creditCost), "EX", 3600);
     }
   }
 }
@@ -97,7 +73,6 @@ async function handlePOST(req: NextRequest) {
   if (prompt.length > 2000) return NextResponse.json({ error: "Prompt too long (max 2000 chars)" }, { status: 400 });
 
   const modelEntry = getVideoModel(body.model);
-  const CREDIT_COST = modelEntry.creditCost;
   const isVeo3 = modelEntry.integration === "direct-veo3-fast";
   const referenceImageUrl = body.referenceImageUrl ?? null;
 
@@ -108,67 +83,59 @@ async function handlePOST(req: NextRequest) {
     );
   }
 
-  // Decide which pool to use. Only Veo3 may ever draw from the restricted
-  // veo3Credits pool — every other model always uses the regular credits pool
-  // with its own registry-defined cost, even if the user has leftover veo3Credits.
-  let useVeo3Credits = false;
-  if (isVeo3) {
-    // Fetch veo3Credits + regular credits + gate flag in one query.
-    const me = await prisma.user.findUnique({
-      where: { id: auth.userId },
-      select: { veo3Enabled: true, veo3Credits: true },
-    });
-
-    // Gate: must have veo3Enabled OR have veo3Credits from the Veo3 pack.
-    const hasVeo3Access = me?.veo3Enabled || (me?.veo3Credits ?? 0) >= CREDIT_COST;
-    if (!hasVeo3Access) {
-      return NextResponse.json(
-        { error: "AI Video (Veo3) is locked. Upgrade to a yearly plan or buy a Veo3 Video Pack." },
-        { status: 403 },
-      );
-    }
-
-    // Decide which pool to use: veo3Credits first, then regular credits.
-    useVeo3Credits = (me?.veo3Credits ?? 0) >= CREDIT_COST;
+  // Tier gate: is this user allowed to select this model at all? Folds Veo3's
+  // veo3Enabled/veo3Credits special access into the same mechanism every
+  // model uses (see lib/credits.ts's checkModelAccess) — this is orthogonal
+  // to *which pool* gets charged below, which stays Veo3-specific logic.
+  const access = await checkModelAccess(auth.userId, modelEntry);
+  if (!access.allowed) {
+    return NextResponse.json(
+      { error: `${modelEntry.displayName} requires the ${access.requiredTier} plan or higher.`,
+        requiredTier: access.requiredTier, upgradeUrl: "/pricing" },
+      { status: 403 },
+    );
   }
 
-  if (!useVeo3Credits) {
-    const cachedCredits = await redis.get(`credits:${auth.userId}`);
-    const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
-    if (cached !== null && cached < CREDIT_COST) {
-      return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
-    }
-  }
+  // Duration is billed per-second and clamped to both the provider's real
+  // ceiling (model.maxDurationSeconds) and the user's plan-tier ceiling
+  // (TIER_MAX_DURATION_SECONDS) — previously non-Veo3 requests were passed
+  // through completely uncapped, a real bug: a user could already request an
+  // arbitrarily long clip and be charged the same flat price.
+  const userTier = await getUserTier(auth.userId);
+  const tierCap = maxDurationForTier(userTier);
+  const requestedDuration = body.duration ?? (isVeo3 ? 8 : 5);
+  const duration = Math.min(
+    Math.max(requestedDuration, modelEntry.minDurationSeconds),
+    Math.min(modelEntry.maxDurationSeconds, tierCap),
+  );
+  const CREDIT_COST = Math.ceil(modelEntry.creditsPerSecond * duration);
 
-  // Locked to the fast model and capped at 8s to bound API cost (Veo3 only).
+  // Which pool to draw from is unchanged from before: prefer veo3Credits if
+  // it covers the (now duration-scaled) cost, else the regular credits pool.
+  // Only Veo3 may ever draw from the restricted veo3Credits pool.
+  const useVeo3Credits = isVeo3 && (await hasEnoughCredits(auth.userId, CREDIT_COST, "veo3"));
+
   const falModelId = modelEntry.falEndpoint;
-  const duration = isVeo3 ? Math.min(body.duration ?? MAX_DURATION, MAX_DURATION) : (body.duration ?? MAX_DURATION);
   const aspectRatio = body.aspectRatio ?? "16:9";
 
-  // Deduct from the chosen pool.
-  if (useVeo3Credits) {
-    const user = await prisma.user.update({
-      where: { id: auth.userId },
-      data: { veo3Credits: { decrement: CREDIT_COST } },
-      select: { veo3Credits: true },
-    });
-    if (user.veo3Credits < 0) {
-      await prisma.user.update({ where: { id: auth.userId }, data: { veo3Credits: { increment: CREDIT_COST } } });
-      return NextResponse.json({ error: `Insufficient Veo3 credits (need ${CREDIT_COST})` }, { status: 402 });
+  const charge = await chargeCredits({
+    userId: auth.userId,
+    amount: CREDIT_COST,
+    pool: useVeo3Credits ? "veo3" : "standard",
+    toolSlug: "video-generator",
+    log: {
+      modelId: modelEntry.id,
+      generationType: "video",
+      prompt,
+      estimatedCostUsd: modelEntry.costUsd * duration,
+    },
+  });
+  if (!charge.ok) {
+    if (charge.reason === "tool_disabled") {
+      return NextResponse.json({ error: "Video generation is temporarily disabled." }, { status: 503 });
     }
-  } else {
-    const user = await prisma.user.update({
-      where: { id: auth.userId },
-      data: { credits: { decrement: CREDIT_COST } },
-      select: { credits: true },
-    });
-    if (user.credits < 0) {
-      await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
-      fireZeroCreditsEmail(auth.userId);
-      return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
-    }
-    await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
-    firePostCreditSpendEmails(auth.userId, user.credits);
+    const poolLabel = useVeo3Credits ? "Veo3 credits" : "credits";
+    return NextResponse.json({ error: `Insufficient ${poolLabel} (need ${CREDIT_COST})` }, { status: 402 });
   }
 
   const jobId = randomUUID();
@@ -185,6 +152,7 @@ async function handlePOST(req: NextRequest) {
     refunded: false,
     creditCost: CREDIT_COST,
     usedVeo3Credits: useVeo3Credits,
+    generationId: charge.generationId,
   };
   jobs.set(jobId, job);
 
@@ -245,12 +213,20 @@ async function handlePOST(req: NextRequest) {
 
       job.progress = 100;
       job.status = "done";
+      if (job.generationId) void markGenerationStatus(job.generationId, "completed");
     } catch (err) {
       job.status = "error";
       job.error = err instanceof Error ? err.message : "Video generation failed";
       if (!job.refunded) {
         job.refunded = true;
-        try { await refundCredit(job.userId, job.creditCost, job.usedVeo3Credits); } catch { /* swallow */ }
+        try {
+          await refundCredits({
+            userId: job.userId,
+            amount: job.creditCost,
+            pool: job.usedVeo3Credits ? "veo3" : "standard",
+          });
+          if (job.generationId) await markGenerationStatus(job.generationId, "failed", job.error);
+        } catch { /* swallow */ }
       }
     }
   })();

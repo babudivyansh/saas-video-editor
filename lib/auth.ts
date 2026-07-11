@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { redis } from "./redis";
 import { prisma } from "./prisma";
 import { env } from "@/lib/env";
+import type { TierId } from "@/lib/plans/tiers";
 
 const JWT_SECRET = env.JWT_SECRET;
 const SESSION_TTL = 60 * 60 * 24 * 7; // 7 days in seconds
@@ -93,4 +94,22 @@ export async function requireSubscriber(req: NextRequest): Promise<TokenPayload 
   });
   const active = !!user?.subscriptionEndsAt && user.subscriptionEndsAt > new Date();
   return active ? auth : null;
+}
+
+/**
+ * Resolves a user's plan tier for model-access gating (see lib/credits.ts's
+ * checkModelAccess). "free" is returned for no plan, an expired subscription,
+ * or a plan row with no tier (packs/addons never carry one) — it's a
+ * sentinel, not a purchasable Plan row. Read from Postgres per-request, same
+ * reasoning as requireAdmin/requireSubscriber above (expiry/upgrades take
+ * effect immediately without re-issuing tokens).
+ */
+export async function getUserTier(userId: string): Promise<TierId> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { subscriptionEndsAt: true, plan: { select: { tier: true } } },
+  });
+  const active = !!user?.subscriptionEndsAt && user.subscriptionEndsAt > new Date();
+  if (!active || !user?.plan?.tier) return "free";
+  return user.plan.tier as TierId;
 }

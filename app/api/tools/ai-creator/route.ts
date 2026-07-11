@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth";
-import { redis } from "@/lib/redis";
-import { prisma } from "@/lib/prisma";
+import { getAuthUser, getUserTier } from "@/lib/auth";
 import { uploadBufferToS3 } from "@/utils/s3-upload";
-import { runFFmpegArgs } from "@/utils/ffmpeg-render";
+import { runFFmpegArgs, getMediaDurationSec } from "@/utils/ffmpeg-render";
 import { attachmentDisposition } from "@/utils/content-disposition";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { withRetry } from "@/lib/with-retry";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
+import { TOOL_COSTS } from "@/lib/tool-costs";
+import { chargeCredits, refundCredits, markGenerationStatus, checkModelAccess } from "@/lib/credits";
+import { maxDurationForTier } from "@/lib/plans/tiers";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -16,7 +17,12 @@ import { randomUUID } from "crypto";
 
 export const maxDuration = 300;
 
-const CREDIT_COST = 2;
+const TOOL_COST = TOOL_COSTS["ai-creator"];
+// TOOL_COST.requiredTier is "pro" — allowedTiers must be every tier at or
+// above it. Only ai-creator declares a requiredTier in Phase 1, so this is
+// hardcoded rather than derived generically; see lib/credits.ts's
+// checkModelAccess for the shared gating mechanism.
+const AI_CREATOR_ALLOWED_TIERS = ["pro", "studio"] as const;
 
 // Optional preset face images — set these in .env as public S3 URLs.
 // If not configured, those preset options return a clear error asking the user
@@ -35,6 +41,8 @@ interface Job {
   createdAt: number;
   userId: string;
   refunded: boolean;
+  creditCost: number;
+  generationId?: string;
   tempFiles: string[];
 }
 
@@ -48,17 +56,6 @@ function sweep() {
       for (const f of job.tempFiles) { try { fs.unlinkSync(f); } catch { /* ignore */ } }
       jobs.delete(id);
     }
-  }
-}
-
-async function refundCredit(userId: string) {
-  await prisma.user.update({
-    where: { id: userId },
-    data: { credits: { increment: CREDIT_COST } },
-  });
-  const cached = await redis.get(`credits:${userId}`);
-  if (cached !== null) {
-    await redis.set(`credits:${userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
   }
 }
 
@@ -127,10 +124,13 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "AI Creator is not configured (missing AWS credentials)" }, { status: 503 });
   }
 
-  const cachedCredits = await redis.get(`credits:${auth.userId}`);
-  const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
-  if (cached !== null && cached < CREDIT_COST) {
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
+  const access = await checkModelAccess(auth.userId, { allowedTiers: AI_CREATOR_ALLOWED_TIERS });
+  if (!access.allowed) {
+    return NextResponse.json(
+      { error: `AI Creator requires the ${access.requiredTier} plan or higher.`,
+        requiredTier: access.requiredTier, upgradeUrl: "/pricing" },
+      { status: 403 },
+    );
   }
 
   let formData: FormData;
@@ -162,18 +162,6 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "Please upload a face image for the avatar." }, { status: 400 });
   }
 
-  // Deduct credits
-  const user = await prisma.user.update({
-    where: { id: auth.userId },
-    data: { credits: { decrement: CREDIT_COST } },
-    select: { credits: true },
-  });
-  if (user.credits < 0) {
-    await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
-  }
-  await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
-
   const jobId = randomUUID();
   const videoExt = (videoFile.name.split(".").pop() ?? "mp4").toLowerCase();
   const inputVideoPath = path.join(os.tmpdir(), `${jobId}-video.${videoExt}`);
@@ -182,6 +170,32 @@ async function handlePOST(req: NextRequest) {
   const tempFiles: string[] = [inputVideoPath, outputPath];
 
   fs.writeFileSync(inputVideoPath, Buffer.from(await videoFile.arrayBuffer()));
+
+  // Output duration matches the driven audio's duration, which (in the normal
+  // case) is extracted from the uploaded video — so the video's own duration
+  // is an accurate proxy for what gets billed. Clamp to the user's plan-tier
+  // ceiling (same TIER_MAX_DURATION_SECONDS used by video-generator) and trim
+  // the extracted audio to match below, so a long upload can't be billed (or
+  // rendered) past what the tier allows.
+  const userTier = await getUserTier(auth.userId);
+  const tierCap = maxDurationForTier(userTier);
+  const rawDuration = await getMediaDurationSec(inputVideoPath);
+  const duration = Math.min(Math.max(rawDuration || TOOL_COST.defaultDurationSeconds!, TOOL_COST.minDurationSeconds!), Math.min(TOOL_COST.maxDurationSeconds!, tierCap));
+  const CREDIT_COST = Math.ceil(TOOL_COST.creditsPerSecond! * duration);
+
+  const charge = await chargeCredits({
+    userId: auth.userId,
+    amount: CREDIT_COST,
+    toolSlug: "ai-creator",
+    log: { generationType: "video", estimatedCostUsd: (TOOL_COST.costUsd ?? 0) * duration },
+  });
+  if (!charge.ok) {
+    try { fs.unlinkSync(inputVideoPath); } catch { /* ignore */ }
+    if (charge.reason === "tool_disabled") {
+      return NextResponse.json({ error: "AI Creator is temporarily disabled." }, { status: 503 });
+    }
+    return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
+  }
 
   let avatarImagePath: string | null = null;
   if (avatarType === "upload" && avatarImageFile) {
@@ -199,13 +213,15 @@ async function handlePOST(req: NextRequest) {
     createdAt: Date.now(),
     userId: auth.userId,
     refunded: false,
+    creditCost: CREDIT_COST,
+    generationId: charge.generationId,
     tempFiles,
   };
   jobs.set(jobId, job);
 
   (async () => {
     try {
-      // 1. Extract audio from the uploaded video
+      // 1. Extract audio from the uploaded video, trimmed to the billed duration
       job.progress = 10;
       const audioPath = path.join(os.tmpdir(), `${jobId}-audio.mp3`);
       tempFiles.push(audioPath);
@@ -213,13 +229,14 @@ async function handlePOST(req: NextRequest) {
         await runFFmpegArgs([
           "-y", "-i", inputVideoPath,
           "-vn", "-acodec", "libmp3lame", "-q:a", "4",
+          "-t", String(duration),
           audioPath,
         ]);
       } catch {
-        // Video has no audio track — generate 1-second silent mp3 so SadTalker still works
+        // Video has no audio track — generate a silent mp3 matching the billed duration
         await runFFmpegArgs([
           "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono",
-          "-t", "1", "-acodec", "libmp3lame", "-q:a", "9",
+          "-t", String(duration), "-acodec", "libmp3lame", "-q:a", "9",
           audioPath,
         ]);
       }
@@ -278,13 +295,17 @@ async function handlePOST(req: NextRequest) {
 
       job.progress = 100;
       job.status = "done";
+      if (job.generationId) void markGenerationStatus(job.generationId, "completed");
     } catch (err) {
       logger.error("ai-creator", `job ${jobId} failed`, err);
       job.status = "error";
       job.error = err instanceof Error ? err.message : "AI Creator generation failed";
       if (!job.refunded) {
         job.refunded = true;
-        try { await refundCredit(job.userId); } catch { /* swallow */ }
+        try {
+          await refundCredits({ userId: job.userId, amount: job.creditCost });
+          if (job.generationId) await markGenerationStatus(job.generationId, "failed", job.error);
+        } catch { /* swallow */ }
       }
     } finally {
       for (const f of [inputVideoPath, avatarImagePath ?? ""]) {

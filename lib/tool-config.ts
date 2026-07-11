@@ -1,5 +1,6 @@
 import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
+import { TOOL_COSTS, IMAGE_GENERATOR_STARTING_CREDIT_COST, VIDEO_GENERATOR_STARTING_CREDIT_COST } from "@/lib/tool-costs";
 
 const CACHE_KEY = "admin:tool_config";
 const CACHE_TTL = 60; // seconds
@@ -12,35 +13,39 @@ export interface ToolConfig {
 export type ToolConfigMap = Record<string, ToolConfig>;
 
 // Defaults for every tool. These are used when no DB config row exists yet.
+// creditCost is a straight re-export of lib/tool-costs.ts's TOOL_COSTS — this
+// used to be a second, hand-copied number here that could (and did) drift
+// from the cost-rationale comments living in each route; now there's one
+// source of truth.
 //
 // image-generator / video-generator: creditCost here is display-only — it
 // feeds the public "starting at N credits" price (app/api/tool-costs/route.ts)
 // and the admin pricing editor. Actual per-generation deduction is read from
-// the selected model's own creditCost in lib/models/imageModels.ts /
-// videoModels.ts (see app/api/tools/image-generator/route.ts and
-// app/api/tools/video-generator/route.ts). Keep these two values in sync with
-// the cheapest model in each registry.
+// the selected model's own cost in lib/models/imageModels.ts / videoModels.ts
+// (see app/api/tools/image-generator/route.ts and
+// app/api/tools/video-generator/route.ts) — these two constants are computed
+// from those registries, not hand-kept-in-sync.
 export const TOOL_DEFAULTS: ToolConfigMap = {
-  "audio-balancer":   { enabled: true, creditCost: 0 },
-  "mp3-converter":    { enabled: true, creditCost: 0 },
-  "video-compressor": { enabled: true, creditCost: 0 },
-  "enhance-prompt":   { enabled: true, creditCost: 0 },
-  "brainstormer":     { enabled: true, creditCost: 1 },
-  "cut-and-crop":     { enabled: true, creditCost: 1 },
-  "subtitle-remover": { enabled: true, creditCost: 1 },
-  "image-generator":  { enabled: true, creditCost: 1 },
-  "voiceover":        { enabled: true, creditCost: 2 },
-  "vocal-remover":    { enabled: true, creditCost: 3 },
-  "ai-creator":       { enabled: true, creditCost: 2 },
-  "voice-changer":    { enabled: true, creditCost: 6 },
-  "reddit-video":     { enabled: true, creditCost: 2 },
-  "text-video":       { enabled: true, creditCost: 2 },
-  "enhance-speech":   { enabled: true, creditCost: 6 },
-  "video-generator":      { enabled: true, creditCost: 35 },
-  "youtube-downloader":     { enabled: true, creditCost: 1 },
-  "instagram-downloader":   { enabled: true, creditCost: 1 },
-  "background-remover":     { enabled: true, creditCost: 1 },
-  "face-swap":              { enabled: true, creditCost: 2 },
+  "audio-balancer":   { enabled: true, creditCost: TOOL_COSTS["audio-balancer"].creditCost },
+  "mp3-converter":    { enabled: true, creditCost: TOOL_COSTS["mp3-converter"].creditCost },
+  "video-compressor": { enabled: true, creditCost: TOOL_COSTS["video-compressor"].creditCost },
+  "enhance-prompt":   { enabled: true, creditCost: TOOL_COSTS["enhance-prompt"].creditCost },
+  "brainstormer":     { enabled: true, creditCost: TOOL_COSTS["brainstormer"].creditCost },
+  "cut-and-crop":     { enabled: true, creditCost: TOOL_COSTS["cut-and-crop"].creditCost },
+  "subtitle-remover": { enabled: true, creditCost: TOOL_COSTS["subtitle-remover"].creditCost },
+  "image-generator":  { enabled: true, creditCost: IMAGE_GENERATOR_STARTING_CREDIT_COST },
+  "voiceover":        { enabled: true, creditCost: TOOL_COSTS["voiceover"].creditCost },
+  "vocal-remover":    { enabled: true, creditCost: TOOL_COSTS["vocal-remover"].creditCost },
+  "ai-creator":       { enabled: true, creditCost: TOOL_COSTS["ai-creator"].creditCost },
+  "voice-changer":    { enabled: true, creditCost: TOOL_COSTS["voice-changer"].creditCost },
+  "reddit-video":     { enabled: true, creditCost: TOOL_COSTS["reddit-video"].creditCost },
+  "text-video":       { enabled: true, creditCost: TOOL_COSTS["text-video"].creditCost },
+  "enhance-speech":   { enabled: true, creditCost: TOOL_COSTS["enhance-speech"].creditCost },
+  "video-generator":      { enabled: true, creditCost: VIDEO_GENERATOR_STARTING_CREDIT_COST },
+  "youtube-downloader":     { enabled: true, creditCost: TOOL_COSTS["youtube-downloader"].creditCost },
+  "instagram-downloader":   { enabled: true, creditCost: TOOL_COSTS["instagram-downloader"].creditCost },
+  "background-remover":     { enabled: true, creditCost: TOOL_COSTS["background-remover"].creditCost },
+  "face-swap":              { enabled: true, creditCost: TOOL_COSTS["face-swap"].creditCost },
 };
 
 export const TOOL_SERVICE: Record<string, string> = {

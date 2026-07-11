@@ -24,6 +24,7 @@ interface SeedPlan {
   intervalMonths?: number;
   monthlyCredits?: number;
   veo3Included?: boolean;
+  tier?: "creator" | "pro" | "studio"; // subscription rows only; see lib/plans/tiers.ts
 }
 
 // ── Subscriptions ───────────────────────────────────────────────────────────
@@ -40,14 +41,14 @@ const yearly = (monthlyPaise: number) => Math.round((monthlyPaise * 12 * (1 - YE
 // checkouts of these slugs going forward.
 const SUBSCRIPTIONS: SeedPlan[] = [
   // Creator — 50 cr/mo (₹999/mo).
-  { slug: "sub_creator_1mo",  name: "Creator (Monthly)", priceInPaise: 99900,            intervalMonths: 1,  monthlyCredits: 50,  veo3Included: false, sortOrder: 10, features: ["50 credits / month", "All AI tools", "1080p exports"] },
-  { slug: "sub_creator_12mo", name: "Creator (Yearly)",  priceInPaise: yearly(99900),    intervalMonths: 12, monthlyCredits: 50,  veo3Included: true,  sortOrder: 13, features: ["50 credits / month", "Save 20% vs monthly", "Veo3 AI video included"] },
+  { slug: "sub_creator_1mo",  name: "Creator (Monthly)", priceInPaise: 99900,            intervalMonths: 1,  monthlyCredits: 50,  veo3Included: false, sortOrder: 10, tier: "creator" as const, features: ["50 credits / month", "All AI tools", "1080p exports"] },
+  { slug: "sub_creator_12mo", name: "Creator (Yearly)",  priceInPaise: yearly(99900),    intervalMonths: 12, monthlyCredits: 50,  veo3Included: true,  sortOrder: 13, tier: "creator" as const, features: ["50 credits / month", "Save 20% vs monthly", "Veo3 AI video included"] },
   // Pro — 140 cr/mo (₹2,199/mo).
-  { slug: "sub_pro_1mo",  name: "Pro (Monthly)", priceInPaise: 219900,           intervalMonths: 1,  monthlyCredits: 140, veo3Included: false, sortOrder: 20, features: ["140 credits / month", "All AI tools", "Priority rendering"] },
-  { slug: "sub_pro_12mo", name: "Pro (Yearly)",  priceInPaise: yearly(219900),   intervalMonths: 12, monthlyCredits: 140, veo3Included: true,  sortOrder: 23, features: ["140 credits / month", "Save 20% vs monthly", "Veo3 AI video included"] },
+  { slug: "sub_pro_1mo",  name: "Pro (Monthly)", priceInPaise: 219900,           intervalMonths: 1,  monthlyCredits: 140, veo3Included: false, sortOrder: 20, tier: "pro" as const, features: ["140 credits / month", "All AI tools", "Priority rendering"] },
+  { slug: "sub_pro_12mo", name: "Pro (Yearly)",  priceInPaise: yearly(219900),   intervalMonths: 12, monthlyCredits: 140, veo3Included: true,  sortOrder: 23, tier: "pro" as const, features: ["140 credits / month", "Save 20% vs monthly", "Veo3 AI video included"] },
   // Studio — 340 cr/mo (₹4,999/mo).
-  { slug: "sub_studio_1mo",  name: "Studio (Monthly)", priceInPaise: 499900,          intervalMonths: 1,  monthlyCredits: 340, veo3Included: false, sortOrder: 30, features: ["340 credits / month", "Priority rendering", "Dedicated support"] },
-  { slug: "sub_studio_12mo", name: "Studio (Yearly)",  priceInPaise: yearly(499900),  intervalMonths: 12, monthlyCredits: 340, veo3Included: true,  sortOrder: 33, features: ["340 credits / month", "Save 20% vs monthly", "Veo3 AI video included"] },
+  { slug: "sub_studio_1mo",  name: "Studio (Monthly)", priceInPaise: 499900,          intervalMonths: 1,  monthlyCredits: 340, veo3Included: false, sortOrder: 30, tier: "studio" as const, features: ["340 credits / month", "Priority rendering", "Dedicated support"] },
+  { slug: "sub_studio_12mo", name: "Studio (Yearly)",  priceInPaise: yearly(499900),  intervalMonths: 12, monthlyCredits: 340, veo3Included: true,  sortOrder: 33, tier: "studio" as const, features: ["340 credits / month", "Save 20% vs monthly", "Veo3 AI video included"] },
 ].map(p => ({ ...p, kind: "subscription" as const, credits: p.monthlyCredits * p.intervalMonths }));
 
 // Old 3-month / 6-month terms are retired. Deactivate them (keep rows for
@@ -114,6 +115,7 @@ async function main() {
         intervalMonths: p.intervalMonths ?? null,
         monthlyCredits: p.monthlyCredits ?? null,
         veo3Included: p.veo3Included ?? false,
+        tier: p.tier ?? null,
         active: true,
       },
       create: {
@@ -127,6 +129,7 @@ async function main() {
         intervalMonths: p.intervalMonths ?? null,
         monthlyCredits: p.monthlyCredits ?? null,
         veo3Included: p.veo3Included ?? false,
+        tier: p.tier ?? null,
         currency: "INR",
         active: true,
       },
