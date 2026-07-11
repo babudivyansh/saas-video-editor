@@ -70,7 +70,7 @@ const CORE_PAGES: SearchEntry[] = [
   { title: "Social Tracker", desc: "Track your social performance", href: "/dashboard/social-tracker", group: "Page" },
   { title: "Earn Credits", desc: "Referral & affiliate dashboard", href: "/dashboard/referral", group: "Page" },
   { title: "Billing & Plans", desc: "Upgrade or top up credits", href: "/billing", group: "Page" },
-  { title: "My Account", desc: "Profile, subscription & receipts", href: "/dashboard/profile/personal-info", group: "Page" },
+  { title: "My Account", desc: "Profile & personal info", href: "/dashboard/profile/personal-info", group: "Page" },
 ];
 
 const SEARCH_INDEX: SearchEntry[] = [

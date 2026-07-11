@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
       intervalMonths: body.intervalMonths != null ? Number(body.intervalMonths) : null,
       monthlyCredits: body.monthlyCredits != null ? Number(body.monthlyCredits) : null,
       veo3Included: body.veo3Included ?? false,
+      tier: body.tier ?? null,
     },
   });
 

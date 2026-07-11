@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import Reveal from "@/app/components/Reveal";
 import { CheckIcon, ArrowRightIcon } from "@/app/components/landing/icons";
+import { PURCHASABLE_TIER_ORDER, TIER_LABEL, type TierId } from "@/lib/plans/tiers";
 
 interface DbPlan {
   id: string;
@@ -16,12 +17,7 @@ interface DbPlan {
   kind: "subscription" | "pack" | "addon";
   intervalMonths: number | null;
   monthlyCredits: number | null;
-}
-
-const TIER_ORDER = ["creator", "pro", "studio"];
-function tierOf(slug: string): string | null {
-  const m = /^sub_([a-z]+)_/.exec(slug);
-  return m ? m[1] : null;
+  tier: Exclude<TierId, "free"> | null;
 }
 
 export default function PricingPreview() {
@@ -39,8 +35,8 @@ export default function PricingPreview() {
 
   // Monthly subscription tier (Creator / Pro / Studio), ordered.
   const tiers = plans
-    .filter((p) => p.kind === "subscription" && p.intervalMonths === 1)
-    .sort((a, b) => TIER_ORDER.indexOf(tierOf(a.slug) ?? "") - TIER_ORDER.indexOf(tierOf(b.slug) ?? ""));
+    .filter((p): p is DbPlan & { tier: Exclude<TierId, "free"> } => p.kind === "subscription" && p.intervalMonths === 1 && p.tier != null)
+    .sort((a, b) => PURCHASABLE_TIER_ORDER.indexOf(a.tier) - PURCHASABLE_TIER_ORDER.indexOf(b.tier));
 
   const handleCta = (tierName: string) => {
     if (user) window.location.href = "/dashboard";
@@ -70,7 +66,7 @@ export default function PricingPreview() {
           <div className="mt-16 grid grid-cols-1 items-stretch gap-6 md:grid-cols-3">
             {tiers.map((plan, i) => {
               const popular = i === 1; // Pro = most popular
-              const tierName = (tierOf(plan.slug) ?? plan.name).replace(/^\w/, (c) => c.toUpperCase());
+              const tierName = TIER_LABEL[plan.tier];
               return (
                 <Reveal key={plan.id} delay={i * 80} className="h-full">
                   <div
