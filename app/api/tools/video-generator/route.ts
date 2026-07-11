@@ -5,7 +5,7 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import { env } from "@/lib/env";
 import { getVideoModel } from "@/lib/models/videoModels";
 import { falSubmit, falPollUntilDone, extractResultUrl } from "@/lib/fal";
-import { chargeCredits, refundCredits, markGenerationStatus, hasEnoughCredits, checkModelAccess } from "@/lib/credits";
+import { chargeCredits, refundCredits, markGenerationStatus, checkModelAccess } from "@/lib/credits";
 import { maxDurationForTier } from "@/lib/plans/tiers";
 import os from "os";
 import path from "path";
@@ -24,7 +24,6 @@ interface Job {
   userId: string;
   refunded: boolean;
   creditCost: number;
-  usedVeo3Credits: boolean; // which pool was deducted from — needed for refund
   generationId?: string;
 }
 
@@ -83,10 +82,7 @@ async function handlePOST(req: NextRequest) {
     );
   }
 
-  // Tier gate: is this user allowed to select this model at all? Folds Veo3's
-  // veo3Enabled/veo3Credits special access into the same mechanism every
-  // model uses (see lib/credits.ts's checkModelAccess) — this is orthogonal
-  // to *which pool* gets charged below, which stays Veo3-specific logic.
+  // Tier gate: is this user allowed to select this model at all?
   const access = await checkModelAccess(auth.userId, modelEntry);
   if (!access.allowed) {
     return NextResponse.json(
@@ -110,18 +106,12 @@ async function handlePOST(req: NextRequest) {
   );
   const CREDIT_COST = Math.ceil(modelEntry.creditsPerSecond * duration);
 
-  // Which pool to draw from is unchanged from before: prefer veo3Credits if
-  // it covers the (now duration-scaled) cost, else the regular credits pool.
-  // Only Veo3 may ever draw from the restricted veo3Credits pool.
-  const useVeo3Credits = isVeo3 && (await hasEnoughCredits(auth.userId, CREDIT_COST, "veo3"));
-
   const falModelId = modelEntry.falEndpoint;
   const aspectRatio = body.aspectRatio ?? "16:9";
 
   const charge = await chargeCredits({
     userId: auth.userId,
     amount: CREDIT_COST,
-    pool: useVeo3Credits ? "veo3" : "standard",
     toolSlug: "video-generator",
     log: {
       modelId: modelEntry.id,
@@ -134,8 +124,7 @@ async function handlePOST(req: NextRequest) {
     if (charge.reason === "tool_disabled") {
       return NextResponse.json({ error: "Video generation is temporarily disabled." }, { status: 503 });
     }
-    const poolLabel = useVeo3Credits ? "Veo3 credits" : "credits";
-    return NextResponse.json({ error: `Insufficient ${poolLabel} (need ${CREDIT_COST})` }, { status: 402 });
+    return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
   }
 
   const jobId = randomUUID();
@@ -151,7 +140,6 @@ async function handlePOST(req: NextRequest) {
     userId: auth.userId,
     refunded: false,
     creditCost: CREDIT_COST,
-    usedVeo3Credits: useVeo3Credits,
     generationId: charge.generationId,
   };
   jobs.set(jobId, job);
@@ -220,11 +208,7 @@ async function handlePOST(req: NextRequest) {
       if (!job.refunded) {
         job.refunded = true;
         try {
-          await refundCredits({
-            userId: job.userId,
-            amount: job.creditCost,
-            pool: job.usedVeo3Credits ? "veo3" : "standard",
-          });
+          await refundCredits({ userId: job.userId, amount: job.creditCost });
           if (job.generationId) await markGenerationStatus(job.generationId, "failed", job.error);
         } catch { /* swallow */ }
       }

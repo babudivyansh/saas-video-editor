@@ -38,7 +38,7 @@ export interface FulfillResult {
 type GrantResult =
   | { status: "already-processed" }
   | { status: "no-target" }
-  | { status: "granted"; kind: string; credits: number; isVeo3Pack: boolean };
+  | { status: "granted"; kind: string; credits: number };
 
 export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> {
   const { paymentId, orderId, amountInPaise, notes } = args;
@@ -99,39 +99,26 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
           subscriptionEndsAt: endsAt,
           nextRefillAt: months > 1 ? nextRefill : null,
           monthlyCredits,
-          veo3Enabled: plan.veo3Included,
         },
       });
       await tx.purchase.create({
         data: { id: paymentId, userId, planId: plan.id, amountInPaise, credits: totalCredits, status: "captured" },
       });
-      return { status: "granted", kind, credits: totalCredits, isVeo3Pack: false };
+      return { status: "granted", kind, credits: totalCredits };
     }
 
-    if (kind === "addon") {
-      await tx.user.update({ where: { id: userId }, data: { veo3Enabled: true } });
-      await tx.purchase.create({
-        data: { id: paymentId, userId, planId: plan?.id ?? null, amountInPaise, credits: 0, status: "captured" },
-      });
-      return { status: "granted", kind, credits: 0, isVeo3Pack: false };
-    }
-
-    // One-time top-up pack: add credits to the appropriate pool.
-    // Veo3 pack credits go into a restricted pool — they can ONLY be spent on Veo3.
+    // One-time top-up pack: add credits to the standard pool.
     const credits = plan?.credits ?? parseInt(notes?.credits ?? "0", 10);
-    const isVeo3Pack = planSlug === "pack_veo3_5";
     if (credits > 0) {
       await tx.user.update({
         where: { id: userId },
-        data: isVeo3Pack
-          ? { veo3Credits: { increment: credits } }
-          : { credits: { increment: credits } },
+        data: { credits: { increment: credits } },
       });
       await tx.purchase.create({
         data: { id: paymentId, userId, planId: plan?.id ?? null, amountInPaise, credits, status: "captured" },
       });
     }
-    return { status: "granted", kind, credits, isVeo3Pack };
+    return { status: "granted", kind, credits };
   });
 
   if (result.status === "already-processed") return { fulfilled: false, alreadyProcessed: true };
@@ -144,10 +131,8 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
   // ── Post-commit cache refresh (best-effort) ───────────────────────────────
   // Redis is a cache with a TTL, not the source of truth, so it doesn't need
   // to be part of the transaction above.
-  if (!result.isVeo3Pack) {
-    const fresh = await prisma.user.findUnique({ where: { id: uid }, select: { credits: true } });
-    if (fresh) await redis.set(`credits:${uid}`, String(fresh.credits), "EX", 3600);
-  }
+  const fresh = await prisma.user.findUnique({ where: { id: uid }, select: { credits: true } });
+  if (fresh) await redis.set(`credits:${uid}`, String(fresh.credits), "EX", 3600);
 
   // ── Purchase confirmation email (non-fatal) ───────────────────────────────
   try {

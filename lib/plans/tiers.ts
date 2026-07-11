@@ -21,12 +21,23 @@ export function lowestTier(tiers: readonly TierId[]): TierId {
   return tiers.reduce((lowest, t) => (tierIndex(t) < tierIndex(lowest) ? t : lowest));
 }
 
+// Subset of TIER_ORDER excluding the "free" sentinel — used anywhere a
+// purchasable-plan-per-card layout is needed (pricing page, landing preview,
+// admin tier <select>).
+export const PURCHASABLE_TIER_ORDER: readonly Exclude<TierId, "free">[] = ["creator", "pro", "studio"];
+
+export const TIER_LABEL: Record<Exclude<TierId, "free">, string> = {
+  creator: "Creator",
+  pro: "Pro",
+  studio: "Studio",
+};
+
 // Business policy cap, not a provider limit — applies uniformly across all
 // video models (and ai-creator). If a specific model's real provider ceiling
 // is lower, that model's own maxDurationSeconds wins via the min() at the
-// call site. A "free" (no active plan) user is capped at the same ceiling as
-// Creator when they reach a video model via an overridePool unlock (e.g. the
-// Veo3 addon/pack), since "free" has no tier of its own to look up here.
+// call site. "free" has no tier of its own, so it's capped at the same
+// ceiling as Creator — it should never actually reach a video model, since
+// every video model's allowedTiers excludes "free".
 export const TIER_MAX_DURATION_SECONDS: Record<Exclude<TierId, "free">, number> = {
   creator: 5,
   pro: 10,

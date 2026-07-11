@@ -13,8 +13,7 @@ import { env } from "@/lib/env";
 //
 // For each user whose nextRefillAt is due and whose term is still active, grant
 // monthlyCredits and advance nextRefillAt by one month (until it passes the
-// term end). For each user whose term has ended, clear the subscription state
-// and revoke Veo3 access.
+// term end). For each user whose term has ended, clear the subscription state.
 export async function GET(req: NextRequest) {
   const secret = env.CRON_SECRET;
   const authz = req.headers.get("authorization");
@@ -40,7 +39,6 @@ export async function GET(req: NextRequest) {
         subscriptionEndsAt: null,
         nextRefillAt: null,
         monthlyCredits: 0,
-        veo3Enabled: false,
         // Credits already granted are left as-is (they don't expire).
       },
     });

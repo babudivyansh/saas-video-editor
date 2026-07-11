@@ -30,7 +30,6 @@ export async function GET(req: NextRequest) {
         monthlyCredits: true,
         role: true,
         createdAt: true,
-        veo3Enabled: true,
         subscriptionEndsAt: true,
         nextRefillAt: true,
         plan: { select: { id: true, name: true, slug: true } },

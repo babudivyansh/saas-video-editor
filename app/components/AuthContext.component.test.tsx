@@ -26,8 +26,6 @@ const FAKE_USER = {
   subscriptionEndsAt: null,
   nextRefillAt: null,
   monthlyCredits: 0,
-  veo3Enabled: false,
-  veo3Credits: 0,
   plan: null,
 };
 

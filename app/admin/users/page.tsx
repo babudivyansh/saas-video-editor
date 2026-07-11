@@ -12,7 +12,6 @@ interface AdminUser {
   monthlyCredits: number;
   role: "USER" | "ADMIN";
   createdAt: string;
-  veo3Enabled: boolean;
   subscriptionEndsAt: string | null;
   nextRefillAt: string | null;
   plan: PlanRef | null;
@@ -172,7 +171,6 @@ export default function AdminUsersPage() {
                     <th className="py-3.5 px-3">Credits</th>
                     <th className="py-3.5 px-3">Mo. Credits</th>
                     <th className="py-3.5 px-3">Plan</th>
-                    <th className="py-3.5 px-3">Veo3</th>
                     <th className="py-3.5 px-3">Sub Expires</th>
                     <th className="py-3.5 px-3">Role</th>
                     <th className="py-3.5 px-3">Videos</th>
@@ -196,11 +194,6 @@ export default function AdminUsersPage() {
                           <td className="py-3 px-3 font-semibold text-gray-900">{u.credits}</td>
                           <td className="py-3 px-3 text-gray-500">{u.monthlyCredits > 0 ? u.monthlyCredits : "—"}</td>
                           <td className="py-3 px-3 text-gray-600 text-xs">{u.plan?.name ?? "Free"}</td>
-                          <td className="py-3 px-3">
-                            {u.veo3Enabled
-                              ? <span className="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full">ON</span>
-                              : <span className="text-[10px] text-gray-400">off</span>}
-                          </td>
                           <td className={`py-3 px-3 text-xs ${subExpired ? "text-gray-300" : "text-gray-600"}`}>
                             {fmtDate(u.subscriptionEndsAt)}
                           </td>
@@ -250,7 +243,7 @@ export default function AdminUsersPage() {
                         </tr>
                         {expandedId === u.id && (
                           <tr key={`${u.id}-expand`} className="bg-blue-50/60 border-b border-blue-100">
-                            <td colSpan={10} className="px-5 py-4">
+                            <td colSpan={9} className="px-5 py-4">
                               <div className="flex flex-wrap items-end gap-4">
                                 <div>
                                   <label className="text-[10px] font-semibold text-gray-400 block mb-1">Display Name</label>
@@ -283,16 +276,6 @@ export default function AdminUsersPage() {
                                     <option value="">Free</option>
                                     {plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                   </select>
-                                </div>
-                                <div className="flex items-center gap-2 pb-0.5">
-                                  <label className="text-[10px] font-semibold text-gray-400">Veo3</label>
-                                  <input
-                                    type="checkbox"
-                                    checked={u.veo3Enabled}
-                                    onChange={e => patch(u.id, { veo3Enabled: e.target.checked })}
-                                    disabled={savingId === u.id}
-                                    className="w-4 h-4 accent-blue-600"
-                                  />
                                 </div>
                                 <div className="flex gap-2 pb-0.5">
                                   <button

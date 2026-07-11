@@ -7,6 +7,8 @@ import { VideoModelEntry } from "./types";
 // Video models are priced PER SECOND (not flat) — the actually-billed duration
 // is clamped to [minDurationSeconds, min(maxDurationSeconds, tier's duration
 // cap)] by the route; see lib/plans/tiers.ts's TIER_MAX_DURATION_SECONDS.
+// Every model (including Veo3) is gated purely by allowedTiers and billed
+// from the one standard credit pool — no per-model special-casing.
 // creditsPerSecond = ceil(costUsd(per second) * margin / 0.099), same revenue
 // floor as imageModels.ts (Studio Yearly ≈ $0.099/credit), margin 3x standard
 // / 4x flagship.
@@ -26,10 +28,7 @@ export const VIDEO_MODELS: readonly VideoModelEntry[] = [
     creditsPerSecond: 5, // ceil(0.15*3/0.099)
     minDurationSeconds: 5,
     maxDurationSeconds: 8, // provider ceiling for the "fast" tier
-    // Pro/Studio get Veo3 as part of their plan; Creator/free users can still
-    // reach it via the existing veo3Enabled/veo3Credits unlock — see overridePool.
     allowedTiers: ["pro", "studio"],
-    overridePool: "veo3",
     supportedParameters: ["prompt", "duration", "aspectRatio", "imageUpload"],
     defaultValues: { duration: "8s", aspectRatio: "16:9" },
     imageInput: "optional",

@@ -20,7 +20,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if ("kind" in body) data.kind = String(body.kind);
   if ("intervalMonths" in body) data.intervalMonths = body.intervalMonths != null ? Number(body.intervalMonths) : null;
   if ("monthlyCredits" in body) data.monthlyCredits = body.monthlyCredits != null ? Number(body.monthlyCredits) : null;
-  if ("veo3Included" in body) data.veo3Included = Boolean(body.veo3Included);
+  if ("tier" in body) data.tier = body.tier != null ? String(body.tier) : null;
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });

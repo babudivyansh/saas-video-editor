@@ -35,7 +35,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   // Plan assignment: auto-apply the plan's full benefits so the admin doesn't
-  // have to manually fill credits / subscriptionEndsAt / monthlyCredits / veo3.
+  // have to manually fill credits / subscriptionEndsAt / monthlyCredits.
   if ("planId" in body) {
     const planId: string | null = body.planId || null;
     data.planId = planId;
@@ -56,7 +56,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         // Apply subscription state — respect explicit overrides from the same request
         if (!("subscriptionEndsAt" in body)) data.subscriptionEndsAt = endsAt;
         if (!("monthlyCredits" in body)) data.monthlyCredits = monthlyCredits;
-        if (!("veo3Enabled" in body)) data.veo3Enabled = plan.veo3Included;
         data.subscriptionId = null;
         data.nextRefillAt = months > 1 ? nextRefill : null;
 
@@ -73,20 +72,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           data.credits = (current?.credits ?? 0) + plan.credits;
         }
       }
-      // addon kind: just sets the planId link, no other credit side-effects
     } else {
       // Clearing the plan: wipe all subscription state
       if (!("subscriptionEndsAt" in body)) data.subscriptionEndsAt = null;
       if (!("monthlyCredits" in body)) data.monthlyCredits = 0;
-      if (!("veo3Enabled" in body)) data.veo3Enabled = false;
       data.subscriptionId = null;
       data.nextRefillAt = null;
     }
   }
 
-  if ("veo3Enabled" in body) {
-    data.veo3Enabled = Boolean(body.veo3Enabled);
-  }
   if ("subscriptionEndsAt" in body) {
     data.subscriptionEndsAt = body.subscriptionEndsAt ? new Date(body.subscriptionEndsAt) : null;
   }
@@ -113,7 +107,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const before = await prisma.user.findUnique({
     where: { id },
-    select: { credits: true, role: true, planId: true, veo3Enabled: true, subscriptionEndsAt: true, monthlyCredits: true },
+    select: { credits: true, role: true, planId: true, subscriptionEndsAt: true, monthlyCredits: true },
   });
 
   const user = await prisma.user.update({
@@ -121,7 +115,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     data,
     select: {
       id: true, email: true, name: true, credits: true, monthlyCredits: true,
-      role: true, veo3Enabled: true, subscriptionEndsAt: true, nextRefillAt: true,
+      role: true, subscriptionEndsAt: true, nextRefillAt: true,
       plan: { select: { id: true, name: true, slug: true } },
     },
   });
