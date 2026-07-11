@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
+import { useJobPolling } from "./useJobPolling";
 import { VIDEO_MODELS, DEFAULT_VIDEO_MODEL_ID, getVideoModel } from "@/lib/models/videoModels";
 import type { VideoParam } from "@/lib/models/types";
 
@@ -366,10 +367,12 @@ function PromptDocsPopover({ onClose }: { onClose: () => void }) {
 }
 
 // ── Main tool ─────────────────────────────────────────────────────────────────
-type Stage = "idle" | "generating" | "complete" | "error";
 
 export default function VideoGeneratorTool() {
-  const { refreshUser } = useAuth();
+  const { user, token, openAuthModal, refreshUser } = useAuth();
+  const job = useJobPolling({ toolSlug: "video-generator", token });
+  const submittingRef = useRef(false);
+  const downloadedForJobId = useRef<string | null>(null);
 
   const [model,       setModel]       = useState(DEFAULT_VIDEO_MODEL_ID);
   const [duration,    setDuration]    = useState("8s");
@@ -378,9 +381,6 @@ export default function VideoGeneratorTool() {
   const [fps,         setFps]         = useState("24");
   const [seed,        setSeed]        = useState("");
   const [prompt,      setPrompt]      = useState("");
-  const [stage,       setStage]       = useState<Stage>("idle");
-  const [progress,    setProgress]    = useState(0);
-  const [errorMsg,    setErrorMsg]    = useState("");
   const [videoUrl,    setVideoUrl]    = useState<string | null>(null);
   const [downloadName,setDownloadName]= useState("ai-video.mp4");
   const [showLibrary, setShowLibrary] = useState(false);
@@ -395,115 +395,116 @@ export default function VideoGeneratorTool() {
   const supports = (p: VideoParam) => modelEntry.supportedParameters.includes(p);
   const needsImage = modelEntry.imageInput === "required" && !refImage;
 
-  const handleGenerate = async () => {
-    if (!prompt.trim() || stage === "generating" || needsImage) return;
+  const handleGenerate = useCallback(async () => {
+    if (!user || !token) { openAuthModal("login", "AI Video Generator"); return; }
+    if (!prompt.trim() || job.status === "processing" || needsImage) return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
 
-    const token = localStorage.getItem("token");
-    if (!token) { setErrorMsg("Please log in to use this tool."); return; }
-
-    setStage("generating");
-    setProgress(5);
-    setErrorMsg("");
-    setVideoUrl(null);
+    if (videoUrl) { URL.revokeObjectURL(videoUrl); setVideoUrl(null); }
+    const idempotencyKey = crypto.randomUUID();
 
     try {
-      let referenceImageUrl: string | undefined;
-      if (refImage) {
-        setUploadingRef(true);
-        try {
-          const fd = new FormData();
-          fd.append("image", refImage);
-          const upRes = await fetch("/api/tools/upload-reference-image", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-            body: fd,
-          });
-          const upData = await upRes.json();
-          if (!upRes.ok) throw new Error(upData.error ?? "Reference image upload failed");
-          referenceImageUrl = upData.url;
-        } finally {
-          setUploadingRef(false);
-        }
-      }
-
-      const body: Record<string, unknown> = {
-        prompt: prompt.trim(),
-        model,
-        duration: parseInt(duration),
-        aspectRatio: ratio,
-        resolution: supports("resolution") ? resolution : undefined,
-        fps: supports("fps") ? Number(fps) : undefined,
-        seed: supports("seed") && seed.trim() ? Number(seed) : undefined,
-        referenceImageUrl,
-      };
-
-      const res = await fetch("/api/tools/video-generator", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? `Error ${res.status}`);
-      }
-
-      const { jobId } = await res.json();
-      const name = `ai-video-${Date.now()}.mp4`;
-      setDownloadName(name);
-
-      await new Promise<void>((resolve, reject) => {
-        const interval = setInterval(async () => {
+      await job.start(async () => {
+        let referenceImageUrl: string | undefined;
+        if (refImage) {
+          setUploadingRef(true);
           try {
-            const poll = await fetch(`/api/tools/video-generator?jobId=${jobId}`, {
+            const fd = new FormData();
+            fd.append("image", refImage);
+            const upRes = await fetch("/api/tools/upload-reference-image", {
+              method: "POST",
               headers: { Authorization: `Bearer ${token}` },
+              body: fd,
             });
-            const data = await poll.json();
-            if (data.progress != null) setProgress(data.progress);
-            if (data.status === "done") { clearInterval(interval); resolve(); }
-            else if (data.status === "error") { clearInterval(interval); reject(new Error(data.error ?? "Generation failed")); }
-          } catch (err) { clearInterval(interval); reject(err); }
-        }, 2000);
+            const upData = await upRes.json();
+            if (!upRes.ok) throw new Error(upData.error ?? "Reference image upload failed");
+            referenceImageUrl = upData.url;
+          } finally {
+            setUploadingRef(false);
+          }
+        }
+
+        const body: Record<string, unknown> = {
+          prompt: prompt.trim(),
+          model,
+          duration: parseInt(duration),
+          aspectRatio: ratio,
+          resolution: supports("resolution") ? resolution : undefined,
+          fps: supports("fps") ? Number(fps) : undefined,
+          seed: supports("seed") && seed.trim() ? Number(seed) : undefined,
+          referenceImageUrl,
+          idempotencyKey,
+        };
+
+        const res = await fetch("/api/tools/video-generator", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error ?? `Error ${res.status}`);
+        }
+        return (await res.json()) as { jobId: string };
       });
-
-      setProgress(100);
-
-      const dlRes = await fetch(`/api/tools/video-generator?jobId=${jobId}&download=1`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!dlRes.ok) throw new Error("Download failed");
-
-      const blob = await dlRes.blob();
-      const url = URL.createObjectURL(blob);
-      setVideoUrl(url);
-
-      const a = document.createElement("a");
-      a.href = url; a.download = name; a.click();
-
-      await refreshUser();
-      setStage("complete");
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Something went wrong.");
-      setStage("error");
+    } finally {
+      submittingRef.current = false;
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, token, openAuthModal, prompt, needsImage, videoUrl, refImage, model, duration, ratio, resolution, fps, seed, job]);
+
+  // Once the job is done, fetch the result and trigger a download.
+  useEffect(() => {
+    if (job.status !== "done" || !job.jobId || !token) return;
+    if (downloadedForJobId.current === job.jobId) return;
+    downloadedForJobId.current = job.jobId;
+
+    (async () => {
+      try {
+        const name = `ai-video-${Date.now()}.mp4`;
+        setDownloadName(name);
+        const dlRes = await fetch(`/api/tools/video-generator?jobId=${job.jobId}&download=1`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!dlRes.ok) throw new Error("Download failed");
+        const blob = await dlRes.blob();
+        const url = URL.createObjectURL(blob);
+        setVideoUrl(url);
+
+        const a = document.createElement("a");
+        a.href = url; a.download = name; a.click();
+
+        await refreshUser();
+      } catch {
+        // The job itself succeeded; a failed download fetch just means the
+        // user has to use "Download" again — no need to flip to an error state.
+      }
+    })();
+  }, [job.status, job.jobId, token, refreshUser]);
+
+  // Revoke the held video object URL on unmount.
+  useEffect(() => {
+    return () => {
+      if (videoUrl) URL.revokeObjectURL(videoUrl);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Keyboard shortcut
   useEffect(() => {
     function h(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && stage === "idle" && prompt.trim() && !needsImage) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && job.status === "idle" && prompt.trim() && !needsImage) {
         e.preventDefault();
-        handleGenerate();
+        void handleGenerate();
       }
     }
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  });
+  }, [job.status, prompt, needsImage, handleGenerate]);
 
   const handleReset = () => {
-    setStage("idle");
-    setProgress(0);
-    setErrorMsg("");
+    job.reset();
     if (videoUrl) { URL.revokeObjectURL(videoUrl); setVideoUrl(null); }
   };
 
@@ -642,32 +643,44 @@ export default function VideoGeneratorTool() {
                 onChange={e => setPrompt(e.target.value)}
                 placeholder="Describe the video you want to create..."
                 rows={8}
-                disabled={stage === "generating"}
+                disabled={job.status === "processing"}
                 className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 resize-none transition-all disabled:opacity-60"
               />
               <p className="text-[11px] text-gray-400 mt-1 text-right">{prompt.length}/2000</p>
             </div>
 
             {/* Progress bar */}
-            {stage === "generating" && (
+            {job.status === "processing" && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs text-gray-500">
                   <span className="flex items-center gap-1.5"><Spinner /> Generating… this takes 1–3 minutes</span>
-                  <span>{progress}%</span>
+                  <span>{job.progress}%</span>
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-2">
-                  <div className="bg-blue-600 h-2 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
+                  <div className="bg-blue-600 h-2 rounded-full transition-all duration-500" style={{ width: `${job.progress}%` }} />
                 </div>
+                <button
+                  onClick={() => void job.cancel()}
+                  className="text-xs font-medium text-gray-400 hover:text-red-600 transition-colors"
+                >
+                  Cancel
+                </button>
               </div>
             )}
 
             {/* Error */}
-            {errorMsg && (
-              <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3">{errorMsg}</p>
+            {job.status === "error" && job.error && (
+              <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3">{job.error}</p>
+            )}
+
+            {job.status === "cancelled" && (
+              <p className="text-sm text-gray-500 bg-gray-50 rounded-xl px-4 py-3">
+                Cancelled — your credit was refunded.
+              </p>
             )}
 
             {/* Video result */}
-            {stage === "complete" && videoUrl && (
+            {job.status === "done" && videoUrl && (
               <div className="space-y-3">
                 <video
                   src={videoUrl}
@@ -694,14 +707,14 @@ export default function VideoGeneratorTool() {
             )}
 
             {/* Generate button */}
-            {stage !== "complete" && (
+            {job.status !== "done" && (
               <button
-                onClick={handleGenerate}
-                disabled={!prompt.trim() || stage === "generating" || uploadingRef || needsImage}
+                onClick={() => void handleGenerate()}
+                disabled={!prompt.trim() || job.status === "processing" || uploadingRef || needsImage}
                 className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40"
                 style={{ background: "linear-gradient(135deg, #335CFF 0%, #7B5EA7 100%)" }}
               >
-                {stage === "generating" || uploadingRef ? (
+                {job.status === "processing" || uploadingRef ? (
                   <><Spinner /> {uploadingRef ? "Uploading reference image…" : "Generating…"}</>
                 ) : needsImage ? (
                   <>Upload a reference image to continue</>

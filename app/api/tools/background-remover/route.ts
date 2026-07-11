@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
-import { redis } from "@/lib/redis";
-import { prisma } from "@/lib/prisma";
 import { randomUUID } from "crypto";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { withRetry } from "@/lib/with-retry";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
+import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
+import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -17,16 +17,10 @@ const CREDIT_COST = 1;
 // fal.ai rembg model – removes background from images (PNG/JPG/WEBP)
 const FAL_MODEL = "fal-ai/imageutils/rembg";
 
-interface Job {
-  progress: number;
-  status: "processing" | "done" | "error";
+interface Job extends CancellableJob {
+  status: "processing" | "done" | "error" | "cancelled";
   inputPath: string;
-  outputPath: string;
-  downloadName: string;
-  error?: string;
   createdAt: number;
-  userId: string;
-  refunded: boolean;
 }
 
 const g = globalThis as unknown as { __bgRemoverJobs?: Map<string, Job> };
@@ -41,17 +35,6 @@ function sweep() {
       }
       jobs.delete(id);
     }
-  }
-}
-
-async function refundCredit(userId: string) {
-  await prisma.user.update({
-    where: { id: userId },
-    data: { credits: { increment: CREDIT_COST } },
-  });
-  const cached = await redis.get(`credits:${userId}`);
-  if (cached !== null) {
-    await redis.set(`credits:${userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
   }
 }
 
@@ -134,13 +117,6 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "Background remover not configured (missing FAL_KEY)" }, { status: 503 });
   }
 
-  // Credit check
-  const cachedCredits = await redis.get(`credits:${auth.userId}`);
-  const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
-  if (cached !== null && cached < CREDIT_COST) {
-    return NextResponse.json({ error: "Insufficient credits (need 1)" }, { status: 402 });
-  }
-
   let formData: FormData;
   try { formData = await req.formData(); }
   catch { return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 }); }
@@ -158,17 +134,20 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "File too large (max 10 MB)" }, { status: 413 });
   }
 
-  // Deduct credits
-  const user = await prisma.user.update({
-    where: { id: auth.userId },
-    data: { credits: { decrement: CREDIT_COST } },
-    select: { credits: true },
+  const idempotencyKey = (formData.get("idempotencyKey") as string | null) ?? undefined;
+  const charge = await chargeCredits({
+    userId: auth.userId,
+    amount: CREDIT_COST,
+    toolSlug: "background-remover",
+    idempotencyKey,
+    log: { generationType: "image" },
   });
-  if (user.credits < 0) {
-    await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
+  if (!charge.ok) {
+    if (charge.reason === "tool_disabled") {
+      return NextResponse.json({ error: "Background remover is temporarily disabled." }, { status: 503 });
+    }
     return NextResponse.json({ error: "Insufficient credits (need 1)" }, { status: 402 });
   }
-  await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
 
   const jobId = randomUUID();
   const ext = (file.name.split(".").pop() ?? "png").toLowerCase();
@@ -188,6 +167,8 @@ async function handlePOST(req: NextRequest) {
     createdAt: Date.now(),
     userId: auth.userId,
     refunded: false,
+    creditCost: CREDIT_COST,
+    generationId: charge.generationId,
   };
   jobs.set(jobId, job);
 
@@ -201,10 +182,12 @@ async function handlePOST(req: NextRequest) {
 
       const requestId = await submitToFal(falUrl);
       job.progress = 40;
+      if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
 
       // Tick progress while waiting
       const ticker = setInterval(() => {
         if (job.progress < 85) job.progress += 5;
+        if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
       }, 3000);
 
       let resultUrl: string;
@@ -213,6 +196,8 @@ async function handlePOST(req: NextRequest) {
       } finally {
         clearInterval(ticker);
       }
+
+      if ((job.status as string) === "cancelled") return;
       job.progress = 90;
 
       const dlRes = await fetch(resultUrl);
@@ -222,12 +207,20 @@ async function handlePOST(req: NextRequest) {
 
       job.progress = 100;
       job.status = "done";
+      if (job.generationId) {
+        void updateGenerationProgress(job.generationId, 100);
+        void markGenerationStatus(job.generationId, "completed");
+      }
     } catch (err) {
+      if ((job.status as string) === "cancelled") return;
       job.status = "error";
       job.error = err instanceof Error ? err.message : "Unknown error";
       if (!job.refunded) {
         job.refunded = true;
-        await refundCredit(auth.userId).catch((e) => logger.error("background-remover", "refund failed", e));
+        try {
+          await refundCredits({ userId: auth.userId, amount: CREDIT_COST, generationId: job.generationId });
+          if (job.generationId) await markGenerationStatus(job.generationId, "failed", job.error);
+        } catch (e) { logger.error("background-remover", "refund failed", e); }
       }
     } finally {
       try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
@@ -239,37 +232,12 @@ async function handlePOST(req: NextRequest) {
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:background-remover" });
 
-// GET – poll status or download
-export async function GET(req: NextRequest) {
-  const auth = await getAuthUser(req);
-  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withRateLimit(
+  createJobStatusHandler(jobs, { contentType: "image/png", deleteOnDownload: false }),
+  { limit: 30, windowSec: 60, keyBy: "user", name: "tools:background-remover:status" },
+);
 
-  const { searchParams } = new URL(req.url);
-  const jobId = searchParams.get("jobId");
-  const download = searchParams.get("download");
-
-  if (!jobId) return NextResponse.json({ error: "Missing jobId" }, { status: 400 });
-
-  const job = jobs.get(jobId);
-  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
-  if (job.userId !== auth.userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-
-  if (download === "1") {
-    if (job.status !== "done") return NextResponse.json({ error: "Not ready" }, { status: 409 });
-    if (!fs.existsSync(job.outputPath)) return NextResponse.json({ error: "Output file missing" }, { status: 404 });
-    const buf = fs.readFileSync(job.outputPath);
-    return new Response(buf, {
-      headers: {
-        "Content-Type": "image/png",
-        "Content-Disposition": `attachment; filename="${job.downloadName}"`,
-        "Cache-Control": "no-store",
-      },
-    });
-  }
-
-  return NextResponse.json({
-    progress: job.progress,
-    status: job.status,
-    error: job.error,
-  });
-}
+export const DELETE = withRateLimit(
+  createJobCancelHandler(jobs),
+  { limit: 10, windowSec: 60, keyBy: "user", name: "tools:background-remover:cancel" },
+);

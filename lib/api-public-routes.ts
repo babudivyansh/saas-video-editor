@@ -23,6 +23,14 @@ const PUBLIC_API_PREFIXES = [
   "/api/plans",
   "/api/tool-costs",
   "/api/coupons/active",
+  // Anonymous-capable tools (createJobStatusHandler's allowAnonymous: true) —
+  // each route does its own IP-based rate limiting and charges no credits,
+  // so letting logged-out requests through here is safe. Without this, every
+  // request from a logged-out visitor died at this gate with a blanket 401
+  // before ever reaching the route, silently breaking the "free tool" pitch.
+  "/api/tools/audio-balancer",
+  "/api/tools/mp3-converter",
+  "/api/tools/video-compressor",
 ];
 
 export function isPublicApiRoute(pathname: string): boolean {

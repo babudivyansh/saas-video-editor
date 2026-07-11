@@ -1,8 +1,7 @@
 "use client";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/app/components/AuthContext";
-
-type Stage = "idle" | "processing" | "done" | "error";
+import { useJobPolling } from "./useJobPolling";
 
 function IcUpload() {
   return (
@@ -120,17 +119,15 @@ function ImageDropZone({
 
 export default function FaceSwapTool() {
   const { user, token, openAuthModal, refreshUser } = useAuth();
+  const job = useJobPolling({ toolSlug: "face-swap", token });
+  const submittingRef = useRef(false);
+  const downloadedForJobId = useRef<string | null>(null);
 
   const [charSlot, setCharSlot] = useState<ImageSlot>({ file: null, preview: null });
   const [targSlot, setTargSlot] = useState<ImageSlot>({ file: null, preview: null });
   const [prompt, setPrompt]     = useState("");
   const [cleanUp, setCleanUp]   = useState(false);
-  const [stage, setStage]       = useState<Stage>("idle");
-  const [progress, setProgress] = useState(0);
-  const [error, setError]       = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
-
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   function pickFile(which: "char" | "targ", file: File) {
     const preview = URL.createObjectURL(file);
@@ -154,73 +151,78 @@ export default function FaceSwapTool() {
   }
 
   function reset() {
-    if (pollRef.current) clearInterval(pollRef.current);
     clearFile("char");
     clearFile("targ");
     setPrompt("");
     setCleanUp(false);
-    setStage("idle");
-    setProgress(0);
-    setError(null);
+    job.reset();
+    if (resultUrl) URL.revokeObjectURL(resultUrl);
     setResultUrl(null);
   }
 
-  async function handleGenerate() {
+  const handleGenerate = useCallback(async () => {
     if (!charSlot.file || !targSlot.file) return;
     if (!user || !token) { openAuthModal("login", "AI Face Swap"); return; }
+    if (submittingRef.current) return;
+    submittingRef.current = true;
 
-    setStage("processing");
-    setError(null);
-    setProgress(5);
+    if (resultUrl) { URL.revokeObjectURL(resultUrl); setResultUrl(null); }
 
+    const idempotencyKey = crypto.randomUUID();
     try {
-      const form = new FormData();
-      form.append("characterImage", charSlot.file);
-      form.append("targetImage", targSlot.file);
-      if (prompt.trim()) form.append("prompt", prompt.trim());
-      if (cleanUp) form.append("cleanUp", "1");
+      await job.start(async () => {
+        const form = new FormData();
+        form.append("characterImage", charSlot.file!);
+        form.append("targetImage", targSlot.file!);
+        if (prompt.trim()) form.append("prompt", prompt.trim());
+        if (cleanUp) form.append("cleanUp", "1");
+        form.append("idempotencyKey", idempotencyKey);
 
-      const res = await fetch("/api/tools/face-swap", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
+        const res = await fetch("/api/tools/face-swap", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: form,
+        });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({})) as { error?: string };
+          throw new Error(d.error ?? `Error ${res.status}`);
+        }
+        return (await res.json()) as { jobId: string };
       });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(d.error ?? `Error ${res.status}`);
-      }
-      const { jobId } = await res.json() as { jobId: string };
-
-      await new Promise<void>((resolve, reject) => {
-        pollRef.current = setInterval(async () => {
-          try {
-            const r = await fetch(`/api/tools/face-swap?jobId=${jobId}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            if (!r.ok) return;
-            const d = await r.json() as { progress: number; status: string; error?: string };
-            setProgress(d.progress);
-            if (d.status === "done")  { clearInterval(pollRef.current!); resolve(); }
-            if (d.status === "error") { clearInterval(pollRef.current!); reject(new Error(d.error ?? "Processing failed")); }
-          } catch { /* transient */ }
-        }, 1500);
-      });
-
-      const dlRes = await fetch(`/api/tools/face-swap?jobId=${jobId}&download=1`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!dlRes.ok) throw new Error("Failed to retrieve result");
-      const blob = await dlRes.blob();
-      setResultUrl(URL.createObjectURL(blob));
-      setProgress(100);
-      setStage("done");
-      await refreshUser();
-    } catch (err) {
-      if (pollRef.current) clearInterval(pollRef.current);
-      setError(err instanceof Error ? err.message : "Something went wrong");
-      setStage("error");
+    } finally {
+      submittingRef.current = false;
     }
-  }
+  }, [charSlot.file, targSlot.file, user, token, openAuthModal, prompt, cleanUp, resultUrl, job]);
+
+  // Once the job is done, fetch the result image.
+  useEffect(() => {
+    if (job.status !== "done" || !job.jobId || !token) return;
+    if (downloadedForJobId.current === job.jobId) return;
+    downloadedForJobId.current = job.jobId;
+
+    (async () => {
+      try {
+        const dlRes = await fetch(`/api/tools/face-swap?jobId=${job.jobId}&download=1`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!dlRes.ok) throw new Error("Failed to retrieve result");
+        const blob = await dlRes.blob();
+        setResultUrl(URL.createObjectURL(blob));
+        await refreshUser();
+      } catch {
+        // The job itself succeeded; leave the user on the done screen without
+        // a preview rather than flipping to an error state.
+      }
+    })();
+  }, [job.status, job.jobId, token, refreshUser]);
+
+  // Revoke the held result object URL on unmount.
+  useEffect(() => {
+    return () => {
+      if (resultUrl) URL.revokeObjectURL(resultUrl);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleDownload() {
     if (!resultUrl) return;
@@ -232,7 +234,7 @@ export default function FaceSwapTool() {
     document.body.removeChild(a);
   }
 
-  const busy = stage === "processing";
+  const busy = job.status === "processing";
   const canGenerate = !!charSlot.file && !!targSlot.file && !busy;
 
   return (
@@ -254,7 +256,7 @@ export default function FaceSwapTool() {
           </div>
 
           {/* Result view */}
-          {stage === "done" && resultUrl ? (
+          {job.status === "done" && resultUrl ? (
             <div className="mt-5 space-y-4">
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Result</p>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -330,16 +332,27 @@ export default function FaceSwapTool() {
                 <div className="mt-4">
                   <div className="flex items-center justify-between text-sm mb-1.5">
                     <span className="text-gray-600">Swapping faces…</span>
-                    <span className="text-gray-400">{Math.round(progress)}%</span>
+                    <span className="text-gray-400">{Math.round(job.progress)}%</span>
                   </div>
                   <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-                    <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${progress}%` }} />
+                    <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${job.progress}%` }} />
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => void job.cancel()}
+                    className="mt-2 text-xs font-medium text-gray-400 hover:text-red-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
                 </div>
               )}
 
-              {error && (
-                <p className="mt-3 text-sm text-red-500 text-center">{error}</p>
+              {job.status === "error" && job.error && (
+                <p className="mt-3 text-sm text-red-500 text-center">{job.error}</p>
+              )}
+
+              {job.status === "cancelled" && (
+                <p className="mt-3 text-sm text-gray-500 text-center">Cancelled — your credit was refunded.</p>
               )}
 
               {!user && (

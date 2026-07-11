@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runFFmpegWithProgress } from "@/utils/ffmpeg-render";
-import { attachmentDisposition } from "@/utils/content-disposition";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { createJobStatusHandler } from "@/lib/job-routes";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -96,34 +96,12 @@ export async function POST(req: NextRequest) {
 }
 
 // ── GET: poll progress (?jobId=) or download the result (?jobId=&download=1) ───
-export async function GET(req: NextRequest) {
-  const jobId = req.nextUrl.searchParams.get("jobId");
-  const download = req.nextUrl.searchParams.get("download");
-  if (!jobId) return NextResponse.json({ error: "Missing jobId" }, { status: 400 });
-
-  const job = jobs.get(jobId);
-  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
-
-  if (download) {
-    if (job.status !== "done") {
-      return NextResponse.json({ error: "Not ready" }, { status: 409 });
-    }
-    const buffer = fs.readFileSync(job.outputPath);
-    // One-shot download: clean up the temp file and forget the job.
-    try { fs.unlinkSync(job.outputPath); } catch {}
-    jobs.delete(jobId);
-    return new NextResponse(buffer, {
-      headers: {
-        "Content-Type": "audio/mpeg",
-        "Content-Disposition": attachmentDisposition(job.downloadName),
-        "Content-Length": String(buffer.length),
-      },
-    });
+async function handleGET(req: NextRequest) {
+  const limit = await rateLimit(`mp3-converter:status:ip:${getClientIp(req)}`, 60, 60);
+  if (!limit.allowed) {
+    return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
   }
-
-  return NextResponse.json({
-    progress: Math.round(job.progress),
-    status: job.status,
-    error: job.error,
-  });
+  return createJobStatusHandler(jobs, { contentType: "audio/mpeg", deleteOnDownload: true, allowAnonymous: true })(req);
 }
+
+export const GET = handleGET;

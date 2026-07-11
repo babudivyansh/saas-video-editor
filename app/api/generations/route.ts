@@ -21,9 +21,10 @@ export async function GET(req: NextRequest) {
 
   const limit = Math.min(50, Math.max(1, Number(req.nextUrl.searchParams.get("limit")) || 20));
   const cursor = req.nextUrl.searchParams.get("cursor");
+  const toolSlug = req.nextUrl.searchParams.get("toolSlug");
 
   const rows = await prisma.generation.findMany({
-    where: { userId: auth.userId },
+    where: { userId: auth.userId, ...(toolSlug ? { toolSlug } : {}) },
     orderBy: { createdAt: "desc" },
     take: limit + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),

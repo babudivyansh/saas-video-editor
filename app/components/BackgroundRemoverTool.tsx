@@ -1,8 +1,7 @@
 "use client";
-import { useRef, useState, useEffect } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 import { useAuth } from "@/app/components/AuthContext";
-
-type Stage = "idle" | "ready" | "processing" | "done" | "error";
+import { useJobPolling } from "./useJobPolling";
 
 function IcCloud() {
   return (
@@ -71,109 +70,103 @@ function CheckerBg({ children }: { children: React.ReactNode }) {
 
 export default function BackgroundRemoverTool() {
   const { user, token, openAuthModal, refreshUser } = useAuth();
+  const job = useJobPolling({ toolSlug: "background-remover", token });
+  const submittingRef = useRef(false);
+  const downloadedForJobId = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [stage, setStage] = useState<Stage>("idle");
   const [dragging, setDragging] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const [pickError, setPickError] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
-  const [resultBlob, setResultBlob] = useState<Blob | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
       if (preview) URL.revokeObjectURL(preview);
+      if (resultUrl) URL.revokeObjectURL(resultUrl);
     };
-  }, [preview]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function onPick(files: FileList | null) {
     if (!files || files.length === 0) return;
     const f = files[0];
     const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"];
     if (!allowed.includes(f.type)) {
-      setError("Only PNG, JPG, WEBP, GIF images are supported.");
+      setPickError("Only PNG, JPG, WEBP, GIF images are supported.");
       return;
     }
     if (f.size > 10 * 1024 * 1024) {
-      setError("File too large (max 10 MB).");
+      setPickError("File too large (max 10 MB).");
       return;
     }
     setFile(f);
     setPreview(URL.createObjectURL(f));
-    setStage("ready");
-    setError(null);
-    setResultUrl(null);
-    setResultBlob(null);
+    job.reset();
+    setPickError(null);
+    if (resultUrl) { URL.revokeObjectURL(resultUrl); setResultUrl(null); }
   }
 
   function clearFile() {
     setFile(null);
     if (preview) URL.revokeObjectURL(preview);
     setPreview(null);
-    setStage("idle");
-    setProgress(0);
-    setError(null);
-    setResultUrl(null);
-    setResultBlob(null);
+    job.reset();
+    setPickError(null);
+    if (resultUrl) { URL.revokeObjectURL(resultUrl); setResultUrl(null); }
   }
 
-  async function handleRemove() {
-    if (!file || stage === "processing") return;
+  const handleRemove = useCallback(async () => {
+    if (!file || job.status === "processing") return;
     if (!user || !token) { openAuthModal("login", "AI Background Remover"); return; }
+    if (submittingRef.current) return;
+    submittingRef.current = true;
 
-    setStage("processing");
-    setError(null);
-    setProgress(5);
+    if (resultUrl) { URL.revokeObjectURL(resultUrl); setResultUrl(null); }
 
+    const idempotencyKey = crypto.randomUUID();
     try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch("/api/tools/background-remover", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
+      await job.start(async () => {
+        const form = new FormData();
+        form.append("file", file);
+        form.append("idempotencyKey", idempotencyKey);
+        const res = await fetch("/api/tools/background-remover", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: form,
+        });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({})) as { error?: string };
+          throw new Error(d.error ?? `Error ${res.status}`);
+        }
+        return (await res.json()) as { jobId: string };
       });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(d.error ?? `Error ${res.status}`);
-      }
-      const { jobId } = await res.json() as { jobId: string };
-
-      await new Promise<void>((resolve, reject) => {
-        pollRef.current = setInterval(async () => {
-          try {
-            const r = await fetch(`/api/tools/background-remover?jobId=${jobId}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            if (!r.ok) return;
-            const d = await r.json() as { progress: number; status: string; error?: string };
-            setProgress(d.progress);
-            if (d.status === "done") { clearInterval(pollRef.current!); resolve(); }
-            else if (d.status === "error") { clearInterval(pollRef.current!); reject(new Error(d.error ?? "Processing failed")); }
-          } catch { /* transient */ }
-        }, 1500);
-      });
-
-      // Download result
-      const dlRes = await fetch(`/api/tools/background-remover?jobId=${jobId}&download=1`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!dlRes.ok) throw new Error("Failed to retrieve result");
-      const blob = await dlRes.blob();
-      setResultBlob(blob);
-      setResultUrl(URL.createObjectURL(blob));
-      setProgress(100);
-      setStage("done");
-      await refreshUser();
-    } catch (err) {
-      if (pollRef.current) clearInterval(pollRef.current);
-      setError(err instanceof Error ? err.message : "Something went wrong");
-      setStage("ready");
+    } finally {
+      submittingRef.current = false;
     }
-  }
+  }, [file, user, token, openAuthModal, resultUrl, job]);
+
+  // Once the job is done, fetch the result image.
+  useEffect(() => {
+    if (job.status !== "done" || !job.jobId || !token) return;
+    if (downloadedForJobId.current === job.jobId) return;
+    downloadedForJobId.current = job.jobId;
+
+    (async () => {
+      try {
+        const dlRes = await fetch(`/api/tools/background-remover?jobId=${job.jobId}&download=1`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!dlRes.ok) throw new Error("Failed to retrieve result");
+        const blob = await dlRes.blob();
+        setResultUrl(URL.createObjectURL(blob));
+        await refreshUser();
+      } catch {
+        // The job itself succeeded; leave the user on the done screen without
+        // a preview rather than flipping to an error state.
+      }
+    })();
+  }, [job.status, job.jobId, token, refreshUser]);
 
   function handleDownload() {
     if (!resultUrl || !file) return;
@@ -186,6 +179,7 @@ export default function BackgroundRemoverTool() {
     document.body.removeChild(a);
   }
 
+  const stage = file ? (job.status === "idle" ? "ready" : job.status) : "idle";
   const busy = stage === "processing";
 
   return (
@@ -280,19 +274,27 @@ export default function BackgroundRemoverTool() {
                 <div>
                   <div className="flex items-center justify-between text-sm mb-1">
                     <span className="text-gray-600">Removing background…</span>
-                    <span className="text-gray-400">{Math.round(progress)}%</span>
+                    <span className="text-gray-400">{Math.round(job.progress)}%</span>
                   </div>
                   <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
                     <div
                       className="h-full bg-blue-500 transition-all duration-300"
-                      style={{ width: `${progress}%` }}
+                      style={{ width: `${job.progress}%` }}
                     />
                   </div>
                 </div>
               )}
 
-              {error && (
-                <p className="text-sm text-red-500 text-center">{error}</p>
+              {pickError && (
+                <p className="text-sm text-red-500 text-center">{pickError}</p>
+              )}
+
+              {stage === "error" && job.error && (
+                <p className="text-sm text-red-500 text-center">{job.error}</p>
+              )}
+
+              {stage === "cancelled" && (
+                <p className="text-sm text-gray-500 text-center">Cancelled — your credit was refunded.</p>
               )}
 
               {!user && stage !== "processing" && (
@@ -303,7 +305,7 @@ export default function BackgroundRemoverTool() {
 
           {/* Action buttons */}
           <div className="mt-4 space-y-2">
-            {(stage === "ready" || stage === "done") && !busy && (
+            {(stage === "ready" || stage === "done" || stage === "error" || stage === "cancelled") && !busy && (
               <button
                 type="button"
                 onClick={() => void handleRemove()}
@@ -314,13 +316,22 @@ export default function BackgroundRemoverTool() {
             )}
 
             {busy && (
-              <button
-                type="button"
-                disabled
-                className="w-full inline-flex items-center justify-center gap-2 bg-blue-300 text-white text-sm font-semibold py-3 rounded-xl cursor-not-allowed"
-              >
-                <Spinner /> Processing…
-              </button>
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  disabled
+                  className="w-full inline-flex items-center justify-center gap-2 bg-blue-300 text-white text-sm font-semibold py-3 rounded-xl cursor-not-allowed"
+                >
+                  <Spinner /> Processing…
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void job.cancel()}
+                  className="w-full text-center text-xs font-medium text-gray-400 hover:text-red-600 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             )}
 
             {stage === "done" && resultUrl && (

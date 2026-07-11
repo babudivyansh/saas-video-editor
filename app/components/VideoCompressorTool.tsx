@@ -1,7 +1,6 @@
 "use client";
 import { useRef, useState, useEffect, useCallback } from "react";
-
-type Stage = "idle" | "ready" | "compressing" | "complete";
+import { useJobPolling } from "./useJobPolling";
 
 interface QualityOption {
   id: string;
@@ -100,87 +99,67 @@ function Spinner() {
 
 export default function VideoCompressorTool() {
   const inputRef = useRef<HTMLInputElement>(null);
+  const job = useJobPolling({ toolSlug: "video-compressor", token: null, requireAuth: false });
+  const submittingRef = useRef(false);
+  const downloadedForJobId = useRef<string | null>(null);
+
   const [file, setFile] = useState<File | null>(null);
-  const [stage, setStage] = useState<Stage>("idle");
   const [dragging, setDragging] = useState(false);
   const [quality, setQuality] = useState("medium");
   const [resolution, setResolution] = useState("original");
   const [videoDims, setVideoDims] = useState({ w: 0, h: 0 });
-  const [progress, setProgress] = useState(0);
   const [realtime, setRealtime] = useState(0);
-  const [error, setError] = useState<string | null>(null);
   const [durationSec, setDurationSec] = useState(0);
   const [outputBlob, setOutputBlob] = useState<Blob | null>(null);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
 
-  const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef(0);
 
   const resolutionOptions = videoDims.h > 0 ? getResolutionOptions(videoDims.w, videoDims.h) : [];
 
   useEffect(() => {
     return () => {
-      if (progressTimer.current) clearInterval(progressTimer.current);
       if (outputUrl) URL.revokeObjectURL(outputUrl);
     };
-  }, [outputUrl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Real-time-multiple estimate, recomputed whenever the poll loop reports
+  // fresh progress.
+  useEffect(() => {
+    if (job.status !== "processing") return;
+    const elapsed = (Date.now() - startTimeRef.current) / 1000;
+    if (durationSec > 0 && elapsed > 0) {
+      setRealtime((durationSec * (job.progress / 100)) / elapsed);
+    }
+  }, [job.progress, job.status, durationSec]);
 
   const handleCompress = useCallback(async () => {
-    if (!file || stage === "compressing") return;
-    setStage("compressing");
-    setError(null);
-    setProgress(0);
+    if (!file || job.status === "processing") return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+
     setRealtime(0);
     startTimeRef.current = Date.now();
     try {
-      const form = new FormData();
-      form.append("file", file);
-      form.append("quality", quality);
-      form.append("resolution", resolution);
-      const startRes = await fetch("/api/tools/video-compressor", { method: "POST", body: form });
-      if (!startRes.ok) {
-        const json = await startRes.json().catch(() => ({})) as { error?: string };
-        throw new Error(json.error ?? `Server error (${startRes.status})`);
-      }
-      const { jobId } = await startRes.json() as { jobId: string };
-
-      await new Promise<void>((resolve, reject) => {
-        if (progressTimer.current) clearInterval(progressTimer.current);
-        progressTimer.current = setInterval(async () => {
-          try {
-            const res = await fetch(`/api/tools/video-compressor?jobId=${jobId}`);
-            if (!res.ok) return;
-            const data = await res.json() as { progress: number; status: string; error?: string };
-            setProgress(data.progress);
-            const elapsed = (Date.now() - startTimeRef.current) / 1000;
-            if (durationSec > 0 && elapsed > 0) {
-              setRealtime((durationSec * (data.progress / 100)) / elapsed);
-            }
-            if (data.status === "done") {
-              if (progressTimer.current) { clearInterval(progressTimer.current); progressTimer.current = null; }
-              resolve();
-            } else if (data.status === "error") {
-              if (progressTimer.current) { clearInterval(progressTimer.current); progressTimer.current = null; }
-              reject(new Error(data.error ?? "Compression failed"));
-            }
-          } catch { /* transient */ }
-        }, 400);
+      await job.start(async () => {
+        const form = new FormData();
+        form.append("file", file);
+        form.append("quality", quality);
+        form.append("resolution", resolution);
+        const startRes = await fetch("/api/tools/video-compressor", { method: "POST", body: form });
+        if (!startRes.ok) {
+          const json = await startRes.json().catch(() => ({})) as { error?: string };
+          throw new Error(json.error ?? `Server error (${startRes.status})`);
+        }
+        return (await startRes.json()) as { jobId: string };
       });
-
-      const fileRes = await fetch(`/api/tools/video-compressor?jobId=${jobId}&download=1`);
-      if (!fileRes.ok) throw new Error("Failed to fetch compressed file");
-      const blob = await fileRes.blob();
-      setProgress(100);
-      const url = URL.createObjectURL(blob);
-      setOutputBlob(blob);
-      setOutputUrl(url);
-      setStage("complete");
-    } catch (err: unknown) {
-      if (progressTimer.current) { clearInterval(progressTimer.current); progressTimer.current = null; }
-      setError(err instanceof Error ? err.message : "Compression failed");
-      setStage("ready");
+    } finally {
+      submittingRef.current = false;
     }
-  }, [file, stage, quality, resolution, durationSec]);
+  }, [file, quality, resolution, job]);
+
+  const stage = file ? (job.status === "idle" ? "ready" : job.status) : "idle";
 
   // ⌘+Enter / Ctrl+Enter shortcut
   useEffect(() => {
@@ -193,14 +172,33 @@ export default function VideoCompressorTool() {
     return () => window.removeEventListener("keydown", onKey);
   }, [stage, handleCompress]);
 
+  // Once the job is done, fetch the compressed file.
+  useEffect(() => {
+    if (job.status !== "done" || !job.jobId) return;
+    if (downloadedForJobId.current === job.jobId) return;
+    downloadedForJobId.current = job.jobId;
+
+    (async () => {
+      try {
+        const fileRes = await fetch(`/api/tools/video-compressor?jobId=${job.jobId}&download=1`);
+        if (!fileRes.ok) throw new Error("Failed to fetch compressed file");
+        const blob = await fileRes.blob();
+        const url = URL.createObjectURL(blob);
+        setOutputBlob(blob);
+        setOutputUrl(url);
+      } catch {
+        // Leave stage at "done" with no output — user can hit "Compress Again".
+      }
+    })();
+  }, [job.status, job.jobId]);
+
   function onPick(list: FileList | null) {
     if (!list || list.length === 0) return;
     const f = list[0];
     setFile(f);
-    setStage("ready");
-    setError(null);
-    setProgress(0);
+    job.reset();
     setOutputBlob(null);
+    if (outputUrl) { URL.revokeObjectURL(outputUrl); setOutputUrl(null); }
     setResolution("original");
     const url = URL.createObjectURL(f);
     const media = document.createElement("video");
@@ -216,8 +214,7 @@ export default function VideoCompressorTool() {
 
   function clearFile() {
     setFile(null);
-    setStage("idle");
-    setProgress(0);
+    job.reset();
     setOutputBlob(null);
     setVideoDims({ w: 0, h: 0 });
     if (outputUrl) { URL.revokeObjectURL(outputUrl); setOutputUrl(null); }
@@ -235,14 +232,14 @@ export default function VideoCompressorTool() {
   }
 
   function compressAgain() {
-    setStage("ready");
-    setProgress(0);
+    job.reset();
     setOutputBlob(null);
     if (outputUrl) { URL.revokeObjectURL(outputUrl); setOutputUrl(null); }
   }
 
-  const busy = stage === "compressing";
-  const locked = stage === "compressing" || stage === "complete";
+  const canSubmit = stage === "ready" || stage === "error";
+  const busy = stage === "processing";
+  const locked = stage === "processing" || stage === "done";
   const qualityLabel = QUALITY_OPTIONS.find(q => q.id === quality)?.label ?? quality;
 
   return (
@@ -361,24 +358,24 @@ export default function VideoCompressorTool() {
             </div>
           )}
 
-          {error && <p className="mt-3 text-sm text-red-500 text-center">{error}</p>}
+          {stage === "error" && job.error && <p className="mt-3 text-sm text-red-500 text-center">{job.error}</p>}
 
           {/* Compressing progress */}
-          {stage === "compressing" && (
+          {stage === "processing" && (
             <div className="mt-5">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-600">Compressing with {qualityLabel} level…</span>
                 {realtime > 0 && <span className="text-gray-400">~{realtime.toFixed(1)}x real time</span>}
               </div>
               <div className="mt-2 h-2 rounded-full bg-gray-100 overflow-hidden">
-                <div className="h-full bg-blue-500 transition-all duration-150" style={{ width: `${progress}%` }} />
+                <div className="h-full bg-blue-500 transition-all duration-150" style={{ width: `${job.progress}%` }} />
               </div>
-              <p className="text-xs text-gray-500 mt-1">{Math.round(progress)}% complete</p>
+              <p className="text-xs text-gray-500 mt-1">{Math.round(job.progress)}% complete</p>
             </div>
           )}
 
           {/* Complete panel */}
-          {stage === "complete" && file && outputBlob && (
+          {stage === "done" && file && outputBlob && (
             <div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
               <div className="flex items-center gap-2 text-green-700 font-semibold">
                 <IcCheck className="w-5 h-5" /> Compression Complete
@@ -407,7 +404,7 @@ export default function VideoCompressorTool() {
           )}
 
           {/* Action buttons */}
-          {stage === "ready" && (
+          {canSubmit && (
             <button
               type="button"
               onClick={() => void handleCompress()}
@@ -419,7 +416,7 @@ export default function VideoCompressorTool() {
             </button>
           )}
 
-          {stage === "compressing" && (
+          {stage === "processing" && (
             <button
               type="button"
               disabled
@@ -430,7 +427,7 @@ export default function VideoCompressorTool() {
             </button>
           )}
 
-          {stage === "complete" && (
+          {stage === "done" && (
             <div className="mt-4 grid grid-cols-2 gap-3">
               <button
                 type="button"

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser, getUserTier } from "@/lib/auth";
-import { attachmentDisposition } from "@/utils/content-disposition";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { env } from "@/lib/env";
 import { getVideoModel } from "@/lib/models/videoModels";
 import { falSubmit, falPollUntilDone, extractResultUrl } from "@/lib/fal";
-import { chargeCredits, refundCredits, markGenerationStatus, checkModelAccess } from "@/lib/credits";
+import { chargeCredits, refundCredits, markGenerationStatus, checkModelAccess, updateGenerationProgress } from "@/lib/credits";
 import { maxDurationForTier } from "@/lib/plans/tiers";
+import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -14,17 +14,10 @@ import { randomUUID } from "crypto";
 
 export const maxDuration = 300;
 
-interface Job {
-  progress: number;
-  status: "processing" | "done" | "error";
-  outputPath: string;
-  downloadName: string;
-  error?: string;
-  createdAt: number;
+interface Job extends CancellableJob {
+  status: "processing" | "done" | "error" | "cancelled";
   userId: string;
-  refunded: boolean;
-  creditCost: number;
-  generationId?: string;
+  createdAt: number;
 }
 
 const g = globalThis as unknown as { __videoGenJobs?: Map<string, Job> };
@@ -60,6 +53,7 @@ async function handlePOST(req: NextRequest) {
     motion?: string;
     seed?: number;
     referenceImageUrl?: string;
+    idempotencyKey?: string;
   };
   try {
     body = await req.json();
@@ -113,6 +107,7 @@ async function handlePOST(req: NextRequest) {
     userId: auth.userId,
     amount: CREDIT_COST,
     toolSlug: "video-generator",
+    idempotencyKey: body.idempotencyKey,
     log: {
       modelId: modelEntry.id,
       generationType: "video",
@@ -178,10 +173,12 @@ async function handlePOST(req: NextRequest) {
 
       const requestId = await falSubmit(falModelId, falInput);
       job.progress = 15;
+      if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
 
       // Simulate progress while waiting
       const progressTimer = setInterval(() => {
         if (job.progress < 88) job.progress += 3;
+        if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
       }, 10000);
 
       let videoUrl: string;
@@ -192,6 +189,11 @@ async function handlePOST(req: NextRequest) {
         clearInterval(progressTimer);
       }
 
+      // Cooperative cancellation checkpoint: a cancel request already
+      // refunded credits and marked the job "cancelled" — don't stomp that
+      // by finalizing as "done" for a result nobody will collect.
+      if ((job.status as string) === "cancelled") return;
+
       job.progress = 92;
 
       const dlRes = await fetch(videoUrl);
@@ -201,14 +203,18 @@ async function handlePOST(req: NextRequest) {
 
       job.progress = 100;
       job.status = "done";
-      if (job.generationId) void markGenerationStatus(job.generationId, "completed");
+      if (job.generationId) {
+        void updateGenerationProgress(job.generationId, 100);
+        void markGenerationStatus(job.generationId, "completed");
+      }
     } catch (err) {
+      if ((job.status as string) === "cancelled") return;
       job.status = "error";
       job.error = err instanceof Error ? err.message : "Video generation failed";
       if (!job.refunded) {
         job.refunded = true;
         try {
-          await refundCredits({ userId: job.userId, amount: job.creditCost });
+          await refundCredits({ userId: job.userId, amount: job.creditCost, generationId: job.generationId });
           if (job.generationId) await markGenerationStatus(job.generationId, "failed", job.error);
         } catch { /* swallow */ }
       }
@@ -220,31 +226,12 @@ async function handlePOST(req: NextRequest) {
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:video-generator" });
 
-export async function GET(req: NextRequest) {
-  const jobId = req.nextUrl.searchParams.get("jobId");
-  const download = req.nextUrl.searchParams.get("download");
-  if (!jobId) return NextResponse.json({ error: "Missing jobId" }, { status: 400 });
+export const GET = withRateLimit(
+  createJobStatusHandler(jobs, { contentType: "video/mp4", deleteOnDownload: true }),
+  { limit: 30, windowSec: 60, keyBy: "user", name: "tools:video-generator:status" },
+);
 
-  const job = jobs.get(jobId);
-  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
-
-  if (download) {
-    if (job.status !== "done") return NextResponse.json({ error: "Not ready" }, { status: 409 });
-    const buffer = fs.readFileSync(job.outputPath);
-    try { fs.unlinkSync(job.outputPath); } catch { /* ignore */ }
-    jobs.delete(jobId);
-    return new NextResponse(buffer, {
-      headers: {
-        "Content-Type": "video/mp4",
-        "Content-Disposition": attachmentDisposition(job.downloadName),
-        "Content-Length": String(buffer.length),
-      },
-    });
-  }
-
-  return NextResponse.json({
-    progress: Math.round(job.progress),
-    status: job.status,
-    error: job.error,
-  });
-}
+export const DELETE = withRateLimit(
+  createJobCancelHandler(jobs),
+  { limit: 10, windowSec: 60, keyBy: "user", name: "tools:video-generator:cancel" },
+);

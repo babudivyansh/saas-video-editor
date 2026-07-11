@@ -418,8 +418,15 @@ model Generation {
   creditPool       String    @default("standard") // "standard" | "veo3"
   estimatedCostUsd Float? // researched real provider $ cost, for margin analytics
   prompt           String?
-  status           String    @default("pending") // "pending" | "completed" | "failed" | "refunded"
+  status           String    @default("pending") // "pending" | "completed" | "failed" | "refunded" | "cancelled"
   errorMessage     String?
+  progress         Int       @default(0) // 0-100, written by the job's own poll/update path
+  cancelledAt      DateTime? // set when the user cancels; job checks this between processing stages
+  // Client-supplied key (e.g. one UUID generated per submit click) so a
+  // retried/duplicated request can't charge credits twice — chargeCredits
+  // looks this up before decrementing and returns the original result if
+  // a row with this key already exists.
+  idempotencyKey   String?   @unique
   createdAt        DateTime  @default(now())
   completedAt      DateTime?
 

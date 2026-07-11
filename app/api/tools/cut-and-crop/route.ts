@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runFFmpegArgs, runFFmpegWithProgress } from "@/utils/ffmpeg-render";
-import { attachmentDisposition } from "@/utils/content-disposition";
+import { runFFmpegArgs, runFFmpegWithProgress, getMediaDimensions } from "@/utils/ffmpeg-render";
+import { cropScaleFilter } from "@/lib/crop";
 import { getAuthUser } from "@/lib/auth";
 import { withRateLimit } from "@/lib/with-rate-limit";
-import { redis } from "@/lib/redis";
-import { prisma } from "@/lib/prisma";
+import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
+import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -15,36 +15,32 @@ export const maxDuration = 300;
 const CREDIT_COST = 1;
 
 type CropAspect = "original" | "9:16" | "1:1" | "16:9";
-
-const CROP_FILTERS: Record<Exclude<CropAspect, "original">, string> = {
-  "9:16": "crop=in_h*9/16:in_h",
-  "1:1": "crop=in_h:in_h",
-  "16:9": "crop=in_w:in_w*9/16",
-};
+type Rotation = 0 | 90 | 180 | 270;
 
 interface Trim { start: number; end: number }
 
-interface Job {
-  progress: number;
-  status: "processing" | "done" | "error";
+interface Job extends CancellableJob {
+  status: "processing" | "done" | "error" | "cancelled";
+  userId: string;
   inputPaths: string[];
   trimmedPaths: string[];
   concatListPath: string;
-  outputPath: string;
-  downloadName: string;
-  error?: string;
   createdAt: number;
-  userId: string;
-  refunded: boolean;
 }
 
 const g = globalThis as unknown as { __cutCropJobs?: Map<string, Job> };
 const jobs: Map<string, Job> = g.__cutCropJobs ?? (g.__cutCropJobs = new Map());
 
 function sweep() {
-  const cutoff = Date.now() - 30 * 60 * 1000;
+  const now = Date.now();
   for (const [id, job] of jobs) {
-    if (job.createdAt < cutoff) {
+    const age = now - job.createdAt;
+    // A still-processing job gets a longer runway (1hr, matching this app's
+    // other long-running-job cutoffs) so sweep() never unlinks the files out
+    // from under an export that's legitimately still working — only a truly
+    // stuck job gets cleaned up, and only well past its normal lifetime.
+    const stale = job.status === "processing" ? age > 60 * 60 * 1000 : age > 30 * 60 * 1000;
+    if (stale) {
       cleanupJobFiles(job);
       jobs.delete(id);
     }
@@ -57,15 +53,40 @@ function cleanupJobFiles(job: Job) {
   }
 }
 
-async function refundCredit(userId: string) {
-  await prisma.user.update({
-    where: { id: userId },
-    data: { credits: { increment: CREDIT_COST } },
-  });
-  const cached = await redis.get(`credits:${userId}`);
-  if (cached !== null) {
-    await redis.set(`credits:${userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
-  }
+// The per-clip video filter applied during the trim stage (not at concat
+// time) — this is what actually makes the concat demuxer safe: every
+// trimmed segment ends up at the same resolution before concatenation,
+// rather than concatenating mismatched sources and only cropping afterward
+// (which can produce an invalid stream, or — for 9:16/1:1/16:9 — request a
+// crop rectangle larger than the source frame and crash ffmpeg entirely for
+// portrait or ultrawide sources). `cropScaleFilter` is the already-safe,
+// already-shared helper used by the client preview's own math (lib/crop.ts);
+// it was written for exactly this but was never actually wired in here.
+async function resolveClipFilter(crop: CropAspect, inputPaths: string[]): Promise<string> {
+  if (crop !== "original") return cropScaleFilter(crop);
+  if (inputPaths.length <= 1) return cropScaleFilter("original");
+
+  const dims = await Promise.all(inputPaths.map((p) => getMediaDimensions(p)));
+  const [first, ...rest] = dims;
+  const allSame = first.w > 0 && rest.every((d) => d.w === first.w && d.h === first.h);
+  if (allSame) return cropScaleFilter("original");
+
+  // No crop chosen, but the source clips have different resolutions —
+  // letterbox every clip to the first clip's resolution so the concat
+  // demuxer (which requires uniform streams) doesn't fail or corrupt output.
+  return `scale=${first.w}:${first.h}:force_original_aspect_ratio=decrease,pad=${first.w}:${first.h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1`;
+}
+
+// Rotation/flip are applied after crop/scale — ffmpeg's `transpose` filter
+// handles 90°/270° (which also swaps width/height), two `transpose`s make
+// 180°, and `hflip` mirrors horizontally.
+function rotateFlipFilter(rotation: Rotation, flipH: boolean): string {
+  const parts: string[] = [];
+  if (rotation === 90) parts.push("transpose=1");
+  else if (rotation === 180) parts.push("transpose=1", "transpose=1");
+  else if (rotation === 270) parts.push("transpose=2");
+  if (flipH) parts.push("hflip");
+  return parts.join(",");
 }
 
 async function handlePOST(req: NextRequest) {
@@ -73,12 +94,6 @@ async function handlePOST(req: NextRequest) {
 
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const cachedCredits = await redis.get(`credits:${auth.userId}`);
-  const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
-  if (cached !== null && cached < CREDIT_COST) {
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
-  }
 
   let formData: FormData;
   try {
@@ -98,6 +113,9 @@ async function handlePOST(req: NextRequest) {
   if (!["original", "9:16", "1:1", "16:9"].includes(crop)) {
     return NextResponse.json({ error: "Invalid crop aspect" }, { status: 400 });
   }
+  const rotationRaw = Number(formData.get("rotation") ?? 0);
+  const rotation: Rotation = ([0, 90, 180, 270] as const).includes(rotationRaw as Rotation) ? (rotationRaw as Rotation) : 0;
+  const flipH = (formData.get("flipH") as string | null) === "true";
 
   // Collect files
   const files: File[] = [];
@@ -118,17 +136,20 @@ async function handlePOST(req: NextRequest) {
     }
   }
 
-  // Deduct credit before kicking off the FFmpeg job
-  const user = await prisma.user.update({
-    where: { id: auth.userId },
-    data: { credits: { decrement: CREDIT_COST } },
-    select: { credits: true },
+  const idempotencyKey = (formData.get("idempotencyKey") as string | null) ?? undefined;
+  const charge = await chargeCredits({
+    userId: auth.userId,
+    amount: CREDIT_COST,
+    toolSlug: "cut-and-crop",
+    idempotencyKey,
+    log: { generationType: "video" },
   });
-  if (user.credits < 0) {
-    await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
+  if (!charge.ok) {
+    if (charge.reason === "tool_disabled") {
+      return NextResponse.json({ error: "Cut & Crop is temporarily disabled." }, { status: 503 });
+    }
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
-  await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
 
   // Write input files to tmp
   const jobId = randomUUID();
@@ -156,15 +177,24 @@ async function handlePOST(req: NextRequest) {
     createdAt: Date.now(),
     userId: auth.userId,
     refunded: false,
+    creditCost: CREDIT_COST,
+    generationId: charge.generationId,
   };
   jobs.set(jobId, job);
 
   // Background work
   (async () => {
     try {
-      // Stage 1: trim each clip (re-encode so concat is safe across mixed codecs).
+      const cropFilter = await resolveClipFilter(crop, inputPaths);
+      const rfFilter = rotateFlipFilter(rotation, flipH);
+      const clipFilter = [cropFilter, rfFilter].filter(Boolean).join(",");
+
+      // Stage 1: trim each clip (re-encode so concat is safe across mixed
+      // codecs), applying the crop/scale/letterbox filter here — not after
+      // concat — so every trimmed segment already shares one resolution.
       // Using -c copy with -ss can fail if the cut point isn't at a keyframe.
       for (let i = 0; i < inputPaths.length; i++) {
+        if ((job.status as string) === "cancelled") return;
         const { start, end } = trims[i];
         const s = Math.max(0, Number(start) || 0);
         const e = Math.max(s + 0.1, Number(end) || s + 0.1);
@@ -173,6 +203,7 @@ async function handlePOST(req: NextRequest) {
           "-ss", String(s),
           "-to", String(e),
           "-i", inputPaths[i],
+          "-vf", clipFilter,
           "-c:v", "libx264", "-preset", "fast", "-crf", "23",
           "-c:a", "aac", "-b:a", "128k",
           "-movflags", "+faststart",
@@ -180,9 +211,16 @@ async function handlePOST(req: NextRequest) {
         ]);
         // First half of the progress is trim
         job.progress = Math.round(((i + 1) / inputPaths.length) * 40);
+        if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
       }
 
-      // Stage 2: concat (+ optional crop)
+      // Cancellation checkpoint between stages — skip the concat pass
+      // entirely if the user already cancelled.
+      if ((job.status as string) === "cancelled") return;
+
+      // Stage 2: concat only — every trimmed clip already shares the same
+      // resolution/codec from stage 1, so this can always stream-copy
+      // (faster, and no longer needs its own crop branch).
       const listContent = trimmedPaths.map(p => `file '${p.replace(/\\/g, "/")}'`).join("\n");
       fs.writeFileSync(concatListPath, listContent, "utf8");
 
@@ -190,30 +228,35 @@ async function handlePOST(req: NextRequest) {
         "-y",
         "-f", "concat", "-safe", "0",
         "-i", concatListPath,
+        "-c", "copy",
+        "-movflags", "+faststart",
+        outputPath,
       ];
-      if (crop !== "original") {
-        concatArgs.push("-vf", CROP_FILTERS[crop]);
-        concatArgs.push("-c:v", "libx264", "-preset", "fast", "-crf", "23");
-        concatArgs.push("-c:a", "aac", "-b:a", "128k");
-      } else {
-        concatArgs.push("-c", "copy");
-      }
-      concatArgs.push("-movflags", "+faststart");
-      concatArgs.push(outputPath);
 
       await runFFmpegWithProgress(concatArgs, (pct) => {
         // Map ffmpeg's 0-99 over the second 60% of overall progress
         job.progress = 40 + Math.round((pct / 100) * 59);
+        if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
       });
+
+      if ((job.status as string) === "cancelled") return;
 
       job.progress = 100;
       job.status = "done";
+      if (job.generationId) {
+        void updateGenerationProgress(job.generationId, 100);
+        void markGenerationStatus(job.generationId, "completed");
+      }
     } catch (err) {
+      if ((job.status as string) === "cancelled") return;
       job.status = "error";
       job.error = err instanceof Error ? err.message : "Export failed";
       if (!job.refunded) {
         job.refunded = true;
-        try { await refundCredit(job.userId); } catch { /* swallow */ }
+        try {
+          await refundCredits({ userId: job.userId, amount: job.creditCost, generationId: job.generationId });
+          if (job.generationId) await markGenerationStatus(job.generationId, "failed", job.error);
+        } catch { /* swallow */ }
       }
     } finally {
       // Inputs and trims are no longer needed; output is kept until download.
@@ -228,31 +271,12 @@ async function handlePOST(req: NextRequest) {
 
 export const POST = withRateLimit(handlePOST, { limit: 30, windowSec: 60, keyBy: "user", name: "tools:cut-and-crop" });
 
-export async function GET(req: NextRequest) {
-  const jobId = req.nextUrl.searchParams.get("jobId");
-  const download = req.nextUrl.searchParams.get("download");
-  if (!jobId) return NextResponse.json({ error: "Missing jobId" }, { status: 400 });
+export const GET = withRateLimit(
+  createJobStatusHandler(jobs, { contentType: "video/mp4", deleteOnDownload: true }),
+  { limit: 30, windowSec: 60, keyBy: "user", name: "tools:cut-and-crop:status" },
+);
 
-  const job = jobs.get(jobId);
-  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
-
-  if (download) {
-    if (job.status !== "done") return NextResponse.json({ error: "Not ready" }, { status: 409 });
-    const buffer = fs.readFileSync(job.outputPath);
-    try { fs.unlinkSync(job.outputPath); } catch { /* ignore */ }
-    jobs.delete(jobId);
-    return new NextResponse(buffer, {
-      headers: {
-        "Content-Type": "video/mp4",
-        "Content-Disposition": attachmentDisposition(job.downloadName),
-        "Content-Length": String(buffer.length),
-      },
-    });
-  }
-
-  return NextResponse.json({
-    progress: Math.round(job.progress),
-    status: job.status,
-    error: job.error,
-  });
-}
+export const DELETE = withRateLimit(
+  createJobCancelHandler(jobs),
+  { limit: 10, windowSec: 60, keyBy: "user", name: "tools:cut-and-crop:cancel" },
+);

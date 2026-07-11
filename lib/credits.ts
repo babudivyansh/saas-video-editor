@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { getUserTier } from "@/lib/auth";
@@ -5,10 +6,9 @@ import { getToolConfig } from "@/lib/tool-config";
 import { tierAtLeast, lowestTier, type TierId } from "@/lib/plans/tiers";
 
 // Shared credit-charging service, generalizing the identical decrement/
-// refund/Redis-cache pattern that ~20 tool routes each reimplement locally.
-// Phase 1 migrates only image-generator, video-generator, and ai-creator onto
-// this — the other ~17 routes are an explicit fast-follow once this service
-// is proven in production (see the Phase 1 plan's §3 for the reasoning).
+// refund/Redis-cache pattern every tool route used to reimplement locally.
+// Phase 1 (of the audit-fix rollout) migrates every credit-charging tool
+// route onto this — see the Phase 1 plan for the full list.
 //
 // Transaction shape is preserved as-is from the routes it replaces: Redis
 // fast-fail -> atomic Postgres {decrement} -> refund-if-negative. This is not
@@ -22,6 +22,15 @@ export interface ChargeCreditsParams {
   userId: string;
   amount: number;
   toolSlug: string;
+  /**
+   * Client-supplied key (e.g. one UUID generated once per submit click),
+   * used to make a charge idempotent: a retried/duplicated request with the
+   * same key returns the original result instead of charging again. The
+   * `Generation.idempotencyKey` unique constraint is what actually makes
+   * this race-safe between two concurrent requests with the same key — the
+   * upfront lookup below is just the fast path for the common case.
+   */
+  idempotencyKey?: string;
   log?: {
     modelId?: string;
     generationType: "image" | "video" | "audio" | "utility";
@@ -38,6 +47,17 @@ export type ChargeCreditsResult =
 export async function chargeCredits(params: ChargeCreditsParams): Promise<ChargeCreditsResult> {
   const toolCfg = await getToolConfig(params.toolSlug);
   if (!toolCfg.enabled) return { ok: false, reason: "tool_disabled" };
+
+  if (params.idempotencyKey) {
+    const existing = await prisma.generation.findUnique({
+      where: { idempotencyKey: params.idempotencyKey },
+      select: { id: true, userId: true },
+    });
+    if (existing) {
+      const user = await prisma.user.findUnique({ where: { id: existing.userId }, select: { credits: true } });
+      return { ok: true, balance: user?.credits ?? 0, generationId: existing.id };
+    }
+  }
 
   const cachedCredits = await redis.get(`credits:${params.userId}`);
   const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
@@ -60,24 +80,38 @@ export async function chargeCredits(params: ChargeCreditsParams): Promise<Charge
   await redis.set(`credits:${params.userId}`, String(balance), "EX", 3600);
 
   let generationId: string | undefined;
-  if (params.log) {
+  if (params.log || params.idempotencyKey) {
     try {
       const row = await prisma.generation.create({
         data: {
           userId: params.userId,
           toolSlug: params.toolSlug,
-          modelId: params.log.modelId ?? null,
-          generationType: params.log.generationType,
+          modelId: params.log?.modelId ?? null,
+          generationType: params.log?.generationType ?? "utility",
           creditsCost: params.amount,
-          estimatedCostUsd: params.log.estimatedCostUsd ?? null,
-          prompt: params.log.prompt ?? null,
+          estimatedCostUsd: params.log?.estimatedCostUsd ?? null,
+          prompt: params.log?.prompt ?? null,
           status: "pending",
+          idempotencyKey: params.idempotencyKey ?? null,
         },
         select: { id: true },
       });
       generationId = row.id;
-    } catch {
-      // Best-effort — logging must never block a successful charge.
+    } catch (e) {
+      // A concurrent request carrying the same idempotencyKey won the race
+      // and already inserted its Generation row — this call's decrement
+      // above is a genuine double-charge unless reversed, so refund it and
+      // adopt the winner's result instead of returning our own.
+      if (params.idempotencyKey && e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        await prisma.user.update({ where: { id: params.userId }, data: { credits: { increment: params.amount } } });
+        const winner = await prisma.generation.findUnique({
+          where: { idempotencyKey: params.idempotencyKey },
+          select: { id: true },
+        });
+        const user = await prisma.user.findUnique({ where: { id: params.userId }, select: { credits: true } });
+        return { ok: true, balance: user?.credits ?? balance + params.amount, generationId: winner?.id };
+      }
+      // Otherwise best-effort — logging must never block a successful charge.
     }
   }
 
@@ -110,7 +144,7 @@ export async function refundCredits(params: RefundCreditsParams): Promise<void> 
 
 export async function markGenerationStatus(
   generationId: string,
-  status: "completed" | "failed",
+  status: "completed" | "failed" | "cancelled",
   errorMessage?: string,
 ): Promise<void> {
   try {
@@ -121,6 +155,36 @@ export async function markGenerationStatus(
   } catch {
     // Best-effort — this is derived data, not the source of truth for balance.
   }
+}
+
+/** Write-through job progress (0-100) onto the Generation row, so a job's
+ * progress survives a server restart and is visible to anything reading the
+ * ledger — not just the in-memory Map the route itself polls against. */
+export async function updateGenerationProgress(generationId: string, progress: number): Promise<void> {
+  try {
+    await prisma.generation.update({
+      where: { id: generationId },
+      data: { progress: Math.max(0, Math.min(100, Math.round(progress))) },
+    });
+  } catch {
+    // Best-effort — progress is informational, not the source of truth for billing.
+  }
+}
+
+/** Marks a generation as cancel-requested. Routes check
+ * `isGenerationCancelled` between their own processing stages and stop +
+ * refund if it's true — this does not itself kill an in-flight external
+ * API call, it's a cooperative checkpoint. */
+export async function cancelGeneration(generationId: string): Promise<void> {
+  await prisma.generation.update({
+    where: { id: generationId },
+    data: { cancelledAt: new Date() },
+  });
+}
+
+export async function isGenerationCancelled(generationId: string): Promise<boolean> {
+  const row = await prisma.generation.findUnique({ where: { id: generationId }, select: { cancelledAt: true } });
+  return row?.cancelledAt != null;
 }
 
 export async function hasEnoughCredits(userId: string, amount: number): Promise<boolean> {
