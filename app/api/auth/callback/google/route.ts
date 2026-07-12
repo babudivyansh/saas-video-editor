@@ -194,6 +194,13 @@ export async function GET(req: NextRequest) {
     return res;
   } catch (err) {
     logger.error("google-callback", "request failed", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    // TEMPORARY diagnostic for the live-debugging session — surfaces what
+    // actually threw instead of a bare "Internal server error". Remove once
+    // the underlying issue is confirmed fixed.
+    return NextResponse.json({
+      error: "Internal server error",
+      debugMessage: err instanceof Error ? err.message : String(err),
+      debugName: err instanceof Error ? err.name : undefined,
+    }, { status: 500 });
   }
 }
