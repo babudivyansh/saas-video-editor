@@ -50,6 +50,11 @@ async function callGenerate(endpoint: string, token: string, body: Record<string
   }
 }
 
+// A stuck job used to poll forever with no way out — this bounds it, matching
+// app/components/useJobPolling.ts's maxDurationMs pattern for the /api/tools/*
+// family.
+const MAX_POLL_DURATION_MS = 10 * 60 * 1000;
+
 export function useVideoGenerate() {
   const [status, setStatus] = useState<GenerateStatus>("idle");
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -57,6 +62,7 @@ export function useVideoGenerate() {
   const [projectId, setProjectId] = useState<string | null>(null);
   const [progress, setProgress] = useState<number>(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollStartRef = useRef(0);
 
   useEffect(() => {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
@@ -64,12 +70,28 @@ export function useVideoGenerate() {
 
   const startPolling = useCallback((projectId: string, token: string) => {
     if (pollRef.current) clearInterval(pollRef.current);
+    pollStartRef.current = Date.now();
     pollRef.current = setInterval(async () => {
+      if (Date.now() - pollStartRef.current > MAX_POLL_DURATION_MS) {
+        clearInterval(pollRef.current!);
+        setError("This is taking longer than expected. Please try again.");
+        setStatus("failed");
+        return;
+      }
       try {
         const res = await fetch(`/api/projects/${projectId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (!res.ok) return;
+        // A 404 means the project is gone (deleted, or never existed) — this
+        // is terminal, not transient. Treating it as "keep trying" polled
+        // forever instead of ever surfacing an error.
+        if (res.status === 404) {
+          clearInterval(pollRef.current!);
+          setError("This project could not be found — it may have been deleted.");
+          setStatus("failed");
+          return;
+        }
+        if (!res.ok) return; // other transient failures: keep polling
         const { project } = await res.json() as { project: { status: string; videoUrl?: string; progress?: number } };
         if (project.progress != null) setProgress(project.progress);
         if (project.status === "completed" && project.videoUrl) {
@@ -82,7 +104,7 @@ export function useVideoGenerate() {
           setStatus("failed");
         }
       } catch {
-        // transient network error — keep polling
+        // transient network error — keep polling, bounded by MAX_POLL_DURATION_MS above
       }
     }, 3000);
   }, []);
@@ -207,6 +229,7 @@ export function useVideoGenerate() {
         darkMode,
         upvotes,
         comments,
+        idempotencyKey: crypto.randomUUID(),
       });
       setStatus("rendering");
       startPolling(pid, token);
@@ -262,6 +285,7 @@ export function useVideoGenerate() {
         voiceSettings,
         language,
         avatarBase64,
+        idempotencyKey: crypto.randomUUID(),
       });
       setStatus("rendering");
       startPolling(pid, token);

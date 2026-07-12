@@ -85,7 +85,13 @@ async function falSubmit(audioUrl: string): Promise<string> {
 }
 
 async function falPollUntilDone(requestId: string): Promise<string> {
-  const deadline = Date.now() + 10 * 60 * 1000;
+  // Must stay safely under this route's maxDuration (300s) — a 10-minute
+  // internal deadline let the platform kill the request first, silently
+  // orphaning the job (stuck "processing" forever, credit never refunded)
+  // instead of this function's own catch block ever getting a chance to
+  // run. Same fix already applied to face-swap/background-remover/
+  // video-generator/image-generator this engagement.
+  const deadline = Date.now() + 240 * 1000;
   while (Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 5000));
     const statusRes = await fetch(

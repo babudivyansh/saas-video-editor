@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
 
 type Stage = "idle" | "loading" | "done" | "error";
@@ -78,7 +78,8 @@ function IdeaCard({ idea, index }: { idea: Idea; index: number }) {
 }
 
 export default function BrainstormerTool() {
-  const { refreshUser } = useAuth();
+  const { user, token, openAuthModal, refreshUser } = useAuth();
+  const submittingRef = useRef(false);
 
   const [topic, setTopic] = useState("");
   const [tone, setTone] = useState("");
@@ -92,18 +93,19 @@ export default function BrainstormerTool() {
 
   const handleGenerate = async () => {
     if (!canGenerate) return;
-
-    const token = localStorage.getItem("token");
-    if (!token) { setErrorMsg("Please log in to use this tool."); setStage("error"); return; }
+    if (!user || !token) { openAuthModal("login", "AI Brainstormer"); return; }
+    if (submittingRef.current) return;
+    submittingRef.current = true;
 
     setStage("loading");
     setErrorMsg("");
 
     try {
+      const idempotencyKey = crypto.randomUUID();
       const res = await fetch("/api/tools/brainstormer", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: topic.trim(), tone, targetAudience: targetAudience.trim(), videoType }),
+        body: JSON.stringify({ topic: topic.trim(), tone, targetAudience: targetAudience.trim(), videoType, idempotencyKey }),
       });
 
       const data = await res.json();
@@ -115,6 +117,8 @@ export default function BrainstormerTool() {
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Something went wrong.");
       setStage("error");
+    } finally {
+      submittingRef.current = false;
     }
   };
 
@@ -132,6 +136,7 @@ export default function BrainstormerTool() {
               type="text"
               value={topic}
               onChange={e => setTopic(e.target.value)}
+              maxLength={200}
               placeholder="Generate ideas for a niche to start a page on"
               className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
             />
@@ -177,6 +182,7 @@ export default function BrainstormerTool() {
               type="text"
               value={targetAudience}
               onChange={e => setTargetAudience(e.target.value)}
+              maxLength={200}
               placeholder="30-40 year old moms in the US"
               className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
             />
@@ -209,7 +215,7 @@ export default function BrainstormerTool() {
 
           {/* Generate button */}
           <button
-            onClick={handleGenerate}
+            onClick={() => void handleGenerate()}
             disabled={!canGenerate}
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40"
             style={{ background: "linear-gradient(135deg, #335CFF 0%, #7B5EA7 100%)" }}
@@ -255,6 +261,11 @@ export default function BrainstormerTool() {
 
             {stage === "done" && ideas.length > 0 && (
               <div className="space-y-3">
+                {ideas.length < 5 && (
+                  <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+                    Only {ideas.length} idea{ideas.length === 1 ? "" : "s"} came back this time — try generating again for a full set of 5.
+                  </p>
+                )}
                 {ideas.map((idea, i) => (
                   <IdeaCard key={i} idea={idea} index={i} />
                 ))}

@@ -78,8 +78,16 @@ export default function VocalRemoverTool() {
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [downloadName, setDownloadName] = useState("instrumental.mp3");
   const [dragging, setDragging] = useState(false);
+  const [pickError, setPickError] = useState<string | null>(null);
 
   const acceptFile = useCallback((f: File) => {
+    // Matches the server's cap (app/api/tools/vocal-remover/route.ts) — gives
+    // instant feedback instead of only finding out after a full upload.
+    if (f.size > 50 * 1024 * 1024) {
+      setPickError("File too large (max 50 MB).");
+      return;
+    }
+    setPickError(null);
     setFile(f);
     job.reset();
     if (downloadUrl) { URL.revokeObjectURL(downloadUrl); setDownloadUrl(null); }
@@ -270,6 +278,9 @@ export default function VocalRemoverTool() {
             )}
 
             {/* Error */}
+            {pickError && (
+              <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{pickError}</p>
+            )}
             {stage === "error" && job.error && (
               <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{job.error}</p>
             )}
