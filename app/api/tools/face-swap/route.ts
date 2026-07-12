@@ -67,7 +67,13 @@ async function submitToFal(swapImageUrl: string, baseImageUrl: string): Promise<
 }
 
 async function pollFal(requestId: string): Promise<string> {
-  const deadline = Date.now() + 5 * 60 * 1000;
+  // Must stay safely under this route's maxDuration (120s) — the surrounding
+  // upload/submit/download steps also eat into that budget, so this can't be
+  // anywhere close to 120s itself. A 5-minute internal deadline here used to
+  // let the platform kill the whole request first, silently orphaning the
+  // job (stuck "processing" forever, credit never refunded) instead of this
+  // function's own catch block getting the chance to run.
+  const deadline = Date.now() + 90 * 1000;
   while (Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 3000));
     const statusRes = await fetch(

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
-import { redis } from "@/lib/redis";
-import { prisma } from "@/lib/prisma";
+import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
 import { create as createYoutubeDl } from "youtube-dl-exec";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { logger } from "@/lib/logger";
@@ -10,6 +9,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { randomUUID } from "crypto";
+import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
 
 export const maxDuration = 300;
 
@@ -19,14 +19,6 @@ export const maxDuration = 300;
 // worst case bounded and gives the tool a real (if small) unit price.
 const CREDIT_COST = 1;
 const MAX_SOURCE_DURATION_SEC = 20 * 60; // 20 minutes
-
-async function refundCredit(userId: string) {
-  await prisma.user.update({ where: { id: userId }, data: { credits: { increment: CREDIT_COST } } });
-  const cached = await redis.get(`credits:${userId}`);
-  if (cached !== null) {
-    await redis.set(`credits:${userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
-  }
-}
 
 // ── yt-dlp binary (bundled by youtube-dl-exec) ────────────────────────────────
 const YT_DLP_BIN = path.join(
@@ -85,52 +77,50 @@ interface YtInfo {
   formats?: YtFormat[];
 }
 
-// Stream a finished file back to the client, then delete it.
-function streamFileResponse(filePath: string, contentType: string, downloadName: string): Response {
-  const nodeStream = fs.createReadStream(filePath);
-  const webStream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      nodeStream.on("data", (chunk) =>
-        controller.enqueue(new Uint8Array(chunk as Buffer))
-      );
-      nodeStream.on("end", () => {
-        controller.close();
-        fs.promises.unlink(filePath).catch(() => {});
-      });
-      nodeStream.on("error", (err) => {
-        controller.error(err);
-        fs.promises.unlink(filePath).catch(() => {});
-      });
-    },
-    cancel() {
-      nodeStream.destroy();
-      fs.promises.unlink(filePath).catch(() => {});
-    },
-  });
+// isAudio distinguishes the two possible output content types this tool can
+// produce for the same job map — see job-routes.ts's contentType-as-function
+// option, added specifically to support this.
+interface Job extends CancellableJob {
+  status: "processing" | "done" | "error" | "cancelled";
+  userId: string;
+  createdAt: number;
+  isAudio: boolean;
+}
 
-  const safeName = downloadName.replace(/[^a-zA-Z0-9._\- ]/g, "_");
-  return new Response(webStream, {
-    status: 200,
-    headers: {
-      "Content-Type": contentType,
-      "Content-Disposition": `attachment; filename="${safeName}"`,
-      "Cache-Control": "no-store",
-    },
-  });
+const g = globalThis as unknown as { __ytdlJobs?: Map<string, Job> };
+const jobs: Map<string, Job> = g.__ytdlJobs ?? (g.__ytdlJobs = new Map());
+
+function sweep() {
+  const cutoff = Date.now() - 60 * 60 * 1000;
+  for (const [id, job] of jobs) {
+    if (job.createdAt < cutoff) {
+      try { fs.unlinkSync(job.outputPath); } catch { /* ignore */ }
+      jobs.delete(id);
+    }
+  }
 }
 
 // ── GET handler ───────────────────────────────────────────────────────────────
 // GET ?url=...&action=info    → JSON metadata + available formats
-// GET ?url=...&quality=720    → MP4 (merged)
-// GET ?url=...&quality=audio  → MP3
+// GET ?url=...&quality=720    → starts a download job, returns { jobId }
+// GET ?jobId=...              → poll status / (with &download=1) stream the file
 async function handleGET(req: NextRequest) {
+  sweep();
+
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
+
+  // Poll / download an already-started job — delegate to the shared handler.
+  if (searchParams.has("jobId")) {
+    return jobStatusHandler(req);
+  }
+
   const rawUrl  = searchParams.get("url")?.trim() ?? "";
   const action  = searchParams.get("action");
   const quality = searchParams.get("quality") ?? "best";
+  const idempotencyKey = searchParams.get("idempotencyKey")?.trim() || undefined;
 
   const videoId = extractVideoId(rawUrl);
   if (!videoId) {
@@ -179,7 +169,7 @@ async function handleGET(req: NextRequest) {
     }
   }
 
-  // ── Download mode ─────────────────────────────────────────────────────────────
+  // ── Start a download job ───────────────────────────────────────────────────
   const jobId = randomUUID();
   const isAudio = quality === "audio";
   const ext = isAudio ? "mp3" : "mp4";
@@ -187,14 +177,7 @@ async function handleGET(req: NextRequest) {
   const outTemplate = path.join(os.tmpdir(), `ytdl_${jobId}.%(ext)s`);
   const finalPath = path.join(os.tmpdir(), `ytdl_${jobId}.${ext}`);
 
-  // Credit check (fast path) before we do any real work.
-  const cachedCredits = await redis.get(`credits:${auth.userId}`);
-  const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
-  if (cached !== null && cached < CREDIT_COST) {
-    return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
-  }
-
-  let creditsDeducted = false;
+  let title = "video";
   try {
     // Resolve the title first (for a nice filename) and check length before charging.
     const meta = (await ytDlp(cleanUrl, {
@@ -203,7 +186,7 @@ async function handleGET(req: NextRequest) {
       noCheckCertificates: true,
       noPlaylist: true,
     })) as unknown as YtInfo;
-    const title = safeTitle(meta.title ?? "video");
+    title = safeTitle(meta.title ?? "video");
 
     if ((meta.duration ?? 0) > MAX_SOURCE_DURATION_SEC) {
       return NextResponse.json(
@@ -211,78 +194,136 @@ async function handleGET(req: NextRequest) {
         { status: 400 },
       );
     }
-
-    const user = await prisma.user.update({
-      where: { id: auth.userId },
-      data: { credits: { decrement: CREDIT_COST } },
-      select: { credits: true },
-    });
-    if (user.credits < 0) {
-      await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
-      return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
-    }
-    creditsDeducted = true;
-    await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
-
-    if (isAudio) {
-      await ytDlp(cleanUrl, {
-        format: "bestaudio/best",
-        extractAudio: true,
-        audioFormat: "mp3",
-        audioQuality: 0,
-        output: outTemplate,
-        ffmpegLocation: FFMPEG_DIR,
-        noWarnings: true,
-        noCheckCertificates: true,
-        noPlaylist: true,
-      });
-    } else {
-      const h = /^\d+$/.test(quality) ? quality : "9999";
-      await ytDlp(cleanUrl, {
-        format: `bestvideo[height<=${h}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${h}]+bestaudio/best[height<=${h}][ext=mp4]/best`,
-        mergeOutputFormat: "mp4",
-        output: outTemplate,
-        ffmpegLocation: FFMPEG_DIR,
-        noWarnings: true,
-        noCheckCertificates: true,
-        noPlaylist: true,
-      });
-    }
-
-    if (!fs.existsSync(finalPath)) {
-      // Fall back: find whatever file yt-dlp actually produced for this job
-      const dir = os.tmpdir();
-      const produced = fs.readdirSync(dir).find(f => f.startsWith(`ytdl_${jobId}.`));
-      if (!produced) {
-        if (creditsDeducted) await refundCredit(auth.userId).catch(() => {});
-        return NextResponse.json({ error: "Download produced no output file" }, { status: 500 });
-      }
-      const producedPath = path.join(dir, produced);
-      const ct = isAudio ? "audio/mpeg" : "video/mp4";
-      return streamFileResponse(producedPath, ct, `${title}.${ext}`);
-    }
-
-    const contentType = isAudio ? "audio/mpeg" : "video/mp4";
-    return streamFileResponse(finalPath, contentType, `${title}.${ext}`);
   } catch (err) {
-    if (creditsDeducted) await refundCredit(auth.userId).catch(() => {});
-
-    // Clean up any partial files
-    try {
-      const dir = os.tmpdir();
-      for (const f of fs.readdirSync(dir)) {
-        if (f.startsWith(`ytdl_${jobId}.`)) {
-          fs.promises.unlink(path.join(dir, f)).catch(() => {});
-        }
-      }
-    } catch { /* ignore cleanup errors */ }
-
     const e = err as { stderr?: string; message?: string };
     const stderrLine = e.stderr?.split("\n").find(l => l.includes("ERROR"));
-    const msg = stderrLine?.replace(/^ERROR:\s*/, "") ?? e.message ?? "Download failed";
-    logger.error("yt-dl", "download failed", e.stderr ?? msg);
+    const msg = stderrLine?.replace(/^ERROR:\s*/, "") ?? e.message ?? "Failed to fetch video info";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
+
+  const charge = await chargeCredits({
+    userId: auth.userId,
+    amount: CREDIT_COST,
+    toolSlug: "youtube-downloader",
+    idempotencyKey,
+    log: { generationType: "video", prompt: cleanUrl },
+  });
+  if (!charge.ok) {
+    if (charge.reason === "tool_disabled") {
+      return NextResponse.json({ error: "YouTube downloader is temporarily disabled." }, { status: 503 });
+    }
+    return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
+  }
+
+  const job: Job = {
+    progress: 10,
+    status: "processing",
+    outputPath: finalPath,
+    downloadName: `${title}.${ext}`,
+    createdAt: Date.now(),
+    userId: auth.userId,
+    refunded: false,
+    creditCost: CREDIT_COST,
+    generationId: charge.generationId,
+    isAudio,
+  };
+  jobs.set(jobId, job);
+
+  (async () => {
+    // Simulated progress — yt-dlp's own progress isn't cheaply available
+    // without parsing stdout, matching the same tradeoff already made for
+    // fal.ai-backed tools elsewhere in this file's sibling routes.
+    const ticker = setInterval(() => {
+      if (job.progress < 88) job.progress += 4;
+      if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
+    }, 4000);
+
+    try {
+      if (isAudio) {
+        await ytDlp(cleanUrl, {
+          format: "bestaudio/best",
+          extractAudio: true,
+          audioFormat: "mp3",
+          audioQuality: 0,
+          output: outTemplate,
+          ffmpegLocation: FFMPEG_DIR,
+          noWarnings: true,
+          noCheckCertificates: true,
+          noPlaylist: true,
+        });
+      } else {
+        const h = /^\d+$/.test(quality) ? quality : "9999";
+        await ytDlp(cleanUrl, {
+          format: `bestvideo[height<=${h}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${h}]+bestaudio/best[height<=${h}][ext=mp4]/best`,
+          mergeOutputFormat: "mp4",
+          output: outTemplate,
+          ffmpegLocation: FFMPEG_DIR,
+          noWarnings: true,
+          noCheckCertificates: true,
+          noPlaylist: true,
+        });
+      }
+
+      if ((job.status as string) === "cancelled") return;
+
+      if (!fs.existsSync(finalPath)) {
+        // Fall back: find whatever file yt-dlp actually produced for this job,
+        // and rename it to the canonical path job.outputPath already points at.
+        const dir = os.tmpdir();
+        const produced = fs.readdirSync(dir).find(f => f.startsWith(`ytdl_${jobId}.`));
+        if (!produced) throw new Error("Download produced no output file");
+        fs.renameSync(path.join(dir, produced), finalPath);
+      }
+
+      job.progress = 100;
+      job.status = "done";
+      if (job.generationId) {
+        void updateGenerationProgress(job.generationId, 100);
+        void markGenerationStatus(job.generationId, "completed");
+      }
+    } catch (err) {
+      if ((job.status as string) === "cancelled") return;
+      const e = err as { stderr?: string; message?: string };
+      const stderrLine = e.stderr?.split("\n").find(l => l.includes("ERROR"));
+      const msg = stderrLine?.replace(/^ERROR:\s*/, "") ?? e.message ?? "Download failed";
+      logger.error("yt-dl", "download failed", e.stderr ?? msg);
+      job.status = "error";
+      job.error = msg;
+      if (!job.refunded) {
+        job.refunded = true;
+        try {
+          await refundCredits({ userId: auth.userId, amount: CREDIT_COST, generationId: job.generationId });
+          if (job.generationId) await markGenerationStatus(job.generationId, "failed", msg);
+        } catch { /* swallow */ }
+      }
+      // Clean up any partial files.
+      try {
+        const dir = os.tmpdir();
+        for (const f of fs.readdirSync(dir)) {
+          if (f.startsWith(`ytdl_${jobId}.`)) fs.promises.unlink(path.join(dir, f)).catch(() => {});
+        }
+      } catch { /* ignore cleanup errors */ }
+    } finally {
+      clearInterval(ticker);
+    }
+  })();
+
+  return NextResponse.json({ jobId }, { status: 202 });
 }
 
-export const GET = withRateLimit(handleGET, { limit: 20, windowSec: 60, keyBy: "user", name: "tools:youtube-downloader" });
+const jobStatusHandler = createJobStatusHandler(jobs, {
+  contentType: (job) => (job.isAudio ? "audio/mpeg" : "video/mp4"),
+  deleteOnDownload: true,
+});
+
+// Shares one bucket across info/start-job calls AND the ~2s-interval status
+// polling useJobPolling does while a job is in flight (unlike other tools,
+// this route can't export a second GET with its own :status bucket — jobId
+// presence is dispatched on inside a single handler) — sized generously
+// enough that a few minutes of polling never starves a real info/start call.
+export const GET = withRateLimit(handleGET, { limit: 60, windowSec: 60, keyBy: "user", name: "tools:youtube-downloader" });
+
+export const DELETE = withRateLimit(
+  createJobCancelHandler(jobs),
+  { limit: 10, windowSec: 60, keyBy: "user", name: "tools:youtube-downloader:cancel" },
+);

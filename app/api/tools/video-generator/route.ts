@@ -183,7 +183,11 @@ async function handlePOST(req: NextRequest) {
 
       let videoUrl: string;
       try {
-        const raw = await falPollUntilDone(falModelId, requestId);
+        // Must stay safely under this route's maxDuration (300s) — the default
+        // 12-minute deadline in lib/fal.ts vastly exceeds it, which meant the
+        // platform would kill the request (and orphan the job, no refund)
+        // long before this loop ever gave up on its own.
+        const raw = await falPollUntilDone(falModelId, requestId, { deadlineMs: 240_000 });
         videoUrl = extractResultUrl(raw, resultPath);
       } finally {
         clearInterval(progressTimer);

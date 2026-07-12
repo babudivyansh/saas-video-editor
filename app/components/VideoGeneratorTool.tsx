@@ -387,6 +387,7 @@ export default function VideoGeneratorTool() {
   const [showDocs,    setShowDocs]    = useState(false);
   const [refImage,    setRefImage]    = useState<File | null>(null);
   const [uploadingRef,setUploadingRef]= useState(false);
+  const [pickError,   setPickError]   = useState<string | null>(null);
 
   const fileInputRef  = useRef<HTMLInputElement>(null);
   const textareaRef   = useRef<HTMLTextAreaElement>(null);
@@ -611,8 +612,20 @@ export default function VideoGeneratorTool() {
                 {showDocs && <PromptDocsPopover onClose={() => setShowDocs(false)} />}
               </div>
 
-              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={e => {
-                const f = e.target.files?.[0]; if (f) setRefImage(f); e.target.value = "";
+              <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={e => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (!f) return;
+                setPickError(null);
+                if (!["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(f.type)) {
+                  setPickError("Only PNG, JPG, WEBP images are supported for the reference image.");
+                  return;
+                }
+                if (f.size > 10 * 1024 * 1024) {
+                  setPickError("Reference image must be under 10 MB.");
+                  return;
+                }
+                setRefImage(f);
               }} />
               {!refImage ? (
                 <button
@@ -634,6 +647,8 @@ export default function VideoGeneratorTool() {
               )}
             </div>
 
+            {pickError && <p className="text-sm text-red-500">{pickError}</p>}
+
             {/* Prompt textarea */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Prompt</label>
@@ -641,6 +656,7 @@ export default function VideoGeneratorTool() {
                 ref={textareaRef}
                 value={prompt}
                 onChange={e => setPrompt(e.target.value)}
+                maxLength={2000}
                 placeholder="Describe the video you want to create..."
                 rows={8}
                 disabled={job.status === "processing"}

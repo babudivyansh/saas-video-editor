@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/app/components/AuthContext";
+import { useJobPolling } from "@/app/components/useJobPolling";
 
 interface VideoInfo {
   title: string;
@@ -8,7 +9,9 @@ interface VideoInfo {
   duration: number;
   thumbnail: string;
   viewCount: number;
-  formats: { label: string; quality: string; hasVideo: boolean; hasAudio: boolean }[];
+  // Matches the server's actual response shape (app/api/tools/youtube-downloader/route.ts) —
+  // "mux" means the format needs muxing (real video formats); MP3 doesn't.
+  formats: { label: string; quality: string; mux: boolean }[];
 }
 
 function formatDuration(seconds: number) {
@@ -52,16 +55,20 @@ function IcSearch() {
 }
 
 export default function YouTubeDownloaderPage() {
-  const { token } = useAuth();
+  const { user, token, openAuthModal } = useAuth();
+  const job = useJobPolling({ toolSlug: "youtube-downloader", token });
   const [url, setUrl] = useState("");
   const [info, setInfo] = useState<VideoInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [downloading, setDownloading] = useState<string | null>(null);
+  const [activeQuality, setActiveQuality] = useState<string | null>(null);
+  const submittingRef = useRef(false);
+  const downloadedForJobId = useRef<string | null>(null);
 
   async function fetchInfo() {
     const trimmed = url.trim();
     if (!trimmed) return;
+    if (!user || !token) { openAuthModal("login", "YouTube Downloader"); return; }
     setLoading(true);
     setError("");
     setInfo(null);
@@ -80,34 +87,60 @@ export default function YouTubeDownloaderPage() {
     }
   }
 
-  async function download(quality: string, label: string) {
+  async function download(quality: string) {
     if (!info || !url.trim()) return;
-    setDownloading(quality);
+    if (!user || !token) { openAuthModal("login", "YouTube Downloader"); return; }
+    if (job.status === "processing") return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setError("");
+    setActiveQuality(quality);
     try {
-      const res = await fetch(
-        `/api/tools/youtube-downloader?url=${encodeURIComponent(url.trim())}&quality=${encodeURIComponent(quality)}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (!res.ok) {
+      await job.start(async () => {
+        const idempotencyKey = crypto.randomUUID();
+        const res = await fetch(
+          `/api/tools/youtube-downloader?url=${encodeURIComponent(url.trim())}&quality=${encodeURIComponent(quality)}&idempotencyKey=${idempotencyKey}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
         const data = await res.json().catch(() => ({}));
-        throw new Error((data as { error?: string }).error ?? "Download failed");
-      }
-      const blob = await res.blob();
-      const ext = quality === "audio" ? "mp3" : "mp4";
-      const safeName = info.title.replace(/[^\w\s-]/g, "").trim().substring(0, 60) || "video";
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `${safeName}.${ext}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(a.href);
+        if (!res.ok) throw new Error((data as { error?: string }).error ?? "Download failed");
+        return data as { jobId: string };
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Download failed");
     } finally {
-      setDownloading(null);
+      submittingRef.current = false;
     }
   }
+
+  // Once the job is done, fetch the finished file and trigger a browser download.
+  useEffect(() => {
+    if (job.status !== "done" || !job.jobId || !token || !info) return;
+    if (downloadedForJobId.current === job.jobId) return;
+    downloadedForJobId.current = job.jobId;
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/tools/youtube-downloader?jobId=${job.jobId}&download=1`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error("Failed to retrieve the finished download");
+        const blob = await res.blob();
+        const ext = activeQuality === "audio" ? "mp3" : "mp4";
+        const safeName = info.title.replace(/[^\w\s-]/g, "").trim().substring(0, 60) || "video";
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `${safeName}.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Download failed");
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job.status, job.jobId, token]);
 
   return (
     <div className="min-h-full bg-slate-50">
@@ -159,10 +192,23 @@ export default function YouTubeDownloaderPage() {
                 {loading ? "Fetching…" : "Get Info"}
               </button>
             </div>
+            {!user && (
+              <p className="mt-2 text-xs text-gray-400 text-center">You&apos;ll be asked to sign in to download.</p>
+            )}
 
             {error && (
               <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">
                 {error}
+              </p>
+            )}
+            {job.status === "error" && job.error && (
+              <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">
+                {job.error}
+              </p>
+            )}
+            {job.status === "cancelled" && (
+              <p className="mt-3 text-sm text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                Cancelled — your credit was refunded.
               </p>
             )}
           </div>
@@ -206,12 +252,12 @@ export default function YouTubeDownloaderPage() {
                 <div className="flex flex-wrap gap-2.5">
                   {info.formats.map(fmt => {
                     const isAudio = fmt.quality === "audio";
-                    const busy = downloading === fmt.quality;
+                    const busy = job.status === "processing" && activeQuality === fmt.quality;
                     return (
                       <button
                         key={fmt.quality}
-                        onClick={() => download(fmt.quality, fmt.label)}
-                        disabled={downloading !== null}
+                        onClick={() => void download(fmt.quality)}
+                        disabled={job.status === "processing"}
                         className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all disabled:opacity-50 disabled:cursor-wait ${
                           isAudio
                             ? "bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
@@ -226,11 +272,24 @@ export default function YouTubeDownloaderPage() {
                         ) : (
                           <IcDownload />
                         )}
-                        {busy ? "Downloading…" : fmt.label}
+                        {busy ? `Downloading… ${job.progress}%` : fmt.label}
                       </button>
                     );
                   })}
                 </div>
+                {job.status === "processing" && (
+                  <div className="mt-3 flex items-center gap-3">
+                    <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                      <div className="h-full bg-red-500 transition-all duration-300" style={{ width: `${job.progress}%` }} />
+                    </div>
+                    <button
+                      onClick={() => void job.cancel()}
+                      className="text-xs font-medium text-gray-400 hover:text-red-600 transition-colors flex-shrink-0"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
                 <p className="text-xs text-gray-400 mt-4">
                   Large videos may take a moment to download. Do not close this tab while downloading.
                 </p>

@@ -31,6 +31,16 @@ const PUBLIC_API_PREFIXES = [
   "/api/tools/audio-balancer",
   "/api/tools/mp3-converter",
   "/api/tools/video-compressor",
+  // Same gap, different shape: each of these three has its own "no auth
+  // required" code comment and does its own IP rate limiting, but none were
+  // ever added here — every logged-out request still died at this gate with
+  // a blanket 401 before reaching the route's own (deliberately permissive)
+  // logic. enhance-prompt/voice-preview back the Image Generator and
+  // Voiceover Generator tool pages; voices is the (previously-unused)
+  // cached-preview-URL endpoint those same pickers now call.
+  "/api/tools/enhance-prompt",
+  "/api/tools/voice-preview",
+  "/api/tools/voices",
 ];
 
 export function isPublicApiRoute(pathname: string): boolean {

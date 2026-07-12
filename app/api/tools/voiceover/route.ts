@@ -4,13 +4,13 @@ import { getAuthUser } from "@/lib/auth";
 import { synthesizeVoice } from "@/utils/elevenlabs";
 import { resolveVoiceId } from "@/utils/voice-ids";
 import { uploadBufferToS3 } from "@/utils/s3-upload";
-import { redis } from "@/lib/redis";
-import { prisma } from "@/lib/prisma";
 import { markQuestComplete } from "@/lib/quests";
 import { firePostCreditSpendEmails, fireZeroCreditsEmail } from "@/lib/credit-events";
+import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
+import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
 
 export const maxDuration = 120;
 
@@ -23,14 +23,23 @@ const MAX_CHARS = 2000;
 // price already advertised via TOOL_DEFAULTS/tool-costs.
 const CREDIT_COST = 2;
 
-async function refundCredit(userId: string) {
-  await prisma.user.update({
-    where: { id: userId },
-    data: { credits: { increment: CREDIT_COST } },
-  });
-  const cached = await redis.get(`credits:${userId}`);
-  if (cached !== null) {
-    await redis.set(`credits:${userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
+// Result is an S3 URL, not a local file — see image-generator/route.ts's
+// identical note. outputPath/downloadName are unused placeholders; the real
+// result travels in job.meta.
+interface Job extends CancellableJob {
+  status: "processing" | "done" | "error" | "cancelled";
+  userId: string;
+  createdAt: number;
+  meta?: { audioUrl: string; durationMs: number; characters: number; voiceId: string; title: string };
+}
+
+const g = globalThis as unknown as { __voiceoverJobs?: Map<string, Job> };
+const jobs: Map<string, Job> = g.__voiceoverJobs ?? (g.__voiceoverJobs = new Map());
+
+function sweep() {
+  const cutoff = Date.now() - 60 * 60 * 1000;
+  for (const [id, job] of jobs) {
+    if (job.createdAt < cutoff) jobs.delete(id);
   }
 }
 
@@ -38,6 +47,8 @@ async function refundCredit(userId: string) {
 // runs ElevenLabs TTS, stores the mp3 on S3, and returns a playable URL plus
 // the spoken duration so the UI can show a player and history entry.
 async function handlePOST(req: NextRequest) {
+  sweep();
+
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -48,6 +59,7 @@ async function handlePOST(req: NextRequest) {
     stability?: number;
     similarityBoost?: number;
     exaggeration?: number;
+    idempotencyKey?: string;
   };
   try {
     body = await req.json();
@@ -70,53 +82,99 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "Voice generation is not configured" }, { status: 503 });
   }
 
-  // Fast pre-check against cached credit balance
-  const cachedCredits = await redis.get(`credits:${auth.userId}`);
-  const cachedBal = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
-  if (cachedBal !== null && cachedBal < CREDIT_COST) {
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
-  }
-
-  // Deduct credit before the paid call; refund on any failure below
-  const user = await prisma.user.update({
-    where: { id: auth.userId },
-    data: { credits: { decrement: CREDIT_COST } },
-    select: { credits: true },
+  const charge = await chargeCredits({
+    userId: auth.userId,
+    amount: CREDIT_COST,
+    toolSlug: "voiceover",
+    idempotencyKey: body.idempotencyKey,
+    log: { generationType: "audio", prompt: text },
   });
-  if (user.credits < 0) {
-    await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
+  if (!charge.ok) {
+    if (charge.reason === "tool_disabled") {
+      return NextResponse.json({ error: "Voiceover generation is temporarily disabled." }, { status: 503 });
+    }
     fireZeroCreditsEmail(auth.userId);
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
+    return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
   }
-  await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
-  firePostCreditSpendEmails(auth.userId, user.credits);
+  firePostCreditSpendEmails(auth.userId, charge.balance);
 
-  try {
-    const voiceId = resolveVoiceId(voiceSlug);
-    const { audioBuffer, wordTimings } = await synthesizeVoice(text, voiceId, {
-      stability: body.stability,
-      similarityBoost: body.similarityBoost,
-      style: body.exaggeration,
-    });
+  const jobId = randomUUID();
+  const job: Job = {
+    progress: 5,
+    status: "processing",
+    outputPath: "",
+    downloadName: "",
+    createdAt: Date.now(),
+    userId: auth.userId,
+    refunded: false,
+    creditCost: CREDIT_COST,
+    generationId: charge.generationId,
+  };
+  jobs.set(jobId, job);
 
-    const durationMs = wordTimings.length ? wordTimings[wordTimings.length - 1].end : 0;
+  (async () => {
+    try {
+      const voiceId = resolveVoiceId(voiceSlug);
+      job.progress = 20;
+      if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
 
-    const key = `voiceovers/${auth.userId}/${randomUUID()}.mp3`;
-    const audioUrl = await uploadBufferToS3(audioBuffer, key, "audio/mpeg");
+      const { audioBuffer, wordTimings } = await synthesizeVoice(text, voiceId, {
+        stability: body.stability,
+        similarityBoost: body.similarityBoost,
+        style: body.exaggeration,
+      });
 
-    void markQuestComplete(auth.userId, "hear-yourself-out");
-    return NextResponse.json({
-      audioUrl,
-      durationMs,
-      characters: text.length,
-      voiceId: voiceSlug,
-      title: (body.title ?? "").trim() || "Untitled voiceover",
-    });
-  } catch (err) {
-    logger.error("tools/voiceover", "request failed", err);
-    try { await refundCredit(auth.userId); } catch { /* swallow */ }
-    return NextResponse.json({ error: "Voice generation failed. Please try again." }, { status: 500 });
-  }
+      if ((job.status as string) === "cancelled") return;
+      job.progress = 80;
+
+      const durationMs = wordTimings.length ? wordTimings[wordTimings.length - 1].end : 0;
+
+      const key = `voiceovers/${auth.userId}/${randomUUID()}.mp3`;
+      const downloadName = `${((body.title ?? "").trim() || "voiceover").replace(/[^\w\s-]/g, "").trim() || "voiceover"}.mp3`;
+      const audioUrl = await uploadBufferToS3(audioBuffer, key, "audio/mpeg", downloadName);
+
+      if ((job.status as string) === "cancelled") return;
+
+      job.progress = 100;
+      job.status = "done";
+      job.meta = {
+        audioUrl,
+        durationMs,
+        characters: text.length,
+        voiceId: voiceSlug,
+        title: (body.title ?? "").trim() || "Untitled voiceover",
+      };
+      void markQuestComplete(auth.userId, "hear-yourself-out");
+      if (job.generationId) {
+        void updateGenerationProgress(job.generationId, 100);
+        void markGenerationStatus(job.generationId, "completed");
+      }
+    } catch (err) {
+      if ((job.status as string) === "cancelled") return;
+      logger.error("tools/voiceover", "job failed", err);
+      job.status = "error";
+      job.error = "Voice generation failed. Please try again.";
+      if (!job.refunded) {
+        job.refunded = true;
+        try {
+          await refundCredits({ userId: auth.userId, amount: CREDIT_COST, generationId: job.generationId });
+          if (job.generationId) await markGenerationStatus(job.generationId, "failed", err instanceof Error ? err.message : "unknown error");
+        } catch { /* swallow */ }
+      }
+    }
+  })();
+
+  return NextResponse.json({ jobId }, { status: 202 });
 }
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:voiceover" });
+
+export const GET = withRateLimit(
+  createJobStatusHandler(jobs, { contentType: "audio/mpeg", deleteOnDownload: false }),
+  { limit: 30, windowSec: 60, keyBy: "user", name: "tools:voiceover:status" },
+);
+
+export const DELETE = withRateLimit(
+  createJobCancelHandler(jobs),
+  { limit: 10, windowSec: 60, keyBy: "user", name: "tools:voiceover:cancel" },
+);
