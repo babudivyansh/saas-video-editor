@@ -1,26 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getAuthUser } from "@/lib/auth";
-import { redis } from "@/lib/redis";
-import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { withRetry } from "@/lib/with-retry";
+import { chargeCredits, refundCredits, markGenerationStatus } from "@/lib/credits";
 import { env } from "@/lib/env";
 
+// maxDuration=30 must stay ahead of withRetry's worst case below (3 attempts
+// x 8s + backoff ~= 25.5s) — the previous 20s-per-attempt budget could
+// exceed 30s on retry, letting the platform kill the request before this
+// route's own catch/refund logic ever ran.
 export const maxDuration = 30;
 
 const CREDIT_COST = 1;
-
-async function refundCredit(userId: string) {
-  await prisma.user.update({
-    where: { id: userId },
-    data: { credits: { increment: CREDIT_COST } },
-  });
-  const cached = await redis.get(`credits:${userId}`);
-  if (cached !== null) {
-    await redis.set(`credits:${userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
-  }
-}
 
 async function handlePOST(req: NextRequest) {
   if (!env.GEMINI_API_KEY) {
@@ -30,13 +22,7 @@ async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const cachedCredits = await redis.get(`credits:${auth.userId}`);
-  const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
-  if (cached !== null && cached < CREDIT_COST) {
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
-  }
-
-  let body: { topic?: string; tone?: string; targetAudience?: string; videoType?: string };
+  let body: { topic?: string; tone?: string; targetAudience?: string; videoType?: string; idempotencyKey?: string };
   try {
     body = await req.json();
   } catch {
@@ -50,17 +36,20 @@ async function handlePOST(req: NextRequest) {
   const targetAudience = (body.targetAudience ?? "").trim().slice(0, 200);
   const videoType = (body.videoType ?? "").trim().slice(0, 100);
 
-  // Deduct credit
-  const user = await prisma.user.update({
-    where: { id: auth.userId },
-    data: { credits: { decrement: CREDIT_COST } },
-    select: { credits: true },
+  const charge = await chargeCredits({
+    userId: auth.userId,
+    amount: CREDIT_COST,
+    toolSlug: "brainstormer",
+    idempotencyKey: body.idempotencyKey,
+    log: { generationType: "utility", prompt: topic },
   });
-  if (user.credits < 0) {
-    await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
+  if (!charge.ok) {
+    if (charge.reason === "tool_disabled") {
+      return NextResponse.json({ error: "Brainstormer is temporarily disabled." }, { status: 503 });
+    }
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
-  await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
+  const generationId = charge.generationId;
 
   try {
     const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
@@ -81,7 +70,7 @@ Rules:
 
     const result = await withRetry(
       (signal) => model.generateContent(prompt, { signal }),
-      { timeoutMs: 20_000 },
+      { timeoutMs: 8_000 },
     );
     const raw = result.response.text().trim();
 
@@ -98,10 +87,14 @@ Rules:
       throw new Error("Failed to parse AI response as JSON");
     }
 
+    if (generationId) void markGenerationStatus(generationId, "completed");
     return NextResponse.json({ ideas });
   } catch (err) {
-    try { await refundCredit(auth.userId); } catch { /* swallow */ }
     const msg = err instanceof Error ? err.message : "Generation failed";
+    try {
+      await refundCredits({ userId: auth.userId, amount: CREDIT_COST, generationId });
+      if (generationId) await markGenerationStatus(generationId, "failed", msg);
+    } catch { /* swallow */ }
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

@@ -20,6 +20,12 @@ function IcUser() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentC
 function IcCheck() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3"><path d="M5 13l4 4L19 7"/></svg>; }
 function IcMusic() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>; }
 
+// Must match app/api/generate/text-video/route.ts's MAX_MESSAGES/MAX_MESSAGE_CHARS —
+// each message costs one real ElevenLabs TTS call plus a rendered canvas frame
+// for a flat charge, so this is a real cost cap, not just a UI nicety.
+const MAX_MESSAGES = 40;
+const MAX_MESSAGE_CHARS = 500;
+
 // ── Steps ─────────────────────────────────────────────────────────────────────
 const STEPS = [
   { id: "script", label: "Script" },
@@ -631,6 +637,8 @@ function TextVideoFlow() {
 
   // Script state
   const [profilePic, setProfilePic] = useState<string | null>(null);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [messagesError, setMessagesError] = useState<string | null>(null);
   const [name, setName]             = useState("my bae <3");
   const [messages, setMessages]     = useState<Msg[]>([]);
   const [showScriptModal, setShowScriptModal] = useState(false);
@@ -695,10 +703,17 @@ function TextVideoFlow() {
   }
 
   function addMessage(type: "receiver" | "sender") {
-    setMessages(prev => [...prev, { id: Date.now().toString(), type, text: "" }]);
+    setMessages(prev => {
+      if (prev.length >= MAX_MESSAGES) {
+        setMessagesError(`You can add up to ${MAX_MESSAGES} messages.`);
+        return prev;
+      }
+      setMessagesError(null);
+      return [...prev, { id: Date.now().toString(), type, text: "" }];
+    });
   }
   function updateMessage(id: string, text: string) {
-    setMessages(prev => prev.map(m => m.id === id ? { ...m, text } : m));
+    setMessages(prev => prev.map(m => m.id === id ? { ...m, text: text.slice(0, MAX_MESSAGE_CHARS) } : m));
   }
   function removeMessage(id: string) {
     setMessages(prev => prev.filter(m => m.id !== id));
@@ -726,7 +741,17 @@ function TextVideoFlow() {
   }
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
+    e.target.value = "";
     if (!f) return;
+    setAvatarError(null);
+    if (!["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(f.type)) {
+      setAvatarError("Only PNG, JPG, WEBP images are supported.");
+      return;
+    }
+    if (f.size > 10 * 1024 * 1024) {
+      setAvatarError("Profile picture must be under 10 MB.");
+      return;
+    }
     const url = URL.createObjectURL(f);
     setProfilePic(url);
   }
@@ -872,8 +897,9 @@ function TextVideoFlow() {
                       className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors flex-shrink-0">
                       <IcUpload /> Upload
                     </button>
-                    <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onFileChange} />
+                    <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onFileChange} />
                   </div>
+                  {avatarError && <p className="text-xs text-red-600 font-medium">{avatarError}</p>}
                   <div>
                     <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide block mb-1">Enter a name</label>
                     <input value={name} onChange={e => setName(e.target.value)}
@@ -886,12 +912,17 @@ function TextVideoFlow() {
                   {messages.length === 0 && (
                     <p className="text-sm text-gray-400 text-center py-8">Add messages with the buttons below</p>
                   )}
+                  {messages.length > 0 && (
+                    <p className="text-[11px] text-gray-400 text-right">{messages.length}/{MAX_MESSAGES} messages</p>
+                  )}
+                  {messagesError && <p className="text-xs text-red-600 font-medium">{messagesError}</p>}
                   {messages.map(m => (
                     <div key={m.id} className={`flex items-center gap-2 ${m.type === "sender" ? "flex-row-reverse" : ""}`}>
                       <div className={`w-2 h-2 rounded-full flex-shrink-0 ${m.type === "receiver" ? "bg-gray-400" : "bg-blue-500"}`} />
                       <input
                         value={m.text}
                         onChange={e => updateMessage(m.id, e.target.value)}
+                        maxLength={MAX_MESSAGE_CHARS}
                         placeholder={m.type === "receiver" ? "Receiver message…" : "Sender message…"}
                         className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
                       />
@@ -908,11 +939,13 @@ function TextVideoFlow() {
                     <IcTrash /> Clear
                   </button>
                   <button onClick={() => addMessage("receiver")}
-                    className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 border border-blue-200 rounded-lg px-3 py-1.5 hover:bg-blue-50 transition-colors">
+                    disabled={messages.length >= MAX_MESSAGES}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 border border-blue-200 rounded-lg px-3 py-1.5 hover:bg-blue-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent">
                     + Add Receiver
                   </button>
                   <button onClick={() => addMessage("sender")}
-                    className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 border border-blue-200 rounded-lg px-3 py-1.5 hover:bg-blue-50 transition-colors">
+                    disabled={messages.length >= MAX_MESSAGES}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 border border-blue-200 rounded-lg px-3 py-1.5 hover:bg-blue-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent">
                     + Add Sender
                   </button>
                 </div>

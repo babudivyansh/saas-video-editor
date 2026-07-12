@@ -4,8 +4,8 @@ import os from "os";
 import path from "path";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { redis } from "@/lib/redis";
 import { InProcessQueue } from "@/lib/job-queue";
+import { chargeCredits, refundCredits, markGenerationStatus } from "@/lib/credits";
 import { firePostCreditSpendEmails, fireZeroCreditsEmail } from "@/lib/credit-events";
 import { synthesizeVoice, WordTiming } from "@/utils/elevenlabs";
 import { generateASS, runFFmpeg, runFFmpegArgs, styleIndexToSubtitleStyle } from "@/utils/ffmpeg-render";
@@ -19,19 +19,15 @@ import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 
 const CREDIT_COST = 2;
+const MAX_SCRIPT_CHARS = 5000;
 const S3_HOST = "saas-video-editor-assets.s3.ap-south-1.amazonaws.com";
 
-async function refundRenderCredit(projectId: string) {
+async function refundRenderCredit(userId: string, generationId?: string) {
   try {
-    const proj = await prisma.project.findUnique({ where: { id: projectId }, select: { userId: true } });
-    if (!proj) return;
-    await prisma.user.update({ where: { id: proj.userId }, data: { credits: { increment: CREDIT_COST } } });
-    const cached = await redis.get(`credits:${proj.userId}`);
-    if (cached !== null) {
-      await redis.set(`credits:${proj.userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
-    }
+    await refundCredits({ userId, amount: CREDIT_COST, generationId });
+    if (generationId) await markGenerationStatus(generationId, "failed", "Render failed");
   } catch (e) {
-    logger.error("refund", `failed to refund credit for project ${projectId}`, e);
+    logger.error("refund", `failed to refund credit for user ${userId}`, e);
   }
 }
 
@@ -41,6 +37,8 @@ async function setProgress(projectId: string, n: number) {
 
 interface RedditVideoPayload {
   projectId: string;
+  userId: string;
+  generationId?: string;
   postTitle: string;
   username: string;
   script: string;
@@ -85,7 +83,7 @@ function offsetTimings(timings: WordTiming[], deltaMs: number): WordTiming[] {
 
 async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
   const {
-    projectId, postTitle, username, script, introVoiceId, scriptVoiceId,
+    projectId, userId, generationId, postTitle, username, script, introVoiceId, scriptVoiceId,
     bgMusicUrl, bgVideoUrl, subtitleStyleIndex, subtitleMode,
     voiceSettings: vs, language, showIntroCard = true, darkMode = true,
     upvotes = "0", comments = "0",
@@ -100,12 +98,13 @@ async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
       await new Promise(r => setTimeout(r, 3000));
       const fallbackUrl = bgVideoUrl || "https://saas-video-editor-assets.s3.ap-south-1.amazonaws.com/backgrounds/subway-surfers.mp4";
       await prisma.project.update({ where: { id: projectId }, data: { status: "completed", videoUrl: fallbackUrl, progress: 100 } });
+      if (generationId) void markGenerationStatus(generationId, "completed");
       return;
     }
     const missing = [!hasElevenLabs && "ELEVENLABS_API_KEY", !hasAWS && "AWS credentials"].filter(Boolean).join(", ");
     logger.error("reddit-video", `Missing required credentials: ${missing}`);
     await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } });
-    await refundRenderCredit(projectId);
+    await refundRenderCredit(userId, generationId);
     return;
   }
 
@@ -267,12 +266,13 @@ async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
       where: { id: projectId },
       data: { status: "completed", videoUrl, progress: 100 },
     });
+    if (generationId) void markGenerationStatus(generationId, "completed");
     logger.info("reddit-video", `Done: ${videoUrl}`);
 
   } catch (err) {
     logger.error("reddit-video", `render failed for ${projectId}`, err);
     await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } });
-    await refundRenderCredit(projectId);
+    await refundRenderCredit(userId, generationId);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -292,15 +292,17 @@ async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const cachedCredits = await redis.get(`credits:${auth.userId}`);
-  const credits = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
-  if (credits !== null && credits < CREDIT_COST) {
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
+  let body: Partial<RedditVideoPayload> & { idempotencyKey?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
-
-  const body = await req.json() as Partial<RedditVideoPayload>;
   if (!body.projectId || !body.script || !body.bgVideoUrl) {
     return NextResponse.json({ error: "projectId, script, and bgVideoUrl required" }, { status: 400 });
+  }
+  if (body.script.length > MAX_SCRIPT_CHARS) {
+    return NextResponse.json({ error: `Script is too long (max ${MAX_SCRIPT_CHARS} characters)` }, { status: 400 });
   }
 
   const project = await prisma.project.findFirst({
@@ -308,18 +310,21 @@ async function handlePOST(req: NextRequest) {
   });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
-  const user = await prisma.user.update({
-    where: { id: auth.userId },
-    data: { credits: { decrement: CREDIT_COST } },
-    select: { credits: true },
+  const charge = await chargeCredits({
+    userId: auth.userId,
+    amount: CREDIT_COST,
+    toolSlug: "reddit-video",
+    idempotencyKey: body.idempotencyKey,
+    log: { generationType: "video", prompt: body.script },
   });
-  if (user.credits < 0) {
-    await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
+  if (!charge.ok) {
+    if (charge.reason === "tool_disabled") {
+      return NextResponse.json({ error: "Reddit Video Generator is temporarily disabled." }, { status: 503 });
+    }
     fireZeroCreditsEmail(auth.userId);
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
-  await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
-  firePostCreditSpendEmails(auth.userId, user.credits);
+  firePostCreditSpendEmails(auth.userId, charge.balance);
 
   await prisma.project.update({
     where: { id: body.projectId },
@@ -335,6 +340,8 @@ async function handlePOST(req: NextRequest) {
 
   getQueue().enqueue(body.projectId, {
     projectId: body.projectId,
+    userId: auth.userId,
+    generationId: charge.generationId,
     postTitle: body.postTitle || project.title || "",
     username: body.username || "AskReddit",
     script: body.script,
@@ -353,7 +360,7 @@ async function handlePOST(req: NextRequest) {
   });
 
   void markQuestComplete(auth.userId, "first-clip");
-  return NextResponse.json({ status: "rendering", creditsRemaining: user.credits });
+  return NextResponse.json({ status: "rendering", creditsRemaining: charge.balance });
 }
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "generate:reddit-video" });

@@ -4,8 +4,8 @@ import os from "os";
 import path from "path";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { redis } from "@/lib/redis";
 import { InProcessQueue } from "@/lib/job-queue";
+import { chargeCredits, refundCredits, markGenerationStatus } from "@/lib/credits";
 import { firePostCreditSpendEmails, fireZeroCreditsEmail } from "@/lib/credit-events";
 import { synthesizeVoice, WordTiming } from "@/utils/elevenlabs";
 import { runFFmpegArgs } from "@/utils/ffmpeg-render";
@@ -18,20 +18,26 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 
-const CREDIT_COST = 2;
+// This route's maxDuration used to be unset (unlike every other route in this
+// app) — 300s matches its sibling reddit-video/route.ts and the real cost of
+// a multi-message TTS+canvas-frame+FFmpeg render.
+export const maxDuration = 300;
 
-// Refund the credit charged at enqueue time when an async render job fails.
-async function refundRenderCredit(projectId: string) {
+const CREDIT_COST = 2;
+// Each message costs one real ElevenLabs TTS call plus a rendered canvas
+// frame, for a flat charge regardless of count — previously uncapped, so a
+// user could submit hundreds of messages for the same 2 credits. 40 messages
+// comfortably covers a real "text story" video; MAX_MESSAGE_CHARS keeps any
+// single bubble from being an essay.
+const MAX_MESSAGES = 40;
+const MAX_MESSAGE_CHARS = 500;
+
+async function refundRenderCredit(userId: string, generationId?: string) {
   try {
-    const proj = await prisma.project.findUnique({ where: { id: projectId }, select: { userId: true } });
-    if (!proj) return;
-    await prisma.user.update({ where: { id: proj.userId }, data: { credits: { increment: CREDIT_COST } } });
-    const cached = await redis.get(`credits:${proj.userId}`);
-    if (cached !== null) {
-      await redis.set(`credits:${proj.userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
-    }
+    await refundCredits({ userId, amount: CREDIT_COST, generationId });
+    if (generationId) await markGenerationStatus(generationId, "failed", "Render failed");
   } catch (e) {
-    logger.error("refund", `failed to refund credit for project ${projectId}`, e);
+    logger.error("refund", `failed to refund credit for user ${userId}`, e);
   }
 }
 
@@ -52,6 +58,8 @@ interface ThemeColors {
 
 interface TextVideoPayload {
   projectId: string;
+  userId: string;
+  generationId?: string;
   contactName: string;
   messages: Message[];
   theme: ThemeColors & { id?: string };
@@ -65,38 +73,6 @@ interface TextVideoPayload {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function hexToFfmpeg(hex: string): string {
-  return `0x${hex.replace("#", "")}`;
-}
-
-function escapeFfmpegText(s: string): string {
-  return s
-    .replace(/\\/g, "\\\\")
-    .replace(/'/g, "’")  // replace apostrophe with curly quote to avoid escaping issues
-    .replace(/:/g, "\\:")
-    .replace(/\[/g, "\\[")
-    .replace(/\]/g, "\\]")
-    .replace(/,/g, "\\,")
-    .replace(/=/g, "\\=");
-}
-
-function wordWrap(text: string, maxChars: number): string[] {
-  const words = text.split(" ");
-  const lines: string[] = [];
-  let current = "";
-  for (const w of words) {
-    const candidate = current ? `${current} ${w}` : w;
-    if (candidate.length > maxChars) {
-      if (current) lines.push(current);
-      current = w;
-    } else {
-      current = candidate;
-    }
-  }
-  if (current) lines.push(current);
-  return lines.length ? lines : [""];
-}
 
 function getTtsDurationMs(wordTimings: WordTiming[]): number {
   if (!wordTimings.length) return 0;
@@ -115,72 +91,6 @@ async function concatAudioFiles(audioPaths: string[], outputPath: string): Promi
   fs.unlinkSync(listPath);
 }
 
-// ── Chat overlay FFmpeg filter builder ────────────────────────────────────────
-
-function buildChatFilter(
-  messages: Message[],
-  msgStartMs: number[],
-  contactName: string,
-  theme: ThemeColors,
-): string {
-  const BUBBLE_W = 620;
-  const FONT_SIZE = 34;
-  const LINE_H = 44;
-  const PAD_X = 20;
-  const PAD_Y = 13;
-  const GAP = 12;
-  const MAX_CHARS = 26;
-  const HEADER_H = 115;
-
-  const bgColor    = hexToFfmpeg(theme.bg) + "@0.93";
-  const hdrColor   = hexToFfmpeg(theme.headerBg);
-  const hdrText    = hexToFfmpeg(theme.headerText);
-
-  const filters: string[] = [
-    // Crop to 9:16 portrait
-    "crop=in_h*9/16:in_h",
-    // Full-screen chat background
-    `drawbox=x=0:y=0:w=iw:h=ih:color=${bgColor}:t=fill`,
-    // Header background
-    `drawbox=x=0:y=0:w=iw:h=${HEADER_H}:color=${hdrColor}:t=fill`,
-    // Contact name in header
-    `drawtext=text='${escapeFfmpegText(contactName)}':x=(w-text_w)/2:y=${Math.round(HEADER_H / 2 - FONT_SIZE / 2 + 2)}:fontsize=${FONT_SIZE + 4}:fontcolor=${hdrText}:font=Arial`,
-  ];
-
-  let yPos = HEADER_H + 16;
-
-  for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
-    const lines = wordWrap(msg.text, MAX_CHARS);
-    const bubbleH = lines.length * LINE_H + PAD_Y * 2;
-    const startSec = (msgStartMs[i] / 1000).toFixed(3);
-
-    const isReceiver = msg.type === "receiver";
-    const bubbleX = isReceiver ? 20 : (1080 - 20 - BUBBLE_W);
-    const textX = bubbleX + PAD_X;
-    const bubbleColor = hexToFfmpeg(isReceiver ? theme.receiverBubble : theme.senderBubble);
-    const textColor   = hexToFfmpeg(isReceiver ? theme.receiverText   : theme.senderText);
-
-    filters.push(
-      `drawbox=x=${bubbleX}:y=${yPos}:w=${BUBBLE_W}:h=${bubbleH}:color=${bubbleColor}:t=fill:enable='gte(t,${startSec})'`,
-    );
-
-    for (let l = 0; l < lines.length; l++) {
-      const lineY = yPos + PAD_Y + l * LINE_H;
-      filters.push(
-        `drawtext=text='${escapeFfmpegText(lines[l])}':x=${textX}:y=${lineY}:fontsize=${FONT_SIZE}:fontcolor=${textColor}:font=Arial:enable='gte(t,${startSec})'`,
-      );
-    }
-
-    yPos += bubbleH + GAP;
-
-    // Stop adding bubbles if we reach the bottom of the screen (leaves room for ~3 more)
-    if (yPos > 1780) break;
-  }
-
-  return filters.join(",");
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function setProgress(projectId: string, n: number) {
@@ -192,7 +102,7 @@ const S3_HOST = "saas-video-editor-assets.s3.ap-south-1.amazonaws.com";
 // ── Real render pipeline ──────────────────────────────────────────────────────
 
 async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
-  const { projectId, contactName, messages, theme, bgVideoUrl,
+  const { projectId, userId, generationId, contactName, messages, theme, bgVideoUrl,
           receiverVoiceId, narratorVoiceId, bgMusicUrl,
           voiceSettings: vs, language } = payload;
 
@@ -213,12 +123,13 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
       await new Promise(r => setTimeout(r, 3000));
       const fallback = bgVideoUrl || "https://saas-video-editor-assets.s3.ap-south-1.amazonaws.com/backgrounds/subway-surfers.mp4";
       await prisma.project.update({ where: { id: projectId }, data: { status: "completed", videoUrl: fallback } });
+      if (generationId) void markGenerationStatus(generationId, "completed");
       return;
     }
     const missing = [!hasElevenLabs && "ELEVENLABS_API_KEY", !hasAWS && "AWS credentials"].filter(Boolean).join(", ");
     logger.error("text-video", `Missing required credentials: ${missing}`);
     await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } });
-    await refundRenderCredit(projectId);
+    await refundRenderCredit(userId, generationId);
     return;
   }
 
@@ -235,7 +146,6 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
     // 1. TTS for each message, track start timestamps
     const msgAudioPaths: string[] = [];
     const msgStartMs: number[] = [];
-    const silencePaths: string[] = [];
 
     // 300ms silence gap between messages
     const GAP_MS = 300;
@@ -447,6 +357,7 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
       where: { id: projectId },
       data: { status: "completed", videoUrl, progress: 100 },
     });
+    if (generationId) void markGenerationStatus(generationId, "completed");
     logger.info("text-video", `Done: ${videoUrl}`);
 
   } catch (err) {
@@ -455,7 +366,7 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
       where: { id: projectId },
       data: { status: "failed" },
     });
-    await refundRenderCredit(projectId);
+    await refundRenderCredit(userId, generationId);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -475,15 +386,38 @@ async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const cachedCredits = await redis.get(`credits:${auth.userId}`);
-  const credits = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
-  if (credits !== null && credits < CREDIT_COST) {
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
+  let body: Partial<TextVideoPayload> & { idempotencyKey?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
-
-  const body = await req.json() as Partial<TextVideoPayload>;
   if (!body.projectId || !body.messages?.length || !body.bgVideoUrl) {
     return NextResponse.json({ error: "projectId, messages, and bgVideoUrl required" }, { status: 400 });
+  }
+  if (body.messages.length > MAX_MESSAGES) {
+    return NextResponse.json({ error: `Too many messages (max ${MAX_MESSAGES})` }, { status: 400 });
+  }
+  const tooLong = body.messages.find(m => (m.text?.length ?? 0) > MAX_MESSAGE_CHARS);
+  if (tooLong) {
+    return NextResponse.json({ error: `Each message must be under ${MAX_MESSAGE_CHARS} characters` }, { status: 400 });
+  }
+
+  // Reject an oversized/malformed avatar payload before charging credits or
+  // starting the render — previously this only surfaced deep inside the
+  // render job (loadImage() on a bad buffer), wasting a full TTS+FFmpeg
+  // pass and a charge/refund cycle on something checkable up front.
+  const MAX_AVATAR_BYTES = 10 * 1024 * 1024;
+  if (body.avatarBase64) {
+    let decodedLength: number;
+    try {
+      decodedLength = Buffer.from(body.avatarBase64, "base64").length;
+    } catch {
+      return NextResponse.json({ error: "Invalid avatar image data" }, { status: 400 });
+    }
+    if (decodedLength === 0 || decodedLength > MAX_AVATAR_BYTES) {
+      return NextResponse.json({ error: "Avatar image must be under 10 MB" }, { status: 413 });
+    }
   }
 
   const project = await prisma.project.findFirst({
@@ -491,18 +425,21 @@ async function handlePOST(req: NextRequest) {
   });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
-  const user = await prisma.user.update({
-    where: { id: auth.userId },
-    data: { credits: { decrement: CREDIT_COST } },
-    select: { credits: true },
+  const charge = await chargeCredits({
+    userId: auth.userId,
+    amount: CREDIT_COST,
+    toolSlug: "text-video",
+    idempotencyKey: body.idempotencyKey,
+    log: { generationType: "video" },
   });
-  if (user.credits < 0) {
-    await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
+  if (!charge.ok) {
+    if (charge.reason === "tool_disabled") {
+      return NextResponse.json({ error: "Text Video Generator is temporarily disabled." }, { status: 503 });
+    }
     fireZeroCreditsEmail(auth.userId);
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
-  await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
-  firePostCreditSpendEmails(auth.userId, user.credits);
+  firePostCreditSpendEmails(auth.userId, charge.balance);
 
   const defaultTheme: ThemeColors = {
     bg: "#1C1C1E", headerBg: "#1C1C1E", headerText: "#ffffff",
@@ -522,6 +459,8 @@ async function handlePOST(req: NextRequest) {
 
   getQueue().enqueue(body.projectId, {
     projectId: body.projectId,
+    userId: auth.userId,
+    generationId: charge.generationId,
     contactName: body.contactName || "Contact",
     messages: body.messages,
     theme: body.theme || defaultTheme,
@@ -535,7 +474,7 @@ async function handlePOST(req: NextRequest) {
   });
   void markQuestComplete(auth.userId, "first-clip");
 
-  return NextResponse.json({ status: "rendering", creditsRemaining: user.credits });
+  return NextResponse.json({ status: "rendering", creditsRemaining: charge.balance });
 }
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "generate:text-video" });
