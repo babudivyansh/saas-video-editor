@@ -1,5 +1,6 @@
 import Redis from "ioredis";
 import { env } from "@/lib/env";
+import { logger } from "@/lib/logger";
 
 const globalForRedis = globalThis as unknown as {
   redis: Redis;
@@ -78,12 +79,29 @@ if (isNewClient) {
   client.connect().catch(() => {});
 }
 
+// The fallback is per-process, so a write that lands there is invisible to a
+// later read that reaches the real Redis — under sustained failure (e.g. an
+// Upstash quota lockout rejecting writes while reads still work) every session
+// written via cacheSession silently vanishes and all auth breaks with no error
+// anywhere. Log the underlying Redis error so the outage is visible, but
+// throttled to once a minute per operation to keep a hot path from flooding
+// stdout/Sentry.
+const lastFallbackLog = new Map<string, number>();
+function logFallback(op: string, err: unknown) {
+  const now = Date.now();
+  const last = lastFallbackLog.get(op) ?? 0;
+  if (now - last < 60_000) return;
+  lastFallbackLog.set(op, now);
+  logger.error("redis", `${op} failed, using in-memory fallback (throttled: at most one log/min per op)`, err);
+}
+
 // Thin wrapper that transparently falls back to in-memory when Redis is down
 export const redis = {
   async get(key: string): Promise<string | null> {
     try {
       return await client.get(key);
-    } catch {
+    } catch (err) {
+      logFallback("GET", err);
       return fallbackGet(key);
     }
   },
@@ -91,14 +109,16 @@ export const redis = {
     try {
       if (ex === "EX" && ttl) await client.set(key, value, "EX", ttl);
       else await client.set(key, value);
-    } catch {
+    } catch (err) {
+      logFallback("SET", err);
       fallbackSet(key, value, ttl);
     }
   },
   async del(key: string): Promise<void> {
     try {
       await client.del(key);
-    } catch {
+    } catch (err) {
+      logFallback("DEL", err);
       fallbackDel(key);
     }
   },
@@ -113,7 +133,8 @@ export const redis = {
       const count = await client.incr(key);
       if (count === 1) await client.expire(key, ttlSeconds);
       return count;
-    } catch {
+    } catch (err) {
+      logFallback("INCR", err);
       return fallbackIncr(key, ttlSeconds);
     }
   },
@@ -121,11 +142,14 @@ export const redis = {
    * Real connectivity check with no in-memory fallback — used by the health
    * endpoint. Every other method above intentionally swallows a down Redis
    * into the fallback map, which would make a health check lie about an
-   * actual outage.
+   * actual outage. Probes with a real SET, not PING: a write-locked instance
+   * (e.g. Upstash free-tier quota lockout) answers PING fine while rejecting
+   * every write, which once let /api/health report a healthy Redis during a
+   * total auth outage (sessions could never be stored).
    */
   async ping(): Promise<boolean> {
     try {
-      await client.ping();
+      await client.set("health:write-probe", "1", "EX", 60);
       return true;
     } catch {
       return false;
