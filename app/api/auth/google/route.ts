@@ -1,10 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { env } from "@/lib/env";
+import { appUrl } from "@/lib/social/oauth";
 
-export async function GET(req: NextRequest) {
-  const host = req.headers.get("host") || "clipiro.com";
-  const proto = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
-  const redirectUri = `${proto}://${host}/api/auth/callback/google`;
+export async function GET() {
+  // Fixed, config-driven redirect_uri (same pattern as lib/social/oauth.ts's
+  // other OAuth providers) — not derived from the request's Host header.
+  // That header can differ between this initial redirect and the eventual
+  // callback request (behind a proxy/CDN, or a www/non-www redirect), which
+  // makes Google reject the token exchange with redirect_uri_mismatch even
+  // though both of this app's own routes agree with each other.
+  const redirectUri = `${appUrl()}/api/auth/callback/google`;
 
   const rootUrl = "https://accounts.google.com/o/oauth2/v2/auth";
   const options = {
