@@ -6,6 +6,7 @@ import { signToken, cacheSession, setSessionCookie } from "@/lib/auth";
 import { sendWelcomeEmail, sendAffiliateReferralSignupEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
+import { appUrl } from "@/lib/social/oauth";
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,9 +17,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Authorization code not provided" }, { status: 400 });
     }
 
-    const host = req.headers.get("host") || "clipiro.com";
-    const proto = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
-    const redirectUri = `${proto}://${host}/api/auth/callback/google`;
+    // Must exactly match the redirect_uri sent during the initial authorize
+    // request in app/api/auth/google/route.ts — same fixed, config-driven
+    // value (see the comment there), not derived from this request's Host
+    // header, which is what let the two silently drift apart in production.
+    const redirectUri = `${appUrl()}/api/auth/callback/google`;
 
     // 1. Exchange code for access tokens
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
