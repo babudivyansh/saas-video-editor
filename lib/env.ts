@@ -26,8 +26,22 @@ const schema = z.object({
   RAZORPAY_KEY_SECRET: z.string().min(1, "RAZORPAY_KEY_SECRET is required (billing)"),
   RAZORPAY_WEBHOOK_SECRET: z.string().min(1, "RAZORPAY_WEBHOOK_SECRET is required (billing webhook verification)"),
 
-  // Infra — optional, each already has an in-memory/local fallback.
-  REDIS_URL: z.string().optional(),
+  // Infra — optional, each already has an in-memory/local fallback. When set
+  // it must actually parse as a connection URL: `new Redis(env.REDIS_URL)`
+  // throws at import time otherwise, which surfaces as a cryptic "Invalid URL"
+  // deep in the build instead of this schema's clear boot error (live incident:
+  // the Upstash dashboard's redis-cli snippet pasted in as the value).
+  REDIS_URL: z
+    .string()
+    .refine((v) => {
+      try {
+        const proto = new URL(v).protocol;
+        return proto === "redis:" || proto === "rediss:";
+      } catch {
+        return false;
+      }
+    }, "REDIS_URL must be a redis:// or rediss:// connection URL (e.g. rediss://default:TOKEN@host:6379), not a redis-cli command")
+    .optional(),
 
   // Cron auth — optional at the schema level (missing means the routes stay
   // fail-closed 401, not open; see app/api/cron/*).
