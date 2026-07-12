@@ -38,10 +38,16 @@ export async function GET(req: NextRequest) {
 
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.json();
-      logger.error("google-callback", "Token exchange failed", errorData);
+      // TEMPORARY diagnostic for the live redirect_uri_mismatch investigation —
+      // redirectUri isn't a secret (it's already visible in the browser's
+      // address bar during the flow), so surfacing it here is safe. Remove
+      // once the mismatch is confirmed resolved.
+      logger.error("google-callback", "Token exchange failed", { redirectUri, appUrlValue: env.NEXT_PUBLIC_APP_URL, errorData });
       return NextResponse.json({
         error: "Failed to exchange authorization code",
-        details: errorData
+        details: errorData,
+        debugRedirectUri: redirectUri,
+        debugAppUrl: env.NEXT_PUBLIC_APP_URL,
       }, { status: 400 });
     }
 
