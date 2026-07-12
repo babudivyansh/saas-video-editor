@@ -32,9 +32,12 @@ export interface PollableJob {
   meta?: Record<string, unknown>;
 }
 
-export interface JobStatusHandlerOptions {
-  /** MIME type of the downloaded file, e.g. "video/mp4", "image/jpeg". */
-  contentType: string;
+export interface JobStatusHandlerOptions<J = never> {
+  /** MIME type of the downloaded file, e.g. "video/mp4", "image/jpeg". Pass a
+   * function instead of a fixed string for a tool whose output type varies
+   * per job (e.g. YouTube Downloader producing either video/mp4 or
+   * audio/mpeg depending on what quality was requested at submit time). */
+  contentType: string | ((job: J) => string);
   /** Whether to delete the output file + job entry once served. Set this
    * to match each route's EXISTING behavior (most delete-on-download;
    * face-swap/background-remover currently don't) to avoid changing
@@ -49,7 +52,7 @@ export interface JobStatusHandlerOptions {
 
 export function createJobStatusHandler<J extends PollableJob>(
   jobs: Map<string, J>,
-  opts: JobStatusHandlerOptions,
+  opts: JobStatusHandlerOptions<J>,
 ): (req: NextRequest) => Promise<NextResponse> {
   return async function GET(req: NextRequest): Promise<NextResponse> {
     const auth = await getAuthUser(req);
@@ -79,9 +82,10 @@ export function createJobStatusHandler<J extends PollableJob>(
         try { fs.unlinkSync(job.outputPath); } catch { /* ignore */ }
         jobs.delete(jobId);
       }
+      const contentType = typeof opts.contentType === "function" ? opts.contentType(job) : opts.contentType;
       return new NextResponse(new Uint8Array(buffer), {
         headers: {
-          "Content-Type": opts.contentType,
+          "Content-Type": contentType,
           "Content-Disposition": attachmentDisposition(job.downloadName),
           "Content-Length": String(buffer.length),
           "Cache-Control": "no-store",

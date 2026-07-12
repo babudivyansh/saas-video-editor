@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
+import { useJobPolling } from "./useJobPolling";
 
 // ── Voice catalogue ─────────────────────────────────────────────────────────
 interface Voice {
@@ -52,7 +53,10 @@ interface HistoryItem {
   createdAt: number;
 }
 
-const MAX_CHARS = 5000;
+// Must match the server route's MAX_CHARS (app/api/tools/voiceover/route.ts) —
+// letting the client accept more than the server will only means a wasted
+// round trip and a confusing late failure instead of an immediate inline one.
+const MAX_CHARS = 2000;
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function estimateSeconds(text: string): number {
@@ -142,6 +146,19 @@ function VoicePickerModal({
   const previewRef = useRef<HTMLAudioElement | null>(null);
   // Cache blob URLs so repeated clicks don't re-fetch
   const blobCache = useRef<Map<string, string>>(new Map());
+  // Pre-recorded ElevenLabs preview URLs (slug -> url) — free and instant vs.
+  // the live synthesis fallback below, which spends a real ElevenLabs call
+  // per click. Fetched once; playPreview prefers this when a slug has one.
+  const cachedPreviewUrls = useRef<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    fetch("/api/tools/voices")
+      .then(res => res.json())
+      .then((map: Record<string, string>) => {
+        cachedPreviewUrls.current = new Map(Object.entries(map));
+      })
+      .catch(() => { /* fall back to live synthesis for every voice */ });
+  }, []);
 
   async function playPreview(slug: string, e: React.MouseEvent) {
     e.stopPropagation();
@@ -152,6 +169,15 @@ function VoicePickerModal({
     if (previewSlug === slug && !el.paused) {
       el.pause();
       setPreviewSlug(null);
+      return;
+    }
+
+    const cached = cachedPreviewUrls.current.get(slug);
+    if (cached) {
+      el.src = cached;
+      el.currentTime = 0;
+      el.play().catch(() => {});
+      setPreviewSlug(slug);
       return;
     }
 
@@ -451,6 +477,7 @@ function PlayerCard({
 // ── Main component ───────────────────────────────────────────────────────────
 export default function VoiceoverTool() {
   const { user, token, openAuthModal, refreshUser } = useAuth();
+  const job = useJobPolling({ toolSlug: "voiceover", token });
 
   const [voiceSlug, setVoiceSlug] = useState("william");
   const [title, setTitle] = useState("");
@@ -461,11 +488,13 @@ export default function VoiceoverTool() {
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const busy = job.status === "processing";
 
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [liked, setLiked] = useState<Set<string>>(new Set());
+  const submittingRef = useRef(false);
+  const addedForJobId = useRef<string | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -526,33 +555,49 @@ export default function VoiceoverTool() {
     const text = script.trim();
     if (!text) { setError("Enter a script to generate a voiceover."); return; }
     if (text.length > MAX_CHARS) { setError(`Script is too long (max ${MAX_CHARS} characters).`); return; }
-    setBusy(true);
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     try {
-      const res = await fetch("/api/tools/voiceover", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ text, voiceId: voiceSlug, title: title.trim(), stability, similarityBoost: similarity, exaggeration }),
+      const idempotencyKey = crypto.randomUUID();
+      await job.start(async () => {
+        const res = await fetch("/api/tools/voiceover", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ text, voiceId: voiceSlug, title: title.trim(), stability, similarityBoost: similarity, exaggeration, idempotencyKey }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Voice generation failed.");
+        return data as { jobId: string };
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Voice generation failed.");
-      const item: HistoryItem = {
-        id: crypto.randomUUID(),
-        title: data.title || title.trim() || "Untitled voiceover",
-        voiceSlug,
-        audioUrl: data.audioUrl,
-        durationMs: data.durationMs ?? 0,
-        characters: data.characters ?? text.length,
-        createdAt: Date.now(),
-      };
-      persistHistory([item, ...history]);
-      setTimeout(() => togglePlay(item), 50);
-      refreshUser();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Voice generation failed.");
     } finally {
-      setBusy(false);
+      submittingRef.current = false;
     }
   }
+
+  // Once the job is done, pick up the result from job.meta and add it to history.
+  useEffect(() => {
+    if (job.status !== "done" || !job.jobId) return;
+    if (addedForJobId.current === job.jobId) return;
+    addedForJobId.current = job.jobId;
+
+    const meta = job.meta as { audioUrl: string; durationMs: number; characters: number; title: string } | null;
+    if (!meta) return;
+    const item: HistoryItem = {
+      id: crypto.randomUUID(),
+      title: meta.title || title.trim() || "Untitled voiceover",
+      voiceSlug,
+      audioUrl: meta.audioUrl,
+      durationMs: meta.durationMs ?? 0,
+      characters: meta.characters ?? script.trim().length,
+      createdAt: Date.now(),
+    };
+    persistHistory([item, ...history]);
+    setTimeout(() => togglePlay(item), 50);
+    refreshUser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job.status, job.jobId, job.meta]);
 
   function onKeyDown(e: React.KeyboardEvent) {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); if (!busy) generate(); }
@@ -642,10 +687,16 @@ export default function VoiceoverTool() {
             <p className="text-[12px] text-red-500 mt-1.5">Script exceeds the {MAX_CHARS.toLocaleString()} character limit.</p>
           )}
           {error && <p className="text-[12.5px] text-red-500 mt-2">{error}</p>}
+          {job.status === "error" && job.error && (
+            <p className="text-[12.5px] text-red-500 mt-2">{job.error}</p>
+          )}
+          {job.status === "cancelled" && (
+            <p className="text-[12.5px] text-gray-400 mt-2">Cancelled — your credit was refunded.</p>
+          )}
 
           {/* Generate */}
           <button
-            onClick={generate}
+            onClick={() => void generate()}
             disabled={!canGenerate}
             className={`mt-5 w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-[14px] font-bold transition-colors ${
               canGenerate ? "bg-blue-600 hover:bg-blue-700 text-white cursor-pointer" : "bg-gray-100 text-gray-400 cursor-not-allowed"
@@ -660,6 +711,14 @@ export default function VoiceoverTool() {
               </>
             )}
           </button>
+          {busy && (
+            <button
+              onClick={() => void job.cancel()}
+              className="mt-1.5 w-full text-center text-[12px] font-medium text-gray-400 hover:text-red-600 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+          )}
           {!user && (
             <p className="text-[12px] text-gray-400 mt-2 text-center">You&apos;ll be asked to sign in to generate.</p>
           )}

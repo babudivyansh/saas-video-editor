@@ -79,7 +79,9 @@ async function submitToFal(imageUrl: string): Promise<string> {
 }
 
 async function pollFal(requestId: string): Promise<string> {
-  const deadline = Date.now() + 5 * 60 * 1000;
+  // Must stay safely under this route's maxDuration (120s) — see the
+  // identical note in app/api/tools/face-swap/route.ts's pollFal.
+  const deadline = Date.now() + 90 * 1000;
   while (Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 3000));
     const statusRes = await fetch(

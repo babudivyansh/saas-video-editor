@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
+import { useJobPolling } from "./useJobPolling";
 import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID, getImageModel } from "@/lib/models/imageModels";
 import type { ImageParam } from "@/lib/models/types";
 
@@ -158,6 +159,7 @@ function RatioDropdown({ value, onChange }: { value: string; onChange: (v: strin
 // ── Main component ───────────────────────────────────────────────────────────
 export default function ImageGeneratorTool() {
   const { user, token, openAuthModal, refreshUser } = useAuth();
+  const job = useJobPolling({ toolSlug: "image-generator", token });
 
   const [model, setModel] = useState(DEFAULT_IMAGE_MODEL_ID);
   const [ratio, setRatio] = useState("9:16");
@@ -170,9 +172,8 @@ export default function ImageGeneratorTool() {
   const [referencePreview, setReferencePreview] = useState<string | null>(null);
 
   const modelEntry = getImageModel(model);
-  const supports = (p: ImageParam) => modelEntry.supportedParameters.includes(p);
+  const supports = useCallback((p: ImageParam) => modelEntry.supportedParameters.includes(p), [modelEntry]);
 
-  const [generating, setGenerating] = useState(false);
   const [enhancing, setEnhancing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentImage, setCurrentImage] = useState<string | null>(null);
@@ -181,7 +182,10 @@ export default function ImageGeneratorTool() {
   const [lightbox, setLightbox] = useState<Generation | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
+  const submittingRef = useRef(false);
+  const addedForJobId = useRef<string | null>(null);
   const storageKey = user ? `image_gen_history:${user.id}` : "image_gen_history:guest";
+  const generating = job.status === "processing";
 
   useEffect(() => {
     try { setGenerations(JSON.parse(localStorage.getItem(storageKey) ?? "[]")); } catch { setGenerations([]); }
@@ -221,41 +225,57 @@ export default function ImageGeneratorTool() {
     }
   }
 
-  async function generate() {
+  const generate = useCallback(async () => {
     if (!user || !token) { openAuthModal("login", "AI Image Generator"); return; }
     if (!prompt.trim() || generating) return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setError(null);
-    setGenerating(true);
     setCurrentImage(null);
+
+    const idempotencyKey = crypto.randomUUID();
     try {
-      const res = await fetch("/api/tools/image-generator", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          prompt: prompt.trim(),
-          model,
-          ratio,
-          negativePrompt: supports("negativePrompt") && negativePrompt.trim() ? negativePrompt.trim() : undefined,
-          seed: supports("seed") && seed.trim() ? Number(seed) : undefined,
-          guidanceScale: supports("guidanceScale") && guidanceScale.trim() ? Number(guidanceScale) : undefined,
-          steps: supports("steps") && steps.trim() ? Number(steps) : undefined,
-        }),
+      await job.start(async () => {
+        const res = await fetch("/api/tools/image-generator", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            prompt: prompt.trim(),
+            model,
+            ratio,
+            negativePrompt: supports("negativePrompt") && negativePrompt.trim() ? negativePrompt.trim() : undefined,
+            seed: supports("seed") && seed.trim() ? Number(seed) : undefined,
+            guidanceScale: supports("guidanceScale") && guidanceScale.trim() ? Number(guidanceScale) : undefined,
+            steps: supports("steps") && steps.trim() ? Number(steps) : undefined,
+            idempotencyKey,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Generation failed");
+        return data as { jobId: string };
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Generation failed");
-      const item = buildGeneration(data.imageUrl, prompt.trim(), model, ratio);
-      setCurrentImage(data.imageUrl);
-      persistGenerations([item, ...generations]);
-      refreshUser();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Image generation failed");
     } finally {
-      setGenerating(false);
+      submittingRef.current = false;
     }
-  }
+  }, [user, token, openAuthModal, prompt, generating, model, ratio, negativePrompt, seed, guidanceScale, steps, supports, job]);
+
+  // Once the job is done, pick up the resulting image URL from job.meta.
+  useEffect(() => {
+    if (job.status !== "done" || !job.jobId) return;
+    if (addedForJobId.current === job.jobId) return;
+    addedForJobId.current = job.jobId;
+
+    const imageUrl = (job.meta as { imageUrl?: string } | null)?.imageUrl;
+    if (!imageUrl) return;
+    const item = buildGeneration(imageUrl, prompt.trim(), model, ratio);
+    setCurrentImage(imageUrl);
+    persistGenerations([item, ...generations]);
+    refreshUser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job.status, job.jobId, job.meta]);
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); generate(); }
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); void generate(); }
   }
 
   const modelName = modelEntry.displayName;
@@ -410,6 +430,12 @@ export default function ImageGeneratorTool() {
                   <p className="text-[14px] font-bold text-gray-800">Generating your image…</p>
                   <p className="text-[12.5px] text-gray-400 mt-1">Using {modelName}</p>
                 </div>
+                <button
+                  onClick={() => void job.cancel()}
+                  className="text-[12px] font-medium text-gray-400 hover:text-red-600 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
               </div>
             ) : currentImage ? (
               <div className="relative group">
@@ -463,10 +489,14 @@ export default function ImageGeneratorTool() {
           </div>
 
           {error && <p className="text-[12px] text-red-500 mt-2">{error}</p>}
+          {job.status === "error" && job.error && <p className="text-[12px] text-red-500 mt-2">{job.error}</p>}
+          {job.status === "cancelled" && (
+            <p className="text-[12px] text-gray-400 mt-2">Cancelled — your credit was refunded.</p>
+          )}
 
           {/* Generate button */}
           <button
-            onClick={generate}
+            onClick={() => void generate()}
             disabled={!prompt.trim() || generating}
             className={`mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl py-3 text-[14px] font-bold transition-colors ${
               prompt.trim() && !generating

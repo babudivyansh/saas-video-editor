@@ -32,13 +32,21 @@ export async function uploadFileToS3(
 export async function uploadBufferToS3(
   buffer: Buffer,
   key: string,
-  contentType = "audio/mpeg"
+  contentType = "audio/mpeg",
+  /** When set, the object serves with Content-Disposition: attachment, so a
+   * plain `<a href={url} download>` reliably downloads it cross-origin
+   * instead of the browser just navigating to/displaying it (a real,
+   * browser-dependent gap for cross-origin anchors without this header).
+   * Only affects top-level navigation to the URL — an <img>/<audio> tag
+   * embedding the same URL still displays/plays it inline as normal. */
+  downloadName?: string,
 ): Promise<string> {
   const cmd = new PutObjectCommand({
     Bucket: BUCKET,
     Key: key,
     Body: buffer,
     ContentType: contentType,
+    ...(downloadName ? { ContentDisposition: `attachment; filename="${downloadName.replace(/[^\x20-\x7E]/g, "_")}"` } : {}),
   });
   await s3.send(cmd);
   return `https://${BUCKET}.s3.${env.AWS_REGION}.amazonaws.com/${key}`;
