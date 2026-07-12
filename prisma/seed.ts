@@ -182,16 +182,23 @@ async function main() {
   // Promote the owner account to ADMIN. If it doesn't exist yet, create it with
   // a random one-time password printed below — there is no static/default
   // admin password checked into source.
+  // Split into update-or-create instead of upsert: Prisma validates the
+  // upsert's `create` input even when only the update branch runs, so an
+  // undefined passwordHash (the existing-admin case) fails validation.
   const existingAdmin = await prisma.user.findUnique({ where: { email: ADMIN_EMAIL } });
-  const generatedPassword = existingAdmin ? null : crypto.randomBytes(12).toString("base64url");
-  const adminHash = generatedPassword ? await bcrypt.hash(generatedPassword, 12) : undefined;
-  const admin = await prisma.user.upsert({
-    where: { email: ADMIN_EMAIL },
-    update: { role: "ADMIN" },
-    create: { email: ADMIN_EMAIL, passwordHash: adminHash!, credits: 100, role: "ADMIN" },
-  });
-  console.log("Admin ready:", admin.email, "| role:", admin.role);
-  if (generatedPassword) {
+  if (existingAdmin) {
+    const admin = await prisma.user.update({
+      where: { email: ADMIN_EMAIL },
+      data: { role: "ADMIN" },
+    });
+    console.log("Admin ready:", admin.email, "| role:", admin.role);
+  } else {
+    const generatedPassword = crypto.randomBytes(12).toString("base64url");
+    const adminHash = await bcrypt.hash(generatedPassword, 12);
+    const admin = await prisma.user.create({
+      data: { email: ADMIN_EMAIL, passwordHash: adminHash, credits: 100, role: "ADMIN" },
+    });
+    console.log("Admin ready:", admin.email, "| role:", admin.role);
     console.log(`Admin one-time password: ${generatedPassword}  (save this now — it is not stored anywhere else; change it after first login)`);
   }
 }
