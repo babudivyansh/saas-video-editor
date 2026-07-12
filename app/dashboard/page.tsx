@@ -2,6 +2,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
+import { useOnboarding } from "@/app/hooks/useOnboarding";
+import { WelcomeScreen } from "@/app/components/onboarding/WelcomeScreen";
 import { xpToLevel, levelColor, TOTAL_XP } from "@/lib/quest-config";
 import { ProjectStatusBadge } from "@/app/components/dashboard/ProjectStatusBadge";
 import { AutoClipPreview, CutCropPreview, VoiceChangerPreview, SubtitleRemoverPreview, AICreatorPreview } from "@/app/components/dashboard/toolPreviews";
@@ -115,6 +117,7 @@ const STAT_ACCENTS: StatAccent[] = ["blue", "violet", "fuchsia", "emerald"];
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { user, token } = useAuth();
+  const { shouldShowWelcome } = useOnboarding();
   const [questData, setQuestData] = useState<QuestData | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   // Avoids a first-time-layout flash for known-returning users while the real
@@ -168,8 +171,17 @@ export default function DashboardPage() {
   const firstName = user?.name?.split(" ")[0];
 
 
+  // Gated on summary having loaded so existing users with real projects never
+  // flash the welcome screen before it's suppressed — every pre-existing user
+  // has onboardingCompletedAt === null after the migration, so hasAnyProjects
+  // is what actually protects them from seeing this retroactively.
+  const showWelcome = shouldShowWelcome && summary !== null && !summary.hasAnyProjects;
+
   return (
     <>
+        {showWelcome && (
+          <WelcomeScreen firstName={firstName} resumeProject={summary?.inProgress[0]} />
+        )}
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-8 pt-6 pb-12 space-y-8">
 
           {/* ── Gradient hero ── */}

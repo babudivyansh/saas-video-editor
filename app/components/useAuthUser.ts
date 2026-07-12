@@ -23,6 +23,8 @@ export interface AuthUser {
   avatarUrl: string | null;
   gender: string | null;
   intendedUse: string | null;
+  onboardingCompletedAt: string | null;
+  primaryGoal: string | null;
   subscriptionEndsAt: string | null;
   nextRefillAt: string | null;
   monthlyCredits: number;

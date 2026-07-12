@@ -21,6 +21,8 @@ export async function GET(req: NextRequest) {
       avatarUrl: true,
       gender: true,
       intendedUse: true,
+      onboardingCompletedAt: true,
+      primaryGoal: true,
       subscriptionEndsAt: true,
       nextRefillAt: true,
       monthlyCredits: true,
