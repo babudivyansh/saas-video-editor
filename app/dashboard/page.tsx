@@ -110,13 +110,13 @@ function IcCrown() {
 // title text, so renaming a quest's copy here never breaks its completed/XP
 // match against the live data from GET /api/quests.
 const QUESTS = [
-  { id: "join-community", icon: <IcDiscord />, title: "Join the community", xp: 500, desc: "Connect your Discord and join the Clipiro server.", color: "#5865F2" },
-  { id: "first-clip", icon: <IcFilm />, title: "Create your first clip", xp: 300, desc: "Walk through the Simple Editor and make your first clip.", color: "#335cff" },
-  { id: "hear-yourself-out", icon: <IcMic />, title: "Hear yourself out", xp: 200, desc: "Generate your first AI voiceover.", color: "#7c3aed" },
-  { id: "picture-this", icon: <IcImage />, title: "Picture this", xp: 200, desc: "Generate your first AI image.", color: "#d946ef" },
-  { id: "first-video", icon: <IcVideo />, title: "Generate your first video", xp: 200, desc: "Create a video with the AI Video Generator.", color: "#10b981" },
-  { id: "first-export", icon: <IcDownload />, title: "Export a project", xp: 200, desc: "Export a finished project from the Editor.", color: "#f59e0b" },
-  { id: "upgraded-plan", icon: <IcCrown />, title: "Upgrade your plan", xp: 300, desc: "Subscribe to a paid plan.", color: "#d97706" },
+  { id: "join-community", icon: <IcDiscord />, title: "Join the community", xp: 500, desc: "Connect your Discord and join the Clipiro server.", color: "#5865F2", href: null },
+  { id: "first-clip", icon: <IcFilm />, title: "Create your first clip", xp: 300, desc: "Walk through the Simple Editor and make your first clip.", color: "#335cff", href: "/dashboard/create/auto-clip" },
+  { id: "hear-yourself-out", icon: <IcMic />, title: "Hear yourself out", xp: 200, desc: "Generate your first AI voiceover.", color: "#7c3aed", href: "/dashboard/tools/voiceover" },
+  { id: "picture-this", icon: <IcImage />, title: "Picture this", xp: 200, desc: "Generate your first AI image.", color: "#d946ef", href: "/dashboard/tools/image-generator" },
+  { id: "first-video", icon: <IcVideo />, title: "Generate your first video", xp: 200, desc: "Create a video with the AI Video Generator.", color: "#10b981", href: "/dashboard/tools/video-generator" },
+  { id: "first-export", icon: <IcDownload />, title: "Export a project", xp: 200, desc: "Export a finished project from the Editor.", color: "#f59e0b", href: "/dashboard/editor" },
+  { id: "upgraded-plan", icon: <IcCrown />, title: "Upgrade your plan", xp: 300, desc: "Subscribe to a paid plan.", color: "#d97706", href: "/billing" },
 ];
 
 const TOOLS_LARGE = [
@@ -385,16 +385,12 @@ export default function DashboardPage() {
                     const liveQuest = questData?.quests.find(lq => lq.id === q.id);
                     const done = !!liveQuest?.completedAt;
                     const isDiscord = q.id === "join-community";
-                    return (
-                      <button
-                        key={i}
-                        onClick={isDiscord ? handleDiscordQuest : undefined}
-                        disabled={done}
-                        className={`flex items-start gap-3 px-4 py-3.5 text-left transition-colors group
-                          ${i % 2 === 0 ? "border-r border-gray-100" : ""}
-                          ${i >= 2 ? "border-t border-gray-100" : ""}
-                          ${done ? "bg-tint-emerald cursor-default" : "hover:bg-tint-blue"}`}
-                      >
+                    const cls = `flex items-start gap-3 px-4 py-3.5 text-left transition-colors group
+                      ${i % 2 === 0 ? "border-r border-gray-100" : ""}
+                      ${i >= 2 ? "border-t border-gray-100" : ""}
+                      ${done ? "bg-tint-emerald cursor-default" : "hover:bg-tint-blue"}`;
+                    const inner = (
+                      <>
                         <span className="mt-0.5 flex-shrink-0 opacity-60" style={{ color: q.color }}>{q.icon}</span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
@@ -414,6 +410,22 @@ export default function DashboardPage() {
                         ) : (
                           <span className="text-gray-300 group-hover:text-brand transition-colors mt-0.5 flex-shrink-0"><IcChevron /></span>
                         )}
+                      </>
+                    );
+                    // Auto-trigger quests (everything but Discord) complete by
+                    // actually using the relevant tool — clicking navigates
+                    // there. Previously these had no click behavior at all.
+                    if (!done && q.href) {
+                      return <Link key={i} href={q.href} className={cls}>{inner}</Link>;
+                    }
+                    return (
+                      <button
+                        key={i}
+                        onClick={isDiscord ? handleDiscordQuest : undefined}
+                        disabled={done}
+                        className={cls}
+                      >
+                        {inner}
                       </button>
                     );
                   })}
