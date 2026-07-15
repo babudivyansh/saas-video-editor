@@ -158,6 +158,7 @@ export async function syncAccount(account: SocialAccount): Promise<void> {
       },
     });
     await persistSync(account.id, sync);
+    await invalidateAnalytics(account.id);
     await bumpSyncCounter("ok");
     logger.info("social", "sync completed", {
       accountId: account.id,
@@ -215,6 +216,7 @@ export async function disconnect(userId: string, accountId: string): Promise<boo
   }
   await prisma.socialAccount.delete({ where: { id: accountId } });
   await invalidateOverview(userId);
+  await invalidateAnalytics(accountId);
   await recordAudit(userId, "social.disconnect", accountId, { provider: account.provider });
   return true;
 }
@@ -268,6 +270,11 @@ export async function getOverview(userId: string) {
 
 export async function invalidateOverview(userId: string): Promise<void> {
   await redis.del(`social:overview:${userId}`);
+}
+
+// Computed-analytics cache (app/api/social/analytics) — one key per range.
+async function invalidateAnalytics(accountId: string): Promise<void> {
+  await Promise.all([7, 30, 90].map((r) => redis.del(`social:analytics:${accountId}:${r}`)));
 }
 
 // ── Refresh (manual / scheduled) ─────────────────────────────────────────────

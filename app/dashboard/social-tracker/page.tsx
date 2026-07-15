@@ -4,6 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import { EmptyState } from "@/app/components/ui/EmptyState";
+import { AccountAnalytics } from "./components/AccountAnalytics";
+
+const RANGES = [7, 30, 90] as const;
 
 function IcSocial() {
   return (
@@ -89,9 +92,6 @@ const PLATFORMS: Record<Provider, { name: string; color: string; bg: string; ico
 const ORDER: Provider[] = ["youtube", "instagram", "facebook"];
 const STALE_MS = 12 * 3600_000;
 
-const fmt = (n?: number | null) =>
-  n == null ? "—" : Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
-
 function timeAgo(iso?: string | null): string {
   if (!iso) return "never";
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -109,25 +109,6 @@ const ERRORS: Record<string, string> = {
   missing_code: "The provider didn't return an authorization code.",
 };
 
-// Tiny dependency-free trend line from snapshot values.
-function Sparkline({ values, color }: { values: number[]; color: string }) {
-  const pts = values.filter((v) => typeof v === "number");
-  if (pts.length < 2) return <div className="h-10" />;
-  const min = Math.min(...pts);
-  const max = Math.max(...pts);
-  const span = max - min || 1;
-  const w = 120;
-  const h = 40;
-  const d = pts
-    .map((v, i) => `${(i / (pts.length - 1)) * w},${h - ((v - min) / span) * (h - 4) - 2}`)
-    .join(" ");
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="h-10 w-full" preserveAspectRatio="none">
-      <polyline points={d} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 export default function SocialTrackerPage() {
   const { token } = useAuth();
   const [accounts, setAccounts] = useState<Account[] | null>(null);
@@ -135,7 +116,20 @@ export default function SocialTrackerPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
+  const [range, setRange] = useState<number>(30);
   const autoRefreshed = useRef(false);
+
+  // Date range lives in the URL so a filtered view survives reload and can be shared.
+  useEffect(() => {
+    const r = Number(new URLSearchParams(window.location.search).get("range"));
+    if (RANGES.includes(r as (typeof RANGES)[number])) setRange(r);
+  }, []);
+  function changeRange(r: number) {
+    setRange(r);
+    const url = new URL(window.location.href);
+    url.searchParams.set("range", String(r));
+    window.history.replaceState({}, "", url.toString());
+  }
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -247,6 +241,22 @@ export default function SocialTrackerPage() {
                 <p className="text-sm text-gray-500">Connect your accounts to monitor growth and post analytics</p>
               </div>
             </div>
+            {!gated && !loading && (accounts ?? []).length > 0 && (
+              <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1" role="group" aria-label="Date range">
+                {RANGES.map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => changeRange(r)}
+                    aria-pressed={range === r}
+                    className={`text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer ${
+                      range === r ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    {r}d
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -301,6 +311,7 @@ export default function SocialTrackerPage() {
                     <AccountCard
                       key={a.id}
                       account={a}
+                      range={range}
                       busy={busy === a.id || busy === a.provider}
                       onRefresh={() => refresh(a.id)}
                       onDisconnect={() => disconnect(a.id)}
@@ -347,20 +358,20 @@ function Upsell() {
 
 function AccountCard({
   account,
+  range,
   busy,
   onRefresh,
   onDisconnect,
   onReconnect,
 }: {
   account: Account;
+  range: number;
   busy: boolean;
   onRefresh: () => void;
   onDisconnect: () => void;
   onReconnect: () => void;
 }) {
   const meta = PLATFORMS[account.provider];
-  const followerTrend = account.snapshots.map((s) => s.followers ?? 0).filter((v) => v > 0);
-  const latestViews = account.snapshots.at(-1)?.views ?? undefined;
   const needsReauth = account.status === "needs_reauth";
   const syncIssue = !needsReauth && account.lastSyncStatus && account.lastSyncStatus !== "ok";
 
@@ -417,64 +428,13 @@ function AccountCard({
         </div>
       )}
 
-      {/* Stats + trend */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-gray-100">
-        <Stat label={account.provider === "youtube" ? "Subscribers" : "Followers"} value={fmt(account.followers)} />
-        <Stat label={account.provider === "youtube" ? "Total views" : "Views"} value={fmt(latestViews ?? null)} />
-        <Stat label="Posts tracked" value={fmt(account.posts.length)} />
-        <div className="bg-white px-4 py-3">
-          <p className="text-xs text-gray-400 mb-1">Follower trend</p>
-          <Sparkline values={followerTrend} color={meta.color} />
-        </div>
-      </div>
-
-      {/* Top posts */}
-      {account.posts.length > 0 && (
-        <div className="p-5">
-          <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-3">Recent posts</p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-[11px] uppercase tracking-wide text-gray-400 text-left">
-                  <th className="font-semibold pb-2">Post</th>
-                  <th className="font-semibold pb-2 text-right">{account.provider === "youtube" ? "Views" : "Reach"}</th>
-                  <th className="font-semibold pb-2 text-right">Likes</th>
-                  <th className="font-semibold pb-2 text-right">Comments</th>
-                </tr>
-              </thead>
-              <tbody>
-                {account.posts.slice(0, 8).map((post) => (
-                  <tr key={post.id} className="border-t border-gray-50">
-                    <td className="py-2 pr-3">
-                      <a href={post.permalink || "#"} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 group max-w-xs">
-                        {post.thumbnailUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={post.thumbnailUrl} alt="" className="w-12 h-8 rounded object-cover flex-shrink-0 bg-gray-100" />
-                        ) : (
-                          <div className="w-12 h-8 rounded bg-gray-100 flex-shrink-0" />
-                        )}
-                        <span className="truncate text-gray-700 group-hover:text-blue-600">{post.caption || "Untitled"}</span>
-                      </a>
-                    </td>
-                    <td className="py-2 text-right font-medium text-gray-700">{fmt(post.views ?? post.reach)}</td>
-                    <td className="py-2 text-right text-gray-500">{fmt(post.likes)}</td>
-                    <td className="py-2 text-right text-gray-500">{fmt(post.comments)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bg-white px-4 py-3">
-      <p className="text-xs text-gray-400 mb-1">{label}</p>
-      <p className="text-lg font-bold text-gray-900">{value}</p>
+      {/* Analytics: tiles, charts, content mix, top posts, full posts table */}
+      <AccountAnalytics
+        accountId={account.id}
+        color={meta.color}
+        isVideo={account.provider === "youtube"}
+        range={range}
+      />
     </div>
   );
 }
