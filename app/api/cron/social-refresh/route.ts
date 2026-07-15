@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { refreshStaleAccounts, pruneOldSnapshots } from "@/lib/social/service";
+import { refreshStaleAccounts, pruneOldSnapshots, sendWeeklyDigests } from "@/lib/social/service";
 import { refreshClipPublishMetrics } from "@/lib/autoclip-publish";
 import { env } from "@/lib/env";
 
@@ -10,6 +10,7 @@ import { env } from "@/lib/env";
 // Jobs (select with ?job=):
 //   refresh   (default) — re-sync stale accounts + clip-publish metrics
 //   retention           — collapse >90d snapshots to daily granularity
+//   digest              — weekly per-user social summary email
 //
 // Example crontab:
 //   0 */6 * * *  curl -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" \
@@ -30,6 +31,10 @@ export async function GET(req: NextRequest) {
   if (job === "retention") {
     const { deleted } = await pruneOldSnapshots();
     return NextResponse.json({ ok: true, job, deleted });
+  }
+  if (job === "digest") {
+    const { sent } = await sendWeeklyDigests();
+    return NextResponse.json({ ok: true, job, sent });
   }
   if (job !== "refresh") {
     return NextResponse.json({ error: `unknown job "${job}"` }, { status: 400 });

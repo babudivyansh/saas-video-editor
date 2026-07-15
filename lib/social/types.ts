@@ -63,6 +63,13 @@ export interface SyncOptions {
   backfill?: boolean;
 }
 
+// One audience demographic data point (percentage of the account's audience).
+export interface AudienceRow {
+  dimension: "age" | "gender" | "country";
+  bucket: string;
+  value: number; // 0–100
+}
+
 // One linked account plus its freshly-fetched analytics. `partialError` is set
 // when the profile fetch succeeded but posts/insights could not be fetched —
 // the sync is still persisted, and the reason is surfaced on the account.

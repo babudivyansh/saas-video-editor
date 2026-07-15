@@ -365,10 +365,27 @@ model SocialAccount {
   updatedAt         DateTime                @updatedAt
   posts             SocialPost[]
   snapshots         SocialAccountSnapshot[]
+  audience          SocialAudienceSnapshot[]
   clipPublishes     ClipPublish[]
 
   @@unique([userId, provider, providerAccountId])
   @@index([userId])
+}
+
+// Audience demographics for an owned, connected account — one row per
+// (dimension, bucket) per capture. Values are percentages (0–100). Refreshed
+// at most weekly during sync; only providers that expose demographics for the
+// authenticated account write rows (YouTube Analytics, IG follower insights).
+model SocialAudienceSnapshot {
+  id         String        @id @default(cuid())
+  accountId  String
+  account    SocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  capturedAt DateTime      @default(now())
+  dimension  String // age | gender | country
+  bucket     String // e.g. "18-24", "female", "US"
+  value      Float // percentage of audience (0-100)
+
+  @@index([accountId, dimension, capturedAt])
 }
 
 // Daily account-level metric snapshot — powers follower/view growth charts.

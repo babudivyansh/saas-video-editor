@@ -1,6 +1,6 @@
 import { redirectUri } from "./oauth";
 import { ProviderApiError } from "./errors";
-import type { NormalizedAccount, NormalizedPost, OAuthTokens, ProviderSync, SyncOptions } from "./types";
+import type { AudienceRow, NormalizedAccount, NormalizedPost, OAuthTokens, ProviderSync, SyncOptions } from "./types";
 import { env } from "@/lib/env";
 
 // YouTube via Google OAuth.
@@ -218,6 +218,43 @@ export async function sync(accessToken: string, opts?: SyncOptions): Promise<Pro
   }
 
   return { account, posts };
+}
+
+// Audience demographics for the authenticated channel (viewer percentages,
+// last 90 days) via the YouTube Analytics API. Only available for owned
+// channels — exactly our case.
+export async function fetchAudience(accessToken: string): Promise<AudienceRow[]> {
+  const end = new Date().toISOString().slice(0, 10);
+  const start = new Date(Date.now() - 90 * 86400_000).toISOString().slice(0, 10);
+  const report = async (dimensions: string, metrics: string) => {
+    const p = new URLSearchParams({ ids: "channel==MINE", startDate: start, endDate: end, metrics, dimensions, maxResults: "50" });
+    const res = await fetch(`${ANALYTICS}?${p.toString()}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!res.ok) throw new ProviderApiError(`youtube analytics ${dimensions} failed: ${res.status}`, res.status, await res.text());
+    return ((await res.json()) as { rows?: Array<Array<string | number>> }).rows ?? [];
+  };
+
+  const out: AudienceRow[] = [];
+  // ageGroup×gender viewerPercentage rows: ["age18-24","female",12.3]
+  const demo = await report("ageGroup,gender", "viewerPercentage");
+  const byAge = new Map<string, number>();
+  const byGender = new Map<string, number>();
+  for (const [age, gender, pct] of demo) {
+    const bucket = String(age).replace(/^age/, "");
+    byAge.set(bucket, (byAge.get(bucket) ?? 0) + Number(pct));
+    byGender.set(String(gender), (byGender.get(String(gender)) ?? 0) + Number(pct));
+  }
+  for (const [bucket, value] of byAge) out.push({ dimension: "age", bucket, value });
+  for (const [bucket, value] of byGender) out.push({ dimension: "gender", bucket, value });
+
+  // country views → percentage of total views
+  const countries = await report("country", "views");
+  const total = countries.reduce((s, r) => s + Number(r[1] ?? 0), 0);
+  if (total > 0) {
+    for (const [country, views] of countries) {
+      out.push({ dimension: "country", bucket: String(country), value: (Number(views) / total) * 100 });
+    }
+  }
+  return out;
 }
 
 export class NeedsReauthError extends Error {

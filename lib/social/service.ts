@@ -169,6 +169,7 @@ export async function syncAccount(account: SocialAccount): Promise<void> {
       },
     });
     await persistSync(account.id, sync);
+    await refreshAudienceIfStale(account, accessToken);
     await invalidateAnalytics(account.id);
     await bumpSyncCounter("ok");
     logger.info("social", "sync completed", {
@@ -195,6 +196,33 @@ export async function syncAccount(account: SocialAccount): Promise<void> {
     throw e;
   } finally {
     await redis.del(lockKey);
+  }
+}
+
+// Demographics move slowly and the provider calls are comparatively expensive,
+// so refresh at most weekly, riding along on a normal sync. Non-fatal: IG
+// returns an error below 100 followers, YT scopes may not cover Analytics —
+// either way the sync itself already succeeded.
+const AUDIENCE_MAX_AGE_MS = 7 * 86400_000;
+
+async function refreshAudienceIfStale(account: SocialAccount, accessToken: string): Promise<void> {
+  const adapter = PROVIDERS[account.provider as ProviderId];
+  if (!adapter.fetchAudience) return;
+  try {
+    const last = await prisma.socialAudienceSnapshot.findFirst({
+      where: { accountId: account.id },
+      orderBy: { capturedAt: "desc" },
+      select: { capturedAt: true },
+    });
+    if (last && Date.now() - last.capturedAt.getTime() < AUDIENCE_MAX_AGE_MS) return;
+    const rows = await adapter.fetchAudience(account.providerAccountId, accessToken);
+    if (rows.length === 0) return;
+    const capturedAt = new Date();
+    await prisma.socialAudienceSnapshot.createMany({
+      data: rows.map((r) => ({ accountId: account.id, capturedAt, ...r })),
+    });
+  } catch (e) {
+    logger.warn("social", `audience refresh skipped for ${account.id}`, { reason: (e as Error).message });
   }
 }
 
@@ -283,9 +311,15 @@ export async function invalidateOverview(userId: string): Promise<void> {
   await redis.del(`social:overview:${userId}`);
 }
 
-// Computed-analytics cache (app/api/social/analytics) — one key per range.
+// Computed-analytics cache (app/api/social/analytics) is keyed by a per-account
+// version stamp, since range/timezone variants make the key space open-ended.
+// Bumping the version orphans every cached variant at once (they expire by TTL).
+export function analyticsCacheVersionKey(accountId: string): string {
+  return `social:analytics-ver:${accountId}`;
+}
+
 async function invalidateAnalytics(accountId: string): Promise<void> {
-  await Promise.all([7, 30, 90].map((r) => redis.del(`social:analytics:${accountId}:${r}`)));
+  await redis.incrWithExpire(analyticsCacheVersionKey(accountId), 30 * 86400);
 }
 
 // ── Refresh (manual / scheduled) ─────────────────────────────────────────────
@@ -333,6 +367,58 @@ export async function refreshStaleAccounts(
   }
   for (const uid of affected) await invalidateOverview(uid);
   return { refreshed, failed };
+}
+
+// ── Weekly email digest ──────────────────────────────────────────────────────
+// One email per user with connected accounts: follower count, 7-day delta and
+// posts published, per account. Driven by the weekly cron (?job=digest).
+export async function sendWeeklyDigests(): Promise<{ sent: number }> {
+  const { sendSocialDigestEmail } = await import("@/lib/email");
+  const weekAgo = new Date(Date.now() - 7 * 86400_000);
+  const accounts = await prisma.socialAccount.findMany({
+    where: { status: "active" },
+    select: {
+      id: true, provider: true, username: true, displayName: true, followers: true, userId: true,
+      user: { select: { email: true, firstName: true } },
+    },
+  });
+
+  const byUser = new Map<string, typeof accounts>();
+  for (const a of accounts) byUser.set(a.userId, [...(byUser.get(a.userId) ?? []), a]);
+
+  let sent = 0;
+  for (const [, userAccounts] of byUser) {
+    const email = userAccounts[0].user.email;
+    if (!email) continue;
+    try {
+      const rows = await Promise.all(
+        userAccounts.map(async (a) => {
+          const [baseline, postsThisWeek] = await Promise.all([
+            prisma.socialAccountSnapshot.findFirst({
+              where: { accountId: a.id, capturedAt: { lte: weekAgo } },
+              orderBy: { capturedAt: "desc" },
+              select: { followers: true },
+            }),
+            prisma.socialPost.count({ where: { accountId: a.id, publishedAt: { gte: weekAgo } } }),
+          ]);
+          return {
+            platform: PROVIDERS[a.provider as ProviderId] ? a.provider.charAt(0).toUpperCase() + a.provider.slice(1) : a.provider,
+            name: a.displayName || a.username || a.provider,
+            followers: a.followers,
+            followerDelta:
+              a.followers !== null && baseline?.followers != null ? a.followers - baseline.followers : null,
+            postsThisWeek,
+          };
+        }),
+      );
+      await sendSocialDigestEmail(email, userAccounts[0].user.firstName ?? "", rows);
+      sent++;
+    } catch (e) {
+      logger.error("social", `digest failed for user ${userAccounts[0].userId}`, e);
+    }
+  }
+  logger.info("social", "weekly digests sent", { sent });
+  return { sent };
 }
 
 // ── Retention ────────────────────────────────────────────────────────────────

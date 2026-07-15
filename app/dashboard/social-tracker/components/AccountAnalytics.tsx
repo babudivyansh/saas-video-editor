@@ -6,7 +6,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/app/components/AuthContext";
-import { LineChart, StatTile, TypeBars, fmtCompact, fmtPct, type SeriesPoint } from "./charts";
+import {
+  AudienceBars, BestTimeHeatmap, LineChart, StatTile, TypeBars,
+  fmtCompact, fmtPct, type BestTimeCell, type SeriesPoint,
+} from "./charts";
 
 interface MetricDelta {
   current: number | null;
@@ -37,6 +40,23 @@ interface Analytics {
   topPosts: TopPost[];
   contentTypes: Array<{ type: string; count: number; avgEngagementRate: number | null }>;
 }
+interface AccountAlert {
+  kind: string;
+  severity: "info" | "warning";
+  message: string;
+}
+interface AudienceRow {
+  dimension: string;
+  bucket: string;
+  value: number;
+}
+interface AnalyticsPayload {
+  analytics: Analytics;
+  bestTimes: { cells: BestTimeCell[]; best: BestTimeCell | null };
+  alerts: AccountAlert[];
+  benchmark: { low: number; high: number } | null;
+  audience: AudienceRow[];
+}
 interface TablePost {
   id: string;
   caption?: string | null;
@@ -58,8 +78,8 @@ const SORT_OPTIONS = [
 
 export function AccountAnalytics({ accountId, color, isVideo, range }: { accountId: string; color: string; isVideo: boolean; range: number }) {
   const { token } = useAuth();
-  const [tab, setTab] = useState<"overview" | "posts">("overview");
-  const [data, setData] = useState<Analytics | null>(null);
+  const [tab, setTab] = useState<"overview" | "audience" | "posts">("overview");
+  const [payload, setPayload] = useState<AnalyticsPayload | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -68,11 +88,12 @@ export function AccountAnalytics({ accountId, color, isVideo, range }: { account
     setLoading(true);
     setError(false);
     try {
-      const res = await fetch(`/api/social/analytics?accountId=${accountId}&range=${range}`, {
+      const tz = -new Date().getTimezoneOffset(); // minutes east of UTC, for the best-time heatmap
+      const res = await fetch(`/api/social/analytics?accountId=${accountId}&range=${range}&tz=${tz}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error();
-      setData((await res.json()).analytics);
+      setPayload(await res.json());
     } catch {
       setError(true);
     } finally {
@@ -84,20 +105,28 @@ export function AccountAnalytics({ accountId, color, isVideo, range }: { account
     load();
   }, [load]);
 
+  const data = payload?.analytics ?? null;
+  const hasAudience = (payload?.audience.length ?? 0) > 0;
+  const tabs: Array<{ id: typeof tab; label: string }> = [
+    { id: "overview", label: "Overview" },
+    ...(hasAudience ? [{ id: "audience" as const, label: "Audience" }] : []),
+    { id: "posts", label: "All posts" },
+  ];
+
   return (
     <div className="border-t border-gray-50">
       <div className="flex items-center gap-1 px-5 pt-3" role="tablist">
-        {(["overview", "posts"] as const).map((t) => (
+        {tabs.map((t) => (
           <button
-            key={t}
+            key={t.id}
             role="tab"
-            aria-selected={tab === t}
-            onClick={() => setTab(t)}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-lg capitalize cursor-pointer ${
-              tab === t ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-600"
+            aria-selected={tab === t.id}
+            onClick={() => setTab(t.id)}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer ${
+              tab === t.id ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-600"
             }`}
           >
-            {t === "overview" ? "Overview" : "All posts"}
+            {t.label}
           </button>
         ))}
       </div>
@@ -112,15 +141,30 @@ export function AccountAnalytics({ accountId, color, isVideo, range }: { account
           </div>
         ) : data ? (
           <div className="p-5 space-y-4">
+            {payload!.alerts.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {payload!.alerts.map((a) => (
+                  <span
+                    key={a.message}
+                    className={`inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full ${
+                      a.severity === "warning" ? "bg-amber-50 text-amber-700 border border-amber-100" : "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                    }`}
+                  >
+                    {a.message}
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-gray-100 rounded-xl overflow-hidden border border-gray-100">
               <StatTile label="Followers" value={fmtCompact(data.followers.current)} delta={data.followers.deltaPct} />
-              <StatTile label="Engagement rate" value={fmtPct(data.engagementRate.current)} delta={data.engagementRate.deltaPct} />
-              <StatTile label={`Views gained (${data.rangeDays}d)`} value={fmtCompact(data.views.current)} delta={data.views.deltaPct} />
               <StatTile
-                label="Posts"
-                value={`${data.postsInRange}`}
-                delta={undefined}
+                label="Engagement rate"
+                value={fmtPct(data.engagementRate.current)}
+                delta={data.engagementRate.deltaPct}
+                sub={payload!.benchmark ? `typical: ${payload!.benchmark.low}–${payload!.benchmark.high}%` : undefined}
               />
+              <StatTile label={`Views gained (${data.rangeDays}d)`} value={fmtCompact(data.views.current)} delta={data.views.deltaPct} />
+              <StatTile label="Posts" value={`${data.postsInRange}`} sub={data.postsPerWeek !== null ? `${data.postsPerWeek.toFixed(1)}/week` : undefined} />
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <LineChart points={data.followerSeries} color={color} title={`Followers — last ${data.rangeDays} days`} />
@@ -130,8 +174,17 @@ export function AccountAnalytics({ accountId, color, isVideo, range }: { account
               <TypeBars items={data.contentTypes} />
               <TopPosts posts={data.topPosts} isVideo={isVideo} />
             </div>
+            <BestTimeHeatmap cells={payload!.bestTimes.cells} best={payload!.bestTimes.best} />
           </div>
         ) : null)}
+
+      {tab === "audience" && payload && (
+        <div className="p-5 grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <AudienceBars title="Age" rows={payload.audience.filter((r) => r.dimension === "age")} />
+          <AudienceBars title="Gender" rows={payload.audience.filter((r) => r.dimension === "gender")} />
+          <AudienceBars title="Top countries" rows={payload.audience.filter((r) => r.dimension === "country")} limit={6} />
+        </div>
+      )}
 
       {tab === "posts" && <PostsTable accountId={accountId} isVideo={isVideo} />}
     </div>

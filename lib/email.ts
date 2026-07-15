@@ -756,6 +756,59 @@ export async function sendReengagement30DayEmail(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SOCIAL TRACKER — WEEKLY DIGEST
+// ─────────────────────────────────────────────────────────────────────────────
+export interface SocialDigestAccount {
+  platform: string; // "YouTube" | "Instagram" | …
+  name: string; // display name / @username
+  followers: number | null;
+  followerDelta: number | null; // vs 7 days ago
+  postsThisWeek: number;
+}
+
+export async function sendSocialDigestEmail(to: string, name: string, accounts: SocialDigestAccount[]): Promise<void> {
+  const displayName = name || "there";
+  const fmtNum = (n: number) => Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
+  const rows = accounts
+    .map((a) => {
+      const delta =
+        a.followerDelta === null
+          ? `<span style="color:#94a3b8;">—</span>`
+          : a.followerDelta >= 0
+            ? `<span style="color:#16a34a;font-weight:700;">+${fmtNum(a.followerDelta)}</span>`
+            : `<span style="color:#dc2626;font-weight:700;">−${fmtNum(Math.abs(a.followerDelta))}</span>`;
+      return `<tr>
+        <td style="color:#0f172a;font-size:14px;font-weight:600;padding:8px 0;">${a.platform} · ${a.name}</td>
+        <td style="color:#0f172a;font-size:14px;text-align:right;padding:8px 0;">${a.followers === null ? "—" : fmtNum(a.followers)}</td>
+        <td style="font-size:14px;text-align:right;padding:8px 0;">${delta}</td>
+        <td style="color:#64748b;font-size:14px;text-align:right;padding:8px 0;">${a.postsThisWeek}</td>
+      </tr>`;
+    })
+    .join("");
+  const html = `
+    ${emailHeader()}
+    <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 8px;">Your week on social 📊</h1>
+    <p style="color:#64748b;font-size:15px;margin:0 0 24px;line-height:1.6;">Hi ${displayName}, here&apos;s how your connected accounts did over the last 7 days.</p>
+
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:20px;margin-bottom:24px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td style="color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;padding-bottom:4px;">Account</td>
+          <td style="color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;text-align:right;padding-bottom:4px;">Followers</td>
+          <td style="color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;text-align:right;padding-bottom:4px;">7d</td>
+          <td style="color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;text-align:right;padding-bottom:4px;">Posts</td>
+        </tr>
+        ${rows}
+      </table>
+    </div>
+
+    ${ctaButton("https://clipiro.com/dashboard/social-tracker", "Open Social Tracker →")}
+    ${emailFooter()}`;
+
+  await sendEmail(to, "Your week on social — Clipiro digest", html, "social-digest");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 17. FIRST VIDEO SUCCESS — Upsell at peak excitement
 // ─────────────────────────────────────────────────────────────────────────────
 export async function sendFirstVideoSuccessEmail(to: string, name: string): Promise<void> {

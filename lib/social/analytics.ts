@@ -118,6 +118,111 @@ function pctChange(current: number | null, previous: number | null): number | nu
   return ((current - previous) / Math.abs(previous)) * 100;
 }
 
+// ── Best time to post ────────────────────────────────────────────────────────
+// Buckets the account's own post history into weekday × 4-hour blocks and
+// averages engagement per cell. tzOffsetMinutes shifts UTC timestamps into the
+// viewer's local time (pass -new Date().getTimezoneOffset() from the client).
+export interface BestTimeCell {
+  day: number; // 0 (Sun) – 6 (Sat), local time
+  block: number; // 0–5 → 4-hour blocks starting at midnight local
+  avgEngagementRate: number;
+  count: number;
+}
+
+export function computeBestTimes(
+  posts: PostRow[],
+  tzOffsetMinutes = 0,
+): { cells: BestTimeCell[]; best: BestTimeCell | null } {
+  const byCell = new Map<string, number[]>();
+  for (const p of posts) {
+    const er = postEngagementRate(p);
+    if (er === null || !p.publishedAt) continue;
+    const local = new Date(p.publishedAt.getTime() + tzOffsetMinutes * 60_000);
+    const key = `${local.getUTCDay()}:${Math.floor(local.getUTCHours() / 4)}`;
+    byCell.set(key, [...(byCell.get(key) ?? []), er]);
+  }
+  const cells = [...byCell.entries()].map(([key, ers]) => {
+    const [day, block] = key.split(":").map(Number);
+    return { day, block, avgEngagementRate: mean(ers)!, count: ers.length };
+  });
+  // Prefer cells with a repeatable signal (≥2 posts); fall back to any cell.
+  const candidates = cells.filter((c) => c.count >= 2);
+  const pool = candidates.length > 0 ? candidates : cells;
+  const best = pool.length > 0 ? pool.reduce((a, b) => (b.avgEngagementRate > a.avgEngagementRate ? b : a)) : null;
+  return { cells, best };
+}
+
+// ── Alerts ───────────────────────────────────────────────────────────────────
+// Deterministic weekly signals shown as chips in the dashboard. Kept
+// computation-only so the same rules can later drive email digests.
+export interface AccountAlert {
+  kind: "milestone" | "drop" | "spike";
+  severity: "info" | "warning";
+  message: string;
+}
+
+const MILESTONES = [1_000, 5_000, 10_000, 50_000, 100_000, 500_000, 1_000_000];
+
+export function computeAlerts(snapshots: SnapshotRow[], posts: PostRow[], now = new Date()): AccountAlert[] {
+  const alerts: AccountAlert[] = [];
+  const weekAgo = new Date(now.getTime() - 7 * 86400_000);
+  const twoWeeksAgo = new Date(now.getTime() - 14 * 86400_000);
+
+  const followersNow = latestValue(snapshots, "followers", now);
+  const followersWeekAgo = latestValue(snapshots, "followers", weekAgo);
+  if (followersNow !== null && followersWeekAgo !== null) {
+    const crossed = MILESTONES.filter((m) => followersWeekAgo < m && followersNow >= m).pop();
+    if (crossed) {
+      alerts.push({
+        kind: "milestone",
+        severity: "info",
+        message: `Crossed ${Intl.NumberFormat("en", { notation: "compact" }).format(crossed)} followers this week 🎉`,
+      });
+    }
+    const lost = followersWeekAgo - followersNow;
+    if (lost > 0 && lost / followersWeekAgo >= 0.01) {
+      alerts.push({ kind: "drop", severity: "warning", message: `Lost ${lost.toLocaleString()} followers in the last 7 days` });
+    }
+  }
+
+  const erOf = (from: Date, to: Date) => {
+    const rates = posts
+      .filter((p) => within(p.publishedAt ?? null, from, to))
+      .map(postEngagementRate)
+      .filter((v): v is number => v !== null);
+    return rates.length >= 2 ? mean(rates) : null; // need a repeatable signal
+  };
+  const erThisWeek = erOf(weekAgo, now);
+  const erLastWeek = erOf(twoWeeksAgo, weekAgo);
+  if (erThisWeek !== null && erLastWeek !== null && erLastWeek > 0) {
+    const change = (erThisWeek - erLastWeek) / erLastWeek;
+    if (change <= -0.3) {
+      alerts.push({
+        kind: "drop",
+        severity: "warning",
+        message: `Engagement rate down ${Math.round(Math.abs(change) * 100)}% vs last week`,
+      });
+    } else if (change >= 0.5) {
+      alerts.push({
+        kind: "spike",
+        severity: "info",
+        message: `Engagement rate up ${Math.round(change * 100)}% vs last week 🔥`,
+      });
+    }
+  }
+  return alerts;
+}
+
+// Typical engagement-rate bands by platform (industry benchmarks, % of reach/
+// views). Static, clearly labeled as "typical" in the UI — competitor-derived
+// benchmarks are a later phase.
+export const ER_BENCHMARKS: Record<string, { low: number; high: number }> = {
+  instagram: { low: 1, high: 3.5 },
+  facebook: { low: 0.5, high: 2 },
+  youtube: { low: 2, high: 5 },
+  tiktok: { low: 3, high: 9 },
+};
+
 // Snapshots must be sorted ascending by capturedAt; posts in any order.
 export function computeAnalytics(snapshots: SnapshotRow[], posts: PostRow[], rangeDays: number, now = new Date()): AccountAnalytics {
   const from = new Date(now.getTime() - rangeDays * 86400_000);

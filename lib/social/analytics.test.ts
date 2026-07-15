@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { computeAnalytics, postEngagementRate, type PostRow, type SnapshotRow } from "./analytics";
+import {
+  computeAlerts, computeAnalytics, computeBestTimes, postEngagementRate,
+  type PostRow, type SnapshotRow,
+} from "./analytics";
 
 const NOW = new Date("2026-07-15T12:00:00Z");
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 86400_000);
@@ -72,5 +75,60 @@ describe("computeAnalytics", () => {
     expect(empty.engagementRate.current).toBeNull();
     expect(empty.topPosts).toEqual([]);
     expect(empty.postsInRange).toBe(0);
+  });
+});
+
+describe("computeBestTimes", () => {
+  // Tuesday 2026-07-14 18:30 UTC → day 2, block 4 (16:00–20:00)
+  const tuesdayEvening = new Date("2026-07-14T18:30:00Z");
+  const posts: PostRow[] = [
+    post({ publishedAt: tuesdayEvening, likes: 50, reach: 1000 }), // ER 5
+    post({ publishedAt: new Date("2026-07-07T18:10:00Z"), likes: 70, reach: 1000 }), // ER 7, same cell
+    post({ publishedAt: new Date("2026-07-13T03:00:00Z"), likes: 90, reach: 1000 }), // ER 9, Mon block 0, only 1 post
+  ];
+
+  it("prefers cells with a repeatable signal (≥2 posts) as the best slot", () => {
+    const { cells, best } = computeBestTimes(posts);
+    expect(cells).toHaveLength(2);
+    expect(best).toMatchObject({ day: 2, block: 4, count: 2 });
+    expect(best!.avgEngagementRate).toBeCloseTo(6);
+  });
+
+  it("shifts buckets into the viewer's timezone", () => {
+    // +330 min (IST): 18:30 UTC → 00:00 next day → Wednesday block 0
+    const { cells } = computeBestTimes([posts[0]], 330);
+    expect(cells[0]).toMatchObject({ day: 3, block: 0 });
+  });
+});
+
+describe("computeAlerts", () => {
+  const snapWeekAgo = (followers: number): SnapshotRow => ({ capturedAt: daysAgo(8), followers });
+  const snapNow = (followers: number): SnapshotRow => ({ capturedAt: daysAgo(0), followers });
+
+  it("fires a milestone when a threshold is crossed this week", () => {
+    const alerts = computeAlerts([snapWeekAgo(9_800), snapNow(10_200)], [], NOW);
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toMatchObject({ kind: "milestone", severity: "info" });
+    expect(alerts[0].message).toContain("10K");
+  });
+
+  it("warns on a follower drop ≥1%", () => {
+    const alerts = computeAlerts([snapWeekAgo(10_000), snapNow(9_800)], [], NOW);
+    expect(alerts[0]).toMatchObject({ kind: "drop", severity: "warning" });
+  });
+
+  it("detects an engagement-rate drop >30% week-over-week (needs ≥2 posts each)", () => {
+    const mk = (day: number, er: number) => post({ publishedAt: daysAgo(day), likes: er * 10, reach: 1000 });
+    const alerts = computeAlerts(
+      [],
+      [mk(1, 2), mk(2, 2), mk(9, 5), mk(10, 5)], // this week ER 2 vs last week 5 → -60%
+      NOW,
+    );
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].message).toMatch(/down 60%/);
+  });
+
+  it("stays quiet with steady metrics", () => {
+    expect(computeAlerts([snapWeekAgo(5_000), snapNow(5_050)], [], NOW)).toEqual([]);
   });
 });

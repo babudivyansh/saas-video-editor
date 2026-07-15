@@ -34,7 +34,7 @@ export function DeltaChip({ pct }: { pct: number | null }) {
   );
 }
 
-export function StatTile({ label, value, delta }: { label: string; value: string; delta?: number | null }) {
+export function StatTile({ label, value, delta, sub }: { label: string; value: string; delta?: number | null; sub?: string }) {
   return (
     <div className="bg-white px-4 py-3">
       <p className="text-xs text-gray-400 mb-1">{label}</p>
@@ -42,6 +42,7 @@ export function StatTile({ label, value, delta }: { label: string; value: string
         <p className="text-lg font-bold text-gray-900">{value}</p>
         {delta !== undefined && <DeltaChip pct={delta} />}
       </div>
+      {sub && <p className="text-[10px] text-gray-400 mt-0.5">{sub}</p>}
     </div>
   );
 }
@@ -136,6 +137,109 @@ export function LineChart({
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const BLOCK_LABELS = ["12–4a", "4–8a", "8a–12p", "12–4p", "4–8p", "8p–12a"];
+
+export interface BestTimeCell {
+  day: number;
+  block: number;
+  avgEngagementRate: number;
+  count: number;
+}
+
+// Weekday × 4h-block heatmap of the account's own engagement history.
+// Sequential encoding: one hue, opacity scales with avg ER (magnitude job).
+export function BestTimeHeatmap({ cells, best }: { cells: BestTimeCell[]; best: BestTimeCell | null }) {
+  const byKey = new Map(cells.map((c) => [`${c.day}:${c.block}`, c]));
+  const maxER = Math.max(...cells.map((c) => c.avgEngagementRate), 0.001);
+  if (cells.length === 0) {
+    return (
+      <div className="border border-gray-100 rounded-xl p-4">
+        <p className="text-xs font-semibold text-gray-500 mb-2">Best time to post</p>
+        <p className="text-xs text-gray-400">Needs a few posts with engagement data — check back after more syncs.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="border border-gray-100 rounded-xl p-4">
+      <div className="flex items-baseline justify-between gap-2 mb-3 flex-wrap">
+        <p className="text-xs font-semibold text-gray-500">Best time to post (your timezone)</p>
+        {best && (
+          <p className="text-[11px] text-gray-500">
+            Best: <span className="font-semibold text-gray-700">{DAY_LABELS[best.day]} {BLOCK_LABELS[best.block]}</span>{" "}
+            · {fmtPct(best.avgEngagementRate)} avg ER
+          </p>
+        )}
+      </div>
+      <div className="grid gap-1" style={{ gridTemplateColumns: "2.5rem repeat(6, 1fr)" }}>
+        <span />
+        {BLOCK_LABELS.map((b) => (
+          <span key={b} className="text-[9px] text-gray-400 text-center">{b}</span>
+        ))}
+        {DAY_LABELS.map((d, day) => (
+          <FragmentRow key={d} day={day} label={d} byKey={byKey} maxER={maxER} best={best} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FragmentRow({
+  day, label, byKey, maxER, best,
+}: {
+  day: number; label: string; byKey: Map<string, BestTimeCell>; maxER: number; best: BestTimeCell | null;
+}) {
+  return (
+    <>
+      <span className="text-[10px] text-gray-400 self-center">{label}</span>
+      {BLOCK_LABELS.map((_, block) => {
+        const cell = byKey.get(`${day}:${block}`);
+        const isBest = best && best.day === day && best.block === block;
+        return (
+          <div
+            key={block}
+            title={cell ? `${label} ${BLOCK_LABELS[block]} — ${fmtPct(cell.avgEngagementRate)} avg ER over ${cell.count} post${cell.count === 1 ? "" : "s"}` : `${label} ${BLOCK_LABELS[block]} — no posts yet`}
+            aria-label={cell ? `${label} ${BLOCK_LABELS[block]}: ${fmtPct(cell.avgEngagementRate)} average engagement over ${cell.count} posts` : undefined}
+            className={`h-6 rounded ${isBest ? "ring-2 ring-blue-600 ring-offset-1" : ""}`}
+            style={{ background: cell ? `rgba(37, 99, 235, ${0.15 + 0.85 * (cell.avgEngagementRate / maxER)})` : "#f9fafb" }}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+// Audience demographic bars (single-hue magnitude, values direct-labeled).
+export function AudienceBars({
+  rows,
+  title,
+  limit = 8,
+}: {
+  rows: Array<{ bucket: string; value: number }>;
+  title: string;
+  limit?: number;
+}) {
+  if (rows.length === 0) return null;
+  const shown = rows.slice(0, limit);
+  const max = Math.max(...shown.map((r) => r.value));
+  return (
+    <div className="border border-gray-100 rounded-xl p-4">
+      <p className="text-xs font-semibold text-gray-500 mb-3">{title}</p>
+      <div className="space-y-2">
+        {shown.map((r) => (
+          <div key={r.bucket} className="flex items-center gap-2 text-xs" role="img" aria-label={`${r.bucket}: ${r.value.toFixed(1)}%`}>
+            <span className="w-16 text-gray-500 truncate uppercase">{r.bucket}</span>
+            <div className="flex-1 h-4 bg-gray-50 rounded overflow-hidden">
+              <div className="h-full rounded bg-blue-500" style={{ width: `${(r.value / max) * 100}%` }} />
+            </div>
+            <span className="w-12 text-right font-semibold text-gray-700">{r.value.toFixed(1)}%</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

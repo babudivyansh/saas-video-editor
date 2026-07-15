@@ -1,6 +1,6 @@
 import { redirectUri } from "./oauth";
 import { ProviderApiError } from "./errors";
-import type { NormalizedAccount, NormalizedPost, OAuthTokens, ProviderId, ProviderSync, SyncOptions } from "./types";
+import type { AudienceRow, NormalizedAccount, NormalizedPost, OAuthTokens, ProviderId, ProviderSync, SyncOptions } from "./types";
 import { env } from "@/lib/env";
 
 // Instagram + Facebook via one Meta app (Facebook Login + Graph API v22.0).
@@ -334,6 +334,32 @@ function readInsights(resp: InsightsResponse): Record<string, number> {
   for (const row of resp.data ?? []) {
     const v = row.values?.[0]?.value;
     if (typeof v === "number") out[row.name] = v;
+  }
+  return out;
+}
+
+// Instagram follower demographics (Business/Creator accounts with ≥100
+// followers — Meta returns an error below that threshold, which callers treat
+// as "no demographics yet" rather than a failure). Percentages of followers.
+export async function fetchAudienceInstagram(igId: string, token: string): Promise<AudienceRow[]> {
+  const out: AudienceRow[] = [];
+  for (const breakdown of ["age", "gender", "country"] as const) {
+    const resp = (await graph(
+      `/${igId}/insights?metric=follower_demographics&period=lifetime&metric_type=total_value&breakdown=${breakdown}`,
+      token,
+    )) as {
+      data?: Array<{
+        total_value?: { breakdowns?: Array<{ results?: Array<{ dimension_values?: string[]; value?: number }> }> };
+      }>;
+    };
+    const results = resp.data?.[0]?.total_value?.breakdowns?.[0]?.results ?? [];
+    const total = results.reduce((s, r) => s + (r.value ?? 0), 0);
+    if (total <= 0) continue;
+    for (const r of results) {
+      const bucket = r.dimension_values?.[0];
+      if (!bucket) continue;
+      out.push({ dimension: breakdown, bucket, value: ((r.value ?? 0) / total) * 100 });
+    }
   }
   return out;
 }

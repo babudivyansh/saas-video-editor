@@ -1,7 +1,7 @@
 import * as google from "./google";
 import * as meta from "./meta";
 import * as tiktok from "./tiktok";
-import type { OAuthProvider, OAuthTokens, ProviderId, ProviderSync, SyncOptions } from "./types";
+import type { AudienceRow, OAuthProvider, OAuthTokens, ProviderId, ProviderSync, SyncOptions } from "./types";
 
 // One uniform surface per platform so the sync engine and routes never branch
 // on provider names. Adding a platform = implement this interface in a new
@@ -16,6 +16,9 @@ export interface ProviderAdapter {
   refreshTokens(refreshToken: string, providerAccountId: string): Promise<OAuthTokens>;
   sync(providerAccountId: string, accessToken: string, opts?: SyncOptions): Promise<ProviderSync>;
   revoke(token: string): Promise<void>;
+  // Audience demographics for the authenticated account — only where the
+  // platform exposes them (YouTube Analytics, IG follower insights).
+  fetchAudience?(providerAccountId: string, accessToken: string): Promise<AudienceRow[]>;
 }
 
 const youtube: ProviderAdapter = {
@@ -24,6 +27,7 @@ const youtube: ProviderAdapter = {
   refreshTokens: (refreshToken) => google.refreshAccessToken(refreshToken),
   sync: (_providerAccountId, accessToken, opts) => google.sync(accessToken, opts),
   revoke: google.revoke,
+  fetchAudience: (_providerAccountId, accessToken) => google.fetchAudience(accessToken),
 };
 
 function metaAdapter(provider: Extract<ProviderId, "instagram" | "facebook">): ProviderAdapter {
@@ -33,6 +37,9 @@ function metaAdapter(provider: Extract<ProviderId, "instagram" | "facebook">): P
     refreshTokens: (refreshToken, providerAccountId) => meta.refreshTokens(refreshToken, provider, providerAccountId),
     sync: (providerAccountId, accessToken, opts) => meta.syncAccount(providerAccountId, provider, accessToken, opts),
     revoke: meta.revoke,
+    ...(provider === "instagram"
+      ? { fetchAudience: (providerAccountId: string, accessToken: string) => meta.fetchAudienceInstagram(providerAccountId, accessToken) }
+      : {}),
   };
 }
 
