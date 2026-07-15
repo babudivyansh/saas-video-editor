@@ -4,6 +4,7 @@ import { useAuth } from "./AuthContext";
 import { useJobPolling } from "./useJobPolling";
 import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID, getImageModel } from "@/lib/models/imageModels";
 import type { ImageParam } from "@/lib/models/types";
+import { Tooltip } from "@/app/components/ui/Tooltip";
 
 const RATIOS = ["Original","1:1","4:3","3:4","16:9","9:16","3:2","2:3","21:9"];
 
@@ -466,7 +467,12 @@ export default function ImageGeneratorTool() {
           </div>
 
           {/* Prompt */}
-          <p className="text-[13.5px] font-bold text-gray-900 mb-2">Prompt</p>
+          <div className="flex items-center gap-1.5 mb-2">
+            <p className="text-[13.5px] font-bold text-gray-900">Prompt</p>
+            <Tooltip content="Be specific: subject, style, lighting, and mood all help. Try the Enhance button below to expand a short idea.">
+              <span className="text-gray-400 cursor-help"><IcInfo /></span>
+            </Tooltip>
+          </div>
           <div className="relative">
             <textarea
               value={prompt}

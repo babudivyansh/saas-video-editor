@@ -1,8 +1,25 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useAuth } from "@/app/components/AuthContext";
+import { useOnboarding } from "@/app/hooks/useOnboarding";
+import { FeatureHint } from "@/app/components/onboarding/FeatureHint";
+
+// Dynamically imported: neither renders anything for the large majority of
+// dashboard loads (returning users past onboarding), so they shouldn't add
+// to the bundle every one of those loads pays for.
+const WelcomeScreen = dynamic(
+  () => import("@/app/components/onboarding/WelcomeScreen").then(m => m.WelcomeScreen),
+  { ssr: false },
+);
+const ProductTour = dynamic(
+  () => import("@/app/components/onboarding/ProductTour").then(m => m.ProductTour),
+  { ssr: false },
+);
+import { Tooltip } from "@/app/components/ui/Tooltip";
 import { xpToLevel, levelColor, TOTAL_XP } from "@/lib/quest-config";
+import { PRIMARY_GOALS, GOAL_TO_QUEST } from "@/lib/onboarding-config";
 import { ProjectStatusBadge } from "@/app/components/dashboard/ProjectStatusBadge";
 import { AutoClipPreview, CutCropPreview, VoiceChangerPreview, SubtitleRemoverPreview, AICreatorPreview } from "@/app/components/dashboard/toolPreviews";
 import { Button } from "@/app/components/ui/Button";
@@ -80,14 +97,26 @@ function IcEraser() {
 function IcYoutube() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M22.54 6.42a2.78 2.78 0 00-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46A2.78 2.78 0 001.46 6.42 29 29 0 001 12a29 29 0 00.46 5.58A2.78 2.78 0 003.41 19.6C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 001.95-1.95A29 29 0 0023 12a29 29 0 00-.46-5.58z"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02"/></svg>;
 }
+function IcDownload() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
+}
+function IcCrown() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M2 20h20M4 17l-2-9 6 4 4-7 4 7 6-4-2 9H4z"/></svg>;
+}
 
 // ── Data ───────────────────────────────────────────────────────────────────────
-
+// Kept as a parallel display list to lib/quest-config.ts's QUEST_DEFINITIONS
+// (icons/copy/color aren't part of the shared config) — joined by `id`, not
+// title text, so renaming a quest's copy here never breaks its completed/XP
+// match against the live data from GET /api/quests.
 const QUESTS = [
-  { icon: <IcDiscord />, title: "Join the community", xp: 500, desc: "Connect your Discord and join the Clipiro server.", color: "#5865F2" },
-  { icon: <IcFilm />, title: "First clip", xp: 300, desc: "Walk through the Simple Editor and make your first clip.", color: "#335cff" },
-  { icon: <IcMic />, title: "Hear yourself out", xp: 200, desc: "Generate your first AI voiceover.", color: "#7c3aed" },
-  { icon: <IcImage />, title: "Picture this", xp: 200, desc: "Generate your first AI image.", color: "#d946ef" },
+  { id: "join-community", icon: <IcDiscord />, title: "Join the community", xp: 500, desc: "Connect your Discord and join the Clipiro server.", color: "#5865F2", href: null },
+  { id: "first-clip", icon: <IcFilm />, title: "Create your first clip", xp: 300, desc: "Walk through the Simple Editor and make your first clip.", color: "#335cff", href: "/dashboard/create/auto-clip" },
+  { id: "hear-yourself-out", icon: <IcMic />, title: "Hear yourself out", xp: 200, desc: "Generate your first AI voiceover.", color: "#7c3aed", href: "/dashboard/tools/voiceover" },
+  { id: "picture-this", icon: <IcImage />, title: "Picture this", xp: 200, desc: "Generate your first AI image.", color: "#d946ef", href: "/dashboard/tools/image-generator" },
+  { id: "first-video", icon: <IcVideo />, title: "Generate your first video", xp: 200, desc: "Create a video with the AI Video Generator.", color: "#10b981", href: "/dashboard/tools/video-generator" },
+  { id: "first-export", icon: <IcDownload />, title: "Export a project", xp: 200, desc: "Export a finished project from the Editor.", color: "#f59e0b", href: "/dashboard/editor" },
+  { id: "upgraded-plan", icon: <IcCrown />, title: "Upgrade your plan", xp: 300, desc: "Subscribe to a paid plan.", color: "#d97706", href: "/billing" },
 ];
 
 const TOOLS_LARGE = [
@@ -115,6 +144,12 @@ const STAT_ACCENTS: StatAccent[] = ["blue", "violet", "fuchsia", "emerald"];
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { user, token } = useAuth();
+  const { shouldShowWelcome, shouldResumeTour, tourStep, advanceTour, finishTour } = useOnboarding();
+  const [showTour, setShowTour] = useState(false);
+  // Lazy initializer runs once at mount — a stable snapshot rather than
+  // calling Date.now() directly during render (which React's purity rules
+  // flag as an impure render).
+  const [now] = useState(() => Date.now());
   const [questData, setQuestData] = useState<QuestData | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   // Avoids a first-time-layout flash for known-returning users while the real
@@ -123,9 +158,21 @@ export default function DashboardPage() {
   // (sessionStorage isn't readable during SSR) — set for real just after
   // mount, one tick before the summary fetch would otherwise resolve.
   const [optimisticReturning, setOptimisticReturning] = useState(false);
+  const [explicitRestart, setExplicitRestart] = useState(false);
+  // Latched separately from shouldShowWelcome: selecting a goal sets
+  // onboardingCompletedAt immediately (so it's never lost if the tab closes
+  // mid-flow), which would otherwise flip shouldShowWelcome to false and
+  // unmount the overlay before its later steps (preferences, tour offer)
+  // ever get a chance to show. Once open, only WelcomeScreen's own onClose
+  // closes it — not a server-state change underneath it.
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
 
   useEffect(() => {
     setOptimisticReturning(sessionStorage.getItem(HAS_PROJECTS_STORAGE_KEY) === "true");
+    if (sessionStorage.getItem("clipiro:restartOnboarding") === "1") {
+      sessionStorage.removeItem("clipiro:restartOnboarding");
+      setExplicitRestart(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -162,14 +209,72 @@ export default function DashboardPage() {
   }
 
   const earnedXp = questData?.earnedXp ?? 0;
-  const remaining = questData?.remaining ?? 4;
+  const remaining = questData?.remaining ?? QUESTS.length;
   const level = questData ? questData.level : (user ? xpToLevel(0) : null);
   const progressPct = Math.round((earnedXp / TOTAL_XP) * 100);
   const firstName = user?.name?.split(" ")[0];
 
 
+  // Gated on summary having loaded so existing users with real projects never
+  // flash the welcome screen before it's suppressed — every pre-existing user
+  // has onboardingCompletedAt === null after the migration, so hasAnyProjects
+  // is what actually protects them from seeing this retroactively. An
+  // explicit restart (profile settings → Restart Tour) bypasses that guard —
+  // the user asked for it, so hasAnyProjects shouldn't block it.
+  const showWelcome = shouldShowWelcome && (explicitRestart || (summary !== null && !summary.hasAnyProjects));
+
+  useEffect(() => {
+    if (showWelcome) setWelcomeOpen(true);
+  }, [showWelcome]);
+
+  // Tour renders either right after the welcome screen (in-session opt-in) or
+  // across a reload if the user left mid-tour — shouldResumeTour is only ever
+  // true once a tour has actually been started for this user, so it's safe
+  // for pre-existing users too.
+  const showTourOverlay = !welcomeOpen && (showTour || shouldResumeTour);
+
+  async function handleTourFinish() {
+    await finishTour();
+    setShowTour(false);
+  }
+
+  // Nudges a user back toward the goal they picked on the welcome screen if
+  // they haven't gotten there yet — only one hint at a time, only once the
+  // welcome screen is at least a day old (no point nagging mid-session), and
+  // never shown again once dismissed.
+  const goalDef = user?.primaryGoal ? PRIMARY_GOALS.find(g => g.id === user.primaryGoal) : undefined;
+  const goalQuestId = user?.primaryGoal ? GOAL_TO_QUEST[user.primaryGoal as keyof typeof GOAL_TO_QUEST] : undefined;
+  const goalQuestDone = questData?.quests.find(q => q.id === goalQuestId)?.completedAt != null;
+  const onboardedDaysAgo = user?.onboardingCompletedAt
+    ? (now - new Date(user.onboardingCompletedAt).getTime()) / 86_400_000
+    : 0;
+  const goalHintId = goalDef ? `try-${goalDef.id}` : null;
+  const showGoalHint =
+    !!goalDef &&
+    !goalQuestDone &&
+    onboardedDaysAgo >= 1 &&
+    !!questData &&
+    !!goalHintId &&
+    !(user?.dismissedHints ?? []).includes(goalHintId);
+
   return (
     <>
+        {welcomeOpen && (
+          <WelcomeScreen
+            firstName={firstName}
+            resumeProject={summary?.inProgress[0]}
+            onStartTour={() => { setShowTour(true); setWelcomeOpen(false); }}
+            onClose={() => setWelcomeOpen(false)}
+          />
+        )}
+        {showTourOverlay && (
+          <ProductTour
+            startStep={tourStep}
+            onAdvance={advanceTour}
+            onFinish={handleTourFinish}
+            onSkip={handleTourFinish}
+          />
+        )}
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-8 pt-6 pb-12 space-y-8">
 
           {/* ── Gradient hero ── */}
@@ -243,10 +348,12 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-2 mb-0.5">
                       <p className="text-[10px] font-bold text-ink-soft uppercase tracking-widest">Onboarding</p>
                       {level && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                          style={{ background: levelColor(level) + "18", color: levelColor(level) }}>
-                          {level}
-                        </span>
+                        <Tooltip content="Earn XP by completing quests below — more XP unlocks higher levels." position="bottom">
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                            style={{ background: levelColor(level) + "18", color: levelColor(level) }}>
+                            {level}
+                          </span>
+                        </Tooltip>
                       )}
                     </div>
                     {questData === null && user ? (
@@ -267,7 +374,7 @@ export default function DashboardPage() {
                     ) : (
                       <>
                         <span className="text-xl font-extrabold grad-text inline-block">{earnedXp}</span>
-                        <span className="text-sm text-ink-soft font-normal"> / 1200 XP</span>
+                        <span className="text-sm text-ink-soft font-normal"> / {TOTAL_XP} XP</span>
                       </>
                     )}
                   </div>
@@ -275,19 +382,15 @@ export default function DashboardPage() {
 
                 <div className="grid grid-cols-2 border-t border-gray-100">
                   {QUESTS.map((q, i) => {
-                    const liveQuest = questData?.quests.find(lq => lq.title === q.title);
+                    const liveQuest = questData?.quests.find(lq => lq.id === q.id);
                     const done = !!liveQuest?.completedAt;
-                    const isDiscord = q.title === "Join the community";
-                    return (
-                      <button
-                        key={i}
-                        onClick={isDiscord ? handleDiscordQuest : undefined}
-                        disabled={done}
-                        className={`flex items-start gap-3 px-4 py-3.5 text-left transition-colors group
-                          ${i % 2 === 0 ? "border-r border-gray-100" : ""}
-                          ${i >= 2 ? "border-t border-gray-100" : ""}
-                          ${done ? "bg-tint-emerald cursor-default" : "hover:bg-tint-blue"}`}
-                      >
+                    const isDiscord = q.id === "join-community";
+                    const cls = `flex items-start gap-3 px-4 py-3.5 text-left transition-colors group
+                      ${i % 2 === 0 ? "border-r border-gray-100" : ""}
+                      ${i >= 2 ? "border-t border-gray-100" : ""}
+                      ${done ? "bg-tint-emerald cursor-default" : "hover:bg-tint-blue"}`;
+                    const inner = (
+                      <>
                         <span className="mt-0.5 flex-shrink-0 opacity-60" style={{ color: q.color }}>{q.icon}</span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
@@ -307,6 +410,22 @@ export default function DashboardPage() {
                         ) : (
                           <span className="text-gray-300 group-hover:text-brand transition-colors mt-0.5 flex-shrink-0"><IcChevron /></span>
                         )}
+                      </>
+                    );
+                    // Auto-trigger quests (everything but Discord) complete by
+                    // actually using the relevant tool — clicking navigates
+                    // there. Previously these had no click behavior at all.
+                    if (!done && q.href) {
+                      return <Link key={i} href={q.href} className={cls}>{inner}</Link>;
+                    }
+                    return (
+                      <button
+                        key={i}
+                        onClick={isDiscord ? handleDiscordQuest : undefined}
+                        disabled={done}
+                        className={cls}
+                      >
+                        {inner}
                       </button>
                     );
                   })}
@@ -352,6 +471,15 @@ export default function DashboardPage() {
               </div>
 
           </div>
+
+          {showGoalHint && goalDef && goalHintId && (
+            <FeatureHint
+              hintId={goalHintId}
+              title={`Still want to ${goalDef.label.toLowerCase()}?`}
+              body={goalDef.description}
+              cta={{ label: "Try it now", href: goalDef.href }}
+            />
+          )}
 
           {/* ── Start creating ── */}
           <div className="space-y-4">

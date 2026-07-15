@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { sendPurchaseConfirmationEmail, sendAffiliateCommissionEmail } from "@/lib/email";
+import { markQuestComplete } from "@/lib/quests";
 import { logger } from "@/lib/logger";
 
 // Single source of truth for granting a captured Razorpay payment. Called by
@@ -144,6 +145,8 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
       const planForEmail = await prisma.plan.findUnique({ where: { slug: planSlug } });
       const creditsForEmail = planForEmail?.credits ?? credits;
       const isSubscription = (planForEmail?.kind ?? kind) === "subscription";
+      // A subscription purchase is a plan upgrade; a one-time credit pack isn't.
+      if (isSubscription) void markQuestComplete(uid, "upgraded-plan");
       await sendPurchaseConfirmationEmail({
         userEmail: user.email,
         userName: user.firstName ?? user.name ?? "",

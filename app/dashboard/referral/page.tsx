@@ -1,6 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { EmptyState } from "@/app/components/ui/EmptyState";
+
+function IcGift() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+      <polyline points="20 12 20 22 4 22 4 12"/>
+      <rect x="2" y="7" width="20" height="5"/>
+      <line x1="12" y1="22" x2="12" y2="7"/>
+      <path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/>
+      <path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/>
+    </svg>
+  );
+}
 
 interface AffiliateStats {
   enrolled: boolean;
@@ -130,16 +143,13 @@ export default function ReferralPage() {
 
           {/* Not enrolled yet */}
           {stats && !stats.enrolled && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm text-center">
-              <p className="text-gray-700 font-semibold mb-2">You&apos;re not enrolled yet</p>
-              <p className="text-sm text-gray-500 mb-5">Join the affiliate program to get your unique referral link and start earning.</p>
-              <button
-                onClick={handleJoin}
-                disabled={joining}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm transition-all disabled:opacity-60"
-              >
-                {joining ? "Setting up..." : "Join Affiliate Program"}
-              </button>
+            <div className="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm">
+              <EmptyState
+                icon={<IcGift />}
+                title="You're not enrolled yet"
+                subtitle="Join the affiliate program to get your unique referral link and start earning."
+                action={{ label: joining ? "Setting up..." : "Join Affiliate Program", onClick: handleJoin, disabled: joining }}
+              />
             </div>
           )}
 

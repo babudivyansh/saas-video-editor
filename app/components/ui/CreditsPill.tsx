@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Tooltip } from "@/app/components/ui/Tooltip";
 
 function IcZap() {
   return (
@@ -22,13 +23,15 @@ interface CreditsPillProps {
 
 export function CreditsPill({ credits, href = "/billing?tab=usage" }: CreditsPillProps) {
   return (
-    <Link
-      href={href}
-      className="flex items-center gap-1.5 bg-tint-violet hover:bg-violet-100 rounded-full px-3 py-1.5 transition-all hover:scale-[1.03]"
-    >
-      <IcZap />
-      <span className="text-sm font-bold text-ink">{credits}</span>
-      <span className="text-xs text-ink-soft font-medium">credits</span>
-    </Link>
+    <Tooltip content="Credits are spent each time you generate content. Different tools cost different amounts." position="bottom">
+      <Link
+        href={href}
+        className="flex items-center gap-1.5 bg-tint-violet hover:bg-violet-100 rounded-full px-3 py-1.5 transition-all hover:scale-[1.03]"
+      >
+        <IcZap />
+        <span className="text-sm font-bold text-ink">{credits}</span>
+        <span className="text-xs text-ink-soft font-medium">credits</span>
+      </Link>
+    </Tooltip>
   );
 }

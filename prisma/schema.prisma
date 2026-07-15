@@ -43,6 +43,13 @@ model User {
   onboardingDay1SentAt DateTime?
   onboardingDay3SentAt DateTime?
   onboardingDay7SentAt DateTime?
+  onboardingCompletedAt DateTime? // set once the welcome screen is completed or skipped — never shown again after
+  primaryGoal          String? // "auto-clip" | "image" | "video" | "voiceover" | "editor" — picked on the welcome screen, validated in the API layer
+  experienceLevel      String? // "beginner" | "intermediate" | "advanced" — validated in the API layer
+  teamOrIndividual     String? // "individual" | "team" — validated in the API layer
+  tourStep             Int? // current guided-tour step index; null once never started
+  tourCompletedAt      DateTime? // set once the guided tour is completed or skipped
+  dismissedHints       String[]        @default([]) // ids of FeatureHint cards the user has dismissed — never shown again
   createdAt            DateTime        @default(now())
   projects             Project[]
   assets               Asset[]

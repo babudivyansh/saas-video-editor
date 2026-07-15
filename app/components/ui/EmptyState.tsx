@@ -1,10 +1,19 @@
 import { Button } from "@/app/components/ui/Button";
 
+interface EmptyStateAction {
+  label: string;
+  /** Navigates when present. */
+  href?: string;
+  /** Runs client-side logic instead of (or as well as) navigating. */
+  onClick?: () => void;
+  disabled?: boolean;
+}
+
 interface EmptyStateProps {
   icon: React.ReactNode;
   title: string;
   subtitle?: string;
-  action?: { label: string; href: string };
+  action?: EmptyStateAction;
 }
 
 export function EmptyState({ icon, title, subtitle, action }: EmptyStateProps) {
@@ -17,7 +26,7 @@ export function EmptyState({ icon, title, subtitle, action }: EmptyStateProps) {
       {subtitle && <p className="text-xs text-ink-soft mt-1">{subtitle}</p>}
       {action && (
         <div className="mt-5">
-          <Button variant="primary" size="md" href={action.href}>{action.label}</Button>
+          <Button variant="primary" size="md" href={action.href} onClick={action.onClick} disabled={action.disabled}>{action.label}</Button>
         </div>
       )}
     </div>

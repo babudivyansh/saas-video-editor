@@ -7,6 +7,7 @@ import { falSubmit, falPollUntilDone, extractResultUrl } from "@/lib/fal";
 import { chargeCredits, refundCredits, markGenerationStatus, checkModelAccess, updateGenerationProgress } from "@/lib/credits";
 import { maxDurationForTier } from "@/lib/plans/tiers";
 import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
+import { markQuestComplete } from "@/lib/quests";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -207,6 +208,7 @@ async function handlePOST(req: NextRequest) {
 
       job.progress = 100;
       job.status = "done";
+      void markQuestComplete(auth.userId, "first-video");
       if (job.generationId) {
         void updateGenerationProgress(job.generationId, 100);
         void markGenerationStatus(job.generationId, "completed");

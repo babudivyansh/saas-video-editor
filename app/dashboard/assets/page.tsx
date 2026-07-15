@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useAuth } from "@/app/components/AuthContext";
 import { Button } from "@/app/components/ui/Button";
+import { EmptyState } from "@/app/components/ui/EmptyState";
 
 interface Asset {
   id: string;
@@ -302,12 +303,15 @@ export default function AssetsPage() {
           Loading…
         </div>
       ) : assets.length === 0 ? (
-        <div className="text-center py-16">
-          <p className="text-sm font-semibold text-ink mb-1">No {tab === "all" ? "" : tab + " "}files found</p>
-          {debouncedQ
-            ? <p className="text-xs text-ink-soft">Try a different search term.</p>
-            : <p className="text-xs text-ink-soft">Upload your first file to get started.</p>}
-        </div>
+        <EmptyState
+          icon={<IcUpload />}
+          title={`No ${tab === "all" ? "" : tab + " "}files found`}
+          subtitle={debouncedQ ? "Try a different search term." : "Upload your first file to get started."}
+          action={debouncedQ ? undefined : {
+            label: "Upload a file",
+            onClick: () => { if (!user) { openAuthModal("login", "Assets Library"); return; } fileRef.current?.click(); },
+          }}
+        />
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {assets.map(asset => (
