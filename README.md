@@ -92,23 +92,25 @@ Writes a test `.ass` caption file, runs FFmpeg with a synthetic input, and confi
 
 ## Deployment
 
-`npm run build` (and `make build`) only runs `next build` — it no longer runs
-`prisma migrate deploy`. A build that depends on DB reachability means an
-unrelated DB/network hiccup can hang or fail an otherwise-unrelated build; the
-two are separate concerns with separate failure modes and should be separate
-steps. On a persistent single-host deploy (e.g. the Hostinger/cPanel target
-this repo currently runs on), the deploy sequence is:
+`npm run build` (and `make build`) runs `prisma migrate deploy` **before**
+`next build`, so pending migrations are applied automatically on every deploy.
+This coupling is deliberate: the deploy target is a persistent single host
+(Hostinger/cPanel) where the build runs on the same machine as the app, and
+history shows the standalone migrate step gets forgotten — twice it left prod
+several migrations behind and broke every login (2026-07-12 and 2026-07-15
+incidents). A build failing loudly on an unreachable DB is strictly better than
+shipping code that queries columns the database doesn't have.
+
+The deploy sequence is therefore just:
 
 ```bash
-npm run db:migrate:deploy   # or: make db-migrate-deploy — apply committed migrations
-npm run build               # next build — no DB access required
-# restart the app process (e.g. via cPanel's Node.js app manager, or your process manager)
+npm run build               # prisma migrate deploy && next build
+# restart the app process (e.g. via cPanel's Node.js app manager)
 ```
 
-Run migrations **before** restarting the process, not as part of the build —
-that keeps a temporarily-unreachable database from blocking or hanging an
-otherwise-unrelated build, and keeps "did the schema change land" a separate,
-explicit question from "did the code build."
+If you need a build without touching the database (e.g. a build-only smoke
+test), use `npm run build:no-db`. To apply migrations without rebuilding
+(hotfix), use `npm run db:migrate:deploy`.
 
 ---
 
