@@ -9,7 +9,7 @@ import { useAuth } from "@/app/components/AuthContext";
 import {
   AudienceBars, BestTimeHeatmap, LineChart, StatTile, TypeBars,
   fmtCompact, fmtPct, type BestTimeCell, type SeriesPoint,
-} from "./charts";
+} from "@/app/components/charts";
 
 interface MetricDelta {
   current: number | null;

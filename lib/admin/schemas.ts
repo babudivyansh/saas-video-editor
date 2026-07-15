@@ -192,3 +192,8 @@ export const pageQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   status: z.string().max(32).optional(),
 });
+
+export const metricsQuerySchema = z.object({
+  section: z.enum(["kpis", "revenue", "ai", "social", "infra"]),
+  range: z.coerce.number().pipe(z.union([z.literal(7), z.literal(30), z.literal(90)])).default(30),
+});
