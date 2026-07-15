@@ -55,8 +55,11 @@ export interface NormalizedPost {
   metrics?: Record<string, unknown>;
 }
 
-// One linked account plus its freshly-fetched analytics.
+// One linked account plus its freshly-fetched analytics. `partialError` is set
+// when the profile fetch succeeded but posts/insights could not be fetched —
+// the sync is still persisted, and the reason is surfaced on the account.
 export interface ProviderSync {
   account: NormalizedAccount;
   posts: NormalizedPost[];
+  partialError?: string;
 }

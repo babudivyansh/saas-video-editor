@@ -35,25 +35,37 @@ export async function handleCallback(
     const sync = await google.sync(tokens.accessToken);
     const account = await upsertAccount(userId, sync.account, tokens);
     await persistSync(account.id, sync);
+    await recordAudit(userId, "social.connect", account.id, { provider: "youtube" });
     return ["youtube"];
   }
 
   // Meta: one grant can yield several accounts (Pages + linked IG). Each stores
-  // its own long-lived Page token; the user token's expiry is the re-auth hint.
+  // its own long-lived Page token. The long-lived USER token is kept as the
+  // refresh credential (refreshTokenEnc): extending it via fb_exchange_token and
+  // re-listing /me/accounts re-derives fresh Page tokens (see meta.refreshTokens).
   const userTokens = await meta.exchangeCode(code, verifier);
   const connected = await meta.fetchAccounts(userTokens.accessToken);
   const providers = new Set<ProviderId>();
   for (const c of connected) {
     const tokens: OAuthTokens = {
       accessToken: c.pageAccessToken,
+      refreshToken: userTokens.accessToken,
       expiresAt: userTokens.expiresAt,
       scopes: userTokens.scopes,
     };
     const sync = await meta
       .syncAccount(c.account.providerAccountId, c.account.provider as "facebook" | "instagram", c.pageAccessToken)
-      .catch(() => ({ account: c.account, posts: [] }) as ProviderSync);
+      .catch(
+        (e) =>
+          ({
+            account: c.account,
+            posts: [],
+            partialError: `initial sync failed: ${(e as Error).message}`,
+          }) as ProviderSync,
+      );
     const account = await upsertAccount(userId, sync.account, tokens);
     await persistSync(account.id, sync);
+    await recordAudit(userId, "social.connect", account.id, { provider: c.account.provider });
     providers.add(c.account.provider);
   }
   if (providers.size === 0) throw new Error("no Facebook Pages or Instagram accounts found");
@@ -61,19 +73,36 @@ export async function handleCallback(
 }
 
 // ── Token lifecycle ──────────────────────────────────────────────────────────
+// Proactive refresh head start per OAuth app. Google access tokens live ~1h and
+// refresh in one cheap call — 5 minutes is plenty. Meta long-lived tokens live
+// ~60 days and refreshing takes a token exchange plus a /me/accounts round-trip,
+// so start a week out to ride through transient Meta failures before expiry.
+const REFRESH_WINDOW_MS: Record<OAuthProvider, number> = {
+  youtube: 5 * 60_000,
+  meta: 7 * 24 * 3600_000,
+};
+
 // Returns a usable access token, transparently refreshing (and re-persisting)
-// when it is within 60s of expiry. Marks the account needs_reauth on failure.
+// when it is within the provider's refresh window. Marks the account
+// needs_reauth on failure.
 export async function getValidAccessToken(account: SocialAccount): Promise<string> {
+  const windowMs = REFRESH_WINDOW_MS[oauthProviderFor(account.provider as ProviderId)];
   const expiringSoon =
-    !!account.tokenExpiresAt && account.tokenExpiresAt.getTime() - Date.now() < 60_000;
+    !!account.tokenExpiresAt && account.tokenExpiresAt.getTime() - Date.now() < windowMs;
   if (!expiringSoon) return decryptSecret(account.accessTokenEnc);
 
   if (!account.refreshTokenEnc) {
-    await prisma.socialAccount.update({ where: { id: account.id }, data: { status: "needs_reauth" } });
+    await markNeedsReauth(account, "access token expired and no refresh token is stored");
     throw new Error("access token expired and no refresh token is stored");
   }
   const refreshToken = decryptSecret(account.refreshTokenEnc);
-  const tokens = await refreshFor(account.provider as ProviderId, refreshToken);
+  let tokens: OAuthTokens;
+  try {
+    tokens = await refreshFor(account, refreshToken);
+  } catch (e) {
+    await markNeedsReauth(account, (e as Error).message);
+    throw e;
+  }
   await prisma.socialAccount.update({
     where: { id: account.id },
     data: {
@@ -86,30 +115,52 @@ export async function getValidAccessToken(account: SocialAccount): Promise<strin
   return tokens.accessToken;
 }
 
-function refreshFor(provider: ProviderId, refreshToken: string): Promise<OAuthTokens> {
+function refreshFor(account: SocialAccount, refreshToken: string): Promise<OAuthTokens> {
+  const provider = account.provider as ProviderId;
   if (provider === "youtube") return google.refreshAccessToken(refreshToken);
-  throw new Error(`refresh not supported for provider "${provider}" yet`);
+  // For Meta, refreshToken is the long-lived user token (see handleCallback).
+  return meta.refreshTokens(refreshToken, provider, account.providerAccountId);
+}
+
+async function markNeedsReauth(account: SocialAccount, reason: string): Promise<void> {
+  await prisma.socialAccount.update({ where: { id: account.id }, data: { status: "needs_reauth" } });
+  await recordAudit(account.userId, "social.needs_reauth", account.id, {
+    provider: account.provider,
+    reason,
+  });
 }
 
 // ── Re-sync an existing account (manual refresh / scheduled job) ──────────────
 export async function syncAccount(account: SocialAccount): Promise<void> {
-  const accessToken = await getValidAccessToken(account);
-  const sync: ProviderSync =
-    account.provider === "youtube"
-      ? await google.sync(accessToken)
-      : await meta.syncAccount(account.providerAccountId, account.provider as "facebook" | "instagram", accessToken);
+  try {
+    const accessToken = await getValidAccessToken(account);
+    const sync: ProviderSync =
+      account.provider === "youtube"
+        ? await google.sync(accessToken)
+        : await meta.syncAccount(account.providerAccountId, account.provider as "facebook" | "instagram", accessToken);
 
-  await prisma.socialAccount.update({
-    where: { id: account.id },
-    data: {
-      displayName: sync.account.displayName ?? account.displayName,
-      avatarUrl: sync.account.avatarUrl ?? account.avatarUrl,
-      followers: sync.account.metrics.followers ?? account.followers,
-      status: "active",
-      lastSyncedAt: new Date(),
-    },
-  });
-  await persistSync(account.id, sync);
+    await prisma.socialAccount.update({
+      where: { id: account.id },
+      data: {
+        displayName: sync.account.displayName ?? account.displayName,
+        avatarUrl: sync.account.avatarUrl ?? account.avatarUrl,
+        followers: sync.account.metrics.followers ?? account.followers,
+        status: "active",
+        lastSyncedAt: new Date(),
+      },
+    });
+    await persistSync(account.id, sync);
+  } catch (e) {
+    // Record why (getValidAccessToken already set needs_reauth for auth failures
+    // — this only annotates, it never overwrites `status`).
+    await prisma.socialAccount
+      .update({
+        where: { id: account.id },
+        data: { lastSyncStatus: "failed", lastSyncError: (e as Error).message },
+      })
+      .catch(() => {});
+    throw e;
+  }
 }
 
 // ── Disconnect: best-effort provider revoke, then delete (tokens go with it) ──
@@ -125,6 +176,7 @@ export async function disconnect(userId: string, accountId: string): Promise<boo
   }
   await prisma.socialAccount.delete({ where: { id: accountId } });
   await invalidateOverview(userId);
+  await recordAudit(userId, "social.disconnect", accountId, { provider: account.provider });
   return true;
 }
 
@@ -141,6 +193,8 @@ const overviewSelect = {
   status: true,
   followers: true,
   lastSyncedAt: true,
+  lastSyncStatus: true,
+  lastSyncError: true,
   posts: {
     orderBy: { publishedAt: "desc" as const },
     take: 12,
@@ -183,6 +237,7 @@ export async function refreshAccount(userId: string, accountId: string): Promise
   if (!account) return false;
   await syncAccount(account);
   await invalidateOverview(userId);
+  await recordAudit(userId, "social.refresh", accountId, { provider: account.provider });
   return true;
 }
 
@@ -223,6 +278,31 @@ export async function refreshStaleAccounts(
   return { refreshed, failed };
 }
 
+// ── Audit trail ──────────────────────────────────────────────────────────────
+// Token-touching actions are recorded per docs/social-tracker-security.md.
+// AuditLog's actor column is named adminId, but the affiliate payout flow set
+// the precedent of logging user-initiated actions under the acting user's id.
+// Best-effort: an audit failure must never fail the underlying action.
+async function recordAudit(
+  userId: string,
+  action: string,
+  targetId?: string,
+  details?: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await prisma.auditLog.create({
+      data: {
+        adminId: userId,
+        action,
+        targetId: targetId ?? null,
+        after: details ? JSON.stringify(details) : null,
+      },
+    });
+  } catch (e) {
+    logger.error("social", "audit log write failed", e);
+  }
+}
+
 // ── Persistence helpers ──────────────────────────────────────────────────────
 async function upsertAccount(userId: string, a: NormalizedAccount, tokens: OAuthTokens): Promise<SocialAccount> {
   const common = {
@@ -252,6 +332,13 @@ async function upsertAccount(userId: string, a: NormalizedAccount, tokens: OAuth
 }
 
 async function persistSync(accountId: string, sync: ProviderSync): Promise<void> {
+  await prisma.socialAccount.update({
+    where: { id: accountId },
+    data: {
+      lastSyncStatus: sync.partialError ? "partial" : "ok",
+      lastSyncError: sync.partialError ?? null,
+    },
+  });
   const m = sync.account.metrics;
   await prisma.socialAccountSnapshot.create({
     data: {

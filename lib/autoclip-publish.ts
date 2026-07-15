@@ -21,25 +21,71 @@ function extractYouTubeId(url: string): string | null {
   return m ? m[1] : null;
 }
 
-// Only YouTube permalinks map to a provider post id without extra API calls.
-// Instagram/Facebook stay linked-but-unmetriced until per-provider resolution
-// is built out — the permalink is still stored for reference either way.
+// Case-insensitive host, no query/hash, no trailing slash — the same post's
+// permalink can arrive in several equivalent spellings (share sheets add
+// ?igsh=… etc.) and must still compare equal.
+export function normalizePermalink(url: string): string | null {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase().replace(/^www\./, "");
+    const path = u.pathname.replace(/\/+$/, "");
+    return `${host}${path}`;
+  } catch {
+    return null;
+  }
+}
+
+// YouTube permalinks encode the provider post id (the video id) directly.
 export function providerPostIdFromPermalink(provider: string, permalink: string): string | null {
   if (provider === "youtube") return extractYouTubeId(permalink);
   return null;
 }
 
+// Instagram/Facebook permalinks don't textually contain the Graph API media/post
+// id, but the Social Tracker sync stores each post's canonical permalink — so a
+// pasted link resolves by matching against the account's already-synced posts.
+// Returns null when the post hasn't been synced yet; the ClipPublish keeps its
+// permalink either way and can be re-resolved after the next sync.
+export async function resolveProviderPostId(
+  account: { id: string; provider: string },
+  permalink: string,
+): Promise<string | null> {
+  const direct = providerPostIdFromPermalink(account.provider, permalink);
+  if (direct) return direct;
+  if (account.provider !== "instagram" && account.provider !== "facebook") return null;
+
+  const wanted = normalizePermalink(permalink);
+  if (!wanted) return null;
+  const posts = await prisma.socialPost.findMany({
+    where: { accountId: account.id, permalink: { not: null } },
+    select: { providerPostId: true, permalink: true },
+  });
+  for (const p of posts) {
+    if (p.permalink && normalizePermalink(p.permalink) === wanted) return p.providerPostId;
+  }
+  return null;
+}
+
 export async function refreshClipPublishMetrics(limit = 200): Promise<{ updated: number }> {
   const publishes = await prisma.clipPublish.findMany({
-    where: { status: "linked", providerPostId: { not: null } },
+    where: { status: "linked", permalink: { not: null } },
+    include: { socialAccount: { select: { id: true, provider: true } } },
     take: limit,
   });
 
   let updated = 0;
   for (const p of publishes) {
     try {
+      // A Meta permalink pasted before its post was synced has no provider post
+      // id yet — retry resolution now that newer syncs may have stored it.
+      let providerPostId = p.providerPostId;
+      if (!providerPostId) {
+        providerPostId = await resolveProviderPostId(p.socialAccount, p.permalink!);
+        if (!providerPostId) continue;
+        await prisma.clipPublish.update({ where: { id: p.id }, data: { providerPostId } });
+      }
       const post = await prisma.socialPost.findUnique({
-        where: { accountId_providerPostId: { accountId: p.socialAccountId, providerPostId: p.providerPostId! } },
+        where: { accountId_providerPostId: { accountId: p.socialAccountId, providerPostId } },
       });
       if (!post) continue;
       await prisma.clipPublish.update({

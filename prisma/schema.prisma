@@ -359,6 +359,8 @@ model SocialAccount {
   status            String                  @default("active") // active | needs_reauth | revoked
   followers         Int? // convenience copy of the latest snapshot
   lastSyncedAt      DateTime?
+  lastSyncStatus    String                  @default("ok") // ok | partial | failed
+  lastSyncError     String? // human-readable reason when partial/failed
   createdAt         DateTime                @default(now())
   updatedAt         DateTime                @updatedAt
   posts             SocialPost[]

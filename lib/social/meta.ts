@@ -80,6 +80,45 @@ export async function exchangeCode(code: string, verifier: string): Promise<OAut
   };
 }
 
+// Refresh a Meta connection before its long-lived USER token (~60 days) lapses.
+// The user token is what we keep as the "refresh credential" (refreshTokenEnc);
+// extending it via fb_exchange_token and re-listing /me/accounts yields a fresh
+// Page token for this account (Page tokens derived from a long-lived user token
+// are what accessTokenEnc stores). Meta may omit expires_in for tokens it
+// considers non-expiring — treat that as long-lived rather than an error.
+export async function refreshTokens(
+  userToken: string,
+  provider: Extract<ProviderId, "facebook" | "instagram">,
+  providerAccountId: string,
+): Promise<OAuthTokens> {
+  const res = await fetch(
+    `${GRAPH}/oauth/access_token?` +
+      new URLSearchParams({
+        grant_type: "fb_exchange_token",
+        client_id: appId(),
+        client_secret: appSecret(),
+        fb_exchange_token: userToken,
+      }),
+  );
+  if (!res.ok) throw new Error(`meta token refresh failed: ${res.status} ${await res.text()}`);
+  const j = (await res.json()) as { access_token: string; expires_in?: number };
+  const expiresIn = Number(j.expires_in ?? 0);
+
+  const connected = await fetchAccounts(j.access_token);
+  const match = connected.find(
+    (c) => c.account.provider === provider && c.account.providerAccountId === providerAccountId,
+  );
+  if (!match) {
+    throw new Error(`meta token refresh: ${provider} account ${providerAccountId} no longer granted to this app`);
+  }
+  return {
+    accessToken: match.pageAccessToken,
+    refreshToken: j.access_token, // rotated long-lived user token
+    expiresAt: expiresIn ? new Date(Date.now() + expiresIn * 1000) : undefined,
+    scopes: SCOPES,
+  };
+}
+
 export interface MetaConnected {
   account: NormalizedAccount;
   pageAccessToken: string; // long-lived Page token (also used for the linked IG account)
@@ -176,6 +215,7 @@ async function syncFacebook(pageId: string, token: string): Promise<ProviderSync
   };
 
   let posts: NormalizedPost[] = [];
+  let partialError: string | undefined;
   try {
     const feed = (await graph(
       `/${pageId}/posts?fields=id,message,created_time,permalink_url,full_picture&limit=15`,
@@ -199,10 +239,11 @@ async function syncFacebook(pageId: string, token: string): Promise<ProviderSync
         } satisfies NormalizedPost;
       }),
     );
-  } catch {
-    /* posts/insights are best-effort */
+  } catch (e) {
+    // Profile synced fine but posts didn't — persist what we have and surface why.
+    partialError = `Facebook posts could not be fetched: ${(e as Error).message}`;
   }
-  return { account, posts };
+  return { account, posts, partialError };
 }
 
 async function syncInstagram(igId: string, token: string): Promise<ProviderSync> {
@@ -222,6 +263,7 @@ async function syncInstagram(igId: string, token: string): Promise<ProviderSync>
   };
 
   let posts: NormalizedPost[] = [];
+  let partialError: string | undefined;
   try {
     const media = (await graph(
       `/${igId}/media?fields=id,caption,media_type,media_product_type,permalink,thumbnail_url,media_url,timestamp,like_count,comments_count&limit=20`,
@@ -258,10 +300,10 @@ async function syncInstagram(igId: string, token: string): Promise<ProviderSync>
         } satisfies NormalizedPost;
       }),
     );
-  } catch {
-    /* media/insights are best-effort */
+  } catch (e) {
+    partialError = `Instagram media could not be fetched: ${(e as Error).message}`;
   }
-  return { account, posts };
+  return { account, posts, partialError };
 }
 
 type InsightsResponse = { data?: Array<{ name: string; values?: Array<{ value?: number }> }> };

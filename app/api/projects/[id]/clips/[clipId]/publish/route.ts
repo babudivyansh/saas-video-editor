@@ -4,7 +4,7 @@ import path from "path";
 import fs from "fs";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { providerPostIdFromPermalink } from "@/lib/autoclip-publish";
+import { resolveProviderPostId } from "@/lib/autoclip-publish";
 import { getValidAccessToken } from "@/lib/social/service";
 import { uploadVideo, NeedsReauthError } from "@/lib/social/google";
 import { downloadFile } from "@/utils/download";
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  const providerPostId = body.permalink ? providerPostIdFromPermalink(account.provider, body.permalink) : null;
+  const providerPostId = body.permalink ? await resolveProviderPostId(account, body.permalink) : null;
 
   const publish = await prisma.clipPublish.create({
     data: {

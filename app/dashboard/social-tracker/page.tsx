@@ -44,6 +44,8 @@ interface Account {
   status: string;
   followers?: number | null;
   lastSyncedAt?: string | null;
+  lastSyncStatus?: string | null;
+  lastSyncError?: string | null;
   posts: Post[];
   snapshots: Snapshot[];
 }
@@ -203,7 +205,12 @@ export default function SocialTrackerPage() {
     if (!token) return;
     setBusy(id);
     try {
-      await fetch(`/api/social/accounts/${id}`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`/api/social/accounts/${id}`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setToast({ kind: "err", msg: d.error || "Refresh failed. Please try again." });
+        setTimeout(() => setToast(null), 5000);
+      }
       await load();
     } finally {
       setBusy(null);
@@ -291,7 +298,14 @@ export default function SocialTrackerPage() {
               ) : (
                 <div className="space-y-5">
                   {(accounts ?? []).map((a) => (
-                    <AccountCard key={a.id} account={a} busy={busy === a.id} onRefresh={() => refresh(a.id)} onDisconnect={() => disconnect(a.id)} />
+                    <AccountCard
+                      key={a.id}
+                      account={a}
+                      busy={busy === a.id || busy === a.provider}
+                      onRefresh={() => refresh(a.id)}
+                      onDisconnect={() => disconnect(a.id)}
+                      onReconnect={() => connect(a.provider)}
+                    />
                   ))}
                 </div>
               )}
@@ -331,11 +345,24 @@ function Upsell() {
   );
 }
 
-function AccountCard({ account, busy, onRefresh, onDisconnect }: { account: Account; busy: boolean; onRefresh: () => void; onDisconnect: () => void }) {
+function AccountCard({
+  account,
+  busy,
+  onRefresh,
+  onDisconnect,
+  onReconnect,
+}: {
+  account: Account;
+  busy: boolean;
+  onRefresh: () => void;
+  onDisconnect: () => void;
+  onReconnect: () => void;
+}) {
   const meta = PLATFORMS[account.provider];
   const followerTrend = account.snapshots.map((s) => s.followers ?? 0).filter((v) => v > 0);
   const latestViews = account.snapshots.at(-1)?.views ?? undefined;
   const needsReauth = account.status === "needs_reauth";
+  const syncIssue = !needsReauth && account.lastSyncStatus && account.lastSyncStatus !== "ok";
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -370,8 +397,23 @@ function AccountCard({ account, busy, onRefresh, onDisconnect }: { account: Acco
       </div>
 
       {needsReauth && (
-        <div className="px-5 py-2.5 bg-amber-50 text-amber-700 text-xs font-medium border-b border-amber-100">
-          This connection expired. Click “Reconnect {meta.name}” above to restore analytics.
+        <div className="flex items-center justify-between gap-3 px-5 py-2.5 bg-amber-50 text-amber-700 text-xs font-medium border-b border-amber-100">
+          <span>This connection expired — reconnect to restore analytics. Your history is kept.</span>
+          <button
+            onClick={onReconnect}
+            disabled={busy}
+            className="flex-shrink-0 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 px-3 py-1.5 rounded-lg disabled:opacity-50 cursor-pointer"
+          >
+            {busy ? "Reconnecting…" : `Reconnect ${meta.name}`}
+          </button>
+        </div>
+      )}
+
+      {syncIssue && (
+        <div className="px-5 py-2.5 bg-orange-50 text-orange-700 text-xs font-medium border-b border-orange-100">
+          {account.lastSyncStatus === "partial"
+            ? `Last sync was incomplete${account.lastSyncError ? ` — ${account.lastSyncError}` : ""}. Profile stats are current; recent posts may be missing.`
+            : `Last sync failed${account.lastSyncError ? ` — ${account.lastSyncError}` : ""}. Try Refresh, or reconnect if this keeps happening.`}
         </div>
       )}
 
