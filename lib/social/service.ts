@@ -5,6 +5,7 @@ import { encryptSecret, decryptSecret } from "@/lib/encryption";
 import { createState, makePkce } from "./oauth";
 import * as google from "./google";
 import * as meta from "./meta";
+import * as tiktok from "./tiktok";
 import { PROVIDERS } from "./providers";
 import { classifyError, withRetry } from "./errors";
 import type { NormalizedAccount, OAuthProvider, OAuthTokens, ProviderId, ProviderSync } from "./types";
@@ -37,6 +38,15 @@ export async function handleCallback(
     await persistSync(account.id, sync);
     await recordAudit(userId, "social.connect", account.id, { provider: "youtube" });
     return ["youtube"];
+  }
+
+  if (oauthProvider === "tiktok") {
+    const tokens = await tiktok.exchangeCode(code, verifier);
+    const sync = await tiktok.sync(tokens.accessToken, { backfill: true });
+    const account = await upsertAccount(userId, sync.account, tokens);
+    await persistSync(account.id, sync);
+    await recordAudit(userId, "social.connect", account.id, { provider: "tiktok" });
+    return ["tiktok"];
   }
 
   // Meta: one grant can yield several accounts (Pages + linked IG). Each stores
@@ -80,6 +90,7 @@ export async function handleCallback(
 const REFRESH_WINDOW_MS: Record<OAuthProvider, number> = {
   youtube: 5 * 60_000,
   meta: 7 * 24 * 3600_000,
+  tiktok: 10 * 60_000, // 24h access tokens; refresh-token rotation on every use
 };
 
 // Returns a usable access token, transparently refreshing (and re-persisting)

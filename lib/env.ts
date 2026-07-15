@@ -90,6 +90,10 @@ const schema = z.object({
   // Meta (Facebook/Instagram) OAuth — social account linking.
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
+  // TikTok Display API OAuth — social account linking. The TikTok connect card
+  // only appears once these are set (requires an approved TikTok developer app).
+  TIKTOK_CLIENT_KEY: z.string().optional(),
+  TIKTOK_CLIENT_SECRET: z.string().optional(),
   // Self-contained BullMQ scheduler for social-account refresh — off by
   // default; see lib/social/refresh-queue.ts.
   SOCIAL_REFRESH_DRIVER: z.string().optional(),

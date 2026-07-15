@@ -17,7 +17,7 @@ function IcSocial() {
   );
 }
 
-type Provider = "youtube" | "instagram" | "facebook";
+type Provider = "youtube" | "instagram" | "facebook" | "tiktok";
 
 interface Post {
   id: string;
@@ -87,9 +87,20 @@ const PLATFORMS: Record<Provider, { name: string; color: string; bg: string; ico
       </svg>
     ),
   },
+  tiktok: {
+    name: "TikTok",
+    color: "#161823",
+    bg: "#f3f4f6",
+    note: "Follower count, video views & engagement",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+        <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005.1 20.14a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1.14-.14z" />
+      </svg>
+    ),
+  },
 };
 
-const ORDER: Provider[] = ["youtube", "instagram", "facebook"];
+const DEFAULT_PROVIDERS: Provider[] = ["youtube", "instagram", "facebook"];
 const STALE_MS = 12 * 3600_000;
 
 function timeAgo(iso?: string | null): string {
@@ -117,6 +128,7 @@ export default function SocialTrackerPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
   const [range, setRange] = useState<number>(30);
+  const [available, setAvailable] = useState<Provider[]>(DEFAULT_PROVIDERS);
   const autoRefreshed = useRef(false);
 
   // Date range lives in the URL so a filtered view survives reload and can be shared.
@@ -142,6 +154,7 @@ export default function SocialTrackerPage() {
     if (res.ok) {
       const d = await res.json();
       setAccounts(d.accounts ?? []);
+      if (Array.isArray(d.providers)) setAvailable(d.providers.filter((p: string) => p in PLATFORMS));
       setGated(false);
     }
     setLoading(false);
@@ -268,8 +281,8 @@ export default function SocialTrackerPage() {
           ) : (
             <>
               {/* Connect row */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-                {ORDER.map((p) => {
+              <div className={`grid grid-cols-1 gap-4 mb-8 ${available.length > 3 ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3"}`}>
+                {available.map((p) => {
                   const meta = PLATFORMS[p];
                   const isConnected = connectedProviders.has(p);
                   return (
