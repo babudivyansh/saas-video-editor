@@ -32,3 +32,14 @@ export const PRIMARY_GOALS = [
 ] as const;
 
 export type PrimaryGoalId = typeof PRIMARY_GOALS[number]["id"];
+
+// Which quest (lib/quest-config.ts) corresponds to actually having done the
+// thing a welcome-screen goal selection promised — used by FeatureHint to
+// nudge a user back toward their stated goal if they haven't gotten there yet.
+export const GOAL_TO_QUEST: Record<PrimaryGoalId, string> = {
+  "auto-clip": "first-clip",
+  video: "first-video",
+  image: "picture-this",
+  voiceover: "hear-yourself-out",
+  editor: "first-export",
+};

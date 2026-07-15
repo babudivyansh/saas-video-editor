@@ -5,7 +5,9 @@ import { useAuth } from "@/app/components/AuthContext";
 import { useOnboarding } from "@/app/hooks/useOnboarding";
 import { WelcomeScreen } from "@/app/components/onboarding/WelcomeScreen";
 import { ProductTour } from "@/app/components/onboarding/ProductTour";
+import { FeatureHint } from "@/app/components/onboarding/FeatureHint";
 import { xpToLevel, levelColor, TOTAL_XP } from "@/lib/quest-config";
+import { PRIMARY_GOALS, GOAL_TO_QUEST } from "@/lib/onboarding-config";
 import { ProjectStatusBadge } from "@/app/components/dashboard/ProjectStatusBadge";
 import { AutoClipPreview, CutCropPreview, VoiceChangerPreview, SubtitleRemoverPreview, AICreatorPreview } from "@/app/components/dashboard/toolPreviews";
 import { Button } from "@/app/components/ui/Button";
@@ -132,6 +134,10 @@ export default function DashboardPage() {
   const { user, token } = useAuth();
   const { shouldShowWelcome, shouldResumeTour, tourStep, advanceTour, finishTour } = useOnboarding();
   const [showTour, setShowTour] = useState(false);
+  // Lazy initializer runs once at mount — a stable snapshot rather than
+  // calling Date.now() directly during render (which React's purity rules
+  // flag as an impure render).
+  const [now] = useState(() => Date.now());
   const [questData, setQuestData] = useState<QuestData | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   // Avoids a first-time-layout flash for known-returning users while the real
@@ -200,6 +206,25 @@ export default function DashboardPage() {
     await finishTour();
     setShowTour(false);
   }
+
+  // Nudges a user back toward the goal they picked on the welcome screen if
+  // they haven't gotten there yet — only one hint at a time, only once the
+  // welcome screen is at least a day old (no point nagging mid-session), and
+  // never shown again once dismissed.
+  const goalDef = user?.primaryGoal ? PRIMARY_GOALS.find(g => g.id === user.primaryGoal) : undefined;
+  const goalQuestId = user?.primaryGoal ? GOAL_TO_QUEST[user.primaryGoal as keyof typeof GOAL_TO_QUEST] : undefined;
+  const goalQuestDone = questData?.quests.find(q => q.id === goalQuestId)?.completedAt != null;
+  const onboardedDaysAgo = user?.onboardingCompletedAt
+    ? (now - new Date(user.onboardingCompletedAt).getTime()) / 86_400_000
+    : 0;
+  const goalHintId = goalDef ? `try-${goalDef.id}` : null;
+  const showGoalHint =
+    !!goalDef &&
+    !goalQuestDone &&
+    onboardedDaysAgo >= 1 &&
+    !!questData &&
+    !!goalHintId &&
+    !(user?.dismissedHints ?? []).includes(goalHintId);
 
   return (
     <>
@@ -400,6 +425,15 @@ export default function DashboardPage() {
               </div>
 
           </div>
+
+          {showGoalHint && goalDef && goalHintId && (
+            <FeatureHint
+              hintId={goalHintId}
+              title={`Still want to ${goalDef.label.toLowerCase()}?`}
+              body={goalDef.description}
+              cta={{ label: "Try it now", href: goalDef.href }}
+            />
+          )}
 
           {/* ── Start creating ── */}
           <div className="space-y-4">
