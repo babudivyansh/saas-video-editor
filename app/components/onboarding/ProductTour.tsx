@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { TOUR_STEPS } from "@/lib/onboarding-tour-config";
 import { useOnboarding } from "@/app/hooks/useOnboarding";
@@ -32,9 +32,22 @@ export function ProductTour({ startStep, onAdvance, onFinish, onSkip }: ProductT
   const [rect, setRect] = useState<Rect | null>(null);
   const reduceMotion = useReducedMotion();
   const { trackEvent } = useOnboarding();
+  const nextBtnRef = useRef<HTMLButtonElement>(null);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- fire exactly once per mount
   useEffect(() => { trackEvent("tour_started"); }, []);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onSkip();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onSkip]);
+
+  // Moves focus to the primary action each step — the tooltip card is fully
+  // remounted (key={step}) between steps, so focus is naturally reset anyway.
+  useEffect(() => { nextBtnRef.current?.focus(); }, [step]);
 
   const current = TOUR_STEPS[step];
 
@@ -138,6 +151,7 @@ export function ProductTour({ startStep, onAdvance, onFinish, onSkip }: ProductT
                 </button>
               )}
               <button
+                ref={nextBtnRef}
                 onClick={goNext}
                 className="text-xs font-semibold text-white grad-brand px-3.5 py-1.5 rounded-full shadow-glow hover:shadow-glow-hover transition-all"
               >

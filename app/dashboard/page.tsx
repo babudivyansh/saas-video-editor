@@ -1,11 +1,22 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useAuth } from "@/app/components/AuthContext";
 import { useOnboarding } from "@/app/hooks/useOnboarding";
-import { WelcomeScreen } from "@/app/components/onboarding/WelcomeScreen";
-import { ProductTour } from "@/app/components/onboarding/ProductTour";
 import { FeatureHint } from "@/app/components/onboarding/FeatureHint";
+
+// Dynamically imported: neither renders anything for the large majority of
+// dashboard loads (returning users past onboarding), so they shouldn't add
+// to the bundle every one of those loads pays for.
+const WelcomeScreen = dynamic(
+  () => import("@/app/components/onboarding/WelcomeScreen").then(m => m.WelcomeScreen),
+  { ssr: false },
+);
+const ProductTour = dynamic(
+  () => import("@/app/components/onboarding/ProductTour").then(m => m.ProductTour),
+  { ssr: false },
+);
 import { Tooltip } from "@/app/components/ui/Tooltip";
 import { xpToLevel, levelColor, TOTAL_XP } from "@/lib/quest-config";
 import { PRIMARY_GOALS, GOAL_TO_QUEST } from "@/lib/onboarding-config";

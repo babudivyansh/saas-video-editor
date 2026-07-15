@@ -1,6 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useOnboarding, type ExperienceLevel, type TeamOrIndividual } from "@/app/hooks/useOnboarding";
 import { PRIMARY_GOALS, type PrimaryGoalId } from "@/lib/onboarding-config";
 
@@ -64,9 +64,15 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour }: Welcome
   const [chosenGoal, setChosenGoal] = useState<{ id: PrimaryGoalId; href: string } | null>(null);
   const [experienceLevel, setExperienceLevel] = useState<ExperienceLevel | null>(null);
   const [teamOrIndividual, setTeamOrIndividual] = useState<TeamOrIndividual | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- fire exactly once per mount, not on every trackEvent identity change
   useEffect(() => { trackEvent("welcome_shown"); }, []);
+
+  // Moves keyboard focus into the dialog on open, matching standard modal
+  // behavior — without this, focus stays wherever it was on the page behind
+  // the overlay.
+  useEffect(() => { dialogRef.current?.focus(); }, []);
 
   async function handleSelectGoal(goal: PrimaryGoalId, href: string) {
     setPendingGoal(goal);
@@ -105,6 +111,12 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour }: Welcome
     if (chosenGoal) router.push(chosenGoal.href);
   }
 
+  function handleEscape() {
+    if (step === "tour-offer") handleSkipToTool();
+    else if (step === "preferences") setStep("tour-offer");
+    else handleSkip();
+  }
+
   const heading = step === "goal"
     ? (firstName ? `Hey ${firstName}, let's get you started` : "Let's get you started")
     : STEP_COPY[step].title;
@@ -116,7 +128,12 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour }: Welcome
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Welcome to Clipiro">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
-      <div className="relative z-10 w-full max-w-[640px] rounded-2xl shadow-2xl overflow-hidden bg-white max-h-[90vh] overflow-y-auto">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        onKeyDown={e => { if (e.key === "Escape") handleEscape(); }}
+        className="relative z-10 w-full max-w-[640px] rounded-2xl shadow-2xl overflow-hidden bg-white max-h-[90vh] overflow-y-auto outline-none"
+      >
         <div className="grad-brand px-8 pt-10 pb-8 text-center">
           <p className="text-white/70 text-xs font-semibold uppercase tracking-wider mb-2">Welcome to Clipiro</p>
           <h1 className="text-white text-2xl font-extrabold mb-2">{heading}</h1>
