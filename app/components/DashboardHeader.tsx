@@ -167,6 +167,7 @@ function CreateMenu() {
     <div ref={ref} className="relative hidden sm:block">
       <button
         onClick={() => setOpen((p) => !p)}
+        data-tour="create-menu"
         className="inline-flex items-center gap-1.5 grad-brand text-white text-sm font-semibold px-4 py-2 rounded-full shadow-glow hover:shadow-glow-hover hover:brightness-105 transition-all cursor-pointer"
       >
         <IcPlus /> Create <IcChevronDown open={open} />
@@ -291,6 +292,7 @@ export default function DashboardHeader() {
             <Link
               href="/billing"
               title="Your plan"
+              data-tour="plan-chip"
               className={`hidden md:inline-flex items-center text-[11px] font-bold uppercase tracking-wider rounded-full px-2.5 py-1 transition-colors ${
                 hasActivePlan
                   ? "bg-tint-emerald text-green-700 hover:bg-emerald-100"
@@ -299,14 +301,18 @@ export default function DashboardHeader() {
             >
               {planName}
             </Link>
-            <CreditsPill credits={user.credits ?? 0} />
+            <div data-tour="credits-pill" className="flex items-center">
+              <CreditsPill credits={user.credits ?? 0} />
+            </div>
 
             {/* Monetization CTA: upgrade when free, top up when subscribed */}
             <Button variant={hasActivePlan ? "secondary" : "primary"} size="sm" href="/billing" className="hidden sm:inline-flex">
               {hasActivePlan ? "Top Up" : "Upgrade"}
             </Button>
 
-            <SidebarAccount />
+            <div data-tour="account-menu" className="flex items-center">
+              <SidebarAccount />
+            </div>
           </>
         ) : (
           <Button variant="primary" size="md" onClick={() => openAuthModal("login")}>

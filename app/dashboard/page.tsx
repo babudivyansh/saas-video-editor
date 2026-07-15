@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import { useOnboarding } from "@/app/hooks/useOnboarding";
 import { WelcomeScreen } from "@/app/components/onboarding/WelcomeScreen";
+import { ProductTour } from "@/app/components/onboarding/ProductTour";
 import { xpToLevel, levelColor, TOTAL_XP } from "@/lib/quest-config";
 import { ProjectStatusBadge } from "@/app/components/dashboard/ProjectStatusBadge";
 import { AutoClipPreview, CutCropPreview, VoiceChangerPreview, SubtitleRemoverPreview, AICreatorPreview } from "@/app/components/dashboard/toolPreviews";
@@ -117,7 +118,8 @@ const STAT_ACCENTS: StatAccent[] = ["blue", "violet", "fuchsia", "emerald"];
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { user, token } = useAuth();
-  const { shouldShowWelcome } = useOnboarding();
+  const { shouldShowWelcome, shouldResumeTour, tourStep, advanceTour, finishTour } = useOnboarding();
+  const [showTour, setShowTour] = useState(false);
   const [questData, setQuestData] = useState<QuestData | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   // Avoids a first-time-layout flash for known-returning users while the real
@@ -176,11 +178,33 @@ export default function DashboardPage() {
   // has onboardingCompletedAt === null after the migration, so hasAnyProjects
   // is what actually protects them from seeing this retroactively.
   const showWelcome = shouldShowWelcome && summary !== null && !summary.hasAnyProjects;
+  // Tour renders either right after the welcome screen (in-session opt-in) or
+  // across a reload if the user left mid-tour — shouldResumeTour is only ever
+  // true once a tour has actually been started for this user, so it's safe
+  // for pre-existing users too.
+  const showTourOverlay = !showWelcome && (showTour || shouldResumeTour);
+
+  async function handleTourFinish() {
+    await finishTour();
+    setShowTour(false);
+  }
 
   return (
     <>
         {showWelcome && (
-          <WelcomeScreen firstName={firstName} resumeProject={summary?.inProgress[0]} />
+          <WelcomeScreen
+            firstName={firstName}
+            resumeProject={summary?.inProgress[0]}
+            onStartTour={() => setShowTour(true)}
+          />
+        )}
+        {showTourOverlay && (
+          <ProductTour
+            startStep={tourStep}
+            onAdvance={advanceTour}
+            onFinish={handleTourFinish}
+            onSkip={handleTourFinish}
+          />
         )}
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-8 pt-6 pb-12 space-y-8">
 

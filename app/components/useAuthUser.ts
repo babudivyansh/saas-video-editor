@@ -25,6 +25,11 @@ export interface AuthUser {
   intendedUse: string | null;
   onboardingCompletedAt: string | null;
   primaryGoal: string | null;
+  experienceLevel: string | null;
+  teamOrIndividual: string | null;
+  tourStep: number | null;
+  tourCompletedAt: string | null;
+  dismissedHints: string[];
   subscriptionEndsAt: string | null;
   nextRefillAt: string | null;
   monthlyCredits: number;

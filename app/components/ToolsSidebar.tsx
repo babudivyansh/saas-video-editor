@@ -44,6 +44,7 @@ function NavLink({ id, icon, label, href, active }: { id: string; icon: React.Re
     <Link
       href={href}
       title={label}
+      data-tour={`nav-${id}`}
       className={`group relative w-12 h-12 flex items-center justify-center rounded-2xl transition-all duration-100 flex-shrink-0 ${
         isUpgrade
           ? "grad-brand text-white shadow-glow hover:shadow-glow-hover hover:brightness-105"
