@@ -83,14 +83,26 @@ function IcEraser() {
 function IcYoutube() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M22.54 6.42a2.78 2.78 0 00-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46A2.78 2.78 0 001.46 6.42 29 29 0 001 12a29 29 0 00.46 5.58A2.78 2.78 0 003.41 19.6C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 001.95-1.95A29 29 0 0023 12a29 29 0 00-.46-5.58z"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02"/></svg>;
 }
+function IcDownload() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
+}
+function IcCrown() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M2 20h20M4 17l-2-9 6 4 4-7 4 7 6-4-2 9H4z"/></svg>;
+}
 
 // ── Data ───────────────────────────────────────────────────────────────────────
-
+// Kept as a parallel display list to lib/quest-config.ts's QUEST_DEFINITIONS
+// (icons/copy/color aren't part of the shared config) — joined by `id`, not
+// title text, so renaming a quest's copy here never breaks its completed/XP
+// match against the live data from GET /api/quests.
 const QUESTS = [
-  { icon: <IcDiscord />, title: "Join the community", xp: 500, desc: "Connect your Discord and join the Clipiro server.", color: "#5865F2" },
-  { icon: <IcFilm />, title: "First clip", xp: 300, desc: "Walk through the Simple Editor and make your first clip.", color: "#335cff" },
-  { icon: <IcMic />, title: "Hear yourself out", xp: 200, desc: "Generate your first AI voiceover.", color: "#7c3aed" },
-  { icon: <IcImage />, title: "Picture this", xp: 200, desc: "Generate your first AI image.", color: "#d946ef" },
+  { id: "join-community", icon: <IcDiscord />, title: "Join the community", xp: 500, desc: "Connect your Discord and join the Clipiro server.", color: "#5865F2" },
+  { id: "first-clip", icon: <IcFilm />, title: "Create your first clip", xp: 300, desc: "Walk through the Simple Editor and make your first clip.", color: "#335cff" },
+  { id: "hear-yourself-out", icon: <IcMic />, title: "Hear yourself out", xp: 200, desc: "Generate your first AI voiceover.", color: "#7c3aed" },
+  { id: "picture-this", icon: <IcImage />, title: "Picture this", xp: 200, desc: "Generate your first AI image.", color: "#d946ef" },
+  { id: "first-video", icon: <IcVideo />, title: "Generate your first video", xp: 200, desc: "Create a video with the AI Video Generator.", color: "#10b981" },
+  { id: "first-export", icon: <IcDownload />, title: "Export a project", xp: 200, desc: "Export a finished project from the Editor.", color: "#f59e0b" },
+  { id: "upgraded-plan", icon: <IcCrown />, title: "Upgrade your plan", xp: 300, desc: "Subscribe to a paid plan.", color: "#d97706" },
 ];
 
 const TOOLS_LARGE = [
@@ -167,7 +179,7 @@ export default function DashboardPage() {
   }
 
   const earnedXp = questData?.earnedXp ?? 0;
-  const remaining = questData?.remaining ?? 4;
+  const remaining = questData?.remaining ?? QUESTS.length;
   const level = questData ? questData.level : (user ? xpToLevel(0) : null);
   const progressPct = Math.round((earnedXp / TOTAL_XP) * 100);
   const firstName = user?.name?.split(" ")[0];
@@ -303,7 +315,7 @@ export default function DashboardPage() {
                     ) : (
                       <>
                         <span className="text-xl font-extrabold grad-text inline-block">{earnedXp}</span>
-                        <span className="text-sm text-ink-soft font-normal"> / 1200 XP</span>
+                        <span className="text-sm text-ink-soft font-normal"> / {TOTAL_XP} XP</span>
                       </>
                     )}
                   </div>
@@ -311,9 +323,9 @@ export default function DashboardPage() {
 
                 <div className="grid grid-cols-2 border-t border-gray-100">
                   {QUESTS.map((q, i) => {
-                    const liveQuest = questData?.quests.find(lq => lq.title === q.title);
+                    const liveQuest = questData?.quests.find(lq => lq.id === q.id);
                     const done = !!liveQuest?.completedAt;
-                    const isDiscord = q.title === "Join the community";
+                    const isDiscord = q.id === "join-community";
                     return (
                       <button
                         key={i}

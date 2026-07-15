@@ -13,6 +13,7 @@ import { runFFmpegWithProgress } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { downloadFile } from "@/utils/download";
 import { logger } from "@/lib/logger";
+import { markQuestComplete } from "@/lib/quests";
 import type { TimelineDoc } from "./types";
 import { normalizeDoc } from "./types";
 import { buildFilterGraph, maybeUseFilterScript, writeTextFiles, type ClipInput } from "./filtergraph";
@@ -144,6 +145,7 @@ export async function editorRenderJob(payload: EditorRenderPayload): Promise<voi
       where: { id: projectId },
       data: { status: "completed", progress: 100, videoUrl },
     });
+    void markQuestComplete(project.userId, "first-export");
     await setRenderProgress(projectId, "completed", 100);
   } catch (err) {
     logger.error("editor-render", `failed for ${projectId}`, err);
