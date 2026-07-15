@@ -29,6 +29,56 @@ interface Detail {
 const inr = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
 const dt = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—");
 
+// Audited credit correction — grant or deduct with a mandatory reason.
+function CreditAdjust({ userId, onDone, headers }: { userId: string; onDone: () => void; headers: () => Record<string, string> }) {
+  const [delta, setDelta] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function apply() {
+    const n = parseInt(delta, 10);
+    if (!Number.isInteger(n) || n === 0) { setMsg("Enter a non-zero integer (negative to deduct)."); return; }
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/credits`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ delta: n, reason: reason.trim() }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setMsg(`Done — balance is now ${d.balance}.`);
+        setDelta("");
+        setReason("");
+        onDone();
+      } else {
+        setMsg(d.issues?.[0]?.message ?? d.error ?? "Failed");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="pt-2 border-t border-gray-50">
+      <p className="text-xs font-semibold text-gray-500 mb-1.5">Adjust credits (audited)</p>
+      <div className="flex gap-1.5">
+        <input value={delta} onChange={(e) => setDelta(e.target.value)} placeholder="±100" inputMode="numeric"
+          className="w-16 text-xs border border-gray-200 rounded-lg px-2 py-1.5" aria-label="Credit delta" />
+        <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (required)"
+          className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5" aria-label="Reason" />
+        <button onClick={apply} disabled={busy || reason.trim().length < 3}
+          className="text-xs font-semibold text-white bg-gray-900 px-3 py-1.5 rounded-lg disabled:opacity-50 cursor-pointer">
+          Apply
+        </button>
+      </div>
+      {msg && <p className="text-[11px] text-gray-500 mt-1">{msg}</p>}
+    </div>
+  );
+}
+
 export default function AdminUserDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { token } = useAuth();
@@ -139,6 +189,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
               {d.hasActiveSession ? "Active session" : "No live session"}
             </span>
           </div>
+          <CreditAdjust userId={id} onDone={load} headers={headers} />
           <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-50">
             <button onClick={() => moderate("revoke_sessions")} className="text-xs font-semibold text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg border border-gray-200 cursor-pointer">
               Revoke sessions

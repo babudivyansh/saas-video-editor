@@ -31,6 +31,10 @@ export default function AdminPurchasesPage() {
   const [status, setStatus]       = useState("");
   const [from, setFrom]           = useState("");
   const [to, setTo]               = useState("");
+  const [refundingId, setRefundingId] = useState<string | null>(null);
+  const [refundReason, setRefundReason] = useState("");
+  const [refundBusy, setRefundBusy] = useState(false);
+  const [refundMsg, setRefundMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token || user?.role !== "ADMIN") return;
@@ -52,6 +56,28 @@ export default function AdminPurchasesPage() {
   }, [token, user?.role, page, search, planSlug, status, from, to]);
 
   useEffect(() => { load(); }, [load]);
+
+  async function refund(purchaseId: string) {
+    setRefundBusy(true);
+    setRefundMsg(null);
+    try {
+      const res = await fetch(`/api/admin/purchases/${purchaseId}/refund`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reason: refundReason.trim() }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setRefundMsg(`Refund recorded — ${d.creditsClawedBack} credits clawed back. Complete the money refund in the Razorpay dashboard.`);
+        setRefundingId(null);
+        await load();
+      } else {
+        setRefundMsg(d.error ?? "Refund failed");
+      }
+    } finally {
+      setRefundBusy(false);
+    }
+  }
 
   function doExport() {
     const params = new URLSearchParams({ export: "csv", search, planSlug, status, from, to });
@@ -127,6 +153,9 @@ export default function AdminPurchasesPage() {
         </div>
       ) : (
         <>
+          {refundMsg && (
+            <p className="text-sm text-blue-800 bg-blue-50 border border-blue-100 rounded-lg px-4 py-2 mb-4">{refundMsg}</p>
+          )}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -139,6 +168,7 @@ export default function AdminPurchasesPage() {
                     <th className="py-3.5 px-3">Credits</th>
                     <th className="py-3.5 px-3">Status</th>
                     <th className="py-3.5 px-3">Date</th>
+                    <th className="py-3.5 px-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -168,6 +198,34 @@ export default function AdminPurchasesPage() {
                         </span>
                       </td>
                       <td className="py-3 px-3 text-gray-400 text-xs whitespace-nowrap">{fmt(p.createdAt)}</td>
+                      <td className="py-3 px-3">
+                        {p.status !== "refunded" && (
+                          refundingId === p.id ? (
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                autoFocus
+                                value={refundReason}
+                                onChange={e => setRefundReason(e.target.value)}
+                                placeholder="Reason (required)"
+                                className="border border-gray-200 rounded-lg px-2 py-1 text-xs w-36"
+                              />
+                              <button
+                                onClick={() => refund(p.id)}
+                                disabled={refundReason.trim().length < 3 || refundBusy}
+                                className="text-xs font-bold text-white bg-red-600 rounded-lg px-2 py-1 disabled:opacity-50">
+                                {refundBusy ? "…" : "Refund"}
+                              </button>
+                              <button onClick={() => setRefundingId(null)} className="text-xs text-gray-400">✕</button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => { setRefundingId(p.id); setRefundReason(""); }}
+                              className="text-xs font-semibold text-red-600 hover:underline">
+                              Refund
+                            </button>
+                          )
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

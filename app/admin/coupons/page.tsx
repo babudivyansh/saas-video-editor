@@ -42,6 +42,21 @@ export default function AdminCouponsPage() {
   const [form, setForm]         = useState({ ...EMPTY });
   const [err, setErr]           = useState("");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [redemptionsFor, setRedemptionsFor] = useState<string | null>(null);
+  const [redemptions, setRedemptions] = useState<Array<{
+    id: string; discountInPaise: number; orderId: string | null; createdAt: string;
+    user: { email: string; name: string | null };
+  }> | null>(null);
+
+  async function toggleRedemptions(couponId: string) {
+    if (redemptionsFor === couponId) { setRedemptionsFor(null); return; }
+    setRedemptionsFor(couponId);
+    setRedemptions(null);
+    const res = await fetch(`/api/admin/coupons/${couponId}/redemptions`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setRedemptions(res.ok ? (await res.json()).redemptions ?? [] : []);
+  }
 
   const load = useCallback(async () => {
     if (!token || user?.role !== "ADMIN") return;
@@ -142,9 +157,15 @@ export default function AdminCouponsPage() {
                   {!c.active && <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">Inactive</span>}
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-gray-500">
+                  <button
+                    onClick={() => toggleRedemptions(c.id)}
+                    disabled={c.timesRedeemed === 0}
+                    className="text-xs text-gray-500 hover:text-blue-600 disabled:cursor-default disabled:hover:text-gray-500 cursor-pointer"
+                    title={c.timesRedeemed > 0 ? "View who redeemed this coupon" : undefined}
+                  >
                     Used <strong>{c.timesRedeemed}</strong>{c.maxRedemptions != null ? ` / ${c.maxRedemptions}` : ""}
-                  </span>
+                    {c.timesRedeemed > 0 && <span className="ml-1">{redemptionsFor === c.id ? "▴" : "▾"}</span>}
+                  </button>
                   <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer">
                     <input type="checkbox" checked={c.active} onChange={e => edit(c.id, { active: e.target.checked })} /> Active
                   </label>
@@ -158,6 +179,30 @@ export default function AdminCouponsPage() {
                   )}
                 </div>
               </div>
+
+              {redemptionsFor === c.id && (
+                <div className="mb-4 bg-gray-50 rounded-xl p-4">
+                  <p className="text-xs font-semibold text-gray-500 mb-2">Redemptions</p>
+                  {redemptions === null ? (
+                    <p className="text-xs text-gray-400">Loading…</p>
+                  ) : redemptions.length === 0 ? (
+                    <p className="text-xs text-gray-400">No redemptions recorded.</p>
+                  ) : (
+                    <table className="w-full text-xs">
+                      <tbody>
+                        {redemptions.map(r => (
+                          <tr key={r.id} className="border-t border-gray-100 first:border-0">
+                            <td className="py-1.5 text-gray-700">{r.user.email}</td>
+                            <td className="py-1.5 text-gray-400">{new Date(r.createdAt).toLocaleDateString("en-IN")}</td>
+                            <td className="py-1.5 text-right font-semibold text-gray-700">−₹{(r.discountInPaise / 100).toFixed(0)}</td>
+                            <td className="py-1.5 text-right text-gray-400 font-mono">{r.orderId ?? "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>

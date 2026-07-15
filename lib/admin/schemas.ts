@@ -204,6 +204,20 @@ export const moderateUserSchema = z
   })
   .strict();
 
+export const refundSchema = z
+  .object({
+    reason: z.string().trim().min(3).max(500),
+    clawbackCredits: z.boolean().default(true),
+  })
+  .strict();
+
+export const creditAdjustSchema = z
+  .object({
+    delta: z.number().int().min(-1_000_000).max(1_000_000).refine((v) => v !== 0, { message: "delta cannot be zero" }),
+    reason: z.string().trim().min(3).max(500),
+  })
+  .strict();
+
 export const metricsQuerySchema = z.object({
   section: z.enum(["kpis", "revenue", "ai", "social", "infra"]),
   range: z.coerce.number().pipe(z.union([z.literal(7), z.literal(30), z.literal(90)])).default(30),
