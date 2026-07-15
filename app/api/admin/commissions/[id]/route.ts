@@ -1,42 +1,60 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withAdmin, parseBody } from "@/lib/admin/api";
+import { auditAdminAction, auditIp } from "@/lib/admin/audit";
+import { commissionActionSchema } from "@/lib/admin/schemas";
 
-async function requireAdmin(req: NextRequest) {
-  const user = await getAuthUser(req);
-  if (!user) return null;
-  const dbUser = await prisma.user.findUnique({ where: { id: user.userId }, select: { role: true } });
-  return dbUser?.role === "ADMIN" ? user : null;
-}
+// POST /api/admin/commissions/[id]  body: { action: "release" | "reject", reason? }
+//
+// Financial state changes, so: one transaction, status-guarded transitions
+// (release only from pending; reject only from pending/available — a repeat
+// reject must NOT decrement the affiliate's totalEarned a second time), and
+// an audit row for both outcomes.
+export const POST = withAdmin<{ id: string }>(async (req, { admin, params }) => {
+  const { id } = params;
+  const { action, reason } = await parseBody(req, commissionActionSchema);
 
-// POST /api/admin/commissions/[id]  body: { action: "release" | "reject" }
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const result = await prisma.$transaction(async (tx) => {
+    const existing = await tx.commission.findUnique({ where: { id } });
+    if (!existing) return { error: "Commission not found", status: 404 } as const;
 
-  const { id } = await params;
-  const { action } = await req.json();
+    if (action === "release") {
+      if (existing.status !== "pending") {
+        return { error: `Cannot release a ${existing.status} commission`, status: 409 } as const;
+      }
+      const commission = await tx.commission.update({
+        where: { id },
+        data: { status: "available", availableAt: new Date() },
+      });
+      return { commission, before: existing } as const;
+    }
 
-  if (action === "release") {
-    const commission = await prisma.commission.update({
-      where: { id },
-      data: { status: "available", availableAt: new Date() },
+    if (existing.status !== "pending" && existing.status !== "available") {
+      return { error: `Cannot reject a ${existing.status} commission`, status: 409 } as const;
+    }
+    const commission = await tx.commission.update({ where: { id }, data: { status: "rejected" } });
+    await tx.affiliate.update({
+      where: { id: existing.affiliateId },
+      data: { totalEarned: { decrement: existing.amount } },
     });
-    return NextResponse.json({ commission });
+    return { commission, before: existing } as const;
+  });
+
+  if ("error" in result) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
   }
 
-  if (action === "reject") {
-    const commission = await prisma.commission.update({
-      where: { id },
-      data: { status: "rejected" },
-    });
-    // Deduct from affiliate totalEarned
-    await prisma.affiliate.update({
-      where: { id: commission.affiliateId },
-      data: { totalEarned: { decrement: commission.amount } },
-    });
-    return NextResponse.json({ commission });
-  }
+  await auditAdminAction(
+    admin.userId,
+    action === "release" ? "commission.released" : "commission.rejected",
+    id,
+    {
+      before: { status: result.before.status, amount: result.before.amount, affiliateId: result.before.affiliateId },
+      after: { status: result.commission.status },
+      reason,
+      ip: auditIp(req),
+    },
+  );
 
-  return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-}
+  return NextResponse.json({ commission: result.commission });
+});

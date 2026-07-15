@@ -1,36 +1,29 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withAdmin, parseBody } from "@/lib/admin/api";
+import { auditAdminAction, auditIp } from "@/lib/admin/audit";
+import { affiliatePatchSchema } from "@/lib/admin/schemas";
 
-async function requireAdmin(req: NextRequest) {
-  const user = await getAuthUser(req);
-  if (!user) return null;
-  const dbUser = await prisma.user.findUnique({ where: { id: user.userId }, select: { role: true } });
-  return dbUser?.role === "ADMIN" ? user : null;
-}
+// PATCH /api/admin/affiliates/[id]  body: { status?, commissionRate? }
+// status is a strict enum and commissionRate is bounded 0–0.5 — an admin typo
+// like `2` (meaning 20%) must fail loudly, not become a 200% commission.
+export const PATCH = withAdmin<{ id: string }>(async (req, { admin, params }) => {
+  const { id } = params;
+  const data = await parseBody(req, affiliatePatchSchema);
 
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-
-  const { id } = await params;
-  const body = await req.json();
-  const { status, commissionRate } = body;
-
-  const data: Record<string, unknown> = {};
-  if (status !== undefined) data.status = status;
-  if (commissionRate !== undefined) data.commissionRate = parseFloat(commissionRate);
+  const before = await prisma.affiliate.findUnique({
+    where: { id },
+    select: { status: true, commissionRate: true },
+  });
+  if (!before) return NextResponse.json({ error: "Affiliate not found" }, { status: 404 });
 
   const affiliate = await prisma.affiliate.update({ where: { id }, data });
 
-  await prisma.auditLog.create({
-    data: {
-      adminId: admin.userId,
-      action: "affiliate.updated",
-      targetId: id,
-      after: JSON.stringify(data),
-    },
+  await auditAdminAction(admin.userId, "affiliate.updated", id, {
+    before,
+    after: data,
+    ip: auditIp(req),
   });
 
   return NextResponse.json({ affiliate });
-}
+});

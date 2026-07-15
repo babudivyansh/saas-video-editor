@@ -1,15 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import AdminShell from "@/app/admin/AdminShell";
-
-function token() {
-  return typeof window !== "undefined" ? (localStorage.getItem("token") ?? "") : "";
-}
-
-function authHeaders() {
-  return { "Content-Type": "application/json", Authorization: `Bearer ${token()}` };
-}
+import { useAuth } from "@/app/components/AuthContext";
 
 interface AffiliateRow {
   id: string;
@@ -19,8 +12,9 @@ interface AffiliateRow {
   totalEarned: number;
   totalPaid: number;
   user: { name: string | null; email: string };
-  referrals: { id: string; status: string }[];
-  commissions: { amount: number; status: string }[];
+  referralCount: number;
+  convertedReferrals: number;
+  commissionTotals: { pending: number; available: number; paid: number; rejected: number; count: number };
 }
 
 interface CommissionRow {
@@ -50,34 +44,60 @@ const STATUS_COLORS: Record<string, string> = {
   flagged: "bg-orange-100 text-orange-700",
 };
 
+const PAGE_LIMIT = 100;
+
 function AffiliateContent() {
+  const { token } = useAuth();
   const [tab, setTab] = useState<"affiliates" | "commissions" | "payouts">("affiliates");
   const [affiliates, setAffiliates] = useState<AffiliateRow[]>([]);
+  const [affiliateTotal, setAffiliateTotal] = useState(0);
   const [commissions, setCommissions] = useState<CommissionRow[]>([]);
+  const [commissionTotal, setCommissionTotal] = useState(0);
   const [statusFilter, setStatusFilter] = useState("all");
   const [payoutRef, setPayoutRef] = useState<Record<string, string>>({});
   const [payoutMsg, setPayoutMsg] = useState<Record<string, string>>({});
+  const [actionMsg, setActionMsg] = useState<string | null>(null);
+  const [confirmReject, setConfirmReject] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    setLoading(true);
-    Promise.all([
-      fetch("/api/admin/affiliates", { headers: authHeaders() }).then(r => r.json()),
-      fetch("/api/admin/commissions", { headers: authHeaders() }).then(r => r.json()),
-    ]).then(([a, c]) => {
-      setAffiliates(a.affiliates ?? []);
-      setCommissions(c.commissions ?? []);
-      setLoading(false);
-    });
-  }, []);
+  const authHeaders = useCallback(
+    () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` }),
+    [token],
+  );
 
+  const loadAffiliates = useCallback(async (page: number, append: boolean) => {
+    const d = await fetch(`/api/admin/affiliates?page=${page}&limit=${PAGE_LIMIT}`, { headers: authHeaders() }).then(r => r.json());
+    setAffiliates(prev => (append ? [...prev, ...(d.affiliates ?? [])] : d.affiliates ?? []));
+    setAffiliateTotal(d.total ?? 0);
+  }, [authHeaders]);
+
+  const loadCommissions = useCallback(async (page: number, append: boolean) => {
+    const d = await fetch(`/api/admin/commissions?page=${page}&limit=${PAGE_LIMIT}`, { headers: authHeaders() }).then(r => r.json());
+    setCommissions(prev => (append ? [...prev, ...(d.commissions ?? [])] : d.commissions ?? []));
+    setCommissionTotal(d.total ?? 0);
+  }, [authHeaders]);
+
+  useEffect(() => {
+    if (!token) return;
+    setLoading(true);
+    Promise.all([loadAffiliates(1, false), loadCommissions(1, false)]).finally(() => setLoading(false));
+  }, [token, loadAffiliates, loadCommissions]);
+
+  // Surfaces the new structured validation errors instead of silently
+  // applying an optimistic update the server may have rejected.
   async function updateAffiliate(id: string, data: object) {
-    await fetch(`/api/admin/affiliates/${id}`, {
+    const res = await fetch(`/api/admin/affiliates/${id}`, {
       method: "PATCH",
       headers: authHeaders(),
       body: JSON.stringify(data),
     });
-    setAffiliates(prev => prev.map(a => a.id === id ? { ...a, ...data } : a));
+    if (res.ok) {
+      setActionMsg(null);
+      setAffiliates(prev => prev.map(a => a.id === id ? { ...a, ...data } : a));
+    } else {
+      const d = await res.json().catch(() => ({}));
+      setActionMsg(d.issues?.[0] ? `${d.issues[0].path}: ${d.issues[0].message}` : d.error ?? "Update failed");
+    }
   }
 
   async function commissionAction(id: string, action: "release" | "reject") {
@@ -87,7 +107,13 @@ function AffiliateContent() {
       body: JSON.stringify({ action }),
     });
     const data = await res.json();
-    setCommissions(prev => prev.map(c => c.id === id ? { ...c, status: data.commission?.status ?? c.status } : c));
+    if (res.ok) {
+      setActionMsg(null);
+      setCommissions(prev => prev.map(c => c.id === id ? { ...c, status: data.commission?.status ?? c.status } : c));
+    } else {
+      setActionMsg(data.error ?? "Action failed");
+    }
+    setConfirmReject(null);
   }
 
   async function markPaid(affiliateId: string) {
@@ -101,8 +127,8 @@ function AffiliateContent() {
     const data = await res.json();
     if (data.success) {
       setPayoutMsg(m => ({ ...m, [affiliateId]: `Paid ₹${data.amount?.toFixed(2)} across ${data.commissions} commissions.` }));
-      fetch("/api/admin/commissions", { headers: authHeaders() }).then(r => r.json()).then(c => setCommissions(c.commissions ?? []));
-      fetch("/api/admin/affiliates", { headers: authHeaders() }).then(r => r.json()).then(a => setAffiliates(a.affiliates ?? []));
+      loadCommissions(1, false);
+      loadAffiliates(1, false);
     } else {
       setPayoutMsg(m => ({ ...m, [affiliateId]: data.error ?? "Error" }));
     }
@@ -110,10 +136,7 @@ function AffiliateContent() {
 
   const filteredCommissions = statusFilter === "all" ? commissions : commissions.filter(c => c.status === statusFilter);
 
-  const payoutCandidates = affiliates.filter(a => {
-    const avail = a.commissions.filter(c => c.status === "available").reduce((s, c) => s + c.amount, 0);
-    return avail >= 500;
-  });
+  const payoutCandidates = affiliates.filter(a => a.commissionTotals.available >= 500);
 
   return (
     <>
@@ -131,6 +154,9 @@ function AffiliateContent() {
       </div>
 
       {loading && <p className="text-gray-400 text-sm">Loading...</p>}
+      {actionMsg && (
+        <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg px-4 py-2 mb-4">{actionMsg}</p>
+      )}
 
       {/* Affiliates tab */}
       {tab === "affiliates" && !loading && (
@@ -150,7 +176,7 @@ function AffiliateContent() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {affiliates.map(a => {
-                const converted = a.referrals.filter(r => r.status === "converted").length;
+                const converted = a.convertedReferrals;
                 return (
                   <tr key={a.id} className="hover:bg-gray-50">
                     <td className="px-5 py-3">
@@ -166,7 +192,7 @@ function AffiliateContent() {
                         className="w-16 border border-gray-200 rounded px-2 py-1 text-xs"
                         onBlur={e => updateAffiliate(a.id, { commissionRate: parseFloat(e.target.value) / 100 })} />%
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{a.referrals.length} ({converted} converted)</td>
+                    <td className="px-4 py-3 text-gray-600">{a.referralCount} ({converted} converted)</td>
                     <td className="px-4 py-3 text-gray-800 font-medium">₹{a.totalEarned.toFixed(2)}</td>
                     <td className="px-4 py-3 text-gray-800">₹{a.totalPaid.toFixed(2)}</td>
                     <td className="px-4 py-3">
@@ -182,6 +208,14 @@ function AffiliateContent() {
               )}
             </tbody>
           </table>
+          {affiliates.length < affiliateTotal && (
+            <button
+              onClick={() => loadAffiliates(Math.floor(affiliates.length / PAGE_LIMIT) + 1, true)}
+              className="w-full py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-800 border-t border-gray-50"
+            >
+              Load more ({affiliates.length} of {affiliateTotal})
+            </button>
+          )}
         </div>
       )}
 
@@ -228,7 +262,17 @@ function AffiliateContent() {
                         <button onClick={() => commissionAction(c.id, "release")} className="text-xs text-blue-600 hover:underline">Release</button>
                       )}
                       {(c.status === "pending" || c.status === "available") && (
-                        <button onClick={() => commissionAction(c.id, "reject")} className="text-xs text-red-500 hover:underline">Reject</button>
+                        confirmReject === c.id ? (
+                          <button
+                            onClick={() => commissionAction(c.id, "reject")}
+                            onBlur={() => setConfirmReject(null)}
+                            className="text-xs font-bold text-white bg-red-600 rounded px-2 py-0.5"
+                          >
+                            Confirm reject?
+                          </button>
+                        ) : (
+                          <button onClick={() => setConfirmReject(c.id)} className="text-xs text-red-500 hover:underline">Reject</button>
+                        )
                       )}
                     </td>
                   </tr>
@@ -238,6 +282,14 @@ function AffiliateContent() {
                 )}
               </tbody>
             </table>
+            {commissions.length < commissionTotal && (
+              <button
+                onClick={() => loadCommissions(Math.floor(commissions.length / PAGE_LIMIT) + 1, true)}
+                className="w-full py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-800 border-t border-gray-50"
+              >
+                Load more ({commissions.length} of {commissionTotal})
+              </button>
+            )}
           </div>
         </>
       )}
@@ -251,7 +303,7 @@ function AffiliateContent() {
             </div>
           )}
           {payoutCandidates.map(a => {
-            const avail = a.commissions.filter(c => c.status === "available").reduce((s, c) => s + c.amount, 0);
+            const avail = a.commissionTotals.available;
             return (
               <div key={a.id} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
                 <div className="flex items-center justify-between gap-4 flex-wrap">

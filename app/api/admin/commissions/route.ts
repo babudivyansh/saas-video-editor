@@ -1,27 +1,27 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withAdmin, parseQuery } from "@/lib/admin/api";
+import { pageQuerySchema } from "@/lib/admin/schemas";
 
-async function requireAdmin(req: NextRequest) {
-  const user = await getAuthUser(req);
-  if (!user) return null;
-  const dbUser = await prisma.user.findUnique({ where: { id: user.userId }, select: { role: true } });
-  return dbUser?.role === "ADMIN" ? user : null;
-}
+// GET /api/admin/commissions?status=&page=&limit=
+// Paginated (the nested includes are fine once bounded to ≤200 rows).
+export const GET = withAdmin(async (req) => {
+  const { page, limit, status } = parseQuery(req, pageQuerySchema);
 
-export async function GET(req: NextRequest) {
-  if (!await requireAdmin(req)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const where = status ? { status } : undefined;
+  const [commissions, total] = await Promise.all([
+    prisma.commission.findMany({
+      where,
+      include: {
+        affiliate: { include: { user: { select: { name: true, email: true } } } },
+        referral: { include: { referredUser: { select: { name: true, email: true } } } },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.commission.count({ where }),
+  ]);
 
-  const status = new URL(req.url).searchParams.get("status") ?? undefined;
-
-  const commissions = await prisma.commission.findMany({
-    where: status ? { status } : undefined,
-    include: {
-      affiliate: { include: { user: { select: { name: true, email: true } } } },
-      referral: { include: { referredUser: { select: { name: true, email: true } } } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  return NextResponse.json({ commissions });
-}
+  return NextResponse.json({ commissions, total, page, limit });
+});

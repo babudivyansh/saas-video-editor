@@ -31,29 +31,38 @@ export default function AdminSubscriptionsPage() {
   const [loading, setLoading] = useState(true);
   const [actingId, setActingId] = useState<string | null>(null);
   const [extendMonths, setExtendMonths] = useState<Record<string, string>>({});
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [limit] = useState(50);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token || user?.role !== "ADMIN") return;
     setLoading(true);
-    const res = await fetch("/api/admin/subscriptions", { headers: { Authorization: `Bearer ${token}` } });
-    const data = res.ok ? await res.json() : { subscribers: [] };
+    const res = await fetch(`/api/admin/subscriptions?page=${page}&limit=${limit}`, { headers: { Authorization: `Bearer ${token}` } });
+    const data = res.ok ? await res.json() : { subscribers: [], total: 0 };
     setSubs(data.subscribers ?? []);
+    setTotal(data.total ?? 0);
     setLoading(false);
-  }, [token, user?.role]);
+  }, [token, user?.role, page, limit]);
 
   useEffect(() => { load(); }, [load]);
 
   async function manualRefill(userId: string) {
     setActingId(userId);
+    setNotice(null);
     try {
       const res = await fetch("/api/admin/subscriptions/refill", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ userId }),
       });
+      const d = await res.json().catch(() => ({}));
       if (res.ok) {
-        const d = await res.json() as { creditsAdded: number };
         setSubs(prev => prev.map(s => s.id === userId ? { ...s, credits: s.credits + d.creditsAdded } : s));
+      } else {
+        // e.g. 409 when the refill isn't due yet (idempotency guard)
+        setNotice(d.error ?? "Refill failed");
       }
     } finally {
       setActingId(null);
@@ -78,10 +87,14 @@ export default function AdminSubscriptionsPage() {
     <AdminShell title="Subscriptions">
       <div className="flex items-center justify-between mb-6">
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-4">
-          <p className="text-3xl font-extrabold text-gray-900">{subs.length}</p>
+          <p className="text-3xl font-extrabold text-gray-900">{total}</p>
           <p className="text-xs text-gray-400 mt-0.5">Active Subscribers</p>
         </div>
       </div>
+
+      {notice && (
+        <p className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-4 py-2 mb-4">{notice}</p>
+      )}
 
       {loading ? (
         <p className="text-sm text-gray-400">Loading subscriptions…</p>
@@ -166,6 +179,29 @@ export default function AdminSubscriptionsPage() {
               </tbody>
             </table>
           </div>
+          {total > limit && (
+            <div className="flex items-center justify-between px-5 py-3 border-t border-gray-50 text-xs text-gray-500">
+              <span>
+                Page {page} of {Math.max(1, Math.ceil(total / limit))} · {total} subscribers
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className="px-3 py-1 rounded-lg border border-gray-200 font-semibold disabled:opacity-40"
+                >
+                  Prev
+                </button>
+                <button
+                  onClick={() => setPage(p => p + 1)}
+                  disabled={page >= Math.ceil(total / limit)}
+                  className="px-3 py-1 rounded-lg border border-gray-200 font-semibold disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </AdminShell>

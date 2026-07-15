@@ -1,47 +1,38 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { writeAuditLog } from "@/lib/tool-config";
+import { withAdmin, parseBody } from "@/lib/admin/api";
+import { auditAdminAction, auditIp } from "@/lib/admin/audit";
+import { planCreateSchema } from "@/lib/admin/schemas";
 
-export async function GET(req: NextRequest) {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-
+export const GET = withAdmin(async () => {
   const plans = await prisma.plan.findMany({ orderBy: { sortOrder: "asc" } });
   return NextResponse.json({ plans });
-}
+});
 
-export async function POST(req: NextRequest) {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+export const POST = withAdmin(async (req, { admin }) => {
+  const body = await parseBody(req, planCreateSchema);
 
-  const body = await req.json();
-  const { slug, name, priceInPaise, credits } = body;
-  if (!slug || !name || priceInPaise == null || credits == null) {
-    return NextResponse.json({ error: "slug, name, priceInPaise, credits are required" }, { status: 400 });
-  }
-
-  const exists = await prisma.plan.findUnique({ where: { slug } });
+  const exists = await prisma.plan.findUnique({ where: { slug: body.slug } });
   if (exists) return NextResponse.json({ error: "A plan with that slug already exists" }, { status: 409 });
 
   const plan = await prisma.plan.create({
     data: {
-      slug: String(slug).trim(),
-      name: String(name).trim(),
-      priceInPaise: Number(priceInPaise),
-      credits: Number(credits),
+      slug: body.slug,
+      name: body.name,
+      priceInPaise: body.priceInPaise,
+      credits: body.credits,
       currency: body.currency ?? "INR",
-      features: Array.isArray(body.features) ? body.features : [],
+      features: body.features ?? [],
       active: body.active ?? true,
-      sortOrder: Number(body.sortOrder ?? 0),
+      sortOrder: body.sortOrder ?? 0,
       kind: body.kind ?? "pack",
-      intervalMonths: body.intervalMonths != null ? Number(body.intervalMonths) : null,
-      monthlyCredits: body.monthlyCredits != null ? Number(body.monthlyCredits) : null,
+      intervalMonths: body.intervalMonths ?? null,
+      monthlyCredits: body.monthlyCredits ?? null,
       tier: body.tier ?? null,
     },
   });
 
-  await writeAuditLog({ adminId: admin.userId, action: "plan.created", targetId: plan.id, after: plan });
+  await auditAdminAction(admin.userId, "plan.created", plan.id, { after: plan, ip: auditIp(req) });
 
   return NextResponse.json({ plan }, { status: 201 });
-}
+});

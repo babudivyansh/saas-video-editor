@@ -1,11 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withAdmin } from "@/lib/admin/api";
 
-export async function GET(req: NextRequest) {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-
+export const GET = withAdmin(async (req) => {
   const { searchParams } = new URL(req.url);
   const search = searchParams.get("search")?.trim() ?? "";
   const page   = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
@@ -40,4 +37,4 @@ export async function GET(req: NextRequest) {
   ]);
 
   return NextResponse.json({ users, total, page, limit });
-}
+});

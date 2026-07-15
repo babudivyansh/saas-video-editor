@@ -1,30 +1,19 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
-async function requireAdmin(req: NextRequest) {
-  const user = await getAuthUser(req);
-  if (!user) return null;
-  const dbUser = await prisma.user.findUnique({ where: { id: user.userId }, select: { role: true } });
-  return dbUser?.role === "ADMIN" ? user : null;
-}
+import { withAdmin, parseBody } from "@/lib/admin/api";
+import { auditAdminAction, auditIp } from "@/lib/admin/audit";
+import { payoutSchema } from "@/lib/admin/schemas";
 
 // POST /api/admin/payouts/[affiliateId]  body: { payoutRef: string }
-export async function POST(req: NextRequest, { params }: { params: Promise<{ affiliateId: string }> }) {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-
-  const { affiliateId } = await params;
-  const { payoutRef } = await req.json();
-
-  if (!payoutRef?.trim()) {
-    return NextResponse.json({ error: "payoutRef is required" }, { status: 400 });
-  }
+// Sweeps all "available" commissions to "paid" in one transaction. Naturally
+// idempotent: a repeat POST finds nothing available and pays out zero.
+export const POST = withAdmin<{ affiliateId: string }>(async (req, { admin, params }) => {
+  const { affiliateId } = params;
+  const { payoutRef } = await parseBody(req, payoutSchema);
 
   const availableCommissions = await prisma.commission.findMany({
     where: { affiliateId, status: "available" },
   });
-
   if (availableCommissions.length === 0) {
     return NextResponse.json({ error: "No available commissions to pay out" }, { status: 400 });
   }
@@ -43,14 +32,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ aff
     }),
   ]);
 
-  await prisma.auditLog.create({
-    data: {
-      adminId: admin.userId,
-      action: "affiliate.paid",
-      targetId: affiliateId,
-      after: JSON.stringify({ amount: totalPaid, payoutRef, commissions: availableCommissions.length }),
-    },
+  await auditAdminAction(admin.userId, "affiliate.paid", affiliateId, {
+    after: { amount: totalPaid, payoutRef, commissions: availableCommissions.length },
+    ip: auditIp(req),
   });
 
   return NextResponse.json({ success: true, amount: totalPaid, commissions: availableCommissions.length });
-}
+});
