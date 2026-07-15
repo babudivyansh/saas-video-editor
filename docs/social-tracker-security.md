@@ -144,8 +144,11 @@ contact info, or audience PII (demographics). Raw provider payloads kept in
   tokens by setting accounts to `needs_reauth` (forcing re-consent), and revoke at
   the providers. Because tokens are read-only and per-user, blast radius is limited
   to analytics reads.
-- **Audit:** connect / disconnect / refresh actions can be recorded via the
-  existing `AuditLog` model for accountability.
+- **Audit:** connect / disconnect / manual refresh / needs_reauth transitions
+  are recorded in the existing `AuditLog` model (actions `social.connect`,
+  `social.disconnect`, `social.refresh`, `social.needs_reauth` — see
+  `recordAudit` in `lib/social/service.ts`). Writes are best-effort: an audit
+  failure never fails the user action.
 
 ---
 

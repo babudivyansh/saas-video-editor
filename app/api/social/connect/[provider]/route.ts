@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSubscriber } from "@/lib/auth";
 import { buildAuthUrl } from "@/lib/social/service";
+import { availableProviders } from "@/lib/social/providers";
 import type { ProviderId } from "@/lib/social/types";
-
-const VALID: ProviderId[] = ["youtube", "instagram", "facebook"];
 
 // Returns the provider's OAuth authorize URL for the (subscribed) caller to
 // redirect to. Subscriber-gated — Social Tracker is a paid feature.
@@ -13,7 +12,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
     return NextResponse.json({ error: "Social Tracker is available on paid plans." }, { status: 402 });
   }
   const { provider } = await params;
-  if (!VALID.includes(provider as ProviderId)) {
+  if (!availableProviders().includes(provider as ProviderId)) {
     return NextResponse.json({ error: "Unknown provider" }, { status: 400 });
   }
   try {

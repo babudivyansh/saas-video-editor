@@ -35,6 +35,7 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   "video-compressor": { creditCost: 0, costUsd: 0, costBasis: "FFmpeg (local compute only)", generationType: "utility" },
   "enhance-prompt":   { creditCost: 0, costUsd: 0, costBasis: "Google Gemini text, negligible cost", generationType: "utility" },
   "brainstormer":     { creditCost: 1, costUsd: null, costBasis: "Google Gemini text, near-zero real cost", generationType: "utility" },
+  "social-insights":  { creditCost: 2, costUsd: null, costBasis: "Google Gemini text over computed social metrics, near-zero real cost", generationType: "utility" },
   "cut-and-crop":     { creditCost: 1, costUsd: 0, costBasis: "FFmpeg (local compute only)", generationType: "utility" },
   // Duration-scaled (2-20 credits — see creditCostForDuration in the route)
   // since Phase 2 replaced the old fixed-band blur with real per-frame OCR

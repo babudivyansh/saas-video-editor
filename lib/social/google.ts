@@ -1,5 +1,6 @@
 import { redirectUri } from "./oauth";
-import type { NormalizedAccount, NormalizedPost, OAuthTokens, ProviderSync } from "./types";
+import { ProviderApiError } from "./errors";
+import type { AudienceRow, NormalizedAccount, NormalizedPost, OAuthTokens, ProviderSync, SyncOptions } from "./types";
 import { env } from "@/lib/env";
 
 // YouTube via Google OAuth.
@@ -79,7 +80,7 @@ export async function exchangeCode(code: string, verifier: string): Promise<OAut
       code_verifier: verifier,
     }),
   });
-  if (!res.ok) throw new Error(`google token exchange failed: ${res.status} ${await res.text()}`);
+  if (!res.ok) throw new ProviderApiError(`google token exchange failed: ${res.status}`, res.status, await res.text());
   return toTokens(await res.json());
 }
 
@@ -94,7 +95,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<OAuthTok
       grant_type: "refresh_token",
     }),
   });
-  if (!res.ok) throw new Error(`google token refresh failed: ${res.status}`);
+  if (!res.ok) throw new ProviderApiError(`google token refresh failed: ${res.status}`, res.status, await res.text());
   return toTokens(await res.json(), refreshToken);
 }
 
@@ -104,7 +105,7 @@ export async function revoke(token: string): Promise<void> {
 
 async function api(path: string, accessToken: string): Promise<Record<string, unknown>> {
   const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${accessToken}` } });
-  if (!res.ok) throw new Error(`youtube api ${path} failed: ${res.status} ${await res.text()}`);
+  if (!res.ok) throw new ProviderApiError(`youtube api ${path} failed: ${res.status}`, res.status, await res.text());
   return res.json();
 }
 
@@ -135,8 +136,18 @@ async function fetchWatchTime(accessToken: string, videoIds: string[]): Promise<
   }
 }
 
+// First sync pulls deeper history so charts start meaningful; steady-state
+// syncs only need the newest page (uploads come back newest-first, so a
+// 20-item page always covers everything since the last 12h-ish sync).
+const BACKFILL_POSTS = 100;
+const STEADY_POSTS = 20;
+
+function* chunks<T>(arr: T[], size: number): Generator<T[]> {
+  for (let i = 0; i < arr.length; i += size) yield arr.slice(i, i + size);
+}
+
 // Fetch the authenticated user's channel + recent uploads with analytics.
-export async function sync(accessToken: string): Promise<ProviderSync> {
+export async function sync(accessToken: string, opts?: SyncOptions): Promise<ProviderSync> {
   const ch = (await api("/channels?part=snippet,statistics,contentDetails&mine=true", accessToken)) as {
     items?: Array<{
       id: string;
@@ -161,15 +172,25 @@ export async function sync(accessToken: string): Promise<ProviderSync> {
   };
 
   const uploads = channel.contentDetails?.relatedPlaylists?.uploads;
-  let posts: NormalizedPost[] = [];
+  const posts: NormalizedPost[] = [];
   if (uploads) {
-    const pl = (await api(`/playlistItems?part=contentDetails&maxResults=20&playlistId=${uploads}`, accessToken)) as {
-      items?: Array<{ contentDetails?: { videoId?: string } }>;
-    };
-    const ids = (pl.items ?? []).map((i) => i.contentDetails?.videoId).filter((v): v is string => !!v);
-    if (ids.length > 0) {
+    const wanted = opts?.backfill ? BACKFILL_POSTS : STEADY_POSTS;
+    const ids: string[] = [];
+    let pageToken: string | undefined;
+    do {
+      const pl = (await api(
+        `/playlistItems?part=contentDetails&maxResults=${Math.min(50, wanted - ids.length)}&playlistId=${uploads}` +
+          (pageToken ? `&pageToken=${pageToken}` : ""),
+        accessToken,
+      )) as { items?: Array<{ contentDetails?: { videoId?: string } }>; nextPageToken?: string };
+      ids.push(...(pl.items ?? []).map((i) => i.contentDetails?.videoId).filter((v): v is string => !!v));
+      pageToken = pl.nextPageToken;
+    } while (pageToken && ids.length < wanted);
+
+    // /videos and the Analytics filter both cap at 50 ids per call.
+    for (const batch of chunks(ids, 50)) {
       const [vids, watch] = await Promise.all([
-        api(`/videos?part=snippet,statistics,contentDetails&id=${ids.join(",")}`, accessToken) as Promise<{
+        api(`/videos?part=snippet,statistics,contentDetails&id=${batch.join(",")}`, accessToken) as Promise<{
           items?: Array<{
             id: string;
             snippet?: { title?: string; publishedAt?: string; thumbnails?: { medium?: { url?: string } } };
@@ -177,24 +198,63 @@ export async function sync(accessToken: string): Promise<ProviderSync> {
             contentDetails?: { duration?: string };
           }>;
         }>,
-        fetchWatchTime(accessToken, ids),
+        fetchWatchTime(accessToken, batch),
       ]);
-      posts = (vids.items ?? []).map((v) => ({
-        providerPostId: v.id,
-        caption: v.snippet?.title,
-        thumbnailUrl: v.snippet?.thumbnails?.medium?.url,
-        permalink: `https://www.youtube.com/watch?v=${v.id}`,
-        mediaType: isShort(v.contentDetails?.duration) ? "short" : "video",
-        publishedAt: v.snippet?.publishedAt ? new Date(v.snippet.publishedAt) : undefined,
-        views: Number(v.statistics?.viewCount ?? 0),
-        likes: Number(v.statistics?.likeCount ?? 0),
-        comments: Number(v.statistics?.commentCount ?? 0),
-        watchTimeSec: watch[v.id],
-      }));
+      posts.push(
+        ...(vids.items ?? []).map((v) => ({
+          providerPostId: v.id,
+          caption: v.snippet?.title,
+          thumbnailUrl: v.snippet?.thumbnails?.medium?.url,
+          permalink: `https://www.youtube.com/watch?v=${v.id}`,
+          mediaType: isShort(v.contentDetails?.duration) ? "short" : "video",
+          publishedAt: v.snippet?.publishedAt ? new Date(v.snippet.publishedAt) : undefined,
+          views: Number(v.statistics?.viewCount ?? 0),
+          likes: Number(v.statistics?.likeCount ?? 0),
+          comments: Number(v.statistics?.commentCount ?? 0),
+          watchTimeSec: watch[v.id],
+        })),
+      );
     }
   }
 
   return { account, posts };
+}
+
+// Audience demographics for the authenticated channel (viewer percentages,
+// last 90 days) via the YouTube Analytics API. Only available for owned
+// channels — exactly our case.
+export async function fetchAudience(accessToken: string): Promise<AudienceRow[]> {
+  const end = new Date().toISOString().slice(0, 10);
+  const start = new Date(Date.now() - 90 * 86400_000).toISOString().slice(0, 10);
+  const report = async (dimensions: string, metrics: string) => {
+    const p = new URLSearchParams({ ids: "channel==MINE", startDate: start, endDate: end, metrics, dimensions, maxResults: "50" });
+    const res = await fetch(`${ANALYTICS}?${p.toString()}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!res.ok) throw new ProviderApiError(`youtube analytics ${dimensions} failed: ${res.status}`, res.status, await res.text());
+    return ((await res.json()) as { rows?: Array<Array<string | number>> }).rows ?? [];
+  };
+
+  const out: AudienceRow[] = [];
+  // ageGroup×gender viewerPercentage rows: ["age18-24","female",12.3]
+  const demo = await report("ageGroup,gender", "viewerPercentage");
+  const byAge = new Map<string, number>();
+  const byGender = new Map<string, number>();
+  for (const [age, gender, pct] of demo) {
+    const bucket = String(age).replace(/^age/, "");
+    byAge.set(bucket, (byAge.get(bucket) ?? 0) + Number(pct));
+    byGender.set(String(gender), (byGender.get(String(gender)) ?? 0) + Number(pct));
+  }
+  for (const [bucket, value] of byAge) out.push({ dimension: "age", bucket, value });
+  for (const [bucket, value] of byGender) out.push({ dimension: "gender", bucket, value });
+
+  // country views → percentage of total views
+  const countries = await report("country", "views");
+  const total = countries.reduce((s, r) => s + Number(r[1] ?? 0), 0);
+  if (total > 0) {
+    for (const [country, views] of countries) {
+      out.push({ dimension: "country", bucket: String(country), value: (Number(views) / total) * 100 });
+    }
+  }
+  return out;
 }
 
 export class NeedsReauthError extends Error {

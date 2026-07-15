@@ -4,6 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import { EmptyState } from "@/app/components/ui/EmptyState";
+import { AccountAnalytics } from "./components/AccountAnalytics";
+import { CompetitorsSection } from "./components/CompetitorsSection";
+
+const RANGES = [7, 30, 90] as const;
 
 function IcSocial() {
   return (
@@ -14,7 +18,7 @@ function IcSocial() {
   );
 }
 
-type Provider = "youtube" | "instagram" | "facebook";
+type Provider = "youtube" | "instagram" | "facebook" | "tiktok";
 
 interface Post {
   id: string;
@@ -44,6 +48,8 @@ interface Account {
   status: string;
   followers?: number | null;
   lastSyncedAt?: string | null;
+  lastSyncStatus?: string | null;
+  lastSyncError?: string | null;
   posts: Post[];
   snapshots: Snapshot[];
 }
@@ -82,13 +88,21 @@ const PLATFORMS: Record<Provider, { name: string; color: string; bg: string; ico
       </svg>
     ),
   },
+  tiktok: {
+    name: "TikTok",
+    color: "#161823",
+    bg: "#f3f4f6",
+    note: "Follower count, video views & engagement",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+        <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005.1 20.14a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1.14-.14z" />
+      </svg>
+    ),
+  },
 };
 
-const ORDER: Provider[] = ["youtube", "instagram", "facebook"];
+const DEFAULT_PROVIDERS: Provider[] = ["youtube", "instagram", "facebook"];
 const STALE_MS = 12 * 3600_000;
-
-const fmt = (n?: number | null) =>
-  n == null ? "—" : Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 
 function timeAgo(iso?: string | null): string {
   if (!iso) return "never";
@@ -107,25 +121,6 @@ const ERRORS: Record<string, string> = {
   missing_code: "The provider didn't return an authorization code.",
 };
 
-// Tiny dependency-free trend line from snapshot values.
-function Sparkline({ values, color }: { values: number[]; color: string }) {
-  const pts = values.filter((v) => typeof v === "number");
-  if (pts.length < 2) return <div className="h-10" />;
-  const min = Math.min(...pts);
-  const max = Math.max(...pts);
-  const span = max - min || 1;
-  const w = 120;
-  const h = 40;
-  const d = pts
-    .map((v, i) => `${(i / (pts.length - 1)) * w},${h - ((v - min) / span) * (h - 4) - 2}`)
-    .join(" ");
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="h-10 w-full" preserveAspectRatio="none">
-      <polyline points={d} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 export default function SocialTrackerPage() {
   const { token } = useAuth();
   const [accounts, setAccounts] = useState<Account[] | null>(null);
@@ -133,7 +128,21 @@ export default function SocialTrackerPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
+  const [range, setRange] = useState<number>(30);
+  const [available, setAvailable] = useState<Provider[]>(DEFAULT_PROVIDERS);
   const autoRefreshed = useRef(false);
+
+  // Date range lives in the URL so a filtered view survives reload and can be shared.
+  useEffect(() => {
+    const r = Number(new URLSearchParams(window.location.search).get("range"));
+    if (RANGES.includes(r as (typeof RANGES)[number])) setRange(r);
+  }, []);
+  function changeRange(r: number) {
+    setRange(r);
+    const url = new URL(window.location.href);
+    url.searchParams.set("range", String(r));
+    window.history.replaceState({}, "", url.toString());
+  }
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -146,6 +155,7 @@ export default function SocialTrackerPage() {
     if (res.ok) {
       const d = await res.json();
       setAccounts(d.accounts ?? []);
+      if (Array.isArray(d.providers)) setAvailable(d.providers.filter((p: string) => p in PLATFORMS));
       setGated(false);
     }
     setLoading(false);
@@ -203,11 +213,37 @@ export default function SocialTrackerPage() {
     if (!token) return;
     setBusy(id);
     try {
-      await fetch(`/api/social/accounts/${id}`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`/api/social/accounts/${id}`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setToast({ kind: "err", msg: d.error || "Refresh failed. Please try again." });
+        setTimeout(() => setToast(null), 5000);
+      }
       await load();
     } finally {
       setBusy(null);
     }
+  }
+
+  async function share(id: string) {
+    if (!token) return;
+    try {
+      const res = await fetch("/api/social/report-link", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ accountId: id }),
+      });
+      const d = await res.json();
+      if (res.ok && d.url) {
+        await navigator.clipboard.writeText(d.url);
+        setToast({ kind: "ok", msg: "Report link copied — valid for 7 days" });
+      } else {
+        setToast({ kind: "err", msg: d.error || "Couldn't create a report link." });
+      }
+    } catch {
+      setToast({ kind: "err", msg: "Couldn't create a report link." });
+    }
+    setTimeout(() => setToast(null), 5000);
   }
 
   async function disconnect(id: string) {
@@ -240,6 +276,22 @@ export default function SocialTrackerPage() {
                 <p className="text-sm text-gray-500">Connect your accounts to monitor growth and post analytics</p>
               </div>
             </div>
+            {!gated && !loading && (accounts ?? []).length > 0 && (
+              <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1" role="group" aria-label="Date range">
+                {RANGES.map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => changeRange(r)}
+                    aria-pressed={range === r}
+                    className={`text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer ${
+                      range === r ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    {r}d
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -251,8 +303,8 @@ export default function SocialTrackerPage() {
           ) : (
             <>
               {/* Connect row */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-                {ORDER.map((p) => {
+              <div className={`grid grid-cols-1 gap-4 mb-8 ${available.length > 3 ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3"}`}>
+                {available.map((p) => {
                   const meta = PLATFORMS[p];
                   const isConnected = connectedProviders.has(p);
                   return (
@@ -291,10 +343,21 @@ export default function SocialTrackerPage() {
               ) : (
                 <div className="space-y-5">
                   {(accounts ?? []).map((a) => (
-                    <AccountCard key={a.id} account={a} busy={busy === a.id} onRefresh={() => refresh(a.id)} onDisconnect={() => disconnect(a.id)} />
+                    <AccountCard
+                      key={a.id}
+                      account={a}
+                      range={range}
+                      busy={busy === a.id || busy === a.provider}
+                      onRefresh={() => refresh(a.id)}
+                      onDisconnect={() => disconnect(a.id)}
+                      onReconnect={() => connect(a.provider)}
+                      onShare={() => share(a.id)}
+                    />
                   ))}
                 </div>
               )}
+
+              {(accounts ?? []).length > 0 && <CompetitorsSection ownAccounts={accounts ?? []} />}
             </>
           )}
         </div>
@@ -331,11 +394,26 @@ function Upsell() {
   );
 }
 
-function AccountCard({ account, busy, onRefresh, onDisconnect }: { account: Account; busy: boolean; onRefresh: () => void; onDisconnect: () => void }) {
+function AccountCard({
+  account,
+  range,
+  busy,
+  onRefresh,
+  onDisconnect,
+  onReconnect,
+  onShare,
+}: {
+  account: Account;
+  range: number;
+  busy: boolean;
+  onRefresh: () => void;
+  onDisconnect: () => void;
+  onReconnect: () => void;
+  onShare: () => void;
+}) {
   const meta = PLATFORMS[account.provider];
-  const followerTrend = account.snapshots.map((s) => s.followers ?? 0).filter((v) => v > 0);
-  const latestViews = account.snapshots.at(-1)?.views ?? undefined;
   const needsReauth = account.status === "needs_reauth";
+  const syncIssue = !needsReauth && account.lastSyncStatus && account.lastSyncStatus !== "ok";
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -360,6 +438,9 @@ function AccountCard({ account, busy, onRefresh, onDisconnect }: { account: Acco
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          <button onClick={onShare} disabled={busy} className="text-xs font-semibold text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg border border-gray-200 disabled:opacity-50 cursor-pointer">
+            Share report
+          </button>
           <button onClick={onRefresh} disabled={busy} className="text-xs font-semibold text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg border border-gray-200 disabled:opacity-50 cursor-pointer">
             {busy ? "Syncing…" : "Refresh"}
           </button>
@@ -370,69 +451,33 @@ function AccountCard({ account, busy, onRefresh, onDisconnect }: { account: Acco
       </div>
 
       {needsReauth && (
-        <div className="px-5 py-2.5 bg-amber-50 text-amber-700 text-xs font-medium border-b border-amber-100">
-          This connection expired. Click “Reconnect {meta.name}” above to restore analytics.
+        <div className="flex items-center justify-between gap-3 px-5 py-2.5 bg-amber-50 text-amber-700 text-xs font-medium border-b border-amber-100">
+          <span>This connection expired — reconnect to restore analytics. Your history is kept.</span>
+          <button
+            onClick={onReconnect}
+            disabled={busy}
+            className="flex-shrink-0 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 px-3 py-1.5 rounded-lg disabled:opacity-50 cursor-pointer"
+          >
+            {busy ? "Reconnecting…" : `Reconnect ${meta.name}`}
+          </button>
         </div>
       )}
 
-      {/* Stats + trend */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-gray-100">
-        <Stat label={account.provider === "youtube" ? "Subscribers" : "Followers"} value={fmt(account.followers)} />
-        <Stat label={account.provider === "youtube" ? "Total views" : "Views"} value={fmt(latestViews ?? null)} />
-        <Stat label="Posts tracked" value={fmt(account.posts.length)} />
-        <div className="bg-white px-4 py-3">
-          <p className="text-xs text-gray-400 mb-1">Follower trend</p>
-          <Sparkline values={followerTrend} color={meta.color} />
-        </div>
-      </div>
-
-      {/* Top posts */}
-      {account.posts.length > 0 && (
-        <div className="p-5">
-          <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-3">Recent posts</p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-[11px] uppercase tracking-wide text-gray-400 text-left">
-                  <th className="font-semibold pb-2">Post</th>
-                  <th className="font-semibold pb-2 text-right">{account.provider === "youtube" ? "Views" : "Reach"}</th>
-                  <th className="font-semibold pb-2 text-right">Likes</th>
-                  <th className="font-semibold pb-2 text-right">Comments</th>
-                </tr>
-              </thead>
-              <tbody>
-                {account.posts.slice(0, 8).map((post) => (
-                  <tr key={post.id} className="border-t border-gray-50">
-                    <td className="py-2 pr-3">
-                      <a href={post.permalink || "#"} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 group max-w-xs">
-                        {post.thumbnailUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={post.thumbnailUrl} alt="" className="w-12 h-8 rounded object-cover flex-shrink-0 bg-gray-100" />
-                        ) : (
-                          <div className="w-12 h-8 rounded bg-gray-100 flex-shrink-0" />
-                        )}
-                        <span className="truncate text-gray-700 group-hover:text-blue-600">{post.caption || "Untitled"}</span>
-                      </a>
-                    </td>
-                    <td className="py-2 text-right font-medium text-gray-700">{fmt(post.views ?? post.reach)}</td>
-                    <td className="py-2 text-right text-gray-500">{fmt(post.likes)}</td>
-                    <td className="py-2 text-right text-gray-500">{fmt(post.comments)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {syncIssue && (
+        <div className="px-5 py-2.5 bg-orange-50 text-orange-700 text-xs font-medium border-b border-orange-100">
+          {account.lastSyncStatus === "partial"
+            ? `Last sync was incomplete${account.lastSyncError ? ` — ${account.lastSyncError}` : ""}. Profile stats are current; recent posts may be missing.`
+            : `Last sync failed${account.lastSyncError ? ` — ${account.lastSyncError}` : ""}. Try Refresh, or reconnect if this keeps happening.`}
         </div>
       )}
-    </div>
-  );
-}
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bg-white px-4 py-3">
-      <p className="text-xs text-gray-400 mb-1">{label}</p>
-      <p className="text-lg font-bold text-gray-900">{value}</p>
+      {/* Analytics: tiles, charts, content mix, top posts, full posts table */}
+      <AccountAnalytics
+        accountId={account.id}
+        color={meta.color}
+        isVideo={account.provider === "youtube"}
+        range={range}
+      />
     </div>
   );
 }

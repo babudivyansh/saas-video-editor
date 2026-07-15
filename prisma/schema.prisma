@@ -59,6 +59,7 @@ model User {
   affiliate            Affiliate?
   referral             Referral?       @relation("ReferredByAffiliate")
   socialAccounts       SocialAccount[]
+  competitors          CompetitorProfile[]
   generations          Generation[]
 }
 
@@ -359,14 +360,81 @@ model SocialAccount {
   status            String                  @default("active") // active | needs_reauth | revoked
   followers         Int? // convenience copy of the latest snapshot
   lastSyncedAt      DateTime?
+  lastSyncStatus    String                  @default("ok") // ok | partial | failed
+  lastSyncError     String? // human-readable reason when partial/failed
   createdAt         DateTime                @default(now())
   updatedAt         DateTime                @updatedAt
   posts             SocialPost[]
   snapshots         SocialAccountSnapshot[]
+  audience          SocialAudienceSnapshot[]
+  insights          AiInsight[]
   clipPublishes     ClipPublish[]
 
   @@unique([userId, provider, providerAccountId])
   @@index([userId])
+}
+
+// A public competitor profile the user benchmarks against (Phase 7). No OAuth
+// tokens — data comes from a third-party public-data vendor
+// (lib/social/competitor-source.ts), so only public stats are stored.
+model CompetitorProfile {
+  id           String                @id @default(cuid())
+  userId       String
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider     String // instagram | tiktok | youtube
+  handle       String // public @handle / channel handle
+  displayName  String?
+  avatarUrl    String?
+  followers    Int? // convenience copy of the latest snapshot
+  lastSyncedAt DateTime?
+  createdAt    DateTime              @default(now())
+  snapshots    CompetitorSnapshot[]
+
+  @@unique([userId, provider, handle])
+  @@index([userId])
+}
+
+model CompetitorSnapshot {
+  id           String            @id @default(cuid())
+  competitorId String
+  competitor   CompetitorProfile @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  capturedAt   DateTime          @default(now())
+  followers    Int?
+
+  @@index([competitorId, capturedAt])
+}
+
+// AI-generated performance insight for a connected social account. The numbers
+// in `content` are computed deterministically (lib/social/analytics.ts) and
+// injected into the prompt — the model only narrates and recommends, it never
+// calculates. One row per generation; the newest row is what the UI shows.
+model AiInsight {
+  id          String        @id @default(cuid())
+  accountId   String
+  account     SocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  kind        String        @default("weekly_summary")
+  content     Json // { summary: string, wins: string[], recommendations: string[] }
+  periodStart DateTime
+  periodEnd   DateTime
+  createdAt   DateTime      @default(now())
+
+  @@index([accountId, createdAt])
+}
+
+// Audience demographics for an owned, connected account — one row per
+// (dimension, bucket) per capture. Values are percentages (0–100). Refreshed
+// at most weekly during sync; only providers that expose demographics for the
+// authenticated account write rows (YouTube Analytics, IG follower insights).
+model SocialAudienceSnapshot {
+  id         String        @id @default(cuid())
+  accountId  String
+  account    SocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  capturedAt DateTime      @default(now())
+  dimension  String // age | gender | country
+  bucket     String // e.g. "18-24", "female", "US"
+  value      Float // percentage of audience (0-100)
+
+  @@index([accountId, dimension, capturedAt])
 }
 
 // Daily account-level metric snapshot — powers follower/view growth charts.
