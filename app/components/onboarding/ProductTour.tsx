@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { TOUR_STEPS } from "@/lib/onboarding-tour-config";
+import { useOnboarding } from "@/app/hooks/useOnboarding";
 
 interface Rect {
   top: number;
@@ -30,6 +31,10 @@ export function ProductTour({ startStep, onAdvance, onFinish, onSkip }: ProductT
   const [step, setStep] = useState(startStep);
   const [rect, setRect] = useState<Rect | null>(null);
   const reduceMotion = useReducedMotion();
+  const { trackEvent } = useOnboarding();
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- fire exactly once per mount
+  useEffect(() => { trackEvent("tour_started"); }, []);
 
   const current = TOUR_STEPS[step];
 

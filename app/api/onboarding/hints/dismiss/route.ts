@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { trackOnboardingEvent } from "@/lib/onboarding-analytics";
 
 // Permanently dismisses a FeatureHint card by id — appended to a scalar list
 // rather than a join table since hint ids are small, app-defined strings, not
@@ -18,6 +19,8 @@ export async function POST(req: NextRequest) {
     data: { dismissedHints: { push: hintId } },
     select: { id: true, dismissedHints: true },
   });
+
+  trackOnboardingEvent(auth.userId, "hint_dismissed", { hintId });
 
   return NextResponse.json({ user });
 }

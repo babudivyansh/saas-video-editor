@@ -74,6 +74,17 @@ export function useOnboarding() {
     await refreshUser();
   }, [token, refreshUser]);
 
+  // For client-only touchpoints with no natural server call site of their
+  // own (a screen rendering, not a state change) — see lib/onboarding-analytics.ts.
+  const trackEvent = useCallback((event: string, props?: Record<string, string | number | boolean>) => {
+    if (!token) return;
+    fetch("/api/analytics/onboarding-event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ event, props }),
+    }).catch(() => {});
+  }, [token]);
+
   return {
     shouldShowWelcome,
     shouldResumeTour,
@@ -84,5 +95,6 @@ export function useOnboarding() {
     savePreferences,
     advanceTour,
     finishTour,
+    trackEvent,
   };
 }

@@ -1,6 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useOnboarding, type ExperienceLevel, type TeamOrIndividual } from "@/app/hooks/useOnboarding";
 import { PRIMARY_GOALS, type PrimaryGoalId } from "@/lib/onboarding-config";
 
@@ -58,12 +58,15 @@ const STEP_COPY: Record<Step, { title: string; body: string }> = {
 
 export function WelcomeScreen({ firstName, resumeProject, onStartTour }: WelcomeScreenProps) {
   const router = useRouter();
-  const { isSubmitting, completeOnboarding, skipOnboarding, savePreferences } = useOnboarding();
+  const { isSubmitting, completeOnboarding, skipOnboarding, savePreferences, trackEvent } = useOnboarding();
   const [pendingGoal, setPendingGoal] = useState<PrimaryGoalId | "resume" | null>(null);
   const [step, setStep] = useState<Step>("goal");
   const [chosenGoal, setChosenGoal] = useState<{ id: PrimaryGoalId; href: string } | null>(null);
   const [experienceLevel, setExperienceLevel] = useState<ExperienceLevel | null>(null);
   const [teamOrIndividual, setTeamOrIndividual] = useState<TeamOrIndividual | null>(null);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- fire exactly once per mount, not on every trackEvent identity change
+  useEffect(() => { trackEvent("welcome_shown"); }, []);
 
   async function handleSelectGoal(goal: PrimaryGoalId, href: string) {
     setPendingGoal(goal);

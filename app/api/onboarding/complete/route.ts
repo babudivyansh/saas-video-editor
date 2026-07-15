@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PRIMARY_GOALS } from "@/lib/onboarding-config";
+import { trackOnboardingEvent } from "@/lib/onboarding-analytics";
 
 const GOAL_IDS = PRIMARY_GOALS.map(g => g.id);
 const EXPERIENCE_LEVELS = ["beginner", "intermediate", "advanced"] as const;
@@ -41,6 +42,14 @@ export async function POST(req: NextRequest) {
     },
     select: { id: true, onboardingCompletedAt: true, primaryGoal: true, experienceLevel: true, teamOrIndividual: true },
   });
+
+  if (primaryGoal) {
+    trackOnboardingEvent(auth.userId, "welcome_goal_selected", { primaryGoal });
+  } else if (experienceLevel || teamOrIndividual) {
+    trackOnboardingEvent(auth.userId, "welcome_preferences_saved", { experienceLevel, teamOrIndividual });
+  } else {
+    trackOnboardingEvent(auth.userId, "welcome_skipped");
+  }
 
   return NextResponse.json({ user });
 }

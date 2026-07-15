@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { trackOnboardingEvent } from "@/lib/onboarding-analytics";
 
 // Clears welcome-screen and tour completion so both show again on the next
 // dashboard visit. Deliberately leaves primaryGoal/experienceLevel/
@@ -15,6 +16,8 @@ export async function POST(req: NextRequest) {
     data: { onboardingCompletedAt: null, tourCompletedAt: null, tourStep: null },
     select: { id: true, onboardingCompletedAt: true, tourCompletedAt: true, tourStep: true },
   });
+
+  trackOnboardingEvent(auth.userId, "onboarding_restarted");
 
   return NextResponse.json({ user });
 }
