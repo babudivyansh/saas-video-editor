@@ -4,6 +4,7 @@ import { getStoredToken } from "@/app/hooks/useVideoGenerate";
 import { ProjectStatusBadge } from "@/app/components/dashboard/ProjectStatusBadge";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
+import { EmptyState } from "@/app/components/ui/EmptyState";
 
 interface ProjectRow {
   id: string;
@@ -147,20 +148,23 @@ export default function ClipsLibraryPage() {
 
       {/* ── Empty: no projects at all ── */}
       {projects && projects.length === 0 && (
-        <Card tint="violet" className="max-w-md mx-auto mt-12 px-8 py-10 text-center">
-          <div className="w-12 h-12 rounded-2xl grad-brand text-white flex items-center justify-center mx-auto mb-4"><IcFilm /></div>
-          <p className="text-base font-bold text-ink mb-1">No AutoClip projects yet</p>
-          <p className="text-sm text-ink-soft mb-5">Drop in a long video and let AutoClip cut it into viral-ready clips.</p>
-          <Button variant="primary" size="lg" href="/dashboard/create/auto-clip">Create your first one</Button>
-        </Card>
+        <div className="max-w-md mx-auto mt-12">
+          <EmptyState
+            icon={<IcFilm />}
+            title="No AutoClip projects yet"
+            subtitle="Drop in a long video and let AutoClip cut it into viral-ready clips."
+            action={{ label: "Create your first one", href: "/dashboard/create/auto-clip" }}
+          />
+        </div>
       )}
 
       {/* ── Empty: no matches for filter/search ── */}
       {projects && projects.length > 0 && filtered && filtered.length === 0 && (
-        <div className="text-center py-16">
-          <p className="text-sm font-semibold text-ink mb-1">No projects match</p>
-          <p className="text-xs text-ink-soft">Try a different filter or search term.</p>
-        </div>
+        <EmptyState
+          icon={<IcSearch />}
+          title="No projects match"
+          subtitle="Try a different filter or search term."
+        />
       )}
 
       {/* ── Project grid ── */}
