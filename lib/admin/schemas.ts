@@ -228,6 +228,21 @@ export const modelOverrideSchema = z
   .strict()
   .refine((v) => v.clear || v.enabled !== undefined || v.creditCost !== undefined, { message: "Nothing to update" });
 
+export const opsJobActionSchema = z
+  .object({
+    jobId: z.string().min(1).max(200),
+    action: z.enum(["retry", "remove"]),
+  })
+  .strict();
+
+export const opsFlagsSchema = z
+  .object({
+    flag: z.object({ name: z.string().regex(/^[\w.-]{1,64}$/), value: z.boolean().nullable() }).strict().optional(),
+    maintenance: z.object({ on: z.boolean(), message: z.string().max(300).optional() }).strict().optional(),
+  })
+  .strict()
+  .refine((v) => v.flag !== undefined || v.maintenance !== undefined, { message: "Nothing to update" });
+
 export const metricsQuerySchema = z.object({
   section: z.enum(["kpis", "revenue", "ai", "social", "infra"]),
   range: z.coerce.number().pipe(z.union([z.literal(7), z.literal(30), z.literal(90)])).default(30),

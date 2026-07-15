@@ -257,7 +257,7 @@ export async function infraSection() {
   };
 }
 
-async function renderQueueCounts(): Promise<Record<string, number> | null> {
+export async function renderQueueCounts(): Promise<Record<string, number> | null> {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { Queue } = require("bullmq") as typeof import("bullmq");

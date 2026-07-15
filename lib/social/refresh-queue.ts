@@ -31,6 +31,7 @@ export function startSocialRefreshWorker(): void {
       },
     );
     logger.info("social-refresh", `BullMQ worker started (every ${everyMin}m)`);
+    void import("@/lib/worker-heartbeat").then(({ startHeartbeat }) => startHeartbeat("social-refresh"));
   } catch (e) {
     logger.error("social-refresh", "BullMQ init failed", e);
     started = false;

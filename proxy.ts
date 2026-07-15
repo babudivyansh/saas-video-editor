@@ -32,6 +32,21 @@ export async function proxy(request: NextRequest) {
       return NextResponse.next();
     }
 
+    // Maintenance mode: block non-admin API traffic with a clear 503. Admin
+    // routes and /api/health stay reachable so it can be turned off and
+    // monitored. Reads a 15s in-process cache over one Redis key — negligible
+    // hot-path cost (lib/flags.ts).
+    if (!pathname.startsWith("/api/admin/") && pathname !== "/api/health") {
+      const { getMaintenanceModeCached } = await import("@/lib/flags");
+      const maint = await getMaintenanceModeCached();
+      if (maint.on) {
+        return NextResponse.json(
+          { error: maint.message || "Clipiro is briefly down for maintenance — back shortly.", maintenance: true },
+          { status: 503, headers: { "Retry-After": "300" } },
+        );
+      }
+    }
+
     const session = request.cookies.get(SESSION_COOKIE_NAME)?.value;
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
