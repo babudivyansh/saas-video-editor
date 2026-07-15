@@ -1,7 +1,50 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { withAdmin, parseQuery } from "@/lib/admin/api";
 import { auditQuerySchema } from "@/lib/admin/schemas";
+
+const CSV_BATCH = 1000;
+
+// Cursor-batched CSV stream of the (filtered) audit trail — constant memory
+// regardless of table size, same pattern as the purchases export.
+function exportCsv(where: Prisma.AuditLogWhereInput): NextResponse {
+  const encoder = new TextEncoder();
+  const cell = (v: string | null) => {
+    const s = v ?? "";
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      controller.enqueue(encoder.encode("createdAt,adminId,action,targetId,before,after\n"));
+      let cursor: string | undefined;
+      for (;;) {
+        const batch = await prisma.auditLog.findMany({
+          where,
+          orderBy: { createdAt: "desc" },
+          take: CSV_BATCH,
+          ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        });
+        if (batch.length === 0) break;
+        const rows = batch
+          .map((l) =>
+            [l.createdAt.toISOString(), l.adminId, l.action, l.targetId, l.before, l.after].map(cell).join(","),
+          )
+          .join("\n");
+        controller.enqueue(encoder.encode(rows + "\n"));
+        if (batch.length < CSV_BATCH) break;
+        cursor = batch[batch.length - 1].id;
+      }
+      controller.close();
+    },
+  });
+  return new NextResponse(stream, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="audit-${Date.now()}.csv"`,
+    },
+  });
+}
 
 // GET /api/admin/audit?page&limit&action=&targetId=&adminEmail=&from=&to=
 // Filterable audit trail + a 30-day per-admin activity summary (first page).
@@ -33,6 +76,10 @@ export const GET = withAdmin(async (req) => {
         }
       : {}),
   };
+
+  if (req.nextUrl.searchParams.get("export") === "csv") {
+    return exportCsv(where);
+  }
 
   const [logs, total, byAdminRaw] = await Promise.all([
     prisma.auditLog.findMany({

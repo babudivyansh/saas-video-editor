@@ -120,6 +120,25 @@ export default function AdminAuditPage() {
             Clear filters
           </button>
         )}
+        <button
+          onClick={async () => {
+            const params = new URLSearchParams({ export: "csv" });
+            for (const [k, v] of [["action", fAction], ["targetId", fTarget], ["adminEmail", fAdmin], ["from", fFrom], ["to", fTo]] as const) {
+              if (v.trim()) params.set(k, v.trim());
+            }
+            const res = await fetch(`/api/admin/audit?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+            if (!res.ok) return;
+            const blob = await res.blob();
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = `audit-${Date.now()}.csv`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+          }}
+          className="ml-auto text-xs font-semibold text-gray-500 hover:text-blue-600 border border-gray-200 rounded-lg px-3 py-2 cursor-pointer"
+        >
+          Export CSV
+        </button>
       </div>
 
       {loading ? (

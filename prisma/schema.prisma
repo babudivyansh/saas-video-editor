@@ -168,6 +168,11 @@ model Purchase {
   credits       Int
   status        String   @default("captured")
   createdAt     DateTime @default(now())
+
+  // Admin dashboards aggregate purchases by day and by (status, window)
+  // constantly — these keep the metrics endpoint fast as rows grow.
+  @@index([createdAt])
+  @@index([status, createdAt])
 }
 
 // Admin-created discount codes applied at checkout. The discount lowers the
@@ -529,6 +534,8 @@ model Generation {
   @@index([userId, createdAt])
   @@index([modelId])
   @@index([toolSlug, createdAt])
+  // Success-rate / failure dashboards group by (status, window).
+  @@index([status, createdAt])
 }
 
 // Immutable log of every admin action for accountability.
@@ -540,4 +547,8 @@ model AuditLog {
   before    String? // JSON snapshot
   after     String? // JSON snapshot
   createdAt DateTime @default(now())
+
+  // The viewer lists newest-first and filters by admin — both were seq scans.
+  @@index([createdAt])
+  @@index([adminId, createdAt])
 }
