@@ -12,7 +12,7 @@ import { redis } from "@/lib/redis";
 import { env } from "@/lib/env";
 import { getSyncStats } from "@/lib/social/service";
 
-export type MetricsSection = "kpis" | "revenue" | "ai" | "social" | "infra";
+export type MetricsSection = "kpis" | "revenue" | "ai" | "social" | "infra" | "growth";
 export const METRIC_RANGES = [7, 30, 90] as const;
 
 const DAY_MS = 86400_000;
@@ -270,6 +270,58 @@ export async function renderQueueCounts(): Promise<Record<string, number> | null
   }
 }
 
+// ── Growth (cohorts / coupons / affiliate funnel) ────────────────────────────
+export async function growthSection() {
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+  sixMonthsAgo.setDate(1);
+  sixMonthsAgo.setHours(0, 0, 0, 0);
+
+  const [cohorts, topCoupons, referralFunnel, affiliateCount] = await Promise.all([
+    // Signup-month cohorts with activation (made ≥1 generation, ever) and
+    // paid conversion — honest lifetime flags, not time-windowed retention
+    // (which needs event tracking we don't collect).
+    prisma.$queryRaw<Array<{ month: Date; signups: bigint; activated: bigint; paid: bigint }>>`
+      SELECT date_trunc('month', u."createdAt") AS month,
+             COUNT(*) AS signups,
+             COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "Generation" g WHERE g."userId" = u.id)) AS activated,
+             COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "Purchase" p WHERE p."userId" = u.id)) AS paid
+      FROM "User" u
+      WHERE u."createdAt" >= ${sixMonthsAgo}
+      GROUP BY 1 ORDER BY 1`,
+    prisma.coupon.findMany({
+      where: { timesRedeemed: { gt: 0 } },
+      orderBy: { timesRedeemed: "desc" },
+      take: 10,
+      select: { code: true, timesRedeemed: true, discountType: true, discountValue: true, active: true },
+    }),
+    prisma.referral.groupBy({ by: ["status"], _count: true }),
+    prisma.affiliate.count(),
+  ]);
+
+  const discountGiven = await prisma.couponRedemption.aggregate({ _sum: { discountInPaise: true } });
+  const funnel = Object.fromEntries(referralFunnel.map((r) => [r.status, r._count]));
+  const signedUp = (funnel.signed_up ?? 0) + (funnel.converted ?? 0);
+
+  return {
+    cohorts: cohorts.map((c) => ({
+      month: c.month.toISOString().slice(0, 7),
+      signups: Number(c.signups),
+      activated: Number(c.activated),
+      paid: Number(c.paid),
+    })),
+    coupons: {
+      top: topCoupons,
+      totalDiscountInPaise: discountGiven._sum.discountInPaise ?? 0,
+    },
+    affiliates: {
+      count: affiliateCount,
+      referrals: funnel,
+      conversionPct: signedUp > 0 ? ((funnel.converted ?? 0) / signedUp) * 100 : null,
+    },
+  };
+}
+
 // ── Dispatch ─────────────────────────────────────────────────────────────────
 export async function computeSection(section: MetricsSection, rangeDays: number) {
   switch (section) {
@@ -278,5 +330,6 @@ export async function computeSection(section: MetricsSection, rangeDays: number)
     case "ai": return aiSection(rangeDays);
     case "social": return socialSection();
     case "infra": return infraSection();
+    case "growth": return growthSection();
   }
 }

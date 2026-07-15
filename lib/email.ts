@@ -756,6 +756,44 @@ export async function sendReengagement30DayEmail(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ADMIN — WEEKLY OPERATIONS DIGEST
+// ─────────────────────────────────────────────────────────────────────────────
+export interface AdminDigestData {
+  mrrInPaise: number;
+  revenueMtdInPaise: number;
+  newUsers7d: number;
+  activeSubscribers: number;
+  generations7d: number;
+  failedGenerations7d: number;
+  syncFailuresToday: number;
+}
+
+export async function sendAdminDigestEmail(to: string, d: AdminDigestData): Promise<void> {
+  const inr = (paise: number) => `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
+  const row = (label: string, value: string, accent = "#0f172a") =>
+    `<tr><td style="color:#64748b;font-size:14px;padding:6px 0;">${label}</td><td style="color:${accent};font-size:14px;font-weight:700;text-align:right;padding:6px 0;">${value}</td></tr>`;
+  const html = `
+    ${emailHeader()}
+    <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 8px;">Clipiro weekly ops digest 📈</h1>
+    <p style="color:#64748b;font-size:15px;margin:0 0 24px;">The numbers that matter, straight from the admin metrics engine.</p>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:24px;margin-bottom:24px;">
+      <table style="width:100%;border-collapse:collapse;">
+        ${row("MRR", inr(d.mrrInPaise), "#1d4ed8")}
+        ${row("Revenue this month", inr(d.revenueMtdInPaise))}
+        ${row("Active subscribers", String(d.activeSubscribers))}
+        ${row("New users (7d)", String(d.newUsers7d))}
+        ${row("Generations (7d)", String(d.generations7d))}
+        ${row("Failed generations (7d)", String(d.failedGenerations7d), d.failedGenerations7d > 0 ? "#dc2626" : "#16a34a")}
+        ${row("Social sync failures today", String(d.syncFailuresToday), d.syncFailuresToday > 0 ? "#dc2626" : "#16a34a")}
+      </table>
+    </div>
+    ${ctaButton("https://clipiro.com/admin", "Open Admin Dashboard →")}
+    ${emailFooter()}`;
+
+  await sendEmail(to, "Clipiro weekly ops digest", html, "admin-digest");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // SOCIAL TRACKER — WEEKLY DIGEST
 // ─────────────────────────────────────────────────────────────────────────────
 export interface SocialDigestAccount {

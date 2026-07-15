@@ -244,6 +244,6 @@ export const opsFlagsSchema = z
   .refine((v) => v.flag !== undefined || v.maintenance !== undefined, { message: "Nothing to update" });
 
 export const metricsQuerySchema = z.object({
-  section: z.enum(["kpis", "revenue", "ai", "social", "infra"]),
+  section: z.enum(["kpis", "revenue", "ai", "social", "infra", "growth"]),
   range: z.coerce.number().pipe(z.union([z.literal(7), z.literal(30), z.literal(90)])).default(30),
 });
