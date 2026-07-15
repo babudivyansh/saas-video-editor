@@ -159,6 +159,13 @@ export default function DashboardPage() {
   // mount, one tick before the summary fetch would otherwise resolve.
   const [optimisticReturning, setOptimisticReturning] = useState(false);
   const [explicitRestart, setExplicitRestart] = useState(false);
+  // Latched separately from shouldShowWelcome: selecting a goal sets
+  // onboardingCompletedAt immediately (so it's never lost if the tab closes
+  // mid-flow), which would otherwise flip shouldShowWelcome to false and
+  // unmount the overlay before its later steps (preferences, tour offer)
+  // ever get a chance to show. Once open, only WelcomeScreen's own onClose
+  // closes it — not a server-state change underneath it.
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
 
   useEffect(() => {
     setOptimisticReturning(sessionStorage.getItem(HAS_PROJECTS_STORAGE_KEY) === "true");
@@ -215,11 +222,16 @@ export default function DashboardPage() {
   // explicit restart (profile settings → Restart Tour) bypasses that guard —
   // the user asked for it, so hasAnyProjects shouldn't block it.
   const showWelcome = shouldShowWelcome && (explicitRestart || (summary !== null && !summary.hasAnyProjects));
+
+  useEffect(() => {
+    if (showWelcome) setWelcomeOpen(true);
+  }, [showWelcome]);
+
   // Tour renders either right after the welcome screen (in-session opt-in) or
   // across a reload if the user left mid-tour — shouldResumeTour is only ever
   // true once a tour has actually been started for this user, so it's safe
   // for pre-existing users too.
-  const showTourOverlay = !showWelcome && (showTour || shouldResumeTour);
+  const showTourOverlay = !welcomeOpen && (showTour || shouldResumeTour);
 
   async function handleTourFinish() {
     await finishTour();
@@ -247,11 +259,12 @@ export default function DashboardPage() {
 
   return (
     <>
-        {showWelcome && (
+        {welcomeOpen && (
           <WelcomeScreen
             firstName={firstName}
             resumeProject={summary?.inProgress[0]}
-            onStartTour={() => setShowTour(true)}
+            onStartTour={() => { setShowTour(true); setWelcomeOpen(false); }}
+            onClose={() => setWelcomeOpen(false)}
           />
         )}
         {showTourOverlay && (
@@ -335,7 +348,7 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-2 mb-0.5">
                       <p className="text-[10px] font-bold text-ink-soft uppercase tracking-widest">Onboarding</p>
                       {level && (
-                        <Tooltip content="Earn XP by completing quests below — more XP unlocks higher levels.">
+                        <Tooltip content="Earn XP by completing quests below — more XP unlocks higher levels." position="bottom">
                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
                             style={{ background: levelColor(level) + "18", color: levelColor(level) }}>
                             {level}

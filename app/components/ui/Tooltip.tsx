@@ -22,7 +22,7 @@ export function Tooltip({ content, children, position = "top" }: TooltipProps) {
       {children}
       <span
         role="tooltip"
-        className={`pointer-events-none absolute ${POSITION[position]} px-2.5 py-1.5 text-xs font-medium text-white bg-ink rounded-lg opacity-0 group-hover:opacity-100 z-50 shadow-lg transition-opacity max-w-[240px] whitespace-normal text-center`}
+        className={`pointer-events-none absolute ${POSITION[position]} block w-56 px-2.5 py-1.5 text-xs font-medium text-white bg-ink rounded-lg opacity-0 group-hover:opacity-100 z-50 shadow-lg transition-opacity text-center`}
       >
         {content}
       </span>

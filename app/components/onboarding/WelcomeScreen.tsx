@@ -21,6 +21,8 @@ interface WelcomeScreenProps {
   resumeProject?: InProgressProject;
   /** Called when the user opts into the guided tour instead of navigating away. */
   onStartTour: () => void;
+  /** Called whenever the overlay should stop rendering (skip, or right before navigating away). */
+  onClose: () => void;
 }
 
 const GOAL_TINT: Record<PrimaryGoalId, string> = {
@@ -56,7 +58,7 @@ const STEP_COPY: Record<Step, { title: string; body: string }> = {
   },
 };
 
-export function WelcomeScreen({ firstName, resumeProject, onStartTour }: WelcomeScreenProps) {
+export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }: WelcomeScreenProps) {
   const router = useRouter();
   const { isSubmitting, completeOnboarding, skipOnboarding, savePreferences, trackEvent } = useOnboarding();
   const [pendingGoal, setPendingGoal] = useState<PrimaryGoalId | "resume" | null>(null);
@@ -86,11 +88,13 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour }: Welcome
     if (!resumeProject) return;
     setPendingGoal("resume");
     await skipOnboarding();
+    onClose();
     router.push(inProgressHref(resumeProject));
   }
 
   async function handleSkip() {
     await skipOnboarding();
+    onClose();
   }
 
   async function handlePreferencesContinue() {
@@ -108,6 +112,7 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour }: Welcome
   }
 
   function handleSkipToTool() {
+    onClose();
     if (chosenGoal) router.push(chosenGoal.href);
   }
 
