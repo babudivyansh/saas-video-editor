@@ -50,6 +50,10 @@ model User {
   tourStep             Int? // current guided-tour step index; null once never started
   tourCompletedAt      DateTime? // set once the guided tour is completed or skipped
   dismissedHints       String[]        @default([]) // ids of FeatureHint cards the user has dismissed — never shown again
+  // Admin moderation (Phase 3): a suspended user fails auth on every request
+  // (lib/auth.ts getAuthUser) until un-suspended. Soft alternative to deletion.
+  suspendedAt          DateTime?
+  adminNotes           String? // free-form internal notes, admin console only — never exposed to the user
   createdAt            DateTime        @default(now())
   projects             Project[]
   assets               Asset[]
@@ -61,6 +65,23 @@ model User {
   socialAccounts       SocialAccount[]
   competitors          CompetitorProfile[]
   generations          Generation[]
+  loginEvents          LoginEvent[]
+}
+
+// One row per successful login (Phase 3) — powers the admin user-detail login
+// history and, over time, device/country analytics. The login route already
+// computed device + geo transiently for the sign-in alert email; now it also
+// persists them.
+model LoginEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ip        String?
+  device    String?
+  country   String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model Affiliate {

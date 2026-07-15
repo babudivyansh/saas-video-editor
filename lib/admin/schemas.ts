@@ -193,6 +193,17 @@ export const pageQuerySchema = z.object({
   status: z.string().max(32).optional(),
 });
 
+export const adminNotesSchema = z
+  .object({ adminNotes: z.string().max(5000).nullable() })
+  .strict();
+
+export const moderateUserSchema = z
+  .object({
+    action: z.enum(["suspend", "unsuspend", "revoke_sessions"]),
+    reason: z.string().max(500).optional(),
+  })
+  .strict();
+
 export const metricsQuerySchema = z.object({
   section: z.enum(["kpis", "revenue", "ai", "social", "infra"]),
   range: z.coerce.number().pipe(z.union([z.literal(7), z.literal(30), z.literal(90)])).default(30),
