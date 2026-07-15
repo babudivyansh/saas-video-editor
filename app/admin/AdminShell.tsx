@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/app/components/AuthContext";
 
 function IcGrid()    { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>; }
@@ -30,22 +30,123 @@ const NAV = [
   { href: "/admin/affiliate",     label: "Affiliates",   icon: <IcGift />,     exact: false },
 ];
 
+// Step-up sign-in: even with a valid dashboard session, /admin requires a
+// fresh email-code verification (8h window). The screen mirrors the real
+// server-side gate — every /api/admin/* call 403s until elevated.
+function AdminGate({ email, onElevated }: { email: string; onElevated: () => void }) {
+  const { token } = useAuth();
+  const [sent, setSent] = useState(false);
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function post(body: object) {
+    return fetch("/api/admin/elevate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+  }
+
+  async function sendCode() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await post({ action: "send" });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setSent(true);
+        setMsg(d.channel === "dev-console" ? "Dev mode: the code was printed in the server console." : `Code sent to ${email}.`);
+      } else {
+        setMsg(d.error ?? "Couldn't send the code.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verify(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await post({ action: "verify", code: code.trim() });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) onElevated();
+      else setMsg(d.error ?? "Verification failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex h-screen items-center justify-center bg-gray-50 px-4">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 w-full max-w-sm text-center">
+        <span className="bg-blue-600 text-white rounded-xl w-10 h-10 inline-flex items-center justify-center font-extrabold mb-4">C</span>
+        <h1 className="text-lg font-bold text-gray-900 mb-1">Admin sign-in</h1>
+        <p className="text-sm text-gray-500 mb-5">
+          For your security the admin console needs a fresh verification, even when you&apos;re already signed in.
+        </p>
+        {!sent ? (
+          <button onClick={sendCode} disabled={busy}
+            className="w-full text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl py-2.5 disabled:opacity-50 cursor-pointer">
+            {busy ? "Sending…" : `Email a code to ${email}`}
+          </button>
+        ) : (
+          <form onSubmit={verify} className="space-y-3">
+            <input
+              autoFocus
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              inputMode="numeric"
+              placeholder="6-digit code"
+              aria-label="Verification code"
+              className="w-full text-center text-2xl font-bold tracking-[0.5em] border border-gray-200 rounded-xl py-2.5"
+            />
+            <button type="submit" disabled={busy || code.length !== 6}
+              className="w-full text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl py-2.5 disabled:opacity-50 cursor-pointer">
+              {busy ? "Verifying…" : "Enter admin console"}
+            </button>
+            <button type="button" onClick={sendCode} disabled={busy} className="text-xs text-gray-400 hover:text-blue-600 cursor-pointer">
+              Resend code
+            </button>
+          </form>
+        )}
+        {msg && <p className="text-xs text-gray-500 mt-3">{msg}</p>}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminShell({ children, title }: { children: React.ReactNode; title: string }) {
-  const { user, isLoading, signOut } = useAuth();
+  const { user, isLoading, signOut, token } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const [elevated, setElevated] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (isLoading) return;
     if (!user || user.role !== "ADMIN") router.replace("/dashboard");
   }, [isLoading, user, router]);
 
-  if (isLoading || !user || user.role !== "ADMIN") {
+  useEffect(() => {
+    if (!token || !user || user.role !== "ADMIN") return;
+    fetch("/api/admin/elevate", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : { elevated: false }))
+      .then((d) => setElevated(!!d.elevated))
+      .catch(() => setElevated(false));
+  }, [token, user]);
+
+  if (isLoading || !user || user.role !== "ADMIN" || elevated === null) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-50 text-gray-400 gap-3">
         <IcSpinner /> <span className="text-sm">Checking access…</span>
       </div>
     );
+  }
+
+  if (!elevated) {
+    return <AdminGate email={user.email} onElevated={() => setElevated(true)} />;
   }
 
   return (

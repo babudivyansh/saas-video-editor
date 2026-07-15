@@ -18,6 +18,16 @@ export function withAdmin<P = Record<string, never>>(handler: AdminHandler<P>) {
   return async (req: NextRequest, ctx?: { params: Promise<P> }): Promise<NextResponse> => {
     const admin = await requireAdmin(req);
     if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // Step-up gate: a dashboard session alone is not enough for admin APIs —
+    // the admin must have verified an email OTP recently (lib/admin/elevation).
+    // The /api/admin/elevate route itself uses requireAdmin directly.
+    const { isElevated } = await import("@/lib/admin/elevation");
+    if (!(await isElevated(admin.userId))) {
+      return NextResponse.json(
+        { error: "Admin verification required", code: "elevation_required" },
+        { status: 403 },
+      );
+    }
     try {
       const params = ctx?.params ? await ctx.params : ({} as P);
       return await handler(req, { admin, params });
