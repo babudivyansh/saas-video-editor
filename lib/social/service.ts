@@ -5,21 +5,21 @@ import { encryptSecret, decryptSecret } from "@/lib/encryption";
 import { createState, makePkce } from "./oauth";
 import * as google from "./google";
 import * as meta from "./meta";
+import { PROVIDERS } from "./providers";
+import { classifyError, withRetry } from "./errors";
 import type { NormalizedAccount, OAuthProvider, OAuthTokens, ProviderId, ProviderSync } from "./types";
 import { logger } from "@/lib/logger";
 
 // Which OAuth app a requested platform authenticates through.
 export function oauthProviderFor(provider: ProviderId): OAuthProvider {
-  return provider === "youtube" ? "youtube" : "meta";
+  return PROVIDERS[provider].oauthApp;
 }
 
 // ── Connect: build the provider authorize URL ────────────────────────────────
 export async function buildAuthUrl(userId: string, provider: ProviderId): Promise<string> {
   const { verifier, challenge } = makePkce();
   const state = await createState(userId, provider, verifier);
-  return oauthProviderFor(provider) === "youtube"
-    ? google.getAuthUrl(state, challenge)
-    : meta.getAuthUrl(state, challenge);
+  return PROVIDERS[provider].getAuthUrl(state, challenge);
 }
 
 // ── Callback: exchange code, persist account(s), run an initial sync ──────────
@@ -116,10 +116,8 @@ export async function getValidAccessToken(account: SocialAccount): Promise<strin
 }
 
 function refreshFor(account: SocialAccount, refreshToken: string): Promise<OAuthTokens> {
-  const provider = account.provider as ProviderId;
-  if (provider === "youtube") return google.refreshAccessToken(refreshToken);
   // For Meta, refreshToken is the long-lived user token (see handleCallback).
-  return meta.refreshTokens(refreshToken, provider, account.providerAccountId);
+  return PROVIDERS[account.provider as ProviderId].refreshTokens(refreshToken, account.providerAccountId);
 }
 
 async function markNeedsReauth(account: SocialAccount, reason: string): Promise<void> {
@@ -131,13 +129,23 @@ async function markNeedsReauth(account: SocialAccount, reason: string): Promise<
 }
 
 // ── Re-sync an existing account (manual refresh / scheduled job) ──────────────
+const SYNC_LOCK_TTL = 300; // seconds — generously above the slowest backfill
+
 export async function syncAccount(account: SocialAccount): Promise<void> {
+  // Manual refresh, page-load auto-refresh, and the scheduled job can all fire
+  // for the same account; the fixed-window counter doubles as a lock.
+  const lockKey = `social:sync:${account.id}`;
+  if ((await redis.incrWithExpire(lockKey, SYNC_LOCK_TTL)) > 1) {
+    throw new Error("a sync is already running for this account");
+  }
+  const startedAt = Date.now();
   try {
     const accessToken = await getValidAccessToken(account);
-    const sync: ProviderSync =
-      account.provider === "youtube"
-        ? await google.sync(accessToken)
-        : await meta.syncAccount(account.providerAccountId, account.provider as "facebook" | "instagram", accessToken);
+    // First sync (no posts yet) backfills deeper history so charts open useful.
+    const backfill = (await prisma.socialPost.count({ where: { accountId: account.id } })) === 0;
+    const sync: ProviderSync = await withRetry(() =>
+      PROVIDERS[account.provider as ProviderId].sync(account.providerAccountId, accessToken, { backfill }),
+    );
 
     await prisma.socialAccount.update({
       where: { id: account.id },
@@ -150,9 +158,22 @@ export async function syncAccount(account: SocialAccount): Promise<void> {
       },
     });
     await persistSync(account.id, sync);
+    await bumpSyncCounter("ok");
+    logger.info("social", "sync completed", {
+      accountId: account.id,
+      provider: account.provider,
+      posts: sync.posts.length,
+      backfill,
+      status: sync.partialError ? "partial" : "ok",
+      durationMs: Date.now() - startedAt,
+    });
   } catch (e) {
-    // Record why (getValidAccessToken already set needs_reauth for auth failures
-    // — this only annotates, it never overwrites `status`).
+    await bumpSyncCounter("fail");
+    // A dead token discovered mid-sync (not just mid-refresh) also needs reauth.
+    if (classifyError(e) === "auth" && account.status !== "needs_reauth") {
+      await markNeedsReauth(account, (e as Error).message).catch(() => {});
+    }
+    // Record why (never overwrites `status` — needs_reauth stays put).
     await prisma.socialAccount
       .update({
         where: { id: account.id },
@@ -160,7 +181,25 @@ export async function syncAccount(account: SocialAccount): Promise<void> {
       })
       .catch(() => {});
     throw e;
+  } finally {
+    await redis.del(lockKey);
   }
+}
+
+// Daily sync outcome counters — cheap Redis tallies read by /api/health so an
+// external uptime monitor notices a failing sync pipeline without new infra.
+async function bumpSyncCounter(kind: "ok" | "fail"): Promise<void> {
+  const day = new Date().toISOString().slice(0, 10);
+  await redis.incrWithExpire(`social:stats:${day}:${kind}`, 8 * 86400);
+}
+
+export async function getSyncStats(): Promise<{ ok: number; fail: number }> {
+  const day = new Date().toISOString().slice(0, 10);
+  const [ok, fail] = await Promise.all([
+    redis.get(`social:stats:${day}:ok`),
+    redis.get(`social:stats:${day}:fail`),
+  ]);
+  return { ok: Number(ok ?? 0), fail: Number(fail ?? 0) };
 }
 
 // ── Disconnect: best-effort provider revoke, then delete (tokens go with it) ──
@@ -278,6 +317,24 @@ export async function refreshStaleAccounts(
   return { refreshed, failed };
 }
 
+// ── Retention ────────────────────────────────────────────────────────────────
+// Snapshots older than 90 days collapse to one per account per day (the day's
+// latest). Charts past that horizon are daily-granularity anyway; this bounds
+// table growth to ~365 rows/account/year. Runs from the weekly cron job.
+export async function pruneOldSnapshots(): Promise<{ deleted: number }> {
+  const deleted = await prisma.$executeRaw`
+    DELETE FROM "SocialAccountSnapshot"
+    WHERE "capturedAt" < NOW() - INTERVAL '90 days'
+      AND id NOT IN (
+        SELECT DISTINCT ON ("accountId", date_trunc('day', "capturedAt")) id
+        FROM "SocialAccountSnapshot"
+        WHERE "capturedAt" < NOW() - INTERVAL '90 days'
+        ORDER BY "accountId", date_trunc('day', "capturedAt"), "capturedAt" DESC
+      )`;
+  logger.info("social", "snapshot retention pruned", { deleted });
+  return { deleted };
+}
+
 // ── Audit trail ──────────────────────────────────────────────────────────────
 // Token-touching actions are recorded per docs/social-tracker-security.md.
 // AuditLog's actor column is named adminId, but the affiliate payout flow set
@@ -340,16 +397,32 @@ async function persistSync(accountId: string, sync: ProviderSync): Promise<void>
     },
   });
   const m = sync.account.metrics;
-  await prisma.socialAccountSnapshot.create({
-    data: {
-      accountId,
-      followers: m.followers ?? null,
-      views: m.views ?? null,
-      impressions: m.impressions ?? null,
-      reach: m.reach ?? null,
-      engagement: m.engagement ?? null,
-    },
+  // Don't stack identical data points: a manual refresh minutes after the
+  // scheduled one adds chart noise and rows, not information.
+  const latest = await prisma.socialAccountSnapshot.findFirst({
+    where: { accountId },
+    orderBy: { capturedAt: "desc" },
   });
+  const unchanged =
+    latest &&
+    Date.now() - latest.capturedAt.getTime() < 6 * 3600_000 &&
+    latest.followers === (m.followers ?? null) &&
+    latest.views === (m.views ?? null) &&
+    latest.impressions === (m.impressions ?? null) &&
+    latest.reach === (m.reach ?? null) &&
+    latest.engagement === (m.engagement ?? null);
+  if (!unchanged) {
+    await prisma.socialAccountSnapshot.create({
+      data: {
+        accountId,
+        followers: m.followers ?? null,
+        views: m.views ?? null,
+        impressions: m.impressions ?? null,
+        reach: m.reach ?? null,
+        engagement: m.engagement ?? null,
+      },
+    });
+  }
   for (const p of sync.posts) {
     const data = {
       caption: p.caption,

@@ -1,5 +1,6 @@
 import { redirectUri } from "./oauth";
-import type { NormalizedAccount, NormalizedPost, OAuthTokens, ProviderId, ProviderSync } from "./types";
+import { ProviderApiError } from "./errors";
+import type { NormalizedAccount, NormalizedPost, OAuthTokens, ProviderId, ProviderSync, SyncOptions } from "./types";
 import { env } from "@/lib/env";
 
 // Instagram + Facebook via one Meta app (Facebook Login + Graph API v22.0).
@@ -57,7 +58,7 @@ export async function exchangeCode(code: string, verifier: string): Promise<OAut
         code_verifier: verifier,
       }),
   );
-  if (!shortRes.ok) throw new Error(`meta token exchange failed: ${shortRes.status} ${await shortRes.text()}`);
+  if (!shortRes.ok) throw new ProviderApiError(`meta token exchange failed: ${shortRes.status}`, shortRes.status, await shortRes.text());
   const short = (await shortRes.json()) as { access_token: string };
 
   const longRes = await fetch(
@@ -100,7 +101,7 @@ export async function refreshTokens(
         fb_exchange_token: userToken,
       }),
   );
-  if (!res.ok) throw new Error(`meta token refresh failed: ${res.status} ${await res.text()}`);
+  if (!res.ok) throw new ProviderApiError(`meta token refresh failed: ${res.status}`, res.status, await res.text());
   const j = (await res.json()) as { access_token: string; expires_in?: number };
   const expiresIn = Number(j.expires_in ?? 0);
 
@@ -148,7 +149,7 @@ export async function fetchAccounts(userToken: string): Promise<MetaConnected[]>
   const res = await fetch(`${GRAPH}/me/accounts?fields=${encodeURIComponent(fields)}&limit=50`, {
     headers: { Authorization: `Bearer ${userToken}` },
   });
-  if (!res.ok) throw new Error(`meta /me/accounts failed: ${res.status} ${await res.text()}`);
+  if (!res.ok) throw new ProviderApiError(`meta /me/accounts failed: ${res.status}`, res.status, await res.text());
   const j = (await res.json()) as { data?: MetaPage[] };
 
   const out: MetaConnected[] = [];
@@ -184,22 +185,41 @@ export async function fetchAccounts(userToken: string): Promise<MetaConnected[]>
 async function graph(path: string, token: string): Promise<Record<string, unknown>> {
   const sep = path.includes("?") ? "&" : "?";
   const res = await fetch(`${GRAPH}${path}${sep}access_token=${encodeURIComponent(token)}`);
-  if (!res.ok) throw new Error(`meta graph ${path} failed: ${res.status} ${await res.text()}`);
+  if (!res.ok) throw new ProviderApiError(`meta graph ${path} failed: ${res.status}`, res.status, await res.text());
   return res.json();
 }
+
+// Follow Graph API cursor pagination (paging.next is a complete URL that
+// already carries the access token) until `max` items are collected.
+async function graphPaged<T>(firstPath: string, token: string, max: number): Promise<T[]> {
+  const items: T[] = [];
+  let page = (await graph(firstPath, token)) as { data?: T[]; paging?: { next?: string } };
+  items.push(...(page.data ?? []));
+  while (page.paging?.next && items.length < max) {
+    const res = await fetch(page.paging.next);
+    if (!res.ok) break; // pagination is best-effort past the first page
+    page = (await res.json()) as { data?: T[]; paging?: { next?: string } };
+    items.push(...(page.data ?? []));
+  }
+  return items.slice(0, max);
+}
+
+const BACKFILL_POSTS = 100;
+const STEADY_POSTS = 20;
 
 // Re-fetch one account's profile + recent posts/media with analytics.
 export async function syncAccount(
   providerAccountId: string,
   provider: Extract<ProviderId, "facebook" | "instagram">,
   pageToken: string,
+  opts?: SyncOptions,
 ): Promise<ProviderSync> {
   return provider === "facebook"
-    ? syncFacebook(providerAccountId, pageToken)
-    : syncInstagram(providerAccountId, pageToken);
+    ? syncFacebook(providerAccountId, pageToken, opts)
+    : syncInstagram(providerAccountId, pageToken, opts);
 }
 
-async function syncFacebook(pageId: string, token: string): Promise<ProviderSync> {
+async function syncFacebook(pageId: string, token: string, opts?: SyncOptions): Promise<ProviderSync> {
   const p = (await graph(`/${pageId}?fields=name,followers_count,fan_count,picture{url}`, token)) as {
     name?: string;
     followers_count?: number;
@@ -217,12 +237,14 @@ async function syncFacebook(pageId: string, token: string): Promise<ProviderSync
   let posts: NormalizedPost[] = [];
   let partialError: string | undefined;
   try {
-    const feed = (await graph(
-      `/${pageId}/posts?fields=id,message,created_time,permalink_url,full_picture&limit=15`,
+    const max = opts?.backfill ? BACKFILL_POSTS : STEADY_POSTS;
+    const feed = await graphPaged<{ id: string; message?: string; created_time?: string; permalink_url?: string; full_picture?: string }>(
+      `/${pageId}/posts?fields=id,message,created_time,permalink_url,full_picture&limit=${Math.min(max, 50)}`,
       token,
-    )) as { data?: Array<{ id: string; message?: string; created_time?: string; permalink_url?: string; full_picture?: string }> };
+      max,
+    );
     posts = await Promise.all(
-      (feed.data ?? []).map(async (post) => {
+      feed.map(async (post) => {
         const insights = await graph(`/${post.id}/insights?metric=post_impressions,post_engaged_users`, token).catch(
           () => ({}),
         );
@@ -246,7 +268,7 @@ async function syncFacebook(pageId: string, token: string): Promise<ProviderSync
   return { account, posts, partialError };
 }
 
-async function syncInstagram(igId: string, token: string): Promise<ProviderSync> {
+async function syncInstagram(igId: string, token: string, opts?: SyncOptions): Promise<ProviderSync> {
   const ig = (await graph(`/${igId}?fields=username,followers_count,media_count,profile_picture_url`, token)) as {
     username?: string;
     followers_count?: number;
@@ -265,25 +287,25 @@ async function syncInstagram(igId: string, token: string): Promise<ProviderSync>
   let posts: NormalizedPost[] = [];
   let partialError: string | undefined;
   try {
-    const media = (await graph(
-      `/${igId}/media?fields=id,caption,media_type,media_product_type,permalink,thumbnail_url,media_url,timestamp,like_count,comments_count&limit=20`,
+    const max = opts?.backfill ? BACKFILL_POSTS : STEADY_POSTS;
+    const media = await graphPaged<{
+      id: string;
+      caption?: string;
+      media_type?: string;
+      media_product_type?: string;
+      permalink?: string;
+      thumbnail_url?: string;
+      media_url?: string;
+      timestamp?: string;
+      like_count?: number;
+      comments_count?: number;
+    }>(
+      `/${igId}/media?fields=id,caption,media_type,media_product_type,permalink,thumbnail_url,media_url,timestamp,like_count,comments_count&limit=${Math.min(max, 50)}`,
       token,
-    )) as {
-      data?: Array<{
-        id: string;
-        caption?: string;
-        media_type?: string;
-        media_product_type?: string;
-        permalink?: string;
-        thumbnail_url?: string;
-        media_url?: string;
-        timestamp?: string;
-        like_count?: number;
-        comments_count?: number;
-      }>;
-    };
+      max,
+    );
     posts = await Promise.all(
-      (media.data ?? []).map(async (item) => {
+      media.map(async (item) => {
         const insights = await graph(`/${item.id}/insights?metric=reach,saved`, token).catch(() => ({}));
         const m = readInsights(insights as InsightsResponse);
         return {
