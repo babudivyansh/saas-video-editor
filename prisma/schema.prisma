@@ -366,10 +366,28 @@ model SocialAccount {
   posts             SocialPost[]
   snapshots         SocialAccountSnapshot[]
   audience          SocialAudienceSnapshot[]
+  insights          AiInsight[]
   clipPublishes     ClipPublish[]
 
   @@unique([userId, provider, providerAccountId])
   @@index([userId])
+}
+
+// AI-generated performance insight for a connected social account. The numbers
+// in `content` are computed deterministically (lib/social/analytics.ts) and
+// injected into the prompt — the model only narrates and recommends, it never
+// calculates. One row per generation; the newest row is what the UI shows.
+model AiInsight {
+  id          String        @id @default(cuid())
+  accountId   String
+  account     SocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  kind        String        @default("weekly_summary")
+  content     Json // { summary: string, wins: string[], recommendations: string[] }
+  periodStart DateTime
+  periodEnd   DateTime
+  createdAt   DateTime      @default(now())
+
+  @@index([accountId, createdAt])
 }
 
 // Audience demographics for an owned, connected account — one row per

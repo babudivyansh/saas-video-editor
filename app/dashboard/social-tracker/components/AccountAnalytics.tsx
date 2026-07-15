@@ -78,7 +78,7 @@ const SORT_OPTIONS = [
 
 export function AccountAnalytics({ accountId, color, isVideo, range }: { accountId: string; color: string; isVideo: boolean; range: number }) {
   const { token } = useAuth();
-  const [tab, setTab] = useState<"overview" | "audience" | "posts">("overview");
+  const [tab, setTab] = useState<"overview" | "audience" | "insights" | "posts">("overview");
   const [payload, setPayload] = useState<AnalyticsPayload | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -110,6 +110,7 @@ export function AccountAnalytics({ accountId, color, isVideo, range }: { account
   const tabs: Array<{ id: typeof tab; label: string }> = [
     { id: "overview", label: "Overview" },
     ...(hasAudience ? [{ id: "audience" as const, label: "Audience" }] : []),
+    { id: "insights", label: "Insights ✨" },
     { id: "posts", label: "All posts" },
   ];
 
@@ -186,7 +187,106 @@ export function AccountAnalytics({ accountId, color, isVideo, range }: { account
         </div>
       )}
 
+      {tab === "insights" && <InsightsPanel accountId={accountId} />}
+
       {tab === "posts" && <PostsTable accountId={accountId} isVideo={isVideo} />}
+    </div>
+  );
+}
+
+interface Insight {
+  content: { summary: string; wins: string[]; recommendations: string[] };
+  createdAt: string;
+}
+
+function InsightsPanel({ accountId }: { accountId: string }) {
+  const { token } = useAuth();
+  const [insight, setInsight] = useState<Insight | null>(null);
+  const [cost, setCost] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/social/insights?accountId=${accountId}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          const d = await res.json();
+          setInsight(d.insight);
+          setCost(d.cost);
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [token, accountId]);
+
+  async function generate() {
+    if (!token) return;
+    setGenerating(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/social/insights", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ accountId }),
+      });
+      const d = await res.json();
+      if (res.ok) setInsight(d.insight);
+      else setMessage(d.error || "Generation failed.");
+    } catch {
+      setMessage("Generation failed. Please try again.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  const fresh = insight && Date.now() - new Date(insight.createdAt).getTime() < 6 * 86400_000;
+
+  if (loading) return <div className="p-5 text-xs text-gray-400">Loading…</div>;
+  return (
+    <div className="p-5 space-y-4">
+      {insight ? (
+        <div className="border border-gray-100 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-gray-500">Weekly summary</p>
+            <p className="text-[11px] text-gray-400">Generated {new Date(insight.createdAt).toLocaleDateString()}</p>
+          </div>
+          <p className="text-sm text-gray-700 leading-relaxed">{insight.content.summary}</p>
+          {insight.content.wins.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-emerald-600 mb-1">What worked</p>
+              <ul className="text-sm text-gray-600 space-y-1 list-disc pl-4">
+                {insight.content.wins.map((w) => <li key={w}>{w}</li>)}
+              </ul>
+            </div>
+          )}
+          {insight.content.recommendations.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-blue-600 mb-1">Try next week</p>
+              <ul className="text-sm text-gray-600 space-y-1 list-disc pl-4">
+                {insight.content.recommendations.map((r) => <li key={r}>{r}</li>)}
+              </ul>
+            </div>
+          )}
+        </div>
+      ) : (
+        <p className="text-xs text-gray-400">
+          No insights yet. Generate an AI summary of this account&apos;s last 7 days — every number comes from your real synced data.
+        </p>
+      )}
+      {message && <p className="text-xs text-red-600">{message}</p>}
+      {!fresh && (
+        <button
+          onClick={generate}
+          disabled={generating}
+          className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl disabled:opacity-50 cursor-pointer"
+        >
+          {generating ? "Generating…" : `Generate this week's insights${cost ? ` (${cost} credits)` : ""}`}
+        </button>
+      )}
     </div>
   );
 }
