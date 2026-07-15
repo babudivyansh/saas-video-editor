@@ -67,10 +67,14 @@ export const PATCH = withAdmin(async (req, { admin }) => {
 });
 
 async function getFailedRenderJobs() {
+  const { redis } = await import("@/lib/redis");
+  if (!(await redis.ping())) return []; // Redis down: fail fast, no reconnect spam
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { Queue } = require("bullmq") as typeof import("bullmq");
-    const queue = new Queue("editor-render", { connection: { url: env.REDIS_URL || "redis://127.0.0.1:6379" } });
+    const queue = new Queue("editor-render", {
+      connection: { url: env.REDIS_URL || "redis://127.0.0.1:6379", retryStrategy: () => null, maxRetriesPerRequest: 1 },
+    });
     const failed = await queue.getFailed(0, 50);
     const jobs = failed.map((job) => ({
       id: job.id,

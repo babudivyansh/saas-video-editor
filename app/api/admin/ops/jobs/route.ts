@@ -11,7 +11,9 @@ export const POST = withAdmin(async (req, { admin }) => {
 
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { Queue } = require("bullmq") as typeof import("bullmq");
-  const queue = new Queue("editor-render", { connection: { url: env.REDIS_URL || "redis://127.0.0.1:6379" } });
+  const queue = new Queue("editor-render", {
+    connection: { url: env.REDIS_URL || "redis://127.0.0.1:6379", retryStrategy: () => null, maxRetriesPerRequest: 1 },
+  });
   try {
     const job = await queue.getJob(jobId);
     if (!job) return NextResponse.json({ error: "Job not found (it may have been cleaned up)" }, { status: 404 });

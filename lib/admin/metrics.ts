@@ -258,10 +258,20 @@ export async function infraSection() {
 }
 
 export async function renderQueueCounts(): Promise<Record<string, number> | null> {
+  // Probe first: when Redis is down (common in dev), don't let BullMQ open a
+  // connection that retries forever and floods the console with
+  // ECONNREFUSED AggregateErrors.
+  if (!(await redis.ping())) return null;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { Queue } = require("bullmq") as typeof import("bullmq");
-    const queue = new Queue("editor-render", { connection: { url: env.REDIS_URL || "redis://127.0.0.1:6379" } });
+    const queue = new Queue("editor-render", {
+      connection: {
+        url: env.REDIS_URL || "redis://127.0.0.1:6379",
+        retryStrategy: () => null, // one-shot read: fail fast, never reconnect-loop
+        maxRetriesPerRequest: 1,
+      },
+    });
     const counts = await queue.getJobCounts("wait", "active", "completed", "failed", "delayed");
     await queue.close();
     return counts;
