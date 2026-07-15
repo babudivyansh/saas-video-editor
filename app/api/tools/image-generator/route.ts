@@ -60,7 +60,18 @@ async function handlePOST(req: NextRequest) {
   if (!prompt) return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
 
   const modelEntry = getImageModel(body.model);
-  const CREDIT_COST = modelEntry.creditCost;
+
+  // Runtime admin overrides: a model can be disabled or repriced without a
+  // deploy (lib/model-overrides.ts, managed in /admin/models).
+  const { getModelOverrides } = await import("@/lib/model-overrides");
+  const override = (await getModelOverrides())[modelEntry.id];
+  if (override?.enabled === false) {
+    return NextResponse.json(
+      { error: `${modelEntry.displayName} is temporarily unavailable — try another model.` },
+      { status: 503 },
+    );
+  }
+  const CREDIT_COST = override?.creditCost ?? modelEntry.creditCost;
 
   if (modelEntry.integration === "direct-gemini") {
     if (!env.GEMINI_API_KEY) {

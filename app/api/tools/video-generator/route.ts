@@ -67,6 +67,18 @@ async function handlePOST(req: NextRequest) {
   if (prompt.length > 2000) return NextResponse.json({ error: "Prompt too long (max 2000 chars)" }, { status: 400 });
 
   const modelEntry = getVideoModel(body.model);
+
+  // Runtime admin overrides: disable or reprice (credits/second) without a
+  // deploy (lib/model-overrides.ts, managed in /admin/models).
+  const { getModelOverrides } = await import("@/lib/model-overrides");
+  const override = (await getModelOverrides())[modelEntry.id];
+  if (override?.enabled === false) {
+    return NextResponse.json(
+      { error: `${modelEntry.displayName} is temporarily unavailable — try another model.` },
+      { status: 503 },
+    );
+  }
+
   const isVeo3 = modelEntry.integration === "direct-veo3-fast";
   const referenceImageUrl = body.referenceImageUrl ?? null;
 
@@ -99,7 +111,7 @@ async function handlePOST(req: NextRequest) {
     Math.max(requestedDuration, modelEntry.minDurationSeconds),
     Math.min(modelEntry.maxDurationSeconds, tierCap),
   );
-  const CREDIT_COST = Math.ceil(modelEntry.creditsPerSecond * duration);
+  const CREDIT_COST = Math.ceil((override?.creditCost ?? modelEntry.creditsPerSecond) * duration);
 
   const falModelId = modelEntry.falEndpoint;
   const aspectRatio = body.aspectRatio ?? "16:9";

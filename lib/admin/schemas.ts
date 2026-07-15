@@ -218,6 +218,16 @@ export const creditAdjustSchema = z
   })
   .strict();
 
+export const modelOverrideSchema = z
+  .object({
+    modelId: z.string().min(1).max(64),
+    enabled: z.boolean().optional(),
+    creditCost: z.number().min(0).max(10_000).nullable().optional(), // image: flat · video: per second
+    clear: z.boolean().optional(), // remove the override entirely
+  })
+  .strict()
+  .refine((v) => v.clear || v.enabled !== undefined || v.creditCost !== undefined, { message: "Nothing to update" });
+
 export const metricsQuerySchema = z.object({
   section: z.enum(["kpis", "revenue", "ai", "social", "infra"]),
   range: z.coerce.number().pipe(z.union([z.literal(7), z.literal(30), z.literal(90)])).default(30),

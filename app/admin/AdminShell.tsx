@@ -22,6 +22,7 @@ const NAV = [
   { href: "/admin/pricing",       label: "Pricing",      icon: <IcTag />,      exact: false },
   { href: "/admin/coupons",       label: "Coupons",      icon: <IcTicket />,   exact: false },
   { href: "/admin/tools",         label: "Tools",        icon: <IcTool />,     exact: false },
+  { href: "/admin/models",        label: "AI Models",    icon: <IcTool />,     exact: false },
   { href: "/admin/purchases",     label: "Purchases",    icon: <IcReceipt />,  exact: false },
   { href: "/admin/audit",         label: "Audit Log",    icon: <IcLog />,      exact: false },
   { href: "/admin/affiliate",     label: "Affiliates",   icon: <IcGift />,     exact: false },

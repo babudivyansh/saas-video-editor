@@ -3,6 +3,7 @@ import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { getUserTier } from "@/lib/auth";
 import { getToolConfig } from "@/lib/tool-config";
+import { TOOL_COSTS } from "@/lib/tool-costs";
 import { tierAtLeast, lowestTier, type TierId } from "@/lib/plans/tiers";
 
 // Shared credit-charging service, generalizing the identical decrement/
@@ -89,7 +90,11 @@ export async function chargeCredits(params: ChargeCreditsParams): Promise<Charge
           modelId: params.log?.modelId ?? null,
           generationType: params.log?.generationType ?? "utility",
           creditsCost: params.amount,
-          estimatedCostUsd: params.log?.estimatedCostUsd ?? null,
+          // Cost analytics fallback: routes that don't compute a per-call cost
+          // (registry-less tools) inherit the researched per-generation figure
+          // from TOOL_COSTS, so AI spend dashboards cover every tool instead
+          // of only the three that pass an explicit value.
+          estimatedCostUsd: params.log?.estimatedCostUsd ?? TOOL_COSTS[params.toolSlug]?.costUsd ?? null,
           prompt: params.log?.prompt ?? null,
           status: "pending",
           idempotencyKey: params.idempotencyKey ?? null,
