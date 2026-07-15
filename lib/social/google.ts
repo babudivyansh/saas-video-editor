@@ -172,7 +172,7 @@ export async function sync(accessToken: string, opts?: SyncOptions): Promise<Pro
   };
 
   const uploads = channel.contentDetails?.relatedPlaylists?.uploads;
-  let posts: NormalizedPost[] = [];
+  const posts: NormalizedPost[] = [];
   if (uploads) {
     const wanted = opts?.backfill ? BACKFILL_POSTS : STEADY_POSTS;
     const ids: string[] = [];

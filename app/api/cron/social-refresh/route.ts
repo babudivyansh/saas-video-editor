@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { refreshStaleAccounts, pruneOldSnapshots, sendWeeklyDigests } from "@/lib/social/service";
+import { refreshStaleCompetitors } from "@/lib/social/competitors";
 import { refreshClipPublishMetrics } from "@/lib/autoclip-publish";
 import { env } from "@/lib/env";
 
@@ -41,5 +42,10 @@ export async function GET(req: NextRequest) {
   }
   const result = await refreshStaleAccounts();
   const clipPublishResult = await refreshClipPublishMetrics().catch(() => ({ updated: 0 }));
-  return NextResponse.json({ ok: true, job, ...result, clipPublishMetricsUpdated: clipPublishResult.updated });
+  const competitorResult = await refreshStaleCompetitors().catch(() => ({ refreshed: 0 }));
+  return NextResponse.json({
+    ok: true, job, ...result,
+    clipPublishMetricsUpdated: clipPublishResult.updated,
+    competitorsRefreshed: competitorResult.refreshed,
+  });
 }

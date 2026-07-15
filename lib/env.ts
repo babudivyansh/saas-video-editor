@@ -94,6 +94,10 @@ const schema = z.object({
   // only appears once these are set (requires an approved TikTok developer app).
   TIKTOK_CLIENT_KEY: z.string().optional(),
   TIKTOK_CLIENT_SECRET: z.string().optional(),
+  // Competitor tracking public-data vendor (pay-as-you-go). Feature is hidden
+  // until the key is set; the monthly budget hard-caps vendor spend.
+  SCRAPECREATORS_API_KEY: z.string().optional(),
+  SOCIAL_COMPETITOR_MONTHLY_BUDGET: z.string().optional(), // vendor requests/month, default 300
   // Self-contained BullMQ scheduler for social-account refresh — off by
   // default; see lib/social/refresh-queue.ts.
   SOCIAL_REFRESH_DRIVER: z.string().optional(),

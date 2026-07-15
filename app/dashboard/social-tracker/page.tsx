@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import { EmptyState } from "@/app/components/ui/EmptyState";
 import { AccountAnalytics } from "./components/AccountAnalytics";
+import { CompetitorsSection } from "./components/CompetitorsSection";
 
 const RANGES = [7, 30, 90] as const;
 
@@ -224,6 +225,27 @@ export default function SocialTrackerPage() {
     }
   }
 
+  async function share(id: string) {
+    if (!token) return;
+    try {
+      const res = await fetch("/api/social/report-link", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ accountId: id }),
+      });
+      const d = await res.json();
+      if (res.ok && d.url) {
+        await navigator.clipboard.writeText(d.url);
+        setToast({ kind: "ok", msg: "Report link copied — valid for 7 days" });
+      } else {
+        setToast({ kind: "err", msg: d.error || "Couldn't create a report link." });
+      }
+    } catch {
+      setToast({ kind: "err", msg: "Couldn't create a report link." });
+    }
+    setTimeout(() => setToast(null), 5000);
+  }
+
   async function disconnect(id: string) {
     if (!token) return;
     setBusy(id);
@@ -329,10 +351,13 @@ export default function SocialTrackerPage() {
                       onRefresh={() => refresh(a.id)}
                       onDisconnect={() => disconnect(a.id)}
                       onReconnect={() => connect(a.provider)}
+                      onShare={() => share(a.id)}
                     />
                   ))}
                 </div>
               )}
+
+              {(accounts ?? []).length > 0 && <CompetitorsSection ownAccounts={accounts ?? []} />}
             </>
           )}
         </div>
@@ -376,6 +401,7 @@ function AccountCard({
   onRefresh,
   onDisconnect,
   onReconnect,
+  onShare,
 }: {
   account: Account;
   range: number;
@@ -383,6 +409,7 @@ function AccountCard({
   onRefresh: () => void;
   onDisconnect: () => void;
   onReconnect: () => void;
+  onShare: () => void;
 }) {
   const meta = PLATFORMS[account.provider];
   const needsReauth = account.status === "needs_reauth";
@@ -411,6 +438,9 @@ function AccountCard({
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          <button onClick={onShare} disabled={busy} className="text-xs font-semibold text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg border border-gray-200 disabled:opacity-50 cursor-pointer">
+            Share report
+          </button>
           <button onClick={onRefresh} disabled={busy} className="text-xs font-semibold text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg border border-gray-200 disabled:opacity-50 cursor-pointer">
             {busy ? "Syncing…" : "Refresh"}
           </button>

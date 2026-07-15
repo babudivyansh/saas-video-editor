@@ -132,7 +132,7 @@ export async function sync(accessToken: string, opts?: SyncOptions): Promise<Pro
     metrics: { followers: u.follower_count, engagement: u.likes_count },
   };
 
-  let posts: NormalizedPost[] = [];
+  const posts: NormalizedPost[] = [];
   let partialError: string | undefined;
   try {
     const max = opts?.backfill ? BACKFILL_POSTS : STEADY_POSTS;

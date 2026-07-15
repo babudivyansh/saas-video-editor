@@ -206,6 +206,7 @@ function InsightsPanel({ accountId }: { accountId: string }) {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [mountedAt] = useState(() => Date.now());
 
   useEffect(() => {
     if (!token) return;
@@ -243,7 +244,7 @@ function InsightsPanel({ accountId }: { accountId: string }) {
     }
   }
 
-  const fresh = insight && Date.now() - new Date(insight.createdAt).getTime() < 6 * 86400_000;
+  const fresh = insight && mountedAt - new Date(insight.createdAt).getTime() < 6 * 86400_000;
 
   if (loading) return <div className="p-5 text-xs text-gray-400">Loading…</div>;
   return (
