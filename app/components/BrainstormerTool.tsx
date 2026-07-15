@@ -2,6 +2,11 @@
 
 import { useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
+import { Tooltip } from "@/app/components/ui/Tooltip";
+
+function IcInfo() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
+}
 
 type Stage = "idle" | "loading" | "done" | "error";
 interface Idea { title: string; description: string; }
@@ -131,7 +136,12 @@ export default function BrainstormerTool() {
 
           {/* Topic */}
           <div>
-            <label className="block text-sm font-semibold text-gray-800 mb-2">Topic</label>
+            <div className="flex items-center gap-1.5 mb-2">
+              <label className="block text-sm font-semibold text-gray-800">Topic</label>
+              <Tooltip content="Narrower is better — 'vintage motorcycle restoration' beats 'motorcycles' for more specific, usable ideas.">
+                <span className="text-gray-400 cursor-help"><IcInfo /></span>
+              </Tooltip>
+            </div>
             <input
               type="text"
               value={topic}

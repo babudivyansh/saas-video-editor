@@ -6,6 +6,7 @@ import { useOnboarding } from "@/app/hooks/useOnboarding";
 import { WelcomeScreen } from "@/app/components/onboarding/WelcomeScreen";
 import { ProductTour } from "@/app/components/onboarding/ProductTour";
 import { FeatureHint } from "@/app/components/onboarding/FeatureHint";
+import { Tooltip } from "@/app/components/ui/Tooltip";
 import { xpToLevel, levelColor, TOTAL_XP } from "@/lib/quest-config";
 import { PRIMARY_GOALS, GOAL_TO_QUEST } from "@/lib/onboarding-config";
 import { ProjectStatusBadge } from "@/app/components/dashboard/ProjectStatusBadge";
@@ -316,10 +317,12 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-2 mb-0.5">
                       <p className="text-[10px] font-bold text-ink-soft uppercase tracking-widest">Onboarding</p>
                       {level && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                          style={{ background: levelColor(level) + "18", color: levelColor(level) }}>
-                          {level}
-                        </span>
+                        <Tooltip content="Earn XP by completing quests below — more XP unlocks higher levels.">
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                            style={{ background: levelColor(level) + "18", color: levelColor(level) }}>
+                            {level}
+                          </span>
+                        </Tooltip>
                       )}
                     </div>
                     {questData === null && user ? (

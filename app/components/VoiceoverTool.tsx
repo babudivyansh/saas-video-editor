@@ -2,6 +2,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { useJobPolling } from "./useJobPolling";
+import { Tooltip } from "@/app/components/ui/Tooltip";
+
+function IcInfo() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
+}
 
 // ── Voice catalogue ─────────────────────────────────────────────────────────
 interface Voice {
@@ -672,7 +677,12 @@ export default function VoiceoverTool() {
 
           {/* Script */}
           <div className="flex items-center justify-between mb-1.5">
-            <label className="text-[14px] font-bold text-gray-900">Type your script here</label>
+            <div className="flex items-center gap-1.5">
+              <label className="text-[14px] font-bold text-gray-900">Type your script here</label>
+              <Tooltip content="Add punctuation for natural pauses — commas and periods control pacing more than any voice setting.">
+                <span className="text-gray-400 cursor-help"><IcInfo /></span>
+              </Tooltip>
+            </div>
             <span className="text-[12px] text-gray-400 font-medium tabular-nums">{chars} · {fmtTime(estSec)}</span>
           </div>
           <textarea
