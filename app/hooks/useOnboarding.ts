@@ -3,6 +3,15 @@ import { useState, useCallback } from "react";
 import { useAuth } from "@/app/components/AuthContext";
 import type { PrimaryGoalId } from "@/lib/onboarding-config";
 
+export type ExperienceLevel = "beginner" | "intermediate" | "advanced";
+export type TeamOrIndividual = "individual" | "team";
+
+interface CompleteParams {
+  primaryGoal?: PrimaryGoalId;
+  experienceLevel?: ExperienceLevel;
+  teamOrIndividual?: TeamOrIndividual;
+}
+
 export function useOnboarding() {
   const { user, token, refreshUser } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -18,14 +27,14 @@ export function useOnboarding() {
   // can never have a non-null tourStep to trigger a surprise resume.
   const shouldResumeTour = !!user && user.tourStep != null && user.tourCompletedAt == null;
 
-  const complete = useCallback(async (primaryGoal?: PrimaryGoalId) => {
+  const complete = useCallback(async (params: CompleteParams) => {
     if (!token) return;
     setIsSubmitting(true);
     try {
       await fetch("/api/onboarding/complete", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(primaryGoal ? { primaryGoal } : {}),
+        body: JSON.stringify(params),
       });
       await refreshUser();
     } finally {
@@ -33,8 +42,15 @@ export function useOnboarding() {
     }
   }, [token, refreshUser]);
 
-  const completeOnboarding = useCallback((goal: PrimaryGoalId) => complete(goal), [complete]);
-  const skipOnboarding = useCallback(() => complete(undefined), [complete]);
+  const completeOnboarding = useCallback((goal: PrimaryGoalId) => complete({ primaryGoal: goal }), [complete]);
+  const skipOnboarding = useCallback(() => complete({}), [complete]);
+  // The welcome overlay's second (skippable) step — safe to call after
+  // completeOnboarding already ran; it just re-sets onboardingCompletedAt to
+  // a later timestamp, which has no user-visible effect.
+  const savePreferences = useCallback(
+    (params: { experienceLevel?: ExperienceLevel; teamOrIndividual?: TeamOrIndividual }) => complete(params),
+    [complete],
+  );
 
   // Fire-and-forget: only needs to persist so a reload resumes at the right
   // step. The tour's own local state (not user.tourStep) drives its render,
@@ -65,6 +81,7 @@ export function useOnboarding() {
     isSubmitting,
     completeOnboarding,
     skipOnboarding,
+    savePreferences,
     advanceTour,
     finishTour,
   };
