@@ -32,6 +32,12 @@ function prettyJson(raw: string | null) {
 
 const LIMIT = 50;
 
+interface AdminActivity {
+  adminEmail: string;
+  actions30d: number;
+  lastActionAt: string | null;
+}
+
 export default function AdminAuditPage() {
   const { token, user } = useAuth();
   const [logs, setLogs]     = useState<AuditEntry[]>([]);
@@ -39,17 +45,28 @@ export default function AdminAuditPage() {
   const [total, setTotal]   = useState(0);
   const [page, setPage]     = useState(1);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [byAdmin, setByAdmin] = useState<AdminActivity[]>([]);
+  // filters
+  const [fAction, setFAction] = useState("");
+  const [fTarget, setFTarget] = useState("");
+  const [fAdmin, setFAdmin] = useState("");
+  const [fFrom, setFFrom] = useState("");
+  const [fTo, setFTo] = useState("");
 
   const load = useCallback(async () => {
     if (!token || user?.role !== "ADMIN") return;
     setLoading(true);
     const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
+    for (const [k, v] of [["action", fAction], ["targetId", fTarget], ["adminEmail", fAdmin], ["from", fFrom], ["to", fTo]] as const) {
+      if (v.trim()) params.set(k, v.trim());
+    }
     const res = await fetch(`/api/admin/audit?${params}`, { headers: { Authorization: `Bearer ${token}` } });
-    const data = res.ok ? await res.json() : { logs: [], total: 0 };
+    const data = res.ok ? await res.json() : { logs: [], total: 0, byAdmin: [] };
     setLogs(data.logs ?? []);
     setTotal(data.total ?? 0);
+    if (page === 1) setByAdmin(data.byAdmin ?? []);
     setLoading(false);
-  }, [token, user?.role, page]);
+  }, [token, user?.role, page, fAction, fTarget, fAdmin, fFrom, fTo]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -63,9 +80,47 @@ export default function AdminAuditPage() {
 
   return (
     <AdminShell title="Audit Log">
-      <p className="text-sm text-gray-500 mb-6">
+      <p className="text-sm text-gray-500 mb-4">
         Every admin action is recorded here. Click a row to see the before/after snapshot.
       </p>
+
+      {byAdmin.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2">Admin activity — last 30 days</p>
+          <div className="flex flex-wrap gap-2">
+            {byAdmin.map(a => (
+              <button
+                key={a.adminEmail}
+                onClick={() => { setFAdmin(a.adminEmail); setPage(1); }}
+                className="text-xs bg-gray-50 hover:bg-blue-50 border border-gray-100 rounded-lg px-3 py-1.5 cursor-pointer"
+                title="Filter to this admin"
+              >
+                <span className="font-semibold text-gray-700">{a.adminEmail}</span>
+                <span className="text-gray-400"> · {a.actions30d} actions</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4 flex flex-wrap gap-2 items-end">
+        <input value={fAction} onChange={e => { setFAction(e.target.value); setPage(1); }} placeholder="Action prefix (e.g. user., commission.)"
+          className="text-xs border border-gray-200 rounded-lg px-3 py-2 w-56" aria-label="Filter by action" />
+        <input value={fTarget} onChange={e => { setFTarget(e.target.value); setPage(1); }} placeholder="Target ID"
+          className="text-xs border border-gray-200 rounded-lg px-3 py-2 w-44 font-mono" aria-label="Filter by target" />
+        <input value={fAdmin} onChange={e => { setFAdmin(e.target.value); setPage(1); }} placeholder="Admin email"
+          className="text-xs border border-gray-200 rounded-lg px-3 py-2 w-44" aria-label="Filter by admin" />
+        <input type="date" value={fFrom} onChange={e => { setFFrom(e.target.value); setPage(1); }}
+          className="text-xs border border-gray-200 rounded-lg px-3 py-2" aria-label="From date" />
+        <input type="date" value={fTo} onChange={e => { setFTo(e.target.value); setPage(1); }}
+          className="text-xs border border-gray-200 rounded-lg px-3 py-2" aria-label="To date" />
+        {(fAction || fTarget || fAdmin || fFrom || fTo) && (
+          <button onClick={() => { setFAction(""); setFTarget(""); setFAdmin(""); setFFrom(""); setFTo(""); setPage(1); }}
+            className="text-xs font-semibold text-gray-500 hover:text-red-600 px-3 py-2 cursor-pointer">
+            Clear filters
+          </button>
+        )}
+      </div>
 
       {loading ? (
         <p className="text-sm text-gray-400">Loading logs…</p>

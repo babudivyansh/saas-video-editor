@@ -16,6 +16,34 @@ interface OpsData {
   tableSizes: Array<{ table: string; size: string }>;
 }
 
+// Incident response: force every non-admin user to log in again.
+function RevokeAllSessions({ headers, onDone }: { headers: () => Record<string, string>; onDone: () => void }) {
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function run() {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/admin/ops/sessions", { method: "POST", headers: headers() });
+      if (res.ok) onDone();
+    } finally {
+      setBusy(false);
+      setConfirm(false);
+    }
+  }
+
+  return confirm ? (
+    <button onClick={run} onBlur={() => setConfirm(false)} disabled={busy}
+      className="text-xs font-bold text-white bg-red-600 px-3 py-1.5 rounded-lg disabled:opacity-50 cursor-pointer">
+      {busy ? "Revoking…" : "Confirm — log everyone out?"}
+    </button>
+  ) : (
+    <button onClick={() => setConfirm(true)} className="text-xs font-semibold text-red-600 border border-red-200 px-3 py-1.5 rounded-lg cursor-pointer">
+      Revoke all user sessions
+    </button>
+  );
+}
+
 export default function AdminOpsPage() {
   const { token } = useAuth();
   const [d, setD] = useState<OpsData | null>(null);
@@ -111,7 +139,10 @@ export default function AdminOpsPage() {
 
         {/* Workers */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <h2 className="text-sm font-bold text-gray-800 mb-3">Workers</h2>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h2 className="text-sm font-bold text-gray-800">Workers</h2>
+            <RevokeAllSessions headers={headers} onDone={() => setMsg("All non-admin sessions revoked.")} />
+          </div>
           <div className="space-y-2 text-sm">
             {Object.entries(d.heartbeats).map(([name, beat]) => (
               <div key={name} className="flex items-center gap-2">

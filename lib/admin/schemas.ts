@@ -243,6 +243,18 @@ export const opsFlagsSchema = z
   .strict()
   .refine((v) => v.flag !== undefined || v.maintenance !== undefined, { message: "Nothing to update" });
 
+// Empty-string query params (cleared filter inputs) are treated as absent.
+const blankAsUndefined = (v: unknown) => (v === "" ? undefined : v);
+export const auditQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  action: z.preprocess(blankAsUndefined, z.string().max(64).optional()),
+  targetId: z.preprocess(blankAsUndefined, z.string().max(128).optional()),
+  adminEmail: z.preprocess(blankAsUndefined, z.string().max(200).optional()),
+  from: z.preprocess(blankAsUndefined, z.coerce.date().optional()),
+  to: z.preprocess(blankAsUndefined, z.coerce.date().optional()),
+});
+
 export const metricsQuerySchema = z.object({
   section: z.enum(["kpis", "revenue", "ai", "social", "infra", "growth"]),
   range: z.coerce.number().pipe(z.union([z.literal(7), z.literal(30), z.literal(90)])).default(30),
