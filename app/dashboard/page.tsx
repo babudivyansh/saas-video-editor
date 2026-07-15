@@ -147,9 +147,14 @@ export default function DashboardPage() {
   // (sessionStorage isn't readable during SSR) — set for real just after
   // mount, one tick before the summary fetch would otherwise resolve.
   const [optimisticReturning, setOptimisticReturning] = useState(false);
+  const [explicitRestart, setExplicitRestart] = useState(false);
 
   useEffect(() => {
     setOptimisticReturning(sessionStorage.getItem(HAS_PROJECTS_STORAGE_KEY) === "true");
+    if (sessionStorage.getItem("clipiro:restartOnboarding") === "1") {
+      sessionStorage.removeItem("clipiro:restartOnboarding");
+      setExplicitRestart(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -195,8 +200,10 @@ export default function DashboardPage() {
   // Gated on summary having loaded so existing users with real projects never
   // flash the welcome screen before it's suppressed — every pre-existing user
   // has onboardingCompletedAt === null after the migration, so hasAnyProjects
-  // is what actually protects them from seeing this retroactively.
-  const showWelcome = shouldShowWelcome && summary !== null && !summary.hasAnyProjects;
+  // is what actually protects them from seeing this retroactively. An
+  // explicit restart (profile settings → Restart Tour) bypasses that guard —
+  // the user asked for it, so hasAnyProjects shouldn't block it.
+  const showWelcome = shouldShowWelcome && (explicitRestart || (summary !== null && !summary.hasAnyProjects));
   // Tour renders either right after the welcome screen (in-session opt-in) or
   // across a reload if the user left mid-tour — shouldResumeTour is only ever
   // true once a tour has actually been started for this user, so it's safe

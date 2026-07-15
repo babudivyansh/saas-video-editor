@@ -7,6 +7,7 @@
 // DELETE /api/auth/profile route.
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/AuthContext";
 
 function IcUser() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" /></svg>; }
@@ -33,6 +34,10 @@ const INTENDED_USES = [
 
 export default function PersonalInfoPage() {
   const { user, token, signOut, refreshUser } = useAuth();
+  const router = useRouter();
+
+  // Restart onboarding
+  const [restarting, setRestarting] = useState(false);
 
   // Nickname + phone
   const [displayName, setDisplayName] = useState("");
@@ -131,6 +136,25 @@ export default function PersonalInfoPage() {
       }
     } finally {
       setSavingChoice(null);
+    }
+  }
+
+  async function handleRestartOnboarding() {
+    setRestarting(true);
+    try {
+      await fetch("/api/onboarding/restart", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      await refreshUser();
+      // One-time signal so the dashboard shows the welcome screen even though
+      // this user has real projects (the usual hasAnyProjects gate exists to
+      // protect pre-existing users from seeing it unprompted, not to block an
+      // explicit restart).
+      sessionStorage.setItem("clipiro:restartOnboarding", "1");
+      router.push("/dashboard");
+    } finally {
+      setRestarting(false);
     }
   }
 
@@ -267,6 +291,23 @@ export default function PersonalInfoPage() {
               {o.label}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* Onboarding */}
+      <div className="bg-white rounded-[var(--radius-card)] border border-card-border p-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-ink">Restart onboarding tour</p>
+            <p className="text-xs text-gray-400 mt-0.5">Replay the welcome screen and guided tour next time you visit the dashboard.</p>
+          </div>
+          <button
+            onClick={handleRestartOnboarding}
+            disabled={restarting}
+            className="flex-shrink-0 flex items-center gap-2 text-sm font-semibold text-brand border border-violet-200 hover:bg-tint-blue disabled:opacity-60 px-5 py-2 rounded-xl transition-colors cursor-pointer"
+          >
+            {restarting ? <><IcSpinner /> Restarting…</> : "Restart Tour"}
+          </button>
         </div>
       </div>
 
