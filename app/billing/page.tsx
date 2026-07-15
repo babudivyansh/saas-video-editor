@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 import { useTopupCoupon } from "@/app/components/useTopupCoupon";
+import { PlansModal } from "@/app/components/billing/PlansModal";
 import ClipiroLogo from "@/app/components/ClipiroLogo";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
@@ -108,6 +109,7 @@ function BillingContent() {
   const [addons, setAddons] = useState<DbPlan[]>([]);
   const [launch, setLaunch] = useState<LaunchCoupon | null>(null);
   const [copied, setCopied] = useState(false);
+  const [plansModalOpen, setPlansModalOpen] = useState(false);
 
   // Usage tab data — real Generation-ledger-backed (Phase 1/3), replacing the
   // old Project-derived bar chart and its hardcoded "−1 credit" display.
@@ -186,6 +188,15 @@ function BillingContent() {
       onSuccess: () => { refreshUser(); router.push("/billing?success=1"); },
       onError: setError,
     });
+  }
+
+  // Reuses the exact same success path as top-up purchases (handleBuy above) —
+  // refresh the cached user object and reveal the existing ?success=1 banner —
+  // rather than inventing a separate confirmation for plan/subscription
+  // purchases made through the new modal.
+  function handlePlanPurchaseSuccess() {
+    refreshUser();
+    router.push("/billing?success=1");
   }
 
   function copyLaunchCode() {
@@ -293,6 +304,7 @@ function BillingContent() {
             allowance={allowance}
             balance={balance}
             used={used}
+            onViewPlans={() => setPlansModalOpen(true)}
           />
         )}
 
@@ -314,6 +326,7 @@ function BillingContent() {
             activeId={activeId}
             onBuy={handleBuy}
             coupon={coupon}
+            onViewPlans={() => setPlansModalOpen(true)}
           />
         )}
 
@@ -323,18 +336,26 @@ function BillingContent() {
           Payments powered by Razorpay · Secure &amp; encrypted
         </p>
       </main>
+
+      {plansModalOpen && (
+        <PlansModal
+          onClose={() => setPlansModalOpen(false)}
+          onPurchaseSuccess={handlePlanPurchaseSuccess}
+        />
+      )}
     </div>
   );
 }
 
 // ── Overview tab ─────────────────────────────────────────────────────────────
-function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used }: {
+function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, onViewPlans }: {
   user: ReturnType<typeof useAuth>["user"];
   hasActivePlan: boolean;
   daysLeft: number;
   allowance: number;
   balance: number;
   used: number;
+  onViewPlans: () => void;
 }) {
   const expiringSoon = hasActivePlan && daysLeft <= 7;
   const memberSince = user?.createdAt ? formatDate(user.createdAt) : "—";
@@ -355,12 +376,12 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used }
                 {daysLeft <= 0 ? "Expires today" : daysLeft === 1 ? "Expires tomorrow" : `Expires in ${daysLeft} days`}
               </p>
               <p className="text-xs text-ink-soft/70 mt-1">Member since {memberSince}</p>
-              <Link href="/pricing" className="inline-flex items-center gap-1 text-xs text-brand hover:text-brand-dark font-medium mt-2 transition-colors">
+              <button onClick={onViewPlans} className="inline-flex items-center gap-1 text-xs text-brand hover:text-brand-dark font-medium mt-2 transition-colors cursor-pointer">
                 Manage plan
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
                   <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-              </Link>
+              </button>
             </div>
 
             {allowance > 0 && (
@@ -387,7 +408,7 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used }
             <p className="font-semibold text-ink">You don&apos;t have an active subscription</p>
             <p className="text-sm text-ink-soft mt-1">Subscribe to get monthly credits and unlock top-up packs.</p>
           </div>
-          <Button variant="primary" size="lg" href="/pricing" className="flex-shrink-0">View Plans</Button>
+          <Button variant="primary" size="lg" onClick={onViewPlans} className="flex-shrink-0">View Plans</Button>
         </Card>
       )}
     </div>
@@ -466,13 +487,14 @@ function UsageTab({ summary, history, historyCursor, historyLoadingMore, onLoadM
 }
 
 // ── Top Up tab ───────────────────────────────────────────────────────────────
-function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon }: {
+function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onViewPlans }: {
   hasActivePlan: boolean;
   packs: DbPlan[];
   addons: DbPlan[];
   activeId: string | null;
   onBuy: (slug: string) => void;
   coupon: ReturnType<typeof useTopupCoupon>;
+  onViewPlans: () => void;
 }) {
   if (!hasActivePlan) {
     return (
@@ -481,7 +503,7 @@ function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon }: {
           <p className="font-semibold text-ink">Top-up packs require an active subscription</p>
           <p className="text-sm text-ink-soft mt-1">Subscribe to any plan, then buy credit packs anytime.</p>
         </div>
-        <Button variant="primary" size="lg" href="/pricing" className="flex-shrink-0">View Plans</Button>
+        <Button variant="primary" size="lg" onClick={onViewPlans} className="flex-shrink-0">View Plans</Button>
       </Card>
     );
   }
