@@ -99,8 +99,6 @@ export default function AdminOpsPage() {
     );
   }
 
-  const workerAlive = (name: string) => !!d.heartbeats[name];
-
   return (
     <AdminShell title="Operations">
       {msg && <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg px-4 py-2 mb-4">{msg}</p>}

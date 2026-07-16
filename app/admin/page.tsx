@@ -87,25 +87,35 @@ function useSection<T>(section: string, range: number, refreshKey: number, opts?
   const [env, setEnv] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [visible, setVisible] = useState(!!opts?.eager);
-  const ref = useRef<HTMLDivElement>(null);
   const loadedOnce = useRef(false);
+  const ioRef = useRef<IntersectionObserver | null>(null);
+  const eager = opts?.eager;
+  const compare = opts?.compare;
 
-  useEffect(() => {
-    if (opts?.eager || !ref.current) return;
-    const io = new IntersectionObserver(
-      (entries) => entries.some((e) => e.isIntersecting) && setVisible(true),
-      { rootMargin: "200px" },
-    );
-    io.observe(ref.current);
-    return () => io.disconnect();
-  }, [opts?.eager]);
+  // Callback ref — attaches IntersectionObserver without reading .current during render.
+  const ref = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (ioRef.current) { ioRef.current.disconnect(); ioRef.current = null; }
+      if (eager || !node) return;
+      const io = new IntersectionObserver(
+        (entries) => entries.some((e) => e.isIntersecting) && setVisible(true),
+        { rootMargin: "200px" },
+      );
+      io.observe(node);
+      ioRef.current = io;
+    },
+    [eager],
+  );
+
+  // Disconnect observer on unmount.
+  useEffect(() => () => { ioRef.current?.disconnect(); }, []);
 
   const load = useCallback(async () => {
     if (!token) return;
     setError(false);
     try {
       const params = new URLSearchParams({ section, range: String(range) });
-      if (opts?.compare) params.set("compare", "1");
+      if (compare) params.set("compare", "1");
       const res = await fetch(`/api/admin/metrics?${params}`, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) throw new Error();
       const d = await res.json();
@@ -115,7 +125,7 @@ function useSection<T>(section: string, range: number, refreshKey: number, opts?
     } catch {
       setError(true);
     }
-  }, [token, section, range, opts?.compare]);
+  }, [token, section, range, compare]);
 
   useEffect(() => {
     if (visible) load();
@@ -126,7 +136,10 @@ function useSection<T>(section: string, range: number, refreshKey: number, opts?
     if (refreshKey > 0 && loadedOnce.current) load();
   }, [refreshKey, load]);
 
-  return { data, env, error, retry: load, ref };
+  // Return as tuple so the React Compiler does not taint data/error/retry
+  // with the ref (react-hooks/refs fires on any property of an object that
+  // also contains a ref).
+  return [{ data, env, error, retry: load }, ref] as const;
 }
 
 function Row({ children, ariaLabel }: { children: React.ReactNode; ariaLabel: string }) {
@@ -208,15 +221,15 @@ export default function AdminDashboardPage() {
     window.history.replaceState({}, "", url.toString());
   }
 
-  const overview = useSection<Overview>("overview", range, refreshKey, { eager: true });
-  const infra = useSection<Infra>("infra", range, refreshKey, { eager: true });
-  const revenue = useSection<Revenue>("revenue", range, refreshKey, { compare: true });
-  const ai = useSection<Ai>("ai", range, refreshKey);
-  const social = useSection<Social>("social", range, refreshKey);
-  const growth = useSection<Growth>("growth", range, refreshKey);
-  const top = useSection<Top>("top", range, refreshKey);
-  const activity = useSection<Activity>("activity", range, refreshKey);
-  const ops = useOps(refreshKey);
+  const [overview, overviewRef] = useSection<Overview>("overview", range, refreshKey, { eager: true });
+  const [infra, infraRef] = useSection<Infra>("infra", range, refreshKey, { eager: true });
+  const [revenue, revenueRef] = useSection<Revenue>("revenue", range, refreshKey, { compare: true });
+  const [ai, aiRef] = useSection<Ai>("ai", range, refreshKey);
+  const [social, socialRef] = useSection<Social>("social", range, refreshKey);
+  const [growth, growthRef] = useSection<Growth>("growth", range, refreshKey);
+  const [top, topRef] = useSection<Top>("top", range, refreshKey);
+  const [activity, activityRef] = useSection<Activity>("activity", range, refreshKey);
+  const [ops, opsRef] = useOps(refreshKey);
 
   const healthOk = infra.data ? infra.data.db && infra.data.redis : null;
   const alerts: Array<{ label: string; href: string }> = [];
@@ -243,7 +256,7 @@ export default function AdminDashboardPage() {
 
       {/* Row 1 — Executive KPIs */}
       <Row ariaLabel="Executive KPIs">
-        <div ref={overview.ref}>
+        <div ref={overviewRef}>
           {overview.error ? (
             <ErrorCard onRetry={overview.retry} />
           ) : !o ? (
@@ -271,7 +284,7 @@ export default function AdminDashboardPage() {
 
       {/* Row 2 — Revenue analytics */}
       <Row ariaLabel="Revenue analytics">
-        <div ref={revenue.ref}>
+        <div ref={revenueRef}>
           {revenue.error ? (
             <ErrorCard onRetry={revenue.retry} />
           ) : !revenue.data ? (
@@ -316,7 +329,7 @@ export default function AdminDashboardPage() {
 
       {/* Row 4 — AI usage, success gauge, infra health */}
       <Row ariaLabel="AI usage and infrastructure health">
-        <div ref={ai.ref} className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div ref={aiRef} className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           {ai.error ? (
             <div className="lg:col-span-3"><ErrorCard onRetry={ai.retry} /></div>
           ) : !ai.data ? (
@@ -367,7 +380,7 @@ export default function AdminDashboardPage() {
 
       {/* Row 5 — Social tracker */}
       <Row ariaLabel="Social tracker">
-        <div ref={social.ref}>
+        <div ref={socialRef}>
           {social.error ? (
             <ErrorCard onRetry={social.retry} />
           ) : !social.data ? (
@@ -406,7 +419,7 @@ export default function AdminDashboardPage() {
 
       {/* Row 6 — Financial analytics */}
       <Row ariaLabel="Financial analytics">
-        <div ref={growth.ref} className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div ref={growthRef} className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           {revenue.data && growth.data ? (
             <>
               <ChartContainer title="Credits: sold vs consumed" subtitle={`Last ${range} days`}>
@@ -469,7 +482,7 @@ export default function AdminDashboardPage() {
 
       {/* Row 8 — Top lists */}
       <Row ariaLabel="Top lists">
-        <div ref={top.ref}>
+        <div ref={topRef}>
           {top.error ? (
             <ErrorCard onRetry={top.retry} />
           ) : !top.data ? (
@@ -500,7 +513,7 @@ export default function AdminDashboardPage() {
 
       {/* Row 9 — Activity feed */}
       <Row ariaLabel="Activity feed">
-        <div ref={activity.ref}>
+        <div ref={activityRef}>
           {activity.error ? (
             <ErrorCard onRetry={activity.retry} />
           ) : !activity.data ? (
@@ -526,7 +539,7 @@ export default function AdminDashboardPage() {
 
       {/* Row 10 — Operations strip */}
       <Row ariaLabel="Operations">
-        <div ref={ops.ref}>
+        <div ref={opsRef}>
           {!ops.data ? (
             <Skeleton h="h-40" />
           ) : (
@@ -584,14 +597,18 @@ function useOps(refreshKey: number) {
   const { token } = useAuth();
   const [data, setData] = useState<Ops | null>(null);
   const [visible, setVisible] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const ioRef = useRef<IntersectionObserver | null>(null);
 
-  useEffect(() => {
-    if (!ref.current) return;
+  // Callback ref — avoids reading .current during render.
+  const ref = useCallback((node: HTMLDivElement | null) => {
+    if (ioRef.current) { ioRef.current.disconnect(); ioRef.current = null; }
+    if (!node) return;
     const io = new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && setVisible(true), { rootMargin: "200px" });
-    io.observe(ref.current);
-    return () => io.disconnect();
+    io.observe(node);
+    ioRef.current = io;
   }, []);
+
+  useEffect(() => () => { ioRef.current?.disconnect(); }, []);
 
   useEffect(() => {
     if (!visible || !token) return;
@@ -601,7 +618,7 @@ function useOps(refreshKey: number) {
       .catch(() => {});
   }, [visible, token, refreshKey]);
 
-  return { data, ref };
+  return [{ data }, ref] as const;
 }
 
 function ActivityIcon({ kind }: { kind: string }) {

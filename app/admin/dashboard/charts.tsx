@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import {
-  Area, AreaChart, Bar, BarChart, Brush, CartesianGrid, Cell, Legend, Line, LineChart,
+  Area, AreaChart, Bar, BarChart, Brush, CartesianGrid, Cell, Line, LineChart,
   Pie, PieChart, RadialBar, RadialBarChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { BRAND, PALETTE, compact, inr } from "./ui";
