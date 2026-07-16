@@ -118,16 +118,101 @@ function AdminGate({ email, onElevated }: { email: string; onElevated: () => voi
   );
 }
 
-export default function AdminShell({ children, title }: { children: React.ReactNode; title: string }) {
-  const { user, isLoading, signOut, token } = useAuth();
-  const router = useRouter();
-  const pathname = usePathname();
-  const [elevated, setElevated] = useState<boolean | null>(null);
+function AdminSignIn({ error: initialError }: { error?: string | null }) {
+  const { refreshUser } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(initialError || null);
 
   useEffect(() => {
-    if (isLoading) return;
-    if (!user || user.role !== "ADMIN") router.replace("/dashboard");
-  }, [isLoading, user, router]);
+    setError(initialError || null);
+  }, [initialError]);
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, method: "email" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Login failed");
+      }
+      localStorage.setItem("token", data.token);
+      await refreshUser();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex h-screen items-center justify-center bg-gray-50 px-4">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 w-full max-w-sm text-center">
+        <span className="bg-blue-600 text-white rounded-xl w-10 h-10 inline-flex items-center justify-center font-extrabold mb-4">C</span>
+        <h1 className="text-lg font-bold text-gray-900 mb-1">Admin Portal</h1>
+        <p className="text-sm text-gray-500 mb-5">
+          Please sign in with your administrator credentials to continue.
+        </p>
+        
+        {error && (
+          <div className="bg-red-50 border border-red-100 text-red-700 text-xs rounded-xl p-3 mb-4 text-left">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleLogin} className="space-y-3.5 text-left">
+          <div>
+            <label className="block text-xs font-semibold text-gray-400 mb-1" htmlFor="email">
+              Email Address
+            </label>
+            <input
+              id="email"
+              type="email"
+              required
+              placeholder="admin@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full text-sm border border-gray-200 rounded-xl px-3.5 py-2.5 outline-none focus:border-blue-500 transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-400 mb-1" htmlFor="password">
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              required
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full text-sm border border-gray-200 rounded-xl px-3.5 py-2.5 outline-none focus:border-blue-500 transition-colors"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={busy}
+            className="w-full text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl py-2.5 disabled:opacity-50 cursor-pointer mt-1"
+          >
+            {busy ? "Signing in…" : "Sign in as Admin"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export default function AdminShell({ children, title }: { children: React.ReactNode; title: string }) {
+  const { user, isLoading, signOut, token } = useAuth();
+  const pathname = usePathname();
+  const [elevated, setElevated] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!token || !user || user.role !== "ADMIN") return;
@@ -137,12 +222,20 @@ export default function AdminShell({ children, title }: { children: React.ReactN
       .catch(() => setElevated(false));
   }, [token, user]);
 
-  if (isLoading || !user || user.role !== "ADMIN" || elevated === null) {
+  if (isLoading || (user && user.role === "ADMIN" && elevated === null)) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-50 text-gray-400 gap-3">
         <IcSpinner /> <span className="text-sm">Checking access…</span>
       </div>
     );
+  }
+
+  if (!user) {
+    return <AdminSignIn />;
+  }
+
+  if (user.role !== "ADMIN") {
+    return <AdminSignIn error="Access Denied: You must be an administrator to access the admin console." />;
   }
 
   if (!elevated) {
