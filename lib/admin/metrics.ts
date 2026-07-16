@@ -12,8 +12,10 @@ import { redis } from "@/lib/redis";
 import { env } from "@/lib/env";
 import { getSyncStats } from "@/lib/social/service";
 
-export type MetricsSection = "kpis" | "revenue" | "ai" | "social" | "infra" | "growth";
-export const METRIC_RANGES = [7, 30, 90] as const;
+export type MetricsSection =
+  | "kpis" | "revenue" | "ai" | "social" | "infra" | "growth"
+  | "overview" | "top" | "activity";
+export const METRIC_RANGES = [7, 30, 90, 365] as const;
 
 const DAY_MS = 86400_000;
 
@@ -86,19 +88,34 @@ export async function kpisSection(rangeDays: number) {
   };
 }
 
+// Daily revenue/refund/purchase buckets for an arbitrary window — shared by
+// the main series, the compare-previous-period overlay, and KPI sparklines.
+async function dailyRevenueSeries(from: Date, to: Date) {
+  const rows = await prisma.$queryRaw<Array<{ day: Date; revenue: bigint; refunds: bigint; purchases: bigint }>>`
+    SELECT date_trunc('day', "createdAt") AS day,
+           COALESCE(SUM("amountInPaise") FILTER (WHERE status <> 'refunded'), 0) AS revenue,
+           COALESCE(SUM("amountInPaise") FILTER (WHERE status = 'refunded'), 0) AS refunds,
+           COUNT(*) FILTER (WHERE status <> 'refunded') AS purchases
+    FROM "Purchase"
+    WHERE "createdAt" >= ${from} AND "createdAt" < ${to}
+    GROUP BY 1 ORDER BY 1`;
+  return rows.map((r) => ({
+    date: r.day.toISOString().slice(0, 10),
+    revenueInPaise: Number(r.revenue),
+    refundsInPaise: Number(r.refunds),
+    purchases: Number(r.purchases),
+  }));
+}
+
 // ── Revenue ──────────────────────────────────────────────────────────────────
-export async function revenueSection(rangeDays: number) {
+export async function revenueSection(rangeDays: number, compare = false) {
   const now = new Date();
   const rangeStart = new Date(now.getTime() - rangeDays * DAY_MS);
+  const prevStart = new Date(rangeStart.getTime() - rangeDays * DAY_MS);
 
-  const [series, signupSeries, byPlan, byKind, creditsSold, creditsConsumed, affiliate] = await Promise.all([
-    prisma.$queryRaw<Array<{ day: Date; revenue: bigint; purchases: bigint }>>`
-      SELECT date_trunc('day', "createdAt") AS day,
-             COALESCE(SUM("amountInPaise"), 0) AS revenue,
-             COUNT(*) AS purchases
-      FROM "Purchase"
-      WHERE "createdAt" >= ${rangeStart} AND status <> 'refunded'
-      GROUP BY 1 ORDER BY 1`,
+  const [series, previousSeries, signupSeries, byPlan, byKind, creditsSold, creditsConsumed, affiliate, couponDiscount] = await Promise.all([
+    dailyRevenueSeries(rangeStart, now),
+    compare ? dailyRevenueSeries(prevStart, rangeStart) : Promise.resolve(null),
     prisma.$queryRaw<Array<{ day: Date; users: bigint }>>`
       SELECT date_trunc('day', "createdAt") AS day, COUNT(*) AS users
       FROM "User" WHERE "createdAt" >= ${rangeStart}
@@ -117,14 +134,21 @@ export async function revenueSection(rangeDays: number) {
     prisma.purchase.aggregate({ _sum: { credits: true }, where: { createdAt: { gte: rangeStart }, status: { not: "refunded" } } }),
     prisma.generation.aggregate({ _sum: { creditsCost: true }, where: { createdAt: { gte: rangeStart }, status: "completed" } }),
     prisma.commission.groupBy({ by: ["status"], _sum: { amount: true }, _count: true }),
+    prisma.couponRedemption.aggregate({ _sum: { discountInPaise: true }, where: { createdAt: { gte: rangeStart } } }),
   ]);
 
   const planNames = new Map(
     (await prisma.plan.findMany({ select: { id: true, name: true } })).map((p) => [p.id, p.name]),
   );
 
+  const kindRevenue = (kind: string) => Number(byKind.find((k) => k.kind === kind)?.revenue ?? 0);
+  const affiliatePaid = affiliate.find((a) => a.status === "paid")?._sum.amount ?? 0;
+  const totalRevenue = series.reduce((s, r) => s + r.revenueInPaise, 0);
+  const totalPurchases = series.reduce((s, r) => s + r.purchases, 0);
+
   return {
-    series: series.map((r) => ({ date: r.day.toISOString().slice(0, 10), revenueInPaise: Number(r.revenue), purchases: Number(r.purchases) })),
+    series,
+    previousSeries, // null unless ?compare=1
     signupSeries: signupSeries.map((r) => ({ date: r.day.toISOString().slice(0, 10), value: Number(r.users) })),
     byPlan: byPlan
       .map((p) => ({
@@ -134,6 +158,16 @@ export async function revenueSection(rangeDays: number) {
       }))
       .sort((a, b) => b.revenueInPaise - a.revenueInPaise),
     byKind: byKind.map((k) => ({ kind: k.kind ?? "unknown", revenueInPaise: Number(k.revenue), purchases: Number(k.purchases) })),
+    // Revenue-sources donut. Affiliate payouts and coupon discounts are COSTS
+    // shown alongside revenue slices for context, labeled as such in the UI.
+    // No "enterprise" plan kind exists — deliberately absent, never faked.
+    sources: [
+      { name: "Subscriptions", inPaise: kindRevenue("subscription") },
+      { name: "Credit packs", inPaise: kindRevenue("pack") },
+      { name: "Affiliate payouts", inPaise: Math.round(affiliatePaid * 100), isCost: true },
+      { name: "Coupon discounts", inPaise: couponDiscount._sum.discountInPaise ?? 0, isCost: true },
+    ],
+    aovInPaise: totalPurchases > 0 ? Math.round(totalRevenue / totalPurchases) : null,
     creditsSold: creditsSold._sum.credits ?? 0,
     creditsConsumed: creditsConsumed._sum.creditsCost ?? 0,
     affiliate: affiliate.map((a) => ({ status: a.status, amount: a._sum.amount ?? 0, count: a._count })),
@@ -144,7 +178,7 @@ export async function revenueSection(rangeDays: number) {
 export async function aiSection(rangeDays: number) {
   const rangeStart = new Date(Date.now() - rangeDays * DAY_MS);
 
-  const [byTypeStatus, latency, cost, topModels, modelStatus, byTool] = await Promise.all([
+  const [byTypeStatus, latency, cost, topModels, modelStatus, byTool, topCostUsersRaw] = await Promise.all([
     prisma.generation.groupBy({
       by: ["generationType", "status"],
       _count: true,
@@ -180,13 +214,69 @@ export async function aiSection(rangeDays: number) {
       orderBy: { _count: { toolSlug: "desc" } },
       take: 12,
     }),
+    prisma.generation.groupBy({
+      by: ["userId"],
+      _sum: { estimatedCostUsd: true, creditsCost: true },
+      _count: true,
+      where: { createdAt: { gte: rangeStart }, estimatedCostUsd: { not: null } },
+      orderBy: { _sum: { estimatedCostUsd: "desc" } },
+      take: 10,
+    }),
   ]);
+
+  // Cost per provider over ALL generations in range (modelId null = tools
+  // without a registry model → their researched per-run cost groups as "other").
+  const costByModelAll = await prisma.generation.groupBy({
+    by: ["modelId"],
+    _sum: { estimatedCostUsd: true },
+    _count: true,
+    where: { createdAt: { gte: rangeStart }, estimatedCostUsd: { not: null } },
+  });
 
   const count = (status: string) => byTypeStatus.filter((r) => r.status === status).reduce((s, r) => s + r._count, 0);
   const completed = count("completed");
   const failed = count("failed");
 
+  // modelId → provider from the static registries (code-side join).
+  const { IMAGE_MODELS } = await import("@/lib/models/imageModels");
+  const { VIDEO_MODELS } = await import("@/lib/models/videoModels");
+  const providerOf = new Map<string, string>(
+    [...IMAGE_MODELS, ...VIDEO_MODELS].map((m) => [m.id, m.provider]),
+  );
+  const costByProvider = new Map<string, { costUsd: number; generations: number }>();
+  for (const m of costByModelAll) {
+    const provider = m.modelId ? (providerOf.get(m.modelId) ?? "other") : "other";
+    const entry = costByProvider.get(provider) ?? { costUsd: 0, generations: 0 };
+    entry.costUsd += m._sum.estimatedCostUsd ?? 0;
+    entry.generations += m._count;
+    costByProvider.set(provider, entry);
+  }
+
+  const costUsers = await prisma.user.findMany({
+    where: { id: { in: topCostUsersRaw.map((u) => u.userId) } },
+    select: { id: true, email: true, name: true },
+  });
+  const costUserById = new Map(costUsers.map((u) => [u.id, u]));
+
   return {
+    statusTotals: {
+      completed,
+      failed,
+      cancelled: count("cancelled"),
+      refunded: count("refunded"),
+      pending: count("pending"),
+    },
+    costByProvider: [...costByProvider.entries()]
+      .map(([provider, v]) => ({ provider, ...v }))
+      .sort((a, b) => b.costUsd - a.costUsd),
+    topCostUsers: topCostUsersRaw.map((u) => ({
+      userId: u.userId,
+      email: costUserById.get(u.userId)?.email ?? "(deleted)",
+      name: costUserById.get(u.userId)?.name ?? null,
+      costUsd: u._sum.estimatedCostUsd ?? 0,
+      creditsCost: u._sum.creditsCost ?? 0,
+      generations: u._count,
+    })),
     totalGenerations: byTypeStatus.reduce((s, r) => s + r._count, 0),
     byType: byTypeStatus,
     successRatePct: completed + failed > 0 ? (completed / (completed + failed)) * 100 : null,
@@ -332,14 +422,193 @@ export async function growthSection() {
   };
 }
 
+// ── Overview (Row-1 KPI cards: kpis + sparklines + AI cost/margin proxy) ─────
+export async function overviewSection(rangeDays: number) {
+  const now = new Date();
+  const sparkStart = new Date(now.getTime() - 30 * DAY_MS);
+
+  const [kpis, revenueSpark, signupSpark, genSpark, aiCost, revenueRange] = await Promise.all([
+    kpisSection(rangeDays),
+    dailyRevenueSeries(sparkStart, now),
+    prisma.$queryRaw<Array<{ day: Date; n: bigint }>>`
+      SELECT date_trunc('day', "createdAt") AS day, COUNT(*) AS n
+      FROM "User" WHERE "createdAt" >= ${sparkStart} GROUP BY 1 ORDER BY 1`,
+    prisma.$queryRaw<Array<{ day: Date; n: bigint; credits: bigint }>>`
+      SELECT date_trunc('day', "createdAt") AS day, COUNT(*) AS n,
+             COALESCE(SUM("creditsCost"), 0) AS credits
+      FROM "Generation" WHERE "createdAt" >= ${sparkStart} GROUP BY 1 ORDER BY 1`,
+    prisma.generation.aggregate({
+      _sum: { estimatedCostUsd: true },
+      where: { createdAt: { gte: new Date(now.getTime() - rangeDays * DAY_MS) }, estimatedCostUsd: { not: null } },
+    }),
+    prisma.purchase.aggregate({
+      _sum: { amountInPaise: true },
+      where: { createdAt: { gte: new Date(now.getTime() - rangeDays * DAY_MS) }, status: { not: "refunded" } },
+    }),
+  ]);
+
+  const day = (d: Date) => d.toISOString().slice(0, 10);
+  return {
+    ...kpis,
+    aiCostUsd: aiCost._sum.estimatedCostUsd ?? 0,
+    // Margin proxy: revenue vs tracked provider cost, deliberately currency-
+    // separate (₹ revenue, $ cost) — the UI labels it, never a fake percent.
+    revenueRangeInPaise: revenueRange._sum.amountInPaise ?? 0,
+    sparklines: {
+      revenue: revenueSpark.map((r) => ({ date: r.date, value: r.revenueInPaise })),
+      signups: signupSpark.map((r) => ({ date: day(r.day), value: Number(r.n) })),
+      generations: genSpark.map((r) => ({ date: day(r.day), value: Number(r.n) })),
+      creditsConsumed: genSpark.map((r) => ({ date: day(r.day), value: Number(r.credits) })),
+    },
+  };
+}
+
+// ── Top lists (Row 8) ────────────────────────────────────────────────────────
+export async function topSection(rangeDays: number) {
+  const rangeStart = new Date(Date.now() - rangeDays * DAY_MS);
+
+  const [creditUsersRaw, revenueUsersRaw, recentPurchases, countries, devices, firstLoginEvent] = await Promise.all([
+    prisma.generation.groupBy({
+      by: ["userId"],
+      _sum: { creditsCost: true },
+      _count: true,
+      where: { createdAt: { gte: rangeStart } },
+      orderBy: { _sum: { creditsCost: "desc" } },
+      take: 10,
+    }),
+    prisma.purchase.groupBy({
+      by: ["userId"],
+      _sum: { amountInPaise: true },
+      _count: true,
+      where: { status: { not: "refunded" } },
+      orderBy: { _sum: { amountInPaise: "desc" } },
+      take: 10,
+    }),
+    prisma.purchase.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 8,
+      select: {
+        id: true, amountInPaise: true, credits: true, status: true, createdAt: true,
+        user: { select: { id: true, email: true, name: true } },
+        plan: { select: { name: true } },
+      },
+    }),
+    prisma.loginEvent.groupBy({ by: ["country"], _count: true, where: { country: { not: null } }, orderBy: { _count: { country: "desc" } }, take: 8 }),
+    prisma.loginEvent.groupBy({ by: ["device"], _count: true, where: { device: { not: null } }, orderBy: { _count: { device: "desc" } }, take: 8 }),
+    prisma.loginEvent.findFirst({ orderBy: { createdAt: "asc" }, select: { createdAt: true } }),
+  ]);
+
+  const ids = [...new Set([...creditUsersRaw.map((u) => u.userId), ...revenueUsersRaw.map((u) => u.userId)])];
+  const users = ids.length
+    ? await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, email: true, name: true } })
+    : [];
+  const byId = new Map(users.map((u) => [u.id, u]));
+  const label = (id: string) => byId.get(id)?.name || byId.get(id)?.email || "(deleted)";
+
+  return {
+    topCreditUsers: creditUsersRaw.map((u) => ({
+      userId: u.userId, label: label(u.userId), credits: u._sum.creditsCost ?? 0, generations: u._count,
+    })),
+    topRevenueUsers: revenueUsersRaw.map((u) => ({
+      userId: u.userId, label: label(u.userId), revenueInPaise: u._sum.amountInPaise ?? 0, purchases: u._count,
+    })),
+    recentPurchases,
+    // Login analytics accrue from the LoginEvent deploy — the UI shows since-when.
+    countries: countries.map((c) => ({ label: c.country as string, count: c._count })),
+    devices: devices.map((d) => ({ label: d.device as string, count: d._count })),
+    loginDataSince: firstLoginEvent?.createdAt ?? null,
+  };
+}
+
+// ── Activity feed (Row 9) ────────────────────────────────────────────────────
+// Recent events merged from real tables — no synthetic events. Support
+// tickets: no model exists, deliberately absent.
+export interface ActivityEvent {
+  kind: "user" | "purchase" | "refund" | "generation_failed" | "admin" | "coupon";
+  at: string;
+  title: string;
+  href?: string;
+}
+
+export async function activitySection() {
+  const PER_SOURCE = 12;
+  const [newUsers, purchases, failedGens, adminActions, redemptions] = await Promise.all([
+    prisma.user.findMany({
+      orderBy: { createdAt: "desc" },
+      take: PER_SOURCE,
+      select: { id: true, email: true, name: true, createdAt: true },
+    }),
+    prisma.purchase.findMany({
+      orderBy: { createdAt: "desc" },
+      take: PER_SOURCE,
+      select: { id: true, amountInPaise: true, status: true, createdAt: true, user: { select: { id: true, email: true } }, plan: { select: { name: true } } },
+    }),
+    prisma.generation.findMany({
+      where: { status: "failed" },
+      orderBy: { createdAt: "desc" },
+      take: PER_SOURCE,
+      select: { id: true, toolSlug: true, modelId: true, createdAt: true, userId: true },
+    }),
+    prisma.auditLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: PER_SOURCE,
+      select: { id: true, action: true, targetId: true, createdAt: true },
+    }),
+    prisma.couponRedemption.findMany({
+      orderBy: { createdAt: "desc" },
+      take: PER_SOURCE,
+      select: { id: true, discountInPaise: true, createdAt: true, coupon: { select: { code: true } } },
+    }),
+  ]);
+
+  const inr = (paise: number) => `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
+  const events: ActivityEvent[] = [
+    ...newUsers.map((u) => ({
+      kind: "user" as const,
+      at: u.createdAt.toISOString(),
+      title: `${u.name || u.email} signed up`,
+      href: `/admin/users/${u.id}`,
+    })),
+    ...purchases.map((p) => ({
+      kind: p.status === "refunded" ? ("refund" as const) : ("purchase" as const),
+      at: p.createdAt.toISOString(),
+      title: `${p.user?.email ?? "?"} ${p.status === "refunded" ? "refunded" : "purchased"} ${p.plan?.name ?? "credits"} (${inr(p.amountInPaise)})`,
+      href: "/admin/purchases",
+    })),
+    ...failedGens.map((g) => ({
+      kind: "generation_failed" as const,
+      at: g.createdAt.toISOString(),
+      title: `Generation failed: ${g.toolSlug}${g.modelId ? ` · ${g.modelId}` : ""}`,
+      href: `/admin/users/${g.userId}`,
+    })),
+    ...adminActions.map((a) => ({
+      kind: "admin" as const,
+      at: a.createdAt.toISOString(),
+      title: `Admin: ${a.action}${a.targetId ? ` → ${a.targetId.slice(0, 12)}…` : ""}`,
+      href: "/admin/audit",
+    })),
+    ...redemptions.map((r) => ({
+      kind: "coupon" as const,
+      at: r.createdAt.toISOString(),
+      title: `Coupon ${r.coupon.code} redeemed (−${inr(r.discountInPaise)})`,
+      href: "/admin/coupons",
+    })),
+  ];
+
+  return { events: events.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 40) };
+}
+
 // ── Dispatch ─────────────────────────────────────────────────────────────────
-export async function computeSection(section: MetricsSection, rangeDays: number) {
+export async function computeSection(section: MetricsSection, rangeDays: number, compare = false) {
   switch (section) {
     case "kpis": return kpisSection(rangeDays);
-    case "revenue": return revenueSection(rangeDays);
+    case "overview": return overviewSection(rangeDays);
+    case "revenue": return revenueSection(rangeDays, compare);
     case "ai": return aiSection(rangeDays);
     case "social": return socialSection();
     case "infra": return infraSection();
     case "growth": return growthSection();
+    case "top": return topSection(rangeDays);
+    case "activity": return activitySection();
   }
 }

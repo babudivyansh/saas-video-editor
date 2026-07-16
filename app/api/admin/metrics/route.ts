@@ -12,20 +12,21 @@ const TTL: Record<string, number> = { infra: 30 };
 const DEFAULT_TTL = 300;
 
 export const GET = withAdmin(async (req) => {
-  const { section, range } = parseQuery(req, metricsQuerySchema);
+  const { section, range, compare } = parseQuery(req, metricsQuerySchema);
 
-  const cacheKey = `admin:metrics:${section}:${range}`;
+  const env = process.env.NODE_ENV === "production" ? "production" : "development";
+  const cacheKey = `admin:metrics:${section}:${range}:${compare ? 1 : 0}`;
   const cached = await redis.get(cacheKey);
   if (cached) {
     try {
-      return NextResponse.json({ ...JSON.parse(cached), cached: true });
+      return NextResponse.json({ ...JSON.parse(cached), cached: true, env });
     } catch {
       /* recompute */
     }
   }
 
-  const data = await computeSection(section, range);
+  const data = await computeSection(section, range, compare);
   const payload = { section, range, generatedAt: new Date().toISOString(), data };
   await redis.set(cacheKey, JSON.stringify(payload), "EX", TTL[section] ?? DEFAULT_TTL);
-  return NextResponse.json({ ...payload, cached: false });
+  return NextResponse.json({ ...payload, cached: false, env });
 });
