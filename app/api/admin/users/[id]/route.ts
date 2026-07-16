@@ -1,38 +1,20 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
-import { writeAuditLog } from "@/lib/tool-config";
+import { withAdmin, parseBody } from "@/lib/admin/api";
+import { auditAdminAction, auditIp } from "@/lib/admin/audit";
+import { userPatchSchema } from "@/lib/admin/schemas";
 import { logger } from "@/lib/logger";
 
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const { id } = await params;
+export const PATCH = withAdmin<{ id: string }>(async (req, { admin, params }) => {
+  const { id } = params;
 
-  const body = await req.json();
+  const body = await parseBody(req, userPatchSchema);
   const data: Record<string, unknown> = {};
 
-  if ("credits" in body) {
-    const credits = Number(body.credits);
-    if (!Number.isInteger(credits) || credits < 0) {
-      return NextResponse.json({ error: "credits must be a non-negative integer" }, { status: 400 });
-    }
-    data.credits = credits;
-  }
-  if ("monthlyCredits" in body) {
-    const mc = Number(body.monthlyCredits);
-    if (!Number.isInteger(mc) || mc < 0) {
-      return NextResponse.json({ error: "monthlyCredits must be a non-negative integer" }, { status: 400 });
-    }
-    data.monthlyCredits = mc;
-  }
-  if ("role" in body) {
-    if (body.role !== "USER" && body.role !== "ADMIN") {
-      return NextResponse.json({ error: "role must be USER or ADMIN" }, { status: 400 });
-    }
-    data.role = body.role;
-  }
+  if ("credits" in body) data.credits = body.credits;
+  if ("monthlyCredits" in body) data.monthlyCredits = body.monthlyCredits;
+  if ("role" in body) data.role = body.role;
 
   // Plan assignment: auto-apply the plan's full benefits so the admin doesn't
   // have to manually fill credits / subscriptionEndsAt / monthlyCredits.
@@ -82,27 +64,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   if ("subscriptionEndsAt" in body) {
-    data.subscriptionEndsAt = body.subscriptionEndsAt ? new Date(body.subscriptionEndsAt) : null;
+    data.subscriptionEndsAt = body.subscriptionEndsAt ?? null;
   }
   if ("name" in body) {
-    const name = String(body.name ?? "").trim();
+    const name = (body.name ?? "").trim();
     data.name = name || null;
   }
-  if ("email" in body) {
-    const email = String(body.email ?? "").trim().toLowerCase();
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
-    }
-    // Ensure uniqueness
-    const existing = await prisma.user.findUnique({ where: { email } });
+  if (body.email !== undefined) {
+    const existing = await prisma.user.findUnique({ where: { email: body.email } });
     if (existing && existing.id !== id) {
       return NextResponse.json({ error: "Email already in use by another account" }, { status: 409 });
     }
-    data.email = email;
-  }
-
-  if (Object.keys(data).length === 0) {
-    return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
+    data.email = body.email;
   }
 
   const before = await prisma.user.findUnique({
@@ -125,21 +98,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     await redis.set(`credits:${id}`, String(user.credits), "EX", 3600);
   }
 
-  await writeAuditLog({
-    adminId: admin.userId,
-    action: "user.updated",
-    targetId: id,
-    before,
-    after: data,
-  });
+  await auditAdminAction(admin.userId, "user.updated", id, { before, after: data, ip: auditIp(req) });
 
   return NextResponse.json({ user });
-}
+});
 
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const { id } = await params;
+export const DELETE = withAdmin<{ id: string }>(async (req, { admin, params }) => {
+  const { id } = params;
 
   if (id === admin.userId) {
     return NextResponse.json({ error: "You cannot delete your own account." }, { status: 400 });
@@ -187,13 +152,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     redis.del(`credits:${id}`),
   ]);
 
-  await writeAuditLog({
-    adminId: admin.userId,
-    action: "user.deleted",
-    targetId: id,
-    before: target,
-    after: null,
-  });
+  await auditAdminAction(admin.userId, "user.deleted", id, { before: target, ip: auditIp(req) });
 
   return NextResponse.json({ success: true });
-}
+});

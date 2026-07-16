@@ -1,14 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { writeAuditLog } from "@/lib/tool-config";
+import { withAdmin, parseBody } from "@/lib/admin/api";
+import { auditAdminAction, auditIp } from "@/lib/admin/audit";
+import { extendSchema } from "@/lib/admin/schemas";
 
-export async function POST(req: NextRequest) {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-
-  const { userId, months, expire } = await req.json() as { userId: string; months?: number; expire?: boolean };
-  if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
+export const POST = withAdmin(async (req, { admin }) => {
+  const { userId, months, expire } = await parseBody(req, extendSchema);
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -33,13 +30,11 @@ export async function POST(req: NextRequest) {
     select: { id: true, subscriptionEndsAt: true },
   });
 
-  await writeAuditLog({
-    adminId: admin.userId,
-    action: expire ? "subscription.expired" : "subscription.extended",
-    targetId: userId,
+  await auditAdminAction(admin.userId, expire ? "subscription.expired" : "subscription.extended", userId, {
     before: { subscriptionEndsAt: user.subscriptionEndsAt },
-    after: { subscriptionEndsAt },
+    after: { subscriptionEndsAt, months: expire ? undefined : (months ?? 1) },
+    ip: auditIp(req),
   });
 
   return NextResponse.json({ user: updated });
-}
+});

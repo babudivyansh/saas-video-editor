@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { NextResponse } from "next/server";
+import { withAdmin } from "@/lib/admin/api";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 
@@ -7,10 +7,7 @@ import { env } from "@/lib/env";
 // failed renders aren't silently invisible once BullMQ is the default driver
 // (see lib/render-queue.ts). Harmless (returns an empty list) when the queue
 // hasn't been created yet, or when running with RENDER_QUEUE_DRIVER=in-process.
-export async function GET(req: NextRequest) {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-
+export const GET = withAdmin(async () => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { Queue } = require("bullmq") as typeof import("bullmq");
@@ -33,4 +30,4 @@ export async function GET(req: NextRequest) {
     logger.error("admin/failed-jobs", "request failed", err);
     return NextResponse.json({ error: "Failed to query render queue" }, { status: 500 });
   }
-}
+});

@@ -1,11 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withAdmin } from "@/lib/admin/api";
 
-export async function GET(req: NextRequest) {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+const CSV_BATCH = 1000;
 
+export const GET = withAdmin(async (req) => {
   const { searchParams } = new URL(req.url);
   const exportCsv = searchParams.get("export") === "csv";
   const page     = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
@@ -41,21 +40,47 @@ export async function GET(req: NextRequest) {
   };
 
   if (exportCsv) {
-    const all = await prisma.purchase.findMany({ where, orderBy: { createdAt: "desc" }, select });
-    const header = "ID,User Email,User Name,Plan,Kind,Amount (INR),Credits,Status,Date";
-    const rows = all.map(p => [
-      p.id,
-      p.user?.email ?? "",
-      p.user?.name ?? "",
-      p.plan?.name ?? "",
-      p.plan?.kind ?? "",
-      (p.amountInPaise / 100).toFixed(2),
-      p.credits,
-      p.status,
-      new Date(p.createdAt).toISOString().split("T")[0],
-    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
-    const csv = [header, ...rows].join("\n");
-    return new NextResponse(csv, {
+    // Cursor-batched stream: exports of any size without loading every row
+    // (previously a single unbounded findMany) or changing the file format.
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        controller.enqueue(encoder.encode("ID,User Email,User Name,Plan,Kind,Amount (INR),Credits,Status,Date\n"));
+        let cursor: string | undefined;
+        for (;;) {
+          const batch = await prisma.purchase.findMany({
+            where,
+            orderBy: { createdAt: "desc" },
+            take: CSV_BATCH,
+            ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+            select,
+          });
+          if (batch.length === 0) break;
+          const rows = batch
+            .map((p) =>
+              [
+                p.id,
+                p.user?.email ?? "",
+                p.user?.name ?? "",
+                p.plan?.name ?? "",
+                p.plan?.kind ?? "",
+                (p.amountInPaise / 100).toFixed(2),
+                p.credits,
+                p.status,
+                new Date(p.createdAt).toISOString().split("T")[0],
+              ]
+                .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+                .join(","),
+            )
+            .join("\n");
+          controller.enqueue(encoder.encode(rows + "\n"));
+          if (batch.length < CSV_BATCH) break;
+          cursor = batch[batch.length - 1].id;
+        }
+        controller.close();
+      },
+    });
+    return new NextResponse(stream, {
       status: 200,
       headers: {
         "Content-Type": "text/csv",
@@ -70,4 +95,4 @@ export async function GET(req: NextRequest) {
   ]);
 
   return NextResponse.json({ purchases, total, page, limit });
-}
+});

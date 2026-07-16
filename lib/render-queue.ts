@@ -98,6 +98,8 @@ function makeBullQueue<T extends { projectId: string }>(name: string, handler: H
     async (job: { data: T }) => { await handler(job.data); },
     { connection, concurrency },
   );
+  // Liveness signal for the admin ops page.
+  void import("@/lib/worker-heartbeat").then(({ startHeartbeat }) => startHeartbeat(name));
 
   return {
     driver: "bullmq",

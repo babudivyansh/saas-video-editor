@@ -212,6 +212,11 @@ export default function AdminUsersPage() {
                           <td className="py-3 px-3 text-gray-400 text-xs whitespace-nowrap">{fmt(u.createdAt)}</td>
                           <td className="py-3 px-3">
                             <div className="flex items-center gap-1.5">
+                              <a
+                                href={`/admin/users/${u.id}`}
+                                className="text-xs font-semibold text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 transition-colors">
+                                View
+                              </a>
                               <button
                                 onClick={() => openExpand(u)}
                                 className="text-xs font-semibold text-blue-600 hover:text-blue-800 border border-blue-200 rounded-lg px-2.5 py-1.5 hover:bg-blue-50 transition-colors">

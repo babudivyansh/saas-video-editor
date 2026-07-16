@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/app/components/AuthContext";
-import { DeltaChip, fmtCompact } from "./charts";
+import { DeltaChip, fmtCompact } from "@/app/components/charts";
 
 interface CompetitorSnapshot {
   capturedAt: string;

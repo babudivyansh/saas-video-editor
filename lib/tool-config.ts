@@ -120,7 +120,9 @@ export async function setToolConfig(slug: string, patch: Partial<ToolConfig>): P
   await redis.del(CACHE_KEY);
 }
 
-// Helper for audit logging — never throws (audit failures must not block operations)
+// Helper for audit logging — never throws (audit failures must not block
+// operations). Kept for existing call sites; delegates to the canonical
+// lib/admin/audit.ts helper so there is one audit-writing code path.
 export async function writeAuditLog(params: {
   adminId: string;
   action: string;
@@ -128,17 +130,9 @@ export async function writeAuditLog(params: {
   before?: unknown;
   after?: unknown;
 }) {
-  try {
-    await prisma.auditLog.create({
-      data: {
-        adminId: params.adminId,
-        action: params.action,
-        targetId: params.targetId ?? null,
-        before: params.before != null ? JSON.stringify(params.before) : null,
-        after: params.after != null ? JSON.stringify(params.after) : null,
-      },
-    });
-  } catch {
-    // Silently swallow — audit must never block the actual operation
-  }
+  const { auditAdminAction } = await import("@/lib/admin/audit");
+  await auditAdminAction(params.adminId, params.action, params.targetId, {
+    before: params.before ?? undefined,
+    after: params.after ?? undefined,
+  });
 }

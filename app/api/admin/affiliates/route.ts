@@ -1,25 +1,60 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withAdmin, parseQuery } from "@/lib/admin/api";
+import { pageQuerySchema } from "@/lib/admin/schemas";
 
-async function requireAdmin(req: NextRequest) {
-  const user = await getAuthUser(req);
-  if (!user) return null;
-  const dbUser = await prisma.user.findUnique({ where: { id: user.userId }, select: { role: true } });
-  return dbUser?.role === "ADMIN" ? user : null;
-}
+// GET /api/admin/affiliates?page&limit
+// Paginated; per-affiliate referral count + commission totals come from one
+// count select and one groupBy over the page's ids — previously this endpoint
+// fanned out EVERY referral and commission row for EVERY affiliate.
+export const GET = withAdmin(async (req) => {
+  const { page, limit } = parseQuery(req, pageQuerySchema);
 
-export async function GET(req: NextRequest) {
-  if (!await requireAdmin(req)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const [rows, total] = await Promise.all([
+    prisma.affiliate.findMany({
+      include: {
+        user: { select: { name: true, email: true } },
+        _count: { select: { referrals: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.affiliate.count(),
+  ]);
 
-  const affiliates = await prisma.affiliate.findMany({
-    include: {
-      user: { select: { name: true, email: true } },
-      referrals: { select: { id: true, status: true } },
-      commissions: { select: { amount: true, status: true } },
-    },
-    orderBy: { createdAt: "desc" },
+  const ids = rows.map((a) => a.id);
+  const [totals, referralsByStatus] = await Promise.all([
+    prisma.commission.groupBy({
+      by: ["affiliateId", "status"],
+      where: { affiliateId: { in: ids } },
+      _sum: { amount: true },
+      _count: true,
+    }),
+    prisma.referral.groupBy({
+      by: ["affiliateId", "status"],
+      where: { affiliateId: { in: ids } },
+      _count: true,
+    }),
+  ]);
+
+  const affiliates = rows.map((a) => {
+    const mine = totals.filter((t) => t.affiliateId === a.id);
+    const sum = (status: string) => mine.find((t) => t.status === status)?._sum.amount ?? 0;
+    return {
+      ...a,
+      referralCount: a._count.referrals,
+      convertedReferrals:
+        referralsByStatus.find((r) => r.affiliateId === a.id && r.status === "converted")?._count ?? 0,
+      commissionTotals: {
+        pending: sum("pending"),
+        available: sum("available"),
+        paid: sum("paid"),
+        rejected: sum("rejected"),
+        count: mine.reduce((s, t) => s + t._count, 0),
+      },
+    };
   });
 
-  return NextResponse.json({ affiliates });
-}
+  return NextResponse.json({ affiliates, total, page, limit });
+});

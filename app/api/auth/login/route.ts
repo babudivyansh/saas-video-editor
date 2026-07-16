@@ -44,6 +44,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
+    // Suspension is enforced here (plus session revocation at suspend time in
+    // the admin API) rather than on every request — getAuthUser stays a pure
+    // Redis check with no per-request DB read.
+    if (user.suspendedAt) {
+      return NextResponse.json(
+        { error: "This account has been suspended. Contact support if you believe this is a mistake." },
+        { status: 403 },
+      );
+    }
+
     const token = signToken({ userId: user.id, email: user.email });
     await cacheSession(user.id, token);
 
@@ -64,15 +74,21 @@ export async function POST(req: NextRequest) {
 
     const timeStr = now.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
 
-    // Fire & forget — fetch location from free ip-api, then send alert
+    // Fire & forget — fetch location from free ip-api, persist the login
+    // event (admin login history / device analytics), then send the alert.
     ;(async () => {
       try {
         let location = "Unknown location";
+        let country: string | null = null;
         if (ip !== "unknown" && ip !== "::1" && !ip.startsWith("127.")) {
           const geo = await fetch(`http://ip-api.com/json/${ip}?fields=city,country`, { signal: AbortSignal.timeout(2000) })
             .then((r) => r.json()).catch(() => null);
           if (geo?.city) location = `${geo.city}, ${geo.country}`;
+          if (geo?.country) country = geo.country;
         }
+        await prisma.loginEvent
+          .create({ data: { userId: user.id, ip: ip === "unknown" ? null : ip, device, country } })
+          .catch((e) => logger.warn("login", "login event write failed", { reason: (e as Error).message }));
         const displayName = user.firstName ?? user.name ?? "";
         await sendNewLoginAlertEmail(user.email, displayName, timeStr, location, device);
       } catch (e) {
