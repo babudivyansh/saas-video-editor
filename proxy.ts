@@ -35,15 +35,28 @@ export async function proxy(request: NextRequest) {
     // Maintenance mode: block non-admin API traffic with a clear 503. Admin
     // routes and /api/health stay reachable so it can be turned off and
     // monitored. Reads a 15s in-process cache over one Redis key — negligible
-    // hot-path cost (lib/flags.ts).
+    // hot-path cost (lib/flags.ts). Admins bypass this block automatically.
     if (!pathname.startsWith("/api/admin/") && pathname !== "/api/health") {
       const { getMaintenanceModeCached } = await import("@/lib/flags");
       const maint = await getMaintenanceModeCached();
       if (maint.on) {
-        return NextResponse.json(
-          { error: maint.message || "Clipiro is briefly down for maintenance — back shortly.", maintenance: true },
-          { status: 503, headers: { "Retry-After": "300" } },
-        );
+        let isAdmin = false;
+        try {
+          const { requireAdmin } = await import("@/lib/auth");
+          const adminAuth = await requireAdmin(request);
+          if (adminAuth) {
+            isAdmin = true;
+          }
+        } catch {
+          // Fail secure (non-admin) on database/Redis query error
+        }
+
+        if (!isAdmin) {
+          return NextResponse.json(
+            { error: maint.message || "Clipiro is briefly down for maintenance — back shortly.", maintenance: true },
+            { status: 503, headers: { "Retry-After": "300" } },
+          );
+        }
       }
     }
 
