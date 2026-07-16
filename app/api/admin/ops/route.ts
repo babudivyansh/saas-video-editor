@@ -8,6 +8,7 @@ import { getHeartbeats } from "@/lib/worker-heartbeat";
 import { getFeatureFlags, getMaintenanceMode, setFeatureFlag, setMaintenanceMode } from "@/lib/flags";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
+import { KNOWN_RENDER_QUEUE_NAMES } from "@/lib/render-queue";
 
 // GET — one ops snapshot: queue counts + failed jobs, worker heartbeats,
 // feature flags, maintenance mode, and largest tables (storage report).
@@ -72,19 +73,28 @@ async function getFailedRenderJobs() {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { Queue } = require("bullmq") as typeof import("bullmq");
-    const queue = new Queue("editor-render", {
-      connection: { url: env.REDIS_URL || "redis://127.0.0.1:6379", retryStrategy: () => null, maxRetriesPerRequest: 1 },
-    });
-    const failed = await queue.getFailed(0, 50);
-    const jobs = failed.map((job) => ({
-      id: job.id,
-      projectId: (job.data as { projectId?: string })?.projectId,
-      failedReason: job.failedReason,
-      attemptsMade: job.attemptsMade,
-      timestamp: job.timestamp,
-    }));
-    await queue.close();
-    return jobs;
+    const connection = { url: env.REDIS_URL || "redis://127.0.0.1:6379", retryStrategy: () => null, maxRetriesPerRequest: 1 };
+
+    const jobsByQueue = await Promise.all(
+      KNOWN_RENDER_QUEUE_NAMES.map(async (queueName) => {
+        const queue = new Queue(queueName, { connection });
+        try {
+          const failed = await queue.getFailed(0, 50);
+          return failed.map((job) => ({
+            queueName,
+            id: job.id,
+            projectId: (job.data as { projectId?: string })?.projectId,
+            failedReason: job.failedReason,
+            attemptsMade: job.attemptsMade,
+            timestamp: job.timestamp,
+          }));
+        } finally {
+          await queue.close();
+        }
+      })
+    );
+
+    return jobsByQueue.flat().sort((a, b) => b.timestamp - a.timestamp);
   } catch (err) {
     logger.warn("admin-ops", "failed-jobs query unavailable", { reason: (err as Error).message });
     return [];

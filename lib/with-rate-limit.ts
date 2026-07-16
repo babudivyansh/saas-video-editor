@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, getClientIp } from "./rate-limit";
 import { getAuthUser } from "./auth";
 
+// Convention, not an enforced default: every new route that accepts POST/PUT/
+// PATCH/DELETE (or a GET that's expensive/scrapeable) should wrap its handler
+// in withRateLimit before merging — nothing currently catches a route that
+// forgets to. A custom lint rule or a shared route-wrapper requiring this
+// would need to allowlist the many routes that are legitimately exempt
+// (webhook routes verifying their own signature, admin routes already gated
+// by withAdmin, simple reads) to avoid drowning code review in false
+// positives — a bigger, separate task. Until then, this is a code-review
+// checklist item, not an automated one.
+
 export interface WithRateLimitOptions {
   /** Max requests allowed per window. */
   limit: number;

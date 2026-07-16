@@ -26,30 +26,22 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const PUBLIC_ROUTES = [
-  "/",
-  "/login",
-  "/register",
-  "/pricing",
-  "/billing",   // billing page handles its own auth redirect to /login
-  "/about",
-  "/blog",
-  "/terms",
-  "/privacy",
-  "/refund",
-  "/affiliate-tos",
-];
-
 const FREE_TOOL_NAMES: Record<string, string> = {
   "/dashboard/tools/free/audio-balancer": "Audio Balancer",
   "/dashboard/tools/free/mp3-converter": "MP3 Converter",
   "/dashboard/tools/free/video-compressor": "Video Compressor",
 };
 
-function isPublicRoute(pathname: string) {
-  if (pathname === "/") return true;
-  if (pathname.startsWith("/admin")) return true;
-  return PUBLIC_ROUTES.some(route => pathname.startsWith(route) && route !== "/");
+// Gate by an allowlist of routes that actually require auth, rather than an
+// allowlist of public ones — the inverse used to silently 401-gate any typo,
+// stale link, or new public page nobody remembered to add (it did: /contact,
+// /affiliate-program, /cookies, and /reset-password were never in the old
+// PUBLIC_ROUTES list, and neither is a genuine 404). /admin and /billing have
+// their own auth handling and are deliberately not included here.
+const GATED_PREFIXES = ["/dashboard", "/editor"];
+
+function requiresAuthGate(pathname: string) {
+  return GATED_PREFIXES.some(prefix => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -96,8 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isLoading) return;
 
-    const isPublic = isPublicRoute(pathname);
-    if (!user && !isPublic) {
+    if (!user && requiresAuthGate(pathname)) {
       const freeTool = FREE_TOOL_NAMES[pathname];
       setAuthModal({
         isOpen: true,
@@ -124,6 +115,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const closeAuthModal = () => {
     setAuthModal(prev => ({ ...prev, isOpen: false }));
   };
+
+  // A one-tick race exists right after `token` first resolves: `isLoading`
+  // can briefly read false (userLoading hasn't caught up to the now-enabled
+  // query yet) while `user` is still unresolved, so the gating effect above
+  // can open the modal for an instant even on a genuinely authenticated
+  // session. Close it the moment real user data arrives rather than trying
+  // to close the race itself — this fixes the symptom regardless of timing.
+  useEffect(() => {
+    if (user) closeAuthModal();
+  }, [user]);
 
   const signOut = async () => {
     const storedToken = localStorage.getItem("token");
