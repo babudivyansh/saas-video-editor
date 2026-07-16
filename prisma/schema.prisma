@@ -233,6 +233,7 @@ model Project {
   // Auto Clip: non-fatal problems surfaced to the user as a banner instead of
   // silently degrading (e.g. ["transcription_failed"]).
   warnings             Json?
+  faceTimeline         Json?
   createdAt            DateTime @default(now())
   clips                Clip[]
 
@@ -278,9 +279,11 @@ model Clip {
   brollUrl          String?
   brollStartSec     Float?
   brollEndSec       Float?
-  createdAt         DateTime      @default(now())
-  dubs              ClipDub[]
-  publishes         ClipPublish[]
+  createdAt             DateTime      @default(now())
+  subtitleStyleOverride Json?
+  silenceSettings       Json?
+  dubs                  ClipDub[]
+  publishes             ClipPublish[]
 
   @@index([projectId])
   @@index([projectId, status])

@@ -17,6 +17,7 @@ import {
   analyzeAudio,
   generateASS,
   styleIndexToSubtitleStyle,
+  type SubtitleStyle,
 } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { transcribeAudio, type WordTiming } from "@/utils/elevenlabs";
@@ -34,6 +35,7 @@ import {
   buildZoomEnvelope,
   type FaceBox,
   type StoredCrop,
+  type ReframeOptions,
 } from "@/lib/reframe";
 import { calibrateScore, type SubScores } from "@/lib/virality-score";
 import { computeBrollWindow, pickBroll } from "@/lib/broll";
@@ -140,6 +142,14 @@ interface GeminiSegment {
   hook: number; pacing: number; payoff: number; engagement: number;
   mood: MoodTag;
   brollQuery: string | null;
+  reasoning: string;
+  hookExplanation: string;
+  retentionPrediction: string;
+  audience: string;
+  platform: string;
+  suggestedPostingTime: string;
+  hashtags: string[];
+  suggestedCaption: string;
 }
 
 async function getClipsFromGemini(
@@ -155,7 +165,7 @@ async function getClipsFromGemini(
   const hasTranscript = transcriptText.trim().length > 0;
 
   const sharedRules = `Return ONLY a valid JSON array — no explanation, no markdown fences. Example:
-[{"start":12.5,"end":35.0,"title":"The mistake everyone makes","hook":87,"pacing":75,"payoff":80,"engagement":82,"mood":"energetic","brollQuery":"city traffic at night"}]
+[{"start":12.5,"end":35.0,"title":"The mistake everyone makes","hook":87,"pacing":75,"payoff":80,"engagement":82,"mood":"energetic","brollQuery":"city traffic at night","reasoning":"A very high energy hook that immediately challenges the viewer. Pacing remains fast throughout.","hookExplanation":"The hook poses a counter-intuitive question in the first 2 seconds, forcing curiosity.","retentionPrediction":"High: Pacing has no gaps, and the story resolves in under 25 seconds.","audience":"Content creators, marketing professionals","platform":"TikTok, YouTube Shorts","suggestedPostingTime":"5:00 PM - 8:00 PM local time","hashtags":["#videomarketing","#contentcreation","#growth"],"suggestedCaption":"Avoid this one mistake at all costs!"}]
 
 For each clip include:
 - "title": a short, punchy, scroll-stopping hook (max 60 characters), no quotes inside
@@ -164,7 +174,15 @@ For each clip include:
 - "payoff": 0-99, whether the clip has a clear punchline, insight, or resolution
 - "engagement": 0-99, overall predicted engagement if posted to TikTok/Reels/Shorts
 - "mood": one of "energetic", "calm", "dramatic", "funny", "neutral" — the dominant emotional tone
-- "brollQuery": a short 2-4 word visual search term for stock B-roll footage that could briefly illustrate a moment partway through this clip (e.g. "city traffic", "coffee pouring"), or null if this clip doesn't have a natural B-roll opportunity — a reaction/punchline moment or a clip that should stay on the original footage the whole time
+- "brollQuery": a short 2-4 word visual search term for stock B-roll footage (or null if none needed)
+- "reasoning": 1-2 sentences explaining why this clip has viral potential (curiosity, value, story)
+- "hookExplanation": brief explanation of the initial hook's strength
+- "retentionPrediction": short sentence predicting viewer retention potential
+- "audience": target audience demographic
+- "platform": best social platforms for this video (e.g. TikTok, Reels, Shorts)
+- "suggestedPostingTime": time window suggestion for maximum exposure
+- "hashtags": array of 3-4 trending hashtags
+- "suggestedCaption": engaging, ready-to-use social caption
 
 Rules:
 - Return exactly ${clipCount} clip(s)
@@ -203,6 +221,14 @@ ${sharedRules}`;
     start: number; end: number; title?: string;
     hook?: number; pacing?: number; payoff?: number; engagement?: number; mood?: string;
     brollQuery?: string | null;
+    reasoning?: string;
+    hookExplanation?: string;
+    retentionPrediction?: string;
+    audience?: string;
+    platform?: string;
+    suggestedPostingTime?: string;
+    hashtags?: string[];
+    suggestedCaption?: string;
   }>;
   const clampSub = (n: unknown) => Math.max(0, Math.min(99, Math.round(typeof n === "number" ? n : 50)));
 
@@ -215,6 +241,14 @@ ${sharedRules}`;
       hook: clampSub(c.hook), pacing: clampSub(c.pacing), payoff: clampSub(c.payoff), engagement: clampSub(c.engagement),
       mood: (MOODS as readonly string[]).includes(c.mood ?? "") ? (c.mood as MoodTag) : "neutral",
       brollQuery: (typeof c.brollQuery === "string" && c.brollQuery.trim()) ? c.brollQuery.trim().slice(0, 60) : null,
+      reasoning: (typeof c.reasoning === "string" && c.reasoning.trim()) ? c.reasoning.trim() : "Highly engaging highlight from the source video.",
+      hookExplanation: (typeof c.hookExplanation === "string" && c.hookExplanation.trim()) ? c.hookExplanation.trim() : "Strong dynamic start.",
+      retentionPrediction: (typeof c.retentionPrediction === "string" && c.retentionPrediction.trim()) ? c.retentionPrediction.trim() : "High potential retention.",
+      audience: (typeof c.audience === "string" && c.audience.trim()) ? c.audience.trim() : "General social media audience.",
+      platform: (typeof c.platform === "string" && c.platform.trim()) ? c.platform.trim() : "TikTok, Shorts, Reels",
+      suggestedPostingTime: (typeof c.suggestedPostingTime === "string" && c.suggestedPostingTime.trim()) ? c.suggestedPostingTime.trim() : "5:00 PM local time",
+      hashtags: Array.isArray(c.hashtags) ? c.hashtags.map(String) : ["#highlight", "#viral"],
+      suggestedCaption: (typeof c.suggestedCaption === "string" && c.suggestedCaption.trim()) ? c.suggestedCaption.trim() : "Check out this amazing moment!",
     }))
     .slice(0, clipCount);
 }
@@ -230,15 +264,19 @@ function computeStoredCrop(
   aspectRatio: Aspect,
   srcW: number,
   srcH: number,
+  options: ReframeOptions = {}
 ): StoredCrop | null {
   if (srcW <= 0 || srcH <= 0) return null;
 
-  if (aspectRatio === "9:16" && allFaces.length > 0) {
-    const multi = computeMultiSpeakerKeyframes(allFaces, seg.start, seg.end, srcW, srcH);
+  const preset = options.preset ?? "balanced";
+  const speakerMode = options.speakerMode ?? "auto";
+
+  if (aspectRatio === "9:16" && allFaces.length > 0 && (speakerMode === "split" || speakerMode === "auto")) {
+    const multi = computeMultiSpeakerKeyframes(allFaces, seg.start, seg.end, srcW, srcH, options);
     if (multi) return { mode: "split", a: multi.a, b: multi.b };
   }
   if (allFaces.length > 0) {
-    const single = computeCropKeyframesForClip(allFaces, seg.start, seg.end, aspectRatio, srcW, srcH);
+    const single = computeCropKeyframesForClip(allFaces, seg.start, seg.end, aspectRatio, srcW, srcH, options);
     if (single) return { mode: "single", keyframes: single };
   }
   if (seg.mood === "energetic" || seg.mood === "dramatic") {
@@ -257,10 +295,25 @@ export interface PickPayload {
   aspectRatio: Aspect;
   instructions: string;
   captionStyleIndex: number; // -1 = captions off
+  reframingPreset?: string;
+  removeSilence?: boolean;
+  silenceThresholdMs?: number;
+  removeFillers?: boolean;
+  smartAutoReframe?: boolean;
+  zoomStrength?: "low" | "medium" | "high";
+  speakerMode?: "auto" | "single" | "split" | "active";
+  smoothness?: number;
+  trackingSpeed?: number;
+  animatedCaptions?: boolean;
 }
 
 export async function pickJob(payload: PickPayload): Promise<void> {
-  const { projectId, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionStyleIndex } = payload;
+  const {
+    projectId, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionStyleIndex,
+    reframingPreset = "balanced", removeSilence = false, silenceThresholdMs = 400, removeFillers = false,
+    smartAutoReframe = true, zoomStrength = "medium", speakerMode = "auto", smoothness = 50, trackingSpeed = 50,
+    animatedCaptions = false
+  } = payload;
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   if (!project?.uploadedVideoUrl) throw new Error(`Project ${projectId} missing uploadedVideoUrl`);
 
@@ -285,8 +338,19 @@ export async function pickJob(payload: PickPayload): Promise<void> {
       logger.warn("auto-clip", "transcription failed, Gemini will work without transcript", err);
     }
 
-    // Best-effort, runs in parallel with nothing blocking it — never throws.
-    const allFaces = await detectFaceTimeline(project.uploadedVideoUrl);
+    // Check face timeline cache
+    let allFaces: FaceBox[] = [];
+    if (project.faceTimeline) {
+      allFaces = project.faceTimeline as unknown as FaceBox[];
+    } else {
+      allFaces = await detectFaceTimeline(project.uploadedVideoUrl);
+      if (allFaces.length > 0) {
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { faceTimeline: allFaces as unknown as Prisma.InputJsonValue },
+        }).catch(() => {});
+      }
+    }
     const { w: srcW, h: srcH } = await getMediaDimensions(videoPath);
 
     const transcriptText = wordTimings.map((w) => `[${(w.start / 1000).toFixed(2)}] ${w.word}`).join(" ");
@@ -321,7 +385,15 @@ export async function pickJob(payload: PickPayload): Promise<void> {
         // segments (see renderOneClip) — combining it with a dynamic pan
         // path is more risk than the marginal polish is worth, so skip
         // computing/storing pan keyframes for clips that got B-roll.
-        const cropKeyframes = broll ? null : computeStoredCrop(allFaces, seg, aspectRatio, srcW, srcH);
+        const cropKeyframes = broll ? null : computeStoredCrop(allFaces, seg, aspectRatio, srcW, srcH, {
+          preset: reframingPreset,
+          smartAutoReframe,
+          zoomStrength,
+          speakerMode,
+          smoothness,
+          trackingSpeed,
+          words,
+        });
         const sub: SubScores = { hook: seg.hook, pacing: seg.pacing, payoff: seg.payoff, engagement: seg.engagement };
         const initialComposite = Math.round((seg.hook + seg.pacing + seg.payoff + seg.engagement) / 4);
 
@@ -335,12 +407,37 @@ export async function pickJob(payload: PickPayload): Promise<void> {
             durationSec: seg.end - seg.start,
             aspectRatio,
             score: initialComposite,
-            scoreBreakdown: { ...sub, audio: 0, speechRate: 0, composite: initialComposite } as unknown as Prisma.InputJsonValue,
+            scoreBreakdown: {
+              ...sub,
+              audio: 0,
+              speechRate: 0,
+              composite: initialComposite,
+              reasoning: seg.reasoning,
+              hookExplanation: seg.hookExplanation,
+              retentionPrediction: seg.retentionPrediction,
+              audience: seg.audience,
+              platform: seg.platform,
+              suggestedPostingTime: seg.suggestedPostingTime,
+              hashtags: seg.hashtags,
+              suggestedCaption: seg.suggestedCaption,
+            } as unknown as Prisma.InputJsonValue,
             mood: seg.mood,
             status: "pending_review",
             transcriptJson: words as unknown as Prisma.InputJsonValue,
             captionStyleIndex: hasCaptions ? captionStyleIndex : null,
             hasCaptions,
+            subtitleStyleOverride: { animated: animatedCaptions } as unknown as Prisma.InputJsonValue,
+            silenceSettings: {
+              removeSilence,
+              silenceThresholdMs,
+              removeFillers,
+              reframingPreset,
+              smartAutoReframe,
+              zoomStrength,
+              speakerMode,
+              smoothness,
+              trackingSpeed,
+            } as unknown as Prisma.InputJsonValue,
             ...(cropKeyframes ? { cropKeyframes: cropKeyframes as unknown as Prisma.InputJsonValue } : {}),
             ...(broll ? {
               brollQuery: broll.query, brollUrl: broll.url,
@@ -356,7 +453,7 @@ export async function pickJob(payload: PickPayload): Promise<void> {
           autoClipCaptionStyle: captionStyleIndex,
           warnings: (warnings.length ? warnings : Prisma.JsonNull) as Prisma.InputJsonValue,
         },
-      }),
+      })
     ]);
   } catch (err) {
     logger.error("auto-clip", `pick failed for ${projectId}`, err);
@@ -385,27 +482,114 @@ export function buildBrollFilterComplex(
   aspect: Aspect,
   moodFilter: string | null,
   captionsFilter: string | null,
+  videoSrc = "[0:v]"
 ): string {
   const brollDur = brollEndSec - brollStartSec;
   const staticCrop = aspectRatioFilter(aspect);
   const target = TARGET_RES[aspect];
-  // concat requires every segment to share exact frame dimensions AND sample
-  // aspect ratio. The static crop alone produces whatever size (and
-  // whatever SAR the source happens to carry) the source's own resolution
-  // yields (fine for the normal single-segment path, which never needed a
-  // canonical size) — here it must also be scaled to B's fixed target
-  // resolution with SAR forced to 1:1, since a source with a non-square SAR
-  // would otherwise mismatch B's (already-square) scaled output.
   const scaleToTarget = `scale=${target.w}:${target.h},setsar=1`;
 
-  const segA = `[0:v]trim=start=0:end=${brollStartSec},setpts=PTS-STARTPTS,${staticCrop},${scaleToTarget}[va]`;
+  const segA = `${videoSrc}trim=start=0:end=${brollStartSec},setpts=PTS-STARTPTS,${staticCrop},${scaleToTarget}[va]`;
   const segB = `[1:v]scale=${target.w}:${target.h}:force_original_aspect_ratio=increase,crop=${target.w}:${target.h},setsar=1,trim=0:${brollDur},setpts=PTS-STARTPTS[vb]`;
-  const segC = `[0:v]trim=start=${brollEndSec}:end=${clipDurationSec},setpts=PTS-STARTPTS,${staticCrop},${scaleToTarget}[vc]`;
+  const segC = `${videoSrc}trim=start=${brollEndSec}:end=${clipDurationSec},setpts=PTS-STARTPTS,${staticCrop},${scaleToTarget}[vc]`;
   const postConcat = [moodFilter, captionsFilter].filter((f): f is string => !!f);
   const concatChain = postConcat.length > 0
     ? `[va][vb][vc]concat=n=3:v=1:a=0[vconcatraw];[vconcatraw]${postConcat.join(",")}[video]`
     : `[va][vb][vc]concat=n=3:v=1:a=0[video]`;
   return `${segA};${segB};${segC};${concatChain}`;
+}
+
+interface CutSegment { startMs: number; endMs: number }
+interface KeepSegment { startMs: number; endMs: number }
+
+const FILLERS = new Set(["um", "uh", "like", "basically", "actually", "yknow", "y'know"]);
+
+function computeKeeps(
+  words: WordTiming[],
+  clipDurationSec: number,
+  removeSilence: boolean,
+  silenceThresholdMs: number,
+  removeFillers: boolean
+): { keeps: KeepSegment[]; cuts: CutSegment[] } {
+  const durationMs = clipDurationSec * 1000;
+  const cuts: CutSegment[] = [];
+
+  if (removeFillers) {
+    for (const w of words) {
+      const normalized = w.word.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").trim();
+      if (FILLERS.has(normalized)) {
+        cuts.push({ startMs: w.start, endMs: w.end });
+      }
+    }
+  }
+
+  if (removeSilence) {
+    if (words.length > 0) {
+      if (words[0].start > silenceThresholdMs) {
+        cuts.push({ startMs: 0, endMs: words[0].start });
+      }
+      for (let i = 0; i < words.length - 1; i++) {
+        const gap = words[i+1].start - words[i].end;
+        if (gap > silenceThresholdMs) {
+          cuts.push({ startMs: words[i].end, endMs: words[i+1].start });
+        }
+      }
+      const lastWordEnd = words[words.length - 1].end;
+      if (durationMs - lastWordEnd > silenceThresholdMs) {
+        cuts.push({ startMs: lastWordEnd, endMs: durationMs });
+      }
+    }
+  }
+
+  if (cuts.length === 0) {
+    return { keeps: [{ startMs: 0, endMs: durationMs }], cuts: [] };
+  }
+
+  cuts.sort((a, b) => a.startMs - b.startMs);
+  const mergedCuts: CutSegment[] = [cuts[0]];
+  for (let i = 1; i < cuts.length; i++) {
+    const last = mergedCuts[mergedCuts.length - 1];
+    const cur = cuts[i];
+    if (cur.startMs <= last.endMs) {
+      last.endMs = Math.max(last.endMs, cur.endMs);
+    } else {
+      mergedCuts.push(cur);
+    }
+  }
+
+  const keeps: KeepSegment[] = [];
+  let lastEnd = 0;
+  for (const cut of mergedCuts) {
+    if (cut.startMs > lastEnd) {
+      keeps.push({ startMs: lastEnd, endMs: cut.startMs });
+    }
+    lastEnd = cut.endMs;
+  }
+  if (lastEnd < durationMs) {
+    keeps.push({ startMs: lastEnd, endMs: durationMs });
+  }
+
+  const validKeeps = keeps.filter((k) => k.endMs - k.startMs > 50);
+  if (validKeeps.length === 0) {
+    return { keeps: [{ startMs: 0, endMs: durationMs }], cuts: [] };
+  }
+
+  return { keeps: validKeeps, cuts: mergedCuts };
+}
+
+function shiftTime(tMs: number, keeps: KeepSegment[]): number {
+  let prevKeptDuration = 0;
+  for (let i = 0; i < keeps.length; i++) {
+    const k = keeps[i];
+    if (tMs >= k.startMs && tMs <= k.endMs) {
+      return prevKeptDuration + (tMs - k.startMs);
+    }
+    if (tMs < k.startMs) {
+      return prevKeptDuration;
+    }
+    prevKeptDuration += (k.endMs - k.startMs);
+  }
+  return prevKeptDuration;
 }
 
 // ── Per-clip render (shared by the batch render job and single-clip re-render) ─
@@ -421,14 +605,87 @@ async function renderOneClip(projectId: string, clip: Clip, videoPath: string): 
     await prisma.clip.update({ where: { id: clip.id }, data: { status: "rendering", progress: 5 } });
 
     const aspect = (clip.aspectRatio as Aspect) || "9:16";
-    const stored = clip.cropKeyframes as unknown as StoredCrop | null;
+    let stored = clip.cropKeyframes as unknown as StoredCrop | null;
     const moodKey = (clip.mood && (MOODS as readonly string[]).includes(clip.mood)) ? (clip.mood as MoodTag) : "neutral";
     const moodFilter = FILTER_PRESETS[MOOD_TO_FILTER[moodKey]].ffmpeg;
 
+    // Load silence and filler removal settings
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const silenceOpts = (clip.silenceSettings as any) ?? {};
+    const removeSilence = !!silenceOpts.removeSilence;
+    const silenceThresholdMs = (silenceOpts.silenceThresholdMs as number) ?? 400;
+    const removeFillers = !!silenceOpts.removeFillers;
+
+    let words = clip.transcriptJson as unknown as WordTiming[] | null;
+    let keeps: KeepSegment[] = [];
+    let isTrimmed = false;
+    let finalDurationSec = clip.durationSec;
+
+    if (words && words.length > 0 && (removeSilence || removeFillers)) {
+      const result = computeKeeps(words, clip.durationSec, removeSilence, silenceThresholdMs, removeFillers);
+      if (result.cuts.length > 0) {
+        keeps = result.keeps;
+        isTrimmed = true;
+
+        // Shift word timings
+        words = words
+          .filter((w) => {
+            const mid = (w.start + w.end) / 2;
+            return keeps.some((k) => mid >= k.startMs && mid <= k.endMs);
+          })
+          .map((w) => ({
+            word: w.word,
+            start: shiftTime(w.start, keeps),
+            end: shiftTime(w.end, keeps),
+          }));
+
+        // Shift crop keyframes
+        if (stored) {
+          if (stored.mode === "single") {
+            stored = {
+              mode: "single",
+              keyframes: stored.keyframes
+                .filter((kf) => keeps.some((k) => kf.tSec * 1000 >= k.startMs && kf.tSec * 1000 <= k.endMs))
+                .map((kf) => ({
+                  ...kf,
+                  tSec: shiftTime(kf.tSec * 1000, keeps) / 1000,
+                })),
+            };
+          } else if (stored.mode === "split") {
+            stored = {
+              mode: "split",
+              a: stored.a
+                .filter((kf) => keeps.some((k) => kf.tSec * 1000 >= k.startMs && kf.tSec * 1000 <= k.endMs))
+                .map((kf) => ({ ...kf, tSec: shiftTime(kf.tSec * 1000, keeps) / 1000 })),
+              b: stored.b
+                .filter((kf) => keeps.some((k) => kf.tSec * 1000 >= k.startMs && kf.tSec * 1000 <= k.endMs))
+                .map((kf) => ({ ...kf, tSec: shiftTime(kf.tSec * 1000, keeps) / 1000 })),
+            };
+          }
+        }
+
+        finalDurationSec = keeps.reduce((s, k) => s + (k.endMs - k.startMs), 0) / 1000;
+
+        // Update database with the trimmed duration, transcript, and keyframes
+        await prisma.clip.update({
+          where: { id: clip.id },
+          data: {
+            durationSec: finalDurationSec,
+            transcriptJson: words as unknown as Prisma.InputJsonValue,
+            cropKeyframes: (stored ? stored : Prisma.JsonNull) as unknown as Prisma.InputJsonValue,
+          },
+        });
+      }
+    }
+
     let assEscaped: string | null = null;
-    const words = clip.transcriptJson as unknown as WordTiming[] | null;
     if (clip.hasCaptions && words && words.length > 0) {
-      const style = styleIndexToSubtitleStyle(clip.captionStyleIndex ?? 0, "oneword");
+      // Resolve custom subtitle style overrides if they exist
+      let style = styleIndexToSubtitleStyle(clip.captionStyleIndex ?? 0, "oneword");
+      const customStyle = clip.subtitleStyleOverride as unknown as SubtitleStyle | null;
+      if (customStyle) {
+        style = { ...style, ...customStyle };
+      }
       generateASS(words, style, assPath);
       assEscaped = assPath.replace(/\\/g, "/").replace(/:/g, "\\:");
     }
@@ -436,6 +693,14 @@ async function renderOneClip(projectId: string, clip: Clip, videoPath: string): 
 
     const baseArgs = ["-y", "-ss", String(clip.startSec), "-to", String(clip.endSec), "-i", videoPath];
     const encodeArgs = ["-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-c:a", "aac"];
+
+    let selectFilter: string | null = null;
+    let aselectFilter: string | null = null;
+    if (isTrimmed && keeps.length > 0) {
+      const parts = keeps.map((k) => `between(t,${(k.startMs / 1000).toFixed(3)},${(k.endMs / 1000).toFixed(3)})`);
+      selectFilter = `select='${parts.join("+")}',setpts=PTS-STARTPTS`;
+      aselectFilter = `aselect='${parts.join("+")}',asetpts=PTS-STARTPTS`;
+    }
 
     // B-roll download is best-effort — a transient failure here falls
     // through to the normal crop path below rather than failing the clip.
@@ -450,24 +715,34 @@ async function renderOneClip(projectId: string, clip: Clip, videoPath: string): 
     }
 
     let ffmpegArgs: string[];
+    const videoSrc = isTrimmed ? "[trimmedv]" : "[0:v]";
+    const audioSrc = isTrimmed ? "[trimmeda]" : "0:a";
+    const prepends = isTrimmed && selectFilter && aselectFilter ? `[0:v]${selectFilter}[trimmedv];[0:a]${aselectFilter}[trimmeda];` : "";
+
     if (brollReady && clip.brollStartSec != null && clip.brollEndSec != null) {
-      const complex = buildBrollFilterComplex(clip.durationSec, clip.brollStartSec, clip.brollEndSec, aspect, moodFilter, captionsFilter);
+      const brollStartSecShifted = isTrimmed ? shiftTime(clip.brollStartSec * 1000, keeps) / 1000 : clip.brollStartSec;
+      const brollEndSecShifted = isTrimmed ? shiftTime(clip.brollEndSec * 1000, keeps) / 1000 : clip.brollEndSec;
+
+      const complex = prepends + buildBrollFilterComplex(finalDurationSec, brollStartSecShifted, brollEndSecShifted, aspect, moodFilter, captionsFilter, videoSrc);
       ffmpegArgs = [
         ...baseArgs, "-stream_loop", "-1", "-i", brollPath,
-        "-filter_complex", complex, "-map", "[video]", "-map", "0:a",
+        "-filter_complex", complex, "-map", "[video]", "-map", audioSrc,
         ...encodeArgs, "-shortest", clipPath,
       ];
     } else if (stored?.mode === "split" && stored.a.length > 1 && stored.b.length > 1) {
       // Two-speaker split-screen: two independent dynamic crops, vstacked.
-      const complex = buildSplitScreenFilterComplex(stored.a, stored.b, moodFilter, captionsFilter);
-      ffmpegArgs = [...baseArgs, "-filter_complex", complex, "-map", "[video]", "-map", "0:a", ...encodeArgs, "-shortest", clipPath];
+      const complex = prepends + buildSplitScreenFilterComplex(stored.a, stored.b, moodFilter, captionsFilter, videoSrc);
+      ffmpegArgs = [...baseArgs, "-filter_complex", complex, "-map", "[video]", "-map", audioSrc, ...encodeArgs, "-shortest", clipPath];
     } else {
       const keyframes = stored?.mode === "single" ? stored.keyframes : null;
       const cropExpr = keyframes && keyframes.length > 1
         ? buildDynamicCropFilter(keyframes, aspect)
         : aspectRatioFilter(aspect);
       const filters = [cropExpr, moodFilter, captionsFilter].filter((f): f is string => !!f);
-      ffmpegArgs = [...baseArgs, "-vf", filters.join(","), ...encodeArgs, clipPath];
+      if (isTrimmed && selectFilter) {
+        filters.unshift(selectFilter);
+      }
+      ffmpegArgs = [...baseArgs, "-vf", filters.join(","), ...(isTrimmed && aselectFilter ? ["-af", aselectFilter] : []), ...encodeArgs, clipPath];
     }
 
     await runFFmpegWithProgress(
@@ -479,15 +754,22 @@ async function renderOneClip(projectId: string, clip: Clip, videoPath: string): 
 
     await prisma.clip.update({ where: { id: clip.id }, data: { progress: 82 } });
     await runFFmpegArgs([
-      "-y", "-ss", String(clip.durationSec / 2), "-i", clipPath,
+      "-y", "-ss", String(finalDurationSec / 2), "-i", clipPath,
       "-frames:v", "1", "-vf", "scale=480:-2", thumbPath,
     ]).catch(() => {});
 
     // Calibrated scoring (P2.4) — refine Gemini's sub-scores with signals
     // measured off the actual rendered clip's audio.
     const analysis = await analyzeAudio(clipPath);
-    const sub = (clip.scoreBreakdown as unknown as SubScores) ?? { hook: 50, pacing: 50, payoff: 50, engagement: 50 };
-    const breakdown = calibrateScore(sub, analysis, clip.durationSec, words?.length ?? 0);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fullBreakdown = (clip.scoreBreakdown as any) ?? {};
+    const sub = {
+      hook: fullBreakdown.hook ?? 50,
+      pacing: fullBreakdown.pacing ?? 50,
+      payoff: fullBreakdown.payoff ?? 50,
+      engagement: fullBreakdown.engagement ?? 50,
+    };
+    const breakdown = calibrateScore(sub, analysis, finalDurationSec, words?.length ?? 0);
 
     await prisma.clip.update({ where: { id: clip.id }, data: { progress: 90 } });
     const videoUrl = await uploadFileToS3(clipPath, `renders/${projectId}/clip-${clip.index}.mp4`, "video/mp4");
@@ -500,7 +782,10 @@ async function renderOneClip(projectId: string, clip: Clip, videoPath: string): 
       data: {
         status: "ready", progress: 100, videoUrl, thumbnailUrl,
         score: breakdown.composite,
-        scoreBreakdown: breakdown as unknown as Prisma.InputJsonValue,
+        scoreBreakdown: {
+          ...fullBreakdown,
+          ...breakdown,
+        } as unknown as Prisma.InputJsonValue,
       },
     });
     return { ok: true };
@@ -591,7 +876,43 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
   const videoPath = path.join(tmp, `${projectId}-src-rerender-${clipId}.mp4`);
   try {
     await downloadFile(project.uploadedVideoUrl, videoPath);
-    await renderOneClip(projectId, clip, videoPath);
+
+    let updatedClip = clip;
+    if (project.faceTimeline) {
+      const allFaces = project.faceTimeline as unknown as FaceBox[];
+      const { w: srcW, h: srcH } = await getMediaDimensions(videoPath);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const silenceOpts = (clip.silenceSettings as any) ?? {};
+      const preset = silenceOpts.reframingPreset ?? "balanced";
+
+      const dummySeg = {
+        start: clip.startSec,
+        end: clip.endSec,
+        title: clip.title ?? "",
+        hook: 50, pacing: 50, payoff: 50, engagement: 50,
+        mood: (clip.mood as MoodTag) ?? "neutral",
+        brollQuery: clip.brollQuery,
+        reasoning: "", hookExplanation: "", retentionPrediction: "", audience: "", platform: "", suggestedPostingTime: "", hashtags: [], suggestedCaption: ""
+      };
+
+      const cropKeyframes = clip.brollUrl ? null : computeStoredCrop(allFaces, dummySeg, clip.aspectRatio as Aspect, srcW, srcH, {
+        preset: silenceOpts.reframingPreset ?? "balanced",
+        smartAutoReframe: silenceOpts.smartAutoReframe !== false,
+        zoomStrength: silenceOpts.zoomStrength ?? "medium",
+        speakerMode: silenceOpts.speakerMode ?? "auto",
+        smoothness: silenceOpts.smoothness ?? 50,
+        trackingSpeed: silenceOpts.trackingSpeed ?? 50,
+        words: clip.transcriptJson as unknown as WordTiming[],
+      });
+      updatedClip = await prisma.clip.update({
+        where: { id: clipId },
+        data: {
+          cropKeyframes: (cropKeyframes ? cropKeyframes : Prisma.JsonNull) as unknown as Prisma.InputJsonValue,
+        },
+      });
+    }
+
+    await renderOneClip(projectId, updatedClip, videoPath);
   } finally {
     try { if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath); } catch {}
   }

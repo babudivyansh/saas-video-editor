@@ -2,6 +2,11 @@
 import { Suspense, useRef, useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import SubtitleStylePicker from "@/app/components/SubtitleStylePicker";
+import { ReframeAndCutsControls } from "@/app/components/auto-clip/ReframeAndCutsControls";
+import { Card } from "@/app/components/ui/Card";
+import { FieldLabel, Input } from "@/app/components/ui/Field";
+import { Switch } from "@/app/components/ui/Switch";
+import { Button } from "@/app/components/ui/Button";
 import { useVideoGenerate, getStoredToken, type GenerateStatus } from "@/app/hooks/useVideoGenerate";
 import { registerAsset, type AssetRow } from "@/app/dashboard/editor/components/panels/shared/assetData";
 
@@ -84,8 +89,11 @@ interface ClipItem {
   hasCaptions: boolean;
   captionStyleIndex: number | null;
   brollQuery: string | null;
+  subtitleStyleOverride: Record<string, unknown> | null;
+  silenceSettings: Record<string, unknown> | null;
+  transcriptJson: unknown | null;
 }
-interface ProjectMeta { status: string; warnings: string[] | null; captionStyleIndex: number | null }
+interface ProjectMeta { status: string; warnings: string[] | null; captionStyleIndex: number | null; uploadedVideoUrl: string | null }
 
 function fmtTime(sec: number): string {
   const s = Math.max(0, Math.round(sec));
@@ -122,60 +130,119 @@ function WarningsBanner({ warnings }: { warnings: string[] | null | undefined })
 // ── Review step (P1.2 / P1.4) ───────────────────────────────────────────────
 interface ReviewEdit { keep: boolean; startSec: number; endSec: number; aspectRatio: "9:16" | "16:9" | "1:1" }
 
-function ReviewCard({ clip, edit, onChange }: {
+// No per-clip render exists yet at pending_review time (videoUrl/thumbnailUrl
+// are null until confirm), so this previews the trimmed segment straight out
+// of the original source upload instead — content/timing preview, not a
+// WYSIWYG of the final reframed output.
+function TrimmedPreviewPlayer({ sourceVideoUrl, startSec, endSec, aspectRatio }: {
+  sourceVideoUrl: string | null;
+  startSec: number;
+  endSec: number;
+  aspectRatio: "9:16" | "16:9" | "1:1";
+}) {
+  const [playing, setPlaying] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Editing Start/End while a preview is already playing should be reflected
+  // immediately, not just at the next loop-around.
+  useEffect(() => {
+    if (playing && videoRef.current) videoRef.current.currentTime = startSec;
+  }, [startSec, endSec, playing]);
+
+  return (
+    <div className="relative bg-gray-900" style={{ aspectRatio: arCss(aspectRatio) }}>
+      {playing && sourceVideoUrl ? (
+        <video
+          ref={videoRef}
+          src={sourceVideoUrl}
+          preload="none"
+          playsInline
+          autoPlay
+          className="w-full h-full object-contain bg-black"
+          onLoadedMetadata={(e) => { e.currentTarget.currentTime = startSec; }}
+          onTimeUpdate={(e) => {
+            if (endSec > startSec && e.currentTarget.currentTime >= endSec) e.currentTarget.currentTime = startSec;
+          }}
+        />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center text-ink-soft/60">
+          <IcFilm />
+        </div>
+      )}
+      {sourceVideoUrl ? (
+        <button
+          type="button"
+          onClick={() => setPlaying((p) => !p)}
+          aria-label={playing ? "Pause preview" : "Play preview"}
+          className="absolute inset-0 flex items-center justify-center bg-black/15 hover:bg-black/25 transition-colors group"
+        >
+          {!playing && (
+            <span className="w-12 h-12 rounded-full bg-white/90 text-ink flex items-center justify-center group-hover:scale-105 transition-transform"><IcPlay /></span>
+          )}
+        </button>
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center text-white/60 text-xs font-medium">Preview unavailable</div>
+      )}
+    </div>
+  );
+}
+
+function ReviewCard({ clip, edit, sourceVideoUrl, onChange }: {
   clip: ClipItem;
   edit: ReviewEdit;
+  sourceVideoUrl: string | null;
   onChange: (patch: Partial<ReviewEdit>) => void;
 }) {
   const sc = scoreColor(clip.score);
   return (
-    <div className={`rounded-2xl border bg-white overflow-hidden flex flex-col shadow-sm transition-opacity ${edit.keep ? "border-gray-200" : "border-gray-100 opacity-50"}`}>
+    <div className={`rounded-2xl border bg-white overflow-hidden flex flex-col shadow-sm transition-opacity ${edit.keep ? "border-card-border" : "border-card-border opacity-50"}`}>
+      <TrimmedPreviewPlayer sourceVideoUrl={sourceVideoUrl} startSec={edit.startSec} endSec={edit.endSec} aspectRatio={edit.aspectRatio} />
       <div className="p-3 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2">{clip.title || `Clip ${clip.index + 1}`}</p>
+          <p className="text-sm font-semibold text-ink leading-snug line-clamp-2">{clip.title || `Clip ${clip.index + 1}`}</p>
           <div className="flex items-center gap-2 mt-1">
             {clip.score != null && (
               <span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{ background: sc.bg, color: sc.text }}>{clip.score}</span>
             )}
-            {clip.mood && <span className="text-xs text-gray-400 capitalize">{clip.mood}</span>}
-            {clip.hasCaptions && <span className="text-xs text-gray-400">• captions</span>}
+            {clip.mood && <span className="text-xs text-ink-soft capitalize">{clip.mood}</span>}
+            {clip.hasCaptions && <span className="text-xs text-ink-soft">• captions</span>}
           </div>
         </div>
-        <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 shrink-0 cursor-pointer">
-          <input type="checkbox" checked={edit.keep} onChange={(e) => onChange({ keep: e.target.checked })} className="w-4 h-4 accent-[#3860FF]" />
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-ink-soft shrink-0 cursor-pointer">
+          <input type="checkbox" checked={edit.keep} onChange={(e) => onChange({ keep: e.target.checked })} className="w-4 h-4 accent-brand" />
           Keep
         </label>
       </div>
       <div className="px-3 pb-3 space-y-3">
         <div className="flex items-center gap-2">
           <div className="flex-1">
-            <label className="text-[10px] text-gray-400 block mb-0.5">Start (s)</label>
+            <label className="text-[10px] text-ink-soft block mb-0.5">Start (s)</label>
             <input
               type="number" min={0} step={0.5} value={edit.startSec}
               onChange={(e) => onChange({ startSec: Math.max(0, Number(e.target.value)) })}
               disabled={!edit.keep}
-              className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-700 disabled:bg-gray-50"
+              className="w-full rounded-lg border border-card-border px-2 py-1.5 text-xs text-ink disabled:bg-surface"
             />
           </div>
-          <span className="text-gray-300 mt-3">—</span>
+          <span className="text-ink-soft/40 mt-3">—</span>
           <div className="flex-1">
-            <label className="text-[10px] text-gray-400 block mb-0.5">End (s)</label>
+            <label className="text-[10px] text-ink-soft block mb-0.5">End (s)</label>
             <input
               type="number" min={0} step={0.5} value={edit.endSec}
               onChange={(e) => onChange({ endSec: Number(e.target.value) })}
               disabled={!edit.keep}
-              className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-700 disabled:bg-gray-50"
+              className="w-full rounded-lg border border-card-border px-2 py-1.5 text-xs text-ink disabled:bg-surface"
             />
           </div>
         </div>
-        <p className="text-[11px] text-gray-400">{fmtTime(Math.max(0, edit.endSec - edit.startSec))} duration</p>
+        <p className="text-[11px] text-ink-soft">{fmtTime(Math.max(0, edit.endSec - edit.startSec))} duration</p>
         <div className="grid grid-cols-3 gap-1.5">
           {ASPECTS.map((a) => (
             <button
               key={a.value} type="button" disabled={!edit.keep}
               onClick={() => onChange({ aspectRatio: a.value })}
               className={`rounded-lg border py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-40 ${
-                edit.aspectRatio === a.value ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-white border-gray-200 text-gray-600"
+                edit.aspectRatio === a.value ? "grad-brand text-white shadow-glow border-transparent" : "bg-white border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
               }`}
             >
               {a.label}
@@ -187,7 +254,7 @@ function ReviewCard({ clip, edit, onChange }: {
   );
 }
 
-function ReviewPanel({ projectId, clips, onConfirmed }: { projectId: string; clips: ClipItem[]; onConfirmed: () => void }) {
+function ReviewPanel({ projectId, clips, uploadedVideoUrl, onConfirmed }: { projectId: string; clips: ClipItem[]; uploadedVideoUrl: string | null; onConfirmed: () => void }) {
   const [edits, setEdits] = useState<Record<string, ReviewEdit>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -229,14 +296,14 @@ function ReviewPanel({ projectId, clips, onConfirmed }: { projectId: string; cli
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         {clips.map((c) => edits[c.id] ? (
-          <ReviewCard key={c.id} clip={c} edit={edits[c.id]} onChange={(patch) => setEdits((prev) => ({ ...prev, [c.id]: { ...prev[c.id], ...patch } }))} />
+          <ReviewCard key={c.id} clip={c} edit={edits[c.id]} sourceVideoUrl={uploadedVideoUrl} onChange={(patch) => setEdits((prev) => ({ ...prev, [c.id]: { ...prev[c.id], ...patch } }))} />
         ) : null)}
       </div>
       {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
       <button
         onClick={handleConfirm}
         disabled={submitting || keptCount === 0}
-        className="inline-flex items-center gap-2 bg-[#3860FF] hover:bg-[#2d50e0] text-white text-sm font-semibold px-6 py-3 rounded-xl transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+        className="inline-flex items-center gap-2 grad-brand shadow-glow hover:shadow-glow-hover hover:brightness-105 text-white text-sm font-semibold px-6 py-3 rounded-xl transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
       >
         <IcSparkle /> {submitting ? "Starting render…" : `Confirm & Render ${keptCount} clip${keptCount === 1 ? "" : "s"}`}
       </button>
@@ -281,7 +348,7 @@ function RerenderPanel({ projectId, clip, onQueued }: { projectId: string; clip:
       </div>
       {err && <p className="text-[11px] text-red-600">{err}</p>}
       <div className="flex gap-2">
-        <button onClick={submit} disabled={busy} className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-[#3860FF] text-white disabled:opacity-50">{busy ? "…" : "Re-render (1 credit)"}</button>
+        <button onClick={submit} disabled={busy} className="flex-1 text-xs font-semibold py-1.5 rounded-lg grad-brand text-white shadow-glow disabled:opacity-50">{busy ? "…" : "Re-render (1 credit)"}</button>
         <button onClick={() => setOpen(false)} className="text-xs font-semibold py-1.5 px-2 rounded-lg border border-gray-200 text-gray-600">Cancel</button>
       </div>
     </div>
@@ -358,7 +425,7 @@ function DubPanel({ projectId, clip }: { projectId: string; clip: ClipItem }) {
         <select value={selected} onChange={(e) => setSelected(e.target.value)} className="flex-1 rounded border border-gray-200 px-1.5 py-1 text-xs">
           {langs.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
         </select>
-        <button onClick={startDub} disabled={busy} className="text-xs font-semibold py-1.5 px-2 rounded-lg bg-[#3860FF] text-white disabled:opacity-50">{busy ? "…" : "Dub (1 credit)"}</button>
+        <button onClick={startDub} disabled={busy} className="text-xs font-semibold py-1.5 px-2 rounded-lg grad-brand text-white shadow-glow disabled:opacity-50">{busy ? "…" : "Dub (1 credit)"}</button>
       </div>
       {err && <p className="text-[11px] text-red-600">{err}</p>}
       {dubs.length > 0 && (
@@ -366,7 +433,7 @@ function DubPanel({ projectId, clip }: { projectId: string; clip: ClipItem }) {
           {dubs.map((d) => (
             <li key={d.id} className="flex items-center justify-between text-[11px] text-gray-600">
               <span>{langs.find((l) => l.code === d.targetLang)?.label ?? d.targetLang}</span>
-              {d.status === "ready" && d.videoUrl ? <a href={d.videoUrl} download className="text-[#3860FF] font-semibold">Download</a> : <span className="capitalize text-gray-400">{d.status}</span>}
+              {d.status === "ready" && d.videoUrl ? <a href={d.videoUrl} download className="text-brand font-semibold">Download</a> : <span className="capitalize text-gray-400">{d.status}</span>}
             </li>
           ))}
         </ul>
@@ -435,7 +502,7 @@ function PublishPanel({ projectId, clip }: { projectId: string; clip: ClipItem }
             <>
               <p className="text-[10px] text-gray-400">Uploads this clip directly to YouTube as Unlisted — change visibility on YouTube afterward if you want it Public.</p>
               {err && <p className="text-[11px] text-red-600">{err} {needsReauth && <a href="/dashboard/social-tracker" className="underline font-semibold">Reconnect →</a>}</p>}
-              <button onClick={() => submit({})} disabled={busy} className="w-full text-xs font-semibold py-1.5 rounded-lg bg-[#3860FF] text-white disabled:opacity-50">{busy ? "Uploading…" : "Publish to YouTube"}</button>
+              <button onClick={() => submit({})} disabled={busy} className="w-full text-xs font-semibold py-1.5 rounded-lg grad-brand text-white shadow-glow disabled:opacity-50">{busy ? "Uploading…" : "Publish to YouTube"}</button>
             </>
           ) : (
             <>
@@ -446,7 +513,7 @@ function PublishPanel({ projectId, clip }: { projectId: string; clip: ClipItem }
               />
               <p className="text-[10px] text-gray-400">Instagram/Facebook auto-publish needs a Meta app review this app hasn&apos;t completed — post it yourself, then paste the link here to track its performance.</p>
               {err && <p className="text-[11px] text-red-600">{err}</p>}
-              <button onClick={() => submit({ permalink: permalink || undefined })} disabled={busy} className="w-full text-xs font-semibold py-1.5 rounded-lg bg-[#3860FF] text-white disabled:opacity-50">{busy ? "…" : "Save link"}</button>
+              <button onClick={() => submit({ permalink: permalink || undefined })} disabled={busy} className="w-full text-xs font-semibold py-1.5 rounded-lg grad-brand text-white shadow-glow disabled:opacity-50">{busy ? "…" : "Save link"}</button>
             </>
           )}
         </>
@@ -456,7 +523,7 @@ function PublishPanel({ projectId, clip }: { projectId: string; clip: ClipItem }
           {publishes.map((p) => (
             <li key={p.id} className="text-[11px] text-gray-600 flex items-center justify-between gap-2">
               <span className="truncate">{p.socialAccount.provider} — {p.socialAccount.username ?? "linked"}</span>
-              {p.permalink ? <a href={p.permalink} target="_blank" rel="noreferrer" className="text-[#3860FF] font-semibold shrink-0">View</a> : <span className="capitalize text-gray-400 shrink-0">{p.status}</span>}
+              {p.permalink ? <a href={p.permalink} target="_blank" rel="noreferrer" className="text-brand font-semibold shrink-0">View</a> : <span className="capitalize text-gray-400 shrink-0">{p.status}</span>}
             </li>
           ))}
         </ul>
@@ -480,7 +547,7 @@ function SkeletonCard() {
   );
 }
 
-function ClipCard({ projectId, clip, onChanged }: { projectId: string; clip: ClipItem; onChanged: () => void }) {
+function ClipCard({ projectId, clip, onChanged, onSelect }: { projectId: string; clip: ClipItem; onChanged: () => void; onSelect: (clip: ClipItem) => void }) {
   const [playing, setPlaying] = useState(false);
   const sc = scoreColor(clip.score);
   const ready = clip.status === "ready";
@@ -520,7 +587,7 @@ function ClipCard({ projectId, clip, onChanged }: { projectId: string; clip: Cli
         )}
         {!ready && !failed && clip.status === "rendering" && (
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/25">
-            <div className="h-full bg-[#3860FF] transition-all duration-500" style={{ width: `${clip.progress}%` }} />
+            <div className="h-full bg-brand transition-all duration-500" style={{ width: `${clip.progress}%` }} />
           </div>
         )}
       </div>
@@ -537,6 +604,9 @@ function ClipCard({ projectId, clip, onChanged }: { projectId: string; clip: Cli
               <RerenderPanel projectId={projectId} clip={clip} onQueued={onChanged} />
               <DubPanel projectId={projectId} clip={clip} />
             </div>
+            <button onClick={() => onSelect(clip)} className="w-full text-center text-xs font-semibold py-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors border border-indigo-200">
+              Studio & Insights
+            </button>
             <PublishPanel projectId={projectId} clip={clip} />
           </div>
         )}
@@ -553,7 +623,8 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
   onReset: () => void;
 }) {
   const [clips, setClips] = useState<ClipItem[]>([]);
-  const [project, setProject] = useState<ProjectMeta>({ status: "rendering", warnings: null, captionStyleIndex: null });
+  const [project, setProject] = useState<ProjectMeta>({ status: "rendering", warnings: null, captionStyleIndex: null, uploadedVideoUrl: null });
+  const [selectedClip, setSelectedClip] = useState<ClipItem | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const tick = useCallback(async () => {
@@ -561,7 +632,7 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
     try {
       const d = await apiFetch<{ project: ProjectMeta; clips: ClipItem[] }>(`/api/projects/${projectId}/clips`);
       setClips(d.clips ?? []);
-      setProject(d.project ?? { status: "rendering", warnings: null, captionStyleIndex: null });
+      setProject(d.project ?? { status: "rendering", warnings: null, captionStyleIndex: null, uploadedVideoUrl: null });
       if ((d.project.status === "completed" || d.project.status === "failed") && pollRef.current) {
         clearInterval(pollRef.current);
       }
@@ -596,19 +667,19 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
       <div className="mb-6">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
-            {!failedHard && !allDone && !pendingReview && <div className="w-6 h-6 border-[3px] border-blue-200 border-t-[#3860FF] rounded-full animate-spin" />}
+            {!failedHard && !allDone && !pendingReview && <div className="w-6 h-6 border-[3px] border-blue-200 border-t-brand rounded-full animate-spin" />}
             <h2 className="text-xl font-bold text-gray-900">{heading}</h2>
           </div>
           {!analyzing && !failedHard && !pendingReview && (
             <span className="text-sm font-semibold text-gray-500">{ready} / {total} ready</span>
           )}
           {(allDone || failedHard) && (
-            <button onClick={onReset} className="text-sm font-semibold text-[#3860FF] hover:underline">Create another</button>
+            <button onClick={onReset} className="text-sm font-semibold text-brand hover:underline">Create another</button>
           )}
         </div>
         {!analyzing && !failedHard && !pendingReview && (
           <div className="mt-3 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-            <div className="h-full bg-[#3860FF] transition-all duration-500" style={{ width: `${total ? (ready / total) * 100 : 0}%` }} />
+            <div className="h-full bg-brand transition-all duration-500" style={{ width: `${total ? (ready / total) * 100 : 0}%` }} />
           </div>
         )}
         {failedHard && (
@@ -618,13 +689,30 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
       </div>
 
       {pendingReview && projectId ? (
-        <ReviewPanel projectId={projectId} clips={clips} onConfirmed={tick} />
+        <ReviewPanel projectId={projectId} clips={clips} uploadedVideoUrl={project.uploadedVideoUrl} onConfirmed={tick} />
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {clips.length > 0
-            ? clips.map((c) => <ClipCard key={c.id} projectId={projectId!} clip={c} onChanged={tick} />)
+            ? clips.map((c) => <ClipCard key={c.id} projectId={projectId!} clip={c} onChanged={tick} onSelect={setSelectedClip} />)
             : !failedHard && Array.from({ length: Math.max(1, expectedCount) }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
+      )}
+
+      {selectedClip && (
+        <ClipEditorDrawer
+          projectId={projectId!}
+          clip={selectedClip}
+          onClose={() => setSelectedClip(null)}
+          onChanged={() => {
+            tick();
+            apiFetch<{ project: ProjectMeta; clips: ClipItem[] }>(`/api/projects/${projectId}/clips`)
+              .then((d) => {
+                const updated = d.clips?.find((c) => c.id === selectedClip.id);
+                if (updated) setSelectedClip(updated);
+              })
+              .catch(() => {});
+          }}
+        />
       )}
     </div>
   );
@@ -650,7 +738,7 @@ function StepperBar({
             >
               <span
                 className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs ${
-                  i === stepIndex ? "bg-[#3860FF] text-white" : i < stepIndex ? "bg-green-500 text-white" : "text-gray-400"
+                  i === stepIndex ? "grad-brand text-white shadow-glow" : i < stepIndex ? "bg-green-500 text-white" : "text-gray-400"
                 }`}
               >
                 {i < stepIndex ? "✓" : i + 1}
@@ -667,11 +755,11 @@ function StepperBar({
             </button>
           )}
           {isLastStep ? (
-            <button onClick={onGenerate} disabled={!canNext} className="inline-flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed bg-[#3860FF] hover:bg-[#2d50e0]">
+            <button onClick={onGenerate} disabled={!canNext} className="inline-flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed grad-brand shadow-glow hover:shadow-glow-hover hover:brightness-105">
               <IcSparkle /> Analyze
             </button>
           ) : (
-            <button onClick={onNext} disabled={!canNext} className="inline-flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed bg-[#3860FF] hover:bg-[#2d50e0]">
+            <button onClick={onNext} disabled={!canNext} className="inline-flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed grad-brand shadow-glow hover:shadow-glow-hover hover:brightness-105">
               Next <IcChevronRight />
             </button>
           )}
@@ -722,14 +810,14 @@ function Step1Upload({ file, videoPreviewUrl, onFile, onClearFile }: {
             onDrop={(e) => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files?.[0]) onFile(e.dataTransfer.files[0]); }}
             onClick={() => inputRef.current?.click()}
             className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-gray-300 bg-white p-6 transition-all duration-200 hover:border-blue-300 hover:bg-blue-50/30"
-            style={{ borderColor: dragging ? "#3860FF" : undefined, background: dragging ? "#eff6ff" : undefined }}
+            style={{ borderColor: dragging ? "var(--brand)" : undefined, background: dragging ? "var(--tint-blue)" : undefined }}
           >
             <div className="text-blue-500"><IcCloud /></div>
             <p className="text-sm font-medium text-gray-700 text-center">Choose a video or drag & drop</p>
             <p className="text-xs text-gray-400">MP4, MOV, WebM — up to 500 MB</p>
             <button
               onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
-              className="mt-1 inline-flex items-center justify-center rounded-lg bg-[#3860FF] hover:bg-[#2d50e0] px-5 py-2.5 text-sm font-semibold text-white transition-colors"
+              className="mt-1 inline-flex items-center justify-center rounded-lg grad-brand shadow-glow hover:shadow-glow-hover hover:brightness-105 px-5 py-2.5 text-sm font-semibold text-white transition-colors"
             >
               Upload Video
             </button>
@@ -754,6 +842,14 @@ function Step2Instructions({
   minDuration, setMinDuration, maxDuration, setMaxDuration, clipCount, setClipCount,
   aspectRatio, setAspectRatio, instructions, setInstructions, captionsOn, setCaptionsOn,
   captionStyleIndex, setCaptionStyleIndex, fileName,
+  reframingPreset, setReframingPreset, removeSilence, setRemoveSilence,
+  silenceThresholdMs, setSilenceThresholdMs, removeFillers, setRemoveFillers,
+  smartAutoReframe, setSmartAutoReframe,
+  zoomStrength, setZoomStrength,
+  speakerMode, setSpeakerMode,
+  smoothness, setSmoothness,
+  trackingSpeed, setTrackingSpeed,
+  animatedCaptions, setAnimatedCaptions,
 }: {
   minDuration: number; setMinDuration: (v: number) => void;
   maxDuration: number; setMaxDuration: (v: number) => void;
@@ -763,103 +859,126 @@ function Step2Instructions({
   captionsOn: boolean; setCaptionsOn: (v: boolean) => void;
   captionStyleIndex: number; setCaptionStyleIndex: (v: number) => void;
   fileName: string | null;
+  reframingPreset: string; setReframingPreset: (v: string) => void;
+  removeSilence: boolean; setRemoveSilence: (v: boolean) => void;
+  silenceThresholdMs: number; setSilenceThresholdMs: (v: number) => void;
+  removeFillers: boolean; setRemoveFillers: (v: boolean) => void;
+  smartAutoReframe: boolean; setSmartAutoReframe: (v: boolean) => void;
+  zoomStrength: "low" | "medium" | "high"; setZoomStrength: (v: "low" | "medium" | "high") => void;
+  speakerMode: "auto" | "single" | "split" | "active"; setSpeakerMode: (v: "auto" | "single" | "split" | "active") => void;
+  smoothness: number; setSmoothness: (v: number) => void;
+  trackingSpeed: number; setTrackingSpeed: (v: number) => void;
+  animatedCaptions: boolean; setAnimatedCaptions: (v: boolean) => void;
 }) {
   return (
     <div className="flex-1 flex items-start justify-center p-4 md:p-8">
       <div className="w-full max-w-4xl flex flex-col gap-4 md:flex-row md:gap-6">
-        <div className="flex-1 rounded-xl border border-gray-200 bg-white p-5 md:p-8 space-y-6">
+        <Card padding="none" className="flex-1 p-5 md:p-8 space-y-6">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-1">Clip Settings</h2>
-            <p className="text-sm text-gray-500">Configure how your video will be split into clips.</p>
+            <h2 className="text-lg font-semibold text-ink mb-1">Clip Settings</h2>
+            <p className="text-sm text-ink-soft">Configure how your video will be split into clips.</p>
           </div>
 
           <div className="space-y-3">
-            <label className="text-sm font-semibold text-gray-700">Clip Duration (seconds)</label>
+            <FieldLabel>Clip Duration (seconds)</FieldLabel>
             <div className="flex items-center gap-3">
               <div className="flex-1">
-                <label className="text-xs text-gray-500 mb-1 block">Min</label>
-                <input type="number" min={5} max={300} value={minDuration}
-                  onChange={(e) => setMinDuration(Math.max(5, Math.min(Number(e.target.value), maxDuration - 1)))}
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:border-blue-400" />
+                <label className="text-xs text-ink-soft mb-1 block">Min</label>
+                <Input type="number" min={5} max={300} value={minDuration}
+                  onChange={(e) => setMinDuration(Math.max(5, Math.min(Number(e.target.value), maxDuration - 1)))} />
               </div>
-              <span className="text-gray-300 mt-5">—</span>
+              <span className="text-ink-soft/40 mt-5">—</span>
               <div className="flex-1">
-                <label className="text-xs text-gray-500 mb-1 block">Max</label>
-                <input type="number" min={5} max={300} value={maxDuration}
-                  onChange={(e) => setMaxDuration(Math.max(minDuration + 1, Math.min(Number(e.target.value), 300)))}
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:border-blue-400" />
+                <label className="text-xs text-ink-soft mb-1 block">Max</label>
+                <Input type="number" min={5} max={300} value={maxDuration}
+                  onChange={(e) => setMaxDuration(Math.max(minDuration + 1, Math.min(Number(e.target.value), 300)))} />
               </div>
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-gray-700">Number of Clips</label>
-            <input type="number" min={1} max={20} value={clipCount}
-              onChange={(e) => setClipCount(Math.max(1, Math.min(Number(e.target.value), 20)))}
-              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:border-blue-400" />
-            <p className="text-xs text-gray-400">Generate between 1 and 20 clips</p>
+            <FieldLabel>Number of Clips</FieldLabel>
+            <Input type="number" min={1} max={20} value={clipCount}
+              onChange={(e) => setClipCount(Math.max(1, Math.min(Number(e.target.value), 20)))} />
+            <p className="text-xs text-ink-soft/70">Generate between 1 and 20 clips</p>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-gray-700">Default Aspect Ratio</label>
+            <FieldLabel>Default Aspect Ratio</FieldLabel>
             <div className="grid grid-cols-3 gap-2">
               {ASPECTS.map((r) => (
                 <button key={r.value} onClick={() => setAspectRatio(r.value)}
                   className={`rounded-xl border px-3 py-3 text-center transition-colors ${
-                    aspectRatio === r.value ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                    aspectRatio === r.value ? "grad-brand text-white shadow-glow border-transparent" : "bg-white border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
                   }`}>
                   <p className="text-sm font-semibold">{r.label}</p>
                 </button>
               ))}
             </div>
-            <p className="text-xs text-gray-400">You can override this per clip in the review step</p>
+            <p className="text-xs text-ink-soft/70">You can override this per clip in the review step</p>
           </div>
+
+          <ReframeAndCutsControls
+            smartAutoReframe={smartAutoReframe} setSmartAutoReframe={setSmartAutoReframe}
+            reframingPreset={reframingPreset} setReframingPreset={setReframingPreset}
+            zoomStrength={zoomStrength} setZoomStrength={setZoomStrength}
+            speakerMode={speakerMode} setSpeakerMode={setSpeakerMode}
+            smoothness={smoothness} setSmoothness={setSmoothness}
+            trackingSpeed={trackingSpeed} setTrackingSpeed={setTrackingSpeed}
+            removeSilence={removeSilence} setRemoveSilence={setRemoveSilence}
+            silenceThresholdMs={silenceThresholdMs} setSilenceThresholdMs={setSilenceThresholdMs}
+            removeFillers={removeFillers} setRemoveFillers={setRemoveFillers}
+          />
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-semibold text-gray-700">Captions</label>
-              <button
-                type="button" onClick={() => setCaptionsOn(!captionsOn)}
-                className={`relative w-10 h-6 rounded-full transition-colors ${captionsOn ? "bg-[#3860FF]" : "bg-gray-200"}`}
-              >
-                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${captionsOn ? "translate-x-4" : ""}`} />
-              </button>
+              <label className="text-sm font-semibold text-ink">Captions</label>
+              <Switch checked={captionsOn} onChange={setCaptionsOn} label="Captions" />
             </div>
             {captionsOn && (
-              <SubtitleStylePicker value={captionStyleIndex} onChange={setCaptionStyleIndex} />
+              <div className="space-y-3">
+                <SubtitleStylePicker value={captionStyleIndex} onChange={setCaptionStyleIndex} />
+                <div className="flex items-center justify-between rounded-lg border border-card-border p-3 bg-white">
+                  <div>
+                    <label className="text-xs font-semibold text-ink block">Animated Subtitles</label>
+                    <span className="text-[10px] text-ink-soft block mt-0.5 font-medium leading-tight">Highlight words with dynamic sizes and colors like Opus Clip.</span>
+                  </div>
+                  <Switch checked={animatedCaptions} onChange={setAnimatedCaptions} label="Animated Subtitles" />
+                </div>
+              </div>
             )}
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-gray-700">Instructions (optional)</label>
+            <FieldLabel>Instructions (optional)</FieldLabel>
             <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)}
               placeholder="e.g. Focus on funny moments, avoid silent parts, prioritize high-energy sections..."
-              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:border-blue-400 resize-none"
+              className="w-full rounded-xl border border-card-border bg-white px-3 py-3 text-sm text-ink placeholder:text-ink-soft/50 focus:outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all resize-none"
               rows={4} />
           </div>
-        </div>
+        </Card>
 
         <div className="w-full md:w-[300px] flex flex-col gap-4">
-          <div className="rounded-xl border border-gray-200 bg-white p-5 space-y-4">
-            <h3 className="text-sm font-semibold text-gray-900">Settings Summary</h3>
+          <Card padding="md" className="space-y-4">
+            <h3 className="text-sm font-semibold text-ink">Settings Summary</h3>
             <div className="space-y-3 text-sm">
-              <div className="flex justify-between"><span className="text-gray-500">File</span><span className="text-gray-900 font-medium truncate max-w-[160px]">{fileName ?? "—"}</span></div>
-              <div className="h-px bg-gray-100" />
-              <div className="flex justify-between"><span className="text-gray-500">Duration range</span><span className="text-gray-900 font-medium">{minDuration}s – {maxDuration}s</span></div>
-              <div className="h-px bg-gray-100" />
-              <div className="flex justify-between"><span className="text-gray-500">Clips</span><span className="text-gray-900 font-medium">{clipCount}</span></div>
-              <div className="h-px bg-gray-100" />
-              <div className="flex justify-between"><span className="text-gray-500">Aspect ratio</span><span className="text-gray-900 font-medium">{aspectRatio}</span></div>
-              <div className="h-px bg-gray-100" />
-              <div className="flex justify-between"><span className="text-gray-500">Captions</span><span className="text-gray-900 font-medium">{captionsOn ? "On" : "Off"}</span></div>
+              <div className="flex justify-between"><span className="text-ink-soft">File</span><span className="text-ink font-medium truncate max-w-[160px]">{fileName ?? "—"}</span></div>
+              <div className="h-px bg-card-border" />
+              <div className="flex justify-between"><span className="text-ink-soft">Duration range</span><span className="text-ink font-medium">{minDuration}s – {maxDuration}s</span></div>
+              <div className="h-px bg-card-border" />
+              <div className="flex justify-between"><span className="text-ink-soft">Clips</span><span className="text-ink font-medium">{clipCount}</span></div>
+              <div className="h-px bg-card-border" />
+              <div className="flex justify-between"><span className="text-ink-soft">Aspect ratio</span><span className="text-ink font-medium">{aspectRatio}</span></div>
+              <div className="h-px bg-card-border" />
+              <div className="flex justify-between"><span className="text-ink-soft">Captions</span><span className="text-ink font-medium">{captionsOn ? "On" : "Off"}</span></div>
               {instructions.trim() && (
                 <>
-                  <div className="h-px bg-gray-100" />
-                  <div><span className="text-gray-500">Instructions</span><p className="text-gray-700 mt-1 text-xs leading-relaxed">{instructions}</p></div>
+                  <div className="h-px bg-card-border" />
+                  <div><span className="text-ink-soft">Instructions</span><p className="text-ink mt-1 text-xs leading-relaxed">{instructions}</p></div>
                 </>
               )}
             </div>
-          </div>
+          </Card>
         </div>
       </div>
     </div>
@@ -906,7 +1025,7 @@ function Step3Review({ fileName, minDuration, maxDuration, clipCount, aspectRati
           )}
         </div>
 
-        <button onClick={onGenerate} className="inline-flex items-center gap-2 bg-[#3860FF] hover:bg-[#2d50e0] text-white text-sm font-semibold px-8 py-3 rounded-xl transition-colors shadow-sm">
+        <button onClick={onGenerate} className="inline-flex items-center gap-2 grad-brand shadow-glow hover:shadow-glow-hover hover:brightness-105 text-white text-sm font-semibold px-8 py-3 rounded-xl transition-colors shadow-sm">
           <IcSparkle /> Analyze Video
         </button>
       </div>
@@ -932,6 +1051,18 @@ function AutoClipFlow() {
   const [instructions, setInstructions] = useState("");
   const [captionsOn, setCaptionsOn] = useState(true);
   const [captionStyleIndex, setCaptionStyleIndex] = useState(0);
+
+  const [reframingPreset, setReframingPreset] = useState("balanced");
+  const [removeSilence, setRemoveSilence] = useState(false);
+  const [silenceThresholdMs, setSilenceThresholdMs] = useState(400);
+  const [removeFillers, setRemoveFillers] = useState(false);
+
+  const [smartAutoReframe, setSmartAutoReframe] = useState(true);
+  const [zoomStrength, setZoomStrength] = useState<"low" | "medium" | "high">("medium");
+  const [speakerMode, setSpeakerMode] = useState<"auto" | "single" | "split" | "active">("auto");
+  const [smoothness, setSmoothness] = useState(50);
+  const [trackingSpeed, setTrackingSpeed] = useState(50);
+  const [animatedCaptions, setAnimatedCaptions] = useState(true);
 
   const { status: genStatus, error: genError, projectId: genProjectId, generateAutoClip, reset } = useVideoGenerate();
 
@@ -969,14 +1100,26 @@ function AutoClipFlow() {
       file, minDuration, maxDuration, clipCount, aspectRatio, instructions,
       captionStyleIndex: captionsOn ? captionStyleIndex : -1,
       token,
+      reframingPreset,
+      removeSilence,
+      silenceThresholdMs,
+      removeFillers,
+      smartAutoReframe,
+      zoomStrength,
+      speakerMode,
+      smoothness,
+      trackingSpeed,
+      animatedCaptions,
     });
-  }, [file, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionsOn, captionStyleIndex, generateAutoClip]);
+  }, [file, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionsOn, captionStyleIndex, reframingPreset, removeSilence, silenceThresholdMs, removeFillers, smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions, generateAutoClip]);
 
   const handleReset = useCallback(() => {
     reset();
     handleClearFile();
     setMinDuration(15); setMaxDuration(60); setClipCount(5); setAspectRatio("9:16");
     setInstructions(""); setCaptionsOn(true); setCaptionStyleIndex(0);
+    setReframingPreset("balanced"); setRemoveSilence(false); setSilenceThresholdMs(400); setRemoveFillers(false);
+    setSmartAutoReframe(true); setZoomStrength("medium"); setSpeakerMode("auto"); setSmoothness(50); setTrackingSpeed(50); setAnimatedCaptions(true);
     router.push("/dashboard/create/auto-clip?step=upload-video");
   }, [reset, handleClearFile, router]);
 
@@ -1004,6 +1147,16 @@ function AutoClipFlow() {
                 captionsOn={captionsOn} setCaptionsOn={setCaptionsOn}
                 captionStyleIndex={captionStyleIndex} setCaptionStyleIndex={setCaptionStyleIndex}
                 fileName={file?.name ?? null}
+                reframingPreset={reframingPreset} setReframingPreset={setReframingPreset}
+                removeSilence={removeSilence} setRemoveSilence={setRemoveSilence}
+                silenceThresholdMs={silenceThresholdMs} setSilenceThresholdMs={setSilenceThresholdMs}
+                removeFillers={removeFillers} setRemoveFillers={setRemoveFillers}
+                smartAutoReframe={smartAutoReframe} setSmartAutoReframe={setSmartAutoReframe}
+                zoomStrength={zoomStrength} setZoomStrength={setZoomStrength}
+                speakerMode={speakerMode} setSpeakerMode={setSpeakerMode}
+                smoothness={smoothness} setSmoothness={setSmoothness}
+                trackingSpeed={trackingSpeed} setTrackingSpeed={setTrackingSpeed}
+                animatedCaptions={animatedCaptions} setAnimatedCaptions={setAnimatedCaptions}
               />
             )}
 
@@ -1021,6 +1174,458 @@ function AutoClipFlow() {
 }
 
 // ── Export ───────────────────────────────────────────────────────────────────
+// ── Subtitle Styling Helpers ────────────────────────────────────────────────
+function hexToASS(hex: string): string {
+  const cleaned = hex.replace("#", "");
+  if (cleaned.length === 6) {
+    const r = cleaned.slice(0, 2);
+    const g = cleaned.slice(2, 4);
+    const b = cleaned.slice(4, 6);
+    return `&H00${b}${g}${r}`;
+  }
+  return "&H00FFFFFF";
+}
+function assToHex(ass: string): string {
+  const match = ass.match(/&H[0-9a-fA-F]{2}([0-9a-fA-F]{6})/);
+  if (match) {
+    const bgr = match[1];
+    const b = bgr.slice(0, 2);
+    const g = bgr.slice(2, 4);
+    const r = bgr.slice(4, 6);
+    return `#${r}${g}${b}`;
+  }
+  return "#ffffff";
+}
+
+// ── Clip Editor Drawer (Studio & Insights) ──────────────────────────────────
+function ClipEditorDrawer({
+  projectId, clip, onClose, onChanged
+}: {
+  projectId: string; clip: ClipItem; onClose: () => void; onChanged: () => void;
+}) {
+  const [tab, setTab] = useState<"insights" | "style" | "transcript" | "cuts">("insights");
+  const [copied, setCopied] = useState(false);
+
+  // Subtitle styling state
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const override = (clip.subtitleStyleOverride as any) ?? {};
+  const [fontName, setFontName] = useState((override.fontName as string) ?? "Outfit");
+  const [fontSize, setFontSize] = useState((override.fontSize as number) ?? 80);
+  const [baseColor, setBaseColor] = useState(assToHex((override.baseColor as string) ?? "&H00FFFFFF"));
+  const [highlightColor, setHighlightColor] = useState(assToHex((override.highlightColor as string) ?? "&H0000FFFF"));
+  const [outlineColor, setOutlineColor] = useState(assToHex((override.outlineColor as string) ?? "&H00000000"));
+  const [shadowColor, setShadowColor] = useState(assToHex((override.shadowColor as string) ?? "&H00000000"));
+  const [outlineWidth, setOutlineWidth] = useState((override.outlineWidth as number) ?? 8);
+  const [shadowDepth, setShadowDepth] = useState((override.shadowDepth as number) ?? 0);
+  const [borderStyle, setBorderStyle] = useState((override.borderStyle as number) ?? 1);
+  const [alignment, setAlignment] = useState((override.alignment as number) ?? 5);
+  const [animatedCaptions, setAnimatedCaptions] = useState((override.animated as boolean) ?? true);
+
+  // Audio cuts state
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const silence = (clip.silenceSettings as any) ?? {};
+  const [removeSilence, setRemoveSilence] = useState((silence.removeSilence as boolean) ?? false);
+  const [silenceThresholdMs, setSilenceThresholdMs] = useState((silence.silenceThresholdMs as number) ?? 400);
+  const [removeFillers, setRemoveFillers] = useState((silence.removeFillers as boolean) ?? false);
+  const [reframingPreset, setReframingPreset] = useState((silence.reframingPreset as string) ?? "balanced");
+
+  const [smartAutoReframe, setSmartAutoReframe] = useState((silence.smartAutoReframe as boolean) ?? true);
+  const [zoomStrength, setZoomStrength] = useState((silence.zoomStrength as string) ?? "medium");
+  const [speakerMode, setSpeakerMode] = useState((silence.speakerMode as string) ?? "auto");
+  const [smoothness, setSmoothness] = useState((silence.smoothness as number) ?? 50);
+  const [trackingSpeed, setTrackingSpeed] = useState((silence.trackingSpeed as number) ?? 50);
+
+  interface WordTimingInfo { word: string; start: number; end: number }
+
+  // Transcript state
+  const [localWords, setLocalWords] = useState<WordTimingInfo[]>([]);
+
+  useEffect(() => {
+    if (clip.transcriptJson) {
+      setLocalWords(JSON.parse(JSON.stringify(clip.transcriptJson)) as WordTimingInfo[]);
+    }
+  }, [clip.transcriptJson]);
+
+  const [saving, setSaving] = useState(false);
+  const [saveErr, setSaveErr] = useState<string | null>(null);
+
+  // Save Style & Cuts
+  async function handleSaveStyleOrCuts() {
+    setSaving(true); setSaveErr(null);
+    try {
+      await apiFetch(`/api/projects/${projectId}/clips/${clip.id}/style`, {
+        method: "PUT",
+        body: JSON.stringify({
+          subtitleStyleOverride: {
+            fontName,
+            fontSize,
+            baseColor: hexToASS(baseColor),
+            highlightColor: hexToASS(highlightColor),
+            outlineColor: hexToASS(outlineColor),
+            shadowColor: hexToASS(shadowColor),
+            outlineWidth,
+            shadowDepth,
+            borderStyle,
+            alignment,
+            animated: animatedCaptions,
+          },
+          silenceSettings: {
+            removeSilence,
+            silenceThresholdMs,
+            removeFillers,
+            reframingPreset,
+            smartAutoReframe,
+            zoomStrength,
+            speakerMode,
+            smoothness,
+            trackingSpeed,
+          }
+        })
+      });
+      onChanged();
+    } catch (e: unknown) {
+      setSaveErr(e instanceof Error ? e.message : "An error occurred");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Save Transcript
+  async function handleSaveTranscript() {
+    setSaving(true); setSaveErr(null);
+    try {
+      await apiFetch(`/api/projects/${projectId}/clips/${clip.id}/transcript`, {
+        method: "PUT",
+        body: JSON.stringify({ transcript: localWords })
+      });
+      onChanged();
+    } catch (e: unknown) {
+      setSaveErr(e instanceof Error ? e.message : "An error occurred");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  interface ScoreBreakdownWithInsights extends ScoreBreakdown {
+    reasoning?: string;
+    hookExplanation?: string;
+    retentionPrediction?: string;
+    audience?: string;
+    platform?: string;
+    suggestedPostingTime?: string;
+    hashtags?: string[];
+    suggestedCaption?: string;
+  }
+
+  // Copy social caption
+  const bd = clip.scoreBreakdown as unknown as ScoreBreakdownWithInsights | null;
+  const caption = bd?.suggestedCaption ?? "Check out this amazing clip!";
+  const hashtags = Array.isArray(bd?.hashtags) ? bd.hashtags.join(" ") : "#highlight #viral";
+
+  function copySocial() {
+    navigator.clipboard.writeText(`${caption}\n\n${hashtags}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  const isRendering = clip.status === "rendering" || clip.status === "queued";
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Drawer */}
+      <div className="relative w-full max-w-lg bg-white h-full shadow-2xl flex flex-col z-10 animate-slide-in">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-150 flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-bold text-gray-900 leading-tight">Clip Studio</h3>
+            <p className="text-xs text-gray-400 mt-0.5">{clip.title || `Clip ${clip.index + 1}`}</p>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        {/* Rendering Overlay */}
+        {isRendering && (
+          <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px] flex flex-col items-center justify-center gap-3 z-20">
+            <div className="w-10 h-10 border-[3.5px] border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
+            <p className="text-sm font-semibold text-gray-800">Applying changes...</p>
+            <p className="text-xs text-gray-400">{clip.status === "queued" ? "Queued" : `${clip.progress}% rendered`}</p>
+          </div>
+        )}
+
+        {/* Navigation Tabs */}
+        <div className="flex border-b border-gray-150 bg-gray-50/50 px-4 pt-2">
+          {[
+            { id: "insights", label: "Insights" },
+            { id: "style", label: "Styles" },
+            { id: "transcript", label: "Transcript" },
+            { id: "cuts", label: "Audio Cuts" }
+          ].map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id as "insights" | "style" | "transcript" | "cuts")}
+              className={`px-4 py-2 text-xs font-bold border-b-2 transition-colors -mb-px ${
+                tab === t.id ? "border-brand text-brand" : "border-transparent text-gray-500 hover:text-gray-800"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Content Body */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {tab === "insights" && (
+            <div className="space-y-6">
+              {/* Virality breakdown */}
+              <div className="rounded-xl border border-gray-150 bg-gray-50/50 p-4">
+                <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-3">AI Virality Breakdown</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: "Hook strength", value: bd?.hook ?? 50 },
+                    { label: "Pacing flow", value: bd?.pacing ?? 50 },
+                    { label: "Payoff score", value: bd?.payoff ?? 50 },
+                    { label: "Engagement", value: bd?.engagement ?? 50 }
+                  ].map((item, idx) => (
+                    <div key={idx} className="bg-white rounded-lg border border-gray-100 p-2.5 shadow-sm">
+                      <span className="text-[10px] text-gray-400 font-semibold block">{item.label}</span>
+                      <span className="text-lg font-extrabold text-gray-800 mt-0.5 block">{item.value}/99</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Explanations */}
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-1.5">AI Virality Explanation</h4>
+                  <p className="text-sm text-gray-600 leading-relaxed bg-indigo-50/40 border border-indigo-100/50 rounded-xl p-3.5">{bd?.reasoning || "Highly engaging highlight from the source video."}</p>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-1.5">Hook Strengths</h4>
+                  <p className="text-sm text-gray-600 leading-relaxed">{bd?.hookExplanation || "Strong dynamic start."}</p>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-1.5">Retention Prediction</h4>
+                  <p className="text-sm text-gray-600 leading-relaxed">{bd?.retentionPrediction || "High potential retention."}</p>
+                </div>
+              </div>
+
+              <div className="h-px bg-gray-100" />
+
+              {/* Target & Posting */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Target Audience</h4>
+                  <p className="text-sm font-semibold text-gray-800">{bd?.audience || "General audience"}</p>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Ideal Platforms</h4>
+                  <p className="text-sm font-semibold text-gray-800">{bd?.platform || "TikTok, Shorts, Reels"}</p>
+                </div>
+                <div className="col-span-2">
+                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Suggested Posting Time</h4>
+                  <p className="text-sm font-semibold text-gray-800">{bd?.suggestedPostingTime || "5:00 PM local time"}</p>
+                </div>
+              </div>
+
+              <div className="h-px bg-gray-100" />
+
+              {/* Caption Box */}
+              <div className="rounded-xl border border-dashed border-gray-300 p-4 space-y-3 bg-gray-50/20">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Social Copywriter</h4>
+                  <button onClick={copySocial} className="text-xs font-bold text-brand hover:underline flex items-center gap-1">
+                    {copied ? "✓ Copied!" : "Copy Post"}
+                  </button>
+                </div>
+                <p className="text-sm text-gray-800 font-semibold italic">&quot;{caption}&quot;</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(bd?.hashtags ?? ["#highlight", "#viral"]).map((h: string) => (
+                    <span key={h} className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold text-[10px]">{h}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab === "style" && (
+            <div className="space-y-5">
+              <div>
+                <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-3">Subtitle Styling Studio</h4>
+                <p className="text-xs text-gray-400 -mt-1.5 mb-4">Customize the font, colors, border outlines, shadows and alignments.</p>
+              </div>
+
+              {/* Font Family */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-700">Font Family</label>
+                <select value={fontName} onChange={(e) => setFontName(e.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white">
+                  {["Outfit", "Arial", "Impact", "Courier New", "Georgia", "Times New Roman"].map((f) => (
+                    <option key={f} value={f}>{f}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Font Size & Border Style */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-700">Font Size (px)</label>
+                  <input type="number" value={fontSize} onChange={(e) => setFontSize(Number(e.target.value))} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-700">Caption Layout</label>
+                  <select value={borderStyle} onChange={(e) => setBorderStyle(Number(e.target.value))} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white">
+                    <option value={1}>Outline & Shadow</option>
+                    <option value={3}>Background Box</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Alignment */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-700">Screen Alignment</label>
+                <select value={alignment} onChange={(e) => setAlignment(Number(e.target.value))} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white">
+                  <option value={5}>Center Screen</option>
+                  <option value={2}>Bottom Center</option>
+                  <option value={8}>Top Center</option>
+                </select>
+              </div>
+
+              {/* Colors */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-700">Base Text Color</label>
+                  <div className="flex items-center gap-2">
+                    <input type="color" value={baseColor} onChange={(e) => setBaseColor(e.target.value)} className="w-8 h-8 rounded cursor-pointer border border-gray-200" />
+                    <span className="text-xs font-mono">{baseColor.toUpperCase()}</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-700">Highlight Text Color</label>
+                  <div className="flex items-center gap-2">
+                    <input type="color" value={highlightColor} onChange={(e) => setHighlightColor(e.target.value)} className="w-8 h-8 rounded cursor-pointer border border-gray-200" />
+                    <span className="text-xs font-mono">{highlightColor.toUpperCase()}</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-700">Outline Color</label>
+                  <div className="flex items-center gap-2">
+                    <input type="color" value={outlineColor} onChange={(e) => setOutlineColor(e.target.value)} className="w-8 h-8 rounded cursor-pointer border border-gray-200" />
+                    <span className="text-xs font-mono">{outlineColor.toUpperCase()}</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-700">Shadow Color</label>
+                  <div className="flex items-center gap-2">
+                    <input type="color" value={shadowColor} onChange={(e) => setShadowColor(e.target.value)} className="w-8 h-8 rounded cursor-pointer border border-gray-200" />
+                    <span className="text-xs font-mono">{shadowColor.toUpperCase()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Width & Depth Sliders */}
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>Outline Thickness</span>
+                    <span>{outlineWidth}px</span>
+                  </div>
+                  <input type="range" min={0} max={12} step={1} value={outlineWidth} onChange={(e) => setOutlineWidth(Number(e.target.value))} className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>Shadow Depth</span>
+                    <span>{shadowDepth}px</span>
+                  </div>
+                  <input type="range" min={0} max={12} step={1} value={shadowDepth} onChange={(e) => setShadowDepth(Number(e.target.value))} className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand" />
+                </div>
+              </div>
+              {/* Animated Subtitles Toggle */}
+              <div className="flex items-center justify-between rounded-lg border border-card-border p-3 bg-tint-blue/40">
+                <div>
+                  <label className="text-xs font-semibold text-ink block">Animated Subtitles</label>
+                  <span className="text-[10px] text-ink-soft block mt-0.5 font-medium leading-tight">Word-by-word active highlighting with pop zoom.</span>
+                </div>
+                <Switch checked={animatedCaptions} onChange={setAnimatedCaptions} label="Animated Subtitles" />
+              </div>
+
+              {saveErr && <p className="text-xs text-red-600">{saveErr}</p>}
+
+              <Button onClick={handleSaveStyleOrCuts} disabled={saving} className="w-full">
+                {saving ? "Saving & Rendering..." : "Apply Subtitle Styles"}
+              </Button>
+            </div>
+          )}
+
+          {tab === "transcript" && (
+            <div className="space-y-5">
+              <div>
+                <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-2">Interactive Transcript Editor</h4>
+                <p className="text-xs text-gray-400">Click any word below to correct spelling, capitalization, or formatting. Changes are applied instantly.</p>
+              </div>
+
+              <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-xl border border-gray-150 max-h-60 overflow-y-auto">
+                {localWords.map((w, idx) => (
+                  <div key={idx} className="flex items-center gap-1 bg-white px-2 py-1 rounded-md border border-gray-200 shadow-sm text-xs">
+                    <input
+                      type="text"
+                      value={w.word}
+                      onChange={(e) => {
+                        const next = [...localWords];
+                        next[idx] = { ...next[idx], word: e.target.value };
+                        setLocalWords(next);
+                      }}
+                      className="w-16 bg-transparent focus:outline-none border-b border-transparent focus:border-blue-500 font-semibold"
+                    />
+                    <span className="text-[9px] text-gray-400 font-mono">{(w.start / 1000).toFixed(1)}s</span>
+                  </div>
+                ))}
+              </div>
+
+              {saveErr && <p className="text-xs text-red-600">{saveErr}</p>}
+
+              <Button onClick={handleSaveTranscript} disabled={saving} className="w-full">
+                {saving ? "Saving & Rendering..." : "Save Transcript Changes"}
+              </Button>
+            </div>
+          )}
+
+          {tab === "cuts" && (
+            <div className="space-y-5">
+              <div>
+                <h4 className="text-xs font-bold text-ink uppercase tracking-wider mb-3">Silence & Camera Settings</h4>
+                <p className="text-xs text-ink-soft -mt-1.5 mb-4">Adjust voice activity cuts and camera tracking presets for this clip.</p>
+              </div>
+
+              <ReframeAndCutsControls
+                smartAutoReframe={smartAutoReframe} setSmartAutoReframe={setSmartAutoReframe}
+                reframingPreset={reframingPreset} setReframingPreset={setReframingPreset}
+                zoomStrength={zoomStrength as "low" | "medium" | "high"} setZoomStrength={setZoomStrength}
+                speakerMode={speakerMode as "auto" | "single" | "split" | "active"} setSpeakerMode={setSpeakerMode}
+                smoothness={smoothness} setSmoothness={setSmoothness}
+                trackingSpeed={trackingSpeed} setTrackingSpeed={setTrackingSpeed}
+                removeSilence={removeSilence} setRemoveSilence={setRemoveSilence}
+                silenceThresholdMs={silenceThresholdMs} setSilenceThresholdMs={setSilenceThresholdMs}
+                removeFillers={removeFillers} setRemoveFillers={setRemoveFillers}
+              />
+
+              {saveErr && <p className="text-xs text-red-600">{saveErr}</p>}
+
+              <Button onClick={handleSaveStyleOrCuts} disabled={saving} className="w-full" size="md">
+                {saving ? "Saving & Rendering..." : "Apply Camera & Trimming Options"}
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AutoClipPage() {
   return (
     <Suspense fallback={<div className="flex h-screen items-center justify-center"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>}>

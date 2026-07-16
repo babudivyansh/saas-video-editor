@@ -37,6 +37,13 @@ export interface SubtitleStyle {
   fontSize?: number;
   highlightColor?: string; // ASS color e.g. "&H0000FFFF"
   baseColor?: string;      // ASS color e.g. "&H00FFFFFF"
+  outlineColor?: string;   // ASS color
+  shadowColor?: string;    // ASS color
+  outlineWidth?: number;
+  shadowDepth?: number;
+  borderStyle?: number;    // 1 = outline + shadow, 3 = box background
+  alignment?: number;      // ASS alignment (5=center, 2=bottom, etc.)
+  animated?: boolean;
 }
 
 export function toASSTime(ms: number): string {
@@ -55,6 +62,12 @@ export function generateASS(
   const fontSize = style.fontSize ?? 80;
   const highlight = style.highlightColor ?? "&H0000FFFF";
   const base = style.baseColor ?? "&H00FFFFFF";
+  const outlineCol = style.outlineColor ?? "&H00000000";
+  const shadowCol = style.shadowColor ?? "&H00000000";
+  const borderStyle = style.borderStyle ?? 1;
+  const outline = style.outlineWidth ?? 8;
+  const shadow = style.shadowDepth ?? 0;
+  const alignment = style.alignment ?? 5;
 
   const header = `[Script Info]
 ScriptType: v4.00+
@@ -64,11 +77,50 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${fontName},${fontSize},${highlight},${base},&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,8,0,5,10,10,10,1
+Style: Default,${fontName},${fontSize},${highlight},${base},${outlineCol},${shadowCol},-1,0,0,0,100,100,0,0,${borderStyle},${outline},${shadow},${alignment},10,10,10,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
+
+  if (style.animated) {
+    const WORDS_PER_LINE = 4;
+    let events = "";
+    for (let i = 0; i < words.length; i += WORDS_PER_LINE) {
+      const group = words.slice(i, i + WORDS_PER_LINE);
+      const groupStart = group[0].start;
+      const groupEnd = group[group.length - 1].end;
+
+      for (let k = 0; k < group.length; k++) {
+        const activeWord = group[k];
+        const wordStart = k === 0 ? groupStart : activeWord.start;
+        let wordEnd = activeWord.end;
+        if (k < group.length - 1) {
+          wordEnd = group[k + 1].start;
+        } else {
+          wordEnd = groupEnd;
+        }
+
+        if (wordStart >= wordEnd) continue;
+
+        const startStr = toASSTime(wordStart);
+        const endStr = toASSTime(wordEnd);
+
+        let lineText = "";
+        for (let j = 0; j < group.length; j++) {
+          const w = group[j];
+          if (j === k) {
+            lineText += `{\\1c${highlight}\\fscx118\\fscy118}${w.word} `;
+          } else {
+            lineText += `{\\1c${base}\\fscx100\\fscy100}${w.word} `;
+          }
+        }
+        events += `Dialogue: 0,${startStr},${endStr},Default,,0,0,0,,${lineText.trim()}\n`;
+      }
+    }
+    fs.writeFileSync(assPath, header + events, "utf8");
+    return;
+  }
 
   const WORDS_PER_LINE = 5;
   let events = "";

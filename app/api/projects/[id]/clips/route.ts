@@ -11,7 +11,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const project = await prisma.project.findFirst({
     where: { id, userId: auth.userId },
-    select: { id: true, status: true, warnings: true, autoClipCaptionStyle: true },
+    select: { id: true, status: true, warnings: true, autoClipCaptionStyle: true, uploadedVideoUrl: true },
   });
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   });
 
   return NextResponse.json({
-    project: { status: project.status, warnings: project.warnings, captionStyleIndex: project.autoClipCaptionStyle },
+    project: { status: project.status, warnings: project.warnings, captionStyleIndex: project.autoClipCaptionStyle, uploadedVideoUrl: project.uploadedVideoUrl },
     clips,
   });
 }
