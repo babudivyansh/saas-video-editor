@@ -41,13 +41,15 @@ function face(tSec: number, x: number, confidence = 90): FaceBox {
 
 describe("computeCropKeyframesForClip", () => {
   it("returns null when there is no face data in the clip window", () => {
-    expect(computeCropKeyframesForClip([], 0, 10, "9:16", 1920, 1080)).toBeNull();
+    // smartAutoReframe defaults to on in production (a zoom envelope even
+    // without face data) — disable it to exercise the base pan-only path.
+    expect(computeCropKeyframesForClip([], 0, 10, "9:16", 1920, 1080, { smartAutoReframe: false })).toBeNull();
   });
 
   it("returns null when the aspect already spans the full source (nothing to pan)", () => {
     // A source that's already exactly 9:16 has no room to pan horizontally.
     const faces = [face(1, 0.3), face(3, 0.3)];
-    expect(computeCropKeyframesForClip(faces, 0, 10, "9:16", 1080, 1920)).toBeNull();
+    expect(computeCropKeyframesForClip(faces, 0, 10, "9:16", 1080, 1920, { smartAutoReframe: false })).toBeNull();
   });
 
   it("tracks a face that moves across the frame with a pan path", () => {
@@ -75,17 +77,17 @@ describe("computeCropKeyframesForClip", () => {
 
   it("returns null for a face that never moves (no better than the static crop)", () => {
     const faces = Array.from({ length: 20 }, (_, i) => face(i * 0.5, 0.4));
-    expect(computeCropKeyframesForClip(faces, 0, 10, "9:16", 1920, 1080)).toBeNull();
+    expect(computeCropKeyframesForClip(faces, 0, 10, "9:16", 1920, 1080, { smartAutoReframe: false })).toBeNull();
   });
 
   it("ignores faces outside the clip's time window", () => {
     const faces = [face(100, 0.1), face(200, 0.9)]; // way outside [0,10]
-    expect(computeCropKeyframesForClip(faces, 0, 10, "9:16", 1920, 1080)).toBeNull();
+    expect(computeCropKeyframesForClip(faces, 0, 10, "9:16", 1920, 1080, { smartAutoReframe: false })).toBeNull();
   });
 
   it("ignores low-confidence detections", () => {
     const faces = [face(1, 0.1, 10), face(5, 0.5, 20), face(9, 0.9, 15)];
-    expect(computeCropKeyframesForClip(faces, 0, 10, "9:16", 1920, 1080)).toBeNull();
+    expect(computeCropKeyframesForClip(faces, 0, 10, "9:16", 1920, 1080, { smartAutoReframe: false })).toBeNull();
   });
 });
 

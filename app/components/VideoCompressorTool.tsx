@@ -243,8 +243,8 @@ export default function VideoCompressorTool() {
   const qualityLabel = QUALITY_OPTIONS.find(q => q.id === quality)?.label ?? quality;
 
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-8 pb-10">
-      <div className="rounded-[28px] bg-gray-50 border border-gray-100 flex items-center justify-center p-8" style={{ minHeight: "calc(100vh - 132px)" }}>
+    <div className="mx-auto w-full max-w-[1440px] px-4 md:px-8 pb-10">
+      <div className="rounded-[28px] bg-gray-50 border border-gray-100 flex items-center justify-center p-4 md:p-8" style={{ minHeight: "calc(100vh - 132px)" }}>
         <div className="w-full max-w-[560px] bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
 
           {/* Header */}

@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import { createHash, randomBytes } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "./redis";
 import { prisma } from "./prisma";
@@ -94,6 +95,49 @@ export async function requireSubscriber(req: NextRequest): Promise<TokenPayload 
   });
   const active = !!user?.subscriptionEndsAt && user.subscriptionEndsAt > new Date();
   return active ? auth : null;
+}
+
+const API_KEY_PREFIX = "sk_live_";
+
+function hashApiKey(plaintext: string): string {
+  return createHash("sha256").update(plaintext).digest("hex");
+}
+
+/**
+ * Mints a new public-API key. Returns the plaintext exactly once — callers
+ * must show it to the user immediately and store only `hash`/`prefix`
+ * (ApiKey.keyHash/keyPrefix). There is no way to recover the plaintext later.
+ */
+export function generateApiKey(): { plaintext: string; hash: string; prefix: string } {
+  const plaintext = `${API_KEY_PREFIX}${randomBytes(24).toString("base64url")}`;
+  return { plaintext, hash: hashApiKey(plaintext), prefix: plaintext.slice(0, 12) };
+}
+
+export interface ApiKeyAuth {
+  userId: string;
+  apiKeyId: string;
+  scopes: string[];
+}
+
+/**
+ * Resolves the caller of a public /api/v1/** request via its API key —
+ * separate from getAuthUser's session-cookie/JWT flow, since these are two
+ * different trust boundaries (a leaked API key shouldn't grant the same
+ * access surface as a browser session, even though both currently resolve to
+ * "acting as this user"). A revoked key always fails closed.
+ */
+export async function getApiKeyAuth(req: NextRequest): Promise<ApiKeyAuth | null> {
+  const authHeader = req.headers.get("authorization");
+  const key = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (!key || !key.startsWith(API_KEY_PREFIX)) return null;
+
+  const row = await prisma.apiKey.findUnique({ where: { keyHash: hashApiKey(key) } });
+  if (!row || row.revokedAt) return null;
+
+  // Best-effort — a slow/failed write here shouldn't fail the actual request.
+  void prisma.apiKey.update({ where: { id: row.id }, data: { lastUsedAt: new Date() } }).catch(() => {});
+
+  return { userId: row.userId, apiKeyId: row.id, scopes: row.scopes };
 }
 
 /**

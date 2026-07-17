@@ -40,6 +40,23 @@ export interface RenderQueue<T> {
   driver: "in-process" | "bullmq";
 }
 
+// Every queue name ever passed to createRenderQueue, kept in sync by hand.
+// The admin ops/failed-jobs views and the job-retry/remove route need the
+// full list of queues to check — a Next.js route can't reliably introspect
+// which other route modules (and their own createRenderQueue calls) happen
+// to have loaded in the current process, so this is the single source of
+// truth rather than three separately-drifting copies of the same array.
+// Update this alongside any new createRenderQueue("name", ...) call site.
+export const KNOWN_RENDER_QUEUE_NAMES = [
+  "editor-render",
+  "auto-clip-pick",
+  "auto-clip-render",
+  "auto-clip-rerender",
+  "auto-clip-dub",
+  "video-compressor",
+] as const;
+export type RenderQueueName = typeof KNOWN_RENDER_QUEUE_NAMES[number];
+
 type Handler<T> = (payload: T) => Promise<void>;
 
 // Cached by queue name (via globalThis, so it survives Next.js dev hot-reload

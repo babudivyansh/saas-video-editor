@@ -6,9 +6,18 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { resolveProviderPostId } from "@/lib/autoclip-publish";
 import { getValidAccessToken } from "@/lib/social/service";
-import { uploadVideo, NeedsReauthError } from "@/lib/social/google";
+import { uploadVideo as uploadToYouTube, NeedsReauthError } from "@/lib/social/google";
+import { uploadVideo as uploadToTikTok, TikTokNeedsReauthError } from "@/lib/social/tiktok";
 import { downloadFile } from "@/utils/download";
 import { logger } from "@/lib/logger";
+
+// Providers this app can actually push a rendered clip to directly, as
+// opposed to the manual-permalink flow. Instagram/Facebook aren't here: this
+// codebase's Meta OAuth only requests read/insights scopes (lib/social/meta.ts)
+// — publishing there needs both a new write scope grant AND a completed Meta
+// app review before any code here would even be authorized to call it, so
+// there's no "flip a flag" version of that — it's unbuilt, not just disabled.
+const AUTO_PUBLISH_PROVIDERS = new Set(["youtube", "tiktok"]);
 
 // GET /api/projects/[id]/clips/[clipId]/publish
 // Returns the user's connected social accounts (publish targets) and any
@@ -39,15 +48,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 // POST /api/projects/[id]/clips/[clipId]/publish { socialAccountId, permalink? }
 //
 // Two modes:
-//  - YouTube + no permalink given: actually uploads the rendered clip via the
-//    YouTube Data API (P2.5). Requires the connected account to have granted
-//    the youtube.upload scope — accounts connected before that scope existed
-//    get a clear "reconnect" error rather than a confusing API failure.
+//  - YouTube or TikTok + no permalink given: actually uploads the rendered
+//    clip via that platform's API (P2.5 for YouTube; TikTok's Content
+//    Posting API is implemented but UNVERIFIED — see lib/social/tiktok.ts's
+//    uploadVideo doc comment). Requires the connected account to have
+//    granted the relevant publish scope — accounts connected before that
+//    scope existed get a clear "reconnect" error rather than a confusing
+//    API failure.
 //  - Everything else (Instagram/Facebook, or an explicit permalink): the
-//    original manual-link flow — actually pushing to those platforms needs a
-//    Meta app review this codebase can't complete on its own (see
-//    lib/autoclip-publish.ts) — user posts manually, links the permalink
-//    here so the existing Social Tracker sync can pull real metrics back.
+//    manual-link flow — actually pushing to Meta platforms needs both a new
+//    OAuth write scope this codebase doesn't request yet AND a completed
+//    Meta app review (see lib/autoclip-publish.ts and AUTO_PUBLISH_PROVIDERS
+//    above) — user posts manually, links the permalink here so the existing
+//    Social Tracker sync can pull real metrics back.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string; clipId: string }> }) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -65,7 +78,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const account = await prisma.socialAccount.findFirst({ where: { id: body.socialAccountId, userId: auth.userId } });
   if (!account) return NextResponse.json({ error: "Social account not found" }, { status: 404 });
 
-  const autoPublish = account.provider === "youtube" && !body.permalink;
+  const autoPublish = AUTO_PUBLISH_PROVIDERS.has(account.provider) && !body.permalink;
 
   if (autoPublish) {
     if (clip.status !== "ready" || !clip.videoUrl) {
@@ -78,31 +91,45 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const accessToken = await getValidAccessToken(account);
       await downloadFile(clip.videoUrl, localPath);
       const buffer = fs.readFileSync(localPath);
-      const result = await uploadVideo(accessToken, {
-        buffer,
-        title: clip.title || `Clip ${clip.index + 1}`,
-        description: "Published via Clipiro AutoClip",
-        privacyStatus: "unlisted", // safest default — user can change visibility on YouTube afterward
-      });
+      const title = clip.title || `Clip ${clip.index + 1}`;
 
+      if (account.provider === "youtube") {
+        const result = await uploadToYouTube(accessToken, {
+          buffer,
+          title,
+          description: "Published via Clipiro AutoClip",
+          privacyStatus: "unlisted", // safest default — user can change visibility on YouTube afterward
+        });
+        const publish = await prisma.clipPublish.create({
+          data: {
+            clipId, socialAccountId: account.id,
+            permalink: result.permalink, providerPostId: result.videoId,
+            status: "linked", publishedAt: new Date(),
+          },
+        });
+        return NextResponse.json({ publish }, { status: 201 });
+      }
+
+      // TikTok: publish is asynchronous and unverified (see uploadVideo's doc
+      // comment) — record it as "pending" with the publishId as a reference,
+      // not "linked" with a real permalink, since we don't have one yet and
+      // there's no status-polling implemented to learn when/if it goes live.
+      const result = await uploadToTikTok(accessToken, { buffer, title });
       const publish = await prisma.clipPublish.create({
         data: {
-          clipId,
-          socialAccountId: account.id,
-          permalink: result.permalink,
-          providerPostId: result.videoId,
-          status: "linked",
-          publishedAt: new Date(),
+          clipId, socialAccountId: account.id,
+          providerPostId: result.publishId,
+          status: "pending",
         },
       });
       return NextResponse.json({ publish }, { status: 201 });
     } catch (err) {
-      if (err instanceof NeedsReauthError) {
+      if (err instanceof NeedsReauthError || err instanceof TikTokNeedsReauthError) {
         await prisma.socialAccount.update({ where: { id: account.id }, data: { status: "needs_reauth" } });
         return NextResponse.json({ error: err.message, needsReauth: true }, { status: 409 });
       }
-      logger.error("autoclip-publish", `YouTube upload failed for clip ${clipId}`, err);
-      return NextResponse.json({ error: "Upload to YouTube failed. Please try again." }, { status: 502 });
+      logger.error("autoclip-publish", `${account.provider} upload failed for clip ${clipId}`, err);
+      return NextResponse.json({ error: `Upload to ${account.provider} failed. Please try again.` }, { status: 502 });
     } finally {
       try { if (fs.existsSync(localPath)) fs.unlinkSync(localPath); } catch {}
     }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { runFFmpegWithProgress } from "@/utils/ffmpeg-render";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { createJobStatusHandler } from "@/lib/job-routes";
+import { createRenderQueue } from "@/lib/render-queue";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -31,6 +32,48 @@ interface Job {
 
 const g = globalThis as unknown as { __videoJobs?: Map<string, Job> };
 const jobs: Map<string, Job> = g.__videoJobs ?? (g.__videoJobs = new Map());
+
+interface CompressPayload {
+  // createRenderQueue requires a `projectId` field for its own (separate,
+  // Redis-backed) progress tracking — this route's actual status/download
+  // polling reads the `jobs` Map above via createJobStatusHandler instead,
+  // so this is just satisfying that shape with our own jobId.
+  projectId: string;
+  inputPath: string;
+  outputPath: string;
+  crf: string;
+  scaleArgs: string[];
+}
+
+// Was a bare fire-and-forget promise chain mutating `jobs` directly — moved
+// onto the shared BullMQ-backed queue so a compression job survives a server
+// restart and gets automatic retry/backoff on failure, instead of silently
+// vanishing (the in-memory Map lost all state on restart, and a mid-render
+// crash just left the job stuck at whatever progress it last reported).
+// Deliberately NOT changed: the `jobs` Map, `Job` shape, and
+// createJobStatusHandler below are untouched, so status/download polling and
+// ownership checks behave exactly as before.
+const compressQueue = createRenderQueue<CompressPayload>("video-compressor", async (payload) => {
+  const job = jobs.get(payload.projectId);
+  if (!job) return; // job entry already swept — nothing to update
+  try {
+    await runFFmpegWithProgress(
+      ["-y", "-i", payload.inputPath, ...payload.scaleArgs, "-c:v", "libx264", "-crf", payload.crf, "-preset", "fast", "-c:a", "aac", "-b:a", "128k", payload.outputPath],
+      (pct) => { job.progress = pct; },
+    );
+    job.progress = 100;
+    job.status = "done";
+  } catch (err) {
+    job.status = "error";
+    job.error = err instanceof Error ? err.message : "Compression failed";
+    throw err; // let BullMQ's retry/backoff decide whether to try again
+  }
+  // Input file cleanup deliberately NOT done here: BullMQ retries this same
+  // handler up to 3x on failure, and deleting the input after attempt 1
+  // would make attempts 2-3 fail on a missing file instead of actually
+  // retrying the compression. The existing sweep() below already reclaims
+  // both input and output paths after 30 minutes regardless of outcome.
+});
 
 function sweep() {
   const cutoff = Date.now() - 30 * 60 * 1000;
@@ -85,13 +128,7 @@ export async function POST(req: NextRequest) {
   };
   jobs.set(jobId, job);
 
-  runFFmpegWithProgress(
-    ["-y", "-i", inputPath, ...scaleArgs, "-c:v", "libx264", "-crf", crf, "-preset", "fast", "-c:a", "aac", "-b:a", "128k", outputPath],
-    (pct) => { job.progress = pct; },
-  )
-    .then(() => { job.progress = 100; job.status = "done"; })
-    .catch((err) => { job.status = "error"; job.error = err instanceof Error ? err.message : "Compression failed"; })
-    .finally(() => { try { fs.unlinkSync(inputPath); } catch {} });
+  compressQueue.enqueue(jobId, { projectId: jobId, inputPath, outputPath, crf, scaleArgs });
 
   return NextResponse.json({ jobId }, { status: 202 });
 }

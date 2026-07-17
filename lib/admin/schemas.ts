@@ -5,6 +5,7 @@
 // client bug we want surfaced, not silently dropped.
 
 import { z } from "zod";
+import { KNOWN_RENDER_QUEUE_NAMES } from "@/lib/render-queue";
 
 const credits = z.number().int().min(0).max(1_000_000);
 const paise = z.number().int().min(0).max(10_000_000);
@@ -232,6 +233,9 @@ export const opsJobActionSchema = z
   .object({
     jobId: z.string().min(1).max(200),
     action: z.enum(["retry", "remove"]),
+    // Optional + defaulted (not required) so any existing caller that only
+    // ever knew about the editor-render queue keeps working unchanged.
+    queueName: z.enum(KNOWN_RENDER_QUEUE_NAMES).optional(),
   })
   .strict();
 

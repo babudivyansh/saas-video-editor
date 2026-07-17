@@ -9,7 +9,7 @@ import { useAuth } from "@/app/components/AuthContext";
 
 interface OpsData {
   queueCounts: Record<string, number> | null;
-  failedJobs: Array<{ id: string; projectId?: string; failedReason?: string; attemptsMade: number; timestamp: number }>;
+  failedJobs: Array<{ queueName: string; id: string; projectId?: string; failedReason?: string; attemptsMade: number; timestamp: number }>;
   heartbeats: Record<string, string | null>;
   flags: Record<string, boolean>;
   maintenance: { on: boolean; message?: string };
@@ -80,12 +80,12 @@ export default function AdminOpsPage() {
     await load();
   }
 
-  async function jobAction(jobId: string, action: "retry" | "remove") {
+  async function jobAction(jobId: string, action: "retry" | "remove", queueName: string) {
     setMsg(null);
     const res = await fetch("/api/admin/ops/jobs", {
       method: "POST",
       headers: headers(),
-      body: JSON.stringify({ jobId, action }),
+      body: JSON.stringify({ jobId, action, queueName }),
     });
     if (!res.ok) setMsg((await res.json().catch(() => ({}))).error ?? "Action failed");
     await load();
@@ -174,6 +174,7 @@ export default function AdminOpsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-[11px] uppercase tracking-wide text-gray-400 text-left">
+                <th className="font-semibold pb-2">Queue</th>
                 <th className="font-semibold pb-2">Project</th>
                 <th className="font-semibold pb-2">Reason</th>
                 <th className="font-semibold pb-2 text-right">Attempts</th>
@@ -183,14 +184,15 @@ export default function AdminOpsPage() {
             </thead>
             <tbody>
               {d.failedJobs.map((j) => (
-                <tr key={j.id} className="border-t border-gray-50">
+                <tr key={`${j.queueName}:${j.id}`} className="border-t border-gray-50">
+                  <td className="py-2 text-xs text-gray-500 whitespace-nowrap">{j.queueName}</td>
                   <td className="py-2 font-mono text-xs text-gray-600">{j.projectId ?? j.id}</td>
                   <td className="py-2 text-xs text-gray-500 max-w-md truncate" title={j.failedReason}>{j.failedReason ?? "—"}</td>
                   <td className="py-2 text-right text-gray-500">{j.attemptsMade}</td>
                   <td className="py-2 text-right text-xs text-gray-400">{new Date(j.timestamp).toLocaleString()}</td>
                   <td className="py-2 text-right">
-                    <button onClick={() => jobAction(j.id!, "retry")} className="text-xs font-semibold text-blue-600 hover:underline mr-3 cursor-pointer">Retry</button>
-                    <button onClick={() => jobAction(j.id!, "remove")} className="text-xs font-semibold text-red-500 hover:underline cursor-pointer">Remove</button>
+                    <button onClick={() => jobAction(j.id!, "retry", j.queueName)} className="text-xs font-semibold text-blue-600 hover:underline mr-3 cursor-pointer">Retry</button>
+                    <button onClick={() => jobAction(j.id!, "remove", j.queueName)} className="text-xs font-semibold text-red-500 hover:underline cursor-pointer">Remove</button>
                   </td>
                 </tr>
               ))}

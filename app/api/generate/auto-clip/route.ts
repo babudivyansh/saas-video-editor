@@ -6,6 +6,7 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import { env } from "@/lib/env";
 import { createRenderQueue } from "@/lib/render-queue";
 import { pickJob, type PickPayload } from "@/lib/autoclip-pipeline";
+import { REFRAME_PRESETS, ZOOM_STRENGTHS, SPEAKER_MODES, sanitizeReframeEnum, sanitizeReframePercent } from "@/lib/reframe";
 
 // The actual analysis (download, transcribe, Rekognition, Gemini) now runs on
 // a durable BullMQ-backed queue (see lib/render-queue.ts) instead of blocking
@@ -58,6 +59,16 @@ async function handlePOST(req: NextRequest) {
     aspectRatio: body.aspectRatio ?? "9:16",
     instructions: body.instructions ?? "",
     captionStyleIndex: body.captionStyleIndex ?? 0,
+    reframingPreset: sanitizeReframeEnum(body.reframingPreset, REFRAME_PRESETS) ?? "balanced",
+    removeSilence: body.removeSilence ?? false,
+    silenceThresholdMs: body.silenceThresholdMs ?? 400,
+    removeFillers: body.removeFillers ?? false,
+    smartAutoReframe: body.smartAutoReframe !== false,
+    zoomStrength: sanitizeReframeEnum(body.zoomStrength, ZOOM_STRENGTHS) ?? "medium",
+    speakerMode: sanitizeReframeEnum(body.speakerMode, SPEAKER_MODES) ?? "auto",
+    smoothness: sanitizeReframePercent(body.smoothness) ?? 50,
+    trackingSpeed: sanitizeReframePercent(body.trackingSpeed) ?? 50,
+    animatedCaptions: body.animatedCaptions ?? false,
   });
 
   void markQuestComplete(auth.userId, "first-clip");

@@ -4,14 +4,15 @@ import { auditAdminAction, auditIp } from "@/lib/admin/audit";
 import { opsJobActionSchema } from "@/lib/admin/schemas";
 import { env } from "@/lib/env";
 
-// POST /api/admin/ops/jobs  body: { jobId, action: retry|remove }
-// Operates on the editor-render dead-letter set.
+// POST /api/admin/ops/jobs  body: { jobId, action: retry|remove, queueName? }
+// Operates on the given queue's dead-letter set — defaults to editor-render
+// for backward compatibility with any caller that predates queueName.
 export const POST = withAdmin(async (req, { admin }) => {
-  const { jobId, action } = await parseBody(req, opsJobActionSchema);
+  const { jobId, action, queueName = "editor-render" } = await parseBody(req, opsJobActionSchema);
 
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { Queue } = require("bullmq") as typeof import("bullmq");
-  const queue = new Queue("editor-render", {
+  const queue = new Queue(queueName, {
     connection: { url: env.REDIS_URL || "redis://127.0.0.1:6379", retryStrategy: () => null, maxRetriesPerRequest: 1 },
   });
   try {
@@ -22,7 +23,7 @@ export const POST = withAdmin(async (req, { admin }) => {
     else await job.remove();
 
     await auditAdminAction(admin.userId, `render_job.${action}`, jobId, {
-      after: { projectId: (job.data as { projectId?: string })?.projectId, failedReason: job.failedReason },
+      after: { queueName, projectId: (job.data as { projectId?: string })?.projectId, failedReason: job.failedReason },
       ip: auditIp(req),
     });
     return NextResponse.json({ success: true });

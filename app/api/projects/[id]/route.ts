@@ -42,6 +42,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
   }
 
+  // A re-uploaded video invalidates the cached Rekognition face timeline —
+  // otherwise auto-clip reframing would silently reuse crop data detected
+  // from the previous file.
+  if ("uploadedVideoUrl" in data && data.uploadedVideoUrl !== existing.uploadedVideoUrl) {
+    data.faceTimeline = null;
+  }
+
   const project = await prisma.project.update({ where: { id }, data });
   return NextResponse.json({ project });
 }

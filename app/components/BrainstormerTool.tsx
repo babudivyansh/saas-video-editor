@@ -128,8 +128,8 @@ export default function BrainstormerTool() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8">
-      <div className="max-w-5xl mx-auto flex gap-5">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+      <div className="max-w-5xl mx-auto flex flex-col lg:flex-row gap-5">
 
         {/* ── Left panel ── */}
         <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-5">
@@ -239,7 +239,7 @@ export default function BrainstormerTool() {
         </div>
 
         {/* ── Right panel ── */}
-        <div className="w-96 flex-shrink-0 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
+        <div className="w-full lg:w-96 lg:flex-shrink-0 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100 flex-shrink-0">
             <IcSparkle className="w-3.5 h-3.5 text-indigo-500" />
             <p className="text-sm font-semibold text-gray-800">Your idea will appear here</p>

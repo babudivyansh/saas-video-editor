@@ -238,7 +238,7 @@ function PromptLibraryModal({ onSelect, onClose }: { onSelect: (text: string) =>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
       <div
         className="bg-white rounded-2xl shadow-2xl w-full flex flex-col overflow-hidden"
-        style={{ maxWidth: 860, height: 540 }}
+        style={{ maxWidth: 860, height: "min(540px, 90vh)" }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -272,11 +272,11 @@ function PromptLibraryModal({ onSelect, onClose }: { onSelect: (text: string) =>
           ))}
         </div>
 
-        {/* Body: thumbnails | prompt text | video */}
-        <div className="flex flex-1 min-h-0">
+        {/* Body: thumbnails | prompt text | video — stacked on mobile, three columns from md up */}
+        <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-y-auto">
 
           {/* Col 1: thumbnail list */}
-          <div className="w-44 flex-shrink-0 overflow-y-auto border-r border-gray-100 py-2">
+          <div className="w-full md:w-44 md:flex-shrink-0 max-h-40 md:max-h-none overflow-y-auto border-b md:border-b-0 md:border-r border-gray-100 py-2">
             {filtered.map(p => (
               <button
                 key={p.id}
@@ -300,7 +300,7 @@ function PromptLibraryModal({ onSelect, onClose }: { onSelect: (text: string) =>
           {selected && (
             <>
               {/* Col 2: video preview */}
-              <div className="flex-1 flex flex-col justify-center p-4 border-r border-gray-100 min-w-0">
+              <div className="flex-1 flex flex-col justify-center p-4 border-b md:border-b-0 md:border-r border-gray-100 min-w-0">
                 <div
                   className="w-full rounded-xl overflow-hidden relative flex items-center justify-center"
                   style={{ aspectRatio: "16/9", background: selected.gradient }}
@@ -322,7 +322,7 @@ function PromptLibraryModal({ onSelect, onClose }: { onSelect: (text: string) =>
               </div>
 
               {/* Col 3: prompt text + button */}
-              <div className="w-72 flex-shrink-0 flex flex-col p-5 gap-4">
+              <div className="w-full md:w-72 md:flex-shrink-0 flex flex-col p-5 gap-4">
                 <div className="flex-1 overflow-y-auto min-h-0">
                   <p className="text-[13px] text-gray-700 leading-relaxed">{selected.text}</p>
                 </div>
@@ -515,7 +515,7 @@ export default function VideoGeneratorTool() {
   const fpsOptions        = FPS_OPTIONS.map(f => ({ slug: f, name: `${f} fps` }));
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
       <div className="max-w-3xl mx-auto">
         {/* Title */}
         <div className="mb-6">

@@ -125,11 +125,25 @@ function smoothFacesToKeyframes(
   durationSec: number,
   cropW: number,
   cropH: number,
+  preset?: string
 ): CropKeyframe[] {
-  const bucketCount = Math.max(1, Math.ceil(durationSec / BUCKET_SEC));
-  const maxX = 1 - cropW;
-  const maxY = 1 - cropH;
+  let emaAlpha = 0.35;
+  let maxPanFrac = 0.06;
+  let cinematicZoom = false;
 
+  if (preset === "minimal") {
+    emaAlpha = 0.1;
+    maxPanFrac = 0.02;
+  } else if (preset === "dynamic") {
+    emaAlpha = 0.6;
+    maxPanFrac = 0.12;
+  } else if (preset === "cinematic") {
+    emaAlpha = 0.2;
+    maxPanFrac = 0.04;
+    cinematicZoom = true;
+  }
+
+  const bucketCount = Math.max(1, Math.ceil(durationSec / BUCKET_SEC));
   let smoothCx: number | null = null;
   let smoothCy: number | null = null;
   let lastX = 0, lastY = 0;
@@ -146,19 +160,28 @@ function smoothFacesToKeyframes(
     if (best) {
       const cx = best.x + best.w / 2;
       const cy = best.y + best.h / 2;
-      smoothCx = smoothCx == null ? cx : smoothCx + EMA_ALPHA * (cx - smoothCx);
-      smoothCy = smoothCy == null ? cy : smoothCy + EMA_ALPHA * (cy - smoothCy);
+      smoothCx = smoothCx == null ? cx : smoothCx + emaAlpha * (cx - smoothCx);
+      smoothCy = smoothCy == null ? cy : smoothCy + emaAlpha * (cy - smoothCy);
     }
     if (smoothCx == null || smoothCy == null) continue; // no face seen yet, skip until we have one
 
-    let x = Math.min(maxX, Math.max(0, smoothCx - cropW / 2));
-    let y = Math.min(maxY, Math.max(0, smoothCy - cropH / 2));
+    // Calculate dynamic zoom for cinematic preset (slow Ken Burns zoom in from 100% to 88% size)
+    const progress = b / (bucketCount - 1 || 1);
+    const scale = cinematicZoom ? (1 - 0.12 * progress) : 1;
+    const curW = cropW * scale;
+    const curH = cropH * scale;
+
+    const maxX = 1 - curW;
+    const maxY = 1 - curH;
+
+    let x = Math.min(maxX, Math.max(0, smoothCx - curW / 2));
+    let y = Math.min(maxY, Math.max(0, smoothCy - curH / 2));
     if (raw.length > 0) {
-      x = Math.min(lastX + MAX_PAN_FRAC_PER_BUCKET, Math.max(lastX - MAX_PAN_FRAC_PER_BUCKET, x));
-      y = Math.min(lastY + MAX_PAN_FRAC_PER_BUCKET, Math.max(lastY - MAX_PAN_FRAC_PER_BUCKET, y));
+      x = Math.min(lastX + maxPanFrac, Math.max(lastX - maxPanFrac, x));
+      y = Math.min(lastY + maxPanFrac, Math.max(lastY - maxPanFrac, y));
     }
     lastX = x; lastY = y;
-    raw.push({ tSec: bucketStart, x, y, w: cropW, h: cropH });
+    raw.push({ tSec: bucketStart, x, y, w: curW, h: curH });
   }
   if (raw.length === 0) return [];
 
@@ -169,7 +192,7 @@ function smoothFacesToKeyframes(
   for (let i = 1; i < raw.length; i++) {
     const prev = merged[merged.length - 1];
     const cur = raw[i];
-    if (Math.abs(cur.x - prev.x) > MERGE_EPS || Math.abs(cur.y - prev.y) > MERGE_EPS) merged.push(cur);
+    if (Math.abs(cur.x - prev.x) > MERGE_EPS || Math.abs(cur.y - prev.y) > MERGE_EPS || Math.abs(cur.w - prev.w) > MERGE_EPS) merged.push(cur);
   }
   return merged;
 }
@@ -178,6 +201,271 @@ function smoothFacesToKeyframes(
 // smooths with an EMA + pan-rate clamp, and returns a compact crop path in
 // clip-relative time. Returns null if there's no usable face signal (caller
 // falls back to the static center crop).
+export interface ReframeOptions {
+  preset?: string;
+  smartAutoReframe?: boolean;
+  zoomStrength?: "low" | "medium" | "high";
+  speakerMode?: "auto" | "single" | "split" | "active";
+  smoothness?: number; // 0..100
+  trackingSpeed?: number; // 0..100
+  words?: { word: string; start: number; end: number }[] | null;
+}
+
+export const REFRAME_PRESETS = ["balanced", "minimal", "dynamic", "cinematic"] as const;
+export const ZOOM_STRENGTHS = ["low", "medium", "high"] as const;
+export const SPEAKER_MODES = ["auto", "single", "split", "active"] as const;
+
+// Validates untrusted request-body values against the enums/ranges reframe
+// options are actually constrained to, returning undefined (so the caller's
+// `?? default` applies) for anything missing or malformed instead of letting
+// a bad client value flow straight into ffmpeg filter generation.
+export function sanitizeReframeEnum<T extends string>(value: unknown, allowed: readonly T[]): T | undefined {
+  return typeof value === "string" && (allowed as readonly string[]).includes(value) ? (value as T) : undefined;
+}
+
+export function sanitizeReframePercent(value: unknown): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return undefined;
+  return Math.min(100, Math.max(0, n));
+}
+
+function computeAdvancedCrop(
+  faces: FaceBox[],
+  duration: number,
+  cropW: number,
+  cropH: number,
+  aspect: "9:16" | "16:9" | "1:1",
+  options: ReframeOptions
+): CropKeyframe[] {
+  const smart = options.smartAutoReframe !== false;
+  const zoomStr = options.zoomStrength ?? "medium";
+  const mode = options.speakerMode ?? "auto";
+  const smoothnessVal = options.smoothness ?? 50;
+  const speedVal = options.trackingSpeed ?? 50;
+  const words = options.words ?? null;
+  const preset = options.preset ?? "balanced";
+
+  const stepsCount = Math.max(1, Math.round(duration / 0.1));
+  const targetScales = new Array<number>(stepsCount).fill(1.0);
+  const targetCxs = new Array<number>(stepsCount).fill(0.5);
+  const targetCys = new Array<number>(stepsCount).fill(0.5);
+  const faceWidths = new Array<number>(stepsCount).fill(0.15);
+  const faceHeights = new Array<number>(stepsCount).fill(0.15);
+
+  const zoomScaleMap = {
+    low: { hook: 1.05, question: 1.08, emotion: 1.10 },
+    medium: { hook: 1.12, question: 1.16, emotion: 1.20 },
+    high: { hook: 1.18, question: 1.24, emotion: 1.30 },
+  }[zoomStr];
+
+  for (let s = 0; s < stepsCount; s++) {
+    const t = s * 0.1;
+    let extraZoom = 1.0;
+
+    if (smart) {
+      if (t <= 3.0) {
+        extraZoom = Math.max(extraZoom, zoomScaleMap.hook);
+      }
+      if (words && words.length > 0) {
+        for (const w of words) {
+          const isQ = w.word.endsWith("?") || /^(what|why|how|who|when|where)/i.test(w.word);
+          const isE = w.word.endsWith("!") || /^[A-Z]{2,}$/.test(w.word) || /^(haha|lol|laugh|crazy|insane|wow|oh|omg)/i.test(w.word);
+
+          if (isQ && t >= w.start - 1.5 && t <= w.end + 1.5) {
+            extraZoom = Math.max(extraZoom, zoomScaleMap.question);
+          }
+          if (isE && t >= w.start - 1.0 && t <= w.end + 1.0) {
+            extraZoom = Math.max(extraZoom, zoomScaleMap.emotion);
+          }
+        }
+      }
+    } else if (preset === "cinematic") {
+      extraZoom = 1.0 + 0.12 * (s / (stepsCount - 1 || 1));
+    }
+
+    targetScales[s] = 1 / extraZoom;
+  }
+
+  let activeSpeakerId: "left" | "right" | "single" = "single";
+  let activeSpeakerTimer = 0;
+  
+  const centers = faces.map((f) => f.x + f.w / 2).sort((a, b) => a - b);
+  let threshold = 0.5;
+  let hasTwoSpeakers = false;
+  if (centers.length >= 4) {
+    let splitIdx = Math.floor(centers.length / 2);
+    let maxGap = -1;
+    for (let i = 1; i < centers.length; i++) {
+      const gap = centers[i] - centers[i - 1];
+      if (gap > maxGap) { maxGap = gap; splitIdx = i; }
+    }
+    threshold = (centers[splitIdx - 1] + centers[splitIdx]) / 2;
+    const leftGroup = faces.filter((f) => f.x + f.w / 2 < threshold);
+    const rightGroup = faces.filter((f) => f.x + f.w / 2 >= threshold);
+    if (leftGroup.length > 0 && rightGroup.length > 0) {
+      const leftAvg = leftGroup.reduce((sum, f) => sum + f.x + f.w / 2, 0) / leftGroup.length;
+      const rightAvg = rightGroup.reduce((sum, f) => sum + f.x + f.w / 2, 0) / rightGroup.length;
+      if (rightAvg - leftAvg > MIN_SEPARATION_FRAC) {
+        hasTwoSpeakers = true;
+      }
+    }
+  }
+
+  for (let s = 0; s < stepsCount; s++) {
+    const t = s * 0.1;
+    const windowFaces = faces.filter((f) => Math.abs(f.tSec - t) <= 0.25);
+    
+    if (windowFaces.length === 0) {
+      targetCxs[s] = s > 0 ? targetCxs[s - 1] : 0.5;
+      targetCys[s] = s > 0 ? targetCys[s - 1] : 0.5;
+      faceWidths[s] = s > 0 ? faceWidths[s - 1] : 0.15;
+      faceHeights[s] = s > 0 ? faceHeights[s - 1] : 0.15;
+      continue;
+    }
+
+    let chosenFace = windowFaces[0];
+
+    if (hasTwoSpeakers && (mode === "active" || mode === "auto")) {
+      const leftFaces = windowFaces.filter((f) => f.x + f.w / 2 < threshold);
+      const rightFaces = windowFaces.filter((f) => f.x + f.w / 2 >= threshold);
+
+      if (leftFaces.length > 0 && rightFaces.length > 0) {
+        const leftBest = leftFaces.reduce((a, c) => (c.confidence > a.confidence ? c : a));
+        const rightBest = rightFaces.reduce((a, c) => (c.confidence > a.confidence ? c : a));
+        const leftArea = leftBest.w * leftBest.h;
+        const rightArea = rightBest.w * rightBest.h;
+
+        const candidateId: "left" | "right" = leftArea > rightArea ? "left" : "right";
+        if (candidateId !== activeSpeakerId) {
+          activeSpeakerTimer += 0.1;
+          if (activeSpeakerTimer >= 0.25) {
+            activeSpeakerId = candidateId;
+            activeSpeakerTimer = 0;
+          }
+        } else {
+          activeSpeakerTimer = 0;
+        }
+        chosenFace = activeSpeakerId === "left" ? leftBest : rightBest;
+      } else if (leftFaces.length > 0) {
+        chosenFace = leftFaces.reduce((a, c) => (c.confidence > a.confidence ? c : a));
+        activeSpeakerId = "left";
+        activeSpeakerTimer = 0;
+      } else if (rightFaces.length > 0) {
+        chosenFace = rightFaces.reduce((a, c) => (c.confidence > a.confidence ? c : a));
+        activeSpeakerId = "right";
+        activeSpeakerTimer = 0;
+      }
+    } else {
+      chosenFace = windowFaces.reduce((best, cur) => {
+        const bestArea = best.w * best.h;
+        const curArea = cur.w * cur.h;
+        const bestDist = Math.abs(best.x + best.w / 2 - 0.5);
+        const curDist = Math.abs(cur.x + cur.w / 2 - 0.5);
+
+        const bestScore = bestArea * 1.5 - bestDist;
+        const curScore = curArea * 1.5 - curDist;
+        return curScore > bestScore ? cur : best;
+      });
+    }
+
+    targetCxs[s] = chosenFace.x + chosenFace.w / 2;
+    targetCys[s] = chosenFace.y + chosenFace.h / 2;
+    faceWidths[s] = chosenFace.w;
+    faceHeights[s] = chosenFace.h;
+  }
+
+  const windowHalf = Math.round((smoothnessVal / 100) * 7);
+  const smoothCxs = new Array<number>(stepsCount);
+  const smoothCys = new Array<number>(stepsCount);
+  const smoothScales = new Array<number>(stepsCount);
+
+  for (let s = 0; s < stepsCount; s++) {
+    let sumCx = 0, sumCy = 0, sumScale = 0, count = 0;
+    const startIdx = Math.max(0, s - windowHalf);
+    const endIdx = Math.min(stepsCount - 1, s + windowHalf);
+    for (let j = startIdx; j <= endIdx; j++) {
+      sumCx += targetCxs[j];
+      sumCy += targetCys[j];
+      sumScale += targetScales[j];
+      count++;
+    }
+    smoothCxs[s] = sumCx / count;
+    smoothCys[s] = sumCy / count;
+    smoothScales[s] = sumScale / count;
+  }
+
+  const customAlpha = 0.8 - (smoothnessVal / 100) * 0.7;
+  const emaAlpha = customAlpha;
+  const maxPanFrac = 0.01 + (speedVal / 100) * 0.11;
+
+  const keyframes: CropKeyframe[] = [];
+  let currentCx = smoothCxs[0];
+  let currentCy = smoothCys[0];
+  let currentScale = smoothScales[0];
+
+  for (let s = 0; s < stepsCount; s++) {
+    const t = s * 0.1;
+
+    currentCx = currentCx + emaAlpha * (smoothCxs[s] - currentCx);
+    currentCy = currentCy + emaAlpha * (smoothCys[s] - currentCy);
+    currentScale = currentScale + emaAlpha * (smoothScales[s] - currentScale);
+
+    if (s > 0) {
+      const prev = keyframes[s - 1];
+      const prevCx = prev.x + prev.w / 2;
+      const prevCy = prev.y + prev.h / 2;
+      currentCx = Math.min(prevCx + maxPanFrac, Math.max(prevCx - maxPanFrac, currentCx));
+      currentCy = Math.min(prevCy + maxPanFrac, Math.max(prevCy - maxPanFrac, currentCy));
+    }
+
+    const w = cropW * currentScale;
+    const h = cropH * currentScale;
+
+    const faceW = faceWidths[s];
+    const faceH = faceHeights[s];
+    const faceX = currentCx - faceW / 2;
+    const faceY = currentCy - faceH / 2;
+
+    const eyesY = faceY + faceH * 0.35;
+    const faceY1 = faceY;
+    const faceY2 = faceY + faceH;
+
+    let targetY = eyesY - h * 0.35;
+
+    const minY = faceY2 - h * 0.90;
+    const maxY = faceY1 - h * 0.10;
+    targetY = Math.min(maxY, Math.max(minY, targetY));
+
+    const y = Math.min(1 - h, Math.max(0, targetY));
+    const targetX = currentCx - w / 2;
+    const x = Math.min(1 - w, Math.max(0, targetX));
+
+    keyframes.push({ tSec: t, x, y, w, h });
+  }
+
+  const MERGE_EPS = 0.005;
+  const merged: CropKeyframe[] = [keyframes[0]];
+  for (let i = 1; i < keyframes.length; i++) {
+    const prev = merged[merged.length - 1];
+    const cur = keyframes[i];
+    if (
+      Math.abs(cur.x - prev.x) > MERGE_EPS ||
+      Math.abs(cur.y - prev.y) > MERGE_EPS ||
+      Math.abs(cur.w - prev.w) > MERGE_EPS
+    ) {
+      merged.push(cur);
+    }
+  }
+
+  if (merged[merged.length - 1].tSec < duration - 0.05) {
+    const last = keyframes[keyframes.length - 1];
+    merged.push({ ...last, tSec: duration });
+  }
+
+  return merged;
+}
+
 export function computeCropKeyframesForClip(
   allFaces: FaceBox[],
   clipStartSec: number,
@@ -185,19 +473,32 @@ export function computeCropKeyframesForClip(
   aspect: "9:16" | "16:9" | "1:1",
   srcW: number,
   srcH: number,
+  optionsOrPreset?: ReframeOptions | string
 ): CropKeyframe[] | null {
+  const options = typeof optionsOrPreset === "string" ? { preset: optionsOrPreset } : (optionsOrPreset ?? {});
+  const preset = options.preset ?? "balanced";
   const { w: cropW, h: cropH } = cropSizeFrac(aspect, srcW, srcH);
-  // Nothing to pan — the crop already spans the full axis in both dimensions.
-  if (cropW >= 0.999 && cropH >= 0.999) return null;
+  
+  const varyingSize = preset === "cinematic" || options.smartAutoReframe !== false;
+  if (cropW >= 0.999 && cropH >= 0.999 && !varyingSize) return null;
 
   const inWindow = allFaces
     .filter((f) => f.tSec >= clipStartSec && f.tSec <= clipEndSec && f.confidence >= MIN_CONFIDENCE)
     .map((f) => ({ ...f, tSec: f.tSec - clipStartSec }))
     .sort((a, b) => a.tSec - b.tSec);
+  
+  if (inWindow.length === 0 && (preset === "cinematic" || options.smartAutoReframe !== false)) {
+    return buildZoomEnvelope(clipEndSec - clipStartSec, aspect, srcW, srcH);
+  }
+
   if (inWindow.length === 0) return null;
 
-  const merged = smoothFacesToKeyframes(inWindow, clipEndSec - clipStartSec, cropW, cropH);
-  return merged.length > 1 ? merged : null; // a single unmoving keyframe = no better than static crop
+  if (options.smartAutoReframe !== false) {
+    return computeAdvancedCrop(inWindow, clipEndSec - clipStartSec, cropW, cropH, aspect, options);
+  }
+
+  const merged = smoothFacesToKeyframes(inWindow, clipEndSec - clipStartSec, cropW, cropH, preset);
+  return merged.length > 1 ? merged : null;
 }
 
 // ── Multi-speaker split-screen (P1.1 extension) ─────────────────────────────
@@ -224,7 +525,10 @@ export function computeMultiSpeakerKeyframes(
   clipEndSec: number,
   srcW: number,
   srcH: number,
+  optionsOrPreset?: ReframeOptions | string
 ): MultiSpeakerResult | null {
+  const options = typeof optionsOrPreset === "string" ? { preset: optionsOrPreset } : (optionsOrPreset ?? {});
+  const preset = options.preset ?? "balanced";
   // Split-screen halves are each a 9:16-shaped window sized to half the
   // canvas height once stacked — reuse the same single-speaker crop width
   // (a 9:16 slice of the source), just applied twice.
@@ -266,8 +570,8 @@ export function computeMultiSpeakerKeyframes(
     return null; // one side isn't consistently present — not a real two-speaker scene
   }
 
-  const a = smoothFacesToKeyframes(left, duration, cropW, cropH);
-  const b = smoothFacesToKeyframes(right, duration, cropW, cropH);
+  const a = smoothFacesToKeyframes(left, duration, cropW, cropH, preset);
+  const b = smoothFacesToKeyframes(right, duration, cropW, cropH, preset);
   if (a.length === 0 || b.length === 0) return null;
   return { a, b };
 }
@@ -343,6 +647,7 @@ export function buildSplitScreenFilterComplex(
   b: CropKeyframe[],
   moodFilter: string | null,
   captionsFilter: string | null,
+  videoSrc = "[0:v]"
 ): string {
   const half = { w: 1080, h: 960 };
   const cropAndScale = (kf: CropKeyframe[]) => {
@@ -353,8 +658,8 @@ export function buildSplitScreenFilterComplex(
     const hExpr = varying ? lerpExpr("in_h", kf, "h") : `(${kf[0].h}*in_h)`;
     return `crop=w='${wExpr}':h='${hExpr}':x='${xExpr}':y='${yExpr}',scale=${half.w}:${half.h}`;
   };
-  const top = `[0:v]${cropAndScale(a)}[top]`;
-  const bot = `[0:v]${cropAndScale(b)}[bot]`;
+  const top = `${videoSrc}${cropAndScale(a)}[top]`;
+  const bot = `${videoSrc}${cropAndScale(b)}[bot]`;
 
   const postStack = [moodFilter, captionsFilter].filter((f): f is string => !!f);
   const stacked = postStack.length > 0

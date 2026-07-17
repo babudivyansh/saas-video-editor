@@ -304,8 +304,22 @@ export function useVideoGenerate() {
     instructions: string;
     captionStyleIndex: number;
     token: string;
+    reframingPreset?: string;
+    removeSilence?: boolean;
+    silenceThresholdMs?: number;
+    removeFillers?: boolean;
+    smartAutoReframe?: boolean;
+    zoomStrength?: "low" | "medium" | "high";
+    speakerMode?: "auto" | "single" | "split" | "active";
+    smoothness?: number;
+    trackingSpeed?: number;
+    animatedCaptions?: boolean;
   }) => {
-    const { file, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionStyleIndex, token } = params;
+    const {
+      file, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionStyleIndex, token,
+      reframingPreset, removeSilence, silenceThresholdMs, removeFillers,
+      smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions
+    } = params;
     setStatus("uploading");
     setError(null);
     setVideoUrl(null);
@@ -330,6 +344,16 @@ export function useVideoGenerate() {
         aspectRatio,
         instructions,
         captionStyleIndex,
+        reframingPreset,
+        removeSilence,
+        silenceThresholdMs,
+        removeFillers,
+        smartAutoReframe,
+        zoomStrength,
+        speakerMode,
+        smoothness,
+        trackingSpeed,
+        animatedCaptions,
       });
       setStatus("rendering");
     } catch (err: unknown) {

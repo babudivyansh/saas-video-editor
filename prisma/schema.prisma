@@ -66,6 +66,8 @@ model User {
   competitors          CompetitorProfile[]
   generations          Generation[]
   loginEvents          LoginEvent[]
+  apiKeys              ApiKey[]
+  brandKits            BrandKit[]
 }
 
 // One row per successful login (Phase 3) — powers the admin user-detail login
@@ -233,6 +235,7 @@ model Project {
   // Auto Clip: non-fatal problems surfaced to the user as a banner instead of
   // silently degrading (e.g. ["transcription_failed"]).
   warnings             Json?
+  faceTimeline         Json?
   createdAt            DateTime @default(now())
   clips                Clip[]
 
@@ -278,9 +281,11 @@ model Clip {
   brollUrl          String?
   brollStartSec     Float?
   brollEndSec       Float?
-  createdAt         DateTime      @default(now())
-  dubs              ClipDub[]
-  publishes         ClipPublish[]
+  createdAt             DateTime      @default(now())
+  subtitleStyleOverride Json?
+  silenceSettings       Json?
+  dubs                  ClipDub[]
+  publishes             ClipPublish[]
 
   @@index([projectId])
   @@index([projectId, status])
@@ -536,6 +541,50 @@ model Generation {
   @@index([toolSlug, createdAt])
   // Success-rate / failure dashboards group by (status, window).
   @@index([status, createdAt])
+}
+
+// API keys for the public API (/api/v1/**). The plaintext key is only ever
+// shown once, at creation — this row stores a SHA-256 hash and a short
+// prefix (for the user to tell keys apart in the UI), never the key itself.
+model ApiKey {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  keyHash    String    @unique
+  keyPrefix  String
+  scopes     String[]  @default([])
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime?
+
+  @@index([userId])
+}
+
+// Reusable, account-level caption/subtitle style template — the same field
+// shape as Clip.subtitleStyleOverride, saved once and applied across
+// projects instead of re-styling every clip individually.
+model BrandKit {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  fontName       String?
+  fontSize       Int?
+  baseColor      String?
+  highlightColor String?
+  outlineColor   String?
+  shadowColor    String?
+  outlineWidth   Int?
+  shadowDepth    Int?
+  borderStyle    Int?
+  alignment      Int?
+  animated       Boolean?
+  logoUrl        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // Immutable log of every admin action for accountability.

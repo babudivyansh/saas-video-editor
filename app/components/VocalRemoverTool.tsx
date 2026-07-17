@@ -194,8 +194,8 @@ export default function VocalRemoverTool() {
   const stage = file ? job.status === "idle" ? "ready" : job.status : "idle";
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8">
-      <div className="max-w-5xl mx-auto flex gap-5">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+      <div className="max-w-5xl mx-auto flex flex-col lg:flex-row gap-5">
 
         {/* ── Left panel ── */}
         <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -314,7 +314,7 @@ export default function VocalRemoverTool() {
         </div>
 
         {/* ── Right panel ── */}
-        <div className="w-80 flex-shrink-0 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+        <div className="w-full lg:w-80 lg:flex-shrink-0 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
             <div>
               <p className="text-sm font-bold text-gray-900">Recent Vocal Removals</p>

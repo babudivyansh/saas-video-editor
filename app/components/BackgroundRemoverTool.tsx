@@ -183,8 +183,8 @@ export default function BackgroundRemoverTool() {
   const busy = stage === "processing";
 
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-8 pb-10">
-      <div className="rounded-[28px] bg-gray-50 border border-gray-100 flex items-start justify-center p-8" style={{ minHeight: "calc(100vh - 132px)" }}>
+    <div className="mx-auto w-full max-w-[1440px] px-4 md:px-8 pb-10">
+      <div className="rounded-[28px] bg-gray-50 border border-gray-100 flex items-start justify-center p-4 md:p-8" style={{ minHeight: "calc(100vh - 132px)" }}>
         <div className="w-full max-w-[600px] bg-white rounded-2xl border border-gray-200 shadow-sm p-5 mt-4">
 
           {/* Header */}
@@ -247,7 +247,7 @@ export default function BackgroundRemoverTool() {
               </div>
 
               {/* Before / After panels */}
-              <div className={`grid gap-3 ${stage === "done" ? "grid-cols-2" : "grid-cols-1"}`}>
+              <div className={`grid gap-3 ${stage === "done" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
                 {/* Original */}
                 <div>
                   {stage === "done" && <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Original</p>}
