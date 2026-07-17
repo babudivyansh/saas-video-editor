@@ -189,7 +189,7 @@ function VoicePickerModal({
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-7 pt-6 pb-4">
+        <div className="flex items-center justify-between px-4 sm:px-7 pt-6 pb-4">
           <h2 className="text-2xl font-bold text-slate-900">Select AI Voice</h2>
           <button onClick={handleDone} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
             <IcX />
@@ -197,7 +197,7 @@ function VoicePickerModal({
         </div>
 
         {/* Search */}
-        <div className="px-7 pb-4">
+        <div className="px-4 sm:px-7 pb-4">
           <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
             <span className="text-slate-400"><IcSearch /></span>
             <input
@@ -211,8 +211,8 @@ function VoicePickerModal({
         </div>
 
         {/* Grid */}
-        <div className="overflow-y-auto flex-1 px-7 pb-4">
-          <div className="grid grid-cols-3 gap-3">
+        <div className="overflow-y-auto flex-1 px-4 sm:px-7 pb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             {filtered.map(voice => {
               const isSelected = selected === voice.slug;
               const isPlaying = playingSlug === voice.slug;
@@ -260,7 +260,7 @@ function VoicePickerModal({
         </div>
 
         {/* Footer */}
-        <div className="px-7 py-4 border-t border-slate-100 flex justify-end">
+        <div className="px-4 sm:px-7 py-4 border-t border-slate-100 flex justify-end">
           <button
             onClick={handleDone}
             className="inline-flex items-center gap-3 px-8 py-3 rounded-xl bg-[#335CFF] hover:opacity-90 text-white text-sm font-semibold transition-opacity"

@@ -282,7 +282,7 @@ export default function ImageGeneratorTool() {
   const modelName = modelEntry.displayName;
 
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-8 pb-12">
+    <div className="mx-auto w-full max-w-[1440px] px-4 md:px-8 pb-12">
       {/* Hidden file input */}
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleReferenceUpload} />
 
@@ -313,9 +313,9 @@ export default function ImageGeneratorTool() {
         </div>
       )}
 
-      <div className="flex gap-6 items-start">
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
         {/* ── Left panel ──────────────────────────────────────────── */}
-        <div className="w-[660px] flex-shrink-0">
+        <div className="w-full lg:w-[660px] lg:flex-shrink-0">
 
           {/* Controls row */}
           <div className="flex items-end gap-3 mb-4">

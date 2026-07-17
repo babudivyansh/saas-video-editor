@@ -150,6 +150,7 @@ export default function AdminAffiliatePage() {
       {/* ── Tab: Affiliates ── */}
       {tab === "affiliates" && !loading && (
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -205,6 +206,7 @@ export default function AdminAffiliatePage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -222,6 +224,7 @@ export default function AdminAffiliatePage() {
             ))}
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -265,6 +268,7 @@ export default function AdminAffiliatePage() {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         </>
       )}

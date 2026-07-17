@@ -174,18 +174,18 @@ function VoicePickerModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={handleDone}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col" style={{ maxHeight: "85vh" }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-7 pt-6 pb-4">
+        <div className="flex items-center justify-between px-4 sm:px-7 pt-6 pb-4">
           <h2 className="text-2xl font-bold text-slate-900">Select AI Voice</h2>
           <button onClick={handleDone} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"><IcX /></button>
         </div>
-        <div className="px-7 pb-4">
+        <div className="px-4 sm:px-7 pb-4">
           <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
             <span className="text-slate-400"><IcSearch /></span>
             <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Search name, tag, etc." className="flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400" />
           </div>
         </div>
-        <div className="overflow-y-auto flex-1 px-7 pb-4">
-          <div className="grid grid-cols-3 gap-3">
+        <div className="overflow-y-auto flex-1 px-4 sm:px-7 pb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             {filtered.map(voice => {
               const isSel = selected === voice.slug;
               const isPlaying = playingSlug === voice.slug;
@@ -436,9 +436,9 @@ export default function AICreatorWizard() {
         </div>
 
         {/* Step breadcrumb */}
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-1.5 sm:gap-2 text-sm">
           {steps.map((s, i) => (
-            <span key={s} className="flex items-center gap-2">
+            <span key={s} className="flex items-center gap-1.5 sm:gap-2">
               <button
                 onClick={() => {
                   if (i === 0 || (i === 1 && videoFile) || (i === 2 && avatarChoice))
@@ -457,7 +457,7 @@ export default function AICreatorWizard() {
                 >
                   {i + 1}
                 </span>
-                <span className={`text-[13px] font-medium ${i === stepIdx ? "text-gray-900" : "text-gray-400"}`}>
+                <span className={`hidden sm:inline text-[13px] font-medium ${i === stepIdx ? "text-gray-900" : "text-gray-400"}`}>
                   {stepLabels[s]}
                 </span>
               </button>
@@ -487,10 +487,10 @@ export default function AICreatorWizard() {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 overflow-hidden bg-gray-50 p-6">
-        <div className="h-full max-w-5xl mx-auto bg-white rounded-2xl border border-gray-200 overflow-hidden flex">
+      <div className="flex-1 overflow-y-auto md:overflow-hidden bg-gray-50 p-4 md:p-6">
+        <div className="md:h-full max-w-5xl mx-auto bg-white rounded-2xl border border-gray-200 overflow-hidden flex flex-col md:flex-row">
           {/* ── LEFT PREVIEW PANEL ── */}
-          <div className="flex-1 bg-gray-100 flex flex-col items-center justify-center border-r border-gray-200 p-8 min-h-0">
+          <div className="flex-1 bg-gray-100 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-gray-200 p-4 md:p-8 min-h-[240px] md:min-h-0">
             {step === "upload-video" && (
               videoPreviewUrl ? (
                 <video src={videoPreviewUrl} className="max-h-full max-w-full rounded-xl object-contain" controls muted />
@@ -548,7 +548,7 @@ export default function AICreatorWizard() {
           </div>
 
           {/* ── RIGHT CONTROLS PANEL ── */}
-          <div className="w-80 flex flex-col justify-center gap-3 p-6">
+          <div className="w-full md:w-80 md:flex-shrink-0 flex flex-col justify-center gap-3 p-4 md:p-6">
             {/* STEP 1 — Upload Video */}
             {step === "upload-video" && (
               <>

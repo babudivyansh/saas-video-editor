@@ -144,7 +144,7 @@ export default function YouTubeDownloaderPage() {
 
   return (
     <div className="min-h-full bg-slate-50">
-      <div className="mx-auto w-full max-w-2xl px-6 py-8">
+      <div className="mx-auto w-full max-w-2xl px-4 sm:px-6 py-8">
           {/* Header */}
           <div className="flex items-center gap-3 mb-1">
             <div className="w-10 h-10 rounded-xl bg-red-500 flex items-center justify-center text-white flex-shrink-0">
