@@ -466,6 +466,7 @@ function PublishPanel({ projectId, clip }: { projectId: string; clip: ClipItem }
 
   const selectedAccount = accounts.find((a) => a.id === accountId);
   const isYoutube = selectedAccount?.provider === "youtube";
+  const isTiktok = selectedAccount?.provider === "tiktok";
 
   async function submit(body: { permalink?: string }) {
     if (!accountId) return;
@@ -503,6 +504,12 @@ function PublishPanel({ projectId, clip }: { projectId: string; clip: ClipItem }
               <p className="text-[10px] text-gray-400">Uploads this clip directly to YouTube as Unlisted — change visibility on YouTube afterward if you want it Public.</p>
               {err && <p className="text-[11px] text-red-600">{err} {needsReauth && <a href="/dashboard/social-tracker" className="underline font-semibold">Reconnect →</a>}</p>}
               <button onClick={() => submit({})} disabled={busy} className="w-full text-xs font-semibold py-1.5 rounded-lg grad-brand text-white shadow-glow disabled:opacity-50">{busy ? "Uploading…" : "Publish to YouTube"}</button>
+            </>
+          ) : isTiktok ? (
+            <>
+              <p className="text-[10px] text-amber-600">Experimental: uploads directly to TikTok as private (only visible to you) — this path hasn&apos;t been verified against a real TikTok account yet, so double-check it worked on TikTok afterward.</p>
+              {err && <p className="text-[11px] text-red-600">{err} {needsReauth && <a href="/dashboard/social-tracker" className="underline font-semibold">Reconnect →</a>}</p>}
+              <button onClick={() => submit({})} disabled={busy} className="w-full text-xs font-semibold py-1.5 rounded-lg grad-brand text-white shadow-glow disabled:opacity-50">{busy ? "Uploading…" : "Publish to TikTok (experimental)"}</button>
             </>
           ) : (
             <>
@@ -1206,6 +1213,23 @@ function ClipEditorDrawer({
   const [tab, setTab] = useState<"insights" | "style" | "transcript" | "cuts">("insights");
   const [copied, setCopied] = useState(false);
 
+  // Brand kits — reusable, account-level subtitle style templates (Style tab).
+  interface BrandKit {
+    id: string; name: string;
+    fontName: string | null; fontSize: number | null;
+    baseColor: string | null; highlightColor: string | null; outlineColor: string | null; shadowColor: string | null;
+    outlineWidth: number | null; shadowDepth: number | null; borderStyle: number | null; alignment: number | null;
+    animated: boolean | null;
+  }
+  const [brandKits, setBrandKits] = useState<BrandKit[]>([]);
+  const [savingKit, setSavingKit] = useState(false);
+  const [namingKit, setNamingKit] = useState(false);
+  const [newKitName, setNewKitName] = useState("");
+
+  useEffect(() => {
+    apiFetch<{ kits: BrandKit[] }>("/api/brand-kits").then((d) => setBrandKits(d.kits ?? [])).catch(() => {});
+  }, []);
+
   // Subtitle styling state
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const override = (clip.subtitleStyleOverride as any) ?? {};
@@ -1220,6 +1244,44 @@ function ClipEditorDrawer({
   const [borderStyle, setBorderStyle] = useState((override.borderStyle as number) ?? 1);
   const [alignment, setAlignment] = useState((override.alignment as number) ?? 5);
   const [animatedCaptions, setAnimatedCaptions] = useState((override.animated as boolean) ?? true);
+
+  function applyBrandKit(kit: BrandKit) {
+    if (kit.fontName != null) setFontName(kit.fontName);
+    if (kit.fontSize != null) setFontSize(kit.fontSize);
+    if (kit.baseColor != null) setBaseColor(assToHex(kit.baseColor));
+    if (kit.highlightColor != null) setHighlightColor(assToHex(kit.highlightColor));
+    if (kit.outlineColor != null) setOutlineColor(assToHex(kit.outlineColor));
+    if (kit.shadowColor != null) setShadowColor(assToHex(kit.shadowColor));
+    if (kit.outlineWidth != null) setOutlineWidth(kit.outlineWidth);
+    if (kit.shadowDepth != null) setShadowDepth(kit.shadowDepth);
+    if (kit.borderStyle != null) setBorderStyle(kit.borderStyle);
+    if (kit.alignment != null) setAlignment(kit.alignment);
+    if (kit.animated != null) setAnimatedCaptions(kit.animated);
+  }
+
+  async function handleSaveBrandKit() {
+    if (!newKitName.trim()) return;
+    setSavingKit(true);
+    try {
+      const { kit } = await apiFetch<{ kit: BrandKit }>("/api/brand-kits", {
+        method: "POST",
+        body: JSON.stringify({
+          name: newKitName.trim(),
+          fontName, fontSize,
+          baseColor: hexToASS(baseColor), highlightColor: hexToASS(highlightColor),
+          outlineColor: hexToASS(outlineColor), shadowColor: hexToASS(shadowColor),
+          outlineWidth, shadowDepth, borderStyle, alignment, animated: animatedCaptions,
+        }),
+      });
+      setBrandKits((prev) => [kit, ...prev]);
+      setNamingKit(false);
+      setNewKitName("");
+    } catch {
+      // Best-effort — the style itself still applies to this clip either way.
+    } finally {
+      setSavingKit(false);
+    }
+  }
 
   // Audio cuts state
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1460,6 +1522,26 @@ function ClipEditorDrawer({
                 <p className="text-xs text-gray-400 -mt-1.5 mb-4">Customize the font, colors, border outlines, shadows and alignments.</p>
               </div>
 
+              {brandKits.length > 0 && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-700">Load from Brand Kit</label>
+                  <select
+                    defaultValue=""
+                    onChange={(e) => {
+                      const kit = brandKits.find((k) => k.id === e.target.value);
+                      if (kit) applyBrandKit(kit);
+                      e.target.value = "";
+                    }}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white"
+                  >
+                    <option value="" disabled>Choose a saved style…</option>
+                    {brandKits.map((k) => (
+                      <option key={k.id} value={k.id}>{k.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Font Family */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-gray-700">Font Family</label>
@@ -1552,6 +1634,33 @@ function ClipEditorDrawer({
                 </div>
                 <Switch checked={animatedCaptions} onChange={setAnimatedCaptions} label="Animated Subtitles" />
               </div>
+
+              {namingKit ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    value={newKitName}
+                    onChange={(e) => setNewKitName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") void handleSaveBrandKit(); }}
+                    placeholder="Name this style…"
+                    autoFocus
+                    className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  />
+                  <Button onClick={() => void handleSaveBrandKit()} disabled={savingKit || !newKitName.trim()} size="sm">
+                    {savingKit ? "Saving…" : "Save"}
+                  </Button>
+                  <button type="button" onClick={() => { setNamingKit(false); setNewKitName(""); }} className="text-xs text-gray-400 hover:text-gray-600 px-1">
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setNamingKit(true)}
+                  className="w-full text-center text-xs font-semibold text-brand hover:underline py-1"
+                >
+                  Save as Brand Kit
+                </button>
+              )}
 
               {saveErr && <p className="text-xs text-red-600">{saveErr}</p>}
 

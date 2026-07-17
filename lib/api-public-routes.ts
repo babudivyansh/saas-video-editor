@@ -41,6 +41,11 @@ const PUBLIC_API_PREFIXES = [
   "/api/tools/enhance-prompt",
   "/api/tools/voice-preview",
   "/api/tools/voices",
+  // Public developer API — authenticates by API key (lib/auth.ts's
+  // getApiKeyAuth), a completely different mechanism from the session
+  // cookie this gate exists to check. Each /api/v1/** route does its own
+  // key validation and returns 401 itself for a missing/invalid key.
+  "/api/v1/",
 ];
 
 export function isPublicApiRoute(pathname: string): boolean {

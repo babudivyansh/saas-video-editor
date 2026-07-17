@@ -3,16 +3,25 @@ import { ProviderApiError } from "./errors";
 import type { NormalizedAccount, NormalizedPost, OAuthTokens, ProviderSync, SyncOptions } from "./types";
 import { env } from "@/lib/env";
 
-// TikTok via the Display API (v2). Read-only scopes: profile + stats + the
-// user's own public video list. Access tokens live ~24h; refresh tokens ~365d
-// and ROTATE on every refresh — always persist the returned refresh_token.
+// TikTok via the Display API (v2) for read access, plus the Content Posting
+// API for publish (P2.5-equivalent to YouTube's uploadVideo below). Access
+// tokens live ~24h; refresh tokens ~365d and ROTATE on every refresh — always
+// persist the returned refresh_token.
 //
 // Requires an approved TikTok developer app (developers.tiktok.com); the
 // connect card is hidden until TIKTOK_CLIENT_KEY/SECRET are configured.
+//
+// video.publish is a sensitive scope, same situation as YouTube's
+// youtube.upload: TikTok must approve this app for Content Posting API
+// access before the scope grant does anything, and until that approval an
+// unaudited app can only post as SELF_ONLY (private to the poster) — see
+// uploadVideo's privacy_level below. Accounts connected before this scope
+// existed cannot publish until reconnected (same reasoning as YouTube's
+// NeedsReauthError).
 const AUTH = "https://www.tiktok.com/v2/auth/authorize/";
 const API = "https://open.tiktokapis.com/v2";
 
-const SCOPES = ["user.info.basic", "user.info.profile", "user.info.stats", "video.list"];
+const SCOPES = ["user.info.basic", "user.info.profile", "user.info.stats", "video.list", "video.publish"];
 
 export function isConfigured(): boolean {
   return !!env.TIKTOK_CLIENT_KEY && !!env.TIKTOK_CLIENT_SECRET;
@@ -181,4 +190,79 @@ export async function sync(accessToken: string, opts?: SyncOptions): Promise<Pro
     partialError = `TikTok videos could not be fetched: ${(e as Error).message}`;
   }
   return { account, posts, partialError };
+}
+
+export class TikTokNeedsReauthError extends Error {
+  constructor() { super("This TikTok account was connected before publish access existed — reconnect it to enable publishing."); }
+}
+
+/**
+ * UNVERIFIED — implemented from TikTok's published Content Posting API docs
+ * (v2, "Direct Post" via FILE_UPLOAD source), not tested against a real
+ * TikTok developer app or a live upload, since this codebase has no TikTok
+ * app credentials to test with. Confirm all of the following before relying
+ * on this in production:
+ *   - Exact request/response field names against
+ *     https://developers.tiktok.com/doc/content-posting-api-reference-direct-post
+ *     — TikTok's API has changed shape between versions before.
+ *   - Unaudited apps can only post with privacy_level "SELF_ONLY" (visible
+ *     only to the poster) until TikTok approves this app for public
+ *     posting — hardcoded to that safest option below; a real integration
+ *     needs to read the app's actual approved privacy options from TikTok's
+ *     /post/publish/creator_info/query/ endpoint instead of assuming.
+ *   - Whether chunked upload is required. TikTok requires chunking above a
+ *     size threshold; this sends AutoClip's typically-short/small clips as
+ *     one chunk, which may not hold for longer/larger renders.
+ *   - Publish is asynchronous: TikTok accepts the upload here and processes
+ *     it separately. This function returns once the upload is accepted, NOT
+ *     once the post is actually live — there is no permalink at this point
+ *     (unlike YouTube's uploadVideo). A real integration needs to poll
+ *     /post/publish/status/fetch/ with the returned publishId to learn the
+ *     final status and permalink, which isn't implemented here.
+ */
+export async function uploadVideo(
+  accessToken: string,
+  params: { buffer: Buffer; title: string },
+): Promise<{ publishId: string }> {
+  const initRes = await fetch(`${API}/post/publish/video/init/`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      post_info: {
+        title: params.title.slice(0, 150),
+        privacy_level: "SELF_ONLY",
+        disable_duet: false,
+        disable_comment: false,
+        disable_stitch: false,
+      },
+      source_info: {
+        source: "FILE_UPLOAD",
+        video_size: params.buffer.length,
+        chunk_size: params.buffer.length,
+        total_chunk_count: 1,
+      },
+    }),
+  });
+
+  if (initRes.status === 401 || initRes.status === 403) throw new TikTokNeedsReauthError();
+  if (!initRes.ok) throw new Error(`tiktok publish init failed: ${initRes.status} ${await initRes.text()}`);
+
+  const init = (await initRes.json()) as { data?: { publish_id?: string; upload_url?: string }; error?: { code?: string; message?: string } };
+  const publishId = init.data?.publish_id;
+  const uploadUrl = init.data?.upload_url;
+  if (!publishId || !uploadUrl) {
+    throw new Error(`tiktok publish init returned no upload URL: ${JSON.stringify(init.error ?? init)}`);
+  }
+
+  const putRes = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "video/mp4",
+      "Content-Range": `bytes 0-${params.buffer.length - 1}/${params.buffer.length}`,
+    },
+    body: new Uint8Array(params.buffer),
+  });
+  if (!putRes.ok) throw new Error(`tiktok video upload failed: ${putRes.status} ${await putRes.text()}`);
+
+  return { publishId };
 }
