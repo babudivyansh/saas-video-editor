@@ -57,7 +57,10 @@ function IcMessage() {
 
 const NAV_ITEMS = [
   { label: "My Videos", href: "/dashboard/profile/my-videos", icon: IcVideo },
-  { label: "Personal Info", href: "/dashboard/profile/personal-info", icon: IcUser },
+  // Personal info/security/sessions/2FA/notifications/privacy all live under
+  // the Settings hub now (app/dashboard/settings) — this points straight at
+  // its Profile tab instead of the old standalone personal-info page.
+  { label: "Settings", href: "/dashboard/settings/profile", icon: IcUser },
   // Subscription / Credits / Payment History consolidated into the single
   // tabbed /billing surface (see app/billing/page.tsx).
   { label: "Billing", href: "/billing", icon: IcCoin },

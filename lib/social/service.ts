@@ -10,6 +10,7 @@ import { PROVIDERS } from "./providers";
 import { classifyError, withRetry } from "./errors";
 import type { NormalizedAccount, OAuthProvider, OAuthTokens, ProviderId, ProviderSync } from "./types";
 import { logger } from "@/lib/logger";
+import { shouldSendCategory } from "@/lib/notifications";
 
 // Which OAuth app a requested platform authenticates through.
 export function oauthProviderFor(provider: ProviderId): OAuthProvider {
@@ -387,9 +388,10 @@ export async function sendWeeklyDigests(): Promise<{ sent: number }> {
   for (const a of accounts) byUser.set(a.userId, [...(byUser.get(a.userId) ?? []), a]);
 
   let sent = 0;
-  for (const [, userAccounts] of byUser) {
+  for (const [userId, userAccounts] of byUser) {
     const email = userAccounts[0].user.email;
     if (!email) continue;
+    if (!(await shouldSendCategory(userId, "weeklySummary"))) continue;
     try {
       const rows = await Promise.all(
         userAccounts.map(async (a) => {

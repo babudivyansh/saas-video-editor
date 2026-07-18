@@ -54,6 +54,29 @@ model User {
   // (lib/auth.ts getAuthUser) until un-suspended. Soft alternative to deletion.
   suspendedAt          DateTime?
   adminNotes           String? // free-form internal notes, admin console only — never exposed to the user
+
+  // Email verification / change. email itself flips only once the pending
+  // address is confirmed (see app/api/auth/change-email/confirm) — never
+  // swapped eagerly.
+  emailVerifiedAt      DateTime?
+  pendingEmail         String?
+
+  // Password/session security
+  passwordChangedAt    DateTime? // set on every successful change-password; used by the account-dashboard security score
+
+  // Two-factor authentication (TOTP, RFC 6238). Secret is AES-256-GCM
+  // ciphertext (lib/encryption.ts) — never stored or returned as plaintext.
+  twoFactorEnabled     Boolean         @default(false)
+  twoFactorSecretEnc   String?
+  recoveryCodes        TwoFactorRecoveryCode[]
+
+  // Soft account deactivation — a recovery window before the existing hard-delete
+  // flow (DELETE /api/auth/profile) runs. Login is blocked while deactivatedAt is set.
+  deactivatedAt              DateTime?
+  deactivationScheduledPurgeAt DateTime?
+
+  notificationPreference NotificationPreference?
+
   createdAt            DateTime        @default(now())
   projects             Project[]
   assets               Asset[]
@@ -72,6 +95,37 @@ model User {
   tags                 Tag[]
   assetAuditLogs       AssetAuditLog[]
   pendingUploads       PendingUpload[]
+}
+
+// One-time hashed 2FA recovery code — issued 10-at-a-time on enrollment,
+// each usable exactly once as a TOTP fallback (lost authenticator device).
+model TwoFactorRecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// Per-user opt-out flags for non-critical email categories. Absence of a row
+// means "all defaults (on)" — created lazily on first read/write, not at
+// signup, so most users never get a row until they actually touch this page.
+// Security-critical mail (new-login alert, password-changed, email-changed,
+// purchase confirmation) is NEVER gated by this table — see lib/notifications.ts.
+model NotificationPreference {
+  userId          String   @id
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  marketingEmails Boolean  @default(true)
+  productUpdates  Boolean  @default(true)
+  usageAlerts     Boolean  @default(true)
+  creditAlerts    Boolean  @default(true)
+  weeklySummary   Boolean  @default(true)
+  featureReleases Boolean  @default(true)
+  newsletter      Boolean  @default(true)
+  updatedAt       DateTime @updatedAt
 }
 
 // One row per successful login (Phase 3) — powers the admin user-detail login
@@ -653,16 +707,18 @@ model Generation {
 // shown once, at creation — this row stores a SHA-256 hash and a short
 // prefix (for the user to tell keys apart in the UI), never the key itself.
 model ApiKey {
-  id         String    @id @default(cuid())
-  userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name       String
-  keyHash    String    @unique
-  keyPrefix  String
-  scopes     String[]  @default([])
-  lastUsedAt DateTime?
-  createdAt  DateTime  @default(now())
-  revokedAt  DateTime?
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  keyHash      String    @unique
+  keyPrefix    String
+  scopes       String[]  @default([])
+  expiresAt    DateTime? // null = never expires
+  requestCount Int       @default(0) // best-effort, incremented alongside lastUsedAt in getApiKeyAuth
+  lastUsedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  revokedAt    DateTime?
 
   @@index([userId])
 }

@@ -56,6 +56,7 @@ export const KNOWN_RENDER_QUEUE_NAMES = [
   "video-compressor",
   "asset-moderation",
   "asset-zip",
+  "account-export",
 ] as const;
 export type RenderQueueName = typeof KNOWN_RENDER_QUEUE_NAMES[number];
 

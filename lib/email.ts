@@ -340,6 +340,73 @@ export async function sendNewLoginAlertEmail(
   await sendEmail(to, "New sign-in to your Clipiro account", html, "login-alert");
 }
 
+// Sent whenever a password change succeeds — never gated by notification
+// preferences (lib/notifications.ts), same as the login alert above.
+export async function sendPasswordChangedAlertEmail(to: string, name: string, time: string): Promise<void> {
+  const displayName = name || "there";
+  const html = `
+    ${emailHeader()}
+    <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 8px;">Your password was changed</h1>
+    <p style="color:#64748b;font-size:15px;margin:0 0 24px;line-height:1.6;">
+      Hi ${displayName}, this confirms your Clipiro password was changed on ${time}. Every other device you were
+      signed in on has been signed out — this device stays signed in.
+    </p>
+    <p style="color:#475569;font-size:14px;margin:0 0 16px;">If you made this change, no action is needed. If you didn&apos;t, secure your account immediately.</p>
+    ${ctaButton("https://clipiro.com/reset-password-request", "Secure My Account →", "#dc2626")}
+    ${emailFooter()}`;
+
+  await sendEmail(to, "Your Clipiro password was changed", html, "password-changed-alert");
+}
+
+// Verify-email / change-email confirmation links. Both point at the same
+// confirm route with a Redis-backed one-time token (mirrors sendPasswordResetEmail's
+// pattern exactly) — see app/api/auth/verify-email/* and app/api/auth/change-email/*.
+export async function sendVerifyEmailEmail(to: string, name: string, verifyLink: string): Promise<void> {
+  const displayName = name || "there";
+  const html = `
+    ${emailHeader()}
+    <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 8px;">Verify your email</h1>
+    <p style="color:#64748b;font-size:15px;margin:0 0 24px;line-height:1.6;">
+      Hi ${displayName}, confirm this is your email address to finish securing your Clipiro account.
+    </p>
+    ${ctaButton(verifyLink, "Verify Email →", "#7c3aed")}
+    <p style="color:#94a3b8;font-size:13px;margin:20px 0 0;">This link expires in 30 minutes. If you didn&apos;t request this, you can ignore it.</p>
+    ${emailFooter()}`;
+
+  await sendEmail(to, "Verify your email — Clipiro", html, "verify-email");
+}
+
+export async function sendAccountExportReadyEmail(to: string, name: string, downloadUrl: string): Promise<void> {
+  const displayName = name || "there";
+  const html = `
+    ${emailHeader()}
+    <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 8px;">Your data export is ready</h1>
+    <p style="color:#64748b;font-size:15px;margin:0 0 24px;line-height:1.6;">
+      Hi ${displayName}, the copy of your Clipiro account data you requested is ready to download.
+    </p>
+    ${ctaButton(downloadUrl, "Download My Data →", "#7c3aed")}
+    <p style="color:#94a3b8;font-size:13px;margin:20px 0 0;">This link expires in 24 hours.</p>
+    ${emailFooter()}`;
+
+  await sendEmail(to, "Your Clipiro data export is ready", html, "account-export-ready");
+}
+
+export async function sendChangeEmailConfirmationEmail(to: string, name: string, confirmLink: string): Promise<void> {
+  const displayName = name || "there";
+  const html = `
+    ${emailHeader()}
+    <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 8px;">Confirm your new email</h1>
+    <p style="color:#64748b;font-size:15px;margin:0 0 24px;line-height:1.6;">
+      Hi ${displayName}, someone requested to change the email on a Clipiro account to this address. Confirm it
+      below to complete the change — your account still uses your old email until you do.
+    </p>
+    ${ctaButton(confirmLink, "Confirm Email Change →", "#7c3aed")}
+    <p style="color:#94a3b8;font-size:13px;margin:20px 0 0;">This link expires in 30 minutes. If you didn&apos;t request this, you can ignore it — your email won&apos;t change.</p>
+    ${emailFooter()}`;
+
+  await sendEmail(to, "Confirm your new email — Clipiro", html, "change-email-confirm");
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. AFFILIATE — REFERRAL SIGNED UP
 // ─────────────────────────────────────────────────────────────────────────────

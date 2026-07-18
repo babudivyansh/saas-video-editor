@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, invalidateAllSessions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { sendPasswordChangedAlertEmail } from "@/lib/email";
+import { logger } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
   const auth = await getAuthUser(req);
@@ -22,7 +24,18 @@ export async function POST(req: NextRequest) {
   if (!valid) return NextResponse.json({ error: "Current password is incorrect" }, { status: 400 });
 
   const passwordHash = await bcrypt.hash(newPassword, 12);
-  await prisma.user.update({ where: { id: auth.userId }, data: { passwordHash } });
+  const passwordChangedAt = new Date();
+  await prisma.user.update({ where: { id: auth.userId }, data: { passwordHash, passwordChangedAt } });
+
+  // Kill every OTHER active session — the device that just typed the new
+  // password correctly stays signed in (matches Stripe/GitHub/Vercel; forcing
+  // this tab to also re-login immediately after a successful change is bad UX).
+  await invalidateAllSessions(auth.userId, auth.sessionId).catch(() => {});
+
+  // Non-preference-gated security alert — never suppressed by notification prefs.
+  const timeStr = passwordChangedAt.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
+  sendPasswordChangedAlertEmail(user.email, user.firstName ?? user.name ?? "", timeStr)
+    .catch((e) => logger.error("change-password", "alert email error", e));
 
   return NextResponse.json({ success: true });
 }

@@ -17,6 +17,7 @@ function IcCloud() { return <svg viewBox="0 0 24 24" fill="none" stroke="current
 function IcMessage() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="M2 6l10 7 10-7" /></svg>; }
 function IcBriefcase() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" /></svg>; }
 function IcLogout() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>; }
+function IcSettingsGear() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></svg>; }
 
 function MenuLink({ href, onClick, icon, children, trailing }: { href: string; onClick: () => void; icon: React.ReactNode; children: React.ReactNode; trailing?: React.ReactNode }) {
   return (
@@ -88,7 +89,7 @@ export default function SidebarAccount() {
               <IcChevronRight />
             </div>
             <MenuLink href="/dashboard" onClick={() => setOpen(false)} icon={<IcHome />}>Home</MenuLink>
-            <MenuLink href="/dashboard/profile/personal-info" onClick={() => setOpen(false)} icon={<IcUserLine />}>My Account</MenuLink>
+            <MenuLink href="/dashboard/settings/profile" onClick={() => setOpen(false)} icon={<IcUserLine />}>My Account</MenuLink>
             <MenuLink
               href="/dashboard/assets"
               onClick={() => setOpen(false)}
@@ -98,7 +99,8 @@ export default function SidebarAccount() {
               Storage
             </MenuLink>
             <MenuLink href="/dashboard/profile/message" onClick={() => setOpen(false)} icon={<IcMessage />}>Message</MenuLink>
-            <MenuLink href="/dashboard/assets" onClick={() => setOpen(false)} icon={<IcBriefcase />}>My Workspace</MenuLink>
+            <MenuLink href="/dashboard/settings" onClick={() => setOpen(false)} icon={<IcSettingsGear />}>Settings</MenuLink>
+            <MenuLink href="/dashboard/profile/my-videos" onClick={() => setOpen(false)} icon={<IcBriefcase />}>My Workspace</MenuLink>
           </div>
 
           <div className="border-t border-card-border py-1.5">

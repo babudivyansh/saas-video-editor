@@ -31,6 +31,12 @@ export async function GET(req: NextRequest) {
       subscriptionEndsAt: true,
       nextRefillAt: true,
       monthlyCredits: true,
+      // Security/account-dashboard surface (Settings hub) — closes the audit
+      // finding that lastLoginAt was tracked but never actually sent to the client.
+      emailVerifiedAt: true,
+      twoFactorEnabled: true,
+      passwordChangedAt: true,
+      lastLoginAt: true,
       plan: { select: { id: true, slug: true, name: true, credits: true, priceInPaise: true } },
     },
   });

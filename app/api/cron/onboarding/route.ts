@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendOnboardingDay1Email, sendOnboardingDay3Email, sendOnboardingDay7Email } from "@/lib/email";
+import { shouldSendCategory } from "@/lib/notifications";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 
@@ -44,7 +45,9 @@ export async function GET(req: NextRequest) {
 
     for (const u of users) {
       try {
-        await sendOnboardingDay1Email(u.email, u.firstName ?? u.name ?? "", u.credits);
+        if (await shouldSendCategory(u.id, "productUpdates")) {
+          await sendOnboardingDay1Email(u.email, u.firstName ?? u.name ?? "", u.credits);
+        }
         await prisma.user.update({ where: { id: u.id }, data: { onboardingDay1SentAt: now } });
         results.day1++;
       } catch (e) {
@@ -74,7 +77,9 @@ export async function GET(req: NextRequest) {
         // credits started at 10; credits < 10 means they used some
         const creditsUsed = Math.max(0, 10 - u.credits);
         const hasUsed = creditsUsed > 0;
-        await sendOnboardingDay3Email(u.email, u.firstName ?? u.name ?? "", creditsUsed, hasUsed);
+        if (await shouldSendCategory(u.id, "productUpdates")) {
+          await sendOnboardingDay3Email(u.email, u.firstName ?? u.name ?? "", creditsUsed, hasUsed);
+        }
         await prisma.user.update({ where: { id: u.id }, data: { onboardingDay3SentAt: now } });
         results.day3++;
       } catch (e) {
@@ -102,7 +107,9 @@ export async function GET(req: NextRequest) {
 
     for (const u of users) {
       try {
-        await sendOnboardingDay7Email(u.email, u.firstName ?? u.name ?? "", u.credits);
+        if (await shouldSendCategory(u.id, "productUpdates")) {
+          await sendOnboardingDay7Email(u.email, u.firstName ?? u.name ?? "", u.credits);
+        }
         await prisma.user.update({ where: { id: u.id }, data: { onboardingDay7SentAt: now } });
         results.day7++;
       } catch (e) {

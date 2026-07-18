@@ -17,6 +17,7 @@ import {
   sendLowCreditsEmail,
   sendZeroCreditsEmail,
 } from "@/lib/email";
+import { shouldSendCategory } from "@/lib/notifications";
 
 /**
  * Call this after a successful credit-spending action (render, voiceover, etc.)
@@ -67,16 +68,20 @@ export function firePostCreditSpendEmails(userId: string, newBalance: number): v
         if (!alreadySent && newBalance <= threshold20pct && newBalance > 0) {
           const estimatedVideos = Math.floor(newBalance / 2); // assume avg 2 credits/video
           await prisma.user.update({ where: { id: userId }, data: { lowCreditEmailSentAt: now } });
-          sendLowCreditsEmail(user.email, displayName, newBalance, estimatedVideos)
-            .catch((e) => logger.error("credit-events", "low-credits email error", e));
+          if (await shouldSendCategory(userId, "usageAlerts")) {
+            sendLowCreditsEmail(user.email, displayName, newBalance, estimatedVideos)
+              .catch((e) => logger.error("credit-events", "low-credits email error", e));
+          }
         }
       } else {
         // Free user: warn at ≤2 credits remaining (out of 10 default)
         if (newBalance <= 2 && newBalance > 0 && !user.lowCreditEmailSentAt) {
           const estimatedVideos = newBalance;
           await prisma.user.update({ where: { id: userId }, data: { lowCreditEmailSentAt: now } });
-          sendLowCreditsEmail(user.email, displayName, newBalance, estimatedVideos)
-            .catch((e) => logger.error("credit-events", "low-credits email error (free user)", e));
+          if (await shouldSendCategory(userId, "usageAlerts")) {
+            sendLowCreditsEmail(user.email, displayName, newBalance, estimatedVideos)
+              .catch((e) => logger.error("credit-events", "low-credits email error (free user)", e));
+          }
         }
       }
     } catch (e) {
@@ -105,8 +110,10 @@ export function fireZeroCreditsEmail(userId: string): void {
       }
 
       await prisma.user.update({ where: { id: userId }, data: { lowCreditEmailSentAt: new Date() } });
-      sendZeroCreditsEmail(user.email, user.firstName ?? user.name ?? "")
-        .catch((e) => logger.error("credit-events", "zero-credits email error", e));
+      if (await shouldSendCategory(userId, "usageAlerts")) {
+        sendZeroCreditsEmail(user.email, user.firstName ?? user.name ?? "")
+          .catch((e) => logger.error("credit-events", "zero-credits email error", e));
+      }
     } catch (e) {
       logger.error("credit-events", "zero-credits lookup error", e);
     }

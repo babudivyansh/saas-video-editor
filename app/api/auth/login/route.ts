@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
-import { signToken, cacheSession, setSessionCookie } from "@/lib/auth";
+import { redis } from "@/lib/redis";
+import { setSessionCookie } from "@/lib/auth";
+import { finishLogin } from "@/lib/login-tail";
 import { normalizeIdentifier, findUserByMethod, type AuthMethod } from "@/lib/identifier";
-import { sendNewLoginAlertEmail } from "@/lib/email";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 
@@ -11,6 +12,8 @@ import { logger } from "@/lib/logger";
 // account doesn't exist so the response takes the same time either way and
 // can't be used to enumerate valid identifiers.
 const DUMMY_HASH = "$2b$12$ipMR8KgUrP3uE9KmGnmsnu9652Wk4V/4DG8PcTNPmZashszFKZSHC";
+
+const TWO_FA_TICKET_TTL = 300; // 5 minutes to complete the second factor
 
 export async function POST(req: NextRequest) {
   try {
@@ -54,47 +57,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const token = signToken({ userId: user.id, email: user.email });
-    await cacheSession(user.id, token);
+    // Deactivated accounts don't get a normal login — the client should
+    // offer /api/account/reactivate instead of failing this silently.
+    if (user.deactivatedAt) {
+      return NextResponse.json(
+        { error: "This account is deactivated.", deactivated: true },
+        { status: 403 },
+      );
+    }
 
-    // ── Update lastLoginAt + send security alert (non-fatal) ──────────
-    const now = new Date();
-    prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: now },
-    }).catch(() => { /* non-fatal */ });
+    // Password verified but a second factor is required — pause here rather
+    // than issuing a session. No LoginEvent/alert email/session exists yet;
+    // those only happen once /api/auth/2fa/verify-login actually completes.
+    if (user.twoFactorEnabled) {
+      const ticket = randomUUID();
+      await redis.set(`2fa-pending:${ticket}`, user.id, "EX", TWO_FA_TICKET_TTL);
+      return NextResponse.json({ requires2fa: true, ticket });
+    }
 
-    // Parse device from User-Agent
-    const ua = req.headers.get("user-agent") ?? "";
-    const device = ua.includes("Mobile") ? "Mobile Browser"
-      : ua.includes("Chrome") ? "Chrome on Desktop"
-      : ua.includes("Firefox") ? "Firefox on Desktop"
-      : ua.includes("Safari") ? "Safari on Desktop"
-      : "Unknown device";
-
-    const timeStr = now.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
-
-    // Fire & forget — fetch location from free ip-api, persist the login
-    // event (admin login history / device analytics), then send the alert.
-    ;(async () => {
-      try {
-        let location = "Unknown location";
-        let country: string | null = null;
-        if (ip !== "unknown" && ip !== "::1" && !ip.startsWith("127.")) {
-          const geo = await fetch(`http://ip-api.com/json/${ip}?fields=city,country`, { signal: AbortSignal.timeout(2000) })
-            .then((r) => r.json()).catch(() => null);
-          if (geo?.city) location = `${geo.city}, ${geo.country}`;
-          if (geo?.country) country = geo.country;
-        }
-        await prisma.loginEvent
-          .create({ data: { userId: user.id, ip: ip === "unknown" ? null : ip, device, country } })
-          .catch((e) => logger.warn("login", "login event write failed", { reason: (e as Error).message }));
-        const displayName = user.firstName ?? user.name ?? "";
-        await sendNewLoginAlertEmail(user.email, displayName, timeStr, location, device);
-      } catch (e) {
-        logger.error("login", "alert email error", e);
-      }
-    })();
+    const token = await finishLogin(req, user, ip);
 
     const res = NextResponse.json({
       token,

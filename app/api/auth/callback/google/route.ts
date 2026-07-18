@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { signToken, cacheSession, setSessionCookie } from "@/lib/auth";
+import { completeLogin, setSessionCookie } from "@/lib/auth";
 import { sendWelcomeEmail, sendAffiliateReferralSignupEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
@@ -93,6 +93,9 @@ export async function GET(req: NextRequest) {
           avatarUrl,
           passwordHash,
           credits: 10, // Default free trial credits
+          // Google's OAuth flow already proves control of this inbox — no
+          // separate verify-email round trip needed for a Google signup.
+          emailVerifiedAt: new Date(),
         },
       });
 
@@ -148,17 +151,20 @@ export async function GET(req: NextRequest) {
           // Non-fatal
         }
       }
-    } else if (avatarUrl && !user.avatarUrl) {
-      // Update avatar if they had none
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: { avatarUrl },
-      });
+    } else {
+      // Existing user signing in via Google — backfill avatar if they had
+      // none, and count this as email verification if it wasn't already
+      // (they've just proven control of the inbox via Google's own flow).
+      const updates: { avatarUrl?: string; emailVerifiedAt?: Date } = {};
+      if (avatarUrl && !user.avatarUrl) updates.avatarUrl = avatarUrl;
+      if (!user.emailVerifiedAt) updates.emailVerifiedAt = new Date();
+      if (Object.keys(updates).length > 0) {
+        user = await prisma.user.update({ where: { id: user.id }, data: updates });
+      }
     }
 
     // 4. Issue JWT and cache session
-    const token = signToken({ userId: user.id, email: user.email });
-    await cacheSession(user.id, token);
+    const { token } = await completeLogin(req, user);
 
     // 5. Return HTML page that sets localStorage and redirects
     const html = `

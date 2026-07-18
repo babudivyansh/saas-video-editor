@@ -14,6 +14,13 @@ interface ButtonProps {
   disabled?: boolean;
   className?: string;
   children: React.ReactNode;
+  /**
+   * Native <button> type — omitted by default, which means the browser's own
+   * default ("submit") applies exactly as before this prop existed. Pass
+   * "button" for anything inside a <form> that must NOT trigger submission
+   * (e.g. a Cancel action next to a submit button).
+   */
+  type?: "button" | "submit" | "reset";
 }
 
 const VARIANT: Record<ButtonVariant, string> = {
@@ -30,7 +37,7 @@ const SIZE: Record<ButtonSize, string> = {
   lg: "text-sm px-6 py-3 gap-2",
 };
 
-export function Button({ variant = "primary", size = "md", href, icon, onClick, disabled, className = "", children }: ButtonProps) {
+export function Button({ variant = "primary", size = "md", href, icon, onClick, disabled, className = "", children, type }: ButtonProps) {
   const cls = `inline-flex items-center justify-center font-semibold rounded-full transition-all whitespace-nowrap ${VARIANT[variant]} ${SIZE[size]} ${disabled ? "opacity-50 pointer-events-none" : ""} ${className}`;
   if (href) {
     return (
@@ -41,7 +48,7 @@ export function Button({ variant = "primary", size = "md", href, icon, onClick, 
     );
   }
   return (
-    <button onClick={onClick} disabled={disabled} className={cls}>
+    <button type={type} onClick={onClick} disabled={disabled} className={cls}>
       {children}
       {icon}
     </button>

@@ -4,6 +4,7 @@ import {
   sendSubscriptionExpiryWarningEmail,
   sendSubscriptionExpiredEmail,
 } from "@/lib/email";
+import { shouldSendCategory } from "@/lib/notifications";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 
@@ -54,14 +55,16 @@ export async function GET(req: NextRequest) {
       if (sentMarker === targetMarker) continue;
 
       try {
-        const plan = u.planId ? await prisma.plan.findUnique({ where: { id: u.planId }, select: { name: true } }) : null;
-        await sendSubscriptionExpiryWarningEmail(
-          u.email,
-          u.firstName ?? u.name ?? "",
-          plan?.name ?? "Pro",
-          7,
-          u.subscriptionEndsAt!,
-        );
+        if (await shouldSendCategory(u.id, "creditAlerts")) {
+          const plan = u.planId ? await prisma.plan.findUnique({ where: { id: u.planId }, select: { name: true } }) : null;
+          await sendSubscriptionExpiryWarningEmail(
+            u.email,
+            u.firstName ?? u.name ?? "",
+            plan?.name ?? "Pro",
+            7,
+            u.subscriptionEndsAt!,
+          );
+        }
         await prisma.user.update({ where: { id: u.id }, data: { expiryReminderSentAt: windowStart } });
         results.warned7d++;
       } catch (e) {
@@ -90,14 +93,16 @@ export async function GET(req: NextRequest) {
       if (sentMarker === targetMarker) continue;
 
       try {
-        const plan = u.planId ? await prisma.plan.findUnique({ where: { id: u.planId }, select: { name: true } }) : null;
-        await sendSubscriptionExpiryWarningEmail(
-          u.email,
-          u.firstName ?? u.name ?? "",
-          plan?.name ?? "Pro",
-          3,
-          u.subscriptionEndsAt!,
-        );
+        if (await shouldSendCategory(u.id, "creditAlerts")) {
+          const plan = u.planId ? await prisma.plan.findUnique({ where: { id: u.planId }, select: { name: true } }) : null;
+          await sendSubscriptionExpiryWarningEmail(
+            u.email,
+            u.firstName ?? u.name ?? "",
+            plan?.name ?? "Pro",
+            3,
+            u.subscriptionEndsAt!,
+          );
+        }
         await prisma.user.update({ where: { id: u.id }, data: { expiryReminderSentAt: windowStart } });
         results.warned3d++;
       } catch (e) {
@@ -126,14 +131,16 @@ export async function GET(req: NextRequest) {
       if (sentMarker === targetMarker) continue;
 
       try {
-        const plan = u.planId ? await prisma.plan.findUnique({ where: { id: u.planId }, select: { name: true } }) : null;
-        await sendSubscriptionExpiryWarningEmail(
-          u.email,
-          u.firstName ?? u.name ?? "",
-          plan?.name ?? "Pro",
-          1,
-          u.subscriptionEndsAt!,
-        );
+        if (await shouldSendCategory(u.id, "creditAlerts")) {
+          const plan = u.planId ? await prisma.plan.findUnique({ where: { id: u.planId }, select: { name: true } }) : null;
+          await sendSubscriptionExpiryWarningEmail(
+            u.email,
+            u.firstName ?? u.name ?? "",
+            plan?.name ?? "Pro",
+            1,
+            u.subscriptionEndsAt!,
+          );
+        }
         await prisma.user.update({ where: { id: u.id }, data: { expiryReminderSentAt: windowStart } });
         results.warned1d++;
       } catch (e) {
@@ -166,7 +173,9 @@ export async function GET(req: NextRequest) {
 
     for (const u of expiredUsers) {
       try {
-        await sendSubscriptionExpiredEmail(u.email, u.firstName ?? u.name ?? "", "Pro", u.credits);
+        if (await shouldSendCategory(u.id, "creditAlerts")) {
+          await sendSubscriptionExpiredEmail(u.email, u.firstName ?? u.name ?? "", "Pro", u.credits);
+        }
         // Clear the marker so it won't fire again
         await prisma.user.update({ where: { id: u.id }, data: { expiryReminderSentAt: null } });
         results.expired++;

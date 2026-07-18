@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { redis } from "@/lib/redis";
+import { hardDeleteUserAccount } from "@/lib/account-deletion";
 
 const PHONE_RE = /^\+?[0-9]{7,15}$/;
 const GENDERS = ["male", "female", "unspecified"] as const;
@@ -97,30 +97,8 @@ export async function DELETE(req: NextRequest) {
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) return NextResponse.json({ error: "Incorrect password" }, { status: 400 });
 
-  // Purchase rows are financial/audit records and can't cascade away with the
-  // account (Purchase.user is onDelete: Restrict) — refuse up front with a
-  // clear message rather than letting the transaction below throw.
-  const purchaseCount = await prisma.purchase.count({ where: { userId: auth.userId } });
-  if (purchaseCount > 0) {
-    return NextResponse.json(
-      { error: "Your account has billing history that must be retained for financial records, so it can't be fully deleted here. Contact support to request deletion." },
-      { status: 409 },
-    );
-  }
-
-  await prisma.$transaction([
-    prisma.commission.deleteMany({ where: { referral: { referredUserId: auth.userId } } }),
-    prisma.referral.deleteMany({ where: { referredUserId: auth.userId } }),
-    prisma.commission.deleteMany({ where: { affiliate: { userId: auth.userId } } }),
-    prisma.referral.deleteMany({ where: { affiliate: { userId: auth.userId } } }),
-    prisma.affiliate.deleteMany({ where: { userId: auth.userId } }),
-    prisma.user.delete({ where: { id: auth.userId } }),
-  ]);
-
-  await Promise.allSettled([
-    redis.del(`session:${auth.userId}`),
-    redis.del(`credits:${auth.userId}`),
-  ]);
+  const result = await hardDeleteUserAccount(auth.userId);
+  if (!result.ok) return NextResponse.json({ error: result.reason }, { status: 409 });
 
   return NextResponse.json({ success: true });
 }
