@@ -74,6 +74,9 @@ const CORE_PAGES: SearchEntry[] = [
   { title: "Settings", desc: "Security, sessions, notifications & more", href: "/dashboard/settings", group: "Page" },
   { title: "Security", desc: "Password, 2FA & email verification", href: "/dashboard/settings/security", group: "Page" },
   { title: "API Keys", desc: "Manage your public API keys", href: "/dashboard/settings/api-keys", group: "Page" },
+  { title: "Messages", desc: "Account notifications", href: "/dashboard/settings/messages", group: "Page" },
+  { title: "Preferences", desc: "Language & display preferences", href: "/dashboard/settings/preferences", group: "Page" },
+  { title: "My Videos", desc: "All your generated videos", href: "/dashboard/profile/my-videos", group: "Page" },
 ];
 
 const SEARCH_INDEX: SearchEntry[] = [

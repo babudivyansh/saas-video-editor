@@ -106,6 +106,7 @@ export default function SettingsGeneralPage() {
           <QuickAction href="/dashboard/settings/security" label="Secure your account" desc="Password, email, and 2FA" />
           <QuickAction href="/dashboard/settings/api-keys" label="Manage API keys" desc="For the public API" />
           <QuickAction href="/billing" label="View billing" desc="Plan, credits, and invoices" />
+          <QuickAction href="/dashboard/profile/my-videos" label="My videos" desc="Browse everything you've generated" />
         </div>
       </div>
 

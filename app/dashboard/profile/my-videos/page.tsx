@@ -162,7 +162,7 @@ export default function MyVideosPage() {
   const filtered = filter === "all" ? projects : projects.filter((p) => p.productType === filter);
 
   return (
-    <div className="space-y-5">
+    <div className="max-w-7xl mx-auto px-4 sm:px-8 pt-6 pb-12 space-y-5">
       <h1 className="text-2xl font-extrabold grad-text inline-block">My Videos</h1>
 
       <div className="flex items-center gap-1.5 flex-wrap">
