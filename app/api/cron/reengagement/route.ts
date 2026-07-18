@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendReengagement7DayEmail, sendReengagement30DayEmail, sendUnusedCreditsReminderEmail } from "@/lib/email";
+import { shouldSendCategory } from "@/lib/notifications";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 
@@ -44,7 +45,9 @@ export async function GET(req: NextRequest) {
 
     for (const u of users) {
       try {
-        await sendReengagement7DayEmail(u.email, u.firstName ?? u.name ?? "", u.credits);
+        if (await shouldSendCategory(u.id, "marketingEmails")) {
+          await sendReengagement7DayEmail(u.email, u.firstName ?? u.name ?? "", u.credits);
+        }
         await prisma.user.update({ where: { id: u.id }, data: { reengagementSentAt: now } });
         results.reengaged7d++;
       } catch (e) {
@@ -74,7 +77,9 @@ export async function GET(req: NextRequest) {
         const daysSince = u.lastLoginAt
           ? Math.floor((now.getTime() - u.lastLoginAt.getTime()) / (1000 * 60 * 60 * 24))
           : 30;
-        await sendReengagement30DayEmail(u.email, u.firstName ?? u.name ?? "", u.credits, daysSince);
+        if (await shouldSendCategory(u.id, "marketingEmails")) {
+          await sendReengagement30DayEmail(u.email, u.firstName ?? u.name ?? "", u.credits, daysSince);
+        }
         await prisma.user.update({ where: { id: u.id }, data: { reengagementSentAt: now } });
         results.reengaged30d++;
       } catch (e) {
@@ -104,12 +109,14 @@ export async function GET(req: NextRequest) {
           // Only send if they've used less than 20% of their monthly allocation
           const usedPercent = (u.monthlyCredits - u.credits) / u.monthlyCredits;
           if (usedPercent < 0.2 && u.credits > 0) {
-            await sendUnusedCreditsReminderEmail(
-              u.email,
-              u.firstName ?? u.name ?? "",
-              u.credits,
-              u.nextRefillAt!,
-            );
+            if (await shouldSendCategory(u.id, "creditAlerts")) {
+              await sendUnusedCreditsReminderEmail(
+                u.email,
+                u.firstName ?? u.name ?? "",
+                u.credits,
+                u.nextRefillAt!,
+              );
+            }
             results.unusedCredits++;
           }
         } catch (e) {

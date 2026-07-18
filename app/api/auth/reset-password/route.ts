@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
+import { invalidateAllSessions } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 
 export async function POST(req: NextRequest) {
@@ -21,9 +22,10 @@ export async function POST(req: NextRequest) {
   const passwordHash = await bcrypt.hash(password, 12);
   await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
 
-  // Consume the token and invalidate the user's current session
+  // Consume the token and invalidate every active session — a password reset
+  // implies the old password may be compromised, so every device re-logs in.
   await redis.del(`pwd-reset:${token}`);
-  await redis.del(`session:${userId}`);
+  await invalidateAllSessions(userId);
 
   return NextResponse.json({ ok: true });
 }

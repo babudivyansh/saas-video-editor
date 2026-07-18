@@ -17,7 +17,7 @@ import { Sidebar, type QuickView } from "./components/Sidebar";
 import { UploadQueuePanel } from "./components/UploadQueuePanel";
 import { BulkActionBar } from "./components/BulkActionBar";
 import { PreviewLightbox } from "./components/PreviewLightbox";
-import { ConfirmDialog } from "./components/ConfirmDialog";
+import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { CommandPalette } from "./components/CommandPalette";
 import type { Asset, KindFilter, SortOption } from "./types";
 

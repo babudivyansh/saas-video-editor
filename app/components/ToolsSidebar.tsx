@@ -22,18 +22,25 @@ function IcGift() {
 function IcZap() {
   return <svg viewBox="0 0 24 24" fill="currentColor" className="w-[18px] h-[18px]"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>;
 }
+function IcSettings() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>;
+}
 
+// "Projects" used to be dead-wired to the same /dashboard URL as "Home" —
+// this is the actual destination it was always meant to have (see the
+// Account/Navigation audit): the AutoClip project library at /dashboard/clips.
 const NAV = [
   { id: "home",     icon: <IcHome />,   label: "Home",           href: "/dashboard" },
-  { id: "projects", icon: <IcFolder />, label: "Projects",       href: "/dashboard" },
+  { id: "projects", icon: <IcFolder />, label: "Projects",       href: "/dashboard/clips" },
   { id: "assets",   icon: <IcAssets />, label: "Assets",         href: "/dashboard/assets" },
   { id: "create",   icon: <IcWand />,   label: "Create",         href: "/dashboard/tools" },
   { id: "social",   icon: <IcSocial />, label: "Social Tracker", href: "/dashboard/social-tracker" },
 ];
 
 const BOTTOM_NAV = [
-  { id: "earn",    icon: <IcGift />, label: "Earn Credits", href: "/dashboard/referral" },
-  { id: "billing", icon: <IcZap />,  label: "Upgrade Plan", href: "/billing" },
+  { id: "earn",     icon: <IcGift />,     label: "Earn Credits", href: "/dashboard/referral" },
+  { id: "settings", icon: <IcSettings />, label: "Settings",     href: "/dashboard/settings" },
+  { id: "billing",  icon: <IcZap />,      label: "Upgrade Plan", href: "/billing" },
 ];
 
 function NavLink({ id, icon, label, href, active }: { id: string; icon: React.ReactNode; label: string; href: string; active: string }) {

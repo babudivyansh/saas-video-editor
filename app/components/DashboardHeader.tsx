@@ -70,7 +70,13 @@ const CORE_PAGES: SearchEntry[] = [
   { title: "Social Tracker", desc: "Track your social performance", href: "/dashboard/social-tracker", group: "Page" },
   { title: "Earn Credits", desc: "Referral & affiliate dashboard", href: "/dashboard/referral", group: "Page" },
   { title: "Billing & Plans", desc: "Upgrade or top up credits", href: "/billing", group: "Page" },
-  { title: "My Account", desc: "Profile & personal info", href: "/dashboard/profile/personal-info", group: "Page" },
+  { title: "My Account", desc: "Profile & personal info", href: "/dashboard/settings/profile", group: "Page" },
+  { title: "Settings", desc: "Security, sessions, notifications & more", href: "/dashboard/settings", group: "Page" },
+  { title: "Security", desc: "Password, 2FA & email verification", href: "/dashboard/settings/security", group: "Page" },
+  { title: "API Keys", desc: "Manage your public API keys", href: "/dashboard/settings/api-keys", group: "Page" },
+  { title: "Messages", desc: "Account notifications", href: "/dashboard/settings/messages", group: "Page" },
+  { title: "Preferences", desc: "Language & display preferences", href: "/dashboard/settings/preferences", group: "Page" },
+  { title: "My Videos", desc: "All your generated videos", href: "/dashboard/profile/my-videos", group: "Page" },
 ];
 
 const SEARCH_INDEX: SearchEntry[] = [

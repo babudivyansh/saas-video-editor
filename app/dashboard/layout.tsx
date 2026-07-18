@@ -23,11 +23,13 @@ const ROUTE_ACTIVE: { prefix: string; id: string }[] = [
   { prefix: "/dashboard/assets", id: "assets" },
   { prefix: "/dashboard/social-tracker", id: "social" },
   { prefix: "/dashboard/referral", id: "earn" },
+  { prefix: "/dashboard/settings", id: "settings" },
   { prefix: "/dashboard/tools", id: "create" },
   { prefix: "/dashboard/create", id: "create" },
   { prefix: "/dashboard/ai-creator", id: "create" },
   { prefix: "/dashboard/cut-and-crop", id: "create" },
-  { prefix: "/dashboard/clips", id: "create" },
+  { prefix: "/dashboard/clips", id: "projects" },
+  { prefix: "/dashboard/profile", id: "settings" },
 ];
 
 function activeIdFor(pathname: string): string {

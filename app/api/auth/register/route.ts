@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { signToken, cacheSession, setSessionCookie } from "@/lib/auth";
+import { completeLogin, setSessionCookie } from "@/lib/auth";
 import { sendWelcomeEmail, sendAffiliateReferralSignupEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
 
@@ -59,8 +59,7 @@ export async function POST(req: NextRequest) {
       select: { id: true, email: true, credits: true },
     });
 
-    const token = signToken({ userId: user.id, email: user.email });
-    await cacheSession(user.id, token);
+    const { token } = await completeLogin(req, user);
 
     // Affiliate attribution — read cookie set by middleware
     const affiliateRef = req.cookies.get("affiliate_ref")?.value;

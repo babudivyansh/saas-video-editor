@@ -216,7 +216,7 @@ function ProfileChip() {
         </div>
         <div className="py-1">
           <Link
-            href="/dashboard/profile/personal-info"
+            href="/dashboard/settings/profile"
             onClick={() => setOpen(false)}
             className="flex items-center gap-2.5 px-3.5 py-2 text-xs text-editor-text-muted transition-colors hover:bg-editor-card hover:text-editor-text"
           >

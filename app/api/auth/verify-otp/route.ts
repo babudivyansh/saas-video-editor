@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { signToken, cacheSession, setSessionCookie } from "@/lib/auth";
+import { completeLogin, setSessionCookie } from "@/lib/auth";
 import { consumeOtp } from "@/lib/otp";
 import { normalizeIdentifier, findUserByMethod, type AuthMethod } from "@/lib/identifier";
 import { rateLimit } from "@/lib/rate-limit";
@@ -41,8 +41,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const token = signToken({ userId: user.id, email: user.email });
-    await cacheSession(user.id, token);
+    const { token } = await completeLogin(req, user);
 
     const res = NextResponse.json({
       token,

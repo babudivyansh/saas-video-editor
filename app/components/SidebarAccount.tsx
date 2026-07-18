@@ -3,35 +3,35 @@
 // Top-right account avatar + popover. Rendered by DashboardHeader so it
 // appears consistently in the same place across the dashboard, next to the
 // credits pill.
+//
+// Deliberately lightweight — every account/settings page now lives under the
+// single /dashboard/settings hub (see app/dashboard/settings/layout.tsx).
+// This popover is just quick actions into that hub, not a second copy of its
+// nav. There's no team/workspace model in the schema, so no "switch
+// workspace" entry here — nothing to switch between.
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/app/components/AuthContext";
 
-function IcGlobe() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18" /></svg>; }
-function IcChevronRight() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M9 6l6 6-6 6" /></svg>; }
-function IcHome() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" /><path d="M9 21V12h6v9" /></svg>; }
 function IcUserLine() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>; }
-function IcCloud() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z" /></svg>; }
-function IcMessage() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="M2 6l10 7 10-7" /></svg>; }
-function IcBriefcase() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" /></svg>; }
 function IcLogout() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>; }
+function IcSettingsGear() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></svg>; }
+function IcHelp() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 014.87.83c0 1.67-2.37 2.17-2.37 3.67" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>; }
 
-function MenuLink({ href, onClick, icon, children, trailing }: { href: string; onClick: () => void; icon: React.ReactNode; children: React.ReactNode; trailing?: React.ReactNode }) {
+function MenuLink({ href, onClick, icon, children }: { href: string; onClick: () => void; icon: React.ReactNode; children: React.ReactNode }) {
   return (
     <Link href={href} onClick={onClick} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#525866] hover:bg-tint-blue hover:text-ink transition-colors">
       {icon}
       <span className="flex-1">{children}</span>
-      {trailing}
     </Link>
   );
 }
 
 export default function SidebarAccount() {
-  const { user, token, signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const [open, setOpen] = useState(false);
-  const [storage, setStorage] = useState<{ totalSize: number; limitBytes: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,22 +40,9 @@ export default function SidebarAccount() {
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
-  // Lazy-load storage usage the first time the popover opens. limitBytes
-  // comes from the same real, per-plan quota app/api/upload/route.ts
-  // enforces server-side — no more separately hardcoded display constant.
-  useEffect(() => {
-    if (!open || storage || !token) return;
-    fetch("/api/assets?stats=true", { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => data && setStorage({ totalSize: data.totalSize ?? 0, limitBytes: data.limitBytes ?? 2 * 1024 ** 3 }))
-      .catch(() => {});
-  }, [open, storage, token]);
-
   if (!user) return null;
 
   const initial = (user.name?.[0] ?? user.email?.[0] ?? "?").toUpperCase();
-  const usedGb = storage ? storage.totalSize / 1024 ** 3 : null;
-  const limitGb = storage ? storage.limitBytes / 1024 ** 3 : null;
 
   return (
     <div className="relative" ref={ref}>
@@ -82,23 +69,18 @@ export default function SidebarAccount() {
           </div>
 
           <div className="py-1.5">
-            <div className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#525866]/60 cursor-not-allowed" title="Coming soon">
-              <IcGlobe />
-              <span className="flex-1">Language</span>
-              <IcChevronRight />
-            </div>
-            <MenuLink href="/dashboard" onClick={() => setOpen(false)} icon={<IcHome />}>Home</MenuLink>
-            <MenuLink href="/dashboard/profile/personal-info" onClick={() => setOpen(false)} icon={<IcUserLine />}>My Account</MenuLink>
-            <MenuLink
-              href="/dashboard/assets"
+            <MenuLink href="/dashboard/settings/profile" onClick={() => setOpen(false)} icon={<IcUserLine />}>View Profile</MenuLink>
+            <MenuLink href="/dashboard/settings" onClick={() => setOpen(false)} icon={<IcSettingsGear />}>Account &amp; Settings</MenuLink>
+            <a
+              href="/discord"
+              target="_blank"
+              rel="noopener noreferrer"
               onClick={() => setOpen(false)}
-              icon={<IcCloud />}
-              trailing={<span className="text-xs text-gray-400 flex-shrink-0">{usedGb != null && limitGb != null ? `${usedGb.toFixed(2)}GB / ${limitGb}GB` : "…"}</span>}
+              className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#525866] hover:bg-tint-blue hover:text-ink transition-colors"
             >
-              Storage
-            </MenuLink>
-            <MenuLink href="/dashboard/profile/message" onClick={() => setOpen(false)} icon={<IcMessage />}>Message</MenuLink>
-            <MenuLink href="/dashboard/assets" onClick={() => setOpen(false)} icon={<IcBriefcase />}>My Workspace</MenuLink>
+              <IcHelp />
+              <span className="flex-1">Help &amp; Support</span>
+            </a>
           </div>
 
           <div className="border-t border-card-border py-1.5">
