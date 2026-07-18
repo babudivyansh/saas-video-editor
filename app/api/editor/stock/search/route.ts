@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
+import { withRateLimit } from "@/lib/with-rate-limit";
 import {
   searchStockImages,
   searchStockVideos,
@@ -12,7 +13,7 @@ import { logger } from "@/lib/logger";
 
 // GET /api/editor/stock/search?type=image|video|audio|sticker|gif&q=...&page=1
 // Proxies to the relevant provider so API keys stay server-side.
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -54,3 +55,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Stock search failed" }, { status: 500 });
   }
 }
+
+export const GET = withRateLimit(handleGET, { limit: 60, windowSec: 60, keyBy: "user", name: "stock:search" });

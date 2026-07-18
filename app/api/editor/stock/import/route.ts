@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { withRateLimit } from "@/lib/with-rate-limit";
 import { downloadFile } from "@/utils/download";
-import { uploadFileToS3 } from "@/utils/s3-upload";
+import { uploadFileToS3, getAssetReadUrl } from "@/utils/s3-upload";
+import { auditAssetAction } from "@/lib/asset-audit";
 import { logger } from "@/lib/logger";
 import os from "os";
 import path from "path";
@@ -43,7 +45,7 @@ const MAX_BYTES = 100 * 1024 * 1024; // 100 MB — generous for a stock photo/cl
 // Downloads a stock item server-side and re-hosts it as a normal Asset, so
 // the editor/render pipeline only ever deals with assets it owns — never a
 // client-supplied third-party URL.
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -80,13 +82,19 @@ export async function POST(req: NextRequest) {
         mimeType: KIND_MIME[kind],
         kind,
         size: stat.size,
+        // Licensed stock content from a vetted provider (Pexels/Jamendo/Giphy)
+        // — not user-generated, so it's excluded from the moderation queue
+        // rather than left "pending" forever.
+        moderationStatus: "skipped",
         duration: typeof body.durationSec === "number" ? body.durationSec : undefined,
         width: typeof body.width === "number" ? body.width : undefined,
         height: typeof body.height === "number" ? body.height : undefined,
       },
     });
+    await auditAssetAction(auth.userId, "upload", asset.id, { name: asset.name, size: asset.size, source: "stock" });
 
-    return NextResponse.json({ asset });
+    const readUrl = await getAssetReadUrl(key);
+    return NextResponse.json({ asset: { ...asset, url: readUrl } });
   } catch (err) {
     logger.error("stock/import", "request failed", err);
     const message = err instanceof Error ? err.message : "Import failed";
@@ -95,3 +103,5 @@ export async function POST(req: NextRequest) {
     try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
   }
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 30, windowSec: 60, keyBy: "user", name: "stock:import" });

@@ -54,6 +54,8 @@ export const KNOWN_RENDER_QUEUE_NAMES = [
   "auto-clip-rerender",
   "auto-clip-dub",
   "video-compressor",
+  "asset-moderation",
+  "asset-zip",
 ] as const;
 export type RenderQueueName = typeof KNOWN_RENDER_QUEUE_NAMES[number];
 

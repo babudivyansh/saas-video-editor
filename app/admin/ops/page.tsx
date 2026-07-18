@@ -16,6 +16,22 @@ interface OpsData {
   tableSizes: Array<{ table: string; size: string }>;
 }
 
+interface AssetsAdminData {
+  totalBytes: number;
+  totalAssets: number;
+  archivedBytes: number;
+  archivedCount: number;
+  orphanedPendingUploads: number;
+  topUsers: Array<{ userId: string; email: string; name: string | null; bytes: number; count: number }>;
+  flaggedAssets: Array<{ id: string; name: string; kind: string; size: number; createdAt: string; user: { email: string } | null }>;
+}
+
+function fmtBytes(bytes: number) {
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(0)} KB`;
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+}
+
 // Incident response: force every non-admin user to log in again.
 function RevokeAllSessions({ headers, onDone }: { headers: () => Record<string, string>; onDone: () => void }) {
   const [confirm, setConfirm] = useState(false);
@@ -47,6 +63,7 @@ function RevokeAllSessions({ headers, onDone }: { headers: () => Record<string, 
 export default function AdminOpsPage() {
   const { token } = useAuth();
   const [d, setD] = useState<OpsData | null>(null);
+  const [assetsD, setAssetsD] = useState<AssetsAdminData | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [maintMessage, setMaintMessage] = useState("");
   const [newFlag, setNewFlag] = useState("");
@@ -59,12 +76,16 @@ export default function AdminOpsPage() {
 
   const load = useCallback(async () => {
     if (!token) return;
-    const res = await fetch("/api/admin/ops", { headers: headers() });
+    const [res, assetsRes] = await Promise.all([
+      fetch("/api/admin/ops", { headers: headers() }),
+      fetch("/api/admin/assets", { headers: headers() }),
+    ]);
     if (res.ok) {
       const data = (await res.json()) as OpsData;
       setD(data);
       setMaintMessage(data.maintenance.message ?? "");
     }
+    if (assetsRes.ok) setAssetsD(await assetsRes.json());
   }, [token, headers]);
 
   useEffect(() => { load(); }, [load]);
@@ -244,6 +265,56 @@ export default function AdminOpsPage() {
           </table>
         </div>
       </div>
+
+      {/* Assets library storage */}
+      {assetsD && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <h2 className="text-sm font-bold text-gray-800 mb-1">Assets library — top storage users</h2>
+            <p className="text-xs text-gray-400 mb-3">
+              {fmtBytes(assetsD.totalBytes)} across {assetsD.totalAssets} active assets · {fmtBytes(assetsD.archivedBytes)} in {assetsD.archivedCount} archived (pending purge)
+              {assetsD.orphanedPendingUploads > 0 && (
+                <span className="text-amber-700 font-semibold"> · {assetsD.orphanedPendingUploads} stale pending upload(s) awaiting cleanup cron</span>
+              )}
+            </p>
+            {assetsD.topUsers.length === 0 ? (
+              <p className="text-sm text-gray-400">No assets uploaded yet.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <tbody>
+                  {assetsD.topUsers.map((u) => (
+                    <tr key={u.userId} className="border-t border-gray-50 first:border-0">
+                      <td className="py-1.5 text-xs text-gray-600 truncate max-w-[160px]">{u.name || u.email}</td>
+                      <td className="py-1.5 text-right text-xs text-gray-400">{u.count} files</td>
+                      <td className="py-1.5 text-right font-semibold text-gray-800">{fmtBytes(u.bytes)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <h2 className="text-sm font-bold text-gray-800 mb-1">Moderation queue</h2>
+            <p className="text-xs text-gray-400 mb-3">Assets Rekognition flagged for explicit/violent content — excluded from the uploader&apos;s grid pending review.</p>
+            {assetsD.flaggedAssets.length === 0 ? (
+              <p className="text-sm text-gray-400">Nothing flagged.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <tbody>
+                  {assetsD.flaggedAssets.map((a) => (
+                    <tr key={a.id} className="border-t border-gray-50 first:border-0">
+                      <td className="py-1.5 text-xs text-gray-600 truncate max-w-[140px]">{a.name}</td>
+                      <td className="py-1.5 text-xs text-gray-400">{a.user?.email ?? "—"}</td>
+                      <td className="py-1.5 text-right text-xs text-gray-400">{new Date(a.createdAt).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
     </AdminShell>
   );
 }

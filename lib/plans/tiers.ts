@@ -47,3 +47,19 @@ export const TIER_MAX_DURATION_SECONDS: Record<Exclude<TierId, "free">, number> 
 export function maxDurationForTier(tier: TierId): number {
   return tier === "free" ? TIER_MAX_DURATION_SECONDS.creator : TIER_MAX_DURATION_SECONDS[tier];
 }
+
+// Per-tier Assets-library storage cap, in GB. Server-enforced in
+// app/api/upload/route.ts and app/api/editor/stock/import/route.ts — the
+// storage meter shown in the UI (app/dashboard/assets/page.tsx,
+// app/components/SidebarAccount.tsx) reads this same map instead of a
+// hardcoded display constant.
+export const STORAGE_LIMIT_GB: Record<TierId, number> = {
+  free: 0.5,
+  creator: 2,
+  pro: 5,
+  studio: 15,
+};
+
+export function storageLimitBytesForTier(tier: TierId): number {
+  return STORAGE_LIMIT_GB[tier] * 1024 ** 3;
+}

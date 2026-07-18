@@ -47,6 +47,16 @@ const schema = z.object({
   // fail-closed 401, not open; see app/api/cron/*).
   CRON_SECRET: z.string().optional(),
   SOCIAL_REFRESH_SECRET: z.string().optional(),
+  ASSET_CLEANUP_SECRET: z.string().optional(),
+
+  // CDN prep seam for the asset bucket (app/dashboard/assets). Unset by
+  // default — asset reads fall back to S3 presigned URLs. Once a CloudFront
+  // distribution (with an Origin Access Control on the bucket) is
+  // provisioned, set this to its domain to serve assets through it instead.
+  // NOTE: this alone does not make CloudFront enforce the same per-request
+  // expiry/ownership check a presigned S3 URL does — a signed-URL/signed-
+  // cookie key group on the distribution is a separate, later step.
+  CDN_BASE_URL: z.string().optional(),
 
   // Render queue driver — optional, defaults to in-process.
   RENDER_QUEUE_DRIVER: z.string().optional(),

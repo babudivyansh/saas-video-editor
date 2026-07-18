@@ -68,6 +68,10 @@ model User {
   loginEvents          LoginEvent[]
   apiKeys              ApiKey[]
   brandKits            BrandKit[]
+  assetFolders         AssetFolder[]
+  tags                 Tag[]
+  assetAuditLogs       AssetAuditLog[]
+  pendingUploads       PendingUpload[]
 }
 
 // One row per successful login (Phase 3) — powers the admin user-detail login
@@ -356,20 +360,122 @@ model UserQuest {
 }
 
 model Asset {
+  id       String  @id @default(cuid())
+  userId   String
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name     String
+  s3Key    String
+  url      String // legacy permanent URL, kept for rows created before signed URLs; reads now resolve a fresh presigned URL from s3Key instead of trusting this column
+  mimeType String
+  kind     String // "video" | "audio" | "image"
+  size     Int
+  duration Float?
+  width    Int?
+  height   Int?
+
+  // Organization (folders/tags/favorites/archive)
+  folderId   String?
+  folder     AssetFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  isFavorite Boolean      @default(false)
+  archivedAt DateTime? // soft-delete: set on Archive, cleared on Restore, hard-deleted by the cleanup cron after the retention window
+  tags       AssetTag[]
+
+  // Thumbnails — a lightweight extracted frame/preview so the grid never has
+  // to stream the full source file just to render a card.
+  thumbnailS3Key String?
+
+  // Duplicate detection — SHA-256 of the uploaded bytes, computed server-side.
+  checksum String?
+
+  // Moderation (Rekognition DetectModerationLabels, async via the
+  // asset-moderation queue). "not_configured" is reserved for the malware-scan
+  // step, which has no vendor wired up yet — it is never silently marked "clean".
+  moderationStatus String  @default("pending") // "pending" | "clean" | "flagged" | "skipped" | "not_configured"
+  moderationLabels Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs AssetAuditLog[]
+
+  @@unique([userId, checksum])
+  @@index([userId, createdAt])
+  @@index([userId, kind])
+  @@index([userId, archivedAt])
+  @@index([folderId])
+}
+
+// Flat (non-nested) per-user folder for organizing assets.
+model AssetFolder {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
-  s3Key     String
-  url       String
-  mimeType  String
-  kind      String // "video" | "audio" | "image"
-  size      Int
-  duration  Float?
-  width     Int?
-  height    Int?
+  color     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  assets    Asset[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+// Reusable per-user tag — a real row (not a denormalized string array) so the
+// UI can list/autocomplete/rename a user's whole tag vocabulary.
+model Tag {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime   @default(now())
+  assets    AssetTag[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model AssetTag {
+  assetId String
+  asset   Asset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  tagId   String
+  tag     Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([assetId, tagId])
+  @@index([tagId])
+}
+
+// Per-user history of asset actions (upload/rename/delete/archive/restore/
+// bulk-*/moderation-flag) — the user-facing counterpart to lib/admin/audit.ts.
+model AssetAuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assetId   String?
+  asset     Asset?   @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([assetId])
+}
+
+// Written right before the S3 PUT and deleted right after a successful
+// Asset.create — lets the cleanup cron find orphaned S3 objects (upload
+// succeeded, DB insert didn't) without an expensive bucket ListObjects scan.
+model PendingUpload {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  s3Key             String
+  // Set only for a client-driven S3 multipart upload (large files) — lets the
+  // cleanup cron abort the incomplete multipart upload (AbortMultipartUpload)
+  // instead of trying DeleteObject on a key that was never a real object.
+  multipartUploadId String?
+  createdAt         DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId])
 }
 
 // A social platform account a user has linked via OAuth (Social Tracker).
