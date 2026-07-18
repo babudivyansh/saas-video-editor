@@ -15,7 +15,9 @@ import {
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 
-const rekognition = new RekognitionClient({
+// Exported so other Rekognition consumers (lib/asset-moderation.ts) share one
+// client instead of each constructing their own.
+export const rekognition = new RekognitionClient({
   region: env.AWS_REGION,
   credentials: { accessKeyId: env.AWS_ACCESS_KEY_ID, secretAccessKey: env.AWS_SECRET_ACCESS_KEY },
 });

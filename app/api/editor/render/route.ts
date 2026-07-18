@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
+import { withRateLimit } from "@/lib/with-rate-limit";
 import { createRenderQueue } from "@/lib/render-queue";
 import { normalizeDoc, validateDoc, type TimelineDoc } from "@/lib/editor/types";
 import {
@@ -9,6 +10,7 @@ import {
   EDITOR_RENDER_CREDIT_COST,
   type EditorRenderPayload,
 } from "@/lib/editor/render-job";
+import { getAssetReadUrl } from "@/utils/s3-upload";
 
 const renderQueue = createRenderQueue<EditorRenderPayload>("editor-render", editorRenderJob);
 
@@ -16,7 +18,7 @@ const renderQueue = createRenderQueue<EditorRenderPayload>("editor-render", edit
 // Renders the project's saved editorDoc. Credit + refund pattern mirrors
 // app/api/generate/compile. The doc and its assets are re-validated and
 // re-resolved server-side — client URLs are never trusted.
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -52,8 +54,11 @@ export async function POST(req: NextRequest) {
   if (assets.length !== assetIds.length) {
     return NextResponse.json({ error: "One or more media files are missing from your library" }, { status: 400 });
   }
+  // Resolve fresh signed URLs at render time rather than trusting the
+  // legacy permanent Asset.url column — the render worker downloads each of
+  // these once, well within a presigned URL's expiry.
   const assetUrls: Record<string, string> = {};
-  for (const a of assets) assetUrls[a.id] = a.url;
+  await Promise.all(assets.map(async (a) => { assetUrls[a.id] = await getAssetReadUrl(a.s3Key); }));
 
   // Fast-path credit check via Redis cache.
   const cachedCredits = await redis.get(`credits:${auth.userId}`);
@@ -86,3 +91,5 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ status: "rendering", creditsRemaining: user.credits });
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 20, windowSec: 60, keyBy: "user", name: "editor:render" });

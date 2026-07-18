@@ -18,8 +18,6 @@ function IcMessage() { return <svg viewBox="0 0 24 24" fill="none" stroke="curre
 function IcBriefcase() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" /></svg>; }
 function IcLogout() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>; }
 
-const STORAGE_LIMIT_GB = 2; // flat placeholder limit — no per-plan storage tiers exist yet
-
 function MenuLink({ href, onClick, icon, children, trailing }: { href: string; onClick: () => void; icon: React.ReactNode; children: React.ReactNode; trailing?: React.ReactNode }) {
   return (
     <Link href={href} onClick={onClick} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#525866] hover:bg-tint-blue hover:text-ink transition-colors">
@@ -33,7 +31,7 @@ function MenuLink({ href, onClick, icon, children, trailing }: { href: string; o
 export default function SidebarAccount() {
   const { user, token, signOut } = useAuth();
   const [open, setOpen] = useState(false);
-  const [storage, setStorage] = useState<{ totalSize: number } | null>(null);
+  const [storage, setStorage] = useState<{ totalSize: number; limitBytes: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -42,12 +40,14 @@ export default function SidebarAccount() {
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
-  // Lazy-load storage usage the first time the popover opens.
+  // Lazy-load storage usage the first time the popover opens. limitBytes
+  // comes from the same real, per-plan quota app/api/upload/route.ts
+  // enforces server-side — no more separately hardcoded display constant.
   useEffect(() => {
     if (!open || storage || !token) return;
     fetch("/api/assets?stats=true", { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => data && setStorage({ totalSize: data.totalSize ?? 0 }))
+      .then((data) => data && setStorage({ totalSize: data.totalSize ?? 0, limitBytes: data.limitBytes ?? 2 * 1024 ** 3 }))
       .catch(() => {});
   }, [open, storage, token]);
 
@@ -55,6 +55,7 @@ export default function SidebarAccount() {
 
   const initial = (user.name?.[0] ?? user.email?.[0] ?? "?").toUpperCase();
   const usedGb = storage ? storage.totalSize / 1024 ** 3 : null;
+  const limitGb = storage ? storage.limitBytes / 1024 ** 3 : null;
 
   return (
     <div className="relative" ref={ref}>
@@ -92,7 +93,7 @@ export default function SidebarAccount() {
               href="/dashboard/assets"
               onClick={() => setOpen(false)}
               icon={<IcCloud />}
-              trailing={<span className="text-xs text-gray-400 flex-shrink-0">{usedGb != null ? `${usedGb.toFixed(2)}GB / ${STORAGE_LIMIT_GB}GB` : "…"}</span>}
+              trailing={<span className="text-xs text-gray-400 flex-shrink-0">{usedGb != null && limitGb != null ? `${usedGb.toFixed(2)}GB / ${limitGb}GB` : "…"}</span>}
             >
               Storage
             </MenuLink>
