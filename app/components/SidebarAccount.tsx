@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/app/components/AuthContext";
 
 function IcUserLine() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>; }
@@ -31,6 +32,7 @@ function MenuLink({ href, onClick, icon, children }: { href: string; onClick: ()
 
 export default function SidebarAccount() {
   const { user, signOut } = useAuth();
+  const t = useTranslations("Account");
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -48,7 +50,7 @@ export default function SidebarAccount() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((p) => !p)}
-        title="Account"
+        title={t("avatarButton")}
         className="relative w-10 h-10 rounded-full overflow-hidden flex items-center justify-center grad-brand text-white text-sm font-bold select-none hover:opacity-90 transition-opacity flex-shrink-0"
       >
         {user.avatarUrl ? (
@@ -64,13 +66,13 @@ export default function SidebarAccount() {
         }`}
       >
           <div className="px-4 py-3 border-b border-card-border">
-            <p className="text-sm font-semibold text-gray-900 truncate">{user.name || "User"}</p>
+            <p className="text-sm font-semibold text-gray-900 truncate">{user.name || t("userFallback")}</p>
             <p className="text-xs text-[#868C98] truncate">{user.email}</p>
           </div>
 
           <div className="py-1.5">
-            <MenuLink href="/dashboard/settings/profile" onClick={() => setOpen(false)} icon={<IcUserLine />}>View Profile</MenuLink>
-            <MenuLink href="/dashboard/settings" onClick={() => setOpen(false)} icon={<IcSettingsGear />}>Account &amp; Settings</MenuLink>
+            <MenuLink href="/dashboard/settings/profile" onClick={() => setOpen(false)} icon={<IcUserLine />}>{t("viewProfile")}</MenuLink>
+            <MenuLink href="/dashboard/settings" onClick={() => setOpen(false)} icon={<IcSettingsGear />}>{t("accountAndSettings")}</MenuLink>
             <a
               href="/discord"
               target="_blank"
@@ -79,7 +81,7 @@ export default function SidebarAccount() {
               className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#525866] hover:bg-tint-blue hover:text-ink transition-colors"
             >
               <IcHelp />
-              <span className="flex-1">Help &amp; Support</span>
+              <span className="flex-1">{t("helpAndSupport")}</span>
             </a>
           </div>
 
@@ -88,7 +90,7 @@ export default function SidebarAccount() {
               onClick={() => { setOpen(false); signOut(); }}
               className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
             >
-              <IcLogout /> Sign Out
+              <IcLogout /> {t("signOut")}
             </button>
           </div>
       </div>

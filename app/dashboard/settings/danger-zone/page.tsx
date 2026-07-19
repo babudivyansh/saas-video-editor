@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/app/components/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
 import { Card } from "@/app/components/ui/Card";
@@ -34,6 +35,7 @@ function DangerRow({ title, desc, actionLabel, onAction, actionVariant = "outlin
 export default function DangerZoneSettingsPage() {
   const { token, signOut } = useAuth();
   const { showToast } = useToast();
+  const t = useTranslations("SettingsDangerZone");
 
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   const [deactivatePw, setDeactivatePw] = useState("");
@@ -53,8 +55,8 @@ export default function DangerZoneSettingsPage() {
         body: JSON.stringify({ password: deactivatePw }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "Failed to deactivate"); return; }
-      showToast("Account deactivated");
+      if (!res.ok) { setError(data.error ?? t("errors.deactivateFailed")); return; }
+      showToast(t("toasts.deactivated"));
       signOut();
     } finally {
       setBusy(false);
@@ -72,7 +74,7 @@ export default function DangerZoneSettingsPage() {
         body: JSON.stringify({ password: deletePw }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "Failed to delete account"); return; }
+      if (!res.ok) { setError(data.error ?? t("errors.deleteFailed")); return; }
       signOut();
     } finally {
       setBusy(false);
@@ -82,52 +84,52 @@ export default function DangerZoneSettingsPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-extrabold grad-text inline-block">Danger Zone</h1>
-        <p className="text-sm text-ink-soft mt-1">Irreversible and destructive actions.</p>
+        <h1 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h1>
+        <p className="text-sm text-ink-soft mt-1">{t("pageSubtitle")}</p>
       </div>
 
       <Card padding="md" className="border-red-100">
         <DangerRow
-          title="Sign out"
-          desc="Sign out of this device."
-          actionLabel="Sign Out"
+          title={t("signOut.title")}
+          desc={t("signOut.desc")}
+          actionLabel={t("signOut.action")}
           onAction={signOut}
         />
         <DangerRow
-          title="Deactivate account"
-          desc="Temporarily disable your account. You have 30 days to sign back in and reactivate before it's permanently deleted."
-          actionLabel="Deactivate"
+          title={t("deactivate.title")}
+          desc={t("deactivate.desc")}
+          actionLabel={t("deactivate.action")}
           onAction={() => setDeactivateOpen(true)}
         />
         <DangerRow
-          title="Delete account"
-          desc="Permanently deletes your account, videos, and data. This cannot be undone."
-          actionLabel="Delete Account"
+          title={t("delete.title")}
+          desc={t("delete.desc")}
+          actionLabel={t("delete.action")}
           actionVariant="solid"
           onAction={() => setDeleteOpen(true)}
         />
       </Card>
 
-      <Modal open={deactivateOpen} onClose={() => { setDeactivateOpen(false); setError(null); setDeactivatePw(""); }} title="Deactivate your account?" maxWidth="max-w-sm">
+      <Modal open={deactivateOpen} onClose={() => { setDeactivateOpen(false); setError(null); setDeactivatePw(""); }} title={t("deactivateModal.title")} maxWidth="max-w-sm">
         <form onSubmit={handleDeactivate} className="space-y-4">
-          <p className="text-sm text-ink-soft">You&apos;ll be signed out everywhere. Sign back in within 30 days to reactivate — after that, your account is permanently deleted.</p>
-          <input type="password" required autoFocus value={deactivatePw} onChange={(e) => setDeactivatePw(e.target.value)} placeholder="Confirm your password" className={inputCls} />
+          <p className="text-sm text-ink-soft">{t("deactivateModal.body")}</p>
+          <input type="password" required autoFocus value={deactivatePw} onChange={(e) => setDeactivatePw(e.target.value)} placeholder={t("confirmPasswordPlaceholder")} className={inputCls} />
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" size="sm" onClick={() => setDeactivateOpen(false)}>Cancel</Button>
-            <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-red-600">{busy ? <><IcSpinner /> Deactivating…</> : "Deactivate"}</Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setDeactivateOpen(false)}>{t("cancel")}</Button>
+            <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-red-600">{busy ? <><IcSpinner /> {t("deactivateModal.deactivating")}</> : t("deactivate.action")}</Button>
           </div>
         </form>
       </Modal>
 
-      <Modal open={deleteOpen} onClose={() => { setDeleteOpen(false); setError(null); setDeletePw(""); }} title="Permanently delete your account?" maxWidth="max-w-sm">
+      <Modal open={deleteOpen} onClose={() => { setDeleteOpen(false); setError(null); setDeletePw(""); }} title={t("deleteModal.title")} maxWidth="max-w-sm">
         <form onSubmit={handleDelete} className="space-y-4">
-          <p className="text-sm text-ink-soft">This permanently deletes your account, videos, and data. This cannot be undone.</p>
-          <input type="password" required autoFocus value={deletePw} onChange={(e) => setDeletePw(e.target.value)} placeholder="Confirm your password" className={inputCls} />
+          <p className="text-sm text-ink-soft">{t("deleteModal.body")}</p>
+          <input type="password" required autoFocus value={deletePw} onChange={(e) => setDeletePw(e.target.value)} placeholder={t("confirmPasswordPlaceholder")} className={inputCls} />
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" size="sm" onClick={() => setDeleteOpen(false)}>Cancel</Button>
-            <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-red-600">{busy ? <><IcSpinner /> Deleting…</> : "Permanently Delete"}</Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setDeleteOpen(false)}>{t("cancel")}</Button>
+            <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-red-600">{busy ? <><IcSpinner /> {t("deleteModal.deleting")}</> : t("deleteModal.permanentlyDelete")}</Button>
           </div>
         </form>
       </Modal>

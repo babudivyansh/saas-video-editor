@@ -7,6 +7,7 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import { useTranslations } from "next-intl";
 
 interface ModalProps {
   open: boolean;
@@ -17,6 +18,7 @@ interface ModalProps {
 }
 
 export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg" }: ModalProps) {
+  const t = useTranslations("Common");
   const panelRef = useRef<HTMLDivElement>(null);
   const lastFocused = useRef<HTMLElement | null>(null);
 
@@ -74,7 +76,7 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg" }:
                 <h2 className="text-base font-bold text-ink">{title}</h2>
                 <button
                   onClick={onClose}
-                  aria-label="Close"
+                  aria-label={t("close")}
                   className="w-7 h-7 rounded-full flex items-center justify-center text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors cursor-pointer"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">

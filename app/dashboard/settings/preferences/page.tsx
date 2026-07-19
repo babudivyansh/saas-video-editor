@@ -1,9 +1,9 @@
-// Only one real preference exists today (interface language), and it's not
-// wired to anything yet — an honest disabled row rather than a fake working
-// selector. Relocated from the top-right popover, which used to carry this
-// as a dead menu item instead of a real settings page.
+// Language is now a real, working preference (see LanguageSwitcher) backed by
+// User.preferredLanguage and the locale cookie i18n/request.ts reads.
 
+import { getTranslations } from "next-intl/server";
 import { Card } from "@/app/components/ui/Card";
+import { LanguageSwitcher } from "@/app/components/settings/LanguageSwitcher";
 
 function IcGlobe() {
   return (
@@ -14,12 +14,13 @@ function IcGlobe() {
   );
 }
 
-export default function PreferencesPage() {
+export default async function PreferencesPage() {
+  const t = await getTranslations("SettingsPreferences");
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-extrabold grad-text inline-block">Preferences</h1>
-        <p className="text-sm text-ink-soft mt-1">Display and locale preferences for your account.</p>
+        <h1 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h1>
+        <p className="text-sm text-ink-soft mt-1">{t("pageSubtitle")}</p>
       </div>
 
       <Card padding="none">
@@ -27,16 +28,11 @@ export default function PreferencesPage() {
           <div className="flex items-center gap-3 min-w-0">
             <span className="w-9 h-9 rounded-lg bg-tint-blue text-brand flex items-center justify-center flex-shrink-0"><IcGlobe /></span>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-ink">Language</p>
-              <p className="text-xs text-ink-soft mt-0.5">The language Clipiro&apos;s interface is displayed in.</p>
+              <p className="text-sm font-semibold text-ink">{t("language")}</p>
+              <p className="text-xs text-ink-soft mt-0.5">{t("languageDesc")}</p>
             </div>
           </div>
-          <span
-            title="Coming soon"
-            className="flex-shrink-0 text-xs font-semibold text-ink-soft/60 bg-gray-50 border border-card-border rounded-full px-3 py-1.5 cursor-not-allowed"
-          >
-            English (US)
-          </span>
+          <LanguageSwitcher />
         </div>
       </Card>
     </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/app/components/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
 import { Card } from "@/app/components/ui/Card";
@@ -15,23 +16,24 @@ function IcSpinner() { return <div className="w-4 h-4 border-2 border-white/40 b
 const inputCls = "w-full bg-white border border-card-border rounded-xl px-4 py-3 text-sm text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all";
 const labelCls = "text-xs font-semibold text-ink-soft uppercase tracking-wide block mb-1.5";
 
-const GENDERS = [
-  { value: "male", label: "Male" },
-  { value: "female", label: "Female" },
-  { value: "unspecified", label: "Prefer not to say" },
-];
-
-const INTENDED_USES = [
-  { value: "content_creator", label: "Content Creator" },
-  { value: "business_marketing", label: "Business / Marketing" },
-  { value: "personal", label: "Personal" },
-  { value: "other", label: "Other" },
-];
-
 export default function ProfileSettingsPage() {
   const { user, token, refreshUser } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
+  const t = useTranslations("SettingsProfile");
+
+  const GENDERS = [
+    { value: "male", label: t("genders.male") },
+    { value: "female", label: t("genders.female") },
+    { value: "unspecified", label: t("genders.unspecified") },
+  ];
+
+  const INTENDED_USES = [
+    { value: "content_creator", label: t("intendedUses.contentCreator") },
+    { value: "business_marketing", label: t("intendedUses.businessMarketing") },
+    { value: "personal", label: t("intendedUses.personal") },
+    { value: "other", label: t("intendedUses.other") },
+  ];
 
   const [displayName, setDisplayName] = useState("");
   const [phone, setPhone] = useState("");
@@ -59,8 +61,8 @@ export default function ProfileSettingsPage() {
         body: JSON.stringify({ name: displayName, phone }),
       });
       const data = await res.json();
-      if (res.ok) { showToast("Profile updated"); await refreshUser(); }
-      else showToast(data.error ?? "Failed to update profile", "error");
+      if (res.ok) { showToast(t("toasts.profileUpdated")); await refreshUser(); }
+      else showToast(data.error ?? t("toasts.profileUpdateFailed"), "error");
     } finally {
       setSavingName(false);
     }
@@ -86,7 +88,7 @@ export default function ProfileSettingsPage() {
         if (field === "gender") setGender(value); else setIntendedUse(value);
         await refreshUser();
       } else {
-        showToast("Failed to save", "error");
+        showToast(t("toasts.saveFailed"), "error");
       }
     } finally {
       setSavingChoice(null);
@@ -108,24 +110,24 @@ export default function ProfileSettingsPage() {
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) { showToast("Please choose an image file", "error"); return; }
+    if (!file.type.startsWith("image/")) { showToast(t("toasts.chooseImageFile"), "error"); return; }
     setUploadingAvatar(true);
     try {
       const form = new FormData();
       form.append("file", file);
       const up = await fetch("/api/upload?skipAsset=true", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form });
       const upData = (await up.json()) as { url?: string; error?: string };
-      if (!up.ok || !upData.url) throw new Error(upData.error ?? "Upload failed");
+      if (!up.ok || !upData.url) throw new Error(upData.error ?? t("toasts.uploadFailed"));
       const res = await fetch("/api/auth/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ avatarUrl: upData.url }),
       });
-      if (!res.ok) throw new Error("Failed to save avatar");
+      if (!res.ok) throw new Error(t("toasts.avatarSaveFailed"));
       await refreshUser();
-      showToast("Avatar updated");
+      showToast(t("toasts.avatarUpdated"));
     } catch (err) {
-      showToast(err instanceof Error ? err.message : "Avatar upload failed", "error");
+      showToast(err instanceof Error ? err.message : t("toasts.avatarUploadFailed"), "error");
     } finally {
       setUploadingAvatar(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -135,8 +137,8 @@ export default function ProfileSettingsPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-extrabold grad-text inline-block">Profile</h1>
-        <p className="text-sm text-ink-soft mt-1">Your identity and how Clipiro personalizes your experience.</p>
+        <h1 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h1>
+        <p className="text-sm text-ink-soft mt-1">{t("pageSubtitle")}</p>
       </div>
 
       {/* Avatar */}
@@ -153,7 +155,7 @@ export default function ProfileSettingsPage() {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploadingAvatar}
-            title="Change avatar"
+            title={t("changeAvatar")}
             className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white shadow border border-card-border flex items-center justify-center text-ink-soft hover:text-brand transition-colors cursor-pointer"
           >
             {uploadingAvatar ? <div className="w-3 h-3 border-2 border-brand border-t-transparent rounded-full animate-spin" /> : <IcCamera />}
@@ -161,17 +163,17 @@ export default function ProfileSettingsPage() {
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
         </div>
         <div>
-          <p className="text-sm font-bold text-ink">{user?.name || "Your profile photo"}</p>
-          <p className="text-xs text-ink-soft mt-0.5">JPG or PNG, shown across Clipiro and in shared links.</p>
+          <p className="text-sm font-bold text-ink">{user?.name || t("profilePhotoFallback")}</p>
+          <p className="text-xs text-ink-soft mt-0.5">{t("avatarHelp")}</p>
         </div>
       </Card>
 
       {/* UID */}
       <Card padding="md">
-        <label className={labelCls}>UID</label>
+        <label className={labelCls}>{t("uid")}</label>
         <div className="flex items-center gap-2 bg-surface border border-card-border rounded-xl px-4 py-3">
           <span className="text-xs text-gray-500 font-mono flex-1 truncate">{user?.id ?? "—"}</span>
-          <button onClick={copyUid} title="Copy UID" className="text-ink-soft/60 hover:text-brand transition-colors cursor-pointer">
+          <button onClick={copyUid} title={t("copyUid")} className="text-ink-soft/60 hover:text-brand transition-colors cursor-pointer">
             {uidCopied ? <IcCheck /> : <IcCopy />}
           </button>
         </div>
@@ -181,22 +183,22 @@ export default function ProfileSettingsPage() {
       <Card padding="md" className="space-y-4">
         <form onSubmit={handleSaveName} className="space-y-4">
           <div>
-            <label className={labelCls}>Nickname</label>
-            <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your name" maxLength={60} className={inputCls} />
+            <label className={labelCls}>{t("nickname")}</label>
+            <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder={t("nicknamePlaceholder")} maxLength={60} className={inputCls} />
           </div>
           <div>
-            <label className={labelCls}>Phone Number</label>
+            <label className={labelCls}>{t("phoneNumber")}</label>
             <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 98765 43210" className={inputCls} />
           </div>
           <Button type="submit" disabled={savingName}>
-            {savingName ? <><IcSpinner /> Saving…</> : "Save Changes"}
+            {savingName ? <><IcSpinner /> {t("saving")}</> : t("saveChanges")}
           </Button>
         </form>
       </Card>
 
       {/* Gender */}
       <Card padding="md">
-        <label className={labelCls}>Gender</label>
+        <label className={labelCls}>{t("gender")}</label>
         <div className="flex items-center gap-5 mt-2">
           {GENDERS.map((g) => (
             <label key={g.value} className="flex items-center gap-2 text-sm text-gray-800 cursor-pointer">
@@ -209,7 +211,7 @@ export default function ProfileSettingsPage() {
 
       {/* Intended use */}
       <Card padding="md">
-        <label className={labelCls}>What is your intended use for Clipiro?</label>
+        <label className={labelCls}>{t("intendedUseLabel")}</label>
         <div className="flex flex-wrap gap-2 mt-2">
           {INTENDED_USES.map((o) => (
             <button
@@ -230,11 +232,11 @@ export default function ProfileSettingsPage() {
       <Card padding="md">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold text-ink">Restart onboarding tour</p>
-            <p className="text-xs text-gray-400 mt-0.5">Replay the welcome screen and guided tour next time you visit the dashboard.</p>
+            <p className="text-sm font-semibold text-ink">{t("restartTourTitle")}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{t("restartTourDesc")}</p>
           </div>
           <Button variant="secondary" onClick={handleRestartOnboarding} disabled={restarting}>
-            {restarting ? <><IcSpinner /> Restarting…</> : "Restart Tour"}
+            {restarting ? <><IcSpinner /> {t("restarting")}</> : t("restartTour")}
           </Button>
         </div>
       </Card>

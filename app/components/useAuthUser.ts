@@ -37,6 +37,7 @@ export interface AuthUser {
   twoFactorEnabled: boolean;
   passwordChangedAt: string | null;
   lastLoginAt: string | null;
+  preferredLanguage: string;
   plan: UserPlan | null;
 }
 

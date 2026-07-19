@@ -1,4 +1,5 @@
 "use client";
+import { useTranslations } from "next-intl";
 import { Card, type CardTint } from "@/app/components/ui/Card";
 import { ToolCard } from "@/app/components/ui/ToolCard";
 import {
@@ -27,40 +28,40 @@ function IcInstagram() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>;
 }
 
-// ── Data ───────────────────────────────────────────────────────────────────────
-
-const TOP_CARDS: { icon: React.ReactNode; title: string; desc: string; color: string; tint: CardTint; href: string }[] = [
-  { icon: <IcSmile />, title: "Free Tools", desc: "Audio balancer, video compressor, and more", color: "text-amber-500", tint: "amber", href: "/dashboard/tools/free" },
-  { icon: <IcYoutube />, title: "Youtube Downloader", desc: "Download Youtube videos", color: "text-red-500", tint: "rose", href: "/dashboard/tools/youtube-downloader" },
-  { icon: <IcInstagram />, title: "Instagram Downloader", desc: "Download Reels, posts & IGTV", color: "text-accent-pink", tint: "fuchsia", href: "/dashboard/tools/instagram-downloader" },
-];
-
-const TOOLS = [
-  { title: "AI Image Generator", desc: "Generate high quality images with AI in seconds.", preview: <ImageGenPreview />, badge: "1 credit", href: "/dashboard/tools/image-generator" },
-  { title: "AI Voiceover Generator", desc: "Make high quality voiceovers in seconds with 50+ narrators.", preview: <VoiceoverPreview />, badge: "1 credit", href: "/dashboard/tools/voiceover" },
-  { title: "AI Speech Enhancer", desc: "Enhance the quality of any audio or video file with AI.", preview: <SpeechEnhancerPreview />, badge: "3 credits", href: "/dashboard/tools/enhance-speech" },
-  { title: "AI Video Generator", desc: "VEO3 is a tool that allows you to create videos with AI.", preview: <VideoGenPreview />, badge: "20 credits", href: "/dashboard/tools/video-generator" },
-  { title: "AI Vocal Remover", desc: "Remove vocals from any audio or video file with AI.", preview: <VocalRemoverPreview />, badge: "2 credits", href: "/dashboard/tools/vocal-remover" },
-  { title: "AI Brainstormer", desc: "Generate viral content ideas based on your niche.", preview: <BrainstormerPreview />, badge: "1 credit", href: "/dashboard/tools/brainstormer" },
-  { title: "Reddit Video Generator", desc: "Convert Reddit posts into viral videos with AI.", preview: <RedditPreview />, badge: "2 credits", href: "/dashboard/create/reddit-video" },
-  { title: "Fake Texts Video Generator", desc: "Create engaging fake texts videos with AI to go viral.", preview: <FakeTextsPreview />, badge: "2 credits", href: "/dashboard/create/text-video" },
-];
-
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function ToolsPage() {
+  const t = useTranslations("Tools");
+
+  const topCards: { icon: React.ReactNode; title: string; desc: string; color: string; tint: CardTint; href: string }[] = [
+    { icon: <IcSmile />, title: t("topCards.freeTools.title"), desc: t("topCards.freeTools.desc"), color: "text-amber-500", tint: "amber", href: "/dashboard/tools/free" },
+    { icon: <IcYoutube />, title: t("topCards.youtubeDownloader.title"), desc: t("topCards.youtubeDownloader.desc"), color: "text-red-500", tint: "rose", href: "/dashboard/tools/youtube-downloader" },
+    { icon: <IcInstagram />, title: t("topCards.instagramDownloader.title"), desc: t("topCards.instagramDownloader.desc"), color: "text-accent-pink", tint: "fuchsia", href: "/dashboard/tools/instagram-downloader" },
+  ];
+
+  const tools = [
+    { title: t("items.imageGenerator.title"), desc: t("items.imageGenerator.desc"), preview: <ImageGenPreview />, badge: t("credits", { count: 1 }), href: "/dashboard/tools/image-generator" },
+    { title: t("items.voiceover.title"), desc: t("items.voiceover.desc"), preview: <VoiceoverPreview />, badge: t("credits", { count: 1 }), href: "/dashboard/tools/voiceover" },
+    { title: t("items.speechEnhancer.title"), desc: t("items.speechEnhancer.desc"), preview: <SpeechEnhancerPreview />, badge: t("credits", { count: 3 }), href: "/dashboard/tools/enhance-speech" },
+    { title: t("items.videoGenerator.title"), desc: t("items.videoGenerator.desc"), preview: <VideoGenPreview />, badge: t("credits", { count: 20 }), href: "/dashboard/tools/video-generator" },
+    { title: t("items.vocalRemover.title"), desc: t("items.vocalRemover.desc"), preview: <VocalRemoverPreview />, badge: t("credits", { count: 2 }), href: "/dashboard/tools/vocal-remover" },
+    { title: t("items.brainstormer.title"), desc: t("items.brainstormer.desc"), preview: <BrainstormerPreview />, badge: t("credits", { count: 1 }), href: "/dashboard/tools/brainstormer" },
+    { title: t("items.redditVideo.title"), desc: t("items.redditVideo.desc"), preview: <RedditPreview />, badge: t("credits", { count: 2 }), href: "/dashboard/create/reddit-video" },
+    { title: t("items.fakeTexts.title"), desc: t("items.fakeTexts.desc"), preview: <FakeTextsPreview />, badge: t("credits", { count: 2 }), href: "/dashboard/create/text-video" },
+  ];
+
   return (
     <>
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-8 pt-6 pb-12 space-y-6">
 
           {/* ── Page header ── */}
           <div className="pt-2">
-            <h1 className="text-2xl font-extrabold grad-text inline-block">Clipiro Tools</h1>
-            <p className="text-sm text-ink-soft mt-1">Everything you need to create, convert, and clip — in one place.</p>
+            <h1 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h1>
+            <p className="text-sm text-ink-soft mt-1">{t("pageSubtitle")}</p>
           </div>
 
           {/* ── Top row cards ── */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {TOP_CARDS.map((c, i) => (
+            {topCards.map((c, i) => (
               <Card key={i} tint={c.tint} href={c.href} className="flex items-center gap-3 px-5 py-3.5">
                 <div className={`w-9 h-9 rounded-xl bg-white shadow-sm flex items-center justify-center flex-shrink-0 ${c.color}`}>
                   {c.icon}
@@ -76,8 +77,8 @@ export default function ToolsPage() {
 
           {/* ── Tools grid ── */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {TOOLS.map((tool, i) => (
-              <ToolCard key={i} size="md" cta="Get Started" {...tool} />
+            {tools.map((tool, i) => (
+              <ToolCard key={i} size="md" cta={t("getStarted")} {...tool} />
             ))}
           </div>
         </div>

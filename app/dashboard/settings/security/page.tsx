@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/app/components/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
 import { Card } from "@/app/components/ui/Card";
@@ -27,6 +28,7 @@ function Badge({ ok, children }: { ok: boolean; children: React.ReactNode }) {
 function EmailSection() {
   const { user, token } = useAuth();
   const { showToast } = useToast();
+  const t = useTranslations("SettingsSecurity.email");
   const [sendingVerify, setSendingVerify] = useState(false);
   const [changing, setChanging] = useState(false);
   const [newEmail, setNewEmail] = useState("");
@@ -39,8 +41,8 @@ function EmailSection() {
     try {
       const res = await fetch("/api/auth/verify-email/send", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
-      if (!res.ok) { showToast(data.error ?? "Failed to send", "error"); return; }
-      showToast(data.alreadyVerified ? "Already verified" : "Verification email sent");
+      if (!res.ok) { showToast(data.error ?? t("toasts.sendFailed"), "error"); return; }
+      showToast(data.alreadyVerified ? t("toasts.alreadyVerified") : t("toasts.verificationSent"));
     } finally {
       setSendingVerify(false);
     }
@@ -56,11 +58,11 @@ function EmailSection() {
         body: JSON.stringify({ newEmail, password }),
       });
       const data = await res.json();
-      if (!res.ok) { showToast(data.error ?? "Failed to change email", "error"); return; }
+      if (!res.ok) { showToast(data.error ?? t("toasts.changeFailed"), "error"); return; }
       setPendingEmail(data.pendingEmail);
       setChanging(false);
       setPassword("");
-      showToast(`Confirmation sent to ${data.pendingEmail}`);
+      showToast(t("toasts.confirmationSentTo", { email: data.pendingEmail }));
     } finally {
       setSubmitting(false);
     }
@@ -69,36 +71,40 @@ function EmailSection() {
   return (
     <Card padding="md" className="space-y-4">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-base font-extrabold text-ink">Email</h2>
-        <Badge ok={!!user?.emailVerifiedAt}>{user?.emailVerifiedAt ? "Verified" : "Unverified"}</Badge>
+        <h2 className="text-base font-extrabold text-ink">{t("title")}</h2>
+        <Badge ok={!!user?.emailVerifiedAt}>{user?.emailVerifiedAt ? t("verified") : t("unverified")}</Badge>
       </div>
       <div>
-        <label className={labelCls}>Email Address</label>
+        <label className={labelCls}>{t("emailAddress")}</label>
         <div className="flex items-center gap-2 bg-surface border border-card-border rounded-xl px-4 py-3">
           <span className="text-sm text-gray-700 flex-1 truncate">{user?.email ?? "—"}</span>
         </div>
-        {pendingEmail && <p className="text-xs text-amber-700 mt-2">Confirmation sent to <strong>{pendingEmail}</strong> — click the link there to finish the change.</p>}
+        {pendingEmail && (
+          <p className="text-xs text-amber-700 mt-2">
+            {t.rich("pendingConfirmation", { email: pendingEmail, strong: (chunks) => <strong>{chunks}</strong> })}
+          </p>
+        )}
       </div>
       <div className="flex flex-wrap gap-2">
         {!user?.emailVerifiedAt && (
           <Button variant="secondary" size="sm" onClick={sendVerification} disabled={sendingVerify}>
-            {sendingVerify ? <><IcSpinner /> Sending…</> : "Send verification email"}
+            {sendingVerify ? <><IcSpinner /> {t("sending")}</> : t("sendVerification")}
           </Button>
         )}
-        <Button variant="secondary" size="sm" onClick={() => setChanging((c) => !c)}>{changing ? "Cancel" : "Change email"}</Button>
+        <Button variant="secondary" size="sm" onClick={() => setChanging((c) => !c)}>{changing ? t("cancel") : t("changeEmail")}</Button>
       </div>
 
       {changing && (
         <form onSubmit={submitChangeEmail} className="space-y-3 pt-2 border-t border-card-border">
           <div>
-            <label className={labelCls}>New email address</label>
+            <label className={labelCls}>{t("newEmailAddress")}</label>
             <input type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="you@example.com" className={inputCls} />
           </div>
           <div>
-            <label className={labelCls}>Current password</label>
-            <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Confirm it's you" className={inputCls} />
+            <label className={labelCls}>{t("currentPassword")}</label>
+            <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t("confirmItsYou")} className={inputCls} />
           </div>
-          <Button type="submit" size="sm" disabled={submitting}>{submitting ? <><IcSpinner /> Sending…</> : "Send confirmation"}</Button>
+          <Button type="submit" size="sm" disabled={submitting}>{submitting ? <><IcSpinner /> {t("sending")}</> : t("sendConfirmation")}</Button>
         </form>
       )}
     </Card>
@@ -108,6 +114,7 @@ function EmailSection() {
 function PasswordSection() {
   const { token } = useAuth();
   const { showToast } = useToast();
+  const t = useTranslations("SettingsSecurity.password");
   const [open, setOpen] = useState(false);
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
@@ -116,8 +123,8 @@ function PasswordSection() {
 
   async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault();
-    if (newPw !== confirmPw) { showToast("New passwords do not match", "error"); return; }
-    if (newPw.length < 8) { showToast("Password must be at least 8 characters", "error"); return; }
+    if (newPw !== confirmPw) { showToast(t("toasts.mismatch"), "error"); return; }
+    if (newPw.length < 8) { showToast(t("toasts.tooShort"), "error"); return; }
     setLoading(true);
     try {
       const res = await fetch("/api/auth/change-password", {
@@ -127,37 +134,39 @@ function PasswordSection() {
       });
       const data = await res.json();
       if (res.ok) {
-        showToast("Password updated — every other device has been signed out");
+        showToast(t("toasts.updated"));
         setCurrentPw(""); setNewPw(""); setConfirmPw(""); setOpen(false);
       } else {
-        showToast(data.error ?? "Failed to update password", "error");
+        showToast(data.error ?? t("toasts.updateFailed"), "error");
       }
     } finally {
       setLoading(false);
     }
   }
 
+  const fields = [
+    { label: t("currentPassword"), value: currentPw, setter: setCurrentPw, placeholder: t("currentPasswordPlaceholder") },
+    { label: t("newPassword"), value: newPw, setter: setNewPw, placeholder: t("newPasswordPlaceholder") },
+    { label: t("confirmNewPassword"), value: confirmPw, setter: setConfirmPw, placeholder: t("confirmNewPasswordPlaceholder") },
+  ];
+
   return (
     <Card padding="md">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-extrabold text-ink">Password</h2>
-        <Button variant="secondary" size="sm" onClick={() => setOpen((o) => !o)}>{open ? "Cancel" : "Change password"}</Button>
+        <h2 className="text-base font-extrabold text-ink">{t("title")}</h2>
+        <Button variant="secondary" size="sm" onClick={() => setOpen((o) => !o)}>{open ? t("cancel") : t("changePassword")}</Button>
       </div>
       {!open ? (
         <p className="mt-3 text-sm tracking-widest text-gray-400">••••••••</p>
       ) : (
         <form onSubmit={handleChangePassword} className="mt-4 space-y-4">
-          {[
-            { label: "Current Password", value: currentPw, setter: setCurrentPw, placeholder: "Enter current password" },
-            { label: "New Password", value: newPw, setter: setNewPw, placeholder: "At least 8 characters" },
-            { label: "Confirm New Password", value: confirmPw, setter: setConfirmPw, placeholder: "Repeat new password" },
-          ].map((f) => (
+          {fields.map((f) => (
             <div key={f.label}>
               <label className={labelCls}>{f.label}</label>
               <input type="password" value={f.value} onChange={(e) => f.setter(e.target.value)} placeholder={f.placeholder} required className={inputCls} />
             </div>
           ))}
-          <Button type="submit" disabled={loading}>{loading ? <><IcSpinner /> Updating…</> : "Update Password"}</Button>
+          <Button type="submit" disabled={loading}>{loading ? <><IcSpinner /> {t("updating")}</> : t("updatePassword")}</Button>
         </form>
       )}
     </Card>
@@ -167,6 +176,8 @@ function PasswordSection() {
 function TwoFactorSection() {
   const { token } = useAuth();
   const { showToast } = useToast();
+  const t = useTranslations("SettingsSecurity.twoFactor");
+  const tCommon = useTranslations("Common");
   const [status, setStatus] = useState<TwoFaStatus | null>(null);
 
   const [setupOpen, setSetupOpen] = useState(false);
@@ -204,7 +215,7 @@ function TwoFactorSection() {
         body: JSON.stringify({ password: setupPassword }),
       });
       const data = await res.json();
-      if (!res.ok) { showToast(data.error ?? "Failed to start setup", "error"); return; }
+      if (!res.ok) { showToast(data.error ?? t("toasts.setupFailed"), "error"); return; }
       setQrDataUrl(data.qrDataUrl); setSecret(data.secret); setSetupStep("scan");
     } finally {
       setBusy(false);
@@ -221,7 +232,7 @@ function TwoFactorSection() {
         body: JSON.stringify({ code }),
       });
       const data = await res.json();
-      if (!res.ok) { showToast(data.error ?? "Invalid code", "error"); return; }
+      if (!res.ok) { showToast(data.error ?? t("toasts.invalidCode"), "error"); return; }
       setRecoveryCodes(data.recoveryCodes); setSetupStep("codes");
       await loadStatus();
     } finally {
@@ -239,8 +250,8 @@ function TwoFactorSection() {
         body: JSON.stringify({ password: disablePassword }),
       });
       const data = await res.json();
-      if (!res.ok) { showToast(data.error ?? "Failed to disable", "error"); return; }
-      showToast("Two-factor authentication disabled");
+      if (!res.ok) { showToast(data.error ?? t("toasts.disableFailed"), "error"); return; }
+      showToast(t("toasts.disabled2fa"));
       setDisableOpen(false); setDisablePassword("");
       await loadStatus();
     } finally {
@@ -250,73 +261,73 @@ function TwoFactorSection() {
 
   function copyRecoveryCodes() {
     navigator.clipboard.writeText(recoveryCodes.join("\n"));
-    showToast("Recovery codes copied");
+    showToast(t("toasts.codesCopied"));
   }
 
   return (
     <Card padding="md">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-base font-extrabold text-ink">Two-factor authentication</h2>
-        {status && <Badge ok={status.enabled}>{status.enabled ? "Enabled" : "Disabled"}</Badge>}
+        <h2 className="text-base font-extrabold text-ink">{t("title")}</h2>
+        {status && <Badge ok={status.enabled}>{status.enabled ? t("enabled") : t("disabled")}</Badge>}
       </div>
       <p className="text-sm text-ink-soft mt-2">
         {status?.enabled
-          ? `Your account requires a code from your authenticator app to sign in. ${status.unusedRecoveryCodes} recovery code${status.unusedRecoveryCodes === 1 ? "" : "s"} remaining.`
-          : "Add an authenticator app as a second step when signing in."}
+          ? t("enabledDesc", { count: status.unusedRecoveryCodes })
+          : t("disabledDesc")}
       </p>
       <div className="mt-4">
         {status?.enabled ? (
-          <Button variant="secondary" size="sm" onClick={() => setDisableOpen(true)} className="!text-red-600">Disable 2FA</Button>
+          <Button variant="secondary" size="sm" onClick={() => setDisableOpen(true)} className="!text-red-600">{t("disable2fa")}</Button>
         ) : (
-          <Button size="sm" onClick={() => setSetupOpen(true)}>Enable 2FA</Button>
+          <Button size="sm" onClick={() => setSetupOpen(true)}>{t("enable2fa")}</Button>
         )}
       </div>
 
-      <Modal open={setupOpen} onClose={resetSetup} title="Set up two-factor authentication" maxWidth="max-w-md">
+      <Modal open={setupOpen} onClose={resetSetup} title={t("setupTitle")} maxWidth="max-w-md">
         {setupStep === "password" && (
           <form onSubmit={startSetup} className="space-y-4">
-            <p className="text-sm text-ink-soft">Confirm your password to start.</p>
-            <input type="password" required autoFocus value={setupPassword} onChange={(e) => setSetupPassword(e.target.value)} placeholder="Current password" className={inputCls} />
-            <Button type="submit" disabled={busy} className="w-full">{busy ? <><IcSpinner /> Continuing…</> : "Continue"}</Button>
+            <p className="text-sm text-ink-soft">{t("confirmPasswordToStart")}</p>
+            <input type="password" required autoFocus value={setupPassword} onChange={(e) => setSetupPassword(e.target.value)} placeholder={t("currentPasswordPlaceholder")} className={inputCls} />
+            <Button type="submit" disabled={busy} className="w-full">{busy ? <><IcSpinner /> {t("continuing")}</> : t("continue")}</Button>
           </form>
         )}
         {setupStep === "scan" && qrDataUrl && (
           <form onSubmit={confirmSetup} className="space-y-4">
-            <p className="text-sm text-ink-soft">Scan this with your authenticator app (Google Authenticator, 1Password, Authy…), or enter the key manually.</p>
+            <p className="text-sm text-ink-soft">{t("scanInstructions")}</p>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={qrDataUrl} alt="2FA QR code" className="mx-auto w-48 h-48 rounded-xl border border-card-border" />
             <div className="bg-surface border border-card-border rounded-xl px-4 py-2.5 text-center">
               <code className="text-xs font-mono text-ink break-all">{secret}</code>
             </div>
             <div>
-              <label className={labelCls}>6-digit code</label>
+              <label className={labelCls}>{t("sixDigitCode")}</label>
               <input type="text" required autoFocus inputMode="numeric" pattern="\d{6}" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="000000" className={`${inputCls} text-center text-lg tracking-[0.5em] font-mono`} />
             </div>
-            <Button type="submit" disabled={busy || code.length !== 6} className="w-full">{busy ? <><IcSpinner /> Verifying…</> : "Verify & enable"}</Button>
+            <Button type="submit" disabled={busy || code.length !== 6} className="w-full">{busy ? <><IcSpinner /> {t("verifying")}</> : t("verifyAndEnable")}</Button>
           </form>
         )}
         {setupStep === "codes" && (
           <div className="space-y-4">
-            <p className="text-sm font-semibold text-ink">Save your recovery codes</p>
-            <p className="text-xs text-ink-soft">Each can be used once if you lose access to your authenticator. Store them somewhere safe — this is the only time they&apos;re shown.</p>
+            <p className="text-sm font-semibold text-ink">{t("saveRecoveryCodes")}</p>
+            <p className="text-xs text-ink-soft">{t("recoveryCodesHelp")}</p>
             <div className="bg-surface border border-card-border rounded-xl p-4 grid grid-cols-2 gap-2 font-mono text-xs text-ink">
               {recoveryCodes.map((c) => <span key={c}>{c}</span>)}
             </div>
             <div className="flex gap-2">
-              <Button variant="secondary" size="sm" onClick={copyRecoveryCodes}><IcCopy /> Copy all</Button>
-              <Button size="sm" onClick={resetSetup}><IcCheck /> Done</Button>
+              <Button variant="secondary" size="sm" onClick={copyRecoveryCodes}><IcCopy /> {t("copyAll")}</Button>
+              <Button size="sm" onClick={resetSetup}><IcCheck /> {t("done")}</Button>
             </div>
           </div>
         )}
       </Modal>
 
-      <Modal open={disableOpen} onClose={() => setDisableOpen(false)} title="Disable two-factor authentication" maxWidth="max-w-sm">
+      <Modal open={disableOpen} onClose={() => setDisableOpen(false)} title={t("disableTitle")} maxWidth="max-w-sm">
         <form onSubmit={disable2fa} className="space-y-4">
-          <p className="text-sm text-ink-soft">This removes the extra sign-in step. Confirm your password to continue.</p>
-          <input type="password" required autoFocus value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)} placeholder="Current password" className={inputCls} />
+          <p className="text-sm text-ink-soft">{t("disableConfirm")}</p>
+          <input type="password" required autoFocus value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)} placeholder={t("currentPasswordPlaceholder")} className={inputCls} />
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" size="sm" onClick={() => setDisableOpen(false)}>Cancel</Button>
-            <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-red-600">{busy ? <><IcSpinner /> Disabling…</> : "Disable"}</Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setDisableOpen(false)}>{tCommon("cancel")}</Button>
+            <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-red-600">{busy ? <><IcSpinner /> {t("disabling")}</> : t("disable")}</Button>
           </div>
         </form>
       </Modal>
@@ -325,11 +336,12 @@ function TwoFactorSection() {
 }
 
 export default function SecuritySettingsPage() {
+  const t = useTranslations("SettingsSecurity");
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-extrabold grad-text inline-block">Security</h1>
-        <p className="text-sm text-ink-soft mt-1">Keep your account locked down.</p>
+        <h1 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h1>
+        <p className="text-sm text-ink-soft mt-1">{t("pageSubtitle")}</p>
       </div>
       <EmailSection />
       <PasswordSection />

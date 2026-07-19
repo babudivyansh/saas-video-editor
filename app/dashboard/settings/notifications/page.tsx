@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/app/components/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
 import { Card } from "@/app/components/ui/Card";
@@ -17,21 +18,22 @@ interface Preferences {
   newsletter: boolean;
 }
 
-const CATEGORIES: { key: keyof Preferences; label: string; desc: string }[] = [
-  { key: "usageAlerts", label: "Usage Alerts", desc: "Low or zero credit balance warnings." },
-  { key: "creditAlerts", label: "Billing & Credit Alerts", desc: "Subscription expiry, renewal, and unused-credit reminders." },
-  { key: "productUpdates", label: "Product Updates", desc: "Onboarding tips and getting-started guidance." },
-  { key: "weeklySummary", label: "Weekly Summary", desc: "Your Social Tracker performance digest." },
-  { key: "featureReleases", label: "Feature Releases", desc: "New tools and features as they ship." },
-  { key: "marketingEmails", label: "Re-engagement Emails", desc: "Occasional \"we miss you\" nudges if you've been away." },
-  { key: "newsletter", label: "Newsletter", desc: "Tips, tutorials, and creator spotlights." },
-];
-
 export default function NotificationsSettingsPage() {
   const { token } = useAuth();
   const { showToast } = useToast();
+  const t = useTranslations("SettingsNotifications");
   const [prefs, setPrefs] = useState<Preferences | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
+
+  const CATEGORIES: { key: keyof Preferences; label: string; desc: string }[] = [
+    { key: "usageAlerts", label: t("categories.usageAlerts.label"), desc: t("categories.usageAlerts.desc") },
+    { key: "creditAlerts", label: t("categories.creditAlerts.label"), desc: t("categories.creditAlerts.desc") },
+    { key: "productUpdates", label: t("categories.productUpdates.label"), desc: t("categories.productUpdates.desc") },
+    { key: "weeklySummary", label: t("categories.weeklySummary.label"), desc: t("categories.weeklySummary.desc") },
+    { key: "featureReleases", label: t("categories.featureReleases.label"), desc: t("categories.featureReleases.desc") },
+    { key: "marketingEmails", label: t("categories.marketingEmails.label"), desc: t("categories.marketingEmails.desc") },
+    { key: "newsletter", label: t("categories.newsletter.label"), desc: t("categories.newsletter.desc") },
+  ];
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -51,7 +53,7 @@ export default function NotificationsSettingsPage() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ [key]: value }),
       });
-      if (!res.ok) { setPrefs((p) => (p ? { ...p, [key]: !value } : p)); showToast("Failed to save", "error"); }
+      if (!res.ok) { setPrefs((p) => (p ? { ...p, [key]: !value } : p)); showToast(t("toasts.saveFailed"), "error"); }
     } finally {
       setSaving(null);
     }
@@ -60,8 +62,8 @@ export default function NotificationsSettingsPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-extrabold grad-text inline-block">Notifications</h1>
-        <p className="text-sm text-ink-soft mt-1">Choose which emails Clipiro sends you. Security alerts (new sign-ins, password changes) always send, regardless of these settings.</p>
+        <h1 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h1>
+        <p className="text-sm text-ink-soft mt-1">{t("pageSubtitle")}</p>
       </div>
 
       <Card padding="none">

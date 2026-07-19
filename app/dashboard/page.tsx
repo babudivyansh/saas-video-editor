@@ -1,7 +1,8 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/app/components/AuthContext";
 import { useOnboarding } from "@/app/hooks/useOnboarding";
 import { FeatureHint } from "@/app/components/onboarding/FeatureHint";
@@ -105,45 +106,71 @@ function IcCrown() {
 }
 
 // ── Data ───────────────────────────────────────────────────────────────────────
-// Kept as a parallel display list to lib/quest-config.ts's QUEST_DEFINITIONS
-// (icons/copy/color aren't part of the shared config) — joined by `id`, not
-// title text, so renaming a quest's copy here never breaks its completed/XP
-// match against the live data from GET /api/quests.
-const QUESTS = [
-  { id: "join-community", icon: <IcDiscord />, title: "Join the community", xp: 500, desc: "Connect your Discord and join the Clipiro server.", color: "#5865F2", href: null },
-  { id: "first-clip", icon: <IcFilm />, title: "Create your first clip", xp: 300, desc: "Walk through the Simple Editor and make your first clip.", color: "#335cff", href: "/dashboard/create/auto-clip" },
-  { id: "hear-yourself-out", icon: <IcMic />, title: "Hear yourself out", xp: 200, desc: "Generate your first AI voiceover.", color: "#7c3aed", href: "/dashboard/tools/voiceover" },
-  { id: "picture-this", icon: <IcImage />, title: "Picture this", xp: 200, desc: "Generate your first AI image.", color: "#d946ef", href: "/dashboard/tools/image-generator" },
-  { id: "first-video", icon: <IcVideo />, title: "Generate your first video", xp: 200, desc: "Create a video with the AI Video Generator.", color: "#10b981", href: "/dashboard/tools/video-generator" },
-  { id: "first-export", icon: <IcDownload />, title: "Export a project", xp: 200, desc: "Export a finished project from the Editor.", color: "#f59e0b", href: "/dashboard/editor" },
-  { id: "upgraded-plan", icon: <IcCrown />, title: "Upgrade your plan", xp: 300, desc: "Subscribe to a paid plan.", color: "#d97706", href: "/billing" },
-];
+// Quest ids/xp/color/href are structural, joined by `id` (not title text)
+// against lib/quest-config.ts's QUEST_DEFINITIONS and the live GET /api/quests
+// data — so translating title/desc here never breaks that match. Built as a
+// hook (not a module-level const) since useTranslations() needs a component.
+function useQuests() {
+  const t = useTranslations("Dashboard.quests");
+  return useMemo(
+    () => [
+      { id: "join-community", icon: <IcDiscord />, title: t("joinCommunity.title"), xp: 500, desc: t("joinCommunity.desc"), color: "#5865F2", href: null },
+      { id: "first-clip", icon: <IcFilm />, title: t("firstClip.title"), xp: 300, desc: t("firstClip.desc"), color: "#335cff", href: "/dashboard/create/auto-clip" },
+      { id: "hear-yourself-out", icon: <IcMic />, title: t("hearYourselfOut.title"), xp: 200, desc: t("hearYourselfOut.desc"), color: "#7c3aed", href: "/dashboard/tools/voiceover" },
+      { id: "picture-this", icon: <IcImage />, title: t("pictureThis.title"), xp: 200, desc: t("pictureThis.desc"), color: "#d946ef", href: "/dashboard/tools/image-generator" },
+      { id: "first-video", icon: <IcVideo />, title: t("firstVideo.title"), xp: 200, desc: t("firstVideo.desc"), color: "#10b981", href: "/dashboard/tools/video-generator" },
+      { id: "first-export", icon: <IcDownload />, title: t("firstExport.title"), xp: 200, desc: t("firstExport.desc"), color: "#f59e0b", href: "/dashboard/editor" },
+      { id: "upgraded-plan", icon: <IcCrown />, title: t("upgradedPlan.title"), xp: 300, desc: t("upgradedPlan.desc"), color: "#d97706", href: "/billing" },
+    ],
+    [t]
+  );
+}
 
-const TOOLS_LARGE = [
-  { title: "Clipiro AutoClip", desc: "Transform long videos into viral clips automatically", preview: <AutoClipPreview />, href: "/dashboard/create/auto-clip" },
-  { title: "Cut & Crop", desc: "Trim and stitch your video(s) into one clip ready to edit", preview: <CutCropPreview />, href: "/dashboard/cut-and-crop" },
-];
-const TOOLS_SMALL = [
-  { title: "Voice Changer", desc: "Change the voice of any audio or video file", preview: <VoiceChangerPreview />, href: "/dashboard/tools/voice-changer" },
-  { title: "Subtitle Remover", desc: "Remove subtitles with AI in minutes", preview: <SubtitleRemoverPreview />, href: "/dashboard/tools/subtitle-remover" },
-  { title: "AI Creator", desc: "Become an AI content creator in 3 steps", preview: <AICreatorPreview />, href: "/dashboard/ai-creator" },
-];
+function useToolCards() {
+  const t = useTranslations("Dashboard.tools");
+  const large = useMemo(
+    () => [
+      { title: t("autoClip.title"), desc: t("autoClip.desc"), preview: <AutoClipPreview />, href: "/dashboard/create/auto-clip" },
+      { title: t("cutCrop.title"), desc: t("cutCrop.desc"), preview: <CutCropPreview />, href: "/dashboard/cut-and-crop" },
+    ],
+    [t]
+  );
+  const small = useMemo(
+    () => [
+      { title: t("voiceChanger.title"), desc: t("voiceChanger.desc"), preview: <VoiceChangerPreview />, href: "/dashboard/tools/voice-changer" },
+      { title: t("subtitleRemover.title"), desc: t("subtitleRemover.desc"), preview: <SubtitleRemoverPreview />, href: "/dashboard/tools/subtitle-remover" },
+      { title: t("aiCreator.title"), desc: t("aiCreator.desc"), preview: <AICreatorPreview />, href: "/dashboard/ai-creator" },
+    ],
+    [t]
+  );
+  return { large, small };
+}
 
 // Icon chips cycle through the tint washes with a matching accent color.
-const MINI_TOOLS = [
-  { icon: <IcImage />,  label: "Image Generator",     href: "/dashboard/tools/image-generator",    chip: "bg-tint-blue text-brand" },
-  { icon: <IcUser />,   label: "AI Face Swap",        href: "/dashboard/tools/face-swap",          chip: "bg-tint-violet text-accent-violet" },
-  { icon: <IcMic />,    label: "Voiceover Generator", href: "/dashboard/tools/voiceover",          chip: "bg-tint-fuchsia text-accent-fuchsia" },
-  { icon: <IcEraser />, label: "Background Remover",  href: "/dashboard/tools/background-remover", chip: "bg-tint-amber text-amber-500" },
-  { icon: <IcVideo />,  label: "VEO3 Generator",      href: "/dashboard/tools/video-generator",    chip: "bg-tint-emerald text-emerald-500" },
-  { icon: <IcYoutube />,label: "YouTube Downloader",  href: "/dashboard/tools/youtube-downloader", chip: "bg-tint-rose text-accent-pink" },
-];
+function useMiniTools() {
+  const t = useTranslations("Dashboard.miniTools");
+  return useMemo(
+    () => [
+      { icon: <IcImage />, label: t("imageGenerator"), href: "/dashboard/tools/image-generator", chip: "bg-tint-blue text-brand" },
+      { icon: <IcUser />, label: t("aiFaceSwap"), href: "/dashboard/tools/face-swap", chip: "bg-tint-violet text-accent-violet" },
+      { icon: <IcMic />, label: t("voiceoverGenerator"), href: "/dashboard/tools/voiceover", chip: "bg-tint-fuchsia text-accent-fuchsia" },
+      { icon: <IcEraser />, label: t("backgroundRemover"), href: "/dashboard/tools/background-remover", chip: "bg-tint-amber text-amber-500" },
+      { icon: <IcVideo />, label: t("veo3Generator"), href: "/dashboard/tools/video-generator", chip: "bg-tint-emerald text-emerald-500" },
+      { icon: <IcYoutube />, label: t("youtubeDownloader"), href: "/dashboard/tools/youtube-downloader", chip: "bg-tint-rose text-accent-pink" },
+    ],
+    [t]
+  );
+}
 
 const STAT_ACCENTS: StatAccent[] = ["blue", "violet", "fuchsia", "emerald"];
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { user, token } = useAuth();
+  const t = useTranslations("Dashboard");
+  const quests = useQuests();
+  const { large: toolsLarge, small: toolsSmall } = useToolCards();
+  const miniTools = useMiniTools();
   const { shouldShowWelcome, shouldResumeTour, tourStep, advanceTour, finishTour } = useOnboarding();
   const [showTour, setShowTour] = useState(false);
   // Lazy initializer runs once at mount — a stable snapshot rather than
@@ -209,7 +236,7 @@ export default function DashboardPage() {
   }
 
   const earnedXp = questData?.earnedXp ?? 0;
-  const remaining = questData?.remaining ?? QUESTS.length;
+  const remaining = questData?.remaining ?? quests.length;
   const level = questData ? questData.level : (user ? xpToLevel(0) : null);
   const progressPct = Math.round((earnedXp / TOTAL_XP) * 100);
   const firstName = user?.name?.split(" ")[0];
@@ -283,20 +310,20 @@ export default function DashboardPage() {
             <div className="clipiro-blob absolute -bottom-20 left-1/4 w-72 h-72 rounded-full bg-fuchsia-400/30 blur-3xl pointer-events-none" style={{ animationDelay: "-9s" }} />
             <div className="relative">
               <p className="text-[11px] font-bold uppercase tracking-widest text-white/70 mb-2">
-                {firstName ? `Welcome back, ${firstName} · AI Clip Studio` : "AI Clip Studio"}
+                {firstName ? t("welcomeBack", { name: firstName }) : t("aiClipStudio")}
               </p>
               <h1 className="text-2xl sm:text-3xl font-extrabold text-white leading-tight max-w-xl">
-                Turn long videos into viral clips
+                {t("heroTitle")}
               </h1>
               <p className="text-sm text-white/75 mt-2 max-w-lg">
-                Drop in a stream, podcast, or interview — AutoClip finds the moments, captions them, and cuts them for every platform.
+                {t("heroSubtitle")}
               </p>
               <div className="flex flex-wrap items-center gap-3 mt-5">
                 <Button variant="inverse" size="lg" href="/dashboard/create/auto-clip" icon={<IcChevron />}>
-                  Start AutoClipping
+                  {t("startAutoClipping")}
                 </Button>
                 <Button variant="ghost" size="lg" href="/dashboard/editor">
-                  Open Editor
+                  {t("openEditor")}
                 </Button>
               </div>
             </div>
@@ -316,19 +343,19 @@ export default function DashboardPage() {
           )}
           {summary?.hasAnyProjects && (
             <div className="space-y-4">
-              <SectionHeader title="Continue where you left off" action={{ label: "View All Clips", href: "/dashboard/clips" }} />
+              <SectionHeader title={t("continueWhereYouLeftOff")} action={{ label: t("viewAllClips"), href: "/dashboard/clips" }} />
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatTile label="Total clips" value={summary.stats.totalClips} accent={STAT_ACCENTS[0]} />
-                <StatTile label="Active projects" value={summary.stats.activeProjects} accent={STAT_ACCENTS[1]} />
-                <StatTile label="Completed" value={summary.stats.completedProjects} accent={STAT_ACCENTS[2]} />
-                <StatTile label="Credits remaining" value={user?.credits ?? 0} accent={STAT_ACCENTS[3]} />
+                <StatTile label={t("totalClips")} value={summary.stats.totalClips} accent={STAT_ACCENTS[0]} />
+                <StatTile label={t("activeProjects")} value={summary.stats.activeProjects} accent={STAT_ACCENTS[1]} />
+                <StatTile label={t("completed")} value={summary.stats.completedProjects} accent={STAT_ACCENTS[2]} />
+                <StatTile label={t("creditsRemaining")} value={user?.credits ?? 0} accent={STAT_ACCENTS[3]} />
               </div>
               {summary.inProgress.length > 0 && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                   {summary.inProgress.map(p => (
                     <Card key={p.id} href={inProgressHref(p)} className="p-4 flex flex-col gap-2 hover:border-violet-200">
                       <p className="text-sm font-semibold text-ink line-clamp-2">{p.title}</p>
-                      <p className="text-xs text-ink-soft">{p.clipCount} clip{p.clipCount === 1 ? "" : "s"}</p>
+                      <p className="text-xs text-ink-soft">{t("clipCount", { count: p.clipCount })}</p>
                       <div className="mt-auto pt-2"><ProjectStatusBadge status={p.status} /></div>
                     </Card>
                   ))}
@@ -346,9 +373,9 @@ export default function DashboardPage() {
                 <div className="px-5 py-4 flex items-center justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2 mb-0.5">
-                      <p className="text-[10px] font-bold text-ink-soft uppercase tracking-widest">Onboarding</p>
+                      <p className="text-[10px] font-bold text-ink-soft uppercase tracking-widest">{t("onboarding")}</p>
                       {level && (
-                        <Tooltip content="Earn XP by completing quests below — more XP unlocks higher levels." position="bottom">
+                        <Tooltip content={t("levelTooltip")} position="bottom">
                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
                             style={{ background: levelColor(level) + "18", color: levelColor(level) }}>
                             {level}
@@ -360,7 +387,7 @@ export default function DashboardPage() {
                       <div className="h-5 w-40 bg-gray-100 rounded animate-pulse mt-0.5" />
                     ) : (
                       <p className="text-ink font-bold text-[15px]">
-                        {remaining === 0 ? "All quests complete!" : `${remaining} quest${remaining !== 1 ? "s" : ""} to go`}
+                        {remaining === 0 ? t("allQuestsComplete") : t("questsToGo", { count: remaining })}
                       </p>
                     )}
                     <div className="mt-2 h-1 bg-gray-100 rounded-full w-64 overflow-hidden">
@@ -374,14 +401,14 @@ export default function DashboardPage() {
                     ) : (
                       <>
                         <span className="text-xl font-extrabold grad-text inline-block">{earnedXp}</span>
-                        <span className="text-sm text-ink-soft font-normal"> / {TOTAL_XP} XP</span>
+                        <span className="text-sm text-ink-soft font-normal"> {t("xpTotal", { total: TOTAL_XP })}</span>
                       </>
                     )}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 border-t border-gray-100">
-                  {QUESTS.map((q, i) => {
+                  {quests.map((q, i) => {
                     const liveQuest = questData?.quests.find(lq => lq.id === q.id);
                     const done = !!liveQuest?.completedAt;
                     const isDiscord = q.id === "join-community";
@@ -396,7 +423,7 @@ export default function DashboardPage() {
                           <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
                             <span className={`text-sm font-semibold ${done ? "line-through text-gray-400" : "text-ink"}`}>{q.title}</span>
                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${done ? "bg-tint-emerald text-green-600 border-green-100" : "bg-tint-violet text-accent-violet border-violet-100"}`}>
-                              +{q.xp} XP
+                              {t("xpSuffix", { xp: q.xp })}
                             </span>
                           </div>
                           <p className="text-xs text-ink-soft leading-relaxed">{q.desc}</p>
@@ -434,7 +461,7 @@ export default function DashboardPage() {
                 {questData?.allComplete && (
                   <div className="border-t border-green-100 bg-tint-emerald px-5 py-3 flex items-center gap-2.5">
                     <span className="text-green-500 text-lg">🎉</span>
-                    <p className="text-sm font-semibold text-green-700">All quests complete! +5 credits have been added to your account.</p>
+                    <p className="text-sm font-semibold text-green-700">{t("allQuestsCompleteBanner")}</p>
                   </div>
                 )}
               </Card>
@@ -447,8 +474,10 @@ export default function DashboardPage() {
                     <svg className="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4l7.07 17 2.51-7.39L21 11.07z" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-ink font-bold text-sm leading-tight">Try our <span className="text-emerald-600">FREE</span> Tools</p>
-                    <p className="text-ink-soft text-xs mt-0.5">Audio balancer, video compressor, and more</p>
+                    <p className="text-ink font-bold text-sm leading-tight">
+                      {t.rich("freeToolsCard.title", { em: (chunks) => <span className="text-emerald-600">{chunks}</span> })}
+                    </p>
+                    <p className="text-ink-soft text-xs mt-0.5">{t("freeToolsCard.desc")}</p>
                   </div>
                   <div className="text-emerald-400 flex-shrink-0">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M9 18l6-6-6-6" strokeLinecap="round"/></svg>
@@ -461,8 +490,10 @@ export default function DashboardPage() {
                     <svg className="w-4 h-4 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="2.18" strokeLinecap="round" strokeLinejoin="round"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M17 7h5M2 17h5M17 17h5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-ink font-bold text-sm leading-tight">Open the <span className="text-brand">Editor</span></p>
-                    <p className="text-ink-soft text-xs mt-0.5">Multi-track timeline editor in your browser</p>
+                    <p className="text-ink font-bold text-sm leading-tight">
+                      {t.rich("editorCard.title", { em: (chunks) => <span className="text-brand">{chunks}</span> })}
+                    </p>
+                    <p className="text-ink-soft text-xs mt-0.5">{t("editorCard.desc")}</p>
                   </div>
                   <div className="text-brand/40 flex-shrink-0">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M9 18l6-6-6-6" strokeLinecap="round"/></svg>
@@ -475,34 +506,34 @@ export default function DashboardPage() {
           {showGoalHint && goalDef && goalHintId && (
             <FeatureHint
               hintId={goalHintId}
-              title={`Still want to ${goalDef.label.toLowerCase()}?`}
+              title={t("stillWantTo", { goal: goalDef.label.toLowerCase() })}
               body={goalDef.description}
-              cta={{ label: "Try it now", href: goalDef.href }}
+              cta={{ label: t("tryItNow"), href: goalDef.href }}
             />
           )}
 
           {/* ── Start creating ── */}
           <div className="space-y-4">
-            <SectionHeader title="Start creating" />
+            <SectionHeader title={t("startCreating")} />
             {/* Large tool cards — 2 col */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {TOOLS_LARGE.map((tool, i) => (
-                <ToolCard key={i} size="md" {...tool} />
+              {toolsLarge.map((tool, i) => (
+                <ToolCard key={i} size="md" cta={t("tryNow")} {...tool} />
               ))}
             </div>
             {/* Small tool cards — 3 col */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {TOOLS_SMALL.map((tool, i) => (
-                <ToolCard key={i} size="sm" {...tool} />
+              {toolsSmall.map((tool, i) => (
+                <ToolCard key={i} size="sm" cta={t("tryNow")} {...tool} />
               ))}
             </div>
           </div>
 
           {/* ── Clipiro Tools section ── */}
           <div className="space-y-4">
-            <SectionHeader title="Clipiro Tools" action={{ label: "View All Tools", href: "/dashboard/tools" }} />
+            <SectionHeader title={t("clipiroTools")} action={{ label: t("viewAllTools"), href: "/dashboard/tools" }} />
             <div className="grid grid-cols-3 lg:grid-cols-6 gap-4">
-              {MINI_TOOLS.map((tool, i) => (
+              {miniTools.map((tool, i) => (
                 <Link
                   key={i}
                   href={tool.href}
