@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
+import createNextIntlPlugin from "next-intl/plugin";
 
 const nextConfig: NextConfig = {
   output: "standalone", // Optimizes build size for Node.js shared hosting
@@ -80,10 +81,12 @@ const nextConfig: NextConfig = {
   },
 };
 
+const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
+
 // Source-map upload only runs when SENTRY_AUTH_TOKEN/ORG/PROJECT are set;
 // without them this just wraps error/tracing instrumentation with no-op
 // upload, so the build stays green with no Sentry account configured yet.
-export default withSentryConfig(nextConfig, {
+export default withSentryConfig(withNextIntl(nextConfig), {
   silent: true,
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,

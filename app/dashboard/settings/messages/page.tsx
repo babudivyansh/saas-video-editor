@@ -3,6 +3,7 @@
 // (e.g. "plan expires soon", "payment received" derived from existing fields),
 // it belongs here.
 
+import { getTranslations } from "next-intl/server";
 import { Card } from "@/app/components/ui/Card";
 import { EmptyState } from "@/app/components/ui/EmptyState";
 
@@ -15,15 +16,16 @@ function IcMessage() {
   );
 }
 
-export default function MessagesPage() {
+export default async function MessagesPage() {
+  const t = await getTranslations("SettingsMessages");
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl font-extrabold grad-text inline-block">Messages</h1>
+      <h1 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h1>
       <Card className="py-12">
         <EmptyState
           icon={<IcMessage />}
-          title="No messages yet"
-          subtitle="Account notifications will show up here."
+          title={t("noMessagesYet")}
+          subtitle={t("subtitle")}
         />
       </Card>
     </div>

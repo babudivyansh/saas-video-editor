@@ -3,13 +3,14 @@ import bcrypt from "bcryptjs";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hardDeleteUserAccount } from "@/lib/account-deletion";
+import { LOCALE_COOKIE, isSupportedLocale } from "@/lib/i18n-locales";
 
 const PHONE_RE = /^\+?[0-9]{7,15}$/;
 const GENDERS = ["male", "female", "unspecified"] as const;
 const INTENDED_USES = ["content_creator", "business_marketing", "personal", "other"] as const;
 
 // Update the caller's editable profile fields (display name, phone, avatar URL,
-// gender, intended use).
+// gender, intended use, preferred language).
 export async function PATCH(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -21,6 +22,7 @@ export async function PATCH(req: NextRequest) {
     avatarUrl?: string | null;
     gender?: string | null;
     intendedUse?: string | null;
+    preferredLanguage?: string;
   } = {};
 
   if ("name" in body) {
@@ -61,6 +63,13 @@ export async function PATCH(req: NextRequest) {
     }
     data.intendedUse = intendedUse;
   }
+  if ("preferredLanguage" in body) {
+    const preferredLanguage = typeof body.preferredLanguage === "string" ? body.preferredLanguage : "";
+    if (!isSupportedLocale(preferredLanguage)) {
+      return NextResponse.json({ error: "Unsupported language" }, { status: 400 });
+    }
+    data.preferredLanguage = preferredLanguage;
+  }
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
@@ -69,9 +78,20 @@ export async function PATCH(req: NextRequest) {
   const user = await prisma.user.update({
     where: { id: auth.userId },
     data,
-    select: { id: true, email: true, phone: true, name: true, avatarUrl: true, gender: true, intendedUse: true },
+    select: { id: true, email: true, phone: true, name: true, avatarUrl: true, gender: true, intendedUse: true, preferredLanguage: true },
   });
-  return NextResponse.json({ user });
+
+  const res = NextResponse.json({ user });
+  // Mirrors the DB value into the cookie i18n/request.ts reads, so the new
+  // language takes effect on the very next server render without a DB hit.
+  if (data.preferredLanguage) {
+    res.cookies.set(LOCALE_COOKIE, data.preferredLanguage, {
+      maxAge: 60 * 60 * 24 * 365,
+      path: "/",
+      sameSite: "lax",
+    });
+  }
+  return res;
 }
 
 // Permanently delete the caller's own account. Requires the current password as

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useFormatter, useTranslations } from "next-intl";
 import { useAuth } from "@/app/components/AuthContext";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
@@ -24,24 +25,27 @@ interface ApiKeyRow {
   revokedAt: string | null;
 }
 
-const EXPIRY_OPTIONS = [
-  { label: "Never", value: "" },
-  { label: "30 days", value: "30" },
-  { label: "90 days", value: "90" },
-  { label: "1 year", value: "365" },
-];
-
-function fmtDate(iso: string | null) {
-  if (!iso) return "Never";
-  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-}
-
 function isExpired(k: ApiKeyRow) {
   return !!k.expiresAt && new Date(k.expiresAt) < new Date();
 }
 
 export default function ApiKeysPage() {
   const { token } = useAuth();
+  const t = useTranslations("SettingsApiKeys");
+  const format = useFormatter();
+
+  function fmtDate(iso: string | null) {
+    if (!iso) return t("never");
+    return format.dateTime(new Date(iso), { day: "numeric", month: "short", year: "numeric" });
+  }
+
+  const EXPIRY_OPTIONS = [
+    { label: t("expiryOptions.never"), value: "" },
+    { label: t("expiryOptions.days30"), value: "30" },
+    { label: t("expiryOptions.days90"), value: "90" },
+    { label: t("expiryOptions.year1"), value: "365" },
+  ];
+
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -78,13 +82,13 @@ export default function ApiKeysPage() {
         body: JSON.stringify({ name: newName.trim(), scopes: newScopes, expiresInDays: newExpiry ? Number(newExpiry) : undefined }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "Could not create key"); return; }
+      if (!res.ok) { setError(data.error ?? t("errors.createFailed")); return; }
       setFreshKey(data.plaintext);
       setNewName(""); setNewScopes(["read", "write"]); setNewExpiry("");
       setCreating(false);
       await load();
     } catch {
-      setError("Could not create key");
+      setError(t("errors.createFailed"));
     }
   }
 
@@ -122,12 +126,12 @@ export default function ApiKeysPage() {
     <div className="max-w-3xl">
       <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
         <div>
-          <h1 className="text-2xl font-extrabold grad-text inline-block">API keys</h1>
+          <h1 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h1>
           <p className="text-sm text-ink-soft mt-1">
-            Use the <Link href="/docs/api" className="text-brand hover:underline">public API</Link> to create AutoClip jobs and poll clip status from your own code.
+            {t.rich("pageSubtitle", { link: (chunks) => <Link href="/docs/api" className="text-brand hover:underline">{chunks}</Link> })}
           </p>
         </div>
-        {!creating && !freshKey && <Button onClick={() => setCreating(true)}>Create key</Button>}
+        {!creating && !freshKey && <Button onClick={() => setCreating(true)}>{t("createKey")}</Button>}
       </div>
 
       {freshKey && (
@@ -135,34 +139,34 @@ export default function ApiKeysPage() {
           <div className="flex items-start gap-2 mb-3">
             <span className="text-amber-600 mt-0.5"><IcWarning /></span>
             <div>
-              <p className="text-sm font-bold text-ink">Copy this key now — you won&apos;t see it again</p>
-              <p className="text-xs text-ink-soft mt-0.5">This is the only time the full key is shown. Store it somewhere safe.</p>
+              <p className="text-sm font-bold text-ink">{t("copyWarningTitle")}</p>
+              <p className="text-xs text-ink-soft mt-0.5">{t("copyWarningDesc")}</p>
             </div>
           </div>
           <div className="flex items-center gap-2 bg-white border border-card-border rounded-xl px-4 py-3">
             <code className="flex-1 text-xs font-mono text-ink break-all">{freshKey}</code>
-            <button onClick={copyKey} className="flex-shrink-0 text-ink-soft hover:text-ink transition-colors" aria-label="Copy key">
+            <button onClick={copyKey} className="flex-shrink-0 text-ink-soft hover:text-ink transition-colors" aria-label={t("copyKey")}>
               {copied ? <IcCheck /> : <IcCopy />}
             </button>
           </div>
-          <Button variant="secondary" size="sm" className="mt-3" onClick={() => setFreshKey(null)}>Done</Button>
+          <Button variant="secondary" size="sm" className="mt-3" onClick={() => setFreshKey(null)}>{t("done")}</Button>
         </Card>
       )}
 
       {creating && !freshKey && (
         <Card padding="md" className="mb-6 space-y-4">
           <div>
-            <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide block mb-1.5">Key name</label>
+            <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide block mb-1.5">{t("keyName")}</label>
             <input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="e.g. Production server"
+              placeholder={t("keyNamePlaceholder")}
               className="w-full bg-white border border-card-border rounded-xl px-4 py-2.5 text-sm text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
               autoFocus
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide block mb-1.5">Scopes</label>
+            <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide block mb-1.5">{t("scopes")}</label>
             <div className="flex gap-4">
               {["read", "write"].map((scope) => (
                 <label key={scope} className="flex items-center gap-2 text-sm text-ink cursor-pointer capitalize">
@@ -173,7 +177,7 @@ export default function ApiKeysPage() {
             </div>
           </div>
           <div>
-            <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide block mb-1.5">Expires</label>
+            <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide block mb-1.5">{t("expires")}</label>
             <select
               value={newExpiry}
               onChange={(e) => setNewExpiry(e.target.value)}
@@ -184,19 +188,19 @@ export default function ApiKeysPage() {
           </div>
           {error && <p className="text-xs text-red-600">{error}</p>}
           <div className="flex gap-2">
-            <Button onClick={handleCreate} disabled={!newName.trim() || newScopes.length === 0} size="sm">Create</Button>
-            <Button type="button" variant="secondary" size="sm" onClick={() => { setCreating(false); setNewName(""); setError(null); }}>Cancel</Button>
+            <Button onClick={handleCreate} disabled={!newName.trim() || newScopes.length === 0} size="sm">{t("create")}</Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => { setCreating(false); setNewName(""); setError(null); }}>{t("cancel")}</Button>
           </div>
         </Card>
       )}
 
       <Card padding="none">
         {loading ? (
-          <div className="p-8 text-center text-sm text-ink-soft">Loading…</div>
+          <div className="p-8 text-center text-sm text-ink-soft">{t("loading")}</div>
         ) : activeKeys.length === 0 ? (
           <div className="p-8 text-center">
-            <p className="text-sm font-semibold text-ink">No API keys yet</p>
-            <p className="text-xs text-ink-soft mt-1">Create one to start using the public API.</p>
+            <p className="text-sm font-semibold text-ink">{t("noKeysYet")}</p>
+            <p className="text-xs text-ink-soft mt-1">{t("noKeysDesc")}</p>
           </div>
         ) : (
           <div className="divide-y divide-card-border">
@@ -217,19 +221,19 @@ export default function ApiKeysPage() {
                     ) : (
                       <div className="flex items-center gap-1.5 group">
                         <p className="text-sm font-semibold text-ink truncate">{k.name}</p>
-                        <button onClick={() => { setRenamingId(k.id); setRenameVal(k.name); }} className="text-ink-soft/50 hover:text-brand opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" aria-label="Rename">
+                        <button onClick={() => { setRenamingId(k.id); setRenameVal(k.name); }} className="text-ink-soft/50 hover:text-brand opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" aria-label={t("rename")}>
                           <IcEdit />
                         </button>
-                        {expired && <span className="text-[10px] font-bold uppercase tracking-wide text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">Expired</span>}
+                        {expired && <span className="text-[10px] font-bold uppercase tracking-wide text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">{t("expired")}</span>}
                       </div>
                     )}
                     <p className="text-xs text-ink-soft font-mono mt-0.5">{k.keyPrefix}… · {k.scopes.join(", ")}</p>
                     <p className="text-[11px] text-ink-soft/70 mt-1">
-                      Created {fmtDate(k.createdAt)} · Last used {fmtDate(k.lastUsedAt)} · {k.requestCount} request{k.requestCount === 1 ? "" : "s"} · Expires {fmtDate(k.expiresAt)}
+                      {t("keyMeta", { created: fmtDate(k.createdAt), lastUsed: fmtDate(k.lastUsedAt), count: k.requestCount, expires: fmtDate(k.expiresAt) })}
                     </p>
                   </div>
                   <button onClick={() => handleRevoke(k.id)} className="flex-shrink-0 text-xs font-semibold text-red-600 hover:underline">
-                    Revoke
+                    {t("revoke")}
                   </button>
                 </div>
               );

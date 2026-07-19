@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
       twoFactorEnabled: true,
       passwordChangedAt: true,
       lastLoginAt: true,
+      preferredLanguage: true,
       plan: { select: { id: true, slug: true, name: true, credits: true, priceInPaise: true } },
     },
   });

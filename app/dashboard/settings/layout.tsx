@@ -14,6 +14,7 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { ToastProvider } from "@/app/components/ui/Toast";
 
 function IcGeneral() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>; }
@@ -29,28 +30,29 @@ function IcCoin() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentC
 function IcMessage() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="M2 6l10 7 10-7" /></svg>; }
 function IcGlobe() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18" /></svg>; }
 
-const TABS = [
-  { label: "General", href: "/dashboard/settings", icon: IcGeneral, exact: true },
-  { label: "Profile", href: "/dashboard/settings/profile", icon: IcProfile },
-  { label: "Security", href: "/dashboard/settings/security", icon: IcShield },
-  { label: "Sessions", href: "/dashboard/settings/sessions", icon: IcDevices },
-  { label: "Notifications", href: "/dashboard/settings/notifications", icon: IcBell },
-  { label: "Billing", href: "/billing", icon: IcCoin, external: true },
-  { label: "API Keys", href: "/dashboard/settings/api-keys", icon: IcKey },
-  { label: "Messages", href: "/dashboard/settings/messages", icon: IcMessage },
-  { label: "Preferences", href: "/dashboard/settings/preferences", icon: IcGlobe },
-  { label: "Privacy", href: "/dashboard/settings/privacy", icon: IcLock },
-  { label: "Danger Zone", href: "/dashboard/settings/danger-zone", icon: IcAlert, danger: true },
-];
-
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const t = useTranslations("SettingsNav");
+
+  const TABS = [
+    { label: t("general"), href: "/dashboard/settings", icon: IcGeneral, exact: true },
+    { label: t("profile"), href: "/dashboard/settings/profile", icon: IcProfile },
+    { label: t("security"), href: "/dashboard/settings/security", icon: IcShield },
+    { label: t("sessions"), href: "/dashboard/settings/sessions", icon: IcDevices },
+    { label: t("notifications"), href: "/dashboard/settings/notifications", icon: IcBell },
+    { label: t("billing"), href: "/billing", icon: IcCoin, external: true },
+    { label: t("apiKeys"), href: "/dashboard/settings/api-keys", icon: IcKey },
+    { label: t("messages"), href: "/dashboard/settings/messages", icon: IcMessage },
+    { label: t("preferences"), href: "/dashboard/settings/preferences", icon: IcGlobe },
+    { label: t("privacy"), href: "/dashboard/settings/privacy", icon: IcLock },
+    { label: t("dangerZone"), href: "/dashboard/settings/danger-zone", icon: IcAlert, danger: true },
+  ];
 
   return (
     <ToastProvider>
       <div className="max-w-6xl mx-auto px-4 sm:px-8 pt-6 pb-12 flex gap-8 items-start">
         <aside className="w-56 flex-shrink-0 sticky top-8 space-y-1">
-          <h1 className="text-xs font-bold text-ink-soft uppercase tracking-widest px-3 mb-2">Account &amp; Settings</h1>
+          <h1 className="text-xs font-bold text-ink-soft uppercase tracking-widest px-3 mb-2">{t("heading")}</h1>
           {TABS.map(({ label, href, icon: Icon, exact, danger, external }) => {
             const active = exact ? pathname === href : pathname?.startsWith(href);
             return (

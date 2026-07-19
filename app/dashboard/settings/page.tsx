@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/app/components/AuthContext";
 import { Card } from "@/app/components/ui/Card";
 import { StatTile } from "@/app/components/ui/StatTile";
@@ -42,6 +43,8 @@ function QuickAction({ href, label, desc }: { href: string; label: string; desc:
 
 export default function SettingsGeneralPage() {
   const { user, token } = useAuth();
+  const t = useTranslations("SettingsGeneral");
+  const locale = useLocale();
   const [assetStats, setAssetStats] = useState<AssetStats | null>(null);
   const [twoFa, setTwoFa] = useState<TwoFaStatus | null>(null);
   const [recentLogins, setRecentLogins] = useState<LoginEventRow[] | null>(null);
@@ -73,58 +76,58 @@ export default function SettingsGeneralPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-extrabold grad-text inline-block">Account overview</h1>
-        <p className="text-sm text-ink-soft mt-1">Everything about your Clipiro account, at a glance.</p>
+        <h1 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h1>
+        <p className="text-sm text-ink-soft mt-1">{t("pageSubtitle")}</p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatTile label="Credits" value={user?.credits ?? 0} accent="violet" />
-        <StatTile label="Plan" value={user?.plan?.name ?? "Free"} accent="blue" />
-        <StatTile label="Files stored" value={assetStats?.count ?? "…"} accent="fuchsia" />
-        <StatTile label="Member since" value={user?.createdAt ? new Date(user.createdAt).toLocaleDateString(undefined, { month: "short", year: "numeric" }) : "…"} accent="emerald" />
+        <StatTile label={t("credits")} value={user?.credits ?? 0} accent="violet" />
+        <StatTile label={t("plan")} value={user?.plan?.name ?? t("freePlanFallback")} accent="blue" />
+        <StatTile label={t("filesStored")} value={assetStats?.count ?? "…"} accent="fuchsia" />
+        <StatTile label={t("memberSince")} value={user?.createdAt ? new Date(user.createdAt).toLocaleDateString(locale, { month: "short", year: "numeric" }) : "…"} accent="emerald" />
       </div>
 
       <Card padding="md" className="space-y-5">
-        <h2 className="text-base font-extrabold text-ink">Account health</h2>
-        <Meter label="Profile completeness" pct={completenessPct} sublabel={`${completenessPct}%`} />
-        <Meter label="Security score" pct={securityPct} sublabel={`${securityChecks.filter(Boolean).length}/${securityChecks.length}`} />
+        <h2 className="text-base font-extrabold text-ink">{t("accountHealth")}</h2>
+        <Meter label={t("profileCompleteness")} pct={completenessPct} sublabel={`${completenessPct}%`} />
+        <Meter label={t("securityScore")} pct={securityPct} sublabel={`${securityChecks.filter(Boolean).length}/${securityChecks.length}`} />
         {assetStats ? (
-          <Meter label="Storage used" pct={storagePct} sublabel={`${fmtSize(assetStats.usedBytes)} / ${fmtSize(assetStats.limitBytes)}`} />
+          <Meter label={t("storageUsed")} pct={storagePct} sublabel={`${fmtSize(assetStats.usedBytes)} / ${fmtSize(assetStats.limitBytes)}`} />
         ) : (
           <Skeleton className="h-8" />
         )}
         <div className="flex flex-wrap gap-2 pt-1">
-          {!user?.emailVerifiedAt && <Link href="/dashboard/settings/security" className="text-xs font-semibold text-brand hover:underline">Verify your email →</Link>}
-          {!twoFa?.enabled && <Link href="/dashboard/settings/security" className="text-xs font-semibold text-brand hover:underline">Enable two-factor authentication →</Link>}
+          {!user?.emailVerifiedAt && <Link href="/dashboard/settings/security" className="text-xs font-semibold text-brand hover:underline">{t("verifyEmail")}</Link>}
+          {!twoFa?.enabled && <Link href="/dashboard/settings/security" className="text-xs font-semibold text-brand hover:underline">{t("enable2fa")}</Link>}
         </div>
       </Card>
 
       <div>
-        <h2 className="text-base font-extrabold text-ink mb-3">Quick actions</h2>
+        <h2 className="text-base font-extrabold text-ink mb-3">{t("quickActions")}</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <QuickAction href="/dashboard/settings/profile" label="Edit profile" desc="Name, avatar, and preferences" />
-          <QuickAction href="/dashboard/settings/security" label="Secure your account" desc="Password, email, and 2FA" />
-          <QuickAction href="/dashboard/settings/api-keys" label="Manage API keys" desc="For the public API" />
-          <QuickAction href="/billing" label="View billing" desc="Plan, credits, and invoices" />
-          <QuickAction href="/dashboard/profile/my-videos" label="My videos" desc="Browse everything you've generated" />
+          <QuickAction href="/dashboard/settings/profile" label={t("editProfile.label")} desc={t("editProfile.desc")} />
+          <QuickAction href="/dashboard/settings/security" label={t("secureAccount.label")} desc={t("secureAccount.desc")} />
+          <QuickAction href="/dashboard/settings/api-keys" label={t("manageApiKeys.label")} desc={t("manageApiKeys.desc")} />
+          <QuickAction href="/billing" label={t("viewBilling.label")} desc={t("viewBilling.desc")} />
+          <QuickAction href="/dashboard/profile/my-videos" label={t("myVideos.label")} desc={t("myVideos.desc")} />
         </div>
       </div>
 
       <Card padding="md">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-extrabold text-ink">Recent sign-ins</h2>
-          <Link href="/dashboard/settings/sessions" className="text-xs font-semibold text-brand hover:underline">View all →</Link>
+          <h2 className="text-base font-extrabold text-ink">{t("recentSignIns")}</h2>
+          <Link href="/dashboard/settings/sessions" className="text-xs font-semibold text-brand hover:underline">{t("viewAll")}</Link>
         </div>
         {!recentLogins ? (
           <div className="space-y-2">{[1, 2].map((i) => <Skeleton key={i} className="h-8" />)}</div>
         ) : recentLogins.length === 0 ? (
-          <p className="text-sm text-ink-soft">No sign-in history yet.</p>
+          <p className="text-sm text-ink-soft">{t("noSignInHistory")}</p>
         ) : (
           <div className="divide-y divide-card-border">
             {recentLogins.map((h) => (
               <div key={h.id} className="flex items-center justify-between gap-4 py-2 text-sm">
-                <span className="text-ink font-medium">{h.device ?? "Unknown device"} · {h.country ?? "Unknown location"}</span>
-                <span className="text-xs text-ink-soft/70 flex-shrink-0">{new Date(h.createdAt).toLocaleDateString()}</span>
+                <span className="text-ink font-medium">{h.device ?? t("unknownDevice")} · {h.country ?? t("unknownLocation")}</span>
+                <span className="text-xs text-ink-soft/70 flex-shrink-0">{new Date(h.createdAt).toLocaleDateString(locale)}</span>
               </div>
             ))}
           </div>

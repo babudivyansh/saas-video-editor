@@ -11,6 +11,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import ClipiroLogo from "@/app/components/ClipiroLogo";
 import { NavDropdown, DropdownItem, type NavItem } from "@/app/components/NavDropdown";
 import SidebarAccount from "@/app/components/SidebarAccount";
@@ -49,47 +50,55 @@ function LetterChip({ title, className }: { title: string; className: string }) 
 
 const TOOL_COUNT = VIDEO_TOOLS.length + AI_TOOLS.length + FREE_FEATURES.length;
 
-// Same two links as featureLinks.ts's RESOURCES, except Affiliate Program
-// points at the user's own affiliate dashboard (/dashboard/referral) instead
-// of the public marketing page — this header only appears once logged in.
-const DASHBOARD_RESOURCES: NavItem[] = [
-  { title: "Affiliate Program", desc: "Earn 20% recurring on every paid referral", href: "/dashboard/referral" },
-  RESOURCES[1], // Community Discord — unchanged, still goes through /discord
-];
-
 // ── Global search ──────────────────────────────────────────────────────────
 
 interface SearchEntry extends NavItem {
   group: string;
 }
 
-const CORE_PAGES: SearchEntry[] = [
-  { title: "Dashboard Home", desc: "Overview, quests & quick start", href: "/dashboard", group: "Page" },
-  { title: "My Clips", desc: "All your AutoClip projects", href: "/dashboard/clips", group: "Page" },
-  { title: "Assets", desc: "Your uploaded media library", href: "/dashboard/assets", group: "Page" },
-  { title: "Social Tracker", desc: "Track your social performance", href: "/dashboard/social-tracker", group: "Page" },
-  { title: "Earn Credits", desc: "Referral & affiliate dashboard", href: "/dashboard/referral", group: "Page" },
-  { title: "Billing & Plans", desc: "Upgrade or top up credits", href: "/billing", group: "Page" },
-  { title: "My Account", desc: "Profile & personal info", href: "/dashboard/settings/profile", group: "Page" },
-  { title: "Settings", desc: "Security, sessions, notifications & more", href: "/dashboard/settings", group: "Page" },
-  { title: "Security", desc: "Password, 2FA & email verification", href: "/dashboard/settings/security", group: "Page" },
-  { title: "API Keys", desc: "Manage your public API keys", href: "/dashboard/settings/api-keys", group: "Page" },
-  { title: "Messages", desc: "Account notifications", href: "/dashboard/settings/messages", group: "Page" },
-  { title: "Preferences", desc: "Language & display preferences", href: "/dashboard/settings/preferences", group: "Page" },
-  { title: "My Videos", desc: "All your generated videos", href: "/dashboard/profile/my-videos", group: "Page" },
-];
-
-const SEARCH_INDEX: SearchEntry[] = [
-  ...VIDEO_TOOLS.map((t) => ({ ...t, group: "Video" })),
-  ...AI_TOOLS.map((t) => ({ ...t, group: "AI" })),
-  ...FREE_FEATURES.map((t) => ({ ...t, group: "Free" })),
-  ...CORE_PAGES,
-];
+// Href/group are structural (untranslated); title/desc for pages defined in
+// this file (the persistent chrome) are translated. VIDEO_TOOLS/AI_TOOLS/
+// FREE_FEATURES come from featureLinks.ts, shared with the public marketing
+// nav — out of scope for this pass, so their titles/descs stay English here
+// too rather than translating a chrome-only view of still-English tool pages.
+function useCorePages(): SearchEntry[] {
+  const t = useTranslations("Nav.corePages");
+  return useMemo<SearchEntry[]>(
+    () => [
+      { title: t("dashboardHome.title"), desc: t("dashboardHome.desc"), href: "/dashboard", group: "Page" },
+      { title: t("myClips.title"), desc: t("myClips.desc"), href: "/dashboard/clips", group: "Page" },
+      { title: t("assets.title"), desc: t("assets.desc"), href: "/dashboard/assets", group: "Page" },
+      { title: t("socialTracker.title"), desc: t("socialTracker.desc"), href: "/dashboard/social-tracker", group: "Page" },
+      { title: t("earnCredits.title"), desc: t("earnCredits.desc"), href: "/dashboard/referral", group: "Page" },
+      { title: t("billing.title"), desc: t("billing.desc"), href: "/billing", group: "Page" },
+      { title: t("myAccount.title"), desc: t("myAccount.desc"), href: "/dashboard/settings/profile", group: "Page" },
+      { title: t("settings.title"), desc: t("settings.desc"), href: "/dashboard/settings", group: "Page" },
+      { title: t("security.title"), desc: t("security.desc"), href: "/dashboard/settings/security", group: "Page" },
+      { title: t("apiKeys.title"), desc: t("apiKeys.desc"), href: "/dashboard/settings/api-keys", group: "Page" },
+      { title: t("messages.title"), desc: t("messages.desc"), href: "/dashboard/settings/messages", group: "Page" },
+      { title: t("preferences.title"), desc: t("preferences.desc"), href: "/dashboard/settings/preferences", group: "Page" },
+      { title: t("myVideos.title"), desc: t("myVideos.desc"), href: "/dashboard/profile/my-videos", group: "Page" },
+    ],
+    [t]
+  );
+}
 
 function HeaderSearch() {
+  const t = useTranslations("Nav");
+  const corePages = useCorePages();
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  const searchIndex = useMemo<SearchEntry[]>(
+    () => [
+      ...VIDEO_TOOLS.map((item) => ({ ...item, group: "Video" })),
+      ...AI_TOOLS.map((item) => ({ ...item, group: "AI" })),
+      ...FREE_FEATURES.map((item) => ({ ...item, group: "Free" })),
+      ...corePages,
+    ],
+    [corePages]
+  );
 
   useEffect(() => {
     function onDown(e: MouseEvent) {
@@ -102,10 +111,10 @@ function HeaderSearch() {
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    return SEARCH_INDEX.filter(
+    return searchIndex.filter(
       (e) => e.title.toLowerCase().includes(q) || e.desc.toLowerCase().includes(q)
     ).slice(0, 7);
-  }, [query]);
+  }, [query, searchIndex]);
 
   const open = focused && results.length > 0;
 
@@ -117,7 +126,7 @@ function HeaderSearch() {
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => setFocused(true)}
         onKeyDown={(e) => { if (e.key === "Escape") setFocused(false); }}
-        placeholder="Search tools & pages…"
+        placeholder={t("searchPlaceholder")}
         className="w-full text-sm bg-surface border border-card-border rounded-full pl-10 pr-4 py-2 text-ink placeholder:text-ink-soft/50 outline-none focus:bg-white focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
       />
       <div
@@ -148,16 +157,24 @@ function HeaderSearch() {
 
 // ── Create menu ────────────────────────────────────────────────────────────
 
-const CREATE_ITEMS: NavItem[] = [
-  { title: "Clipiro AutoClip", desc: "Long video → viral clips, automatically", href: "/dashboard/create/auto-clip" },
-  { title: "Video Editor", desc: "Multi-track timeline editor", href: "/dashboard/editor" },
-  { title: "Cut & Crop", desc: "Trim & stitch clips ready to edit", href: "/dashboard/cut-and-crop" },
-  { title: "AI Creator", desc: "Become an AI creator in 3 steps", href: "/dashboard/ai-creator" },
-  { title: "Reddit Story Video", desc: "Turn Reddit posts into videos", href: "/dashboard/create/reddit-video" },
-  { title: "Fake Texts Video", desc: "Text-conversation story videos", href: "/dashboard/create/text-video" },
-];
+function useCreateItems(): NavItem[] {
+  const t = useTranslations("Nav.createItems");
+  return useMemo<NavItem[]>(
+    () => [
+      { title: t("autoClip.title"), desc: t("autoClip.desc"), href: "/dashboard/create/auto-clip" },
+      { title: t("editor.title"), desc: t("editor.desc"), href: "/dashboard/editor" },
+      { title: t("cutCrop.title"), desc: t("cutCrop.desc"), href: "/dashboard/cut-and-crop" },
+      { title: t("aiCreator.title"), desc: t("aiCreator.desc"), href: "/dashboard/ai-creator" },
+      { title: t("redditVideo.title"), desc: t("redditVideo.desc"), href: "/dashboard/create/reddit-video" },
+      { title: t("textVideo.title"), desc: t("textVideo.desc"), href: "/dashboard/create/text-video" },
+    ],
+    [t]
+  );
+}
 
 function CreateMenu() {
+  const t = useTranslations("Nav");
+  const createItems = useCreateItems();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -176,7 +193,7 @@ function CreateMenu() {
         data-tour="create-menu"
         className="inline-flex items-center gap-1.5 grad-brand text-white text-sm font-semibold px-4 py-2 rounded-full shadow-glow hover:shadow-glow-hover hover:brightness-105 transition-all cursor-pointer"
       >
-        <IcPlus /> Create <IcChevronDown open={open} />
+        <IcPlus /> {t("create")} <IcChevronDown open={open} />
       </button>
       <div
         className={`absolute top-full mt-2 right-0 w-72 rounded-2xl border border-card-border bg-white shadow-xl z-50 overflow-hidden origin-top-right transition-all duration-150 ease-out ${
@@ -184,7 +201,7 @@ function CreateMenu() {
         }`}
       >
         <div className="p-2 space-y-0.5" onClick={() => setOpen(false)}>
-          {CREATE_ITEMS.map((item) => (
+          {createItems.map((item) => (
             <DropdownItem key={item.title} item={item} onNavigate={() => setOpen(false)} />
           ))}
         </div>
@@ -197,43 +214,56 @@ function CreateMenu() {
 
 export default function DashboardHeader() {
   const { user, openAuthModal } = useAuth();
+  const t = useTranslations("Nav");
 
   const hasActivePlan =
     !!user?.subscriptionEndsAt && new Date(user.subscriptionEndsAt) > new Date();
-  const planName = hasActivePlan ? user?.plan?.name ?? "Pro" : "Free";
+  const planName = hasActivePlan ? user?.plan?.name ?? t("proPlanFallback") : t("freePlanFallback");
+
+  // Affiliate Program points at the user's own affiliate dashboard
+  // (/dashboard/referral) instead of the public marketing page — this header
+  // only appears once logged in. Discord entry is the shared, untranslated
+  // RESOURCES[1] (out of scope — same data feeds the public marketing nav).
+  const dashboardResources: NavItem[] = [
+    { title: t("affiliateProgram"), desc: t("affiliateDesc"), href: "/dashboard/referral" },
+    RESOURCES[1],
+  ];
 
   return (
     <header className="flex items-center gap-4 px-5 h-16 flex-shrink-0 border-b border-gray-100 bg-white z-40">
-      <Link href="/dashboard" className="flex items-center flex-shrink-0" aria-label="Dashboard home">
+      <Link href="/dashboard" className="flex items-center flex-shrink-0" aria-label={t("dashboardHome")}>
         <ClipiroLogo className="h-8" />
       </Link>
 
       <nav className="hidden lg:flex items-center gap-1 flex-shrink-0">
-        <NavDropdown label="Resources" width={340}>
+        <NavDropdown label={t("resources")} width={340}>
           <div className="p-3 space-y-1">
             <DropdownItem
-              item={DASHBOARD_RESOURCES[0]}
+              item={dashboardResources[0]}
               onNavigate={() => {}}
               chip={<span className="w-8 h-8 rounded-lg bg-tint-emerald text-emerald-600 flex items-center justify-center flex-shrink-0"><IcGift /></span>}
             />
             <DropdownItem
-              item={DASHBOARD_RESOURCES[1]}
+              item={dashboardResources[1]}
               onNavigate={() => {}}
               chip={<span className="w-8 h-8 rounded-lg bg-[#5865F2]/10 text-[#5865F2] flex items-center justify-center flex-shrink-0"><IcDiscord /></span>}
             />
           </div>
           <div className="border-t border-gray-100 bg-surface px-4 py-2.5">
-            <p className="text-xs text-ink-soft">Questions? The Discord community is the fastest way to get help.</p>
+            <p className="text-xs text-ink-soft">{t("discordHelp")}</p>
           </div>
         </NavDropdown>
 
         {/* Compact, anchored under the trigger — the tools catalog page is
-            the full browsing surface; this is just a shortcut menu. */}
-        <NavDropdown label="Features" width={620} align="left">
+            the full browsing surface; this is just a shortcut menu. Tool
+            titles/descs come from featureLinks.ts, shared with the public
+            marketing nav (out of scope) — left untranslated so the menu
+            never shows translated names for still-English tool pages. */}
+        <NavDropdown label={t("features")} width={620} align="left">
           <div className="grid grid-cols-2 gap-0 p-3">
             {/* Video tools */}
             <div className="p-2">
-              <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-brand">Video Tools</p>
+              <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-brand">{t("videoTools")}</p>
               <div className="space-y-0.5">
                 {VIDEO_TOOLS.slice(0, 4).map((item) => (
                   <DropdownItem key={item.title} item={item} onNavigate={() => {}}
@@ -243,7 +273,7 @@ export default function DashboardHeader() {
             </div>
             {/* AI tools */}
             <div className="p-2 border-l border-gray-100">
-              <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-accent-violet">AI Tools</p>
+              <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-accent-violet">{t("aiTools")}</p>
               <div className="space-y-0.5">
                 {AI_TOOLS.slice(0, 4).map((item) => (
                   <DropdownItem key={item.title} item={item} onNavigate={() => {}}
@@ -253,7 +283,7 @@ export default function DashboardHeader() {
             </div>
             {/* Free tools */}
             <div className="p-2 border-t border-gray-100">
-              <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-accent-fuchsia">Free Tools</p>
+              <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-accent-fuchsia">{t("freeTools")}</p>
               <div className="space-y-0.5">
                 {FREE_FEATURES.slice(0, 3).map((item) => (
                   <DropdownItem key={item.title} item={item} onNavigate={() => {}}
@@ -264,21 +294,21 @@ export default function DashboardHeader() {
             {/* Mini spotlight */}
             <div className="relative overflow-hidden rounded-2xl grad-hero p-4 flex flex-col text-white m-2 border-t border-transparent">
               <div className="clipiro-blob absolute -top-10 -right-8 w-28 h-28 rounded-full bg-white/15 blur-2xl pointer-events-none" />
-              <p className="relative text-[10px] font-bold uppercase tracking-widest text-white/70 mb-1">Spotlight</p>
-              <p className="relative text-sm font-extrabold leading-tight">Clipiro AutoClip</p>
-              <p className="relative text-xs text-white/80 mt-1 leading-relaxed">Long videos into viral clips, automatically.</p>
+              <p className="relative text-[10px] font-bold uppercase tracking-widest text-white/70 mb-1">{t("spotlight")}</p>
+              <p className="relative text-sm font-extrabold leading-tight">{t("spotlightTitle")}</p>
+              <p className="relative text-xs text-white/80 mt-1 leading-relaxed">{t("spotlightDesc")}</p>
               <Link href="/dashboard/create/auto-clip" className="relative mt-auto pt-2.5 inline-block">
                 <span className="inline-flex items-center gap-1 bg-white text-ink text-xs font-semibold px-3 py-1.5 rounded-full hover:shadow-card transition-shadow">
-                  Try AutoClip →
+                  {t("tryAutoClip")}
                 </span>
               </Link>
             </div>
           </div>
           {/* Footer bar */}
           <div className="border-t border-gray-100 bg-surface px-5 py-3 flex items-center justify-between">
-            <p className="text-xs text-ink-soft">All {TOOL_COUNT} tools are included in your workspace.</p>
+            <p className="text-xs text-ink-soft">{t("allToolsIncluded", { count: TOOL_COUNT })}</p>
             <Link href="/dashboard/tools" className="text-xs font-semibold text-brand hover:text-brand-dark transition-colors">
-              View All Tools →
+              {t("viewAllTools")}
             </Link>
           </div>
         </NavDropdown>
@@ -297,7 +327,7 @@ export default function DashboardHeader() {
             {/* Plan chip + credits */}
             <Link
               href="/billing"
-              title="Your plan"
+              title={t("yourPlan")}
               data-tour="plan-chip"
               className={`hidden md:inline-flex items-center text-[11px] font-bold uppercase tracking-wider rounded-full px-2.5 py-1 transition-colors ${
                 hasActivePlan
@@ -313,7 +343,7 @@ export default function DashboardHeader() {
 
             {/* Monetization CTA: upgrade when free, top up when subscribed */}
             <Button variant={hasActivePlan ? "secondary" : "primary"} size="sm" href="/billing" className="hidden sm:inline-flex">
-              {hasActivePlan ? "Top Up" : "Upgrade"}
+              {hasActivePlan ? t("topUp") : t("upgrade")}
             </Button>
 
             <div data-tour="account-menu" className="flex items-center">
@@ -323,7 +353,7 @@ export default function DashboardHeader() {
         ) : (
           <Button variant="primary" size="md" onClick={() => openAuthModal("login")}>
             <IcZap />
-            Login
+            {t("login")}
           </Button>
         )}
       </div>
