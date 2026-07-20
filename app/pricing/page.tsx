@@ -150,7 +150,7 @@ const FAQS = [
   },
   {
     q: "What is a credit?",
-    a: "Credits are spent on AI tools — the cost depends on the tool and model you pick (e.g. 1-8 credits for an image, 2 credits for a voiceover, and per-second pricing for video, including Veo3 AI video). Subscription credits refill each month. Add-on credit packs never expire — they stay on your account even if your subscription lapses.",
+    a: "Credits are spent on AI tools — the cost depends on the tool and model you pick (e.g. 1-8 credits for an image, 2 credits for a voiceover, and per-second pricing for video, including Veo3 AI video). Subscription credits refill each month and unused ones roll over, up to 2× your monthly allowance. Add-on credit packs never expire — they stay on your account even if your subscription lapses.",
   },
   {
     q: "How long can each video be?",
@@ -683,7 +683,7 @@ export default function PricingPage() {
         })()}
 
         <p className="text-center mt-10 text-gray-400 text-sm">
-          Free tools always free · Subscription credits refill monthly · Add-on credits never expire · Powered by Razorpay
+          Free tools always free · Subscription credits refill monthly &amp; roll over up to 2× · Add-on credits never expire · Powered by Razorpay
         </p>
       </section>
 
@@ -1043,7 +1043,7 @@ export default function PricingPage() {
             </div>
           )}
           <p className="text-center text-xs text-gray-400 mt-6">
-            Free tools never use credits. Subscription credits refill monthly. Add-on credits never expire.
+            Free tools never use credits. Subscription credits refill monthly and roll over up to 2× your allowance. Add-on credits never expire.
           </p>
         </section>
       )}

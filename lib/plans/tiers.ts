@@ -63,3 +63,15 @@ export const STORAGE_LIMIT_GB: Record<TierId, number> = {
 export function storageLimitBytesForTier(tier: TierId): number {
   return STORAGE_LIMIT_GB[tier] * 1024 ** 3;
 }
+
+// ── Credit-economy policy (2026-07 pricing audit) ───────────────────────────
+
+// Subscription credits roll over month to month, capped at this multiple of
+// the monthly grant. On refill: subscriptionCredits = min(current + grant,
+// cap × grant). Unused purchased (pack) credits never expire.
+export const SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER = 2;
+
+// Monthly bonus-credit grant for users without an active subscription.
+// Bonus credits expire 30 days after the latest bonus grant.
+export const FREE_TIER_MONTHLY_BONUS_CREDITS = 10;
+export const BONUS_CREDITS_EXPIRY_DAYS = 30;

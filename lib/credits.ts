@@ -255,6 +255,27 @@ export async function clawbackCredits(params: {
   return clawed;
 }
 
+/** Zero a user's expired bonus bucket (cron step). Returns credits expired. */
+export async function expireBonusCredits(userId: string): Promise<number> {
+  const expiredAmount = await prisma.$transaction(async (tx) => {
+    const bal = await getBalances(userId, tx);
+    if (bal.bonus <= 0) return 0;
+    await tx.user.update({
+      where: { id: userId },
+      data: { bonusCredits: 0, credits: { decrement: bal.bonus }, bonusCreditsExpireAt: null },
+    });
+    await tx.creditTransaction.create({
+      data: { userId, bucket: "bonus", delta: -bal.bonus, reason: "expire:bonus" },
+    });
+    return bal.bonus;
+  });
+  if (expiredAmount > 0) {
+    const balances = await getBalances(userId);
+    await refreshCreditCache(userId, balances.total);
+  }
+  return expiredAmount;
+}
+
 /** Hard-set the subscription bucket (rollover cap / lapse zeroing). */
 export async function setSubscriptionCredits(
   userId: string,

@@ -30,6 +30,9 @@ model User {
   purchasedCredits     Int             @default(0)
   bonusCredits         Int             @default(0)
   bonusCreditsExpireAt DateTime?
+  // Free-tier monthly grant anchor: users without an active plan get a small
+  // bonus-credit refill each month (cron step 4). Null for subscribers.
+  freeCreditsRefillAt  DateTime?
   role                 Role            @default(USER)
   firstName            String?
   lastName             String?
