@@ -98,6 +98,7 @@ export async function GET(req: NextRequest) {
         subscriptionEndsAt: null,
         nextRefillAt: null,
         monthlyCredits: 0,
+        subscriptionCancelledAt: null,
         // The lapsed user rejoins the free tier's monthly drip from the NEXT
         // cycle (anchoring at `now` would grant the drip in this same run).
         freeCreditsRefillAt: new Date(new Date(now).setMonth(now.getMonth() + 1)),

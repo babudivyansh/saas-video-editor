@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
       tourCompletedAt: true,
       dismissedHints: true,
       subscriptionEndsAt: true,
+      subscriptionCancelledAt: true,
       nextRefillAt: true,
       monthlyCredits: true,
       // Security/account-dashboard surface (Settings hub) — closes the audit
