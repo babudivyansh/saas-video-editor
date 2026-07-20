@@ -120,7 +120,7 @@ export function InsufficientCreditsModal({ info, onClose }: {
               </svg>
             </div>
             <h2 className="text-xl font-extrabold text-gray-900">Credits added</h2>
-            <p className="text-sm text-gray-500 mt-1.5">Your top-up is on your account — retry your {info.action?.toLowerCase() ?? "action"} whenever you're ready.</p>
+            <p className="text-sm text-gray-500 mt-1.5">Your top-up is on your account — retry your {info.action?.toLowerCase() ?? "action"} whenever you&apos;re ready.</p>
             <button onClick={onClose} className="mt-6 w-full bg-blue-600 text-white font-bold py-3 rounded-full hover:bg-blue-700 transition-colors">
               Back to work
             </button>
