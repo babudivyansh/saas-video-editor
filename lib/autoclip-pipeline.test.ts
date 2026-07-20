@@ -77,27 +77,27 @@ describe("rebaseClipWords", () => {
 });
 
 describe("computeCreditCost", () => {
-  it("charges exactly the base cost for one short clip", () => {
-    // 1 clip, 30s -> 1 minute (rounded up)
+  it("charges per clip plus per 2-minute block for one short clip", () => {
+    // 1 clip, 30s -> 1 two-minute block (rounded up)
     expect(computeCreditCost(1, 30, AUTOCLIP_PRICING_DEFAULTS)).toBe(
-      AUTOCLIP_PRICING_DEFAULTS.base + AUTOCLIP_PRICING_DEFAULTS.perMinute,
+      AUTOCLIP_PRICING_DEFAULTS.perClip + AUTOCLIP_PRICING_DEFAULTS.perTwoMinutes,
     );
   });
 
-  it("scales with extra clips and total duration, not a flat rate", () => {
+  it("scales with clip count and total duration, not a flat rate", () => {
     const one = computeCreditCost(1, 30, AUTOCLIP_PRICING_DEFAULTS);
     const many = computeCreditCost(10, 300, AUTOCLIP_PRICING_DEFAULTS);
     expect(many).toBeGreaterThan(one);
   });
 
-  it("rounds partial minutes up (a 61s total duration costs for 2 minutes)", () => {
-    const cost = computeCreditCost(1, 61, AUTOCLIP_PRICING_DEFAULTS);
-    expect(cost).toBe(AUTOCLIP_PRICING_DEFAULTS.base + AUTOCLIP_PRICING_DEFAULTS.perMinute * 2);
+  it("rounds partial 2-minute blocks up (121s costs for 2 blocks)", () => {
+    const cost = computeCreditCost(1, 121, AUTOCLIP_PRICING_DEFAULTS);
+    expect(cost).toBe(AUTOCLIP_PRICING_DEFAULTS.perClip + AUTOCLIP_PRICING_DEFAULTS.perTwoMinutes * 2);
   });
 
   it("respects custom admin-configured rates", () => {
-    const custom = { base: 5, perExtraClip: 2, perMinute: 3, rerender: 1 };
-    expect(computeCreditCost(3, 90, custom)).toBe(5 + 2 * 2 + 3 * 2); // 2 extra clips, 2 minutes
+    const custom = { perClip: 2, perTwoMinutes: 3, analysisPerHalfHour: 1, rerender: 1 };
+    expect(computeCreditCost(3, 150, custom)).toBe(3 * 2 + 3 * 2); // 3 clips, 2 blocks
   });
 });
 
@@ -108,8 +108,8 @@ describe("getAutoClipPricing", () => {
   });
 
   it("merges a partial admin-set Config row over the defaults", async () => {
-    configRow = { key: "autoclip_pricing", value: JSON.stringify({ base: 3 }) };
-    expect(await getAutoClipPricing()).toEqual({ ...AUTOCLIP_PRICING_DEFAULTS, base: 3 });
+    configRow = { key: "autoclip_pricing", value: JSON.stringify({ perClip: 3 }) };
+    expect(await getAutoClipPricing()).toEqual({ ...AUTOCLIP_PRICING_DEFAULTS, perClip: 3 });
   });
 
   it("falls back to defaults if the stored Config value is corrupt JSON", async () => {

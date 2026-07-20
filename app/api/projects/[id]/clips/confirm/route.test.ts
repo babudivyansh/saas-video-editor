@@ -7,6 +7,7 @@ import { NextRequest } from "next/server";
 
 vi.mock("@/lib/auth", () => ({
   getAuthUser: vi.fn(async () => ({ userId: "user-1", email: "user-1@test.com" })),
+  getUserTier: vi.fn(async () => "creator"),
 }));
 
 vi.mock("@/lib/redis", () => ({
@@ -21,7 +22,8 @@ vi.mock("@/lib/render-queue", () => ({
 vi.mock("@/lib/autoclip-pipeline", () => ({
   renderJob: vi.fn(async () => {}),
   computeCreditCost: vi.fn((clipCount: number) => clipCount), // 1 credit/clip, deterministic for the test
-  getAutoClipPricing: vi.fn(async () => ({ base: 1, perExtraClip: 1, perMinute: 1, rerender: 1 })),
+  getAutoClipPricing: vi.fn(async () => ({ perClip: 1, perTwoMinutes: 1, analysisPerHalfHour: 1, rerender: 1 })),
+  getAnalysisCreditsPaid: vi.fn(async () => 0),
 }));
 
 let credits = 10;

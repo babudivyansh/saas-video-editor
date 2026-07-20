@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, getUserTier } from "@/lib/auth";
+import { tierPriority } from "@/lib/plans/tiers";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { createRenderQueue } from "@/lib/render-queue";
 import { spendCredits } from "@/lib/credits";
-import { renderJob, computeCreditCost, getAutoClipPricing, type RenderPayload, type Aspect } from "@/lib/autoclip-pipeline";
+import { renderJob, computeCreditCost, getAutoClipPricing, getAnalysisCreditsPaid, type RenderPayload, type Aspect } from "@/lib/autoclip-pipeline";
 
 const renderQueue = createRenderQueue<RenderPayload>("auto-clip-render", renderJob);
 
@@ -76,7 +77,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return s + ((e.endSec ?? clip.endSec) - (e.startSec ?? clip.startSec));
   }, 0);
   const pricing = await getAutoClipPricing();
-  const creditCost = computeCreditCost(toKeep.length, totalDurationSec, pricing);
+  // The analysis charge paid at the pick step is credited back here, so a
+  // user who confirms pays only the clip pricing ("you only pay for clips
+  // you keep" — analysis is free unless you walk away).
+  const grossCost = computeCreditCost(toKeep.length, totalDurationSec, pricing);
+  const analysisPaid = await getAnalysisCreditsPaid(auth.userId, projectId);
+  const creditCost = Math.max(grossCost - analysisPaid, 0);
 
   // Atomic double-submit guard (H6 pattern, see app/api/generate/compile/route.ts)
   // — the earlier findFirst read is a stale snapshot; two concurrent confirms
@@ -128,7 +134,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     prisma.clip.deleteMany({ where: { id: { in: [...toDrop, ...unmentionedDrop] } } }),
   ]);
 
-  renderQueue.enqueue(projectId, { projectId });
+  renderQueue.enqueue(projectId, { projectId }, { priority: tierPriority(await getUserTier(auth.userId)) });
 
   return NextResponse.json({ status: "rendering", creditsCharged: creditCost, creditsRemaining: spend.balances.total });
 }

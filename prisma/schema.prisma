@@ -334,6 +334,7 @@ model Clip {
   durationSec       Float
   aspectRatio       String        @default("9:16")
   score             Int? // calibrated virality 0–99, see lib/virality-score.ts
+  rerenderCount     Int           @default(0) // first re-render per clip is free; charged after that
   scoreBreakdown    Json? // {hook, pacing, payoff, engagement, audio, speechRate} sub-scores for transparency
   mood              String? // AI-detected content mood, drives auto color grade (P2.3)
   status            String        @default("queued") // pending_review | queued | rendering | ready | failed

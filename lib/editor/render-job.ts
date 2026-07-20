@@ -119,7 +119,16 @@ export async function editorRenderJob(payload: EditorRenderPayload): Promise<voi
       tempFiles.push(captionAssPath);
     }
 
-    const result = buildFilterGraph({ doc, assets, textFiles, captionAssPath, outputPath: outPath });
+    // Free-tier renders are watermarked + 720p-capped. Tier is re-derived
+    // here (not passed in the payload) so it's decided in one place and is
+    // correct even for jobs that sat in the queue across an upgrade.
+    const { getUserTier } = await import("@/lib/auth");
+    const tier = await getUserTier(project.userId);
+    const result = buildFilterGraph({
+      doc, assets, textFiles, captionAssPath,
+      watermark: tier === "free",
+      outputPath: outPath,
+    });
     const scriptPath = path.join(tmp, `editor-${projectId}-graph.txt`);
     const args = maybeUseFilterScript(result, scriptPath);
     if (args !== result.args) tempFiles.push(scriptPath);

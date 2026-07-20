@@ -71,6 +71,32 @@ export function storageLimitBytesForTier(tier: TierId): number {
 // cap × grant). Unused purchased (pack) credits never expire.
 export const SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER = 2;
 
+// Render-queue priority by tier (BullMQ semantics: lower = sooner). Paid
+// tiers jump the queue ahead of free renders — backs the "priority
+// rendering" plan feature with real queue behavior.
+export const TIER_RENDER_PRIORITY: Record<TierId, number> = {
+  studio: 1,
+  pro: 2,
+  creator: 3,
+  free: 4,
+};
+
+export function tierPriority(tier: TierId): number {
+  return TIER_RENDER_PRIORITY[tier];
+}
+
+// Auto Clips source-video length cap by tier (cost ceiling per job and a
+// clean upgrade trigger).
+export const TIER_MAX_AUTOCLIP_SOURCE_SECONDS: Record<TierId, number> = {
+  free: 30 * 60,
+  creator: 2 * 60 * 60,
+  pro: 4 * 60 * 60,
+  studio: 6 * 60 * 60,
+};
+
+// Free-tier Auto Clip allowance: watermarked runs per rolling 30 days.
+export const FREE_TIER_AUTOCLIP_RUNS_PER_MONTH = 2;
+
 // Monthly bonus-credit grant for users without an active subscription.
 // Bonus credits expire 30 days after the latest bonus grant.
 export const FREE_TIER_MONTHLY_BONUS_CREDITS = 10;

@@ -7,7 +7,8 @@
 import { Prisma, type Clip } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
-import { restoreSpend, grantCredits } from "@/lib/credits";
+import { restoreSpend, grantCredits, spendCredits } from "@/lib/credits";
+import { resolveFontFile } from "@/lib/editor/filtergraph";
 import { downloadFile } from "@/utils/download";
 import {
   extractAudio,
@@ -68,15 +69,23 @@ const MOOD_TO_FILTER: Record<MoodTag, FilterPreset> = {
 // can responsibly invent final prices, but the numbers should at least be a
 // business decision made through an admin control, not a code deploy.
 
+// 2026-07 audit repricing. Charge model:
+//   analyze:  analysisPerHalfHour × ceil(sourceMin/30), charged when the
+//             pick job starts (deters "scan everything, render nothing"),
+//             then CREDITED against the confirm charge — net zero for users
+//             who confirm.
+//   confirm:  perClip × keptClips + perTwoMinutes × ceil(keptMin/2)
+//             − analysis already paid (floored at 0).
+//   rerender: first re-render of each clip free, then `rerender` each.
 export interface AutoClipPricing {
-  base: number;
-  perExtraClip: number;
-  perMinute: number;
+  perClip: number;
+  perTwoMinutes: number;
+  analysisPerHalfHour: number;
   rerender: number;
 }
 
 export const AUTOCLIP_PRICING_DEFAULTS: AutoClipPricing = {
-  base: 1, perExtraClip: 1, perMinute: 1, rerender: 1,
+  perClip: 1, perTwoMinutes: 1, analysisPerHalfHour: 1, rerender: 1,
 };
 
 export async function getAutoClipPricing(): Promise<AutoClipPricing> {
@@ -91,9 +100,23 @@ export async function getAutoClipPricing(): Promise<AutoClipPricing> {
 }
 
 export function computeCreditCost(clipCount: number, totalDurationSec: number, pricing: AutoClipPricing): number {
-  const extraClips = Math.max(0, clipCount - 1);
-  const minutes = Math.ceil(totalDurationSec / 60);
-  return pricing.base + extraClips * pricing.perExtraClip + minutes * pricing.perMinute;
+  const twoMinuteBlocks = Math.ceil(totalDurationSec / 120);
+  return clipCount * pricing.perClip + twoMinuteBlocks * pricing.perTwoMinutes;
+}
+
+export function computeAnalysisCost(sourceDurationSec: number, pricing: AutoClipPricing): number {
+  return Math.ceil(sourceDurationSec / 1800) * pricing.analysisPerHalfHour;
+}
+
+export const analysisRefId = (projectId: string) => `auto-clip-analysis:${projectId}`;
+
+/** Credits already paid (net of refunds) for this project's analysis step. */
+export async function getAnalysisCreditsPaid(userId: string, projectId: string): Promise<number> {
+  const rows = await prisma.creditTransaction.findMany({
+    where: { userId, refId: analysisRefId(projectId) },
+    select: { delta: true },
+  });
+  return Math.max(rows.reduce((s, r) => s - r.delta, 0), 0);
 }
 
 export async function refundCredits(projectId: string, amount: number): Promise<void> {
@@ -334,12 +357,46 @@ export async function pickJob(payload: PickPayload): Promise<void> {
   const tmp = os.tmpdir();
   const videoPath = path.join(tmp, `${projectId}-src.mp4`);
   const audioPath = path.join(tmp, `${projectId}-audio.mp3`);
+  let analysisCharged = 0;
 
   try {
     await downloadFile(project.uploadedVideoUrl, videoPath);
     const durationSec = await getMediaDurationSec(videoPath);
     if (durationSec < minDuration) {
       throw new Error(`Video is too short (${durationSec.toFixed(1)}s) for the requested clip duration (min ${minDuration}s)`);
+    }
+    // Tiered source-length cap (cost ceiling per job + upgrade trigger).
+    {
+      const { getUserTier } = await import("@/lib/auth");
+      const { TIER_MAX_AUTOCLIP_SOURCE_SECONDS } = await import("@/lib/plans/tiers");
+      const tier = await getUserTier(project.userId);
+      const cap = TIER_MAX_AUTOCLIP_SOURCE_SECONDS[tier];
+      if (durationSec > cap) {
+        throw new Error(
+          `Video is ${(durationSec / 60).toFixed(0)} min — your plan supports Auto Clips up to ${Math.round(cap / 60)} min per video. Upgrade for longer uploads.`,
+        );
+      }
+    }
+
+    // Analysis charge (credited back against the confirm charge — see the
+    // pricing comment above AutoClipPricing). Refunded if this job fails.
+    {
+      const pricing = await getAutoClipPricing();
+      const analysisCost = computeAnalysisCost(durationSec, pricing);
+      if (analysisCost > 0) {
+        const spend = await spendCredits({
+          userId: project.userId,
+          amount: analysisCost,
+          reason: "spend:auto-clip-analysis",
+          refId: analysisRefId(projectId),
+        });
+        if (!spend.ok) {
+          throw new Error(
+            `Analyzing this video costs ${analysisCost} credit${analysisCost === 1 ? "" : "s"} (credited back when you confirm clips) — you don't have enough credits.`,
+          );
+        }
+        analysisCharged = analysisCost;
+      }
     }
 
     let wordTimings: WordTiming[] = [];
@@ -471,6 +528,15 @@ export async function pickJob(payload: PickPayload): Promise<void> {
     ]);
   } catch (err) {
     logger.error("auto-clip", `pick failed for ${projectId}`, err);
+    // A failed analysis is never billed.
+    if (analysisCharged > 0) {
+      await restoreSpend({
+        userId: project.userId,
+        refId: analysisRefId(projectId),
+        amount: analysisCharged,
+        reason: "refund:auto-clip-analysis-failed",
+      }).catch(() => {});
+    }
     // Clean up any clips from a prior attempt on this project so a retry
     // doesn't accumulate duplicates alongside the ones about to be re-picked.
     await prisma.clip.deleteMany({ where: { projectId, status: "pending_review" } }).catch(() => {});
@@ -608,7 +674,19 @@ function shiftTime(tMs: number, keeps: KeepSegment[]): number {
 
 // ── Per-clip render (shared by the batch render job and single-clip re-render) ─
 
-async function renderOneClip(projectId: string, clip: Clip, videoPath: string): Promise<{ ok: boolean }> {
+// Free-tier output treatment: cap the short edge at 720p and burn a corner
+// "Clipiro" watermark. Chained after every other filter so it applies over
+// captions/B-roll and can't be cropped away.
+function watermarkFilterChain(): string {
+  const font = resolveFontFile("Poppins").replace(/\\/g, "/").replace(/:/g, "\\:");
+  return (
+    `scale=w='if(gt(iw,ih),-2,min(720,iw))':h='if(gt(iw,ih),min(720,ih),-2)',` +
+    `drawtext=fontfile='${font}':text='Clipiro':fontsize=h/18:fontcolor=white@0.6:` +
+    `borderw=2:bordercolor=black@0.35:x=w-tw-24:y=h-th-24`
+  );
+}
+
+async function renderOneClip(projectId: string, clip: Clip, videoPath: string, watermark = false): Promise<{ ok: boolean }> {
   const tmp = os.tmpdir();
   const clipPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}.mp4`);
   const thumbPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}.jpg`);
@@ -732,21 +810,25 @@ async function renderOneClip(projectId: string, clip: Clip, videoPath: string): 
     const videoSrc = isTrimmed ? "[trimmedv]" : "[0:v]";
     const audioSrc = isTrimmed ? "[trimmeda]" : "0:a";
     const prepends = isTrimmed && selectFilter && aselectFilter ? `[0:v]${selectFilter}[trimmedv];[0:a]${aselectFilter}[trimmeda];` : "";
+    // Complex branches expose their result as [video]; chain the free-tier
+    // watermark onto it and remap. The -vf branch just appends the chain.
+    const wmComplex = watermark ? `;[video]${watermarkFilterChain()}[videowm]` : "";
+    const videoMap = watermark ? "[videowm]" : "[video]";
 
     if (brollReady && clip.brollStartSec != null && clip.brollEndSec != null) {
       const brollStartSecShifted = isTrimmed ? shiftTime(clip.brollStartSec * 1000, keeps) / 1000 : clip.brollStartSec;
       const brollEndSecShifted = isTrimmed ? shiftTime(clip.brollEndSec * 1000, keeps) / 1000 : clip.brollEndSec;
 
-      const complex = prepends + buildBrollFilterComplex(finalDurationSec, brollStartSecShifted, brollEndSecShifted, aspect, moodFilter, captionsFilter, videoSrc);
+      const complex = prepends + buildBrollFilterComplex(finalDurationSec, brollStartSecShifted, brollEndSecShifted, aspect, moodFilter, captionsFilter, videoSrc) + wmComplex;
       ffmpegArgs = [
         ...baseArgs, "-stream_loop", "-1", "-i", brollPath,
-        "-filter_complex", complex, "-map", "[video]", "-map", audioSrc,
+        "-filter_complex", complex, "-map", videoMap, "-map", audioSrc,
         ...encodeArgs, "-shortest", clipPath,
       ];
     } else if (stored?.mode === "split" && stored.a.length > 1 && stored.b.length > 1) {
       // Two-speaker split-screen: two independent dynamic crops, vstacked.
-      const complex = prepends + buildSplitScreenFilterComplex(stored.a, stored.b, moodFilter, captionsFilter, videoSrc);
-      ffmpegArgs = [...baseArgs, "-filter_complex", complex, "-map", "[video]", "-map", audioSrc, ...encodeArgs, "-shortest", clipPath];
+      const complex = prepends + buildSplitScreenFilterComplex(stored.a, stored.b, moodFilter, captionsFilter, videoSrc) + wmComplex;
+      ffmpegArgs = [...baseArgs, "-filter_complex", complex, "-map", videoMap, "-map", audioSrc, ...encodeArgs, "-shortest", clipPath];
     } else {
       const keyframes = stored?.mode === "single" ? stored.keyframes : null;
       const cropExpr = keyframes && keyframes.length > 1
@@ -756,6 +838,7 @@ async function renderOneClip(projectId: string, clip: Clip, videoPath: string): 
       if (isTrimmed && selectFilter) {
         filters.unshift(selectFilter);
       }
+      if (watermark) filters.push(watermarkFilterChain());
       ffmpegArgs = [...baseArgs, "-vf", filters.join(","), ...(isTrimmed && aselectFilter ? ["-af", aselectFilter] : []), ...encodeArgs, clipPath];
     }
 
@@ -838,8 +921,12 @@ export async function renderJob(payload: RenderPayload): Promise<void> {
     let readyCount = 0;
     let bestUrl: string | null = null;
     let bestScore = -1;
+    // Tier decided once per run, inside the worker, so it's correct even for
+    // jobs queued across an upgrade.
+    const { getUserTier } = await import("@/lib/auth");
+    const watermark = (await getUserTier(project.userId)) === "free";
     for (const clip of clips) {
-      const { ok } = await renderOneClip(projectId, clip, videoPath);
+      const { ok } = await renderOneClip(projectId, clip, videoPath, watermark);
       if (ok) {
         readyCount++;
         const updated = await prisma.clip.findUnique({ where: { id: clip.id }, select: { videoUrl: true, score: true } });
@@ -926,7 +1013,9 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
       });
     }
 
-    await renderOneClip(projectId, updatedClip, videoPath);
+    const { getUserTier } = await import("@/lib/auth");
+    const watermark = (await getUserTier(project.userId)) === "free";
+    await renderOneClip(projectId, updatedClip, videoPath, watermark);
   } finally {
     try { if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath); } catch {}
   }

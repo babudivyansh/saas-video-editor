@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, getUserTier } from "@/lib/auth";
+import { tierPriority } from "@/lib/plans/tiers";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { withRateLimit } from "@/lib/with-rate-limit";
@@ -85,7 +86,7 @@ async function handlePOST(req: NextRequest) {
     data: { status: "rendering", progress: 0, videoUrl: null },
   });
 
-  renderQueue.enqueue(projectId, { projectId, assetUrls });
+  renderQueue.enqueue(projectId, { projectId, assetUrls }, { priority: tierPriority(await getUserTier(auth.userId)) });
 
   return NextResponse.json({ status: "rendering", creditsRemaining: spend.balances.total });
 }
