@@ -35,6 +35,22 @@ export default function SidebarAccount() {
   const t = useTranslations("Account");
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Hover-intent open (matches NavDropdown.tsx's Resources/Features menus): a
+  // short close delay so crossing the gap between trigger and panel doesn't
+  // flicker it shut. Click stays as a toggle for touch, which never fires
+  // mouseenter.
+  const cancelClose = () => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  };
+  const scheduleClose = () => {
+    cancelClose();
+    closeTimer.current = setTimeout(() => setOpen(false), 140);
+  };
 
   useEffect(() => {
     function onDown(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
@@ -42,12 +58,19 @@ export default function SidebarAccount() {
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
+  useEffect(() => cancelClose, []);
+
   if (!user) return null;
 
   const initial = (user.name?.[0] ?? user.email?.[0] ?? "?").toUpperCase();
 
   return (
-    <div className="relative" ref={ref}>
+    <div
+      className="relative"
+      ref={ref}
+      onMouseEnter={() => { cancelClose(); setOpen(true); }}
+      onMouseLeave={scheduleClose}
+    >
       <button
         onClick={() => setOpen((p) => !p)}
         title={t("avatarButton")}
