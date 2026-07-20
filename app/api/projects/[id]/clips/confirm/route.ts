@@ -101,7 +101,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
   if (cached !== null && cached < creditCost) {
     await prisma.project.update({ where: { id: projectId }, data: { status: "pending_review" } });
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
+    return NextResponse.json({ error: "insufficient_credits", required: creditCost, balance: cached }, { status: 402 });
   }
 
   // Bucket-aware atomic spend; refId `auto-clip:{projectId}` is what the
@@ -114,7 +114,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   });
   if (!spend.ok) {
     await prisma.project.update({ where: { id: projectId }, data: { status: "pending_review" } });
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
+    return NextResponse.json(
+      { error: "insufficient_credits", required: creditCost, balance: spend.balances.total },
+      { status: 402 },
+    );
   }
 
   await prisma.$transaction([

@@ -66,7 +66,10 @@ async function handlePOST(req: NextRequest) {
   const cachedCredits = await redis.get(`credits:${auth.userId}`);
   const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
   if (cached !== null && cached < EDITOR_RENDER_CREDIT_COST) {
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
+    return NextResponse.json(
+      { error: "insufficient_credits", required: EDITOR_RENDER_CREDIT_COST, balance: cached },
+      { status: 402 },
+    );
   }
 
   // Bucket-aware atomic spend; refId ties the ledger rows to this render so
@@ -78,7 +81,10 @@ async function handlePOST(req: NextRequest) {
     refId: `editor-render:${projectId}`,
   });
   if (!spend.ok) {
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
+    return NextResponse.json(
+      { error: "insufficient_credits", required: EDITOR_RENDER_CREDIT_COST, balance: spend.balances.total },
+      { status: 402 },
+    );
   }
 
   await prisma.project.update({

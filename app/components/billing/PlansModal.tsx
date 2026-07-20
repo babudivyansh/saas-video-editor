@@ -23,7 +23,7 @@ const TERMS = [
   { months: 1, label: "Monthly" },
   { months: 12, label: "Yearly" },
 ];
-const YEARLY_SAVE_PCT = 20;
+const YEARLY_SAVE_PCT = 33;
 
 function formatPrice(paise: number) {
   return `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
