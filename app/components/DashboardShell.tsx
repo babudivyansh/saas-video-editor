@@ -35,6 +35,7 @@ const ROUTE_ACTIVE: { prefix: string; id: string }[] = [
 
 function activeIdFor(pathname: string): string {
   if (pathname === "/dashboard") return "home";
+  if (pathname.startsWith("/billing")) return "billing";
   const match = ROUTE_ACTIVE.find((r) => pathname.startsWith(r.prefix));
   return match?.id ?? "home";
 }
