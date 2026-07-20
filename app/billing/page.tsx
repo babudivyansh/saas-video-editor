@@ -295,7 +295,7 @@ function BillingContent() {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4 flex-shrink-0">
             <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          Subscription cancelled — you'll keep access until {user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "the end of your billing period"}.
+          Subscription cancelled — you&apos;ll keep access until {user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "the end of your billing period"}.
         </div>
       )}
       {error && (
