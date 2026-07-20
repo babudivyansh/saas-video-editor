@@ -61,6 +61,9 @@ export async function POST(req: NextRequest) {
             monthlyCredits: plan.monthlyCredits ?? plan.credits,
             subscriptionEndsAt: endsAt,
             nextRefillAt: null,
+            // A fresh/renewed subscription supersedes any prior cancel-at-cycle-end
+            // request (e.g. the user re-subscribed after cancelling).
+            subscriptionCancelledAt: null,
             ...(grantTrial ? { trialUsedAt: new Date(), trialEndsAt: endsAt } : {}),
           },
         }).catch((e) => logger.error("webhook", "subscription.activated update failed", e));

@@ -31,6 +31,7 @@ export interface AuthUser {
   tourCompletedAt: string | null;
   dismissedHints: string[];
   subscriptionEndsAt: string | null;
+  subscriptionCancelledAt: string | null;
   nextRefillAt: string | null;
   monthlyCredits: number;
   emailVerifiedAt: string | null;

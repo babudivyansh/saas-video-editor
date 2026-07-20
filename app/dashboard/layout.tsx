@@ -1,24 +1,13 @@
-// Server Component wrapper: resolves the i18n locale/messages once here
-// (from the cookie set by login / the language switcher — see
-// i18n/request.ts) and provides them to the whole /dashboard/* subtree.
-// Scoped to just this subtree — not the root layout — so the public
-// marketing site keeps static generation instead of being forced dynamic
-// by a per-request cookie read it doesn't need.
+// Scoped to just the /dashboard/* subtree — not the root layout — so the
+// public marketing site keeps static generation instead of being forced
+// dynamic by AppShellLayout's per-request cookie read, which it doesn't need.
 //
 // Actual chrome (header, icon rail, pathname-based active state) lives in
-// DashboardShell, a Client Component, since usePathname() needs one.
+// DashboardShell, wrapped by the shared AppShellLayout (also used by
+// app/billing/layout.tsx so /billing gets the same chrome).
 
-import { NextIntlClientProvider } from "next-intl";
-import { getLocale, getMessages } from "next-intl/server";
-import DashboardShell from "@/app/components/DashboardShell";
+import AppShellLayout from "@/app/components/AppShellLayout";
 
-export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const locale = await getLocale();
-  const messages = await getMessages();
-
-  return (
-    <NextIntlClientProvider locale={locale} messages={messages}>
-      <DashboardShell>{children}</DashboardShell>
-    </NextIntlClientProvider>
-  );
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return <AppShellLayout>{children}</AppShellLayout>;
 }

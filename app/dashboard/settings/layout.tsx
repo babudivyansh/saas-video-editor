@@ -9,8 +9,9 @@
 //
 // Billing stays a real (not decorative) tab here for discoverability, but
 // keeps its small external-link glyph: /billing is a genuinely separate
-// top-level page with its own header chrome, not a child route of this hub,
-// so clicking it does leave this sidebar behind.
+// top-level page (shares the DashboardHeader/ToolsSidebar chrome via its own
+// layout.tsx, but not this Settings tab sidebar) — clicking it does leave
+// this sidebar behind.
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";

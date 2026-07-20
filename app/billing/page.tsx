@@ -6,10 +6,9 @@ import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 import { useTopupCoupon } from "@/app/components/useTopupCoupon";
 import { PlansModal } from "@/app/components/billing/PlansModal";
-import ClipiroLogo from "@/app/components/ClipiroLogo";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
-import { CreditsPill } from "@/app/components/ui/CreditsPill";
+import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { CreditRing } from "@/app/components/ui/CreditRing";
 import { StatTile } from "@/app/components/ui/StatTile";
 import { UsageBarChart } from "@/app/components/ui/UsageBarChart";
@@ -69,6 +68,19 @@ function daysUntil(date: Date) {
   return Math.ceil((date.getTime() - Date.now()) / 86400000);
 }
 
+// "Renews"/"Access ends" framing (not a bare "Expires" date) so an
+// auto-renewing plan doesn't read as about to lapse.
+function renewalLabel(daysLeft: number, cancelled: boolean) {
+  const verb = cancelled ? "Access ends" : "Renews";
+  if (daysLeft <= 0) return `${verb} today`;
+  if (daysLeft === 1) return `${verb} tomorrow`;
+  return `${verb} in ${daysLeft} days`;
+}
+
+// Low-balance threshold — mirrors the auto-topup prompt's own trigger point
+// (lib/credits.ts maybeAutoTopup) so the two nudges agree on "low."
+const LOW_BALANCE_THRESHOLD = 10;
+
 function Spinner() {
   return <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />;
 }
@@ -110,6 +122,9 @@ function BillingContent() {
   const [launch, setLaunch] = useState<LaunchCoupon | null>(null);
   const [copied, setCopied] = useState(false);
   const [plansModalOpen, setPlansModalOpen] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelSuccess, setCancelSuccess] = useState(false);
 
   // Usage tab data — real Generation-ledger-backed (Phase 1/3), replacing the
   // old Project-derived bar chart and its hardcoded "−1 credit" display.
@@ -199,6 +214,23 @@ function BillingContent() {
     router.push("/billing?success=1");
   }
 
+  async function handleCancelSubscription() {
+    if (!token) return;
+    setCancelling(true);
+    setError("");
+    try {
+      const res = await fetch("/api/billing/cancel", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(data.error ?? "Couldn't cancel your subscription."); return; }
+      await refreshUser();
+      setCancelSuccess(true);
+    } catch {
+      setError("Couldn't cancel your subscription.");
+    } finally {
+      setCancelling(false);
+    }
+  }
+
   function copyLaunchCode() {
     if (!launch) return;
     navigator.clipboard?.writeText(launch.code).then(() => {
@@ -209,133 +241,126 @@ function BillingContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-surface flex items-center justify-center">
+      <div className="flex items-center justify-center py-32">
         <div className="w-6 h-6 border-2 border-brand/30 border-t-brand rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-surface">
-      {/* Nav */}
-      <nav className="bg-white border-b border-gray-100 px-5 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-5 min-w-0">
-          <Link href="/dashboard" aria-label="Dashboard home" className="flex-shrink-0">
-            <ClipiroLogo className="h-8" />
-          </Link>
-          <Link href="/dashboard" className="flex items-center gap-1.5 text-sm text-ink-soft hover:text-ink transition-colors">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-              <path d="M19 12H5M12 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Back to Dashboard
-          </Link>
-        </div>
-        <CreditsPill credits={balance} />
-      </nav>
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-6">
+      <div>
+        <h1 className="text-2xl font-extrabold grad-text inline-block">Billing</h1>
+        <p className="text-sm text-ink-soft mt-1">Manage your plan, credits, and usage.</p>
+      </div>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-6">
-        <div>
-          <h1 className="text-2xl font-extrabold grad-text inline-block">Billing</h1>
-          <p className="text-sm text-ink-soft mt-1">Manage your plan, credits, and usage.</p>
-        </div>
-
-        {/* ── Launch offer banner ── */}
-        {launch && (
-          <div className="relative overflow-hidden rounded-[var(--radius-card)] grad-hero px-6 py-5 text-white shadow-glow">
-            <div className="clipiro-blob absolute -right-6 -top-8 h-32 w-32 rounded-full bg-white/15 blur-2xl pointer-events-none" />
-            <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-widest text-white/80">🚀 Launch Special</p>
-                <p className="mt-1 font-bold leading-snug">
-                  {launch.description ?? `${launch.discountValue}% off your plan`}
+      {/* ── Launch offer banner ── */}
+      {launch && (
+        <div className="relative overflow-hidden rounded-[var(--radius-card)] grad-hero px-6 py-5 text-white shadow-glow">
+          <div className="clipiro-blob absolute -right-6 -top-8 h-32 w-32 rounded-full bg-white/15 blur-2xl pointer-events-none" />
+          <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-white/80">🚀 Launch Special</p>
+              <p className="mt-1 font-bold leading-snug">
+                {launch.description ?? `${launch.discountValue}% off your plan`}
+              </p>
+              {launch.expiresAt && (
+                <p className="text-xs text-white/70 mt-0.5">
+                  Ends {new Date(launch.expiresAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                 </p>
-                {launch.expiresAt && (
-                  <p className="text-xs text-white/70 mt-0.5">
-                    Ends {new Date(launch.expiresAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={copyLaunchCode}
-                className="flex-shrink-0 inline-flex items-center gap-2 rounded-full bg-white/15 hover:bg-white/25 border border-white/30 px-4 py-2.5 font-mono font-bold tracking-wider transition-colors cursor-pointer"
-              >
-                {launch.code}
-                <span className="text-xs font-sans font-semibold text-white/80">{copied ? "Copied!" : "Copy"}</span>
-              </button>
+              )}
             </div>
-          </div>
-        )}
-
-        {/* Success / error banners */}
-        {success && (
-          <div className="bg-tint-emerald border border-green-200 text-green-800 rounded-2xl px-5 py-3.5 text-sm font-medium flex items-center gap-2">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4 flex-shrink-0">
-              <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Payment successful — credits will appear in your account shortly!
-          </div>
-        )}
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-800 rounded-2xl px-5 py-3.5 text-sm font-medium">
-            {error}
-          </div>
-        )}
-
-        {/* ── Tabs ── */}
-        <div className="flex gap-1 border-b border-gray-100 -mb-1 overflow-x-auto">
-          {TABS.map(t => (
             <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`px-4 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors ${
-                tab === t.key ? "border-brand text-brand" : "border-transparent text-ink-soft hover:text-ink"
-              }`}
+              onClick={copyLaunchCode}
+              className="flex-shrink-0 inline-flex items-center gap-2 rounded-full bg-white/15 hover:bg-white/25 border border-white/30 px-4 py-2.5 font-mono font-bold tracking-wider transition-colors cursor-pointer"
             >
-              {t.label}
+              {launch.code}
+              <span className="text-xs font-sans font-semibold text-white/80">{copied ? "Copied!" : "Copy"}</span>
             </button>
-          ))}
+          </div>
         </div>
+      )}
 
-        {tab === "overview" && (
-          <OverviewTab
-            user={user}
-            hasActivePlan={hasActivePlan}
-            daysLeft={daysLeft}
-            allowance={allowance}
-            balance={balance}
-            used={used}
-            onViewPlans={() => setPlansModalOpen(true)}
-          />
-        )}
+      {/* Success / error banners */}
+      {success && (
+        <div className="bg-tint-emerald border border-green-200 text-green-800 rounded-2xl px-5 py-3.5 text-sm font-medium flex items-center gap-2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4 flex-shrink-0">
+            <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Payment successful — credits will appear in your account shortly!
+        </div>
+      )}
+      {cancelSuccess && (
+        <div className="bg-tint-emerald border border-green-200 text-green-800 rounded-2xl px-5 py-3.5 text-sm font-medium flex items-center gap-2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4 flex-shrink-0">
+            <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Subscription cancelled — you&apos;ll keep access until {user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "the end of your billing period"}.
+        </div>
+      )}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-800 rounded-2xl px-5 py-3.5 text-sm font-medium">
+          {error}
+        </div>
+      )}
 
-        {tab === "usage" && (
-          <UsageTab
-            summary={summary}
-            history={history}
-            historyCursor={historyCursor}
-            historyLoadingMore={historyLoadingMore}
-            onLoadMore={loadMoreHistory}
-          />
-        )}
+      {/* ── Tabs ── */}
+      <div className="flex gap-1 border-b border-gray-100 -mb-1 overflow-x-auto">
+        {TABS.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`px-4 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors ${
+              tab === t.key ? "border-brand text-brand" : "border-transparent text-ink-soft hover:text-ink"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-        {tab === "topup" && (
-          <TopupTab
-            hasActivePlan={hasActivePlan}
-            packs={packs}
-            addons={addons}
-            activeId={activeId}
-            onBuy={handleBuy}
-            coupon={coupon}
-            onViewPlans={() => setPlansModalOpen(true)}
-          />
-        )}
+      {tab === "overview" && (
+        <OverviewTab
+          user={user}
+          hasActivePlan={hasActivePlan}
+          daysLeft={daysLeft}
+          allowance={allowance}
+          balance={balance}
+          used={used}
+          summary={summary}
+          onViewPlans={() => setPlansModalOpen(true)}
+          onGoToTopup={() => setTab("topup")}
+          onCancelClick={() => setCancelDialogOpen(true)}
+        />
+      )}
 
-        {tab === "history" && <HistoryTab purchases={purchases} purchasesLoaded={purchasesLoaded} />}
+      {tab === "usage" && (
+        <UsageTab
+          summary={summary}
+          history={history}
+          historyCursor={historyCursor}
+          historyLoadingMore={historyLoadingMore}
+          onLoadMore={loadMoreHistory}
+        />
+      )}
 
-        <p className="text-center text-xs text-ink-soft/60 pb-6">
-          Payments powered by Razorpay · Secure &amp; encrypted
-        </p>
-      </main>
+      {tab === "topup" && (
+        <TopupTab
+          hasActivePlan={hasActivePlan}
+          packs={packs}
+          addons={addons}
+          activeId={activeId}
+          onBuy={handleBuy}
+          coupon={coupon}
+          onViewPlans={() => setPlansModalOpen(true)}
+        />
+      )}
+
+      {tab === "history" && <HistoryTab purchases={purchases} purchasesLoaded={purchasesLoaded} />}
+
+      <p className="text-center text-xs text-ink-soft/60 pb-6">
+        Payments powered by Razorpay · Secure &amp; encrypted
+      </p>
 
       {plansModalOpen && (
         <PlansModal
@@ -343,22 +368,38 @@ function BillingContent() {
           onPurchaseSuccess={handlePlanPurchaseSuccess}
         />
       )}
+
+      <ConfirmDialog
+        open={cancelDialogOpen}
+        title="Cancel subscription?"
+        message={`You'll keep access to your plan until ${user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "the end of your billing period"} — you just won't be charged again after that.`}
+        confirmLabel={cancelling ? "Cancelling…" : "Cancel subscription"}
+        danger
+        onConfirm={handleCancelSubscription}
+        onClose={() => setCancelDialogOpen(false)}
+      />
     </div>
   );
 }
 
 // ── Overview tab ─────────────────────────────────────────────────────────────
-function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, onViewPlans }: {
+function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, summary, onViewPlans, onGoToTopup, onCancelClick }: {
   user: ReturnType<typeof useAuth>["user"];
   hasActivePlan: boolean;
   daysLeft: number;
   allowance: number;
   balance: number;
   used: number;
+  summary: GenerationSummary | null;
   onViewPlans: () => void;
+  onGoToTopup: () => void;
+  onCancelClick: () => void;
 }) {
   const expiringSoon = hasActivePlan && daysLeft <= 7;
   const memberSince = user?.createdAt ? formatDate(user.createdAt) : "—";
+  const cancelled = !!user?.subscriptionCancelledAt;
+  const generationsThisMonth = summary?.byTool.reduce((s, t) => s + t.count, 0) ?? 0;
+  const lowBalance = hasActivePlan && balance > 0 && balance < LOW_BALANCE_THRESHOLD;
 
   return (
     <div className="space-y-6">
@@ -371,17 +412,29 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
                   Active Plan
                 </span>
                 <span className="text-sm font-semibold text-ink truncate">{user?.plan?.name ?? "Subscription"}</span>
+                {cancelled && (
+                  <span className="inline-block bg-gray-100 text-ink-soft text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wide">
+                    Cancelled
+                  </span>
+                )}
               </div>
               <p className={`text-sm font-medium ${expiringSoon ? "text-red-600" : "text-ink-soft"}`}>
-                {daysLeft <= 0 ? "Expires today" : daysLeft === 1 ? "Expires tomorrow" : `Expires in ${daysLeft} days`}
+                {renewalLabel(daysLeft, cancelled)}
               </p>
               <p className="text-xs text-ink-soft/70 mt-1">Member since {memberSince}</p>
-              <button onClick={onViewPlans} className="inline-flex items-center gap-1 text-xs text-brand hover:text-brand-dark font-medium mt-2 transition-colors cursor-pointer">
-                Manage plan
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-                  <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-4 mt-2">
+                <button onClick={onViewPlans} className="inline-flex items-center gap-1 text-xs text-brand hover:text-brand-dark font-medium transition-colors cursor-pointer">
+                  Manage plan
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                    <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                {!cancelled && (
+                  <button onClick={onCancelClick} className="text-xs text-ink-soft/60 hover:text-red-600 font-medium transition-colors cursor-pointer">
+                    Cancel subscription
+                  </button>
+                )}
+              </div>
             </div>
 
             {allowance > 0 && (
@@ -391,16 +444,40 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
                   <p className="text-xs text-ink-soft font-medium">Monthly credits</p>
                   <p className="text-sm font-bold text-ink mt-0.5">{used} / {allowance} used</p>
                   <p className="text-xs text-ink-soft mt-0.5">Total balance: <span className="font-semibold text-ink">{balance}</span></p>
+                  {generationsThisMonth > 0 && (
+                    <p className="text-xs text-ink-soft/70 mt-0.5">
+                      {generationsThisMonth} generation{generationsThisMonth === 1 ? "" : "s"} in the last 30 days
+                    </p>
+                  )}
                 </div>
               </div>
             )}
           </div>
 
+          {lowBalance && (
+            <div className="flex items-center justify-between gap-3 bg-tint-amber border border-amber-100 rounded-2xl px-4 py-3">
+              <p className="text-xs text-ink font-medium">Running low on credits ({balance} left).</p>
+              <button onClick={onGoToTopup} className="flex-shrink-0 text-xs font-bold text-brand hover:text-brand-dark transition-colors cursor-pointer">
+                Top up →
+              </button>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <StatTile label="Monthly credits" value={allowance || "—"} accent="blue" />
-            <StatTile label="Renews / expires" value={user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "—"} accent="violet" />
+            <StatTile
+              label={cancelled ? "Access until" : "Renews"}
+              value={user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "—"}
+              accent="violet"
+            />
             <StatTile label="Next refill" value={user?.nextRefillAt ? formatDate(user.nextRefillAt) : "—"} accent="fuchsia" />
           </div>
+
+          {!cancelled && user?.plan?.priceInPaise ? (
+            <p className="text-xs text-ink-soft/70">
+              Next charge {formatINR(user.plan.priceInPaise)} on {user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "—"}.
+            </p>
+          ) : null}
         </Card>
       ) : (
         <Card tint="violet" className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -742,7 +819,7 @@ function HistoryTab({ purchases, purchasesLoaded }: { purchases: Purchase[]; pur
 export default function BillingPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-surface flex items-center justify-center">
+      <div className="flex items-center justify-center py-32">
         <div className="w-6 h-6 border-2 border-brand/30 border-t-brand rounded-full animate-spin" />
       </div>
     }>
