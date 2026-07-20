@@ -23,20 +23,17 @@ export interface StartCheckoutArgs {
   addonIds?: string[];
   /** Optional coupon code applied to the order total at checkout. */
   couponCode?: string;
+  /** Request the 7-day Pro trial (server validates eligibility/tier). */
+  trial?: boolean;
   /** Fired from the Razorpay success handler (e.g. refreshUser + toast, or a redirect). */
   onSuccess?: () => void;
   /** Surface a checkout error. Defaults to window.alert. */
   onError?: (message: string) => void;
 }
 
-interface CheckoutResponse {
-  orderId: string;
-  amount: number;
-  currency: string;
-  keyId: string;
-  packName: string;
-  credits: number;
-}
+type CheckoutResponse =
+  | { mode: "order"; orderId: string; amount: number; currency: string; keyId: string; packName: string; credits: number }
+  | { mode: "subscription"; subscriptionId: string; keyId: string; packName: string; credits: number; trial: boolean };
 
 export interface UseRazorpayCheckout {
   startCheckout: (args: StartCheckoutArgs) => Promise<void>;
@@ -59,7 +56,7 @@ export function useRazorpayCheckout(): UseRazorpayCheckout {
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const startCheckout = useCallback(
-    async ({ planId, addonIds = [], couponCode, onSuccess, onError }: StartCheckoutArgs) => {
+    async ({ planId, addonIds = [], couponCode, trial, onSuccess, onError }: StartCheckoutArgs) => {
       const fail = (message: string) => (onError ? onError(message) : alert(message));
       if (!user || !token) {
         fail("Please sign in to continue.");
@@ -81,7 +78,7 @@ export function useRazorpayCheckout(): UseRazorpayCheckout {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ planId, addonIds, couponCode }),
+          body: JSON.stringify({ planId, addonIds, couponCode, trial }),
         });
 
         if (!res.ok) {
@@ -94,26 +91,30 @@ export function useRazorpayCheckout(): UseRazorpayCheckout {
 
         const rzp = new window.Razorpay({
           key: data.keyId,
-          amount: data.amount,
-          currency: data.currency,
           name: "Clipiro",
           description: data.packName,
-          order_id: data.orderId,
           prefill: { email: user.email },
           theme: { color: "#2563eb" },
+          ...(data.mode === "order"
+            ? { amount: data.amount, currency: data.currency, order_id: data.orderId }
+            : { subscription_id: data.subscriptionId, recurring: 1 }),
           handler: async (response: RazorpaySuccess) => {
-            // Confirm the payment server-side so the plan/credits are granted
-            // immediately — independent of the (unreliable) webhook.
+            // One-time orders need explicit server-side verification; a
+            // subscription's first charge is granted entirely by the
+            // subscription.activated / subscription.charged webhooks, so
+            // there's nothing to verify here.
             try {
-              await fetch("/api/billing/verify", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                body: JSON.stringify({
-                  razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_order_id: response.razorpay_order_id,
-                  razorpay_signature: response.razorpay_signature,
-                }),
-              });
+              if (data.mode === "order") {
+                await fetch("/api/billing/verify", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                  body: JSON.stringify({
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_order_id: response.razorpay_order_id,
+                    razorpay_signature: response.razorpay_signature,
+                  }),
+                });
+              }
             } catch {
               // Payment succeeded but verification call failed — the webhook is
               // the backup. onSuccess still fires; credits/plan arrive shortly.

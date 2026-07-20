@@ -66,6 +66,38 @@ export async function POST(req: NextRequest) {
     appliedDiscount = result.discountInPaise;
   }
 
+  // ── Recurring flow: subscription-kind plans with a synced Razorpay Plan id
+  // go through Subscriptions (true auto-renewal + optional trial). Plans not
+  // yet synced (razorpayPlanId null) fall back to the legacy one-time order
+  // below, so rollout can happen plan-by-plan without breaking checkout.
+  const razorpayPlanId = basePlan.currency === "USD" ? basePlan.razorpayPlanIdUsd : basePlan.razorpayPlanIdInr;
+  if (basePlan.kind === "subscription" && razorpayPlanId) {
+    const user = await prisma.user.findUnique({ where: { id: auth.userId }, select: { trialUsedAt: true } });
+    // Trial: Pro-tier only, once per account, requested explicitly by the client.
+    const wantsTrial = body.trial === true && basePlan.tier === "pro" && !user?.trialUsedAt;
+
+    const subscription = await razorpay.subscriptions.create({
+      plan_id: razorpayPlanId,
+      customer_notify: 1,
+      total_count: 120, // ~10 years of monthly cycles; Razorpay requires a bound
+      ...(wantsTrial ? { start_at: Math.floor(Date.now() / 1000) + 7 * 86400 } : {}),
+      notes: {
+        userId: auth.userId,
+        planId: basePlan.slug,
+        trial: wantsTrial ? "1" : "0",
+      },
+    });
+
+    return NextResponse.json({
+      mode: "subscription" as const,
+      subscriptionId: subscription.id,
+      keyId: env.RAZORPAY_KEY_ID,
+      packName,
+      credits: totalCredits,
+      trial: wantsTrial,
+    });
+  }
+
   const order = await razorpay.orders.create({
     amount: amountToCharge,
     currency: basePlan.currency,
@@ -83,6 +115,7 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json({
+    mode: "order" as const,
     orderId: order.id,
     amount: order.amount,
     currency: order.currency,

@@ -40,8 +40,13 @@ export async function GET(req: NextRequest) {
   let freeGranted = 0;
 
   // ── 1. Paid refills with rollover cap ───────────────────────────────────────
+  // Grandfathering: users on a real Razorpay Subscription renew via the
+  // subscription.charged webhook (lib/fulfillment.ts fulfillSubscriptionCharge),
+  // never via this cron — nextRefillAt is set to null for them at grant time,
+  // but excluding by razorpaySubscriptionId here too guards against any state
+  // where both would otherwise fire.
   const due = await prisma.user.findMany({
-    where: { nextRefillAt: { not: null, lte: now } },
+    where: { nextRefillAt: { not: null, lte: now }, razorpaySubscriptionId: null },
     select: { id: true, monthlyCredits: true, nextRefillAt: true, subscriptionEndsAt: true },
   });
 
@@ -89,6 +94,7 @@ export async function GET(req: NextRequest) {
       data: {
         planId: null,
         subscriptionId: null,
+        razorpaySubscriptionId: null,
         subscriptionEndsAt: null,
         nextRefillAt: null,
         monthlyCredits: 0,
