@@ -14,14 +14,41 @@ const GROUP_LIMITS: { prefix: string; name: string; limit: number; windowSec: nu
   { prefix: "/api/billing/", name: "billing", limit: 30, windowSec: 60 },
 ];
 
+// Auth-gated app surfaces: unauthenticated visitors get bounced to /login
+// before the page ever renders, instead of relying on each page's own
+// client-side check (previously inconsistent — e.g. /dashboard had none at
+// all, so a signed-out visitor just saw an empty shell).
+const PROTECTED_PAGE_PREFIXES = ["/dashboard", "/billing", "/editor"];
+// Signed-out-only entry points: once authenticated, redirect straight into
+// the app instead of re-showing the landing/login/register screen.
+const SIGNED_OUT_ONLY_PATHS = ["/", "/login", "/register"];
+
 /**
- * Single proxy.ts (only one is supported per project) covering two
+ * Optimistic auth check — session cookie present + signature/expiry valid,
+ * no Postgres/session-revocation lookup, so it stays cheap on every request.
+ * Shared by both the /api and page-routing branches of proxy() below. This
+ * is a safety net, not a replacement for requireAdmin/requireSubscriber's
+ * (or getAuthUser's) authoritative per-route DB checks.
+ */
+function getOptimisticAuth(request: NextRequest): { userId: string } | null {
+  const session = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  if (!session) return null;
+  try {
+    return { userId: verifyToken(session).userId };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Single proxy.ts (only one is supported per project) covering three
  * unrelated concerns, branched on pathname:
- *  - /api/*: an optimistic auth gate — signature+expiry check only, no
- *    Postgres lookup, so it stays cheap on every request. This is a
- *    safety net, not a replacement for requireAdmin/requireSubscriber's
- *    authoritative per-route DB checks. Also applies group-level rate
- *    limits for admin/social/billing (see GROUP_LIMITS above).
+ *  - /api/*: the optimistic auth gate (see getOptimisticAuth) plus
+ *    group-level rate limits for admin/social/billing (GROUP_LIMITS above).
+ *  - protected pages (/dashboard, /billing): redirect to /login when the
+ *    optimistic check fails.
+ *  - signed-out-only pages (/, /login, /register): redirect to /dashboard
+ *    when the optimistic check succeeds.
  *  - everything else: first-click affiliate attribution cookie.
  */
 export async function proxy(request: NextRequest) {
@@ -60,20 +87,14 @@ export async function proxy(request: NextRequest) {
       }
     }
 
-    const session = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    let userId: string;
-    try {
-      userId = verifyToken(session).userId;
-    } catch {
+    const auth = getOptimisticAuth(request);
+    if (!auth) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const group = GROUP_LIMITS.find((g) => pathname.startsWith(g.prefix));
     if (group) {
-      const result = await rateLimit(`${group.name}:user:${userId}`, group.limit, group.windowSec);
+      const result = await rateLimit(`${group.name}:user:${auth.userId}`, group.limit, group.windowSec);
       if (!result.allowed) {
         return NextResponse.json(
           { error: "Too many requests. Please try again later." },
@@ -83,6 +104,18 @@ export async function proxy(request: NextRequest) {
     }
 
     return NextResponse.next();
+  }
+
+  const auth = getOptimisticAuth(request);
+
+  const isProtectedPage = PROTECTED_PAGE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  if (isProtectedPage && !auth) {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  const isSignedOutOnlyPage = SIGNED_OUT_ONLY_PATHS.includes(pathname);
+  if (isSignedOutOnlyPage && auth) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
   const response = NextResponse.next();
