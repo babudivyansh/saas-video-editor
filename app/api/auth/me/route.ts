@@ -12,7 +12,11 @@ export async function GET(req: NextRequest) {
       id: true,
       email: true,
       phone: true,
-      credits: true,
+      credits: true, // denormalized total of the three buckets below
+      subscriptionCredits: true,
+      purchasedCredits: true,
+      bonusCredits: true,
+      bonusCreditsExpireAt: true,
       createdAt: true,
       role: true,
       firstName: true,
@@ -43,5 +47,15 @@ export async function GET(req: NextRequest) {
   });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-  return NextResponse.json({ user });
+  return NextResponse.json({
+    user: {
+      ...user,
+      creditBalances: {
+        bonus: user.bonusCredits,
+        subscription: user.subscriptionCredits,
+        purchased: user.purchasedCredits,
+        total: user.credits,
+      },
+    },
+  });
 }

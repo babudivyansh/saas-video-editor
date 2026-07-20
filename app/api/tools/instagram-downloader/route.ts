@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
+import { checkFreeToolDailyCap, freeToolCapResponseBody } from "@/lib/free-tool-caps";
+import { spendCredits, restoreSpend } from "@/lib/credits";
 import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { create as createYoutubeDl } from "youtube-dl-exec";
@@ -20,12 +22,13 @@ export const maxDuration = 300;
 const CREDIT_COST = 1;
 const MAX_SOURCE_DURATION_SEC = 20 * 60; // 20 minutes
 
-async function refundCredit(userId: string) {
-  await prisma.user.update({ where: { id: userId }, data: { credits: { increment: CREDIT_COST } } });
-  const cached = await redis.get(`credits:${userId}`);
-  if (cached !== null) {
-    await redis.set(`credits:${userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
-  }
+async function refundCredit(userId: string, refId: string) {
+  await restoreSpend({
+    userId,
+    refId,
+    amount: CREDIT_COST,
+    reason: "refund:instagram-downloader-failed",
+  });
 }
 
 // ── yt-dlp binary (bundled by youtube-dl-exec) ────────────────────────────────
@@ -189,6 +192,12 @@ async function handleGET(req: NextRequest) {
   }
 
   // ── Download mode ─────────────────────────────────────────────────────────────
+  // Daily cap on actual downloads (info/status polling stays uncapped).
+  const daily = await checkFreeToolDailyCap("instagram-downloader", auth.userId);
+  if (!daily.allowed) {
+    return NextResponse.json(freeToolCapResponseBody("instagram-downloader", daily.cap), { status: 429 });
+  }
+
   const jobId = randomUUID();
   const isAudio = quality === "audio";
   const ext = isAudio ? "mp3" : "mp4";
@@ -221,17 +230,16 @@ async function handleGET(req: NextRequest) {
       );
     }
 
-    const user = await prisma.user.update({
-      where: { id: auth.userId },
-      data: { credits: { decrement: CREDIT_COST } },
-      select: { credits: true },
+    const spend = await spendCredits({
+      userId: auth.userId,
+      amount: CREDIT_COST,
+      reason: "spend:instagram-downloader",
+      refId: `instagram-downloader:${jobId}`,
     });
-    if (user.credits < 0) {
-      await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
+    if (!spend.ok) {
       return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
     }
     creditsDeducted = true;
-    await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
 
     if (isAudio) {
       await ytDlp(cleanUrl, {
@@ -263,7 +271,7 @@ async function handleGET(req: NextRequest) {
       const dir = os.tmpdir();
       const produced = fs.readdirSync(dir).find(f => f.startsWith(`igdl_${jobId}.`));
       if (!produced) {
-        if (creditsDeducted) await refundCredit(auth.userId).catch(() => {});
+        if (creditsDeducted) await refundCredit(auth.userId, `instagram-downloader:${jobId}`).catch(() => {});
         return NextResponse.json({ error: "Download produced no output file" }, { status: 500 });
       }
       const producedPath = path.join(dir, produced);
@@ -274,7 +282,7 @@ async function handleGET(req: NextRequest) {
     const contentType = isAudio ? "audio/mpeg" : "video/mp4";
     return streamFileResponse(finalPath, contentType, `${baseName}.${ext}`);
   } catch (err) {
-    if (creditsDeducted) await refundCredit(auth.userId).catch(() => {});
+    if (creditsDeducted) await refundCredit(auth.userId, `instagram-downloader:${jobId}`).catch(() => {});
 
     // Clean up any partial files.
     try {

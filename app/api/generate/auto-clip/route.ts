@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, getUserTier } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { rateLimit } from "@/lib/rate-limit";
+import { FREE_TIER_AUTOCLIP_RUNS_PER_MONTH, tierPriority } from "@/lib/plans/tiers";
 import { markQuestComplete } from "@/lib/quests";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { env } from "@/lib/env";
@@ -38,6 +40,27 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "Project has no uploaded video" }, { status: 400 });
   }
 
+  // Free tier gets a small watermarked Auto Clips allowance (rolling 30 days)
+  // so the core product is tasteable before paying.
+  const tier = await getUserTier(auth.userId);
+  if (tier === "free") {
+    const { allowed } = await rateLimit(
+      `autoclip-free:${auth.userId}`,
+      FREE_TIER_AUTOCLIP_RUNS_PER_MONTH,
+      30 * 86400,
+    );
+    if (!allowed) {
+      return NextResponse.json(
+        {
+          error: "free_limit_reached",
+          message: `You've used your ${FREE_TIER_AUTOCLIP_RUNS_PER_MONTH} free Auto Clip videos this month. Upgrade for unlimited, watermark-free clips.`,
+          upgradeUrl: "/pricing",
+        },
+        { status: 402 },
+      );
+    }
+  }
+
   // Atomic double-submit guard (H6 pattern, see app/api/generate/compile/route.ts)
   // — a stale findFirst read above can't itself be the guard since two
   // concurrent requests would both see the same pre-transition status; the
@@ -69,7 +92,7 @@ async function handlePOST(req: NextRequest) {
     smoothness: sanitizeReframePercent(body.smoothness) ?? 50,
     trackingSpeed: sanitizeReframePercent(body.trackingSpeed) ?? 50,
     animatedCaptions: body.animatedCaptions ?? false,
-  });
+  }, { priority: tierPriority(tier) });
 
   void markQuestComplete(auth.userId, "first-clip");
 

@@ -3,6 +3,7 @@ import Razorpay from "razorpay";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { validateCoupon } from "@/lib/coupons";
+import { getPlanPriceMinor, type Currency } from "@/lib/currency";
 import { env } from "@/lib/env";
 
 const razorpay = new Razorpay({
@@ -30,6 +31,13 @@ export async function POST(req: NextRequest) {
   // Packs are open to all users — no active subscription required.
   // This lets lapsed subscribers top up and recaptures churned users.
 
+  // Requested checkout currency (defaults to the plan's stored currency,
+  // i.e. INR). USD is a display/price-book concern, not a second Plan row —
+  // see lib/currency.ts. Coupons are INR-native (percent/fixed off the
+  // stored priceInPaise), so they're only applied on INR checkout; a coupon
+  // code is silently ignored on USD checkout rather than mis-converted.
+  const currency: Currency = body.currency === "USD" ? "USD" : "INR";
+
   // Resolve add-on packs (must be active, kind = "pack").
   const addons = addonSlugs.length
     ? await prisma.plan.findMany({
@@ -37,38 +45,76 @@ export async function POST(req: NextRequest) {
       })
     : [];
 
-  // Combined totals.
-  const totalPaise = basePlan.priceInPaise + addons.reduce((s, a) => s + a.priceInPaise, 0);
   const totalCredits = basePlan.credits + addons.reduce((s, a) => s + a.credits, 0);
   const packName =
     basePlan.name + (addons.length ? " + " + addons.map(a => a.name).join(", ") : "");
 
-  // Optional coupon: validate and discount the order amount. Credits granted are
-  // unchanged (the discount affects price only, not value delivered).
-  const couponCode: string = typeof body.couponCode === "string" ? body.couponCode.trim() : "";
-  let amountToCharge = totalPaise;
+  let amountToCharge: number;
   let appliedCouponId: string | null = null;
   let appliedDiscount = 0;
+  const couponCode: string = typeof body.couponCode === "string" ? body.couponCode.trim() : "";
 
-  if (couponCode) {
-    const result = await validateCoupon({
-      code: couponCode,
-      userId: auth.userId,
-      cartKind: basePlan.kind as "subscription" | "pack" | "addon",
-      planSlug: basePlan.slug,
-      amountInPaise: totalPaise,
-    });
-    if (!result.ok) {
-      return NextResponse.json({ error: result.error }, { status: 400 });
+  if (currency === "USD") {
+    const addonUsd = await Promise.all(addons.map((a) => getPlanPriceMinor(a.slug, a.priceInPaise, "USD")));
+    amountToCharge = (await getPlanPriceMinor(basePlan.slug, basePlan.priceInPaise, "USD")) + addonUsd.reduce((s, c) => s + c, 0);
+  } else {
+    const totalPaise = basePlan.priceInPaise + addons.reduce((s, a) => s + a.priceInPaise, 0);
+    amountToCharge = totalPaise;
+
+    // Optional coupon: validate and discount the order amount. Credits
+    // granted are unchanged (the discount affects price only).
+    if (couponCode) {
+      const result = await validateCoupon({
+        code: couponCode,
+        userId: auth.userId,
+        cartKind: basePlan.kind as "subscription" | "pack" | "addon",
+        planSlug: basePlan.slug,
+        amountInPaise: totalPaise,
+      });
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      amountToCharge = result.finalPaise;
+      appliedCouponId = result.couponId;
+      appliedDiscount = result.discountInPaise;
     }
-    amountToCharge = result.finalPaise;
-    appliedCouponId = result.couponId;
-    appliedDiscount = result.discountInPaise;
+  }
+
+  // ── Recurring flow: subscription-kind plans with a synced Razorpay Plan id
+  // for the requested currency go through Subscriptions (true auto-renewal +
+  // optional trial). Plans not yet synced fall back to the legacy one-time
+  // order below, so rollout can happen plan-by-plan without breaking checkout.
+  const razorpayPlanId = currency === "USD" ? basePlan.razorpayPlanIdUsd : basePlan.razorpayPlanIdInr;
+  if (basePlan.kind === "subscription" && razorpayPlanId) {
+    const user = await prisma.user.findUnique({ where: { id: auth.userId }, select: { trialUsedAt: true } });
+    // Trial: Pro-tier only, once per account, requested explicitly by the client.
+    const wantsTrial = body.trial === true && basePlan.tier === "pro" && !user?.trialUsedAt;
+
+    const subscription = await razorpay.subscriptions.create({
+      plan_id: razorpayPlanId,
+      customer_notify: 1,
+      total_count: 120, // ~10 years of monthly cycles; Razorpay requires a bound
+      ...(wantsTrial ? { start_at: Math.floor(Date.now() / 1000) + 7 * 86400 } : {}),
+      notes: {
+        userId: auth.userId,
+        planId: basePlan.slug,
+        trial: wantsTrial ? "1" : "0",
+      },
+    });
+
+    return NextResponse.json({
+      mode: "subscription" as const,
+      subscriptionId: subscription.id,
+      keyId: env.RAZORPAY_KEY_ID,
+      packName,
+      credits: totalCredits,
+      trial: wantsTrial,
+    });
   }
 
   const order = await razorpay.orders.create({
     amount: amountToCharge,
-    currency: basePlan.currency,
+    currency,
     receipt: `order_${auth.userId.slice(0, 8)}_${Date.now()}`,
     notes: {
       userId: auth.userId,
@@ -83,6 +129,7 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json({
+    mode: "order" as const,
     orderId: order.id,
     amount: order.amount,
     currency: order.currency,

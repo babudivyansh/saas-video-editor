@@ -9,7 +9,7 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import { withRetry } from "@/lib/with-retry";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
-import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
+import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress, checkModelAccess } from "@/lib/credits";
 import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
 
 export const maxDuration = 120;
@@ -107,6 +107,16 @@ async function handlePOST(req: NextRequest) {
 
   if (!env.FAL_KEY) {
     return NextResponse.json({ error: "Face swap not configured (missing FAL_KEY)" }, { status: 503 });
+  }
+
+  // Pro+ only while the per-run provider cost is unverified (see lib/tool-costs.ts).
+  const access = await checkModelAccess(auth.userId, { allowedTiers: ["pro", "studio"] });
+  if (!access.allowed) {
+    return NextResponse.json(
+      { error: `Face Swap requires the ${access.requiredTier} plan or higher.`,
+        requiredTier: access.requiredTier, upgradeUrl: "/pricing" },
+      { status: 403 },
+    );
   }
 
   let formData: FormData;

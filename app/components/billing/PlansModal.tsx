@@ -1,15 +1,17 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 import { PURCHASABLE_TIER_ORDER, TIER_LABEL } from "@/lib/plans/tiers";
+import { formatMoney, inferCurrencyFromLocale, type Currency } from "@/lib/currency-shared";
 
 interface DbPlan {
   id: string;
   slug: string;
   name: string;
   priceInPaise: number;
+  usdPriceInCents: number;
   currency: string;
   credits: number;
   features: string[];
@@ -19,15 +21,16 @@ interface DbPlan {
   tier: "creator" | "pro" | "studio" | null;
 }
 
+/** Minor units for the selected currency, from the fields /api/plans always returns. */
+function minorUnits(plan: DbPlan, currency: Currency): number {
+  return currency === "USD" ? plan.usdPriceInCents : plan.priceInPaise;
+}
+
 const TERMS = [
   { months: 1, label: "Monthly" },
   { months: 12, label: "Yearly" },
 ];
-const YEARLY_SAVE_PCT = 20;
-
-function formatPrice(paise: number) {
-  return `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
-}
+const YEARLY_SAVE_PCT = 33;
 
 function CheckIcon({ className = "" }: { className?: string }) {
   return (
@@ -65,6 +68,10 @@ export function PlansModal({ onClose, onPurchaseSuccess }: PlansModalProps) {
   const [plans, setPlans] = useState<DbPlan[]>([]);
   const [plansLoading, setPlansLoading] = useState(true);
   const [term, setTerm] = useState(1);
+  const [currency, setCurrency] = useState<Currency>("INR");
+  useEffect(() => {
+    setCurrency(inferCurrencyFromLocale(typeof navigator !== "undefined" ? navigator.language : null));
+  }, []);
 
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const [checkoutPlan, setCheckoutPlan] = useState<DbPlan | null>(null);
@@ -102,6 +109,11 @@ export function PlansModal({ onClose, onPurchaseSuccess }: PlansModalProps) {
     setCouponError("");
     setAppliedCoupon(null);
   }
+
+  // Coupons are INR-native (validated/discounted against the stored
+  // priceInPaise) — hide the coupon UI on USD checkout instead of showing a
+  // code that silently does nothing server-side.
+  const couponsAvailable = currency === "INR";
 
   function backToBrowse() {
     setCheckoutPlan(null);
@@ -142,6 +154,7 @@ export function PlansModal({ onClose, onPurchaseSuccess }: PlansModalProps) {
       planId: checkoutPlan.slug,
       addonIds: selectedAddons,
       couponCode: appliedCoupon?.code,
+      currency,
       onSuccess: () => {
         onPurchaseSuccess();
         onClose();
@@ -154,15 +167,15 @@ export function PlansModal({ onClose, onPurchaseSuccess }: PlansModalProps) {
     onClose();
   }
 
-  const totalDue =
-    (checkoutPlan ? Math.round(checkoutPlan.priceInPaise / 100) : 0) +
+  const totalDueMinor =
+    (checkoutPlan ? minorUnits(checkoutPlan, currency) : 0) +
     selectedAddons.reduce((s, slug) => {
       const pack = packs.find(p => p.slug === slug);
-      return s + (pack ? Math.round(pack.priceInPaise / 100) : 0);
+      return s + (pack ? minorUnits(pack, currency) : 0);
     }, 0);
-  const discountedTotal = appliedCoupon
-    ? Math.max(1, totalDue - Math.round(appliedCoupon.discountInPaise / 100))
-    : totalDue;
+  const discountedTotalMinor = appliedCoupon
+    ? Math.max(1, totalDueMinor - appliedCoupon.discountInPaise)
+    : totalDueMinor;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Plans and top-ups">
@@ -182,6 +195,7 @@ export function PlansModal({ onClose, onPurchaseSuccess }: PlansModalProps) {
           <CheckoutStep
             plan={checkoutPlan}
             packs={packs}
+            currency={currency}
             selectedAddons={selectedAddons}
             onToggleAddon={toggleAddon}
             onBack={backToBrowse}
@@ -189,6 +203,7 @@ export function PlansModal({ onClose, onPurchaseSuccess }: PlansModalProps) {
             subscriptionEndsAt={user?.subscriptionEndsAt ?? null}
             renewalWarningDismissed={renewalWarningDismissed}
             onDismissRenewalWarning={() => setRenewalWarningDismissed(true)}
+            couponsAvailable={couponsAvailable}
             couponInput={couponInput}
             onCouponInputChange={(v) => { setCouponInput(v.toUpperCase()); setCouponError(""); }}
             couponApplying={couponApplying}
@@ -196,8 +211,8 @@ export function PlansModal({ onClose, onPurchaseSuccess }: PlansModalProps) {
             appliedCoupon={appliedCoupon}
             onApplyCoupon={applyCoupon}
             onClearCoupon={clearCoupon}
-            totalDue={totalDue}
-            discountedTotal={discountedTotal}
+            totalDueMinor={totalDueMinor}
+            discountedTotalMinor={discountedTotalMinor}
             checkoutLoading={checkoutLoading}
             onPay={handlePay}
           />
@@ -208,6 +223,8 @@ export function PlansModal({ onClose, onPurchaseSuccess }: PlansModalProps) {
             packs={packs}
             term={term}
             onTermChange={setTerm}
+            currency={currency}
+            onCurrencyChange={setCurrency}
             selectedAddons={selectedAddons}
             onToggleAddon={toggleAddon}
             onSelectPlan={openCheckout}
@@ -219,12 +236,14 @@ export function PlansModal({ onClose, onPurchaseSuccess }: PlansModalProps) {
 }
 
 // ── Browse step ──────────────────────────────────────────────────────────────
-function BrowseStep({ plansLoading, subs, packs, term, onTermChange, selectedAddons, onToggleAddon, onSelectPlan }: {
+function BrowseStep({ plansLoading, subs, packs, term, onTermChange, currency, onCurrencyChange, selectedAddons, onToggleAddon, onSelectPlan }: {
   plansLoading: boolean;
   subs: DbPlan[];
   packs: DbPlan[];
   term: number;
   onTermChange: (months: number) => void;
+  currency: Currency;
+  onCurrencyChange: (c: Currency) => void;
   selectedAddons: string[];
   onToggleAddon: (slug: string) => void;
   onSelectPlan: (plan: DbPlan) => void;
@@ -240,7 +259,7 @@ function BrowseStep({ plansLoading, subs, packs, term, onTermChange, selectedAdd
         <p className="text-sm text-gray-500 mt-1">Every AI tool, one credit at a time.</p>
       </div>
 
-      <div className="flex justify-center mb-8">
+      <div className="flex justify-center items-center gap-3 mb-8 flex-wrap">
         <div className="inline-flex bg-gray-100 rounded-full p-1">
           {TERMS.map(t => (
             <button
@@ -261,6 +280,19 @@ function BrowseStep({ plansLoading, subs, packs, term, onTermChange, selectedAdd
             </button>
           ))}
         </div>
+        <div className="inline-flex bg-gray-100 rounded-full p-1">
+          {(["INR", "USD"] as const).map(c => (
+            <button
+              key={c}
+              onClick={() => onCurrencyChange(c)}
+              className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
+                currency === c ? "bg-gray-900 text-white shadow" : "text-gray-500 hover:text-gray-800"
+              }`}
+            >
+              {c === "INR" ? "₹ INR" : "$ USD"}
+            </button>
+          ))}
+        </div>
       </div>
 
       {plansLoading ? (
@@ -273,9 +305,9 @@ function BrowseStep({ plansLoading, subs, packs, term, onTermChange, selectedAdd
         <div className="grid md:grid-cols-3 gap-6 items-start">
           {cards.map((plan, idx) => {
             const highlighted = idx === 1;
-            const price = Math.round(plan.priceInPaise / 100);
+            const priceMinor = minorUnits(plan, currency);
             const months = plan.intervalMonths ?? 1;
-            const perMonth = Math.round(price / months);
+            const perMonthMinor = Math.round(priceMinor / months);
             const baseTier = plan.tier ? TIER_LABEL[plan.tier] : plan.name;
             return (
               <div
@@ -295,12 +327,12 @@ function BrowseStep({ plansLoading, subs, packs, term, onTermChange, selectedAdd
                   {baseTier}
                 </p>
                 <div className="flex items-end gap-1.5 mb-1">
-                  <span className="text-3xl font-black">₹{perMonth.toLocaleString("en-IN")}</span>
+                  <span className="text-3xl font-black">{formatMoney(perMonthMinor, currency)}</span>
                   <span className={`text-sm mb-1 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>/mo</span>
                 </div>
                 <p className={`text-sm mb-4 ${highlighted ? "text-blue-100" : "text-gray-500"}`}>
                   {plan.monthlyCredits} credits / month
-                  {months > 1 && <> · ₹{price.toLocaleString("en-IN")} billed yearly</>}
+                  {months > 1 && <> · {formatMoney(priceMinor, currency)} billed yearly</>}
                 </p>
                 <ul className="space-y-2.5 mb-6 flex-1">
                   {plan.features.slice(0, 5).map(f => (
@@ -351,7 +383,7 @@ function BrowseStep({ plansLoading, subs, packs, term, onTermChange, selectedAdd
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-900 text-sm">{pack.name}</p>
                     <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits</p>
-                    <p className="font-bold text-gray-900 mt-1.5">{formatPrice(pack.priceInPaise)}</p>
+                    <p className="font-bold text-gray-900 mt-1.5">{formatMoney(minorUnits(pack, currency), currency)}</p>
                   </div>
                 </label>
               );
@@ -365,13 +397,14 @@ function BrowseStep({ plansLoading, subs, packs, term, onTermChange, selectedAdd
 
 // ── Checkout step ────────────────────────────────────────────────────────────
 function CheckoutStep({
-  plan, packs, selectedAddons, onToggleAddon, onBack, hasActivePlan, subscriptionEndsAt,
-  renewalWarningDismissed, onDismissRenewalWarning, couponInput, onCouponInputChange,
+  plan, packs, currency, selectedAddons, onToggleAddon, onBack, hasActivePlan, subscriptionEndsAt,
+  renewalWarningDismissed, onDismissRenewalWarning, couponsAvailable, couponInput, onCouponInputChange,
   couponApplying, couponError, appliedCoupon, onApplyCoupon, onClearCoupon,
-  totalDue, discountedTotal, checkoutLoading, onPay,
+  totalDueMinor, discountedTotalMinor, checkoutLoading, onPay,
 }: {
   plan: DbPlan;
   packs: DbPlan[];
+  currency: Currency;
   selectedAddons: string[];
   onToggleAddon: (slug: string) => void;
   onBack: () => void;
@@ -379,6 +412,7 @@ function CheckoutStep({
   subscriptionEndsAt: string | null;
   renewalWarningDismissed: boolean;
   onDismissRenewalWarning: () => void;
+  couponsAvailable: boolean;
   couponInput: string;
   onCouponInputChange: (v: string) => void;
   couponApplying: boolean;
@@ -386,8 +420,8 @@ function CheckoutStep({
   appliedCoupon: { code: string; label: string; discountInPaise: number } | null;
   onApplyCoupon: () => void;
   onClearCoupon: () => void;
-  totalDue: number;
-  discountedTotal: number;
+  totalDueMinor: number;
+  discountedTotalMinor: number;
   checkoutLoading: boolean;
   onPay: () => void;
 }) {
@@ -404,7 +438,7 @@ function CheckoutStep({
           <p className="font-extrabold text-gray-900 text-lg leading-snug">{plan.name}</p>
           <p className="text-sm text-gray-500 mt-0.5">{plan.monthlyCredits} credits / month</p>
           <p className="text-2xl font-black text-gray-900 mt-2">
-            {formatPrice(plan.priceInPaise)}
+            {formatMoney(minorUnits(plan, currency), currency)}
             <span className="text-sm font-normal text-gray-400 ml-1">
               {plan.intervalMonths && plan.intervalMonths > 1 ? `/ ${plan.intervalMonths} months` : "/ month"}
             </span>
@@ -448,9 +482,9 @@ function CheckoutStep({
                     <input type="checkbox" checked={checked} onChange={() => onToggleAddon(pack.slug)} className="mt-0.5 w-4 h-4 accent-blue-600 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-gray-900 text-sm">{pack.name}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · valid while subscribed</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · never expire</p>
                     </div>
-                    <p className="font-bold text-gray-900 whitespace-nowrap">{formatPrice(pack.priceInPaise)}</p>
+                    <p className="font-bold text-gray-900 whitespace-nowrap">{formatMoney(minorUnits(pack, currency), currency)}</p>
                   </label>
                 );
               })}
@@ -467,7 +501,7 @@ function CheckoutStep({
               <p className="text-sm font-medium text-gray-900 truncate">{plan.name}</p>
               <p className="text-xs text-gray-400">Subscription plan</p>
             </div>
-            <p className="text-sm font-semibold text-gray-900 whitespace-nowrap">{formatPrice(plan.priceInPaise)}</p>
+            <p className="text-sm font-semibold text-gray-900 whitespace-nowrap">{formatMoney(minorUnits(plan, currency), currency)}</p>
           </div>
 
           {selectedAddons.map(slug => {
@@ -479,11 +513,12 @@ function CheckoutStep({
                   <p className="text-sm font-medium text-gray-900 truncate">{pack.name}</p>
                   <p className="text-xs text-gray-400">{pack.credits} credits · add-on</p>
                 </div>
-                <p className="text-sm font-semibold text-gray-900 whitespace-nowrap">{formatPrice(pack.priceInPaise)}</p>
+                <p className="text-sm font-semibold text-gray-900 whitespace-nowrap">{formatMoney(minorUnits(pack, currency), currency)}</p>
               </div>
             );
           })}
 
+          {couponsAvailable && (
           <div className="border-t border-gray-100 pt-4">
             {appliedCoupon ? (
               <div className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
@@ -515,23 +550,24 @@ function CheckoutStep({
               </div>
             )}
           </div>
+          )}
 
           <div className="border-t border-gray-100 pt-4 mt-2">
             {appliedCoupon && appliedCoupon.discountInPaise > 0 && (
               <>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-500">Subtotal</span>
-                  <span className="text-gray-500">₹{totalDue.toLocaleString("en-IN")}</span>
+                  <span className="text-gray-500">{formatMoney(totalDueMinor, currency)}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm mt-1">
                   <span className="text-green-600 font-medium">Discount ({appliedCoupon.code})</span>
-                  <span className="text-green-600 font-medium">−₹{Math.round(appliedCoupon.discountInPaise / 100).toLocaleString("en-IN")}</span>
+                  <span className="text-green-600 font-medium">−{formatMoney(appliedCoupon.discountInPaise, currency)}</span>
                 </div>
               </>
             )}
             <div className="flex items-center justify-between mt-2">
               <p className="font-bold text-gray-900">Total Due</p>
-              <p className="text-xl font-black text-gray-900">₹{discountedTotal.toLocaleString("en-IN")}</p>
+              <p className="text-xl font-black text-gray-900">{formatMoney(discountedTotalMinor, currency)}</p>
             </div>
             <p className="text-xs text-gray-400 mt-1">Secure payment via Razorpay</p>
           </div>

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, getUserTier } from "@/lib/auth";
+import { tierPriority } from "@/lib/plans/tiers";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { createRenderQueue } from "@/lib/render-queue";
-import { renderJob, computeCreditCost, getAutoClipPricing, type RenderPayload, type Aspect } from "@/lib/autoclip-pipeline";
+import { spendCredits } from "@/lib/credits";
+import { renderJob, computeCreditCost, getAutoClipPricing, getAnalysisCreditsPaid, type RenderPayload, type Aspect } from "@/lib/autoclip-pipeline";
 
 const renderQueue = createRenderQueue<RenderPayload>("auto-clip-render", renderJob);
 
@@ -75,7 +77,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return s + ((e.endSec ?? clip.endSec) - (e.startSec ?? clip.startSec));
   }, 0);
   const pricing = await getAutoClipPricing();
-  const creditCost = computeCreditCost(toKeep.length, totalDurationSec, pricing);
+  // The analysis charge paid at the pick step is credited back here, so a
+  // user who confirms pays only the clip pricing ("you only pay for clips
+  // you keep" — analysis is free unless you walk away).
+  const grossCost = computeCreditCost(toKeep.length, totalDurationSec, pricing);
+  const analysisPaid = await getAnalysisCreditsPaid(auth.userId, projectId);
+  const creditCost = Math.max(grossCost - analysisPaid, 0);
 
   // Atomic double-submit guard (H6 pattern, see app/api/generate/compile/route.ts)
   // — the earlier findFirst read is a stale snapshot; two concurrent confirms
@@ -94,20 +101,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
   if (cached !== null && cached < creditCost) {
     await prisma.project.update({ where: { id: projectId }, data: { status: "pending_review" } });
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
+    return NextResponse.json({ error: "insufficient_credits", required: creditCost, balance: cached }, { status: 402 });
   }
 
-  const user = await prisma.user.update({
-    where: { id: auth.userId },
-    data: { credits: { decrement: creditCost } },
-    select: { credits: true },
+  // Bucket-aware atomic spend; refId `auto-clip:{projectId}` is what the
+  // pipeline's partial-failure refund restores against.
+  const spend = await spendCredits({
+    userId: auth.userId,
+    amount: creditCost,
+    reason: "spend:auto-clip",
+    refId: `auto-clip:${projectId}`,
   });
-  if (user.credits < 0) {
-    await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: creditCost } } });
+  if (!spend.ok) {
     await prisma.project.update({ where: { id: projectId }, data: { status: "pending_review" } });
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
+    return NextResponse.json(
+      { error: "insufficient_credits", required: creditCost, balance: spend.balances.total },
+      { status: 402 },
+    );
   }
-  await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
 
   await prisma.$transaction([
     ...toKeep.map((e) => {
@@ -126,7 +137,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     prisma.clip.deleteMany({ where: { id: { in: [...toDrop, ...unmentionedDrop] } } }),
   ]);
 
-  renderQueue.enqueue(projectId, { projectId });
+  renderQueue.enqueue(projectId, { projectId }, { priority: tierPriority(await getUserTier(auth.userId)) });
 
-  return NextResponse.json({ status: "rendering", creditsCharged: creditCost, creditsRemaining: user.credits });
+  return NextResponse.json({ status: "rendering", creditsCharged: creditCost, creditsRemaining: spend.balances.total });
 }

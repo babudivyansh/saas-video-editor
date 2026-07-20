@@ -26,8 +26,10 @@ interface SeedPlan {
 }
 
 // ── Subscriptions ───────────────────────────────────────────────────────────
-// Two terms only: Monthly + Yearly. Yearly = monthly × 12 × 0.80 (20% off).
-const YEARLY_DISCOUNT = 0.20;
+// Two terms only: Monthly + Yearly. Yearly = monthly × 12 × 0.67 (33% off —
+// "4 months free"; 2026-07 pricing audit moved this from 20% to match the
+// category's 33-50% annual-incentive norm).
+const YEARLY_DISCOUNT = 0.33;
 const yearly = (monthlyPaise: number) => Math.round((monthlyPaise * 12 * (1 - YEARLY_DISCOUNT)) / 100) * 100;
 
 // 2026-07 repricing: entry tier was $6.7-8.4/mo equivalent vs $13-35/mo for
@@ -36,16 +38,20 @@ const yearly = (monthlyPaise: number) => Math.round((monthlyPaise * 12 * (1 - YE
 // credits/term live on the User row (monthlyCredits/nextRefillAt), not on a
 // live Plan price lookup, so bumping priceInPaise here only affects new
 // checkouts of these slugs going forward.
+// 2026-07 audit: grants bumped 50/140/340 -> 60/160/400 alongside the switch
+// to expiring subscription credits (2x rollover cap) so the policy change
+// reads as a net gain. Existing subscribers keep their old User.monthlyCredits
+// until their next purchase/renewal.
 const SUBSCRIPTIONS: SeedPlan[] = [
-  // Creator — 50 cr/mo (₹999/mo).
-  { slug: "sub_creator_1mo",  name: "Creator (Monthly)", priceInPaise: 99900,            intervalMonths: 1,  monthlyCredits: 50,  sortOrder: 10, tier: "creator" as const, features: ["50 credits / month", "All AI tools", "1080p exports"] },
-  { slug: "sub_creator_12mo", name: "Creator (Yearly)",  priceInPaise: yearly(99900),    intervalMonths: 12, monthlyCredits: 50,  sortOrder: 13, tier: "creator" as const, features: ["50 credits / month", "Save 20% vs monthly"] },
-  // Pro — 140 cr/mo (₹2,199/mo).
-  { slug: "sub_pro_1mo",  name: "Pro (Monthly)", priceInPaise: 219900,           intervalMonths: 1,  monthlyCredits: 140, sortOrder: 20, tier: "pro" as const, features: ["140 credits / month", "All AI tools", "Priority rendering"] },
-  { slug: "sub_pro_12mo", name: "Pro (Yearly)",  priceInPaise: yearly(219900),   intervalMonths: 12, monthlyCredits: 140, sortOrder: 23, tier: "pro" as const, features: ["140 credits / month", "Save 20% vs monthly"] },
-  // Studio — 340 cr/mo (₹4,999/mo).
-  { slug: "sub_studio_1mo",  name: "Studio (Monthly)", priceInPaise: 499900,          intervalMonths: 1,  monthlyCredits: 340, sortOrder: 30, tier: "studio" as const, features: ["340 credits / month", "Priority rendering", "Dedicated support"] },
-  { slug: "sub_studio_12mo", name: "Studio (Yearly)",  priceInPaise: yearly(499900),  intervalMonths: 12, monthlyCredits: 340, sortOrder: 33, tier: "studio" as const, features: ["340 credits / month", "Save 20% vs monthly"] },
+  // Creator — 60 cr/mo (₹999/mo).
+  { slug: "sub_creator_1mo",  name: "Creator (Monthly)", priceInPaise: 99900,            intervalMonths: 1,  monthlyCredits: 60,  sortOrder: 10, tier: "creator" as const, features: ["60 credits / month", "All AI tools", "1080p exports"] },
+  { slug: "sub_creator_12mo", name: "Creator (Yearly)",  priceInPaise: yearly(99900),    intervalMonths: 12, monthlyCredits: 60,  sortOrder: 13, tier: "creator" as const, features: ["60 credits / month", "Save 33% vs monthly"] },
+  // Pro — 160 cr/mo (₹2,199/mo).
+  { slug: "sub_pro_1mo",  name: "Pro (Monthly)", priceInPaise: 219900,           intervalMonths: 1,  monthlyCredits: 160, sortOrder: 20, tier: "pro" as const, features: ["160 credits / month", "All AI tools", "Priority rendering"] },
+  { slug: "sub_pro_12mo", name: "Pro (Yearly)",  priceInPaise: yearly(219900),   intervalMonths: 12, monthlyCredits: 160, sortOrder: 23, tier: "pro" as const, features: ["160 credits / month", "Save 33% vs monthly"] },
+  // Studio — 400 cr/mo (₹4,999/mo).
+  { slug: "sub_studio_1mo",  name: "Studio (Monthly)", priceInPaise: 499900,          intervalMonths: 1,  monthlyCredits: 400, sortOrder: 30, tier: "studio" as const, features: ["400 credits / month", "Priority rendering", "Dedicated support"] },
+  { slug: "sub_studio_12mo", name: "Studio (Yearly)",  priceInPaise: yearly(499900),  intervalMonths: 12, monthlyCredits: 400, sortOrder: 33, tier: "studio" as const, features: ["400 credits / month", "Save 33% vs monthly"] },
 ].map(p => ({ ...p, kind: "subscription" as const, credits: p.monthlyCredits * p.intervalMonths }));
 
 // Old 3-month / 6-month terms are retired. Deactivate them (keep rows for
@@ -174,7 +180,7 @@ async function main() {
   const user = await prisma.user.upsert({
     where: { email: "test@example.com" },
     update: {},
-    create: { email: "test@example.com", passwordHash: hash, credits: 30 },
+    create: { email: "test@example.com", passwordHash: hash, credits: 30, purchasedCredits: 30 },
   });
   console.log("Seeded test user:", user.email, "| credits:", user.credits);
 
@@ -196,7 +202,7 @@ async function main() {
     const generatedPassword = crypto.randomBytes(12).toString("base64url");
     const adminHash = await bcrypt.hash(generatedPassword, 12);
     const admin = await prisma.user.create({
-      data: { email: ADMIN_EMAIL, passwordHash: adminHash, credits: 100, role: "ADMIN" },
+      data: { email: ADMIN_EMAIL, passwordHash: adminHash, credits: 100, purchasedCredits: 100, role: "ADMIN" },
     });
     console.log("Admin ready:", admin.email, "| role:", admin.role);
     console.log(`Admin one-time password: ${generatedPassword}  (save this now — it is not stored anywhere else; change it after first login)`);

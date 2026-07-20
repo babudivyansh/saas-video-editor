@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
+import { spendCredits, restoreSpend } from "@/lib/credits";
 import { markQuestComplete } from "@/lib/quests";
 import { firePostCreditSpendEmails, fireZeroCreditsEmail } from "@/lib/credit-events";
 import {
@@ -29,11 +30,12 @@ async function refundRenderCredit(projectId: string) {
   try {
     const proj = await prisma.project.findUnique({ where: { id: projectId }, select: { userId: true } });
     if (!proj) return;
-    await prisma.user.update({ where: { id: proj.userId }, data: { credits: { increment: CREDIT_COST } } });
-    const cached = await redis.get(`credits:${proj.userId}`);
-    if (cached !== null) {
-      await redis.set(`credits:${proj.userId}`, String(parseInt(cached, 10) + CREDIT_COST), "EX", 3600);
-    }
+    await restoreSpend({
+      userId: proj.userId,
+      refId: `split-screen:${projectId}`,
+      amount: CREDIT_COST,
+      reason: "refund:split-screen-failed",
+    });
   } catch (e) {
     logger.error("refund", `failed to refund credit for project ${projectId}`, e);
   }
@@ -137,20 +139,17 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "Project has no uploaded video" }, { status: 400 });
   }
 
-  const user = await prisma.user.update({
-    where: { id: auth.userId },
-    data: { credits: { decrement: CREDIT_COST } },
-    select: { credits: true },
+  const spend = await spendCredits({
+    userId: auth.userId,
+    amount: CREDIT_COST,
+    reason: "spend:split-screen",
+    refId: `split-screen:${body.projectId}`,
   });
-
-  if (user.credits < 0) {
-    await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: CREDIT_COST } } });
+  if (!spend.ok) {
     fireZeroCreditsEmail(auth.userId);
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
-
-  await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
-  firePostCreditSpendEmails(auth.userId, user.credits);
+  firePostCreditSpendEmails(auth.userId, spend.balances.total);
   await prisma.project.update({ where: { id: body.projectId }, data: { status: "rendering" } });
 
   getQueue().enqueue(body.projectId, {
@@ -161,7 +160,7 @@ async function handlePOST(req: NextRequest) {
   });
   void markQuestComplete(auth.userId, "first-clip");
 
-  return NextResponse.json({ status: "rendering", creditsRemaining: user.credits });
+  return NextResponse.json({ status: "rendering", creditsRemaining: spend.balances.total });
 }
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "generate:split-screen" });

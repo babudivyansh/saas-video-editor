@@ -92,7 +92,12 @@ export async function GET(req: NextRequest) {
           lastName: profile.family_name || null,
           avatarUrl,
           passwordHash,
-          credits: 10, // Default free trial credits
+          // Signup grant lands in the bonus bucket (30-day expiry); the
+          // monthly free-tier drip is anchored one month out from signup.
+          credits: 10,
+          bonusCredits: 10,
+          bonusCreditsExpireAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          freeCreditsRefillAt: new Date(new Date().setMonth(new Date().getMonth() + 1)),
           // Google's OAuth flow already proves control of this inbox — no
           // separate verify-email round trip needed for a Google signup.
           emailVerifiedAt: new Date(),

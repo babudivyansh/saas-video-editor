@@ -9,6 +9,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/app/components/AuthContext";
 import { useEditorStore } from "../store/editorStore";
 import { docDuration } from "@/lib/editor/doc-utils";
+import { useInsufficientCredits } from "@/app/components/billing/CreditModalContext";
 
 type Stage = "confirm" | "waiting-save" | "rendering" | "done" | "error";
 
@@ -17,6 +18,7 @@ const POLL_MS = 3000;
 
 export default function ExportModal() {
   const { user, refreshUser } = useAuth();
+  const insufficientCredits = useInsufficientCredits();
   const setExportOpen = useEditorStore((s) => s.setExportOpen);
   const projectId = useEditorStore((s) => s.projectId);
   const doc = useEditorStore((s) => s.doc);
@@ -55,6 +57,11 @@ export default function ExportModal() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        if (res.status === 402) {
+          insufficientCredits.open({ required: data.required, balance: data.balance, action: "Export" });
+          setStage("confirm");
+          return;
+        }
         throw new Error(data.error ?? "Export failed to start");
       }
 

@@ -14,13 +14,21 @@ const tx = {
     }),
   },
   user: {
-    findUnique: vi.fn(async () => ({ credits: userCredits })),
-    update: vi.fn(async ({ data }: { data: { credits: { decrement?: number; increment?: number } } }) => {
-      if (data.credits.decrement) userCredits -= data.credits.decrement;
-      if (data.credits.increment) userCredits += data.credits.increment;
-      return { credits: userCredits };
+    // The whole balance is modeled as the purchased bucket — matches how
+    // lib/credits getBalances/clawbackCredits/grantCredits read and write.
+    findUnique: vi.fn(async () => ({
+      credits: userCredits,
+      bonusCredits: 0,
+      subscriptionCredits: 0,
+      purchasedCredits: userCredits,
+    })),
+    update: vi.fn(async ({ data }: { data: { credits?: { decrement?: number; increment?: number } } }) => {
+      if (data.credits?.decrement) userCredits -= data.credits.decrement;
+      if (data.credits?.increment) userCredits += data.credits.increment;
+      return { credits: userCredits, bonusCredits: 0, subscriptionCredits: 0, purchasedCredits: userCredits };
     }),
   },
+  creditTransaction: { create: vi.fn(async () => ({})) },
 };
 
 vi.mock("@/lib/prisma", () => ({

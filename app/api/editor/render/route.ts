@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, getUserTier } from "@/lib/auth";
+import { tierPriority } from "@/lib/plans/tiers";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { withRateLimit } from "@/lib/with-rate-limit";
@@ -11,6 +12,7 @@ import {
   type EditorRenderPayload,
 } from "@/lib/editor/render-job";
 import { getAssetReadUrl } from "@/utils/s3-upload";
+import { spendCredits } from "@/lib/credits";
 
 const renderQueue = createRenderQueue<EditorRenderPayload>("editor-render", editorRenderJob);
 
@@ -64,32 +66,35 @@ async function handlePOST(req: NextRequest) {
   const cachedCredits = await redis.get(`credits:${auth.userId}`);
   const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
   if (cached !== null && cached < EDITOR_RENDER_CREDIT_COST) {
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
+    return NextResponse.json(
+      { error: "insufficient_credits", required: EDITOR_RENDER_CREDIT_COST, balance: cached },
+      { status: 402 },
+    );
   }
 
-  // Atomic decrement with rollback (source of truth: Postgres).
-  const user = await prisma.user.update({
-    where: { id: auth.userId },
-    data: { credits: { decrement: EDITOR_RENDER_CREDIT_COST } },
-    select: { credits: true },
+  // Bucket-aware atomic spend; refId ties the ledger rows to this render so
+  // the worker's failure refund restores exactly the buckets drained here.
+  const spend = await spendCredits({
+    userId: auth.userId,
+    amount: EDITOR_RENDER_CREDIT_COST,
+    reason: "spend:editor-render",
+    refId: `editor-render:${projectId}`,
   });
-  if (user.credits < 0) {
-    await prisma.user.update({
-      where: { id: auth.userId },
-      data: { credits: { increment: EDITOR_RENDER_CREDIT_COST } },
-    });
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
+  if (!spend.ok) {
+    return NextResponse.json(
+      { error: "insufficient_credits", required: EDITOR_RENDER_CREDIT_COST, balance: spend.balances.total },
+      { status: 402 },
+    );
   }
-  await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
 
   await prisma.project.update({
     where: { id: projectId },
     data: { status: "rendering", progress: 0, videoUrl: null },
   });
 
-  renderQueue.enqueue(projectId, { projectId, assetUrls });
+  renderQueue.enqueue(projectId, { projectId, assetUrls }, { priority: tierPriority(await getUserTier(auth.userId)) });
 
-  return NextResponse.json({ status: "rendering", creditsRemaining: user.credits });
+  return NextResponse.json({ status: "rendering", creditsRemaining: spend.balances.total });
 }
 
 export const POST = withRateLimit(handlePOST, { limit: 20, windowSec: 60, keyBy: "user", name: "editor:render" });

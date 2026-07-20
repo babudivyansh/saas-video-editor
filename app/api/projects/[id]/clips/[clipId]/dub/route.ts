@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { env } from "@/lib/env";
 import { createRenderQueue } from "@/lib/render-queue";
+import { spendCredits } from "@/lib/credits";
 import { dubJob, DUB_CREDIT_COST, type DubPayload } from "@/lib/autoclip-dub";
 import { DUB_LANGUAGES } from "@/utils/elevenlabs";
 
@@ -52,19 +53,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (cached !== null && cached < DUB_CREDIT_COST) {
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
-  const user = await prisma.user.update({
-    where: { id: auth.userId },
-    data: { credits: { decrement: DUB_CREDIT_COST } },
-    select: { credits: true },
+  const spend = await spendCredits({
+    userId: auth.userId,
+    amount: DUB_CREDIT_COST,
+    reason: "spend:auto-clip-dub",
+    refId: `auto-clip-dub:${clipId}:${Date.now()}`,
   });
-  if (user.credits < 0) {
-    await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: DUB_CREDIT_COST } } });
+  if (!spend.ok) {
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
-  await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
 
   const dub = await prisma.clipDub.create({ data: { clipId, targetLang, status: "dubbing" } });
   dubQueue.enqueue(dub.id, { projectId, clipDubId: dub.id });
 
-  return NextResponse.json({ dub, creditsRemaining: user.credits }, { status: 201 });
+  return NextResponse.json({ dub, creditsRemaining: spend.balances.total }, { status: 201 });
 }

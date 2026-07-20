@@ -3,6 +3,7 @@ import { redis } from "./redis";
 import { logger } from "./logger";
 import { trackOnboardingEvent } from "./onboarding-analytics";
 import { QUEST_DEFINITIONS, QUEST_COMPLETION_CREDITS } from "./quest-config";
+import { grantCredits } from "./credits";
 
 export async function markQuestComplete(userId: string, questId: string) {
   try {
@@ -22,11 +23,15 @@ export async function markQuestComplete(userId: string, questId: string) {
         select: { questRewardClaimed: true },
       });
       if (user && !user.questRewardClaimed) {
-        await prisma.user.update({
-          where: { id: userId },
-          data: { credits: { increment: QUEST_COMPLETION_CREDITS }, questRewardClaimed: true },
+        await prisma.user.update({ where: { id: userId }, data: { questRewardClaimed: true } });
+        // Quest rewards are bonus credits: 30-day expiry, spent first.
+        await grantCredits({
+          userId,
+          bucket: "bonus",
+          amount: QUEST_COMPLETION_CREDITS,
+          reason: "grant:quest-reward",
+          bonusExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         });
-        await redis.del(`credits:${userId}`);
       }
     }
   } catch (err) {

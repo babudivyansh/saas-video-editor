@@ -19,19 +19,29 @@ vi.mock("@/lib/prisma", () => ({
     user: {
       findUnique: vi.fn(async () => user),
       // Mirrors the route's conditional-update semantics: only match when the
-      // refill is due (nextRefillAt null or past) unless force bypasses.
+      // refill is due (nextRefillAt null or past) unless force bypasses. This
+      // updateMany is only the idempotency claim (advances nextRefillAt) —
+      // the actual credit grant is a separate bucket-aware grantCredits()
+      // call below, matching the route's two-step shape.
       updateMany: vi.fn(async ({ where, data }: {
         where: { OR?: Array<{ nextRefillAt: null | { lte: Date } }> };
-        data: { credits: { increment: number }; nextRefillAt: Date | null };
+        data: { nextRefillAt: Date | null };
       }) => {
         const guarded = !!where.OR;
         const due = user.nextRefillAt === null || user.nextRefillAt <= new Date();
         if (guarded && !due) return { count: 0 };
-        user.credits += data.credits.increment;
         user.nextRefillAt = data.nextRefillAt;
         return { count: 1 };
       }),
+      // lib/credits grantCredits({bucket:"subscription", amount}) — model the
+      // whole balance as the subscription bucket for this test's purposes.
+      update: vi.fn(async ({ data }: { data: { credits: { increment: number } } }) => {
+        user.credits += data.credits.increment;
+        return { bonusCredits: 0, subscriptionCredits: user.credits, purchasedCredits: 0 };
+      }),
     },
+    creditTransaction: { create: vi.fn(async () => ({})) },
+    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn((await import("@/lib/prisma")).prisma)),
     auditLog: { create: vi.fn(async () => ({})) },
   },
 }));

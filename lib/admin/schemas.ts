@@ -142,9 +142,9 @@ export const toolPatchSchema = z
 
 export const autoclipPricingSchema = z
   .object({
-    base: z.number().int().min(0).max(10_000).optional(),
-    perExtraClip: z.number().int().min(0).max(10_000).optional(),
-    perMinute: z.number().int().min(0).max(10_000).optional(),
+    perClip: z.number().int().min(0).max(10_000).optional(),
+    perTwoMinutes: z.number().int().min(0).max(10_000).optional(),
+    analysisPerHalfHour: z.number().int().min(0).max(10_000).optional(),
     rerender: z.number().int().min(0).max(10_000).optional(),
   })
   .strict();

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { sendPurchaseConfirmationEmail, sendAffiliateCommissionEmail } from "@/lib/email";
 import { markQuestComplete } from "@/lib/quests";
+import { grantCredits, getBalances } from "@/lib/credits";
 import { logger } from "@/lib/logger";
 
 // Single source of truth for granting a captured Razorpay payment. Called by
@@ -40,6 +41,89 @@ type GrantResult =
   | { status: "already-processed" }
   | { status: "no-target" }
   | { status: "granted"; kind: string; credits: number };
+
+// ── Razorpay Subscriptions (recurring) ──────────────────────────────────────
+
+export interface SubscriptionChargeArgs {
+  /** Razorpay subscription id (sub_...) the charge belongs to. */
+  subscriptionId: string;
+  /** Razorpay payment id (pay_...) — idempotency key via RazorpayEvent. */
+  paymentId: string;
+  amountInPaise: number;
+  eventName?: string;
+}
+
+/**
+ * Grant a recurring `subscription.charged` webhook: monthly credits into the
+ * subscription bucket WITH the 2x rollover cap, term extended one month
+ * (+3 days grace so a slow retry doesn't lapse the account), Purchase row
+ * recorded. Idempotent via the same RazorpayEvent claim as one-time payments.
+ */
+export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): Promise<FulfillResult> {
+  const { subscriptionId, paymentId, amountInPaise } = args;
+  if (!subscriptionId || !paymentId) return { fulfilled: false, alreadyProcessed: false };
+
+  const user = await prisma.user.findUnique({
+    where: { razorpaySubscriptionId: subscriptionId },
+    select: { id: true, planId: true, monthlyCredits: true, plan: { select: { id: true, monthlyCredits: true, credits: true } } },
+  });
+  if (!user) {
+    logger.error("fulfillment", `subscription.charged for unknown subscription ${subscriptionId}`);
+    return { fulfilled: false, alreadyProcessed: false };
+  }
+
+  const monthlyCredits = user.plan?.monthlyCredits ?? user.monthlyCredits ?? 0;
+
+  const result = await prisma.$transaction(async (tx) => {
+    try {
+      await tx.razorpayEvent.create({
+        data: { id: paymentId, event: args.eventName ?? "subscription.charged" },
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        return { alreadyProcessed: true };
+      }
+      throw e;
+    }
+
+    // Rollover cap: subscription bucket tops out at 2x the monthly grant.
+    const { SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER } = await import("@/lib/plans/tiers");
+    const bal = await getBalances(user.id, tx);
+    const cap = monthlyCredits * SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER;
+    const applied = Math.max(Math.min(bal.subscription + monthlyCredits, cap) - bal.subscription, 0);
+    if (applied > 0) {
+      await grantCredits({
+        userId: user.id, bucket: "subscription", amount: applied,
+        reason: "grant:subscription-charge", refId: paymentId, tx,
+      });
+    }
+
+    const endsAt = new Date();
+    endsAt.setMonth(endsAt.getMonth() + 1);
+    endsAt.setDate(endsAt.getDate() + 3); // grace for slow renewals
+    await tx.user.update({
+      where: { id: user.id },
+      data: {
+        subscriptionEndsAt: endsAt,
+        monthlyCredits,
+        lowCreditEmailSentAt: null,
+        // Recurring subs never cron-refill; renewal IS the refill.
+        nextRefillAt: null,
+        trialEndsAt: null,
+      },
+    });
+    await tx.purchase.create({
+      data: { id: paymentId, userId: user.id, planId: user.plan?.id ?? user.planId, amountInPaise, credits: applied, status: "captured" },
+    });
+    return { alreadyProcessed: false };
+  });
+
+  if (result.alreadyProcessed) return { fulfilled: false, alreadyProcessed: true };
+
+  const balances = await getBalances(user.id);
+  await redis.set(`credits:${user.id}`, String(balances.total), "EX", 3600).catch(() => {});
+  return { fulfilled: true, alreadyProcessed: false };
+}
 
 export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> {
   const { paymentId, orderId, amountInPaise, notes } = args;
@@ -91,13 +175,21 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
       const addonCredits = addons.reduce((s, a) => s + a.credits, 0);
       const totalCredits = monthlyCredits + addonCredits;
 
+      // Monthly grant goes to the subscription bucket; bundled add-on packs
+      // are purchased credits (never expire).
+      await grantCredits({ userId, bucket: "subscription", amount: monthlyCredits, reason: "grant:subscription", refId: paymentId, tx });
+      if (addonCredits > 0) {
+        await grantCredits({ userId, bucket: "purchased", amount: addonCredits, reason: "grant:pack-addon", refId: paymentId, tx });
+      }
       await tx.user.update({
         where: { id: userId },
         data: {
-          credits: { increment: totalCredits },
           planId: plan.id,
           subscriptionId: orderId,
           subscriptionEndsAt: endsAt,
+          // 1-month prepaid terms expire exactly when a refill would be due, so
+          // they get no cron refill — renewal comes from a new payment (moving
+          // to Razorpay Subscriptions' subscription.charged for true recurring).
           nextRefillAt: months > 1 ? nextRefill : null,
           monthlyCredits,
         },
@@ -111,10 +203,7 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
     // One-time top-up pack: add credits to the standard pool.
     const credits = plan?.credits ?? parseInt(notes?.credits ?? "0", 10);
     if (credits > 0) {
-      await tx.user.update({
-        where: { id: userId },
-        data: { credits: { increment: credits } },
-      });
+      await grantCredits({ userId, bucket: "purchased", amount: credits, reason: "grant:pack", refId: paymentId, tx });
       await tx.purchase.create({
         data: { id: paymentId, userId, planId: plan?.id ?? null, amountInPaise, credits, status: "captured" },
       });

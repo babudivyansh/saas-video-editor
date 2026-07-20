@@ -20,7 +20,7 @@ interface ModelRow {
   override: { enabled?: boolean; creditCost?: number } | null;
 }
 interface AutoclipPricing {
-  base: number; perExtraClip: number; perMinute: number; rerender: number;
+  perClip: number; perTwoMinutes: number; analysisPerHalfHour: number; rerender: number;
 }
 
 export default function AdminModelsPage() {

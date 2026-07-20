@@ -35,8 +35,14 @@ export async function getRenderProgress(projectId: string): Promise<RenderProgre
   } catch { return null; }
 }
 
+export interface EnqueueOpts {
+  /** BullMQ semantics: lower number = processed sooner. Tier-mapped via
+   * lib/plans/tiers.ts tierPriority(); omitted = default (last). */
+  priority?: number;
+}
+
 export interface RenderQueue<T> {
-  enqueue: (id: string, payload: T) => void;
+  enqueue: (id: string, payload: T, opts?: EnqueueOpts) => void;
   driver: "in-process" | "bullmq";
 }
 
@@ -123,9 +129,12 @@ function makeBullQueue<T extends { projectId: string }>(name: string, handler: H
 
   return {
     driver: "bullmq",
-    enqueue: (id, payload) => {
+    enqueue: (id, payload, opts) => {
       void queue.add(name, payload, {
         jobId: id,
+        // BullMQ: lower priority number = dequeued first (real tier-based
+        // priority rendering — Pro/Studio jobs jump the free-tier queue).
+        ...(opts?.priority != null ? { priority: opts.priority } : {}),
         attempts: 3,
         backoff: { type: "exponential", delay: 5000 },
         removeOnComplete: 50,

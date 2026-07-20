@@ -9,6 +9,7 @@ import { Switch } from "@/app/components/ui/Switch";
 import { Button } from "@/app/components/ui/Button";
 import { useVideoGenerate, getStoredToken, type GenerateStatus } from "@/app/hooks/useVideoGenerate";
 import { registerAsset, type AssetRow } from "@/app/dashboard/editor/components/panels/shared/assetData";
+import { useInsufficientCredits } from "@/app/components/billing/CreditModalContext";
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 function IcFilm() {
@@ -44,13 +45,23 @@ function IcWarning() {
 
 const AUTH_HEADERS = () => ({ Authorization: `Bearer ${getStoredToken() ?? ""}` });
 
+class ApiError extends Error {
+  status: number;
+  body: { error?: string; required?: number; balance?: number };
+  constructor(status: number, body: { error?: string; required?: number; balance?: number }) {
+    super(body.error ?? `Request failed (${status})`);
+    this.status = status;
+    this.body = body;
+  }
+}
+
 async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
     headers: { ...(init?.headers ?? {}), ...AUTH_HEADERS(), ...(init?.body ? { "Content-Type": "application/json" } : {}) },
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((data as { error?: string }).error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new ApiError(res.status, data as { error?: string });
   return data as T;
 }
 
@@ -258,6 +269,7 @@ function ReviewPanel({ projectId, clips, uploadedVideoUrl, onConfirmed }: { proj
   const [edits, setEdits] = useState<Record<string, ReviewEdit>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const insufficientCredits = useInsufficientCredits();
 
   useEffect(() => {
     setEdits((prev) => {
@@ -284,7 +296,11 @@ function ReviewPanel({ projectId, clips, uploadedVideoUrl, onConfirmed }: { proj
       });
       onConfirmed();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to confirm");
+      if (err instanceof ApiError && err.status === 402) {
+        insufficientCredits.open({ required: err.body.required, balance: err.body.balance, action: "Auto Clips" });
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to confirm");
+      }
       setSubmitting(false);
     }
   }

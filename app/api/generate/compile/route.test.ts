@@ -56,11 +56,23 @@ vi.mock("@/lib/prisma", () => ({
       }),
     },
     user: {
-      update: vi.fn(async () => {
-        credits -= 1;
-        return { credits };
-      }),
+      findUnique: vi.fn(async () => ({ bonusCredits: 0, subscriptionCredits: 0, purchasedCredits: credits })),
     },
+    creditTransaction: { create: vi.fn(async () => ({})) },
+    // lib/credits spendCredits drains buckets via one raw CTE UPDATE inside a
+    // callback transaction; model the whole balance as the purchased bucket
+    // (mirrors app/api/projects/[id]/clips/confirm/route.test.ts's mock).
+    $queryRaw: vi.fn(async (...args: unknown[]) => {
+      const amount = (args.slice(1).find((v) => typeof v === "number") as number) ?? 0;
+      if (credits < amount) return [];
+      const before = credits;
+      credits -= amount;
+      return [{ ob: 0, os: 0, op: before, nb: 0, ns: 0, np: credits }];
+    }),
+    $transaction: vi.fn(async (arg: unknown) => {
+      if (Array.isArray(arg)) return Promise.all(arg as Promise<unknown>[]);
+      return (arg as (tx: unknown) => Promise<unknown>)((await import("@/lib/prisma")).prisma);
+    }),
   },
 }));
 

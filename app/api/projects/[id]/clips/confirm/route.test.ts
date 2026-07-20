@@ -7,6 +7,7 @@ import { NextRequest } from "next/server";
 
 vi.mock("@/lib/auth", () => ({
   getAuthUser: vi.fn(async () => ({ userId: "user-1", email: "user-1@test.com" })),
+  getUserTier: vi.fn(async () => "creator"),
 }));
 
 vi.mock("@/lib/redis", () => ({
@@ -21,10 +22,12 @@ vi.mock("@/lib/render-queue", () => ({
 vi.mock("@/lib/autoclip-pipeline", () => ({
   renderJob: vi.fn(async () => {}),
   computeCreditCost: vi.fn((clipCount: number) => clipCount), // 1 credit/clip, deterministic for the test
-  getAutoClipPricing: vi.fn(async () => ({ base: 1, perExtraClip: 1, perMinute: 1, rerender: 1 })),
+  getAutoClipPricing: vi.fn(async () => ({ perClip: 1, perTwoMinutes: 1, analysisPerHalfHour: 1, rerender: 1 })),
+  getAnalysisCreditsPaid: vi.fn(async () => 0),
 }));
 
 let credits = 10;
+let chargedAmounts: number[] = [];
 let projectStatus = "pending_review";
 const CLIPS = [
   { id: "clip-1", projectId: "project-1", index: 0, startSec: 0, endSec: 10, durationSec: 10, aspectRatio: "9:16", status: "pending_review" },
@@ -56,11 +59,27 @@ vi.mock("@/lib/prisma", () => ({
     },
     user: {
       update: vi.fn(async () => {
-        credits -= 1; // matches the mocked computeCreditCost returning clipCount=2, but we assert via enqueue/status instead
+        credits -= 1;
         return { credits };
       }),
+      findUnique: vi.fn(async () => ({ bonusCredits: 0, subscriptionCredits: 0, purchasedCredits: credits })),
     },
-    $transaction: vi.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
+    creditTransaction: { create: vi.fn(async () => ({})) },
+    // lib/credits spendCredits drains buckets via one raw CTE UPDATE inside a
+    // callback transaction; model the whole balance as the purchased bucket.
+    $queryRaw: vi.fn(async (...args: unknown[]) => {
+      // Extract the amount (first interpolated number) from the tagged template.
+      const amount = (args.slice(1).find((v) => typeof v === "number") as number) ?? 0;
+      if (credits < amount) return [];
+      const before = credits;
+      credits -= amount;
+      chargedAmounts.push(amount);
+      return [{ ob: 0, os: 0, op: before, nb: 0, ns: 0, np: credits }];
+    }),
+    $transaction: vi.fn(async (arg: unknown) => {
+      if (Array.isArray(arg)) return Promise.all(arg as Promise<unknown>[]);
+      return (arg as (tx: unknown) => Promise<unknown>)((await import("@/lib/prisma")).prisma);
+    }),
   },
 }));
 
@@ -77,6 +96,7 @@ function makeRequest() {
 describe("POST /api/projects/[id]/clips/confirm — double submit", () => {
   beforeEach(() => {
     credits = 10;
+    chargedAmounts = [];
     projectStatus = "pending_review";
     enqueue.mockClear();
   });
@@ -92,6 +112,10 @@ describe("POST /api/projects/[id]/clips/confirm — double submit", () => {
     const statuses = [first.status, second.status].sort();
     expect(statuses).toEqual([200, 409]);
     expect(enqueue).toHaveBeenCalledTimes(1);
-    expect(credits).toBe(9); // decremented exactly once, not twice
+    // Charged the real computed cost exactly once, not twice. (Previously the
+    // user.update mock decremented a flat 1; the bucket-aware spend now
+    // charges the mocked pricing's actual cost through $queryRaw.)
+    expect(credits).toBe(10 - chargedAmounts[0]);
+    expect(chargedAmounts).toHaveLength(1);
   });
 });

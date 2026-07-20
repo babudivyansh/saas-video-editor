@@ -7,6 +7,7 @@
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { auditAdminAction } from "@/lib/admin/audit";
+import { clawbackCredits as clawbackCreditsHelper, grantCredits } from "@/lib/credits";
 
 export type RefundResult =
   | { ok: true; creditsClawedBack: number }
@@ -31,14 +32,17 @@ export async function refundPurchase(params: {
     await tx.purchase.update({ where: { id: purchaseId }, data: { status: "refunded" } });
 
     // Claw back at most what was granted, floored at the user's current
-    // balance — a refund never drives credits negative.
+    // balance — a refund never drives credits negative. Bucket-aware:
+    // purchased first (that's what purchases grant into), ledger-recorded.
     let clawed = 0;
     if (clawbackCredits && purchase.credits > 0) {
-      const user = await tx.user.findUnique({ where: { id: purchase.userId }, select: { credits: true } });
-      clawed = Math.min(purchase.credits, user?.credits ?? 0);
-      if (clawed > 0) {
-        await tx.user.update({ where: { id: purchase.userId }, data: { credits: { decrement: clawed } } });
-      }
+      clawed = await clawbackCreditsHelper({
+        userId: purchase.userId,
+        amount: purchase.credits,
+        reason: "clawback:purchase-refund",
+        refId: purchaseId,
+        tx,
+      });
     }
     return { ok: true as const, purchase, clawed };
   });
@@ -73,13 +77,16 @@ export async function adjustCredits(params: {
   const result = await prisma.$transaction(async (tx) => {
     const user = await tx.user.findUnique({ where: { id: userId }, select: { credits: true } });
     if (!user) return { ok: false as const, error: "User not found", status: 404 };
-    const applied = delta < 0 ? -Math.min(-delta, user.credits) : delta;
-    const updated = await tx.user.update({
-      where: { id: userId },
-      data: { credits: { increment: applied } },
-      select: { credits: true },
-    });
-    return { ok: true as const, before: user.credits, applied, balance: updated.credits };
+    let applied: number;
+    if (delta >= 0) {
+      // Admin grants land in the never-expiring purchased bucket.
+      applied = delta;
+      await grantCredits({ userId, bucket: "purchased", amount: delta, reason: "grant:admin-adjust", tx });
+    } else {
+      // Deductions drain bucket-aware and floor at zero.
+      applied = -(await clawbackCreditsHelper({ userId, amount: -delta, reason: "clawback:admin-adjust", tx }));
+    }
+    return { ok: true as const, before: user.credits, applied, balance: user.credits + applied };
   });
   if (!result.ok) return result;
 

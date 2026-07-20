@@ -54,7 +54,12 @@ export async function POST(req: NextRequest) {
         lastName,
         name: `${firstName} ${lastName}`,
         passwordHash,
+        // Signup grant lands in the bonus bucket (30-day expiry); the monthly
+        // free-tier drip is anchored one month out from signup.
         credits: 10,
+        bonusCredits: 10,
+        bonusCreditsExpireAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        freeCreditsRefillAt: new Date(new Date().setMonth(new Date().getMonth() + 1)),
       },
       select: { id: true, email: true, credits: true },
     });

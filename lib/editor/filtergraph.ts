@@ -34,6 +34,9 @@ export interface FiltergraphInput {
   textFiles: Map<string, string>;
   /** path to a generated ASS file covering the whole caption track (undefined/omitted when there are no captions) */
   captionAssPath?: string;
+  /** Free-tier output treatment: cap the short edge at 720p and burn a
+   * "Clipiro" corner watermark. Decided by the caller from the user's tier. */
+  watermark?: boolean;
   outputPath: string;
 }
 
@@ -345,6 +348,19 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
       `${baseAudio}${musicLabels.join("")}amix=inputs=${1 + musicLabels.length}:duration=first:normalize=0[aout]`,
     );
     audioOut = "[aout]";
+  }
+
+  // ── Free-tier treatment: 720p cap + corner watermark (last video node, so
+  // it applies over captions and overlays and can't be cropped away) ──
+  if (input.watermark) {
+    const wmFont = escapeFilterPath(resolveFontFile("Poppins"));
+    const outLabel = "[vwm]";
+    filters.push(
+      `${videoOut}scale=w='if(gt(iw,ih),-2,min(720,iw))':h='if(gt(iw,ih),min(720,ih),-2)',` +
+        `drawtext=fontfile='${wmFont}':text='Clipiro':fontsize=h/18:fontcolor=white@0.6:` +
+        `borderw=2:bordercolor=black@0.35:x=w-tw-24:y=h-th-24${outLabel}`,
+    );
+    videoOut = outLabel;
   }
 
   const filterComplex = filters.join(";");

@@ -13,8 +13,9 @@ vi.mock("@/lib/razorpay", () => ({
 }));
 
 interface RzpOptions {
-  amount: number;
-  order_id: string;
+  amount?: number;
+  order_id?: string;
+  subscription_id?: string;
   handler: (r: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => void;
 }
 
@@ -45,6 +46,7 @@ describe("useRazorpayCheckout", () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
+        mode: "order",
         orderId: "order_1",
         amount: 10000,
         currency: "INR",
@@ -61,6 +63,29 @@ describe("useRazorpayCheckout", () => {
     const options = rzpConstructor.mock.calls[0][0] as RzpOptions;
     expect(options.amount).toBe(10000);
     expect(options.order_id).toBe("order_1");
+  });
+
+  it("opens Razorpay with subscription_id (no amount/order_id) for a subscription-mode response", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        mode: "subscription",
+        subscriptionId: "sub_1",
+        keyId: "rzp_test_x",
+        packName: "Pro (Monthly)",
+        credits: 160,
+        trial: true,
+      }),
+    }) as unknown as typeof fetch;
+
+    render(<Harness />);
+    await userEvent.click(screen.getByText("Buy"));
+
+    await waitFor(() => expect(rzpConstructor).toHaveBeenCalled());
+    const options = rzpConstructor.mock.calls[0][0] as RzpOptions;
+    expect(options.subscription_id).toBe("sub_1");
+    expect(options.amount).toBeUndefined();
+    expect(options.order_id).toBeUndefined();
   });
 
   it("surfaces a checkout error via onError instead of opening Razorpay", async () => {
