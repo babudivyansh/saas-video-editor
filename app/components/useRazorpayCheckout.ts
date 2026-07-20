@@ -25,6 +25,8 @@ export interface StartCheckoutArgs {
   couponCode?: string;
   /** Request the 7-day Pro trial (server validates eligibility/tier). */
   trial?: boolean;
+  /** Checkout currency; defaults server-side to INR. */
+  currency?: "INR" | "USD";
   /** Fired from the Razorpay success handler (e.g. refreshUser + toast, or a redirect). */
   onSuccess?: () => void;
   /** Surface a checkout error. Defaults to window.alert. */
@@ -56,7 +58,7 @@ export function useRazorpayCheckout(): UseRazorpayCheckout {
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const startCheckout = useCallback(
-    async ({ planId, addonIds = [], couponCode, trial, onSuccess, onError }: StartCheckoutArgs) => {
+    async ({ planId, addonIds = [], couponCode, trial, currency, onSuccess, onError }: StartCheckoutArgs) => {
       const fail = (message: string) => (onError ? onError(message) : alert(message));
       if (!user || !token) {
         fail("Please sign in to continue.");
@@ -78,7 +80,7 @@ export function useRazorpayCheckout(): UseRazorpayCheckout {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ planId, addonIds, couponCode, trial }),
+          body: JSON.stringify({ planId, addonIds, couponCode, trial, currency }),
         });
 
         if (!res.ok) {
