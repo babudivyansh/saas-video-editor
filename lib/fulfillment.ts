@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { sendPurchaseConfirmationEmail, sendAffiliateCommissionEmail } from "@/lib/email";
 import { markQuestComplete } from "@/lib/quests";
+import { grantCredits } from "@/lib/credits";
 import { logger } from "@/lib/logger";
 
 // Single source of truth for granting a captured Razorpay payment. Called by
@@ -91,10 +92,15 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
       const addonCredits = addons.reduce((s, a) => s + a.credits, 0);
       const totalCredits = monthlyCredits + addonCredits;
 
+      // Monthly grant goes to the subscription bucket; bundled add-on packs
+      // are purchased credits (never expire).
+      await grantCredits({ userId, bucket: "subscription", amount: monthlyCredits, reason: "grant:subscription", refId: paymentId, tx });
+      if (addonCredits > 0) {
+        await grantCredits({ userId, bucket: "purchased", amount: addonCredits, reason: "grant:pack-addon", refId: paymentId, tx });
+      }
       await tx.user.update({
         where: { id: userId },
         data: {
-          credits: { increment: totalCredits },
           planId: plan.id,
           subscriptionId: orderId,
           subscriptionEndsAt: endsAt,
@@ -114,10 +120,7 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
     // One-time top-up pack: add credits to the standard pool.
     const credits = plan?.credits ?? parseInt(notes?.credits ?? "0", 10);
     if (credits > 0) {
-      await tx.user.update({
-        where: { id: userId },
-        data: { credits: { increment: credits } },
-      });
+      await grantCredits({ userId, bucket: "purchased", amount: credits, reason: "grant:pack", refId: paymentId, tx });
       await tx.purchase.create({
         data: { id: paymentId, userId, planId: plan?.id ?? null, amountInPaise, credits, status: "captured" },
       });

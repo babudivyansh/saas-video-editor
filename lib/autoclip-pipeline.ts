@@ -7,6 +7,7 @@
 import { Prisma, type Clip } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
+import { restoreSpend, grantCredits } from "@/lib/credits";
 import { downloadFile } from "@/utils/download";
 import {
   extractAudio,
@@ -100,10 +101,23 @@ export async function refundCredits(projectId: string, amount: number): Promise<
   try {
     const proj = await prisma.project.findUnique({ where: { id: projectId }, select: { userId: true } });
     if (!proj) return;
-    await prisma.user.update({ where: { id: proj.userId }, data: { credits: { increment: amount } } });
-    const cached = await redis.get(`credits:${proj.userId}`);
-    if (cached !== null) {
-      await redis.set(`credits:${proj.userId}`, String(parseInt(cached, 10) + amount), "EX", 3600);
+    // Partial refund against the confirm-route spend (`auto-clip:{projectId}`)
+    // — restores exactly the buckets it drained, capped at what was spent.
+    const restored = await restoreSpend({
+      userId: proj.userId,
+      refId: `auto-clip:${projectId}`,
+      amount,
+      reason: "refund:auto-clip-partial",
+    });
+    if (restored < amount) {
+      // Legacy project charged before the bucket split (no ledger rows).
+      await grantCredits({
+        userId: proj.userId,
+        bucket: "purchased",
+        amount: amount - restored,
+        reason: "refund:auto-clip-legacy",
+        refId: `auto-clip:${projectId}`,
+      });
     }
   } catch (e) {
     logger.error("auto-clip", `failed to refund ${amount} credits for project ${projectId}`, e);

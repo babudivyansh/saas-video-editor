@@ -9,6 +9,7 @@ import { spawn } from "child_process";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { setRenderProgress } from "@/lib/render-queue";
+import { restoreSpend } from "@/lib/credits";
 import { runFFmpegWithProgress } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { downloadFile } from "@/utils/download";
@@ -57,19 +58,13 @@ async function refundCredit(projectId: string) {
   try {
     const proj = await prisma.project.findUnique({ where: { id: projectId }, select: { userId: true } });
     if (!proj) return;
-    await prisma.user.update({
-      where: { id: proj.userId },
-      data: { credits: { increment: EDITOR_RENDER_CREDIT_COST } },
+    // Restores exactly the buckets the route's spend drained (ledger refId).
+    await restoreSpend({
+      userId: proj.userId,
+      refId: `editor-render:${projectId}`,
+      amount: EDITOR_RENDER_CREDIT_COST,
+      reason: "refund:editor-render-failed",
     });
-    const cached = await redis.get(`credits:${proj.userId}`);
-    if (cached !== null) {
-      await redis.set(
-        `credits:${proj.userId}`,
-        String(parseInt(cached, 10) + EDITOR_RENDER_CREDIT_COST),
-        "EX",
-        3600,
-      );
-    }
   } catch (e) {
     logger.error("editor-render", `refund failed for ${projectId}`, e);
   }

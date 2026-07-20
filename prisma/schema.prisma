@@ -17,7 +17,19 @@ model User {
   email                String          @unique
   phone                String?         @unique
   passwordHash         String
+  // Denormalized TOTAL balance = bonus + subscription + purchased, maintained
+  // atomically by lib/credits.ts in the same statement as every bucket
+  // mutation (2026-07 bucket split). Read-only everywhere else — all existing
+  // balance reads (auth payloads, admin dashboards) keep working off this.
   credits              Int             @default(0)
+  // Credit buckets. Spend order: bonus -> subscription -> purchased (see
+  // lib/credits.ts spendCredits). Subscription credits roll over up to 2x the
+  // monthly grant and are zeroed on lapse; purchased (pack) credits never
+  // expire; bonus credits expire at bonusCreditsExpireAt.
+  subscriptionCredits  Int             @default(0)
+  purchasedCredits     Int             @default(0)
+  bonusCredits         Int             @default(0)
+  bonusCreditsExpireAt DateTime?
   role                 Role            @default(USER)
   firstName            String?
   lastName             String?
@@ -82,6 +94,7 @@ model User {
   projects             Project[]
   assets               Asset[]
   purchases            Purchase[]
+  creditTransactions   CreditTransaction[]
   quests               UserQuest[]
   questRewardClaimed   Boolean         @default(false)
   affiliate            Affiliate?
@@ -396,6 +409,25 @@ model RazorpayEvent {
   id          String   @id
   event       String
   processedAt DateTime @default(now())
+}
+
+// Append-only ledger of every credit balance change, per bucket. Written
+// exclusively by lib/credits.ts (grantCredits/spendCredits/refundSpend and
+// the cron's cap/lapse/expiry steps). refId ties spend rows to a Generation
+// id (or grant rows to a Razorpay payment id) so refunds can reverse exactly
+// the buckets a spend drained.
+model CreditTransaction {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bucket    String // "bonus" | "subscription" | "purchased"
+  delta     Int // positive = grant, negative = spend/expire
+  reason    String // "spend:<toolSlug>" | "grant:pack" | "grant:refill" | "refund" | "expire" | "lapse" | ...
+  refId     String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([refId])
 }
 
 // Key-value store for runtime admin configuration (e.g. tool enable/disable, credit costs).

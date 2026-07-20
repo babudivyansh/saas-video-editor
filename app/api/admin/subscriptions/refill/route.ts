@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { redis } from "@/lib/redis";
+import { grantCredits } from "@/lib/credits";
 import { withAdmin, parseBody } from "@/lib/admin/api";
 import { auditAdminAction, auditIp } from "@/lib/admin/audit";
 import { refillSchema } from "@/lib/admin/schemas";
@@ -35,13 +35,16 @@ export const POST = withAdmin(async (req, { admin }) => {
   nextRefill.setMonth(nextRefill.getMonth() + 1);
   const nextRefillAt = nextRefill <= user.subscriptionEndsAt ? nextRefill : null;
 
+  // The conditional nextRefillAt advance is the atomic idempotency claim; the
+  // bucket-aware grant (subscription bucket + ledger row) follows only when
+  // this call won the claim.
   const res = await prisma.user.updateMany({
     where: {
       id: userId,
       subscriptionEndsAt: { gt: now },
       ...(force ? {} : { OR: [{ nextRefillAt: null }, { nextRefillAt: { lte: now } }] }),
     },
-    data: { credits: { increment: user.monthlyCredits }, nextRefillAt },
+    data: { nextRefillAt },
   });
   if (res.count === 0) {
     return NextResponse.json(
@@ -49,12 +52,17 @@ export const POST = withAdmin(async (req, { admin }) => {
       { status: 409 },
     );
   }
+  await grantCredits({
+    userId,
+    bucket: "subscription",
+    amount: user.monthlyCredits,
+    reason: "grant:admin-refill",
+  });
 
   const updated = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true, credits: true, nextRefillAt: true },
   });
-  await redis.set(`credits:${userId}`, String(updated!.credits), "EX", 3600);
 
   await auditAdminAction(admin.userId, "subscription.manual_refill", userId, {
     before,

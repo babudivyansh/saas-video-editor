@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { createRenderQueue } from "@/lib/render-queue";
+import { spendCredits } from "@/lib/credits";
 import { renderJob, computeCreditCost, getAutoClipPricing, type RenderPayload, type Aspect } from "@/lib/autoclip-pipeline";
 
 const renderQueue = createRenderQueue<RenderPayload>("auto-clip-render", renderJob);
@@ -97,17 +98,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
 
-  const user = await prisma.user.update({
-    where: { id: auth.userId },
-    data: { credits: { decrement: creditCost } },
-    select: { credits: true },
+  // Bucket-aware atomic spend; refId `auto-clip:{projectId}` is what the
+  // pipeline's partial-failure refund restores against.
+  const spend = await spendCredits({
+    userId: auth.userId,
+    amount: creditCost,
+    reason: "spend:auto-clip",
+    refId: `auto-clip:${projectId}`,
   });
-  if (user.credits < 0) {
-    await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: creditCost } } });
+  if (!spend.ok) {
     await prisma.project.update({ where: { id: projectId }, data: { status: "pending_review" } });
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
-  await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
 
   await prisma.$transaction([
     ...toKeep.map((e) => {
@@ -128,5 +130,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   renderQueue.enqueue(projectId, { projectId });
 
-  return NextResponse.json({ status: "rendering", creditsCharged: creditCost, creditsRemaining: user.credits });
+  return NextResponse.json({ status: "rendering", creditsCharged: creditCost, creditsRemaining: spend.balances.total });
 }

@@ -4,6 +4,7 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { createRenderQueue } from "@/lib/render-queue";
+import { spendCredits } from "@/lib/credits";
 import {
   rerenderJob, getAutoClipPricing, rebaseClipWords,
   type RerenderPayload, type Aspect,
@@ -61,17 +62,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
 
-  const user = await prisma.user.update({
-    where: { id: auth.userId },
-    data: { credits: { decrement: pricing.rerender } },
-    select: { credits: true },
+  const spend = await spendCredits({
+    userId: auth.userId,
+    amount: pricing.rerender,
+    reason: "spend:auto-clip-rerender",
+    refId: `auto-clip-rerender:${clipId}:${Date.now()}`,
   });
-  if (user.credits < 0) {
-    await prisma.user.update({ where: { id: auth.userId }, data: { credits: { increment: pricing.rerender } } });
+  if (!spend.ok) {
     await prisma.clip.update({ where: { id: clipId }, data: { status: clip.status } });
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
-  await redis.set(`credits:${auth.userId}`, String(user.credits), "EX", 3600);
 
   const startChanged = start !== clip.startSec || end !== clip.endSec;
   const newCaptionIndex = body.captionStyleIndex ?? clip.captionStyleIndex;
@@ -105,5 +105,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   rerenderQueue.enqueue(`${clipId}-${Date.now()}`, { projectId, clipId });
 
-  return NextResponse.json({ status: "queued", creditsRemaining: user.credits });
+  return NextResponse.json({ status: "queued", creditsRemaining: spend.balances.total });
 }

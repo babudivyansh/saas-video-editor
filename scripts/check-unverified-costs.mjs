@@ -68,5 +68,28 @@ for (const rel of SCAN.filter((f) => f.startsWith("lib/models/"))) {
   }
 }
 
+// ── Raw credit-mutation guard ───────────────────────────────────────────────
+// lib/credits.ts is the only module allowed to mutate credit columns — every
+// other increment/decrement bypasses the bucket ledger and breaks balances.
+function* walk(dir) {
+  for (const entry of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+    if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+    const rel = `${dir}/${entry.name}`;
+    if (entry.isDirectory()) yield* walk(rel);
+    else if (/\.(ts|tsx)$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) yield rel;
+  }
+}
+const MUTATION = /(credits|subscriptionCredits|purchasedCredits|bonusCredits)['"]?\s*:\s*\{\s*(increment|decrement)/;
+for (const dir of ["app", "lib", "utils"]) {
+  for (const rel of walk(dir)) {
+    if (rel === "lib/credits.ts") continue;
+    const text = readFileSync(join(ROOT, rel), "utf8");
+    if (MUTATION.test(text)) {
+      console.error(`✗ ${rel}: raw credit-column mutation — use lib/credits.ts (spendCredits/grantCredits/restoreSpend/clawbackCredits).`);
+      failed = true;
+    }
+  }
+}
+
 if (failed) process.exit(1);
-console.log("✓ cost verification guard passed", `(${SCAN.length} files)`);
+console.log("✓ cost verification + credit-mutation guard passed", `(${SCAN.length} cost files)`);

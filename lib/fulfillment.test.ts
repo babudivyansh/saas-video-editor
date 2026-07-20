@@ -76,8 +76,17 @@ vi.mock("@/lib/prisma", () => {
                 failNextUserUpdate = false;
                 throw new Error("simulated crash mid-transaction");
               }
-              staged.userUpdates.push({ userId: where.id, credits: data.credits?.increment ?? 0 });
+              const inc = data.credits?.increment ?? 0;
+              staged.userUpdates.push({ userId: where.id, credits: inc });
+              // Shape needed by lib/credits grantCredits (bucket balances after
+              // update) — staged totals are close enough for these tests.
+              const cur = db.users.get(where.id)?.credits ?? 0;
+              const total = cur + staged.userUpdates.filter((u) => u.userId === where.id).reduce((s, u) => s + u.credits, 0);
+              return { bonusCredits: 0, subscriptionCredits: 0, purchasedCredits: total };
             }),
+          },
+          creditTransaction: {
+            create: vi.fn(async () => ({})),
           },
           purchase: {
             create: vi.fn(async ({ data }: { data: { id: string; userId: string; planId: string | null; amountInPaise: number; credits: number; status: string } }) => {

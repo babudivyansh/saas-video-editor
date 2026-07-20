@@ -23,6 +23,14 @@ let users: UserRow[];
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    // lib/credits grantCredits runs inside a transaction and writes ledger rows.
+    $transaction: vi.fn(async (arg: unknown) => {
+      if (Array.isArray(arg)) return Promise.all(arg);
+      return (arg as (tx: unknown) => Promise<unknown>)(
+        (await import("@/lib/prisma")).prisma,
+      );
+    }),
+    creditTransaction: { create: vi.fn(async () => ({})) },
     user: {
       findMany: vi.fn(async ({ where }: { where: Record<string, { not?: null; lte?: Date }> }) => {
         const now = new Date();

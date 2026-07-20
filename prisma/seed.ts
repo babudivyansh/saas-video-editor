@@ -176,7 +176,7 @@ async function main() {
   const user = await prisma.user.upsert({
     where: { email: "test@example.com" },
     update: {},
-    create: { email: "test@example.com", passwordHash: hash, credits: 30 },
+    create: { email: "test@example.com", passwordHash: hash, credits: 30, purchasedCredits: 30 },
   });
   console.log("Seeded test user:", user.email, "| credits:", user.credits);
 
@@ -198,7 +198,7 @@ async function main() {
     const generatedPassword = crypto.randomBytes(12).toString("base64url");
     const adminHash = await bcrypt.hash(generatedPassword, 12);
     const admin = await prisma.user.create({
-      data: { email: ADMIN_EMAIL, passwordHash: adminHash, credits: 100, role: "ADMIN" },
+      data: { email: ADMIN_EMAIL, passwordHash: adminHash, credits: 100, purchasedCredits: 100, role: "ADMIN" },
     });
     console.log("Admin ready:", admin.email, "| role:", admin.role);
     console.log(`Admin one-time password: ${generatedPassword}  (save this now — it is not stored anywhere else; change it after first login)`);

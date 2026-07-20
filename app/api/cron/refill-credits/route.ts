@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { redis } from "@/lib/redis";
+import { grantCredits } from "@/lib/credits";
 import { sendCreditsRefilledEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
@@ -43,12 +43,12 @@ export async function GET(req: NextRequest) {
     next.setMonth(next.getMonth() + 1);
     const nextRefillAt = u.subscriptionEndsAt && next >= u.subscriptionEndsAt ? null : next;
 
+    await grantCredits({ userId: u.id, bucket: "subscription", amount: grant, reason: "grant:refill" });
     const updated = await prisma.user.update({
       where: { id: u.id },
-      data: { credits: { increment: grant }, nextRefillAt, lowCreditEmailSentAt: null },
+      data: { nextRefillAt, lowCreditEmailSentAt: null },
       select: { email: true, firstName: true, name: true, credits: true },
     });
-    await redis.set(`credits:${u.id}`, String(updated.credits), "EX", 3600);
 
     // ── Credits refill notification (non-fatal) ────────────────────
     sendCreditsRefilledEmail(
