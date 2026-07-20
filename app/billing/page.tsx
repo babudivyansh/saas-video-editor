@@ -486,6 +486,83 @@ function UsageTab({ summary, history, historyCursor, historyLoadingMore, onLoadM
   );
 }
 
+// ── Auto top-up toggle (2026-07 audit) ──────────────────────────────────────
+// Opt-in: when the balance drops below 10 credits after a spend, the account
+// gets a one-click top-up email for the chosen pack (see lib/credits.ts's
+// maybeAutoTopup — true instant recurring charges mostly can't complete in
+// India without a pre-registered mandate, so the email IS the "auto" path).
+function AutoTopupToggle({ packs }: { packs: DbPlan[] }) {
+  const { token } = useAuth();
+  const [slug, setSlug] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch("/api/billing/auto-topup", { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => (res.ok ? res.json() : { autoTopupPackSlug: null }))
+      .then((data: { autoTopupPackSlug: string | null }) => setSlug(data.autoTopupPackSlug))
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, [token]);
+
+  async function update(next: string | null) {
+    if (!token) return;
+    setSaving(true);
+    setSlug(next); // optimistic
+    try {
+      await fetch("/api/billing/auto-topup", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ packSlug: next }),
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!loaded || packs.length === 0) return null;
+  const enabled = slug != null;
+  const selected = packs.find((p) => p.slug === slug) ?? packs[0];
+
+  return (
+    <Card className="p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="font-bold text-ink text-sm">Auto top-up</p>
+          {enabled && <span className="text-[10px] font-bold bg-tint-emerald text-green-700 px-2 py-0.5 rounded-full uppercase tracking-wide">On</span>}
+        </div>
+        <p className="text-xs text-ink-soft mt-1">
+          {enabled
+            ? `We'll email you a one-click link to buy ${selected?.name ?? "a pack"} whenever your balance drops below 10 credits.`
+            : "Get a one-click reminder to top up whenever your balance runs low — never get blocked mid-render."}
+        </p>
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {enabled && (
+          <select
+            value={slug ?? ""}
+            onChange={(e) => update(e.target.value)}
+            disabled={saving}
+            className="text-xs font-semibold border border-card-border rounded-lg px-2.5 py-2 bg-surface text-ink"
+          >
+            {packs.map((p) => <option key={p.slug} value={p.slug}>{p.name}</option>)}
+          </select>
+        )}
+        <button
+          role="switch"
+          aria-checked={enabled}
+          onClick={() => update(enabled ? null : (packs[0]?.slug ?? null))}
+          disabled={saving}
+          className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${enabled ? "bg-green-500" : "bg-ink-soft/30"}`}
+        >
+          <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${enabled ? "translate-x-5" : ""}`} />
+        </button>
+      </div>
+    </Card>
+  );
+}
+
 // ── Top Up tab ───────────────────────────────────────────────────────────────
 function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onViewPlans }: {
   hasActivePlan: boolean;
@@ -510,6 +587,7 @@ function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onVie
 
   return (
     <div className="space-y-6">
+      <AutoTopupToggle packs={packs} />
       <section>
         <div className="mb-5 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>

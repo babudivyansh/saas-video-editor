@@ -41,6 +41,11 @@ model User {
   // 7-day Pro trial: once per account, card-authorized upfront.
   trialUsedAt            DateTime?
   trialEndsAt            DateTime?
+  // Opt-in auto top-up (2026-07 audit): when set, a spend that leaves the
+  // balance under the threshold triggers lib/credits.ts's maybeAutoTopup —
+  // a debounced attempt to purchase this pack (one-click email in practice;
+  // see lib/email.ts sendAutoTopupPromptEmail and the RBI-mandate note there).
+  autoTopupPackSlug      String?
   role                 Role            @default(USER)
   firstName            String?
   lastName             String?

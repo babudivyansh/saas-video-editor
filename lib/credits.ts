@@ -164,7 +164,42 @@ export async function spendCredits(params: SpendCreditsParams): Promise<SpendCre
     return { ok: false, reason: "insufficient_credits", balances };
   }
   await refreshCreditCache(userId, outcome.balances.total);
+
+  // Fire-and-forget: never let the auto-topup check add latency or failure
+  // risk to the hot spend path.
+  void maybeAutoTopup(userId, outcome.balances.total).catch(() => {});
+
   return { ok: true, ...outcome };
+}
+
+const AUTO_TOPUP_THRESHOLD = 10;
+const AUTO_TOPUP_LOCK_TTL_SEC = 3600; // one prompt per hour per user, max
+
+/** Post-spend low-balance hook for opt-in auto top-up. In India, an instant
+ * background charge on a saved method mostly can't complete without a
+ * pre-registered mandate (RBI e-mandate rules), so this sends a one-click
+ * top-up email rather than attempting a silent charge — see
+ * lib/email.ts's sendAutoTopupPromptEmail for the full rationale. */
+async function maybeAutoTopup(userId: string, total: number): Promise<void> {
+  if (total >= AUTO_TOPUP_THRESHOLD) return;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { autoTopupPackSlug: true, email: true, firstName: true, name: true },
+  });
+  if (!user?.autoTopupPackSlug) return;
+
+  const lockKey = `auto-topup-lock:${userId}`;
+  const locked = await redis.get(lockKey);
+  if (locked) return;
+  await redis.set(lockKey, "1", "EX", AUTO_TOPUP_LOCK_TTL_SEC);
+
+  const pack = await prisma.plan.findUnique({ where: { slug: user.autoTopupPackSlug } });
+  if (!pack || !pack.active || pack.kind !== "pack") return;
+
+  const { sendAutoTopupPromptEmail } = await import("@/lib/email");
+  const checkoutUrl = `https://clipiro.com/billing?autotopup=${encodeURIComponent(pack.slug)}`;
+  await sendAutoTopupPromptEmail(user.email, user.firstName ?? user.name ?? "", total, pack.name, checkoutUrl);
 }
 
 /** Restore up to `amount` credits of the spend identified by `refId`, into

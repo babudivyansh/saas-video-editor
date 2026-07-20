@@ -583,6 +583,32 @@ export async function sendCreditsRefilledEmail(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 8b. AUTO TOP-UP: one-click purchase link (2026-07 audit)
+// ─────────────────────────────────────────────────────────────────────────────
+// Auto top-up in India mostly can't complete as an instant background charge
+// — recurring debits require a registered mandate with pre-debit
+// notification, which most saved payment methods here don't have wired up.
+// This email IS the dominant "auto" top-up path: one click lands the user
+// straight in checkout for their chosen pack, prefilled.
+export async function sendAutoTopupPromptEmail(
+  to: string, name: string, balance: number, packName: string, checkoutUrl: string,
+): Promise<void> {
+  const displayName = name || "there";
+  const html = `
+    ${emailHeader()}
+    <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 8px;">You're running low on credits</h1>
+    <p style="color:#64748b;font-size:15px;margin:0 0 24px;">
+      Hi ${displayName}, your balance just dropped to <strong>${balance} credit${balance === 1 ? "" : "s"}</strong>.
+      You've turned on auto top-up — one click below tops you up with ${packName} so you're never blocked mid-render.
+    </p>
+    ${ctaButton(checkoutUrl, "Top up now →")}
+    <p style="color:#94a3b8;font-size:12px;margin:20px 0 0;">You can turn off auto top-up anytime from Billing settings.</p>
+    ${emailFooter()}`;
+
+  await sendEmail(to, `You're low on Clipiro credits — top up in one click`, html, "auto-topup-prompt");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 9. UNUSED CREDITS REMINDER (mid-month)
 // ─────────────────────────────────────────────────────────────────────────────
 export async function sendUnusedCreditsReminderEmail(
