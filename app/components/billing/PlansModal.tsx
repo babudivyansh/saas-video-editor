@@ -448,7 +448,7 @@ function CheckoutStep({
                     <input type="checkbox" checked={checked} onChange={() => onToggleAddon(pack.slug)} className="mt-0.5 w-4 h-4 accent-blue-600 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-gray-900 text-sm">{pack.name}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · valid while subscribed</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · never expire</p>
                     </div>
                     <p className="font-bold text-gray-900 whitespace-nowrap">{formatPrice(pack.priceInPaise)}</p>
                   </label>

@@ -18,7 +18,8 @@ export interface ToolCost {
   costUsd: number | null;
   costBasis: string;
   generationType: "image" | "video" | "audio" | "utility";
-  /** Omit = open to everyone (incl. free). Only ai-creator sets this in Phase 1. */
+  /** Omit = open to everyone (incl. free). Set on ai-creator plus tools whose
+   * provider cost is unverified (subtitle-remover, face-swap). */
   requiredTier?: TierId;
 }
 
@@ -43,7 +44,9 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   // TODO verify-before-ship: real per-call OCR cost couldn't be confirmed
   // live (fal.ai account balance was exhausted during implementation); this
   // display value and the route's cost formula are both placeholders.
-  "subtitle-remover": { creditCost: 4, costUsd: null, costBasis: "fal-ai/florence-2-large OCR per sampled frame + FFmpeg render, cost not yet confirmed", generationType: "video" },
+  // Gated pro+ until the real OCR cost is confirmed: pro-tier credit revenue
+  // (~₹15.7/cr) gives enough margin buffer for an unknown per-frame cost.
+  "subtitle-remover": { creditCost: 4, costUsd: null, costBasis: "fal-ai/florence-2-large OCR per sampled frame + FFmpeg render, cost not yet confirmed", generationType: "video", requiredTier: "pro" },
   "voiceover":        { creditCost: 2, costUsd: 0.10, costBasis: "$0.05/1,000 chars (ElevenLabs Flash TTS), 2,000-char cap", generationType: "audio" },
   "vocal-remover":    { creditCost: 3, costUsd: 0.21, costBasis: "$0.0007/s (fal.ai Demucs), 5-min worst case", generationType: "audio" },
   // Fixed in Phase 1: was 2cr flat (≈$0.20 revenue) against real cost that could
@@ -67,7 +70,9 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   "youtube-downloader":   { creditCost: 1, costUsd: 0, costBasis: "yt-dlp, bandwidth only", generationType: "utility" },
   "instagram-downloader": { creditCost: 1, costUsd: 0, costBasis: "yt-dlp, bandwidth only", generationType: "utility" },
   "background-remover":   { creditCost: 1, costUsd: 0.018, costBasis: "$0.018/run (fal-ai/imageutils/rembg)", generationType: "image" },
-  "face-swap":            { creditCost: 2, costUsd: null, costBasis: "fal-ai/face-swap, no reliable figure found — estimate ~$0.02-0.05/run", generationType: "image" },
+  // Gated pro+ until a real per-run figure is confirmed (same rationale as
+  // subtitle-remover above).
+  "face-swap":            { creditCost: 2, costUsd: null, costBasis: "fal-ai/face-swap, no reliable figure found — estimate ~$0.02-0.05/run", generationType: "image", requiredTier: "pro" },
 };
 
 // "Starting at" display price for the two multi-model tools — kept in sync

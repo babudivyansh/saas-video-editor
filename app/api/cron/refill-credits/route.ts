@@ -25,32 +25,13 @@ export async function GET(req: NextRequest) {
   let refilled = 0;
   let expired = 0;
 
-  // ── 1. Expire lapsed subscriptions ──────────────────────────────────────────
-  const lapsed = await prisma.user.findMany({
-    where: { subscriptionEndsAt: { not: null, lte: now } },
-    select: { id: true },
-  });
-  for (const u of lapsed) {
-    await prisma.user.update({
-      where: { id: u.id },
-      data: {
-        planId: null,
-        subscriptionId: null,
-        subscriptionEndsAt: null,
-        nextRefillAt: null,
-        monthlyCredits: 0,
-        // Credits already granted are left as-is (they don't expire).
-      },
-    });
-    expired++;
-  }
-
-  // ── 2. Grant due monthly refills for still-active terms ─────────────────────
+  // ── 1. Grant due monthly refills ────────────────────────────────────────────
+  // Runs BEFORE expiry: nextRefillAt is always set strictly inside the paid
+  // term, so a due refill is one the user paid for even if the cron fires late
+  // and the term has since lapsed. Expiring first would null nextRefillAt and
+  // silently swallow that final paid refill.
   const due = await prisma.user.findMany({
-    where: {
-      nextRefillAt: { not: null, lte: now },
-      subscriptionEndsAt: { gt: now },
-    },
+    where: { nextRefillAt: { not: null, lte: now } },
     select: { id: true, monthlyCredits: true, nextRefillAt: true, subscriptionEndsAt: true },
   });
 
@@ -78,6 +59,26 @@ export async function GET(req: NextRequest) {
     ).catch((e) => logger.error("cron/refill-credits", `email error for ${u.id}`, e));
 
     refilled++;
+  }
+
+  // ── 2. Expire lapsed subscriptions ──────────────────────────────────────────
+  const lapsed = await prisma.user.findMany({
+    where: { subscriptionEndsAt: { not: null, lte: now } },
+    select: { id: true },
+  });
+  for (const u of lapsed) {
+    await prisma.user.update({
+      where: { id: u.id },
+      data: {
+        planId: null,
+        subscriptionId: null,
+        subscriptionEndsAt: null,
+        nextRefillAt: null,
+        monthlyCredits: 0,
+        // Credits already granted are left as-is (they don't expire).
+      },
+    });
+    expired++;
   }
 
   return NextResponse.json({ ok: true, refilled, expired, at: now.toISOString() });

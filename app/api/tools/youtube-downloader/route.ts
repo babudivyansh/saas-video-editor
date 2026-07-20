@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/auth";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
 import { create as createYoutubeDl } from "youtube-dl-exec";
 import { withRateLimit } from "@/lib/with-rate-limit";
+import { checkFreeToolDailyCap, freeToolCapResponseBody } from "@/lib/free-tool-caps";
 import { logger } from "@/lib/logger";
 import ffmpegStatic from "ffmpeg-static";
 import fs from "fs";
@@ -170,6 +171,12 @@ async function handleGET(req: NextRequest) {
   }
 
   // ── Start a download job ───────────────────────────────────────────────────
+  // Daily cap on actual downloads (info/status polling stays uncapped).
+  const daily = await checkFreeToolDailyCap("youtube-downloader", auth.userId);
+  if (!daily.allowed) {
+    return NextResponse.json(freeToolCapResponseBody("youtube-downloader", daily.cap), { status: 429 });
+  }
+
   const jobId = randomUUID();
   const isAudio = quality === "audio";
   const ext = isAudio ? "mp3" : "mp4";

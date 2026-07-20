@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
+import { checkFreeToolDailyCap, freeToolCapResponseBody } from "@/lib/free-tool-caps";
 import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { create as createYoutubeDl } from "youtube-dl-exec";
@@ -189,6 +190,12 @@ async function handleGET(req: NextRequest) {
   }
 
   // ── Download mode ─────────────────────────────────────────────────────────────
+  // Daily cap on actual downloads (info/status polling stays uncapped).
+  const daily = await checkFreeToolDailyCap("instagram-downloader", auth.userId);
+  if (!daily.allowed) {
+    return NextResponse.json(freeToolCapResponseBody("instagram-downloader", daily.cap), { status: 429 });
+  }
+
   const jobId = randomUUID();
   const isAudio = quality === "audio";
   const ext = isAudio ? "mp3" : "mp4";

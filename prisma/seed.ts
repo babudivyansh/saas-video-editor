@@ -26,8 +26,10 @@ interface SeedPlan {
 }
 
 // ── Subscriptions ───────────────────────────────────────────────────────────
-// Two terms only: Monthly + Yearly. Yearly = monthly × 12 × 0.80 (20% off).
-const YEARLY_DISCOUNT = 0.20;
+// Two terms only: Monthly + Yearly. Yearly = monthly × 12 × 0.67 (33% off —
+// "4 months free"; 2026-07 pricing audit moved this from 20% to match the
+// category's 33-50% annual-incentive norm).
+const YEARLY_DISCOUNT = 0.33;
 const yearly = (monthlyPaise: number) => Math.round((monthlyPaise * 12 * (1 - YEARLY_DISCOUNT)) / 100) * 100;
 
 // 2026-07 repricing: entry tier was $6.7-8.4/mo equivalent vs $13-35/mo for
@@ -39,13 +41,13 @@ const yearly = (monthlyPaise: number) => Math.round((monthlyPaise * 12 * (1 - YE
 const SUBSCRIPTIONS: SeedPlan[] = [
   // Creator — 50 cr/mo (₹999/mo).
   { slug: "sub_creator_1mo",  name: "Creator (Monthly)", priceInPaise: 99900,            intervalMonths: 1,  monthlyCredits: 50,  sortOrder: 10, tier: "creator" as const, features: ["50 credits / month", "All AI tools", "1080p exports"] },
-  { slug: "sub_creator_12mo", name: "Creator (Yearly)",  priceInPaise: yearly(99900),    intervalMonths: 12, monthlyCredits: 50,  sortOrder: 13, tier: "creator" as const, features: ["50 credits / month", "Save 20% vs monthly"] },
+  { slug: "sub_creator_12mo", name: "Creator (Yearly)",  priceInPaise: yearly(99900),    intervalMonths: 12, monthlyCredits: 50,  sortOrder: 13, tier: "creator" as const, features: ["50 credits / month", "Save 33% vs monthly"] },
   // Pro — 140 cr/mo (₹2,199/mo).
   { slug: "sub_pro_1mo",  name: "Pro (Monthly)", priceInPaise: 219900,           intervalMonths: 1,  monthlyCredits: 140, sortOrder: 20, tier: "pro" as const, features: ["140 credits / month", "All AI tools", "Priority rendering"] },
-  { slug: "sub_pro_12mo", name: "Pro (Yearly)",  priceInPaise: yearly(219900),   intervalMonths: 12, monthlyCredits: 140, sortOrder: 23, tier: "pro" as const, features: ["140 credits / month", "Save 20% vs monthly"] },
+  { slug: "sub_pro_12mo", name: "Pro (Yearly)",  priceInPaise: yearly(219900),   intervalMonths: 12, monthlyCredits: 140, sortOrder: 23, tier: "pro" as const, features: ["140 credits / month", "Save 33% vs monthly"] },
   // Studio — 340 cr/mo (₹4,999/mo).
   { slug: "sub_studio_1mo",  name: "Studio (Monthly)", priceInPaise: 499900,          intervalMonths: 1,  monthlyCredits: 340, sortOrder: 30, tier: "studio" as const, features: ["340 credits / month", "Priority rendering", "Dedicated support"] },
-  { slug: "sub_studio_12mo", name: "Studio (Yearly)",  priceInPaise: yearly(499900),  intervalMonths: 12, monthlyCredits: 340, sortOrder: 33, tier: "studio" as const, features: ["340 credits / month", "Save 20% vs monthly"] },
+  { slug: "sub_studio_12mo", name: "Studio (Yearly)",  priceInPaise: yearly(499900),  intervalMonths: 12, monthlyCredits: 340, sortOrder: 33, tier: "studio" as const, features: ["340 credits / month", "Save 33% vs monthly"] },
 ].map(p => ({ ...p, kind: "subscription" as const, credits: p.monthlyCredits * p.intervalMonths }));
 
 // Old 3-month / 6-month terms are retired. Deactivate them (keep rows for

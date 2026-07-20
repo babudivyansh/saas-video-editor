@@ -75,27 +75,13 @@ export const VIDEO_MODELS: readonly VideoModelEntry[] = [
     resultPath: ["video.url"],
     imageInput: "optional",
   },
-  {
-    id: "kling-3.0",
-    displayName: "Kling 3.0",
-    provider: "Kuaishou",
-    badge: "Kling",
-    category: "video",
-    integration: "fal",
-    // TODO verify-before-ship: confirm whether a text-to-video variant exists;
-    // only image-to-video was confirmed, hence imageInput: "required" below.
-    falEndpoint: "fal-ai/kling-video/v3/pro/image-to-video",
-    costUsd: 0.168, // audio on
-    creditsPerSecond: 7, // ceil(0.168*4/0.099), flagship margin
-    minDurationSeconds: 2,
-    maxDurationSeconds: 15,
-    allowedTiers: ["studio"], // flagship, studio-exclusive
-    supportedParameters: ["prompt", "duration", "aspectRatio", "imageUpload"],
-    defaultValues: { duration: 5, aspectRatio: "16:9" },
-    inputMap: { aspectRatio: "aspect_ratio" },
-    resultPath: ["video.url"],
-    imageInput: "required",
-  },
+  // Kling 3.0 is pulled from the registry until its per-second cost and
+  // endpoint are verified with the provider (2026-07 pricing audit): a
+  // studio-exclusive flagship with an unconfirmed cost is exactly the
+  // pre-duration-scaling ai-creator loss-maker pattern. Re-add the entry
+  // (studio-only, creditsPerSecond = ceil(costUsd*4/0.099)) once confirmed.
+  // Unknown ids fall back to DEFAULT_VIDEO_MODEL_ID in getVideoModel, so any
+  // stale client selection degrades safely to Veo 3.
   {
     id: "grok-imagine-1.5",
     displayName: "Grok Imagine 1.5",

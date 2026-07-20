@@ -119,7 +119,7 @@ const TERMS = [
   { months: 1,  label: "Monthly" },
   { months: 12, label: "Yearly" },
 ];
-const YEARLY_SAVE_PCT = 20; // yearly plans are 20% cheaper than 12× monthly
+const YEARLY_SAVE_PCT = 33; // yearly plans are 33% cheaper than 12× monthly
 
 const WORKFLOWS = [
   { name: "Reddit Story Videos", creator: true, pro: true, studio: true },
@@ -139,7 +139,8 @@ const TOOLS = [
   { name: "AI Voice Changer", creator: true, pro: true, studio: true },
   { name: "AI Speech Enhancer", creator: true, pro: true, studio: true },
   { name: "AI Brainstormer", creator: true, pro: true, studio: true },
-  { name: "Subtitle Remover", creator: true, pro: true, studio: true },
+  // Pro+ while its provider cost is unverified — see lib/tool-costs.ts.
+  { name: "Subtitle Remover", creator: false, pro: true, studio: true },
 ];
 
 const FAQS = [
@@ -149,7 +150,7 @@ const FAQS = [
   },
   {
     q: "What is a credit?",
-    a: "Credits are spent on AI tools — the cost depends on the tool and model you pick (e.g. 1-8 credits for an image, 2 credits for a voiceover, and per-second pricing for video, including Veo3 AI video). Subscription credits refill each month and do not roll over. Add-on credit packs are valid for as long as your subscription is active.",
+    a: "Credits are spent on AI tools — the cost depends on the tool and model you pick (e.g. 1-8 credits for an image, 2 credits for a voiceover, and per-second pricing for video, including Veo3 AI video). Subscription credits refill each month. Add-on credit packs never expire — they stay on your account even if your subscription lapses.",
   },
   {
     q: "How long can each video be?",
@@ -157,7 +158,7 @@ const FAQS = [
   },
   {
     q: "Do longer terms cost less?",
-    a: "Yes — the yearly plan is 20% cheaper than paying month-to-month. You're billed once upfront for the full year.",
+    a: "Yes — the yearly plan is 33% cheaper than paying month-to-month (4 months free). You're billed once upfront for the full year.",
   },
   {
     q: "Can I switch plans later?",
@@ -421,7 +422,7 @@ export default function PricingPage() {
         </h1>
         <p className="text-lg text-gray-500 max-w-xl mx-auto mb-2">
           Every AI tool — voiceovers, captions, Veo3 videos, and more — in one plan.
-          Go <span className="font-semibold text-gray-700">yearly to save 20%</span>.
+          Go <span className="font-semibold text-gray-700">yearly to save 33%</span>.
         </p>
       </section>
 
@@ -541,7 +542,7 @@ export default function PricingPage() {
                         {months > 1 && <> · ₹{price.toLocaleString("en-IN")} billed yearly</>}
                       </p>
                       <p className={`text-[11px] mt-0.5 ${highlighted ? "text-blue-300/70" : "text-gray-400"}`}>
-                        Refills monthly · credits don&apos;t roll over
+                        Refills monthly
                       </p>
                       {months > 1 && saved && saved > 0 && (
                         <p className={`text-xs font-bold mt-1 ${highlighted ? "text-green-300" : "text-green-600"}`}>
@@ -615,8 +616,8 @@ export default function PricingPage() {
                 <h3 className="text-2xl font-extrabold text-gray-900">Need extra credits?</h3>
                 <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
                   {hasActivePlan
-                    ? "Top-up anytime — add-on credits stack with your subscription and are valid while subscribed."
-                    : "Bundle any credit pack with your plan at checkout. Add-on credits are valid while your subscription is active."}
+                    ? "Top-up anytime — add-on credits stack with your subscription and never expire."
+                    : "Bundle any credit pack with your plan at checkout. Add-on credits never expire."}
                 </p>
               </div>
 
@@ -643,7 +644,7 @@ export default function PricingPage() {
                         />
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-gray-900 text-sm leading-snug">{pack.name}</p>
-                          <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · valid while subscribed</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · never expire</p>
                           <p className="text-xl font-black text-gray-900 mt-3">₹{price.toLocaleString("en-IN")}</p>
                         </div>
                       </label>
@@ -682,7 +683,7 @@ export default function PricingPage() {
         })()}
 
         <p className="text-center mt-10 text-gray-400 text-sm">
-          Free tools always free · Subscription credits refill monthly, don&apos;t roll over · Add-on credits valid while subscribed · Powered by Razorpay
+          Free tools always free · Subscription credits refill monthly · Add-on credits never expire · Powered by Razorpay
         </p>
       </section>
 
@@ -858,7 +859,7 @@ export default function PricingPage() {
                             />
                             <div className="flex-1 min-w-0">
                               <p className="font-semibold text-gray-900 text-sm">{pack.name}</p>
-                              <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · valid while subscribed</p>
+                              <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · never expire</p>
                             </div>
                             <p className="font-bold text-gray-900 whitespace-nowrap">
                               ₹{price.toLocaleString("en-IN")}
@@ -1042,7 +1043,7 @@ export default function PricingPage() {
             </div>
           )}
           <p className="text-center text-xs text-gray-400 mt-6">
-            Free tools never use credits. Subscription credits refill monthly and don&apos;t roll over. Add-on credits are valid while your subscription is active.
+            Free tools never use credits. Subscription credits refill monthly. Add-on credits never expire.
           </p>
         </section>
       )}

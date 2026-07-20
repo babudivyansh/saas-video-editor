@@ -98,6 +98,9 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
           planId: plan.id,
           subscriptionId: orderId,
           subscriptionEndsAt: endsAt,
+          // 1-month prepaid terms expire exactly when a refill would be due, so
+          // they get no cron refill — renewal comes from a new payment (moving
+          // to Razorpay Subscriptions' subscription.charged for true recurring).
           nextRefillAt: months > 1 ? nextRefill : null,
           monthlyCredits,
         },

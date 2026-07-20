@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runFFmpegWithProgress } from "@/utils/ffmpeg-render";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { checkFreeToolDailyCap, freeToolCapResponseBody } from "@/lib/free-tool-caps";
 import { createJobStatusHandler } from "@/lib/job-routes";
 import { createRenderQueue } from "@/lib/render-queue";
 import os from "os";
@@ -89,6 +90,10 @@ export async function POST(req: NextRequest) {
   const limit = await rateLimit(`video-compressor:ip:${getClientIp(req)}`, 5, 3600);
   if (!limit.allowed) {
     return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+  }
+  const daily = await checkFreeToolDailyCap("video-compressor", `ip:${getClientIp(req)}`);
+  if (!daily.allowed) {
+    return NextResponse.json(freeToolCapResponseBody("video-compressor", daily.cap), { status: 429 });
   }
 
   sweep();
