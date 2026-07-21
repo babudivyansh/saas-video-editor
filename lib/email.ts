@@ -358,6 +358,35 @@ export async function sendPasswordChangedAlertEmail(to: string, name: string, ti
   await sendEmail(to, "Your Clipiro password was changed", html, "password-changed-alert");
 }
 
+// Sent whenever 2FA is switched on or off — same never-gated security-alert
+// tier as the two above. Turning 2FA *off* is the one an attacker would want
+// to happen quietly, so it is the more important of the two directions.
+export async function sendTwoFactorChangedAlertEmail(
+  to: string, name: string, enabled: boolean, time: string
+): Promise<void> {
+  const displayName = name || "there";
+  const headline = enabled
+    ? "Two-factor authentication is on"
+    : "Two-factor authentication was turned off";
+  const body = enabled
+    ? `Hi ${displayName}, two-factor authentication was enabled on your Clipiro account on ${time}. You&apos;ll now be asked for a code from your authenticator app each time you sign in.`
+    : `Hi ${displayName}, two-factor authentication was disabled on your Clipiro account on ${time}, and every other device has been signed out. Your account is now protected by your password alone.`;
+  const html = `
+    ${emailHeader()}
+    <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 8px;">${headline}</h1>
+    <p style="color:#64748b;font-size:15px;margin:0 0 24px;line-height:1.6;">${body}</p>
+    <p style="color:#475569;font-size:14px;margin:0 0 16px;">If you made this change, no action is needed. If you didn&apos;t, secure your account immediately.</p>
+    ${ctaButton("https://clipiro.com/reset-password-request", "Secure My Account →", "#dc2626")}
+    ${emailFooter()}`;
+
+  await sendEmail(
+    to,
+    enabled ? "Two-factor authentication enabled on Clipiro" : "Two-factor authentication disabled on Clipiro",
+    html,
+    "two-factor-changed-alert",
+  );
+}
+
 // Verify-email / change-email confirmation links. Both point at the same
 // confirm route with a Redis-backed one-time token (mirrors sendPasswordResetEmail's
 // pattern exactly) — see app/api/auth/verify-email/* and app/api/auth/change-email/*.

@@ -273,12 +273,18 @@
       "disableConfirm": "Isso remove a etapa extra de login. Confirme sua senha para continuar.",
       "disabling": "Desativando…",
       "disable": "Desativar",
+      "regenerateCodes": "Gerar novos códigos",
+      "regenerateTitle": "Gerar novos códigos de recuperação",
+      "regenerateConfirm": "Seus códigos de recuperação atuais deixarão de funcionar e um novo conjunto será exibido uma única vez. Confirme sua senha para continuar.",
+      "regenerate": "Gerar novos",
+      "generating": "Gerando…",
       "toasts": {
         "setupFailed": "Falha ao iniciar a configuração",
         "invalidCode": "Código inválido",
         "disableFailed": "Falha ao desativar",
         "disabled2fa": "Autenticação de dois fatores desativada",
-        "codesCopied": "Códigos de recuperação copiados"
+        "codesCopied": "Códigos de recuperação copiados",
+        "regenerateFailed": "Falha ao gerar novos códigos"
       }
     }
   },

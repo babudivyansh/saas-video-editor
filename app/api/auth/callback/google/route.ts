@@ -7,6 +7,7 @@ import { sendWelcomeEmail, sendAffiliateReferralSignupEmail } from "@/lib/email"
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { appUrl } from "@/lib/social/oauth";
+import { mintTwoFactorTicket } from "@/lib/two-factor-ticket";
 
 export async function GET(req: NextRequest) {
   try {
@@ -168,10 +169,28 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 4. Issue JWT and cache session
+    // 4. Same account gates as /api/auth/login — proving control of the Google
+    // inbox authenticates the *first* factor and nothing more. Without these,
+    // any account whose email matched a Google account skipped 2FA outright,
+    // and suspended/deactivated accounts signed straight back in.
+    if (user.suspendedAt) {
+      return NextResponse.redirect(new URL("/login?error=suspended", appUrl()));
+    }
+    if (user.deactivatedAt) {
+      return NextResponse.redirect(new URL("/login?error=deactivated", appUrl()));
+    }
+    if (user.twoFactorEnabled) {
+      // Redirect rather than JSON: this is a top-level browser navigation, so
+      // the sign-in page picks the ticket back up from the query string and
+      // opens on the code step (see AuthForm's `2fa` param handling).
+      const ticket = await mintTwoFactorTicket(user.id);
+      return NextResponse.redirect(new URL(`/login?2fa=${encodeURIComponent(ticket)}`, appUrl()));
+    }
+
+    // 5. Issue JWT and cache session
     const { token } = await completeLogin(req, user);
 
-    // 5. Return HTML page that sets localStorage and redirects
+    // 6. Return HTML page that sets localStorage and redirects
     const html = `
       <!DOCTYPE html>
       <html>

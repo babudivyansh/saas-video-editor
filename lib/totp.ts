@@ -68,17 +68,32 @@ export function generateTotp(secretBase32: string, at: number = Date.now()): str
   return hotp(base32Decode(secretBase32), counter);
 }
 
-/** Constant-time verification, tolerant of ±1 clock step of drift. */
-export function verifyTotp(secretBase32: string, code: string, at: number = Date.now()): boolean {
-  if (!/^\d{6}$/.test(code)) return false;
+/**
+ * Constant-time verification, tolerant of ±1 clock step of drift. Returns the
+ * time step the code actually matched, or null if it matched none.
+ *
+ * Callers that enforce single-use (replay protection) need the step, not just
+ * a yes/no — see User.twoFactorLastUsedStep and app/api/auth/2fa/verify-login.
+ */
+export function verifyTotpStep(secretBase32: string, code: string, at: number = Date.now()): number | null {
+  if (!/^\d{6}$/.test(code)) return null;
   const secret = base32Decode(secretBase32);
   const counter = Math.floor(at / 1000 / STEP_SECONDS);
   const codeBuf = Buffer.from(code);
   for (let drift = -CLOCK_DRIFT_STEPS; drift <= CLOCK_DRIFT_STEPS; drift++) {
     const expected = Buffer.from(hotp(secret, counter + drift));
-    if (crypto.timingSafeEqual(expected, codeBuf)) return true;
+    if (crypto.timingSafeEqual(expected, codeBuf)) return counter + drift;
   }
-  return false;
+  return null;
+}
+
+/**
+ * Boolean form, for callers with no replay concern (enrollment confirmation).
+ * Deliberately not `verifyTotpStep(...) as unknown as boolean` — step 0 is
+ * falsy, and that footgun is the whole reason the two are separate functions.
+ */
+export function verifyTotp(secretBase32: string, code: string, at: number = Date.now()): boolean {
+  return verifyTotpStep(secretBase32, code, at) !== null;
 }
 
 export function buildOtpauthUri(secretBase32: string, accountEmail: string, issuer = "Clipiro"): string {
@@ -94,7 +109,7 @@ export function buildOtpauthUri(secretBase32: string, accountEmail: string, issu
 // purpose is defending against low-entropy user-chosen secrets.
 
 export function generateRecoveryCode(): string {
-  // 10 random alphanumeric chars, grouped for readability: XXXXX-XXXXX
+  // 10 random hex chars (~40 bits), grouped for readability: XXXXX-XXXXX
   const raw = crypto.randomBytes(8).toString("hex").slice(0, 10).toUpperCase();
   return `${raw.slice(0, 5)}-${raw.slice(5, 10)}`;
 }

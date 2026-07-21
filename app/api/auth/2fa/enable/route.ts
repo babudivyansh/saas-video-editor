@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
+import { sendTwoFactorChangedAlertEmail } from "@/lib/email";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { encryptSecret, decryptSecret } from "@/lib/encryption";
-import { verifyTotp, generateRecoveryCode, hashRecoveryCode } from "@/lib/totp";
+import { verifyTotpStep, generateRecoveryCode, hashRecoveryCode } from "@/lib/totp";
+import { logger } from "@/lib/logger";
 
 const RECOVERY_CODE_COUNT = 10;
 
@@ -25,7 +27,8 @@ async function handlePOST(req: NextRequest) {
   }
   const secret = decryptSecret(pendingEnc);
 
-  if (!verifyTotp(secret, code)) {
+  const step = verifyTotpStep(secret, code);
+  if (step === null) {
     return NextResponse.json({ error: "Invalid code" }, { status: 400 });
   }
 
@@ -38,11 +41,24 @@ async function handlePOST(req: NextRequest) {
     });
     await tx.user.update({
       where: { id: auth.userId },
-      data: { twoFactorEnabled: true, twoFactorSecretEnc: encryptSecret(secret) },
+      // Seeding twoFactorLastUsedStep with the enrollment code's own step
+      // closes the window where that same code — just typed, possibly still on
+      // screen — would also work as the first login's second factor.
+      data: { twoFactorEnabled: true, twoFactorSecretEnc: encryptSecret(secret), twoFactorLastUsedStep: step },
     });
   });
 
   await redis.del(`2fa-setup:${auth.userId}`);
+
+  const user = await prisma.user.findUnique({
+    where: { id: auth.userId },
+    select: { email: true, firstName: true, name: true },
+  });
+  if (user) {
+    const timeStr = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
+    sendTwoFactorChangedAlertEmail(user.email, user.firstName ?? user.name ?? "", true, timeStr)
+      .catch((e) => logger.error("2fa-enable", "alert email error", e));
+  }
 
   return NextResponse.json({ ok: true, recoveryCodes: plainCodes });
 }

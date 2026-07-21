@@ -192,6 +192,12 @@ function TwoFactorSection() {
   const [disableOpen, setDisableOpen] = useState(false);
   const [disablePassword, setDisablePassword] = useState("");
 
+  const [regenOpen, setRegenOpen] = useState(false);
+  const [regenPassword, setRegenPassword] = useState("");
+  // The codes view is shared with enrollment; this keeps the modal from
+  // claiming you're "setting up" 2FA when you're only rotating codes.
+  const [codesFromRegen, setCodesFromRegen] = useState(false);
+
   const loadStatus = useCallback(async () => {
     if (!token) return;
     const res = await fetch("/api/auth/2fa/status", { headers: { Authorization: `Bearer ${token}` } });
@@ -203,6 +209,7 @@ function TwoFactorSection() {
   function resetSetup() {
     setSetupOpen(false); setSetupStep("password"); setSetupPassword("");
     setQrDataUrl(null); setSecret(null); setCode(""); setRecoveryCodes([]);
+    setCodesFromRegen(false);
   }
 
   async function startSetup(e: React.FormEvent) {
@@ -259,6 +266,31 @@ function TwoFactorSection() {
     }
   }
 
+  // Reuses the setup modal's final "here are your codes" view rather than
+  // building a second one — the only difference is how the codes were minted.
+  async function regenerateRecoveryCodes(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const res = await fetch("/api/auth/2fa/recovery-codes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ password: regenPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error ?? t("toasts.regenerateFailed"), "error"); return; }
+      setRegenOpen(false);
+      setRegenPassword("");
+      setRecoveryCodes(data.recoveryCodes);
+      setCodesFromRegen(true);
+      setSetupStep("codes");
+      setSetupOpen(true);
+      await loadStatus();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function copyRecoveryCodes() {
     navigator.clipboard.writeText(recoveryCodes.join("\n"));
     showToast(t("toasts.codesCopied"));
@@ -275,15 +307,18 @@ function TwoFactorSection() {
           ? t("enabledDesc", { count: status.unusedRecoveryCodes })
           : t("disabledDesc")}
       </p>
-      <div className="mt-4">
+      <div className="mt-4 flex flex-wrap gap-2">
         {status?.enabled ? (
-          <Button variant="secondary" size="sm" onClick={() => setDisableOpen(true)} className="!text-red-600">{t("disable2fa")}</Button>
+          <>
+            <Button variant="secondary" size="sm" onClick={() => setRegenOpen(true)}>{t("regenerateCodes")}</Button>
+            <Button variant="secondary" size="sm" onClick={() => setDisableOpen(true)} className="!text-red-600">{t("disable2fa")}</Button>
+          </>
         ) : (
           <Button size="sm" onClick={() => setSetupOpen(true)}>{t("enable2fa")}</Button>
         )}
       </div>
 
-      <Modal open={setupOpen} onClose={resetSetup} title={t("setupTitle")} maxWidth="max-w-md">
+      <Modal open={setupOpen} onClose={resetSetup} title={codesFromRegen ? t("regenerateTitle") : t("setupTitle")} maxWidth="max-w-md">
         {setupStep === "password" && (
           <form onSubmit={startSetup} className="space-y-4">
             <p className="text-sm text-ink-soft">{t("confirmPasswordToStart")}</p>
@@ -319,6 +354,17 @@ function TwoFactorSection() {
             </div>
           </div>
         )}
+      </Modal>
+
+      <Modal open={regenOpen} onClose={() => setRegenOpen(false)} title={t("regenerateTitle")} maxWidth="max-w-sm">
+        <form onSubmit={regenerateRecoveryCodes} className="space-y-4">
+          <p className="text-sm text-ink-soft">{t("regenerateConfirm")}</p>
+          <input type="password" required autoFocus value={regenPassword} onChange={(e) => setRegenPassword(e.target.value)} placeholder={t("currentPasswordPlaceholder")} className={inputCls} />
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" size="sm" onClick={() => setRegenOpen(false)}>{tCommon("cancel")}</Button>
+            <Button type="submit" size="sm" disabled={busy}>{busy ? <><IcSpinner /> {t("generating")}</> : t("regenerate")}</Button>
+          </div>
+        </form>
       </Modal>
 
       <Modal open={disableOpen} onClose={() => setDisableOpen(false)} title={t("disableTitle")} maxWidth="max-w-sm">

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generateTotpSecret, generateTotp, verifyTotp, buildOtpauthUri, generateRecoveryCode, hashRecoveryCode } from "./totp";
+import { generateTotpSecret, generateTotp, verifyTotp, verifyTotpStep, buildOtpauthUri, generateRecoveryCode, hashRecoveryCode } from "./totp";
 
 const FIXED_SECRET_A = "JBSWY3DPEHPK3PXP"; // arbitrary valid base32, used for deterministic tests
 const FIXED_SECRET_B = "GEZDGNBVGY3TQOJQ";
@@ -61,6 +61,34 @@ describe("generateTotp / verifyTotp", () => {
     expect(verifyTotp(FIXED_SECRET_A, "12345")).toBe(false);
     expect(verifyTotp(FIXED_SECRET_A, "abcdef")).toBe(false);
     expect(verifyTotp(FIXED_SECRET_A, "")).toBe(false);
+  });
+});
+
+describe("verifyTotpStep", () => {
+  const t = 1_700_000_000_000;
+  const stepAt = (at: number) => Math.floor(at / 1000 / 30);
+
+  it("returns the time step the code matched, not just a boolean", () => {
+    const code = generateTotp(FIXED_SECRET_A, t);
+    expect(verifyTotpStep(FIXED_SECRET_A, code, t)).toBe(stepAt(t));
+  });
+
+  it("reports the code's OWN step when accepted via drift, not the current one", () => {
+    // This is what makes replay protection work: a code from the previous
+    // window must not record a step that then rejects the current window's code.
+    const previous = generateTotp(FIXED_SECRET_A, t - 30_000);
+    expect(verifyTotpStep(FIXED_SECRET_A, previous, t)).toBe(stepAt(t - 30_000));
+  });
+
+  it("returns null rather than a falsy number for a bad code", () => {
+    expect(verifyTotpStep(FIXED_SECRET_A, "000000", t)).toBeNull();
+    expect(verifyTotpStep(FIXED_SECRET_A, "abcdef", t)).toBeNull();
+  });
+
+  it("agrees with verifyTotp on every outcome", () => {
+    const code = generateTotp(FIXED_SECRET_A, t);
+    expect(verifyTotp(FIXED_SECRET_A, code, t)).toBe(verifyTotpStep(FIXED_SECRET_A, code, t) !== null);
+    expect(verifyTotp(FIXED_SECRET_B, code, t)).toBe(verifyTotpStep(FIXED_SECRET_B, code, t) !== null);
   });
 });
 

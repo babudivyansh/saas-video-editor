@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
-import { redis } from "@/lib/redis";
 import { setSessionCookie } from "@/lib/auth";
 import { finishLogin } from "@/lib/login-tail";
+import { mintTwoFactorTicket } from "@/lib/two-factor-ticket";
 import { normalizeIdentifier, findUserByMethod, type AuthMethod } from "@/lib/identifier";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
@@ -13,8 +12,6 @@ import { LOCALE_COOKIE, isSupportedLocale } from "@/lib/i18n-locales";
 // account doesn't exist so the response takes the same time either way and
 // can't be used to enumerate valid identifiers.
 const DUMMY_HASH = "$2b$12$ipMR8KgUrP3uE9KmGnmsnu9652Wk4V/4DG8PcTNPmZashszFKZSHC";
-
-const TWO_FA_TICKET_TTL = 300; // 5 minutes to complete the second factor
 
 export async function POST(req: NextRequest) {
   try {
@@ -71,9 +68,7 @@ export async function POST(req: NextRequest) {
     // than issuing a session. No LoginEvent/alert email/session exists yet;
     // those only happen once /api/auth/2fa/verify-login actually completes.
     if (user.twoFactorEnabled) {
-      const ticket = randomUUID();
-      await redis.set(`2fa-pending:${ticket}`, user.id, "EX", TWO_FA_TICKET_TTL);
-      return NextResponse.json({ requires2fa: true, ticket });
+      return NextResponse.json({ requires2fa: true, ticket: await mintTwoFactorTicket(user.id) });
     }
 
     const token = await finishLogin(req, user, ip);

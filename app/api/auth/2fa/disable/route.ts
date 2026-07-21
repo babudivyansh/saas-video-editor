@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, invalidateAllSessions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { sendTwoFactorChangedAlertEmail } from "@/lib/email";
 import { withRateLimit } from "@/lib/with-rate-limit";
+import { logger } from "@/lib/logger";
 
 // POST /api/auth/2fa/disable { password } — password-confirmed, same
 // step-up pattern as setup. Deliberately does NOT also require a TOTP code:
@@ -25,8 +27,20 @@ async function handlePOST(req: NextRequest) {
 
   await prisma.$transaction([
     prisma.twoFactorRecoveryCode.deleteMany({ where: { userId: auth.userId } }),
-    prisma.user.update({ where: { id: auth.userId }, data: { twoFactorEnabled: false, twoFactorSecretEnc: null } }),
+    prisma.user.update({
+      where: { id: auth.userId },
+      data: { twoFactorEnabled: false, twoFactorSecretEnc: null, twoFactorLastUsedStep: null },
+    }),
   ]);
+
+  // Removing the account's strongest control shouldn't leave any other device
+  // holding a session that outlived it. Same keep-this-device shape as
+  // change-password: whoever just re-typed the password stays signed in.
+  await invalidateAllSessions(auth.userId, auth.sessionId).catch(() => {});
+
+  const timeStr = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
+  sendTwoFactorChangedAlertEmail(user.email, user.firstName ?? user.name ?? "", false, timeStr)
+    .catch((e) => logger.error("2fa-disable", "alert email error", e));
 
   return NextResponse.json({ ok: true });
 }

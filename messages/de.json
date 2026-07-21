@@ -273,12 +273,18 @@
       "disableConfirm": "Dies entfernt den zusätzlichen Anmeldeschritt. Bestätigen Sie Ihr Passwort, um fortzufahren.",
       "disabling": "Wird deaktiviert…",
       "disable": "Deaktivieren",
+      "regenerateCodes": "Codes neu erzeugen",
+      "regenerateTitle": "Wiederherstellungscodes neu erzeugen",
+      "regenerateConfirm": "Ihre bisherigen Wiederherstellungscodes werden ungültig und ein neuer Satz wird einmalig angezeigt. Bestätigen Sie Ihr Passwort, um fortzufahren.",
+      "regenerate": "Neu erzeugen",
+      "generating": "Wird erzeugt…",
       "toasts": {
         "setupFailed": "Einrichtung konnte nicht gestartet werden",
         "invalidCode": "Ungültiger Code",
         "disableFailed": "Deaktivierung fehlgeschlagen",
         "disabled2fa": "Zwei-Faktor-Authentifizierung deaktiviert",
-        "codesCopied": "Wiederherstellungscodes kopiert"
+        "codesCopied": "Wiederherstellungscodes kopiert",
+        "regenerateFailed": "Codes konnten nicht neu erzeugt werden"
       }
     }
   },

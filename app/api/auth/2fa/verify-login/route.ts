@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { setSessionCookie } from "@/lib/auth";
 import { finishLogin } from "@/lib/login-tail";
 import { decryptSecret } from "@/lib/encryption";
-import { verifyTotp, hashRecoveryCode } from "@/lib/totp";
+import { verifyTotpStep, hashRecoveryCode } from "@/lib/totp";
+import {
+  readTwoFactorTicket,
+  discardTwoFactorTicket,
+  countFailedTwoFactorAttempt,
+} from "@/lib/two-factor-ticket";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { getClientIp } from "@/lib/rate-limit";
 import { LOCALE_COOKIE, isSupportedLocale } from "@/lib/i18n-locales";
@@ -20,9 +24,9 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "ticket and code are required" }, { status: 400 });
   }
 
-  const userId = await redis.get(`2fa-pending:${ticket}`);
+  const userId = await readTwoFactorTicket(ticket);
   if (!userId) {
-    return NextResponse.json({ error: "This login has expired — sign in again." }, { status: 400 });
+    return NextResponse.json({ error: "This login has expired — sign in again.", expired: true }, { status: 400 });
   }
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -33,10 +37,17 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "This account has been suspended. Contact support if you believe this is a mistake." }, { status: 403 });
   }
 
-  let verified = verifyTotp(decryptSecret(user.twoFactorSecretEnc), code);
+  const step = verifyTotpStep(decryptSecret(user.twoFactorSecretEnc), code);
+  let verified = step !== null && step > (user.twoFactorLastUsedStep ?? -1);
 
-  if (!verified) {
-    // Fall back to an unused recovery code — one-time use, marked immediately.
+  if (verified) {
+    // Burn this time step so the code can't be replayed for the rest of its
+    // ~90s validity window (see User.twoFactorLastUsedStep).
+    await prisma.user.update({ where: { id: user.id }, data: { twoFactorLastUsedStep: step } });
+  } else if (step === null) {
+    // Not a live TOTP code at all — fall back to an unused recovery code,
+    // one-time use, marked immediately. (A *replayed* TOTP code lands in
+    // neither branch and is simply rejected below.)
     const codeHash = hashRecoveryCode(code);
     const recovery = await prisma.twoFactorRecoveryCode.findFirst({
       where: { userId: user.id, codeHash, usedAt: null },
@@ -48,10 +59,17 @@ async function handlePOST(req: NextRequest) {
   }
 
   if (!verified) {
+    const { lockedOut } = await countFailedTwoFactorAttempt(ticket);
+    if (lockedOut) {
+      return NextResponse.json(
+        { error: "Too many incorrect codes — sign in again.", expired: true },
+        { status: 429 },
+      );
+    }
     return NextResponse.json({ error: "Invalid code" }, { status: 401 });
   }
 
-  await redis.del(`2fa-pending:${ticket}`); // one-time use regardless of which factor matched
+  await discardTwoFactorTicket(ticket); // one-time use regardless of which factor matched
 
   const ip = getClientIp(req);
   const token = await finishLogin(req, user, ip);

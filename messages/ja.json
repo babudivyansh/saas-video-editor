@@ -273,12 +273,18 @@
       "disableConfirm": "追加のサインインステップが削除されます。続行するにはパスワードを確認してください。",
       "disabling": "無効化中…",
       "disable": "無効にする",
+      "regenerateCodes": "コードを再生成",
+      "regenerateTitle": "リカバリーコードを再生成",
+      "regenerateConfirm": "現在のリカバリーコードは使用できなくなり、新しいコードは一度だけ表示されます。続行するにはパスワードを確認してください。",
+      "regenerate": "再生成",
+      "generating": "生成中…",
       "toasts": {
         "setupFailed": "設定を開始できませんでした",
         "invalidCode": "無効なコードです",
         "disableFailed": "無効化に失敗しました",
         "disabled2fa": "二段階認証を無効にしました",
-        "codesCopied": "リカバリーコードをコピーしました"
+        "codesCopied": "リカバリーコードをコピーしました",
+        "regenerateFailed": "コードの再生成に失敗しました"
       }
     }
   },
