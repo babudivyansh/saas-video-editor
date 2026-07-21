@@ -1,11 +1,12 @@
 import { test, expect } from "@playwright/test";
+import { signToken, SESSION_COOKIE_NAME } from "@/lib/auth";
 
 // Happy-path test for an AI tool (Brainstormer) with the provider mocked at
 // the network boundary — no real Gemini call, no real DB user. Both
 // /api/auth/me (so AuthContext accepts the fake token) and
 // /api/tools/brainstormer (the actual generation call) are intercepted
 // client-side, so this test is fully hermetic and safe to run anywhere.
-test("brainstormer generates ideas from a mocked provider response", async ({ page }) => {
+test("brainstormer generates ideas from a mocked provider response", async ({ page, baseURL }) => {
   await page.route("**/api/auth/me", (route) =>
     route.fulfill({
       status: 200,
@@ -49,6 +50,18 @@ test("brainstormer generates ideas from a mocked provider response", async ({ pa
   await page.addInitScript(() => {
     localStorage.setItem("token", "e2e-fake-token");
   });
+
+  // proxy.ts's page-level auth guard on /dashboard/* checks a real signed
+  // session cookie, not localStorage — the client-side mocks above satisfy
+  // AuthContext, but the server-side redirect-to-/login happens before any
+  // of that runs unless this cookie is also set.
+  await page.context().addCookies([
+    {
+      name: SESSION_COOKIE_NAME,
+      value: signToken({ userId: "e2e-fake-user", email: "e2e@example.com", sessionId: "e2e-fake-session" }),
+      url: baseURL,
+    },
+  ]);
 
   await page.goto("/dashboard/tools/brainstormer");
 

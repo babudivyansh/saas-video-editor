@@ -177,6 +177,22 @@ function CreateMenu() {
   const createItems = useCreateItems();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Hover-intent open (matches NavDropdown.tsx's Resources/Features menus): a
+  // short close delay so crossing the gap between trigger and panel doesn't
+  // flicker it shut. Click stays as a toggle for touch, which never fires
+  // mouseenter.
+  const cancelClose = () => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  };
+  const scheduleClose = () => {
+    cancelClose();
+    closeTimer.current = setTimeout(() => setOpen(false), 140);
+  };
 
   useEffect(() => {
     function onDown(e: MouseEvent) {
@@ -186,8 +202,15 @@ function CreateMenu() {
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
+  useEffect(() => cancelClose, []);
+
   return (
-    <div ref={ref} className="relative hidden sm:block">
+    <div
+      ref={ref}
+      className="relative hidden sm:block"
+      onMouseEnter={() => { cancelClose(); setOpen(true); }}
+      onMouseLeave={scheduleClose}
+    >
       <button
         onClick={() => setOpen((p) => !p)}
         data-tour="create-menu"
