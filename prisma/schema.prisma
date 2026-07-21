@@ -103,6 +103,13 @@ model User {
   // ciphertext (lib/encryption.ts) — never stored or returned as plaintext.
   twoFactorEnabled     Boolean         @default(false)
   twoFactorSecretEnc   String?
+  // Highest 30s time-step already spent on a successful verification. A TOTP
+  // code stays valid for its whole ±1-step window (~90s), so without this a
+  // code captured over the shoulder or through a phishing proxy can be
+  // replayed; rejecting any step <= this one makes every code single-use.
+  // Int is safe: the step is unix-seconds/30, ~58M today against a 2.1B
+  // ceiling.
+  twoFactorLastUsedStep Int?
   recoveryCodes        TwoFactorRecoveryCode[]
 
   // Soft account deactivation — a recovery window before the existing hard-delete

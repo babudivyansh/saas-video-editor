@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { completeLogin, setSessionCookie } from "@/lib/auth";
+import { setSessionCookie } from "@/lib/auth";
+import { finishLogin } from "@/lib/login-tail";
 import { consumeOtp } from "@/lib/otp";
 import { normalizeIdentifier, findUserByMethod, type AuthMethod } from "@/lib/identifier";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { mintTwoFactorTicket } from "@/lib/two-factor-ticket";
 import { logger } from "@/lib/logger";
 
 // A 6-digit OTP has ~900k possible values with no lockout otherwise brute-
@@ -41,7 +43,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const { token } = await completeLogin(req, user);
+    // Same gates as /api/auth/login. This route is a login, not a lesser
+    // "verification" — without these it was a way around all three of them:
+    // suspended and deactivated accounts could sign in, and 2FA could be
+    // skipped entirely by anyone who could read the inbox or SMS.
+    if (user.suspendedAt) {
+      return NextResponse.json(
+        { error: "This account has been suspended. Contact support if you believe this is a mistake." },
+        { status: 403 },
+      );
+    }
+    if (user.deactivatedAt) {
+      return NextResponse.json({ error: "This account is deactivated.", deactivated: true }, { status: 403 });
+    }
+    if (user.twoFactorEnabled) {
+      return NextResponse.json({ requires2fa: true, ticket: await mintTwoFactorTicket(user.id) });
+    }
+
+    const token = await finishLogin(req, user, getClientIp(req));
 
     const res = NextResponse.json({
       token,

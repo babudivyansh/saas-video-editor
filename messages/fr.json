@@ -273,12 +273,18 @@
       "disableConfirm": "Cela supprime l'étape de connexion supplémentaire. Confirmez votre mot de passe pour continuer.",
       "disabling": "Désactivation…",
       "disable": "Désactiver",
+      "regenerateCodes": "Régénérer les codes",
+      "regenerateTitle": "Régénérer les codes de récupération",
+      "regenerateConfirm": "Vos codes de récupération actuels cesseront de fonctionner et un nouveau jeu sera affiché une seule fois. Confirmez votre mot de passe pour continuer.",
+      "regenerate": "Régénérer",
+      "generating": "Génération…",
       "toasts": {
         "setupFailed": "Échec du démarrage de la configuration",
         "invalidCode": "Code invalide",
         "disableFailed": "Échec de la désactivation",
         "disabled2fa": "Authentification à deux facteurs désactivée",
-        "codesCopied": "Codes de récupération copiés"
+        "codesCopied": "Codes de récupération copiés",
+        "regenerateFailed": "Échec de la régénération des codes"
       }
     }
   },

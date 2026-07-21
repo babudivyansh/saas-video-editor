@@ -273,12 +273,18 @@
       "disableConfirm": "这将移除额外的登录步骤。请确认您的密码以继续。",
       "disabling": "禁用中…",
       "disable": "禁用",
+      "regenerateCodes": "重新生成代码",
+      "regenerateTitle": "重新生成恢复代码",
+      "regenerateConfirm": "您当前的恢复代码将失效，新的代码只会显示一次。请确认您的密码以继续。",
+      "regenerate": "重新生成",
+      "generating": "生成中…",
       "toasts": {
         "setupFailed": "无法开始设置",
         "invalidCode": "无效代码",
         "disableFailed": "禁用失败",
         "disabled2fa": "双重验证已禁用",
-        "codesCopied": "恢复代码已复制"
+        "codesCopied": "恢复代码已复制",
+        "regenerateFailed": "重新生成代码失败"
       }
     }
   },

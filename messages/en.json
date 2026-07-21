@@ -273,12 +273,18 @@
       "disableConfirm": "This removes the extra sign-in step. Confirm your password to continue.",
       "disabling": "Disabling…",
       "disable": "Disable",
+      "regenerateCodes": "Regenerate codes",
+      "regenerateTitle": "Regenerate recovery codes",
+      "regenerateConfirm": "Your current recovery codes will stop working and a new set will be shown once. Confirm your password to continue.",
+      "regenerate": "Regenerate",
+      "generating": "Generating…",
       "toasts": {
         "setupFailed": "Failed to start setup",
         "invalidCode": "Invalid code",
         "disableFailed": "Failed to disable",
         "disabled2fa": "Two-factor authentication disabled",
-        "codesCopied": "Recovery codes copied"
+        "codesCopied": "Recovery codes copied",
+        "regenerateFailed": "Failed to regenerate codes"
       }
     }
   },

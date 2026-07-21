@@ -273,12 +273,18 @@
       "disableConfirm": "Esto elimina el paso adicional de inicio de sesión. Confirma tu contraseña para continuar.",
       "disabling": "Desactivando…",
       "disable": "Desactivar",
+      "regenerateCodes": "Regenerar códigos",
+      "regenerateTitle": "Regenerar códigos de recuperación",
+      "regenerateConfirm": "Tus códigos de recuperación actuales dejarán de funcionar y se mostrará un conjunto nuevo una sola vez. Confirma tu contraseña para continuar.",
+      "regenerate": "Regenerar",
+      "generating": "Generando…",
       "toasts": {
         "setupFailed": "No se pudo iniciar la configuración",
         "invalidCode": "Código inválido",
         "disableFailed": "No se pudo desactivar",
         "disabled2fa": "Autenticación de dos factores desactivada",
-        "codesCopied": "Códigos de recuperación copiados"
+        "codesCopied": "Códigos de recuperación copiados",
+        "regenerateFailed": "No se pudieron regenerar los códigos"
       }
     }
   },

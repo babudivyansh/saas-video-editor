@@ -17,6 +17,16 @@ const PUBLIC_API_PREFIXES = [
   "/api/auth/send-otp",
   "/api/auth/google",
   "/api/auth/callback/google",
+  // Second-factor and reactivation steps. Both are reached *after* the
+  // password check but *before* any session exists, so this gate — which only
+  // knows how to check the session cookie — can only ever 401 them. Each
+  // authenticates by a server-minted, single-use Redis ticket that already
+  // proves the password step happened (see lib/login-tail.ts's
+  // mintTwoFactorTicket). Both routes carry an "intentionally
+  // unauthenticated" comment that was silently overruled here: with them
+  // missing, enabling 2FA locked the account out entirely.
+  "/api/auth/2fa/verify-login",
+  "/api/account/reactivate",
   "/api/webhooks/razorpay",
   "/api/health",
   "/api/cron/",

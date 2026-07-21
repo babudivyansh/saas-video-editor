@@ -69,7 +69,14 @@ function GoogleIcon() {
 const inputClass =
   "w-full pl-10 pr-4 py-3 border border-gray-200 hover:border-gray-300 focus:border-brand focus:ring-2 focus:ring-brand/10 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none bg-white transition-all";
 
-type LoginStep = "identifier" | "password" | "otp";
+// Panels of the horizontal login slider, in the order they're laid out. "otp"
+// is the email/SMS code; "totp" is the second factor from an authenticator app
+// (only reached when the account has 2FA on).
+const LOGIN_STEPS = ["identifier", "password", "otp", "totp"] as const;
+type LoginStep = (typeof LOGIN_STEPS)[number];
+
+const CODE_LENGTH = 6;
+const emptyDigits = () => Array<string>(CODE_LENGTH).fill("");
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -89,6 +96,74 @@ function isValidIdentifier(value: string): boolean {
   const v = value.trim();
   if (!v) return false;
   return v.includes("@") ? isValidEmail(v) : isValidPhone(v);
+}
+
+/**
+ * The 6-box code entry, shared by the email/SMS OTP panel and the 2FA panel.
+ * One implementation of the auto-advance / backspace / paste behaviour rather
+ * than a copy per panel, which is how the two would quietly drift apart.
+ *
+ * `focused` drives the initial focus: it fires once the owning panel becomes
+ * the active one.
+ */
+function DigitBoxes({
+  digits,
+  onChange,
+  focused,
+}: {
+  digits: string[];
+  onChange: (next: string[]) => void;
+  focused: boolean;
+}) {
+  const refs = useRef<(HTMLInputElement | null)[]>([]);
+
+  useEffect(() => {
+    if (!focused) return;
+    // Wait out the 0.45s panel slide — focusing mid-transition makes the
+    // browser scroll the still-offscreen panel into view.
+    const timer = setTimeout(() => refs.current[0]?.focus(), 460);
+    return () => clearTimeout(timer);
+  }, [focused]);
+
+  function handleChange(idx: number, val: string) {
+    if (!/^\d*$/.test(val)) return;
+    const updated = [...digits];
+    updated[idx] = val.slice(-1);
+    onChange(updated);
+    if (val && idx < CODE_LENGTH - 1) refs.current[idx + 1]?.focus();
+  }
+
+  function handleKeyDown(idx: number, e: React.KeyboardEvent) {
+    if (e.key === "Backspace" && !digits[idx] && idx > 0) refs.current[idx - 1]?.focus();
+  }
+
+  function handlePaste(e: React.ClipboardEvent) {
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, CODE_LENGTH);
+    if (!pasted) return;
+    e.preventDefault();
+    const updated = [...digits];
+    pasted.split("").forEach((ch, i) => { if (i < CODE_LENGTH) updated[i] = ch; });
+    onChange(updated);
+    refs.current[Math.min(pasted.length, CODE_LENGTH - 1)]?.focus();
+  }
+
+  return (
+    <div className="flex justify-center gap-2" onPaste={handlePaste}>
+      {digits.map((digit, idx) => (
+        <input
+          key={idx}
+          ref={el => { refs.current[idx] = el; }}
+          type="text"
+          inputMode="numeric"
+          maxLength={1}
+          value={digit}
+          onChange={e => handleChange(idx, e.target.value)}
+          onKeyDown={e => handleKeyDown(idx, e)}
+          className="w-11 h-12 text-center text-xl font-bold border-2 border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 bg-white transition-all"
+        />
+      ))}
+    </div>
+  );
 }
 
 function PrimaryBtn({ enabled, loading, children }: { enabled: boolean; loading?: boolean; children: React.ReactNode }) {
@@ -124,9 +199,16 @@ export default function AuthForm({
   const [loginStep, setLoginStep] = useState<LoginStep>("identifier");
   const [identifier, setIdentifier] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-  const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
+  const [otpDigits, setOtpDigits] = useState(emptyDigits);
   const [devCode, setDevCode] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
+
+  // Second factor: the ticket the server minted after the password (or OTP, or
+  // Google) checked out, exchanged for a real session by /api/auth/2fa/verify-login.
+  const [ticket, setTicket] = useState<string | null>(null);
+  const [totpDigits, setTotpDigits] = useState(emptyDigits);
+  const [useRecoveryCode, setUseRecoveryCode] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState("");
 
   useEffect(() => {
     if (cooldown > 0) {
@@ -146,20 +228,50 @@ export default function AuthForm({
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => { setMode(initialMode); }, [initialMode]);
 
+  // Google's callback is a full browser navigation, not a fetch, so it can't
+  // answer with `requires2fa` JSON — it redirects back here with the ticket in
+  // the query string instead (app/api/auth/callback/google/route.ts). Read
+  // straight from location rather than useSearchParams: this runs client-side
+  // only and needs no Suspense boundary.
   useEffect(() => {
-    if (loginStep === "otp") {
-      const timer = setTimeout(() => otpRefs.current[0]?.focus(), 460);
-      return () => clearTimeout(timer);
-    }
-  }, [loginStep]);
+    const params = new URLSearchParams(window.location.search);
+    const googleTicket = params.get("2fa");
+    const oauthError = params.get("error");
+    if (!googleTicket && !oauthError) return;
 
-  function finishAuth(token: string) {
+    if (googleTicket) {
+      setTicket(googleTicket);
+      setTotpDigits(emptyDigits());
+      setLoginStep("totp");
+    } else if (oauthError === "suspended") {
+      setError("This account has been suspended. Contact support if you believe this is a mistake.");
+    } else if (oauthError === "deactivated") {
+      setError("This account is deactivated.");
+    }
+    // Don't leave a single-use ticket sitting in the address bar / history.
+    window.history.replaceState({}, "", window.location.pathname);
+  }, []);
+
+  function finishAuth(token: string | undefined) {
+    // A 200 with no token means the server paused the login (2FA) and the
+    // caller failed to handle it. Previously this stored the string
+    // "undefined" and bounced the user around a redirect loop with no error.
+    if (!token) throw new Error("Sign-in did not complete. Please try again.");
     localStorage.setItem("token", token);
     onSuccess?.(token);
+  }
+
+  /** Shared by every entry point that can pause for a second factor. */
+  function startTwoFactor(nextTicket: string) {
+    setTicket(nextTicket);
+    setTotpDigits(emptyDigits());
+    setRecoveryCode("");
+    setUseRecoveryCode(false);
+    setError("");
+    setLoginStep("totp");
   }
 
   function handleIdentifierContinue(e: React.FormEvent) {
@@ -181,6 +293,7 @@ export default function AuthForm({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Login failed");
+      if (data.requires2fa) { startTwoFactor(data.ticket); return; }
       finishAuth(data.token);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Login failed");
@@ -202,7 +315,7 @@ export default function AuthForm({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to send code");
       if (data.devCode) setDevCode(data.devCode);
-      setOtpDigits(["", "", "", "", "", ""]);
+      setOtpDigits(emptyDigits());
       setLoginStep("otp");
       setCooldown(60);
     } catch (err: unknown) {
@@ -215,7 +328,7 @@ export default function AuthForm({
   async function handleVerifyOtp(e: React.FormEvent) {
     e.preventDefault();
     const otp = otpDigits.join("");
-    if (otp.length < 6) { setError("Enter all 6 digits"); return; }
+    if (otp.length < CODE_LENGTH) { setError(`Enter all ${CODE_LENGTH} digits`); return; }
     setError("");
     setLoading(true);
     try {
@@ -226,6 +339,44 @@ export default function AuthForm({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Verification failed");
+      // An emailed/SMS code proves the first factor only — an account with 2FA
+      // on still has to produce an authenticator code.
+      if (data.requires2fa) { startTwoFactor(data.ticket); return; }
+      finishAuth(data.token);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Verification failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVerifyTotp(e: React.FormEvent) {
+    e.preventDefault();
+    const code = useRecoveryCode ? recoveryCode.trim() : totpDigits.join("");
+    if (!code) { setError("Enter your code"); return; }
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/2fa/verify-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticket, code }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        // The ticket is gone — timed out, or spent by too many wrong codes.
+        // Nothing on this panel can succeed any more, so go back a step
+        // instead of letting them keep typing into a dead form.
+        if (data.expired) {
+          setTicket(null);
+          setTotpDigits(emptyDigits());
+          setRecoveryCode("");
+          setLoginStep("password");
+        } else {
+          setTotpDigits(emptyDigits());
+        }
+        throw new Error(data.error ?? "Verification failed");
+      }
       finishAuth(data.token);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Verification failed");
@@ -256,28 +407,6 @@ export default function AuthForm({
     }
   }
 
-  function handleOtpChange(idx: number, val: string) {
-    if (!/^\d*$/.test(val)) return;
-    const updated = [...otpDigits];
-    updated[idx] = val.slice(-1);
-    setOtpDigits(updated);
-    if (val && idx < 5) otpRefs.current[idx + 1]?.focus();
-  }
-
-  function handleOtpKeyDown(idx: number, e: React.KeyboardEvent) {
-    if (e.key === "Backspace" && !otpDigits[idx] && idx > 0) otpRefs.current[idx - 1]?.focus();
-  }
-
-  function handleOtpPaste(e: React.ClipboardEvent) {
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
-    if (!pasted) return;
-    e.preventDefault();
-    const updated = [...otpDigits];
-    pasted.split("").forEach((ch, i) => { if (i < 6) updated[i] = ch; });
-    setOtpDigits(updated);
-    otpRefs.current[Math.min(pasted.length, 5)]?.focus();
-  }
-
   function goToStep(step: LoginStep) { setError(""); setLoginStep(step); }
 
   const toggleMode = () => {
@@ -286,8 +415,12 @@ export default function AuthForm({
     setError("");
     setLoginStep("identifier");
     setLoginPassword("");
-    setOtpDigits(["", "", "", "", "", ""]);
+    setOtpDigits(emptyDigits());
     setDevCode(null);
+    setTicket(null);
+    setTotpDigits(emptyDigits());
+    setRecoveryCode("");
+    setUseRecoveryCode(false);
     onModeToggle?.(nextMode);
   };
 
@@ -304,7 +437,8 @@ export default function AuthForm({
 
   const identifierOk = isValidIdentifier(identifier);
   const passwordOk = loginPassword.length > 0;
-  const otpOk = otpDigits.join("").length === 6;
+  const otpOk = otpDigits.join("").length === CODE_LENGTH;
+  const totpOk = useRecoveryCode ? recoveryCode.trim().length > 0 : totpDigits.join("").length === CODE_LENGTH;
   const registerOk =
     reg.firstName.trim().length > 0 &&
     reg.lastName.trim().length > 0 &&
@@ -426,21 +560,26 @@ export default function AuthForm({
   }
 
   // ── Login slider ────────────────────────────────────────────────────────────
-  const translateX =
-    loginStep === "identifier" ? "0%" : loginStep === "password" ? "-33.3333%" : "-66.6667%";
+  // One track holding every panel side by side, shifted one panel-width per
+  // step. Derived from LOGIN_STEPS rather than hard-coded thirds, so adding a
+  // panel (as the 2FA step did) can't leave the widths and the offsets
+  // disagreeing.
+  const panelWidth = 100 / LOGIN_STEPS.length;
+  const translateX = `-${LOGIN_STEPS.indexOf(loginStep) * panelWidth}%`;
+  const panelStyle = { width: `${panelWidth}%` };
 
   return (
     <div className="flex-1 bg-white overflow-hidden">
       <div
         className="flex"
         style={{
-          width: "300%",
+          width: `${LOGIN_STEPS.length * 100}%`,
           transform: `translateX(${translateX})`,
           transition: "transform 0.45s cubic-bezier(0.4, 0, 0.2, 1)",
         }}
       >
         {/* Panel 1 — identifier */}
-        <div className="px-8 py-8 flex-shrink-0" style={{ width: "33.3333%" }}>
+        <div className="px-8 py-8 flex-shrink-0" style={panelStyle}>
           <div className="flex flex-col items-center text-center mb-7">
             <BrandIcon />
             <h1 className="mt-4 text-[22px] font-bold text-gray-900 tracking-tight">Welcome back</h1>
@@ -493,7 +632,7 @@ export default function AuthForm({
         </div>
 
         {/* Panel 2 — password */}
-        <div className="px-8 py-8 flex-shrink-0" style={{ width: "33.3333%" }}>
+        <div className="px-8 py-8 flex-shrink-0" style={panelStyle}>
           <div className="flex flex-col items-center text-center mb-7">
             <BrandIcon />
             <h1 className="mt-4 text-[22px] font-bold text-gray-900 tracking-tight">Enter password</h1>
@@ -551,7 +690,7 @@ export default function AuthForm({
         </div>
 
         {/* Panel 3 — OTP */}
-        <div className="px-8 py-8 flex-shrink-0 flex flex-col" style={{ width: "33.3333%" }}>
+        <div className="px-8 py-8 flex-shrink-0 flex flex-col" style={panelStyle}>
           <div className="flex flex-col items-center text-center mb-7">
             <BrandIcon />
             <h1 className="mt-4 text-[22px] font-bold text-gray-900 tracking-tight">
@@ -570,21 +709,7 @@ export default function AuthForm({
           )}
 
           <form onSubmit={handleVerifyOtp} className="space-y-5">
-            <div className="flex justify-center gap-2" onPaste={handleOtpPaste}>
-              {otpDigits.map((digit, idx) => (
-                <input
-                  key={idx}
-                  ref={el => { otpRefs.current[idx] = el; }}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={1}
-                  value={digit}
-                  onChange={e => handleOtpChange(idx, e.target.value)}
-                  onKeyDown={e => handleOtpKeyDown(idx, e)}
-                  className="w-11 h-12 text-center text-xl font-bold border-2 border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 bg-white transition-all"
-                />
-              ))}
-            </div>
+            <DigitBoxes digits={otpDigits} onChange={setOtpDigits} focused={loginStep === "otp"} />
 
             {loginStep === "otp" && error && (
               <div className="flex items-start gap-2 text-red-600 text-sm bg-red-50 border border-red-100 rounded-xl px-3.5 py-2.5 text-center justify-center">
@@ -610,6 +735,72 @@ export default function AuthForm({
             <button
               type="button"
               onClick={() => goToStep("password")}
+              className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors bg-transparent border-none p-0 cursor-pointer"
+            >
+              <BackArrow />
+              Back
+            </button>
+          </div>
+        </div>
+
+        {/* Panel 4 — two-factor authentication */}
+        <div className="px-8 py-8 flex-shrink-0 flex flex-col" style={panelStyle}>
+          <div className="flex flex-col items-center text-center mb-7">
+            <BrandIcon />
+            <h1 className="mt-4 text-[22px] font-bold text-gray-900 tracking-tight">Two-factor authentication</h1>
+            <p className="mt-1 text-sm text-gray-500 leading-relaxed">
+              {useRecoveryCode
+                ? "Enter one of the recovery codes you saved when you turned on 2FA."
+                : "Enter the 6-digit code from your authenticator app."}
+            </p>
+          </div>
+
+          <form onSubmit={handleVerifyTotp} className="space-y-5">
+            {useRecoveryCode ? (
+              <input
+                type="text"
+                autoComplete="one-time-code"
+                value={recoveryCode}
+                onChange={e => setRecoveryCode(e.target.value.toUpperCase())}
+                placeholder="XXXXX-XXXXX"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-center text-lg font-mono tracking-[0.2em] text-gray-900 placeholder-gray-300 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 bg-white transition-all"
+              />
+            ) : (
+              <DigitBoxes
+                digits={totpDigits}
+                onChange={setTotpDigits}
+                focused={loginStep === "totp" && !useRecoveryCode}
+              />
+            )}
+
+            {loginStep === "totp" && error && (
+              <div className="flex items-start gap-2 text-red-600 text-sm bg-red-50 border border-red-100 rounded-xl px-3.5 py-2.5 text-center justify-center">
+                {error}
+              </div>
+            )}
+
+            <PrimaryBtn enabled={totpOk} loading={loading}>
+              {loading ? "Verifying…" : "Verify & Sign in"}
+            </PrimaryBtn>
+          </form>
+
+          <div className="flex justify-between items-center mt-5">
+            <button
+              type="button"
+              onClick={() => {
+                setUseRecoveryCode(v => !v);
+                setError("");
+                setTotpDigits(emptyDigits());
+                setRecoveryCode("");
+              }}
+              className="text-sm font-semibold text-brand-deep hover:text-brand-dark transition-colors cursor-pointer bg-transparent border-none p-0"
+            >
+              {useRecoveryCode ? "Use authenticator app" : "Use a recovery code"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setTicket(null); goToStep("password"); }}
               className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors bg-transparent border-none p-0 cursor-pointer"
             >
               <BackArrow />

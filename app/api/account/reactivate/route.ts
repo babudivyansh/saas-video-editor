@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
-import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { setSessionCookie } from "@/lib/auth";
 import { finishLogin } from "@/lib/login-tail";
+import { mintTwoFactorTicket } from "@/lib/two-factor-ticket";
 import { normalizeIdentifier, findUserByMethod, type AuthMethod } from "@/lib/identifier";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 
 // Fixed-cost dummy hash, same enumeration-timing defense as /api/auth/login.
 const DUMMY_HASH = "$2b$12$ipMR8KgUrP3uE9KmGnmsnu9652Wk4V/4DG8PcTNPmZashszFKZSHC";
-const TWO_FA_TICKET_TTL = 300;
 
 // POST /api/account/reactivate { method, identifier, password } — the
 // recovery path for a deactivated account (see app/api/account/deactivate).
@@ -54,9 +52,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (user.twoFactorEnabled) {
-      const ticket = randomUUID();
-      await redis.set(`2fa-pending:${ticket}`, user.id, "EX", TWO_FA_TICKET_TTL);
-      return NextResponse.json({ requires2fa: true, ticket });
+      return NextResponse.json({ requires2fa: true, ticket: await mintTwoFactorTicket(user.id) });
     }
 
     const token = await finishLogin(req, user, ip);
