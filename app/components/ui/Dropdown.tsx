@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useMenuNav } from "./useMenuNav";
 
 interface DropdownProps {
   trigger: (props: { open: boolean; toggle: () => void }) => React.ReactNode;
@@ -17,6 +18,8 @@ interface DropdownProps {
 export function Dropdown({ trigger, children, align = "left", className = "" }: DropdownProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  useMenuNav(panelRef, open);
 
   useEffect(() => {
     if (!open) return;
@@ -38,6 +41,8 @@ export function Dropdown({ trigger, children, align = "left", className = "" }: 
       <AnimatePresence>
         {open && (
           <motion.div
+            ref={panelRef}
+            role="menu"
             initial={{ opacity: 0, scale: 0.96, y: -4 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: -4 }}
@@ -58,7 +63,8 @@ export function DropdownItem({
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-2 text-left text-sm px-3.5 py-2.5 transition-colors cursor-pointer ${
+      role="menuitem"
+      className={`w-full flex items-center gap-2 text-left text-sm px-3.5 py-2.5 transition-colors cursor-pointer focus-visible:bg-tint-blue focus-visible:outline-none ${
         danger ? "text-red-600 hover:bg-red-50" : "text-ink hover:bg-tint-blue"
       }`}
     >

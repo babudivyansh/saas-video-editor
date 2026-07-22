@@ -4,7 +4,7 @@
 // DESIGN_SYSTEM.md) — focus trap, ESC to close, backdrop click, portaled to
 // <body> so it never fights an ancestor's overflow/stacking context.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslations } from "next-intl";
@@ -19,13 +19,23 @@ interface ModalProps {
 
 export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg" }: ModalProps) {
   const t = useTranslations("Common");
+  const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const lastFocused = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
     lastFocused.current = document.activeElement as HTMLElement;
-    panelRef.current?.focus();
+    // Initial focus: first focusable control inside the dialog, so keyboard
+    // users land on something actionable; the panel itself is the fallback.
+    const firstFocusable = panelRef.current?.querySelector<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    (firstFocusable ?? panelRef.current)?.focus();
+
+    // Scroll-lock the page behind the dialog while it's open.
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") { onClose(); return; }
@@ -42,6 +52,7 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg" }:
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prevOverflow;
       lastFocused.current?.focus();
     };
   }, [open, onClose]);
@@ -63,7 +74,8 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg" }:
             ref={panelRef}
             role="dialog"
             aria-modal="true"
-            aria-label={title}
+            aria-labelledby={title ? titleId : undefined}
+            aria-label={title ? undefined : "Dialog"}
             tabIndex={-1}
             className={`w-full ${maxWidth} bg-white rounded-[var(--radius-card)] shadow-xl border border-card-border outline-none max-h-[90vh] overflow-y-auto`}
             initial={{ opacity: 0, scale: 0.96, y: 8 }}
@@ -73,7 +85,7 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg" }:
           >
             {title && (
               <div className="flex items-center justify-between px-5 py-4 border-b border-card-border">
-                <h2 className="text-base font-bold text-ink">{title}</h2>
+                <h2 id={titleId} className="text-base font-bold text-ink">{title}</h2>
                 <button
                   onClick={onClose}
                   aria-label={t("close")}

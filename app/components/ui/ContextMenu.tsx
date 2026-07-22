@@ -4,10 +4,11 @@
 // Pair with useContextMenu() for the open/position state; renders via
 // DropdownItem so context-menu and dropdown-menu rows look identical.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { DropdownItem } from "./Dropdown";
+import { useMenuNav } from "./useMenuNav";
 
 export { DropdownItem as ContextMenuItem };
 
@@ -40,6 +41,9 @@ interface ContextMenuProps {
 }
 
 export function ContextMenu({ open, x, y, onClose, children }: ContextMenuProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  useMenuNav(panelRef, open);
+
   useEffect(() => {
     if (!open) return;
     function onDown() { onClose(); }
@@ -70,6 +74,8 @@ export function ContextMenu({ open, x, y, onClose, children }: ContextMenuProps)
     <AnimatePresence>
       {open && (
         <motion.div
+          ref={panelRef}
+          role="menu"
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.96 }}
