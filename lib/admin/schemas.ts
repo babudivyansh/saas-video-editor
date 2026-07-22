@@ -149,6 +149,12 @@ export const autoclipPricingSchema = z
   })
   .strict();
 
+export const autoclipCalibrationSchema = z
+  .object({
+    enabled: z.boolean(),
+  })
+  .strict();
+
 // ── Subscriptions ─────────────────────────────────────────────────────────────
 export const extendSchema = z
   .object({

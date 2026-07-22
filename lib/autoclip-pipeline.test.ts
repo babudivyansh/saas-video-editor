@@ -21,7 +21,7 @@ vi.mock("@/lib/redis", () => ({
 
 const {
   sliceWordsForClip, rebaseClipWords, computeCreditCost, getAutoClipPricing, AUTOCLIP_PRICING_DEFAULTS,
-  buildBrollFilterComplex,
+  buildBrollFilterComplex, computeKeeps, enforceNonOverlapping,
 } = await import("./autoclip-pipeline");
 
 describe("sliceWordsForClip", () => {
@@ -153,5 +153,64 @@ describe("buildBrollFilterComplex", () => {
     const fc = buildBrollFilterComplex(10, 3, 5.5, "16:9", null, null);
     const matches = fc.match(/crop=in_w:in_w\*9\/16/g) ?? [];
     expect(matches.length).toBe(2); // segment A and segment C
+  });
+});
+
+describe("computeKeeps filler-word matching", () => {
+  it("cuts repeated-letter variants (umm/uhh/erm/hmm), not just the base forms", () => {
+    const words = [
+      { word: "so", start: 0, end: 200 },
+      { word: "umm", start: 200, end: 500 },
+      { word: "yeah", start: 500, end: 800 },
+    ];
+    const { cuts } = computeKeeps(words, 1, false, 400, true);
+    expect(cuts).toEqual([{ startMs: 200, endMs: 500 }]);
+  });
+
+  it("cuts the two-word phrase 'you know' as a single span, since ASR emits it as two tokens", () => {
+    const words = [
+      { word: "well", start: 0, end: 300 },
+      { word: "you", start: 300, end: 500 },
+      { word: "know", start: 500, end: 800 },
+      { word: "right", start: 800, end: 1100 },
+    ];
+    const { cuts } = computeKeeps(words, 2, false, 400, true);
+    expect(cuts).toEqual([{ startMs: 300, endMs: 800 }]);
+  });
+
+  it("does not cut 'know' on its own when not preceded by 'you'", () => {
+    const words = [
+      { word: "did", start: 0, end: 200 },
+      { word: "you", start: 200, end: 400 },
+      { word: "see", start: 400, end: 600 }, // breaks the "you know" bigram
+      { word: "know", start: 600, end: 900 },
+    ];
+    const { cuts } = computeKeeps(words, 2, false, 400, true);
+    expect(cuts).toEqual([]);
+  });
+});
+
+describe("enforceNonOverlapping", () => {
+  it("leaves already-sorted, non-overlapping segments untouched", () => {
+    const segs = [{ start: 0, end: 10 }, { start: 10, end: 20 }];
+    expect(enforceNonOverlapping(segs, 5)).toEqual(segs);
+  });
+
+  it("sorts out-of-order segments by start time", () => {
+    const segs = [{ start: 10, end: 20 }, { start: 0, end: 8 }];
+    const result = enforceNonOverlapping(segs, 5);
+    expect(result.map((s) => s.start)).toEqual([0, 10]);
+  });
+
+  it("clamps an overlapping segment's start forward to the previous segment's end", () => {
+    const segs = [{ start: 0, end: 10 }, { start: 6, end: 20 }];
+    const result = enforceNonOverlapping(segs, 5);
+    expect(result).toEqual([{ start: 0, end: 10 }, { start: 10, end: 20 }]);
+  });
+
+  it("drops a segment entirely if clamping it would leave it shorter than minDuration", () => {
+    const segs = [{ start: 0, end: 10 }, { start: 8, end: 12 }]; // clamped to [10,12) = 2s
+    const result = enforceNonOverlapping(segs, 5); // min 5s
+    expect(result).toEqual([{ start: 0, end: 10 }]);
   });
 });

@@ -29,6 +29,10 @@ export interface FaceBox {
   w: number; // fraction of frame width
   h: number; // fraction of frame height
   confidence: number;
+  // Rekognition's MouthOpen attribute for this face at this frame. Undefined
+  // for timelines cached before this field was added, or if Rekognition
+  // didn't report it — treat undefined as "no signal", not "closed".
+  mouthOpen?: boolean;
 }
 
 // Crop keyframe: top-left + size of the crop window, all as fractions of the
@@ -61,7 +65,11 @@ export async function detectFaceTimeline(videoUrl: string): Promise<FaceBox[]> {
   try {
     const start = await rekognition.send(new StartFaceDetectionCommand({
       Video: { S3Object: { Bucket: loc.bucket, Name: loc.key } },
-      FaceAttributes: "DEFAULT",
+      // "ALL" (vs. the previous "DEFAULT") is the same job/cost, but also
+      // returns MouthOpen per face per frame — a real signal for "who's
+      // talking" that the two-speaker active-speaker chooser below can use
+      // instead of guessing from bounding-box area alone.
+      FaceAttributes: "ALL",
     }));
     if (!start.JobId) return [];
 
@@ -90,6 +98,11 @@ export async function detectFaceTimeline(videoUrl: string): Promise<FaceBox[]> {
           tSec: f.Timestamp / 1000,
           x: bb.Left ?? 0, y: bb.Top ?? 0, w: bb.Width ?? 0, h: bb.Height ?? 0,
           confidence: f.Face?.Confidence ?? 0,
+          // undefined (not false) for any cached timeline recorded before
+          // this field existed, or if Rekognition didn't return it — callers
+          // must treat undefined as "no signal" and fall back to area-based
+          // comparison, not as "mouth closed".
+          mouthOpen: f.Face?.MouthOpen?.Value,
         });
       }
       if (!res.NextToken) break;
@@ -335,10 +348,22 @@ function computeAdvancedCrop(
       if (leftFaces.length > 0 && rightFaces.length > 0) {
         const leftBest = leftFaces.reduce((a, c) => (c.confidence > a.confidence ? c : a));
         const rightBest = rightFaces.reduce((a, c) => (c.confidence > a.confidence ? c : a));
-        const leftArea = leftBest.w * leftBest.h;
-        const rightArea = rightBest.w * rightBest.h;
 
-        const candidateId: "left" | "right" = leftArea > rightArea ? "left" : "right";
+        // Prefer an actual "who's talking" signal (Rekognition's MouthOpen)
+        // when exactly one side has it — only fall back to bounding-box area
+        // (a size proxy, not a speaking proxy) when the mouth signal is
+        // absent (cached pre-MouthOpen timeline) or doesn't disambiguate
+        // (both/neither mouth open).
+        let candidateId: "left" | "right";
+        if (leftBest.mouthOpen === true && rightBest.mouthOpen !== true) {
+          candidateId = "left";
+        } else if (rightBest.mouthOpen === true && leftBest.mouthOpen !== true) {
+          candidateId = "right";
+        } else {
+          const leftArea = leftBest.w * leftBest.h;
+          const rightArea = rightBest.w * rightBest.h;
+          candidateId = leftArea > rightArea ? "left" : "right";
+        }
         if (candidateId !== activeSpeakerId) {
           activeSpeakerTimer += 0.1;
           if (activeSpeakerTimer >= 0.25) {

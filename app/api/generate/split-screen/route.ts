@@ -12,7 +12,8 @@ import {
   styleIndexToSubtitleStyle,
 } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
-import { WordTiming, transcribeAudio } from "@/utils/elevenlabs";
+import { WordTiming } from "@/utils/elevenlabs";
+import { transcribe } from "@/lib/transcription";
 import { downloadFile } from "@/utils/download";
 import os from "os";
 import path from "path";
@@ -82,7 +83,7 @@ async function renderJob(payload: SplitScreenPayload): Promise<void> {
 
     let wordTimings: WordTiming[] = [];
     try {
-      wordTimings = await transcribeAudio(fs.readFileSync(audioPath));
+      wordTimings = await transcribe(fs.readFileSync(audioPath));
     } catch (err) {
       logger.warn("split-screen", "transcription failed, rendering without subtitles", err);
     }

@@ -22,7 +22,8 @@ import {
   type SubtitleStyle,
 } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
-import { transcribeAudio, type WordTiming } from "@/utils/elevenlabs";
+import { type WordTiming } from "@/utils/elevenlabs";
+import { transcribe } from "@/lib/transcription";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { withRetry } from "@/lib/with-retry";
 import { logger } from "@/lib/logger";
@@ -39,7 +40,7 @@ import {
   type StoredCrop,
   type ReframeOptions,
 } from "@/lib/reframe";
-import { calibrateScore, type SubScores } from "@/lib/virality-score";
+import { calibrateScore, getViralityWeights, type SubScores } from "@/lib/virality-score";
 import { computeBrollWindow, pickBroll } from "@/lib/broll";
 import { TARGET_RES } from "@/lib/reframe";
 import os from "os";
@@ -179,6 +180,7 @@ interface GeminiSegment {
   hook: number; pacing: number; payoff: number; engagement: number;
   mood: MoodTag;
   brollQuery: string | null;
+  brollOffsetSec: number | null;
   reasoning: string;
   hookExplanation: string;
   retentionPrediction: string;
@@ -202,7 +204,7 @@ async function getClipsFromGemini(
   const hasTranscript = transcriptText.trim().length > 0;
 
   const sharedRules = `Return ONLY a valid JSON array — no explanation, no markdown fences. Example:
-[{"start":12.5,"end":35.0,"title":"The mistake everyone makes","hook":87,"pacing":75,"payoff":80,"engagement":82,"mood":"energetic","brollQuery":"city traffic at night","reasoning":"A very high energy hook that immediately challenges the viewer. Pacing remains fast throughout.","hookExplanation":"The hook poses a counter-intuitive question in the first 2 seconds, forcing curiosity.","retentionPrediction":"High: Pacing has no gaps, and the story resolves in under 25 seconds.","audience":"Content creators, marketing professionals","platform":"TikTok, YouTube Shorts","suggestedPostingTime":"5:00 PM - 8:00 PM local time","hashtags":["#videomarketing","#contentcreation","#growth"],"suggestedCaption":"Avoid this one mistake at all costs!"}]
+[{"start":12.5,"end":35.0,"title":"The mistake everyone makes","hook":87,"pacing":75,"payoff":80,"engagement":82,"mood":"energetic","brollQuery":"city traffic at night","brollOffsetSec":8.0,"reasoning":"A very high energy hook that immediately challenges the viewer. Pacing remains fast throughout.","hookExplanation":"The hook poses a counter-intuitive question in the first 2 seconds, forcing curiosity.","retentionPrediction":"High: Pacing has no gaps, and the story resolves in under 25 seconds.","audience":"Content creators, marketing professionals","platform":"TikTok, YouTube Shorts","suggestedPostingTime":"5:00 PM - 8:00 PM local time","hashtags":["#videomarketing","#contentcreation","#growth"],"suggestedCaption":"Avoid this one mistake at all costs!"}]
 
 For each clip include:
 - "title": a short, punchy, scroll-stopping hook (max 60 characters), no quotes inside
@@ -212,6 +214,7 @@ For each clip include:
 - "engagement": 0-99, overall predicted engagement if posted to TikTok/Reels/Shorts
 - "mood": one of "energetic", "calm", "dramatic", "funny", "neutral" — the dominant emotional tone
 - "brollQuery": a short 2-4 word visual search term for stock B-roll footage (or null if none needed)
+- "brollOffsetSec": seconds from THIS clip's own start (not the source video) where the B-roll should play — pick a moment where the speaker is describing something visual rather than delivering the hook or punchline (or null if brollQuery is null)
 - "reasoning": 1-2 sentences explaining why this clip has viral potential (curiosity, value, story)
 - "hookExplanation": brief explanation of the initial hook's strength
 - "retentionPrediction": short sentence predicting viewer retention potential
@@ -258,6 +261,7 @@ ${sharedRules}`;
     start: number; end: number; title?: string;
     hook?: number; pacing?: number; payoff?: number; engagement?: number; mood?: string;
     brollQuery?: string | null;
+    brollOffsetSec?: number | null;
     reasoning?: string;
     hookExplanation?: string;
     retentionPrediction?: string;
@@ -269,15 +273,21 @@ ${sharedRules}`;
   }>;
   const clampSub = (n: unknown) => Math.max(0, Math.min(99, Math.round(typeof n === "number" ? n : 50)));
 
-  return raw
+  const mapped = raw
     .filter((c) => typeof c.start === "number" && typeof c.end === "number" && c.end > c.start)
-    .map((c, i) => ({
-      start: Math.max(0, Math.min(c.start, durationSec - 1)),
-      end: Math.min(c.end, durationSec),
+    .map((c, i) => {
+      const start = Math.max(0, Math.min(c.start, durationSec - 1));
+      const end = Math.min(c.end, durationSec);
+      const brollQuery = (typeof c.brollQuery === "string" && c.brollQuery.trim()) ? c.brollQuery.trim().slice(0, 60) : null;
+      const brollOffsetSec = (brollQuery && typeof c.brollOffsetSec === "number" && Number.isFinite(c.brollOffsetSec))
+        ? Math.max(0, Math.min(c.brollOffsetSec, end - start))
+        : null;
+      return {
+      start, end,
       title: (typeof c.title === "string" && c.title.trim()) ? c.title.trim().slice(0, 80) : `Clip ${i + 1}`,
       hook: clampSub(c.hook), pacing: clampSub(c.pacing), payoff: clampSub(c.payoff), engagement: clampSub(c.engagement),
       mood: (MOODS as readonly string[]).includes(c.mood ?? "") ? (c.mood as MoodTag) : "neutral",
-      brollQuery: (typeof c.brollQuery === "string" && c.brollQuery.trim()) ? c.brollQuery.trim().slice(0, 60) : null,
+      brollQuery, brollOffsetSec,
       reasoning: (typeof c.reasoning === "string" && c.reasoning.trim()) ? c.reasoning.trim() : "Highly engaging highlight from the source video.",
       hookExplanation: (typeof c.hookExplanation === "string" && c.hookExplanation.trim()) ? c.hookExplanation.trim() : "Strong dynamic start.",
       retentionPrediction: (typeof c.retentionPrediction === "string" && c.retentionPrediction.trim()) ? c.retentionPrediction.trim() : "High potential retention.",
@@ -286,8 +296,30 @@ ${sharedRules}`;
       suggestedPostingTime: (typeof c.suggestedPostingTime === "string" && c.suggestedPostingTime.trim()) ? c.suggestedPostingTime.trim() : "5:00 PM local time",
       hashtags: Array.isArray(c.hashtags) ? c.hashtags.map(String) : ["#highlight", "#viral"],
       suggestedCaption: (typeof c.suggestedCaption === "string" && c.suggestedCaption.trim()) ? c.suggestedCaption.trim() : "Check out this amazing moment!",
-    }))
-    .slice(0, clipCount);
+      };
+    });
+
+  return enforceNonOverlapping(mapped, minDuration).slice(0, clipCount);
+}
+
+// The "clips must not overlap / sort by start ascending" rules above are only
+// ever *requested* of Gemini in the prompt text — nothing stops a slightly-off
+// response from returning overlapping segments. This is the deterministic
+// backstop: sort by start, then push each segment's start forward past the
+// previous kept segment's end, dropping it if that leaves it shorter than the
+// requested minDuration rather than keeping a sliver.
+export function enforceNonOverlapping<T extends { start: number; end: number }>(segments: T[], minDurationSec: number): T[] {
+  const sorted = [...segments].sort((a, b) => a.start - b.start);
+  const result: T[] = [];
+  let prevEnd = -Infinity;
+  for (const seg of sorted) {
+    const start = Math.max(seg.start, prevEnd);
+    const end = seg.end;
+    if (end - start < minDurationSec) continue;
+    result.push(start === seg.start ? seg : { ...seg, start });
+    prevEnd = end;
+  }
+  return result;
 }
 
 // Decides which reframe strategy a clip gets, in priority order: two-speaker
@@ -399,34 +431,40 @@ export async function pickJob(payload: PickPayload): Promise<void> {
       }
     }
 
+    // Rekognition face detection is the single longest-running call in this
+    // job (up to 5 minutes, see MAX_POLL_MS in lib/reframe.ts) and depends on
+    // neither the transcript nor Gemini's output — kick it off now and run it
+    // concurrently with STT + Gemini below instead of waiting on it after
+    // they've already finished.
+    const faceTimelinePromise: Promise<FaceBox[]> = project.faceTimeline
+      ? Promise.resolve(project.faceTimeline as unknown as FaceBox[])
+      : detectFaceTimeline(project.uploadedVideoUrl);
+
     let wordTimings: WordTiming[] = [];
     let sttFailed = false;
     try {
       await extractAudio(videoPath, audioPath);
-      wordTimings = await transcribeAudio(fs.readFileSync(audioPath)); // retries internally, see utils/elevenlabs.ts
+      wordTimings = await transcribe(fs.readFileSync(audioPath)); // retries internally + falls back to Whisper, see lib/transcription.ts
     } catch (err) {
       sttFailed = true;
       logger.warn("auto-clip", "transcription failed, Gemini will work without transcript", err);
     }
 
-    // Check face timeline cache
-    let allFaces: FaceBox[] = [];
-    if (project.faceTimeline) {
-      allFaces = project.faceTimeline as unknown as FaceBox[];
-    } else {
-      allFaces = await detectFaceTimeline(project.uploadedVideoUrl);
-      if (allFaces.length > 0) {
-        await prisma.project.update({
-          where: { id: projectId },
-          data: { faceTimeline: allFaces as unknown as Prisma.InputJsonValue },
-        }).catch(() => {});
-      }
-    }
-    const { w: srcW, h: srcH } = await getMediaDimensions(videoPath);
-
     const transcriptText = wordTimings.map((w) => `[${(w.start / 1000).toFixed(2)}] ${w.word}`).join(" ");
     const segments = await getClipsFromGemini(transcriptText, durationSec, clipCount, minDuration, maxDuration, instructions);
     if (segments.length === 0) throw new Error("Gemini returned no valid clip segments");
+
+    // Faces are only needed from here on (computeStoredCrop below) — by now
+    // the Rekognition call has had the entire STT+Gemini duration to finish
+    // in the background instead of blocking in front of it.
+    const allFaces = await faceTimelinePromise;
+    if (!project.faceTimeline && allFaces.length > 0) {
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { faceTimeline: allFaces as unknown as Prisma.InputJsonValue },
+      }).catch(() => {});
+    }
+    const { w: srcW, h: srcH } = await getMediaDimensions(videoPath);
 
     const warnings: string[] = [];
     if (sttFailed || wordTimings.length === 0) warnings.push("transcription_failed");
@@ -436,7 +474,7 @@ export async function pickJob(payload: PickPayload): Promise<void> {
     // transaction) since it's a network call; never blocks or fails the pick.
     const brollPicks = await Promise.all(segments.map(async (seg) => {
       if (!seg.brollQuery) return null;
-      const window = computeBrollWindow(seg.end - seg.start);
+      const window = computeBrollWindow(seg.end - seg.start, seg.brollOffsetSec);
       if (!window) return null;
       const broll = await pickBroll(seg.brollQuery);
       return broll ? { ...window, url: broll.downloadUrl, query: seg.brollQuery } : null;
@@ -541,6 +579,12 @@ export async function pickJob(payload: PickPayload): Promise<void> {
     // doesn't accumulate duplicates alongside the ones about to be re-picked.
     await prisma.clip.deleteMany({ where: { projectId, status: "pending_review" } }).catch(() => {});
     await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } }).catch(() => {});
+    // Rethrow (after the cleanup above already ran) so createRenderQueue's
+    // wrapper sees a real failure and BullMQ's attempts:3/backoff actually
+    // retries transient errors (a flaky Gemini/S3 call) instead of stopping
+    // dead after one try — previously only rerenderJob got this for free by
+    // never catching its own errors.
+    throw err;
   } finally {
     for (const f of [videoPath, audioPath]) {
       try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch {}
@@ -582,9 +626,20 @@ export function buildBrollFilterComplex(
 interface CutSegment { startMs: number; endMs: number }
 interface KeepSegment { startMs: number; endMs: number }
 
-const FILLERS = new Set(["um", "uh", "like", "basically", "actually", "yknow", "y'know"]);
+// Single-token fillers, matched against one normalized word at a time.
+const FILLERS = new Set([
+  "um", "umm", "uh", "uhh", "erm", "hmm",
+  "like", "basically", "actually", "yknow", "y'know",
+]);
+// Two-word fillers ASR emits as separate tokens (e.g. "you"/"know") — a
+// single-token Set.has() can never match these, so they get their own pass.
+const FILLER_BIGRAMS = new Set(["you know", "i mean", "sort of", "kind of"]);
 
-function computeKeeps(
+function normalizeWord(word: string): string {
+  return word.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").trim();
+}
+
+export function computeKeeps(
   words: WordTiming[],
   clipDurationSec: number,
   removeSilence: boolean,
@@ -595,11 +650,20 @@ function computeKeeps(
   const cuts: CutSegment[] = [];
 
   if (removeFillers) {
-    for (const w of words) {
-      const normalized = w.word.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").trim();
-      if (FILLERS.has(normalized)) {
-        cuts.push({ startMs: w.start, endMs: w.end });
+    let i = 0;
+    while (i < words.length) {
+      const bigram = i + 1 < words.length
+        ? `${normalizeWord(words[i].word)} ${normalizeWord(words[i + 1].word)}`
+        : null;
+      if (bigram && FILLER_BIGRAMS.has(bigram)) {
+        cuts.push({ startMs: words[i].start, endMs: words[i + 1].end });
+        i += 2;
+        continue;
       }
+      if (FILLERS.has(normalizeWord(words[i].word))) {
+        cuts.push({ startMs: words[i].start, endMs: words[i].end });
+      }
+      i += 1;
     }
   }
 
@@ -866,7 +930,8 @@ async function renderOneClip(projectId: string, clip: Clip, videoPath: string, w
       payoff: fullBreakdown.payoff ?? 50,
       engagement: fullBreakdown.engagement ?? 50,
     };
-    const breakdown = calibrateScore(sub, analysis, finalDurationSec, words?.length ?? 0);
+    const weights = await getViralityWeights();
+    const breakdown = calibrateScore(sub, analysis, finalDurationSec, words?.length ?? 0, weights);
 
     await prisma.clip.update({ where: { id: clip.id }, data: { progress: 90 } });
     const videoUrl = await uploadFileToS3(clipPath, `renders/${projectId}/clip-${clip.index}.mp4`, "video/mp4");
@@ -921,6 +986,11 @@ export async function renderJob(payload: RenderPayload): Promise<void> {
     let readyCount = 0;
     let bestUrl: string | null = null;
     let bestScore = -1;
+    // Pre-trim (charged, per confirm/route.ts) vs. post-trim (actually
+    // rendered) total duration across successfully-rendered clips — feeds
+    // the trimmed-duration refund below.
+    let preTrimTotalSec = 0;
+    let postTrimTotalSec = 0;
     // Tier decided once per run, inside the worker, so it's correct even for
     // jobs queued across an upgrade.
     const { getUserTier } = await import("@/lib/auth");
@@ -929,11 +999,16 @@ export async function renderJob(payload: RenderPayload): Promise<void> {
       const { ok } = await renderOneClip(projectId, clip, videoPath, watermark);
       if (ok) {
         readyCount++;
-        const updated = await prisma.clip.findUnique({ where: { id: clip.id }, select: { videoUrl: true, score: true } });
+        const updated = await prisma.clip.findUnique({ where: { id: clip.id }, select: { videoUrl: true, score: true, durationSec: true } });
         if (updated?.videoUrl && (updated.score ?? 0) > bestScore) {
           bestScore = updated.score ?? 0;
           bestUrl = updated.videoUrl;
         }
+        // clip.durationSec here is still the pre-render (reviewed/charged)
+        // value — renderOneClip only mutates the DB row, not this in-memory
+        // `clip`, so capturing it now is exactly the "what was charged" figure.
+        preTrimTotalSec += clip.durationSec;
+        postTrimTotalSec += updated?.durationSec ?? clip.durationSec;
       }
     }
 
@@ -948,6 +1023,21 @@ export async function renderJob(payload: RenderPayload): Promise<void> {
       await refundCredits(projectId, refundAmount);
     }
 
+    // Trimmed-duration refund — filler/silence removal (computeKeeps, applied
+    // inside renderOneClip) runs *after* confirm/route.ts has already charged
+    // for the reviewed, pre-trim clip windows, so a clip that gets
+    // substantially shortened by auto-trimming was still billed at its
+    // original length. Only the per-two-minutes portion of the price is
+    // duration-sensitive (the per-clip charge is unaffected either way), so
+    // refund exactly that delta in credit-block terms.
+    if (postTrimTotalSec < preTrimTotalSec) {
+      const pricing = await getAutoClipPricing();
+      const blockDelta = Math.ceil(preTrimTotalSec / 120) - Math.ceil(postTrimTotalSec / 120);
+      if (blockDelta > 0) {
+        await refundCredits(projectId, blockDelta * pricing.perTwoMinutes);
+      }
+    }
+
     if (readyCount === 0) {
       await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } });
     } else {
@@ -956,6 +1046,9 @@ export async function renderJob(payload: RenderPayload): Promise<void> {
   } catch (err) {
     logger.error("auto-clip", `render failed for ${projectId}`, err);
     await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } }).catch(() => {});
+    // See pickJob's matching comment — rethrow so BullMQ's attempts:3/backoff
+    // actually retries transient failures instead of stopping after one try.
+    throw err;
   } finally {
     try { if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath); } catch {}
   }
@@ -993,6 +1086,7 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
         hook: 50, pacing: 50, payoff: 50, engagement: 50,
         mood: (clip.mood as MoodTag) ?? "neutral",
         brollQuery: clip.brollQuery,
+        brollOffsetSec: null,
         reasoning: "", hookExplanation: "", retentionPrediction: "", audience: "", platform: "", suggestedPostingTime: "", hashtags: [], suggestedCaption: ""
       };
 

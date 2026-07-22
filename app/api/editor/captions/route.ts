@@ -6,7 +6,7 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { spendCredits, restoreSpend } from "@/lib/credits";
 import { extractAudio } from "@/utils/ffmpeg-render";
-import { transcribeAudio } from "@/utils/elevenlabs";
+import { transcribe } from "@/lib/transcription";
 import { downloadFile } from "@/utils/download";
 import { logger } from "@/lib/logger";
 
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
   try {
     await downloadFile(asset.url, mediaPath);
     await extractAudio(mediaPath, audioPath);
-    const words = await transcribeAudio(fs.readFileSync(audioPath), "audio/mpeg", languageCode);
+    const words = await transcribe(fs.readFileSync(audioPath), "audio/mpeg", languageCode);
     if (words.length === 0) {
       throw new Error("No speech detected (or transcription unavailable)");
     }

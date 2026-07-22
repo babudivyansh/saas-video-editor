@@ -22,7 +22,7 @@ const AI_TOOLS = [
 
 export default function AiToolsSection() {
   return (
-    <PropertyCard title="AI Tools" defaultOpen={false}>
+    <PropertyCard title="AI Tools (Coming Soon)" defaultOpen={false}>
       <div className="grid grid-cols-2 gap-1.5">
         {AI_TOOLS.map(({ label, icon: Icon }) => (
           <Tooltip key={label} content="Coming soon" side="top">

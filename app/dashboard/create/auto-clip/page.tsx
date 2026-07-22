@@ -213,7 +213,13 @@ function ReviewCard({ clip, edit, sourceVideoUrl, onChange }: {
           <p className="text-sm font-semibold text-ink leading-snug line-clamp-2">{clip.title || `Clip ${clip.index + 1}`}</p>
           <div className="flex items-center gap-2 mt-1">
             {clip.score != null && (
-              <span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{ background: sc.bg, color: sc.text }}>{clip.score}</span>
+              <span
+                className="px-2 py-0.5 rounded-full text-xs font-bold"
+                style={{ background: sc.bg, color: sc.text }}
+                title="Estimated from AI sub-scores only — refined after render using the clip's actual audio pacing"
+              >
+                Est. {clip.score}
+              </span>
             )}
             {clip.mood && <span className="text-xs text-ink-soft capitalize">{clip.mood}</span>}
             {clip.hasCaptions && <span className="text-xs text-ink-soft">• captions</span>}
@@ -570,6 +576,44 @@ function SkeletonCard() {
   );
 }
 
+// Re-queues a failed clip via the existing rerender endpoint with its
+// unchanged start/end — the endpoint already accepts any non-rendering/queued
+// clip, and since a never-completed clip has rerenderCount 0 the retry is
+// free (first re-render of each clip is free, see rerender/route.ts).
+function RetryClipButton({ projectId, clip, onQueued }: { projectId: string; clip: ClipItem; onQueued: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function retry() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await apiFetch(`/api/projects/${projectId}/clips/${clip.id}/rerender`, {
+        method: "POST",
+        body: JSON.stringify({ startSec: clip.startSec, endSec: clip.endSec }),
+      });
+      onQueued();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Retry failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <button
+        onClick={retry}
+        disabled={busy}
+        className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white/90 hover:bg-white text-gray-900 transition-colors disabled:opacity-50"
+      >
+        {busy ? "Retrying…" : "Retry"}
+      </button>
+      {err && <span className="text-[10px] text-red-300">{err}</span>}
+    </div>
+  );
+}
+
 function ClipCard({ projectId, clip, onChanged, onSelect }: { projectId: string; clip: ClipItem; onChanged: () => void; onSelect: (clip: ClipItem) => void }) {
   const [playing, setPlaying] = useState(false);
   const sc = scoreColor(clip.score);
@@ -594,7 +638,10 @@ function ClipCard({ projectId, clip, onChanged, onSelect }: { projectId: string;
                 <span className="w-12 h-12 rounded-full bg-white/90 text-gray-900 flex items-center justify-center group-hover:scale-105 transition-transform"><IcPlay /></span>
               </button>
             ) : failed ? (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white text-xs font-medium">Failed to render</div>
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/50 text-white text-xs font-medium">
+                <span>Failed to render</span>
+                <RetryClipButton projectId={projectId} clip={clip} onQueued={onChanged} />
+              </div>
             ) : (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/35 text-white">
                 <div className="w-9 h-9 border-[3px] border-white/40 border-t-white rounded-full animate-spin" />
