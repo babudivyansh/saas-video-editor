@@ -224,7 +224,11 @@ export default function AuthForm({
     phone: "",
     password: "",
     confirmPassword: "",
+    referralCode: "",
   });
+  const [showReferralField, setShowReferralField] = useState(false);
+  const [codeCheck, setCodeCheck] = useState<{ valid: boolean; reason?: string } | null>(null);
+  const [checkingCode, setCheckingCode] = useState(false);
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -256,6 +260,50 @@ export default function AuthForm({
     // Don't leave a single-use ticket sitting in the address bar / history.
     window.history.replaceState({}, "", window.location.pathname);
   }, []);
+
+  // A referral link lands here as /register?ref=CODE. affiliate_ref itself is
+  // an httpOnly cookie proxy.ts already set (invisible to this component) and
+  // is what the server actually attributes against regardless of what this
+  // field shows — this just pre-fills the visible field for a link-click
+  // signup so the user sees it was recognized, and auto-checks it.
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get("ref");
+    if (!ref) return;
+    setReg((r) => ({ ...r, referralCode: ref }));
+    setShowReferralField(true);
+  }, []);
+
+  async function checkReferralCode(code: string) {
+    if (!code.trim()) { setCodeCheck(null); return; }
+    setCheckingCode(true);
+    try {
+      const res = await fetch("/api/affiliate/validate-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: code.trim(), email: reg.email, phone: reg.phone }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setCodeCheck(null); return; }
+      setCodeCheck(data);
+    } catch {
+      setCodeCheck(null);
+    } finally {
+      setCheckingCode(false);
+    }
+  }
+
+  useEffect(() => {
+    if (showReferralField && reg.referralCode.trim()) checkReferralCode(reg.referralCode);
+    // Only re-run for the initial ?ref= prefill — further checks are onBlur.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showReferralField]);
+
+  const referralRejectMessages: Record<string, string> = {
+    invalid: "This referral code doesn't exist. Double-check it or leave it blank.",
+    expired: "This referral code has expired.",
+    self: "You can't use your own referral code.",
+    duplicate: "You already have a referral applied from a link you clicked earlier — this code was ignored.",
+  };
 
   function finishAuth(token: string | undefined) {
     // A 200 with no token means the server paused the login (2FA) and the
@@ -394,10 +442,11 @@ export default function AuthForm({
     if (reg.password.length < 8) { setError("Password must be at least 8 characters"); return; }
     setLoading(true);
     try {
+      const { referralCode, ...baseReg } = reg;
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(reg),
+        body: JSON.stringify(showReferralField ? { ...baseReg, referralCode: referralCode.trim() } : baseReg),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Sign up failed");
@@ -512,6 +561,37 @@ export default function AuthForm({
               className={inputClass}
             />
           </div>
+
+          {/* Referral code — collapsed by default; auto-expands from ?ref= */}
+          {showReferralField ? (
+            <div>
+              <input
+                type="text"
+                value={reg.referralCode}
+                onChange={e => { setReg({ ...reg, referralCode: e.target.value }); setCodeCheck(null); }}
+                onBlur={e => checkReferralCode(e.target.value)}
+                placeholder="Referral code (optional)"
+                className={inputClass.replace("pl-10", "pl-4")}
+              />
+              {checkingCode ? (
+                <p className="mt-1 text-xs text-gray-400">Checking…</p>
+              ) : codeCheck && !codeCheck.valid ? (
+                <p className="mt-1 text-xs text-amber-600">
+                  {referralRejectMessages[codeCheck.reason ?? "invalid"] ?? referralRejectMessages.invalid}
+                </p>
+              ) : codeCheck?.valid && reg.referralCode.trim() ? (
+                <p className="mt-1 text-xs text-green-600">Referral code applied ✓</p>
+              ) : null}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowReferralField(true)}
+              className="text-[13px] text-brand-deep font-medium hover:underline bg-transparent border-none p-0 cursor-pointer"
+            >
+              Have a referral code?
+            </button>
+          )}
 
           {/* Password row */}
           <div className="grid grid-cols-2 gap-3">

@@ -33,6 +33,9 @@ const PUBLIC_API_PREFIXES = [
   "/api/plans",
   "/api/tool-costs",
   "/api/coupons/active",
+  // Live referral-code check on the registration form, reachable pre-account.
+  // Does its own IP rate limiting (GROUP_LIMITS never applies to public routes).
+  "/api/affiliate/validate-code",
   // Anonymous-capable tools (createJobStatusHandler's allowAnonymous: true) —
   // each route does its own IP-based rate limiting and charges no credits,
   // so letting logged-out requests through here is safe. Without this, every
