@@ -83,7 +83,7 @@ The app is deployed live at clipiro.com via cPanel's **Setup Node.js App**
 
 ## 7. Cron Jobs (cPanel)
 
-Three routes expect an external scheduler and are fail-closed (401) unless
+Four routes expect an external scheduler and are fail-closed (401) unless
 `CRON_SECRET` / `SOCIAL_REFRESH_SECRET` are set in `.env` — set them, then add
 matching entries under cPanel → **Cron Jobs**:
 
@@ -100,6 +100,13 @@ matching entries under cPanel → **Cron Jobs**:
 # self-heals on the next run. Also reachable on demand via
 # POST /api/admin/commissions/run-payout-sweep (admin-authenticated).
 0 4 * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/commission-payout
+
+# Stale Auto Clip sweep — reconciles clips stranded at queued/rendering by a
+# process crash mid-render (rerenderJob/renderJob already handle a caught
+# exception themselves; this only catches the crash case). Every 15 min is
+# enough given the 18-minute staleness window. Also reachable on demand via
+# POST /api/admin/ops/run-stale-clip-sweep (admin-authenticated).
+*/15 * * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/stale-clip-sweep
 ```
 
 Use cPanel's Cron Jobs UI to enter the schedule and command — it writes to the
