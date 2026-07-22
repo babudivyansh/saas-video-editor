@@ -122,8 +122,13 @@ export async function proxy(request: NextRequest) {
   const response = NextResponse.next();
   const ref = new URL(request.url).searchParams.get("ref");
 
-  // Set affiliate cookie on first click only (don't overwrite existing attribution)
-  if (ref && !request.cookies.get("affiliate_ref")) {
+  // Set affiliate cookie on first click only (don't overwrite existing
+  // attribution), unless the visitor explicitly opted out of marketing
+  // cookies on /cookies (app/cookies/CookiePreferences.tsx). Absence of the
+  // consent cookie — everyone who never visits that page — defaults to
+  // allowed, matching today's behavior for the overwhelming majority.
+  const marketingConsent = request.cookies.get("cookie_consent_marketing")?.value;
+  if (ref && marketingConsent !== "denied" && !request.cookies.get("affiliate_ref")) {
     response.cookies.set("affiliate_ref", ref, {
       maxAge: 30 * 24 * 60 * 60, // 30 days
       sameSite: "lax",
