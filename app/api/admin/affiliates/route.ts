@@ -1,17 +1,33 @@
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { withAdmin, parseQuery } from "@/lib/admin/api";
-import { pageQuerySchema } from "@/lib/admin/schemas";
+import { affiliateQuerySchema } from "@/lib/admin/schemas";
 
-// GET /api/admin/affiliates?page&limit
+// GET /api/admin/affiliates?page&limit&status&search
 // Paginated; per-affiliate referral count + commission totals come from one
 // count select and one groupBy over the page's ids — previously this endpoint
 // fanned out EVERY referral and commission row for EVERY affiliate.
+// search matches code / affiliate's name / affiliate's email, case-insensitive.
 export const GET = withAdmin(async (req) => {
-  const { page, limit } = parseQuery(req, pageQuerySchema);
+  const { page, limit, status, search } = parseQuery(req, affiliateQuerySchema);
+
+  const where: Prisma.AffiliateWhereInput = {
+    ...(status ? { status } : {}),
+    ...(search
+      ? {
+          OR: [
+            { code: { contains: search, mode: "insensitive" } },
+            { user: { email: { contains: search, mode: "insensitive" } } },
+            { user: { name: { contains: search, mode: "insensitive" } } },
+          ],
+        }
+      : {}),
+  };
 
   const [rows, total] = await Promise.all([
     prisma.affiliate.findMany({
+      where,
       include: {
         user: { select: { name: true, email: true } },
         _count: { select: { referrals: true } },
@@ -20,7 +36,7 @@ export const GET = withAdmin(async (req) => {
       skip: (page - 1) * limit,
       take: limit,
     }),
-    prisma.affiliate.count(),
+    prisma.affiliate.count({ where }),
   ]);
 
   const ids = rows.map((a) => a.id);

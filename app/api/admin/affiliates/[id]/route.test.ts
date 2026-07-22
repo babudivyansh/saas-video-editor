@@ -6,6 +6,7 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 let updates: Array<Record<string, unknown>>;
+let auditLogs: Array<Record<string, unknown>>;
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     affiliate: {
@@ -15,7 +16,12 @@ vi.mock("@/lib/prisma", () => ({
         return { id: "a1", ...data };
       }),
     },
-    auditLog: { create: vi.fn(async () => ({})) },
+    auditLog: {
+      create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+        auditLogs.push(data);
+        return {};
+      }),
+    },
   },
 }));
 vi.mock("@/lib/redis", () => ({
@@ -32,6 +38,7 @@ const patch = (body: unknown) =>
 
 beforeEach(() => {
   updates = [];
+  auditLogs = [];
   vi.clearAllMocks();
 });
 
@@ -58,5 +65,19 @@ describe("affiliate PATCH validation", () => {
   it("rejects an empty patch", async () => {
     const res = await patch({});
     expect(res.status).toBe(400);
+  });
+
+  it("bans an affiliate and records the reason in the audit log, never in the Prisma update", async () => {
+    const res = await patch({ status: "banned", reason: "repeated self-referral" });
+    expect(res.status).toBe(200);
+    expect(updates[0]).toEqual({ status: "banned" });
+    expect(auditLogs[0].action).toBe("affiliate.updated");
+    expect(JSON.parse(auditLogs[0].after as string)._meta.reason).toBe("repeated self-referral");
+  });
+
+  it("accepts a ban with no reason", async () => {
+    const res = await patch({ status: "banned" });
+    expect(res.status).toBe(200);
+    expect(updates[0]).toEqual({ status: "banned" });
   });
 });

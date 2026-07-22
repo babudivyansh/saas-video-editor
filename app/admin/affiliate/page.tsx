@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AdminShell from "@/app/admin/AdminShell";
 import { useAuth } from "@/app/components/AuthContext";
 
@@ -54,10 +54,17 @@ function AffiliateContent() {
   const [commissions, setCommissions] = useState<CommissionRow[]>([]);
   const [commissionTotal, setCommissionTotal] = useState(0);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [affiliateStatusFilter, setAffiliateStatusFilter] = useState("all");
+  const [affiliateSearch, setAffiliateSearch] = useState("");
   const [payoutRef, setPayoutRef] = useState<Record<string, string>>({});
   const [payoutMsg, setPayoutMsg] = useState<Record<string, string>>({});
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [confirmReject, setConfirmReject] = useState<string | null>(null);
+  const [confirmBan, setConfirmBan] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState<Record<string, string>>({});
+  const [banReason, setBanReason] = useState<Record<string, string>>({});
+  const [sweepMsg, setSweepMsg] = useState<string | null>(null);
+  const [sweeping, setSweeping] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const authHeaders = useCallback(
@@ -65,8 +72,11 @@ function AffiliateContent() {
     [token],
   );
 
-  const loadAffiliates = useCallback(async (page: number, append: boolean) => {
-    const d = await fetch(`/api/admin/affiliates?page=${page}&limit=${PAGE_LIMIT}`, { headers: authHeaders() }).then(r => r.json());
+  const loadAffiliates = useCallback(async (page: number, append: boolean, status: string, search: string) => {
+    const params = new URLSearchParams({ page: String(page), limit: String(PAGE_LIMIT) });
+    if (status !== "all") params.set("status", status);
+    if (search.trim()) params.set("search", search.trim());
+    const d = await fetch(`/api/admin/affiliates?${params}`, { headers: authHeaders() }).then(r => r.json());
     setAffiliates(prev => (append ? [...prev, ...(d.affiliates ?? [])] : d.affiliates ?? []));
     setAffiliateTotal(d.total ?? 0);
   }, [authHeaders]);
@@ -80,8 +90,42 @@ function AffiliateContent() {
   useEffect(() => {
     if (!token) return;
     setLoading(true);
-    Promise.all([loadAffiliates(1, false), loadCommissions(1, false)]).finally(() => setLoading(false));
+    Promise.all([loadAffiliates(1, false, "all", ""), loadCommissions(1, false)]).finally(() => setLoading(false));
   }, [token, loadAffiliates, loadCommissions]);
+
+  // Status-filter clicks reload instantly; free-text search debounces so
+  // typing doesn't fire a request per keystroke (same pattern as
+  // app/admin/users/page.tsx's search box).
+  const affiliateSearchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function onAffiliateStatusFilter(status: string) {
+    setAffiliateStatusFilter(status);
+    loadAffiliates(1, false, status, affiliateSearch);
+  }
+
+  function onAffiliateSearch(search: string) {
+    setAffiliateSearch(search);
+    if (affiliateSearchDebounce.current) clearTimeout(affiliateSearchDebounce.current);
+    affiliateSearchDebounce.current = setTimeout(() => loadAffiliates(1, false, affiliateStatusFilter, search), 400);
+  }
+
+  async function runPayoutSweep() {
+    setSweeping(true);
+    setSweepMsg(null);
+    try {
+      const res = await fetch("/api/admin/commissions/run-payout-sweep", { method: "POST", headers: authHeaders() });
+      const data = await res.json();
+      if (res.ok) {
+        setSweepMsg(`Swept ${data.notified} commission(s) to available${data.errors ? `, ${data.errors} error(s)` : ""}.`);
+        loadCommissions(1, false);
+        loadAffiliates(1, false, affiliateStatusFilter, affiliateSearch);
+      } else {
+        setSweepMsg(data.error ?? "Sweep failed");
+      }
+    } finally {
+      setSweeping(false);
+    }
+  }
 
   // Surfaces the new structured validation errors instead of silently
   // applying an optimistic update the server may have rejected.
@@ -100,11 +144,11 @@ function AffiliateContent() {
     }
   }
 
-  async function commissionAction(id: string, action: "release" | "reject") {
+  async function commissionAction(id: string, action: "release" | "reject", reason?: string) {
     const res = await fetch(`/api/admin/commissions/${id}`, {
       method: "POST",
       headers: authHeaders(),
-      body: JSON.stringify({ action }),
+      body: JSON.stringify(reason ? { action, reason } : { action }),
     });
     const data = await res.json();
     if (res.ok) {
@@ -114,6 +158,13 @@ function AffiliateContent() {
       setActionMsg(data.error ?? "Action failed");
     }
     setConfirmReject(null);
+    setRejectReason(r => ({ ...r, [id]: "" }));
+  }
+
+  async function banAffiliate(id: string, reason?: string) {
+    await updateAffiliate(id, reason ? { status: "banned", reason } : { status: "banned" });
+    setConfirmBan(null);
+    setBanReason(r => ({ ...r, [id]: "" }));
   }
 
   async function markPaid(affiliateId: string) {
@@ -128,7 +179,7 @@ function AffiliateContent() {
     if (data.success) {
       setPayoutMsg(m => ({ ...m, [affiliateId]: `Paid ₹${data.amount?.toFixed(2)} across ${data.commissions} commissions.` }));
       loadCommissions(1, false);
-      loadAffiliates(1, false);
+      loadAffiliates(1, false, affiliateStatusFilter, affiliateSearch);
     } else {
       setPayoutMsg(m => ({ ...m, [affiliateId]: data.error ?? "Error" }));
     }
@@ -160,7 +211,23 @@ function AffiliateContent() {
 
       {/* Affiliates tab */}
       {tab === "affiliates" && !loading && (
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+        <>
+          <div className="flex gap-2 mb-4 flex-wrap items-center">
+            <input
+              type="text"
+              value={affiliateSearch}
+              onChange={e => onAffiliateSearch(e.target.value)}
+              placeholder="Search by code, name, or email…"
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-64"
+            />
+            {["all", "active", "suspended", "banned"].map(s => (
+              <button key={s} onClick={() => onAffiliateStatusFilter(s)}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${affiliateStatusFilter === s ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+                {s}
+              </button>
+            ))}
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -196,9 +263,33 @@ function AffiliateContent() {
                     <td className="px-4 py-3 text-gray-800 font-medium">₹{a.totalEarned.toFixed(2)}</td>
                     <td className="px-4 py-3 text-gray-800">₹{a.totalPaid.toFixed(2)}</td>
                     <td className="px-4 py-3">
-                      {a.status === "active"
-                        ? <button onClick={() => updateAffiliate(a.id, { status: "suspended" })} className="text-xs text-yellow-600 hover:underline">Suspend</button>
-                        : <button onClick={() => updateAffiliate(a.id, { status: "active" })} className="text-xs text-green-600 hover:underline">Activate</button>}
+                      {confirmBan === a.id ? (
+                        <div className="flex items-center gap-1.5">
+                          <input type="text" placeholder="Reason (optional)"
+                            value={banReason[a.id] ?? ""}
+                            onChange={e => setBanReason(r => ({ ...r, [a.id]: e.target.value }))}
+                            className="border border-gray-200 rounded px-1.5 py-0.5 text-xs w-28" />
+                          <button onClick={() => banAffiliate(a.id, banReason[a.id]?.trim() || undefined)}
+                            className="text-xs font-bold text-white bg-red-600 rounded px-2 py-0.5">
+                            Confirm ban?
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2.5">
+                          {a.status === "active" && (
+                            <button onClick={() => updateAffiliate(a.id, { status: "suspended" })} className="text-xs text-yellow-600 hover:underline">Suspend</button>
+                          )}
+                          {a.status === "suspended" && (
+                            <button onClick={() => updateAffiliate(a.id, { status: "active" })} className="text-xs text-green-600 hover:underline">Activate</button>
+                          )}
+                          {a.status === "banned" && (
+                            <button onClick={() => updateAffiliate(a.id, { status: "active" })} className="text-xs text-green-600 hover:underline">Reinstate</button>
+                          )}
+                          {a.status !== "banned" && (
+                            <button onClick={() => setConfirmBan(a.id)} className="text-xs text-red-500 hover:underline">Ban</button>
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 );
@@ -210,13 +301,14 @@ function AffiliateContent() {
           </table>
           {affiliates.length < affiliateTotal && (
             <button
-              onClick={() => loadAffiliates(Math.floor(affiliates.length / PAGE_LIMIT) + 1, true)}
+              onClick={() => loadAffiliates(Math.floor(affiliates.length / PAGE_LIMIT) + 1, true, affiliateStatusFilter, affiliateSearch)}
               className="w-full py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-800 border-t border-gray-50"
             >
               Load more ({affiliates.length} of {affiliateTotal})
             </button>
           )}
-        </div>
+          </div>
+        </>
       )}
 
       {/* Commissions tab */}
@@ -257,19 +349,24 @@ function AffiliateContent() {
                       <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[c.status] ?? ""}`}>{c.status}</span>
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500">{new Date(c.availableAt).toLocaleDateString("en-IN")}</td>
-                    <td className="px-4 py-3 flex gap-2">
+                    <td className="px-4 py-3">
                       {c.status === "pending" && (
-                        <button onClick={() => commissionAction(c.id, "release")} className="text-xs text-blue-600 hover:underline">Release</button>
+                        <button onClick={() => commissionAction(c.id, "release")} className="text-xs text-blue-600 hover:underline mr-2">Release</button>
                       )}
                       {(c.status === "pending" || c.status === "available") && (
                         confirmReject === c.id ? (
-                          <button
-                            onClick={() => commissionAction(c.id, "reject")}
-                            onBlur={() => setConfirmReject(null)}
-                            className="text-xs font-bold text-white bg-red-600 rounded px-2 py-0.5"
-                          >
-                            Confirm reject?
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            <input type="text" placeholder="Reason (optional)"
+                              value={rejectReason[c.id] ?? ""}
+                              onChange={e => setRejectReason(r => ({ ...r, [c.id]: e.target.value }))}
+                              className="border border-gray-200 rounded px-1.5 py-0.5 text-xs w-28" />
+                            <button
+                              onClick={() => commissionAction(c.id, "reject", rejectReason[c.id]?.trim() || undefined)}
+                              className="text-xs font-bold text-white bg-red-600 rounded px-2 py-0.5"
+                            >
+                              Confirm reject?
+                            </button>
+                          </div>
                         ) : (
                           <button onClick={() => setConfirmReject(c.id)} className="text-xs text-red-500 hover:underline">Reject</button>
                         )
@@ -297,6 +394,21 @@ function AffiliateContent() {
       {/* Payouts tab */}
       {tab === "payouts" && !loading && (
         <div className="space-y-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={runPayoutSweep}
+              disabled={sweeping}
+              className="px-4 py-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-all"
+            >
+              {sweeping ? "Running…" : "Run payout sweep now"}
+            </button>
+            <span className="text-xs text-gray-400">
+              Flips pending commissions past their 30-day hold to available &amp; emails affiliates. Same sweep the daily cron runs.
+            </span>
+          </div>
+          {sweepMsg && (
+            <p className="text-sm text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-4 py-2">{sweepMsg}</p>
+          )}
           {payoutCandidates.length === 0 && (
             <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-gray-400 shadow-sm">
               No affiliates have ₹500+ available for payout
