@@ -250,6 +250,8 @@ export default function AuthForm({
       setError("This account has been suspended. Contact support if you believe this is a mistake.");
     } else if (oauthError === "deactivated") {
       setError("This account is deactivated.");
+    } else if (oauthError === "oauth_state") {
+      setError("Google sign-in could not be verified. Please try again.");
     }
     // Don't leave a single-use ticket sitting in the address bar / history.
     window.history.replaceState({}, "", window.location.pathname);
