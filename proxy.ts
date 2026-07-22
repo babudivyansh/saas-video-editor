@@ -12,6 +12,7 @@ const GROUP_LIMITS: { prefix: string; name: string; limit: number; windowSec: nu
   { prefix: "/api/admin/", name: "admin", limit: 60, windowSec: 60 },
   { prefix: "/api/social/", name: "social", limit: 60, windowSec: 60 },
   { prefix: "/api/billing/", name: "billing", limit: 30, windowSec: 60 },
+  { prefix: "/api/affiliate/", name: "affiliate", limit: 30, windowSec: 60 },
 ];
 
 // Auth-gated app surfaces: unauthenticated visitors get bounced to /login

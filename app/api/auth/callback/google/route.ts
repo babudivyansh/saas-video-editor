@@ -3,11 +3,13 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { completeLogin, setSessionCookie } from "@/lib/auth";
-import { sendWelcomeEmail, sendAffiliateReferralSignupEmail } from "@/lib/email";
+import { sendWelcomeEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { appUrl } from "@/lib/social/oauth";
 import { mintTwoFactorTicket } from "@/lib/two-factor-ticket";
+import { attributeReferral } from "@/lib/affiliate";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function GET(req: NextRequest) {
   try {
@@ -33,6 +35,11 @@ export async function GET(req: NextRequest) {
     if (!stateValid) {
       logger.warn("google-callback", "OAuth state mismatch or missing");
       return NextResponse.redirect(new URL("/login?error=oauth_state", appUrl()));
+    }
+
+    const rateLimitResult = await rateLimit(`oauth:google:ip:${getClientIp(req)}`, 20, 3600);
+    if (!rateLimitResult.allowed) {
+      return NextResponse.redirect(new URL("/login?error=rate_limited", appUrl()));
     }
 
     // Must exactly match the redirect_uri sent during the initial authorize
@@ -113,58 +120,19 @@ export async function GET(req: NextRequest) {
         },
       });
 
-      // Affiliate attribution — read cookie set by middleware
-      const affiliateRef = req.cookies.get("affiliate_ref")?.value;
-      if (affiliateRef) {
-        try {
-          const affiliate = await prisma.affiliate.findUnique({ where: { code: affiliateRef } });
-          if (affiliate && affiliate.userId !== user.id && affiliate.status === "active") {
-            const signupIp =
-              req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-              req.headers.get("x-real-ip") ??
-              null;
-
-            const affiliateIp = await prisma.referral
-              .findFirst({ where: { affiliateId: affiliate.id }, orderBy: { signedUpAt: "desc" } })
-              .then(r => r?.signupIp ?? null);
-
-            const sameSubnet =
-              signupIp &&
-              affiliateIp &&
-              signupIp.split(".").slice(0, 3).join(".") === affiliateIp.split(".").slice(0, 3).join(".");
-
-            await prisma.referral.create({
-              data: {
-                affiliateId: affiliate.id,
-                referredUserId: user.id,
-                status: sameSubnet ? "flagged" : "signed_up",
-                signupIp,
-              },
-            });
-            await prisma.user.update({
-              where: { id: user.id },
-              data: { referredBy: affiliate.id },
-            });
-
-            // ── Notify affiliate (non-fatal) ────────────────────────────
-            const affiliateUser = await prisma.user.findUnique({
-              where: { id: affiliate.userId },
-              select: { email: true, firstName: true, name: true },
-            });
-            const totalReferrals = await prisma.referral.count({ where: { affiliateId: affiliate.id } });
-            if (affiliateUser && !sameSubnet) {
-              sendAffiliateReferralSignupEmail(
-                affiliateUser.email,
-                affiliateUser.firstName ?? affiliateUser.name ?? "",
-                profile.given_name ?? name ?? "A new user",
-                totalReferrals,
-              ).catch((e) => logger.error("google-callback", "affiliate referral email error", e));
-            }
-          }
-        } catch {
-          // Non-fatal
-        }
-      }
+      // Google doesn't collect a phone or a typed code, so this is
+      // cookie-attribution only — the helper degrades gracefully.
+      await attributeReferral({
+        cookieCode: req.cookies.get("affiliate_ref")?.value ?? null,
+        typedCode: null,
+        email,
+        phone: null,
+        newUser: { id: user.id, firstName: profile.given_name ?? null, name },
+        signupIp:
+          req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+          req.headers.get("x-real-ip") ??
+          null,
+      });
     } else {
       // Existing user signing in via Google — backfill avatar if they had
       // none, and count this as email verification if it wasn't already
