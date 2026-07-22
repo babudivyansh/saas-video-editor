@@ -398,6 +398,7 @@ model Clip {
   brollStartSec     Float?
   brollEndSec       Float?
   createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt // stale-clip sweep reads this — see lib/cron/stale-clip-sweep.ts
   subtitleStyleOverride Json?
   silenceSettings       Json?
   dubs                  ClipDub[]
