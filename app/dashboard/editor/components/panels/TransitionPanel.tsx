@@ -1,9 +1,9 @@
 "use client";
 
-// Transition presets for the OUT edge of the selected video clip. Preview-only
-// for now — the current timeline model requires non-overlapping video clips,
-// so real crossfade-style transitions need a render-pipeline change beyond
-// this pass (see TRANSITION_PRESETS in lib/editor/types.ts).
+// Transition presets for the OUT edge of the selected video clip — applied at
+// export via ffmpeg xfade (the outgoing clip is freeze-frame-padded so clip
+// timings never shift; see TRANSITION_PRESETS/filtergraph.ts). Presets whose
+// `xfade` is null aren't supported by the pipeline yet and are hidden here.
 // Each preset (bar "Cut") shows a decorative looping GIF via GIPHY — same key
 // already used for stickers — purely to illustrate the vibe, not the actual
 // transition motion (which only exists once applied between two real clips).
@@ -76,7 +76,9 @@ export default function TransitionPanel() {
     <div className="flex flex-col gap-2 p-3">
       <p className="px-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">Transition (out)</p>
       <div className="grid grid-cols-2 gap-2">
-        {(Object.keys(TRANSITION_PRESETS) as TransitionPreset[]).map((key) => (
+        {(Object.keys(TRANSITION_PRESETS) as TransitionPreset[])
+          .filter((key) => key === "none" || TRANSITION_PRESETS[key].xfade !== null)
+          .map((key) => (
           <PresetButton
             key={key}
             presetKey={key}
@@ -87,7 +89,8 @@ export default function TransitionPanel() {
         ))}
       </div>
       <p className="mt-1 px-1 text-[10px] leading-snug text-zinc-500">
-        Preview only for now — transitions aren&apos;t applied to the exported video yet.
+        Applied to the exported video as a 0.5s crossfade into the next clip. The canvas
+        approximates it as a fade.
       </p>
     </div>
   );

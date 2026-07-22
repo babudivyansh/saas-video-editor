@@ -1,7 +1,7 @@
 "use client";
 
-// Timeline header toolbar: undo/redo/split/copy/paste/duplicate/delete + an
-// effects placeholder, each with a hover tooltip naming the tool.
+// Timeline header toolbar: undo/redo/split/copy/paste/duplicate/delete + a
+// shortcut to the Effects panel, each with a hover tooltip naming the tool.
 
 import React from "react";
 import { Copy, CopyPlus, Redo2, Scissors, Sparkles, Trash2, Undo2, ClipboardPaste } from "lucide-react";
@@ -17,6 +17,7 @@ export default function EditToolbar() {
   const undoAction = useEditorStore((s) => s.undoAction);
   const redoAction = useEditorStore((s) => s.redoAction);
   const selection = useEditorStore((s) => s.selection);
+  const setActivePanel = useEditorStore((s) => s.setActivePanel);
 
   return (
     <div className="flex flex-shrink-0 items-center gap-0.5">
@@ -63,14 +64,9 @@ export default function EditToolbar() {
       />
       <span className="mx-1 h-5 w-px bg-editor-border" />
       <IconButton
-        icon={
-          <span className="relative">
-            <Sparkles className="h-4 w-4" />
-            <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-amber-400" />
-          </span>
-        }
-        label="Effects (coming soon)"
-        disabled
+        icon={<Sparkles className="h-4 w-4" />}
+        label="Effects"
+        onClick={() => setActivePanel("effect")}
         size="sm"
         tooltipSide="bottom"
       />
