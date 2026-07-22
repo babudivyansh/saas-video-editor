@@ -77,8 +77,7 @@ export interface VideoClip extends ClipBase {
   fadeIn?: number; // fade-from-black seconds at clip start (0..MAX_FADE_SEC)
   fadeOut?: number; // fade-to-black seconds at clip end
   filter?: FilterPreset; // color preset (default "none")
-  // Preview-only for now — browsable/selectable in the sidebar, not yet
-  // applied by the render pipeline (see EFFECT_PRESETS/TRANSITION_PRESETS).
+  // Applied at export by filtergraph.ts (see EFFECT_PRESETS/TRANSITION_PRESETS).
   effect?: EffectPreset;
   transitionOut?: TransitionPreset;
 }
@@ -140,35 +139,81 @@ export interface ImageClip extends ClipBase {
   fadeOut?: number;
 }
 
-// Effect/Transition presets are UI-only for now (browsable + stored on the
-// clip) — they are not yet applied by the render pipeline. Keeping them as
-// plain label lists (no ffmpeg expression) makes that explicit.
+// Effect presets — applied for real at export. `ffmpeg` builds the filter
+// string for the render pipeline (a function because several effects need the
+// concrete output dimensions, which vary by aspect); `css` is the preview
+// approximation applied by PreviewStage (an animation class where a static
+// filter can't convey motion). The chain runs after each clip is normalized
+// to fps=30 / W×H / setsar=1, so expressions may rely on those dimensions.
+type EffectDef = { label: string; ffmpeg: ((w: number, h: number) => string) | null; previewClass?: string };
 export const EFFECT_PRESETS = {
-  none: { label: "None" },
-  shake: { label: "Shake" },
-  zoomPulse: { label: "Zoom pulse" },
-  glitch: { label: "Glitch" },
-  filmGrain: { label: "Film grain" },
-  bounce: { label: "Bounce" },
-  flicker: { label: "Flicker" },
-  vignettePulse: { label: "Vignette pulse" },
-  chromaticAberration: { label: "Chromatic aberration" },
-  oldFilm: { label: "Old film" },
-} as const;
+  none: { label: "None", ffmpeg: null, previewClass: undefined },
+  shake: {
+    label: "Shake",
+    ffmpeg: (w, h) =>
+      `scale=iw*1.04:ih*1.04,crop=${w}:${h}:x='(iw-${w})/2+(iw-${w})/2*sin(t*13)':y='(ih-${h})/2+(ih-${h})/2*cos(t*19)'`,
+    previewClass: "fx-shake",
+  },
+  zoomPulse: {
+    label: "Zoom pulse",
+    ffmpeg: (w, h) =>
+      `zoompan=z='1.03+0.03*sin(in/15)':d=1:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=${w}x${h}:fps=30`,
+    previewClass: "fx-zoom-pulse",
+  },
+  glitch: {
+    label: "Glitch",
+    ffmpeg: () =>
+      `rgbashift=rh=6:bh=-6:enable='lt(mod(t,0.7),0.12)',noise=alls=18:allf=t:enable='lt(mod(t,0.7),0.12)'`,
+    previewClass: "fx-glitch",
+  },
+  filmGrain: { label: "Film grain", ffmpeg: () => `noise=alls=12:allf=t+u`, previewClass: "fx-film-grain" },
+  bounce: {
+    label: "Bounce",
+    ffmpeg: (w, h) =>
+      `scale=iw*1.04:ih*1.04,crop=${w}:${h}:x='(iw-${w})/2':y='(ih-${h})/2+(ih-${h})/2*abs(sin(t*5))'`,
+    previewClass: "fx-bounce",
+  },
+  flicker: {
+    label: "Flicker",
+    ffmpeg: () => `eq=eval=frame:brightness='0.06*sin(t*10)'`,
+    previewClass: "fx-flicker",
+  },
+  vignettePulse: {
+    label: "Vignette pulse",
+    ffmpeg: () => `vignette=angle='PI/4+PI/20*sin(t*3)':eval=frame`,
+    previewClass: "fx-vignette-pulse",
+  },
+  chromaticAberration: {
+    label: "Chromatic aberration",
+    ffmpeg: () => `rgbashift=rh=4:bh=-4`,
+    previewClass: "fx-chromatic",
+  },
+  oldFilm: {
+    label: "Old film",
+    ffmpeg: () => `hue=s=0.35,eq=contrast=1.1:brightness=0.02,noise=alls=14:allf=t+u,vignette`,
+    previewClass: "fx-old-film",
+  },
+} satisfies Record<string, EffectDef>;
 export type EffectPreset = keyof typeof EFFECT_PRESETS;
 
+// Transition presets — applied for real at export via ffmpeg `xfade`. The
+// outgoing clip is extended with a freeze-frame (`tpad`) so the crossfade
+// never eats into either clip's timeline duration (overlay/caption/music
+// timings stay valid). `xfade: null` = not yet supported by the pipeline
+// (hidden in the picker).
+export const TRANSITION_DURATION_SEC = 0.5;
 export const TRANSITION_PRESETS = {
-  none: { label: "Cut (none)" },
-  fade: { label: "Fade" },
-  slideLeft: { label: "Slide left" },
-  slideUp: { label: "Slide up" },
-  zoomIn: { label: "Zoom in" },
-  slideRight: { label: "Slide right" },
-  slideDown: { label: "Slide down" },
-  zoomOut: { label: "Zoom out" },
-  wipe: { label: "Wipe" },
-  dipToBlack: { label: "Dip to black" },
-} as const;
+  none: { label: "Cut (none)", xfade: null },
+  fade: { label: "Fade", xfade: "fade" },
+  slideLeft: { label: "Slide left", xfade: "slideleft" },
+  slideUp: { label: "Slide up", xfade: "slideup" },
+  zoomIn: { label: "Zoom in", xfade: "zoomin" },
+  slideRight: { label: "Slide right", xfade: "slideright" },
+  slideDown: { label: "Slide down", xfade: "slidedown" },
+  zoomOut: { label: "Zoom out", xfade: null },
+  wipe: { label: "Wipe", xfade: "wipeleft" },
+  dipToBlack: { label: "Dip to black", xfade: "fadeblack" },
+} satisfies Record<string, { label: string; xfade: string | null }>;
 export type TransitionPreset = keyof typeof TRANSITION_PRESETS;
 
 // Text animation presets — PREVIEW-ONLY (see TextClip.entrance/loop/exit).

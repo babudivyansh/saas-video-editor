@@ -8,7 +8,12 @@
 import { useEffect, useRef } from "react";
 import { useEditorStore } from "../store/editorStore";
 import { audioClipAt, docDuration, videoClipAt } from "@/lib/editor/doc-utils";
-import { FILTER_PRESETS } from "@/lib/editor/types";
+import {
+  EFFECT_PRESETS,
+  FILTER_PRESETS,
+  TRANSITION_DURATION_SEC,
+  TRANSITION_PRESETS,
+} from "@/lib/editor/types";
 
 const DRIFT_TOLERANCE = 0.15; // seconds before we hard-correct a media element
 
@@ -75,10 +80,30 @@ export function usePlayback(registry: React.RefObject<MediaRegistry>) {
           if (fadeIn > 0 && local < fadeIn) opacity = Math.min(opacity, local / fadeIn);
           if (fadeOut > 0 && local > active.duration - fadeOut)
             opacity = Math.min(opacity, (active.duration - local) / fadeOut);
+          // Transition-out preview: the export crossfades into the next clip
+          // (xfade); a single <video> element can't overlap two sources, so
+          // approximate every transition as a fade over the same window.
+          const xfade = active.transitionOut ? TRANSITION_PRESETS[active.transitionOut].xfade : null;
+          if (xfade) {
+            const transDur = Math.min(TRANSITION_DURATION_SEC, active.duration);
+            if (local > active.duration - transDur)
+              opacity = Math.min(opacity, (active.duration - local) / transDur);
+          }
           el.style.opacity = String(Math.max(0, Math.min(1, opacity)));
           // Color filter preview: same preset family the export burns in.
+          // "none" clears the inline style entirely so a class-based effect
+          // filter (below) isn't overridden by an inline `filter: none`.
           const css = FILTER_PRESETS[active.filter ?? "none"].css;
-          if (el.style.filter !== css) el.style.filter = css;
+          const inlineFilter = css === "none" ? "" : css;
+          if (el.style.filter !== inlineFilter) el.style.filter = inlineFilter;
+          // Effect preview: CSS keyframe approximation of the export-side
+          // ffmpeg effect (classes defined in editor-theme.css).
+          const fxClass = EFFECT_PRESETS[active.effect ?? "none"].previewClass ?? "";
+          if (el.dataset.fxClass !== fxClass) {
+            if (el.dataset.fxClass) el.classList.remove(el.dataset.fxClass);
+            if (fxClass) el.classList.add(fxClass);
+            el.dataset.fxClass = fxClass;
+          }
           if (s.playing && el.paused) el.play().catch(() => {});
           if (!s.playing && !el.paused) el.pause();
         } else {

@@ -1,8 +1,8 @@
 "use client";
 
-// Visual effect presets — browsable/selectable on the selected video clip.
-// Preview-only for now: the choice is stored on the clip but the render
-// pipeline doesn't apply it yet (see EFFECT_PRESETS in lib/editor/types.ts).
+// Visual effect presets — applied to the selected video clip and burned in
+// at export by the render pipeline (EFFECT_PRESETS in lib/editor/types.ts);
+// the canvas shows a CSS approximation during playback.
 // Each preset (bar "None") shows a decorative looping GIF via GIPHY — same
 // key already used for stickers — purely to illustrate the vibe; it's not
 // the actual effect motion (which only exists once applied to a real clip).
@@ -86,7 +86,7 @@ export default function EffectPanel() {
         ))}
       </div>
       <p className="mt-1 px-1 text-[10px] leading-snug text-zinc-500">
-        Preview only for now — effects aren&apos;t applied to the exported video yet.
+        Applied to the exported video. The canvas shows an approximate live preview.
       </p>
     </div>
   );

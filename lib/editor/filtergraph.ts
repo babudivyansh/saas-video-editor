@@ -13,8 +13,14 @@
 
 import fs from "fs";
 import path from "path";
-import type { TextClip, TimelineDoc } from "./types";
-import { ASPECT_DIMENSIONS, FILTER_PRESETS } from "./types";
+import type { TextClip, TimelineDoc, TransitionPreset } from "./types";
+import {
+  ASPECT_DIMENSIONS,
+  EFFECT_PRESETS,
+  FILTER_PRESETS,
+  TRANSITION_DURATION_SEC,
+  TRANSITION_PRESETS,
+} from "./types";
 import { docDuration, videoSegments } from "./doc-utils";
 
 export interface ClipInput {
@@ -151,16 +157,31 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
     inputIndex.set(assetId, idx++);
   }
 
-  // ── Video chain: segments (clips + black gaps) → concat ──
+  // ── Video chain: segments (clips + black gaps) → concat/xfade ──
   const segments = videoSegments(doc);
   if (segments.length === 0) throw new Error("No video segments");
-  const segLabels: { v: string; a: string }[] = [];
+  const segLabels: { v: string; a: string; duration: number; transitionOut?: TransitionPreset }[] = [];
+
+  // xfade requires all inputs to share timebase and pixel format; only pay
+  // for the extra normalization when a transition is actually in play.
+  const hasTransitions = segments.some(
+    (seg, i) =>
+      i < segments.length - 1 &&
+      seg.kind === "clip" &&
+      seg.clip.transitionOut &&
+      TRANSITION_PRESETS[seg.clip.transitionOut].xfade !== null,
+  );
+  const xfadeNormalize = hasTransitions ? [`format=yuv420p`, `settb=AVTB`] : [];
 
   segments.forEach((seg, i) => {
     const vLabel = `v${i}`;
     const aLabel = `a${i}`;
     if (seg.kind === "gap") {
-      filters.push(`color=c=black:s=${W}x${H}:r=30:d=${num(seg.duration)}[${vLabel}]`);
+      filters.push(
+        `color=c=black:s=${W}x${H}:r=30:d=${num(seg.duration)}${
+          xfadeNormalize.length ? "," + xfadeNormalize.join(",") : ""
+        }[${vLabel}]`,
+      );
       filters.push(`anullsrc=r=44100:cl=stereo,atrim=duration=${num(seg.duration)}[${aLabel}]`);
     } else {
       const clip = seg.clip;
@@ -173,6 +194,7 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
       const fadeIn = Math.min(clip.fadeIn ?? 0, clip.duration);
       const fadeOut = Math.min(clip.fadeOut ?? 0, clip.duration);
       const preset = FILTER_PRESETS[clip.filter ?? "none"];
+      const effect = EFFECT_PRESETS[clip.effect ?? "none"];
 
       const vChain = [
         `trim=start=${from}:end=${to}`,
@@ -183,8 +205,10 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
         `crop=${W}:${H}`,
         `setsar=1`,
         ...(preset.ffmpeg ? [preset.ffmpeg] : []),
+        ...(effect.ffmpeg ? [effect.ffmpeg(W, H)] : []),
         ...(fadeIn > 0 ? [`fade=t=in:st=0:d=${num(fadeIn)}`] : []),
         ...(fadeOut > 0 ? [`fade=t=out:st=${num(clip.duration - fadeOut)}:d=${num(fadeOut)}`] : []),
+        ...xfadeNormalize,
       ];
       filters.push(`[${n}:v]${vChain.join(",")}[${vLabel}]`);
 
@@ -203,7 +227,12 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
         filters.push(`anullsrc=r=44100:cl=stereo,atrim=duration=${num(clip.duration)}[${aLabel}]`);
       }
     }
-    segLabels.push({ v: `[${vLabel}]`, a: `[${aLabel}]` });
+    segLabels.push({
+      v: `[${vLabel}]`,
+      a: `[${aLabel}]`,
+      duration: seg.kind === "clip" ? seg.clip.duration : seg.duration,
+      transitionOut: seg.kind === "clip" ? seg.clip.transitionOut : undefined,
+    });
   });
 
   let videoOut: string;
@@ -211,11 +240,44 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
   if (segLabels.length === 1) {
     videoOut = segLabels[0].v;
     baseAudio = segLabels[0].a;
-  } else {
+  } else if (!hasTransitions) {
     const interleaved = segLabels.map((s) => `${s.v}${s.a}`).join("");
     filters.push(`${interleaved}concat=n=${segLabels.length}:v=1:a=1[vbase][abase]`);
     videoOut = "[vbase]";
     baseAudio = "[abase]";
+  } else {
+    // Transitions in play: audio stays one hard-cut concat (timings must not
+    // shift), video is folded pairwise — xfade at boundaries with a
+    // transition, plain concat otherwise. The outgoing side is first extended
+    // with a freeze-frame (tpad) equal to the crossfade duration, so the
+    // xfade overlap comes entirely from padding and the output duration is
+    // exactly the sum of the segment durations — every downstream enable
+    // window and the final -t stay valid.
+    filters.push(`${segLabels.map((s) => s.a).join("")}concat=n=${segLabels.length}:v=0:a=1[abase]`);
+    baseAudio = "[abase]";
+
+    let acc = segLabels[0].v;
+    let accDur = segLabels[0].duration;
+    for (let i = 1; i < segLabels.length; i++) {
+      const prev = segLabels[i - 1];
+      const next = segLabels[i];
+      const xfade = prev.transitionOut ? TRANSITION_PRESETS[prev.transitionOut].xfade : null;
+      // xfade can't run longer than the incoming segment; skip degenerate cases.
+      const dur = Math.min(TRANSITION_DURATION_SEC, next.duration);
+      const out = `[vx${i}]`;
+      if (xfade && dur >= 0.1) {
+        const padded = `[vpad${i}]`;
+        filters.push(`${acc}tpad=stop_mode=clone:stop_duration=${num(dur)}${padded}`);
+        filters.push(
+          `${padded}${next.v}xfade=transition=${xfade}:duration=${num(dur)}:offset=${num(accDur)}${out}`,
+        );
+      } else {
+        filters.push(`${acc}${next.v}concat=n=2:v=1:a=0${out}`);
+      }
+      acc = out;
+      accDur += next.duration;
+    }
+    videoOut = acc;
   }
 
   // ── Image/sticker overlays: chained `overlay` with enable windows ──
