@@ -71,8 +71,34 @@ export default function ApiDocsPage() {
           <div className="space-y-4">
             <Endpoint
               method="POST"
+              path="/api/v1/projects"
+              desc="Create a project. Pass uploadedVideoUrl (https) pointing at the source video if you plan to run AutoClip on it — or upload the video from the dashboard afterwards. Requires a key with write access."
+              request={`{
+  "title": "Podcast episode 42",
+  "uploadedVideoUrl": "https://example.com/episode42.mp4"
+}`}
+              response={`{
+  "project": {
+    "id": "proj_abc123",
+    "title": "Podcast episode 42",
+    "status": "draft"
+  }
+}`}
+            />
+            <Endpoint
+              method="GET"
+              path="/api/v1/projects"
+              desc="List your projects with status and clip counts."
+              response={`{
+  "projects": [
+    { "id": "proj_abc123", "title": "Podcast episode 42", "status": "draft", "_count": { "clips": 0 } }
+  ]
+}`}
+            />
+            <Endpoint
+              method="POST"
               path="/api/v1/clips"
-              desc="Start an AutoClip analysis job for an existing project (create the project and upload its video from the dashboard first — there's no project-creation endpoint yet). No credits are charged here; charging happens when you confirm which clips to keep."
+              desc="Start an AutoClip analysis job for an existing project (create it via POST /api/v1/projects). No credits are charged here; charging happens when you confirm which clips to keep."
               request={`{
   "projectId": "proj_abc123",
   "minDuration": 15,
