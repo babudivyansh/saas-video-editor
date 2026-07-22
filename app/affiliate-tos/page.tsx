@@ -112,7 +112,8 @@ export default function AffiliateTosPage() {
         The current commission structure is communicated to approved affiliates through the
         affiliate dashboard and may be updated from time to time with advance notice. Commissions
         are calculated as a percentage of the net revenue (excluding taxes, payment gateway fees,
-        and refunds) from qualifying purchases made by referred customers.
+        and refunds) from qualifying purchases made by referred customers, capped at ₹2,000 per
+        referral.
       </p>
       <p>
         A purchase is &quot;qualifying&quot; if: (a) the referred user signed up using your unique
@@ -122,9 +123,10 @@ export default function AffiliateTosPage() {
 
       <h3>Payment Schedule</h3>
       <p>
-        Commissions are calculated monthly, 30 days in arrears (to allow time for refund
-        processing). Approved commissions are paid by the 15th of the following month.
-        For example, commissions earned in June are paid by August 15th.
+        Each commission is held for 30 days after the referred purchase (to allow time for refund
+        processing) before becoming available for payout. Once your available balance meets the
+        minimum threshold, you may request a payout; payouts are processed manually by our team,
+        typically within a few business days of your request.
       </p>
       <p>
         Payments are made via bank transfer (NEFT/RTGS/IMPS) for Indian affiliates, or
@@ -153,7 +155,7 @@ export default function AffiliateTosPage() {
       <h2 id="tracking">Tracking & Attribution</h2>
       <p>
         Referrals are tracked via a unique link assigned to your account. Attribution is
-        last-click based with a 30-day cookie window — if a referred user completes a purchase
+        first-click based with a 30-day cookie window — if a referred user completes a purchase
         within 30 days of clicking your link, the commission is attributed to you. We use
         industry-standard tracking and make every effort to ensure accurate attribution,
         but we cannot guarantee tracking in all circumstances (e.g., if a user clears cookies

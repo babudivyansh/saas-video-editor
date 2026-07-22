@@ -6,7 +6,7 @@ import { ChevronDownIcon } from "@/app/components/landing/icons";
 const FAQS = [
   {
     q: "How much can I earn?",
-    a: "You earn 20% commission every time someone you refer makes their first payment on Clipiro. There's no cap on how many people you can refer or how much you can earn.",
+    a: "You earn 20% commission on a referred user's first payment, up to ₹2,000 per referral. There's no cap on how many people you can refer.",
   },
   {
     q: "Who can join the affiliate program?",
@@ -18,11 +18,11 @@ const FAQS = [
   },
   {
     q: "How is my referral tracked?",
-    a: "We use last-click attribution with a 30-day cookie window. If someone clicks your link and makes a qualifying purchase within 30 days, the commission is credited to you.",
+    a: "We use first-click attribution with a 30-day cookie window. If someone clicks your link and makes a qualifying purchase within 30 days, the commission is credited to you.",
   },
   {
     q: "When and how do I get paid?",
-    a: "Commissions are calculated monthly, 30 days in arrears to allow time for refund processing, and paid out by the 15th of the following month once your available balance reaches ₹500. Indian affiliates are paid via bank transfer (NEFT/RTGS/IMPS); international affiliates via PayPal or wire transfer.",
+    a: "Each commission is held for 30 days after the referred purchase (to allow time for refund processing), then becomes available once your balance reaches ₹500. Payouts are processed manually by our team, typically within a few business days of your request. Indian affiliates are paid via bank transfer (NEFT/RTGS/IMPS); international affiliates via PayPal or wire transfer.",
   },
   {
     q: "What promotional methods are allowed?",

@@ -176,6 +176,9 @@ export const affiliatePatchSchema = z
   .object({
     status: z.enum(["active", "suspended", "banned"]).optional(),
     commissionRate: z.number().min(0).max(0.5).optional(),
+    // Audit-trail only (mirrors commissionActionSchema's reason below) — never
+    // persisted on the Affiliate row itself, stripped before the Prisma write.
+    reason: z.string().max(500).optional(),
   })
   .strict()
   .refine((v) => v.status !== undefined || v.commissionRate !== undefined, { message: "Nothing to update" });
@@ -198,6 +201,12 @@ export const pageQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   status: z.string().max(32).optional(),
+});
+
+// Affiliate list only — adds free-text search without changing the shared
+// pageQuerySchema's contract for the other routes that reuse it unchanged.
+export const affiliateQuerySchema = pageQuerySchema.extend({
+  search: z.preprocess((v) => (v === "" ? undefined : v), z.string().max(200).optional()),
 });
 
 export const adminNotesSchema = z

@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     const baseUrl = env.NEXT_PUBLIC_APP_URL ?? "https://clipiro.ai";
     return NextResponse.json({
       code: existing.code,
-      referralLink: `${baseUrl}/signup?ref=${existing.code}`,
+      referralLink: `${baseUrl}/register?ref=${existing.code}`,
     });
   }
 
@@ -31,6 +31,6 @@ export async function POST(req: NextRequest) {
   const baseUrl = env.NEXT_PUBLIC_APP_URL ?? "https://clipiro.ai";
   return NextResponse.json({
     code: affiliate.code,
-    referralLink: `${baseUrl}/signup?ref=${affiliate.code}`,
+    referralLink: `${baseUrl}/register?ref=${affiliate.code}`,
   });
 }

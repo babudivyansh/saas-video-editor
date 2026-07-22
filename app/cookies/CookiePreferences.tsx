@@ -1,14 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+const CONSENT_COOKIE = "cookie_consent_marketing";
+
+function readMarketingConsent(): boolean {
+  // Absence of the cookie (the overwhelming majority of visitors, who never
+  // open this page) defaults to allowed, matching proxy.ts's own default.
+  if (typeof document === "undefined") return true;
+  const match = document.cookie.match(new RegExp(`(?:^|; )${CONSENT_COOKIE}=([^;]*)`));
+  return match ? match[1] !== "denied" : true;
+}
 
 export default function CookiePreferences() {
   const [preferences, setPreferences] = useState({
     essential: true,
     analytics: true,
-    marketing: false,
+    marketing: true,
   });
   const [isSaved, setIsSaved] = useState(false);
+
+  // Reflect whatever was actually saved last time, rather than always
+  // defaulting the toggle to off on every page load.
+  useEffect(() => {
+    setPreferences((prev) => ({ ...prev, marketing: readMarketingConsent() }));
+  }, []);
 
   const handleToggle = (type: "analytics" | "marketing") => {
     setPreferences((prev) => ({
@@ -19,6 +35,11 @@ export default function CookiePreferences() {
   };
 
   const handleSave = () => {
+    // This is what proxy.ts actually reads to decide whether to set the
+    // affiliate referral-tracking cookie — see the comment on this toggle
+    // below. A year is a reasonable "remember my choice" horizon; nothing
+    // else on this page depends on the value.
+    document.cookie = `${CONSENT_COOKIE}=${preferences.marketing ? "granted" : "denied"}; path=/; max-age=${365 * 24 * 60 * 60}`;
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 3000);
   };
@@ -89,7 +110,7 @@ export default function CookiePreferences() {
       </div>
 
       <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <p className="text-xs text-gray-400">Values are stored in your local browser state.</p>
+        <p className="text-xs text-gray-400">Your choice is saved in this browser for one year.</p>
         <div className="flex items-center gap-3">
           {isSaved && (
             <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">

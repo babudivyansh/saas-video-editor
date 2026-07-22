@@ -4,12 +4,14 @@ import { withAdmin, parseBody } from "@/lib/admin/api";
 import { auditAdminAction, auditIp } from "@/lib/admin/audit";
 import { affiliatePatchSchema } from "@/lib/admin/schemas";
 
-// PATCH /api/admin/affiliates/[id]  body: { status?, commissionRate? }
+// PATCH /api/admin/affiliates/[id]  body: { status?, commissionRate?, reason? }
 // status is a strict enum and commissionRate is bounded 0–0.5 — an admin typo
 // like `2` (meaning 20%) must fail loudly, not become a 200% commission.
+// reason is audit-trail only (e.g. why an affiliate was banned) — never
+// persisted on the Affiliate row itself.
 export const PATCH = withAdmin<{ id: string }>(async (req, { admin, params }) => {
   const { id } = params;
-  const data = await parseBody(req, affiliatePatchSchema);
+  const { reason, ...data } = await parseBody(req, affiliatePatchSchema);
 
   const before = await prisma.affiliate.findUnique({
     where: { id },
@@ -22,6 +24,7 @@ export const PATCH = withAdmin<{ id: string }>(async (req, { admin, params }) =>
   await auditAdminAction(admin.userId, "affiliate.updated", id, {
     before,
     after: data,
+    reason,
     ip: auditIp(req),
   });
 

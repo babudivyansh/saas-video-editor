@@ -196,6 +196,10 @@ model Affiliate {
   commissionRate Float        @default(0.20)
   totalEarned    Float        @default(0)
   totalPaid      Float        @default(0)
+  // Null = never expires (true of every code issued so far). Lets "expired"
+  // be a real, testable rejection reason for the sign-up referral-code field
+  // (see lib/affiliate.ts resolveReferralCode) instead of unreachable.
+  codeExpiresAt  DateTime?
   createdAt      DateTime     @default(now())
   referrals      Referral[]
   commissions    Commission[]
@@ -212,6 +216,8 @@ model Referral {
   signedUpAt     DateTime     @default(now())
   convertedAt    DateTime?
   commissions    Commission[]
+
+  @@index([affiliateId])
 }
 
 model Commission {
@@ -230,6 +236,9 @@ model Commission {
   paidAt          DateTime?
   payoutRef       String?
   payoutEmailSent Boolean   @default(false) // prevents duplicate "commission available" emails
+
+  @@index([affiliateId])
+  @@index([referralId])
 }
 
 model Plan {

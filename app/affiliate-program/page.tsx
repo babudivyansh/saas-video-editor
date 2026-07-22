@@ -7,7 +7,7 @@ import AffiliateFAQ from "@/app/components/AffiliateFAQ";
 export const metadata: Metadata = {
   title: "Affiliate Program",
   description:
-    "Earn 20% commission for every creator you bring to Clipiro. Share your link, get your friends clipping, and get paid every month.",
+    "Earn 20% commission for every creator you bring to Clipiro. Share your link, get your friends clipping, and get paid.",
   openGraph: {
     title: "Clipiro Affiliate Program",
     description: "Earn 20% commission for every creator you bring to Clipiro.",
@@ -18,7 +18,7 @@ const BENEFITS = [
   { value: "20%", label: "Commission per referral" },
   { value: "30 days", label: "Referral tracking window" },
   { value: "₹500", label: "Minimum payout" },
-  { value: "Monthly", label: "Payout schedule" },
+  { value: "On request", label: "Payout schedule" },
 ];
 
 const STEPS = [
@@ -35,7 +35,7 @@ const STEPS = [
   {
     num: "3",
     title: "Earn 20%",
-    desc: "When someone you referred makes their first payment on Clipiro, you automatically earn 20% commission. No limits.",
+    desc: "When someone you referred makes their first payment on Clipiro, you automatically earn 20% commission (up to ₹2,000 per referral). No limit on how many people you can refer.",
   },
 ];
 

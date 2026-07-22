@@ -86,7 +86,7 @@ export default function ReferralPage() {
       headers: { Authorization: `Bearer ${token()}` },
     });
     const data = await res.json();
-    setPayoutMsg(data.error ?? `Payout request submitted for ₹${data.amount?.toFixed(2)}. We'll process it within 15 days.`);
+    setPayoutMsg(data.error ?? `Payout request submitted for ₹${data.amount?.toFixed(2)}. Payouts are processed manually by our team, typically within a few business days.`);
     setPayoutRequesting(false);
   }
 
@@ -202,7 +202,7 @@ export default function ReferralPage() {
                   <div>
                     <p className="text-sm font-semibold text-gray-800">Request Payout</p>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      Minimum ₹500. Paid by the 15th of the following month.
+                      Minimum ₹500. Payouts are processed manually, typically within a few business days of request.
                       {available < 500 && ` You need ₹${(500 - available).toFixed(2)} more.`}
                     </p>
                   </div>

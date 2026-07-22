@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { completeLogin, setSessionCookie } from "@/lib/auth";
-import { sendWelcomeEmail, sendAffiliateReferralSignupEmail } from "@/lib/email";
+import { sendWelcomeEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
+import { attributeReferral } from "@/lib/affiliate";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^\+?[0-9]{7,15}$/;
@@ -17,6 +19,7 @@ export async function POST(req: NextRequest) {
     const phoneRaw = (body.phone ?? "").trim();
     const phone = phoneRaw.replace(/[\s-]/g, "");
     const { password, confirmPassword } = body;
+    const referralCode = typeof body.referralCode === "string" ? body.referralCode.trim() : null;
 
     if (!firstName || !lastName || !email || !phone || !password) {
       return NextResponse.json({ error: "All fields are required" }, { status: 400 });
@@ -32,6 +35,15 @@ export async function POST(req: NextRequest) {
     }
     if (password !== confirmPassword) {
       return NextResponse.json({ error: "Passwords do not match" }, { status: 400 });
+    }
+
+    const ip = getClientIp(req);
+    const [ipLimit, emailLimit] = await Promise.all([
+      rateLimit(`register:ip:${ip}`, 20, 3600),
+      rateLimit(`register:email:${email}`, 5, 3600),
+    ]);
+    if (!ipLimit.allowed || !emailLimit.allowed) {
+      return NextResponse.json({ error: "Too many attempts. Please try again later." }, { status: 429 });
     }
 
     const [emailTaken, phoneTaken] = await Promise.all([
@@ -66,66 +78,29 @@ export async function POST(req: NextRequest) {
 
     const { token } = await completeLogin(req, user);
 
-    // Affiliate attribution — read cookie set by middleware
-    const affiliateRef = req.cookies.get("affiliate_ref")?.value;
-    if (affiliateRef) {
-      try {
-        const affiliate = await prisma.affiliate.findUnique({ where: { code: affiliateRef } });
-        if (affiliate && affiliate.userId !== user.id && affiliate.status === "active") {
-          // IP-based fraud detection — flag if same /24 subnet as affiliate's last signup.
-          // Trustworthy only because the app runs behind cPanel's Apache/LiteSpeed
-          // reverse proxy on Hostinger, which sets/overwrites these headers itself —
-          // if the deploy target ever changes to something that doesn't terminate
-          // and rewrite them (a raw Node process with nothing in front), a client
-          // could spoof this header and evade or falsely trigger the fraud check.
-          const signupIp =
-            req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-            req.headers.get("x-real-ip") ??
-            null;
+    const referralOutcome = await attributeReferral({
+      cookieCode: req.cookies.get("affiliate_ref")?.value ?? null,
+      typedCode: referralCode,
+      email,
+      phone,
+      newUser: { id: user.id, firstName, name: `${firstName} ${lastName}` },
+      signupIp:
+        req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+        req.headers.get("x-real-ip") ??
+        null,
+    });
+    // Never leak the affiliate's own email/name back to the newly-registered
+    // client — only the outcome (and code, on success) is safe to return.
+    const referralForClient = referralOutcome
+      ? referralOutcome.applied
+        ? { applied: true as const, code: referralOutcome.code }
+        : referralOutcome
+      : undefined;
 
-          const affiliateIp = await prisma.referral
-            .findFirst({ where: { affiliateId: affiliate.id }, orderBy: { signedUpAt: "desc" } })
-            .then(r => r?.signupIp ?? null);
-
-          const sameSubnet =
-            signupIp &&
-            affiliateIp &&
-            signupIp.split(".").slice(0, 3).join(".") === affiliateIp.split(".").slice(0, 3).join(".");
-
-          await prisma.referral.create({
-            data: {
-              affiliateId: affiliate.id,
-              referredUserId: user.id,
-              status: sameSubnet ? "flagged" : "signed_up",
-              signupIp,
-            },
-          });
-          await prisma.user.update({
-            where: { id: user.id },
-            data: { referredBy: affiliate.id },
-          });
-
-          // ── Notify affiliate about new referral (non-fatal) ──────────
-          const affiliateUser = await prisma.user.findUnique({
-            where: { id: affiliate.userId },
-            select: { email: true, firstName: true, name: true },
-          });
-          const totalReferrals = await prisma.referral.count({ where: { affiliateId: affiliate.id } });
-          if (affiliateUser && !sameSubnet) {
-            sendAffiliateReferralSignupEmail(
-              affiliateUser.email,
-              affiliateUser.firstName ?? affiliateUser.name ?? "",
-              firstName,
-              totalReferrals,
-            ).catch((e) => logger.error("register", "affiliate referral email error", e));
-          }
-        }
-      } catch {
-        // Non-fatal: referral attribution failure should not block registration
-      }
-    }
-
-    const res = NextResponse.json({ token, user }, { status: 201 });
+    const res = NextResponse.json(
+      { token, user, ...(referralForClient ? { referral: referralForClient } : {}) },
+      { status: 201 },
+    );
     setSessionCookie(res, token);
     // Clear the affiliate cookie after attribution
     res.cookies.set("affiliate_ref", "", { maxAge: 0, path: "/" });
