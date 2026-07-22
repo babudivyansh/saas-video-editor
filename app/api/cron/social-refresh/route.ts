@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { refreshStaleAccounts, pruneOldSnapshots, sendWeeklyDigests } from "@/lib/social/service";
 import { refreshStaleCompetitors } from "@/lib/social/competitors";
 import { refreshClipPublishMetrics } from "@/lib/autoclip-publish";
+import { recalibrateViralityWeights } from "@/lib/virality-calibration";
 import { env } from "@/lib/env";
 
 // Scheduled entrypoint for an external scheduler (cron-job.org, Vercel Cron,
@@ -9,15 +10,22 @@ import { env } from "@/lib/env";
 // header (`Bearer <SOCIAL_REFRESH_SECRET>`) or `?secret=`.
 //
 // Jobs (select with ?job=):
-//   refresh   (default) — re-sync stale accounts + clip-publish metrics
-//   retention           — collapse >90d snapshots to daily granularity
-//   digest              — weekly per-user social summary email
+//   refresh              (default) — re-sync stale accounts + clip-publish metrics
+//   retention                      — collapse >90d snapshots to daily granularity
+//   digest                         — weekly per-user social summary email
+//   recalibrate-virality           — recompute AutoClip virality-score weights from
+//                                    real ClipPublish engagement (no-op unless the
+//                                    "autoclip_calibration_enabled" Config flag is on
+//                                    and there's enough labeled data — see
+//                                    lib/virality-calibration.ts)
 //
 // Example crontab:
 //   0 */6 * * *  curl -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" \
 //                  https://app.example.com/api/cron/social-refresh
 //   0 4 * * 0    curl -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" \
 //                  https://app.example.com/api/cron/social-refresh?job=retention
+//   0 5 * * 1    curl -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" \
+//                  https://app.example.com/api/cron/social-refresh?job=recalibrate-virality
 export async function GET(req: NextRequest) {
   const secret = env.SOCIAL_REFRESH_SECRET;
   const provided =
@@ -36,6 +44,10 @@ export async function GET(req: NextRequest) {
   if (job === "digest") {
     const { sent } = await sendWeeklyDigests();
     return NextResponse.json({ ok: true, job, sent });
+  }
+  if (job === "recalibrate-virality") {
+    const result = await recalibrateViralityWeights();
+    return NextResponse.json({ ok: true, job, ...result });
   }
   if (job !== "refresh") {
     return NextResponse.json({ error: `unknown job "${job}"` }, { status: 400 });

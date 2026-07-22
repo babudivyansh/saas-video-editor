@@ -73,6 +73,11 @@ const schema = z.object({
   GEMINI_API_KEY: z.string().optional(),
   GOOGLE_GEMINI_API_KEY: z.string().optional(),
   ELEVENLABS_API_KEY: z.string().optional(),
+  // Fallback speech-to-text provider (lib/transcription.ts) — used only when
+  // ElevenLabs Scribe's own retries are exhausted, so transcription (feeding
+  // both clip selection and captions) isn't a single-vendor point of failure.
+  // Unset = fallback is a no-op, existing ElevenLabs-only behavior unchanged.
+  OPENAI_API_KEY: z.string().optional(),
   FAL_KEY: z.string().optional(),
   PEXELS_API_KEY: z.string().optional(),
   JAMENDO_CLIENT_ID: z.string().optional(),
