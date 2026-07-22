@@ -1110,6 +1110,17 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
     const { getUserTier } = await import("@/lib/auth");
     const watermark = (await getUserTier(project.userId)) === "free";
     await renderOneClip(projectId, updatedClip, videoPath, watermark);
+  } catch (err) {
+    logger.error("auto-clip", `rerender failed for clip ${clipId}`, err);
+    await prisma.clip.update({ where: { id: clipId }, data: { status: "failed" } }).catch(() => {});
+    // See pickJob/renderJob's matching comment — rethrow so createRenderQueue's
+    // wrapper sees a real failure and BullMQ's attempts:3/backoff actually
+    // retries transient errors instead of stopping after one try. Previously
+    // this function had no catch at all: any failure here (most commonly
+    // downloadFile, since the source upload can expire/be cleaned up between
+    // the original render and a later re-edit) left the Clip permanently
+    // stuck at "queued" — the Studio & Insights "stuck forever" bug.
+    throw err;
   } finally {
     try { if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath); } catch {}
   }

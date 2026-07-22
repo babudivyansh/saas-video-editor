@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, getUserTier } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createRenderQueue } from "@/lib/render-queue";
+import { tierPriority } from "@/lib/plans/tiers";
 import { rerenderJob, type RerenderPayload } from "@/lib/autoclip-pipeline";
 import { REFRAME_PRESETS, ZOOM_STRENGTHS, SPEAKER_MODES, sanitizeReframeEnum, sanitizeReframePercent } from "@/lib/reframe";
 
@@ -75,7 +76,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     },
   });
 
-  rerenderQueue.enqueue(`${clipId}-${Date.now()}`, { projectId, clipId });
+  rerenderQueue.enqueue(`${clipId}-${Date.now()}`, { projectId, clipId }, { priority: tierPriority(await getUserTier(auth.userId)) });
 
   return NextResponse.json({ status: "queued" });
 }

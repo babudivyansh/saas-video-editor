@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, getUserTier } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { createRenderQueue } from "@/lib/render-queue";
+import { tierPriority } from "@/lib/plans/tiers";
 import { spendCredits, getBalances } from "@/lib/credits";
 import {
   rerenderJob, getAutoClipPricing, rebaseClipWords,
@@ -109,7 +110,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     },
   });
 
-  rerenderQueue.enqueue(`${clipId}-${Date.now()}`, { projectId, clipId });
+  rerenderQueue.enqueue(`${clipId}-${Date.now()}`, { projectId, clipId }, { priority: tierPriority(await getUserTier(auth.userId)) });
 
   const balances = await getBalances(auth.userId);
   return NextResponse.json({ status: "queued", creditsCharged: rerenderCost, creditsRemaining: balances.total });
