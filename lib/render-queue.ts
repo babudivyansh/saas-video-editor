@@ -118,19 +118,24 @@ function makeBullQueue<T extends { projectId: string }>(name: string, handler: H
   const concurrency = parseInt(env.RENDER_CONCURRENCY || "2", 10);
 
   const queue = new Queue(name, { connection });
+  // BullMQ re-emits ioredis connection errors on the Queue/Worker instance
+  // itself — per Node's EventEmitter semantics, an 'error' event with zero
+  // listeners crashes the process. Just log; the caller has no way to react.
+  queue.on("error", (e) => logger.error("render-queue", `queue ${name} error`, e));
   // One in-process worker per server; concurrency controls parallel renders.
-  new Worker(
+  const worker = new Worker(
     name,
     async (job: { data: T }) => { await handler(job.data); },
     { connection, concurrency },
   );
+  worker.on("error", (e) => logger.error("render-queue", `worker ${name} error`, e));
   // Liveness signal for the admin ops page.
   void import("@/lib/worker-heartbeat").then(({ startHeartbeat }) => startHeartbeat(name));
 
   return {
     driver: "bullmq",
     enqueue: (id, payload, opts) => {
-      void queue.add(name, payload, {
+      queue.add(name, payload, {
         jobId: id,
         // BullMQ: lower priority number = dequeued first (real tier-based
         // priority rendering — Pro/Studio jobs jump the free-tier queue).
@@ -139,7 +144,7 @@ function makeBullQueue<T extends { projectId: string }>(name: string, handler: H
         backoff: { type: "exponential", delay: 5000 },
         removeOnComplete: 50,
         removeOnFail: 100,
-      });
+      }).catch((e) => logger.error("render-queue", `enqueue failed for ${name}:${id}`, e));
     },
   };
 }
