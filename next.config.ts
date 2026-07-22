@@ -77,6 +77,11 @@ const nextConfig: NextConfig = {
       { source: "/dashboard/profile/subscription", destination: "/billing", permanent: true },
       { source: "/dashboard/profile/credits", destination: "/billing?tab=usage", permanent: true },
       { source: "/dashboard/profile/payment-history", destination: "/billing?tab=history", permanent: true },
+      // /signup never existed as a route — every affiliate referral link
+      // generated before this fix points here. redirects() runs before Proxy
+      // (see proxy.ts), and the query string forwards automatically, so
+      // proxy.ts still sees ?ref= on the resulting /register request.
+      { source: "/signup", destination: "/register", permanent: true },
     ];
   },
 };

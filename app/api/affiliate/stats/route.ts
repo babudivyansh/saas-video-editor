@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     enrolled: true,
     code: affiliate.code,
-    referralLink: `${baseUrl}/signup?ref=${affiliate.code}`,
+    referralLink: `${baseUrl}/register?ref=${affiliate.code}`,
     status: affiliate.status,
     totalReferrals: affiliate.referrals.length,
     convertedReferrals: affiliate.referrals.filter(r => r.status === "converted").length,
