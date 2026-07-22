@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useRef, useState, useEffect, useCallback } from "react";
+import { Suspense, useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import SubtitleStylePicker from "@/app/components/SubtitleStylePicker";
 import { ReframeAndCutsControls } from "@/app/components/auto-clip/ReframeAndCutsControls";
@@ -7,6 +7,9 @@ import { Card } from "@/app/components/ui/Card";
 import { FieldLabel, Input } from "@/app/components/ui/Field";
 import { Switch } from "@/app/components/ui/Switch";
 import { Button } from "@/app/components/ui/Button";
+import { Modal } from "@/app/components/ui/Modal";
+import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
+import { ToastProvider, useToast } from "@/app/components/ui/Toast";
 import { useVideoGenerate, getStoredToken, type GenerateStatus } from "@/app/hooks/useVideoGenerate";
 import { registerAsset, type AssetRow } from "@/app/dashboard/editor/components/panels/shared/assetData";
 import { useInsufficientCredits } from "@/app/components/billing/CreditModalContext";
@@ -645,7 +648,7 @@ function ClipCard({ projectId, clip, onChanged, onSelect }: { projectId: string;
             ) : (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/35 text-white">
                 <div className="w-9 h-9 border-[3px] border-white/40 border-t-white rounded-full animate-spin" />
-                <span className="text-xs font-semibold">{clip.status === "queued" ? "Queued" : `${clip.progress}%`}</span>
+                <span className="text-xs font-semibold">{clip.status === "queued" ? "Queued" : `${renderPhaseLabel(clip.progress)} — ${clip.progress}%`}</span>
               </div>
             )}
             {clip.score != null && (
@@ -685,6 +688,12 @@ function ClipCard({ projectId, clip, onChanged, onSelect }: { projectId: string;
   );
 }
 
+// Comfortably above the stale-clip sweeper's 18-minute window
+// (lib/cron/stale-clip-sweep.ts) — a truly stuck clip will already have been
+// flipped to "failed" (a terminal state ClipsResults's own polling already
+// stops on) before this bound would fire on its own.
+const MAX_CLIP_POLL_MS = 20 * 60 * 1000;
+
 function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
   projectId: string | null;
   status: GenerateStatus;
@@ -694,27 +703,77 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
 }) {
   const [clips, setClips] = useState<ClipItem[]>([]);
   const [project, setProject] = useState<ProjectMeta>({ status: "rendering", warnings: null, captionStyleIndex: null, uploadedVideoUrl: null });
-  const [selectedClip, setSelectedClip] = useState<ClipItem | null>(null);
+  const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
+  const selectedClip = clips.find((c) => c.id === selectedClipId) ?? null;
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollStartRef = useRef(0);
+  const prevClipsRef = useRef<Map<string, string>>(new Map());
+  const { showToast } = useToast();
 
   const tick = useCallback(async () => {
     if (!projectId) return;
     try {
       const d = await apiFetch<{ project: ProjectMeta; clips: ClipItem[] }>(`/api/projects/${projectId}/clips`);
-      setClips(d.clips ?? []);
-      setProject(d.project ?? { status: "rendering", warnings: null, captionStyleIndex: null, uploadedVideoUrl: null });
-      if ((d.project.status === "completed" || d.project.status === "failed") && pollRef.current) {
-        clearInterval(pollRef.current);
-      }
-    } catch { /* keep polling */ }
-  }, [projectId]);
+      const nextClips = d.clips ?? [];
 
+      // Toast on any clip's transition out of an in-flight state — ties
+      // feedback to the actual async completion, not just the synchronous
+      // "save request accepted" moment.
+      for (const c of nextClips) {
+        const prevStatus = prevClipsRef.current.get(c.id);
+        if (prevStatus === "queued" || prevStatus === "rendering") {
+          const label = c.title || `Clip ${c.index + 1}`;
+          if (c.status === "ready") showToast(`"${label}" finished updating.`, "success");
+          else if (c.status === "failed") showToast(`"${label}" failed to update — you can retry.`, "error");
+        }
+      }
+      prevClipsRef.current = new Map(nextClips.map((c) => [c.id, c.status]));
+
+      setClips(nextClips);
+      setProject(d.project ?? { status: "rendering", warnings: null, captionStyleIndex: null, uploadedVideoUrl: null });
+    } catch { /* keep polling */ }
+  }, [projectId, showToast]);
+
+  // Kick off the first fetch on mount / whenever the project changes.
   useEffect(() => {
     if (!projectId) return;
     tick();
-    pollRef.current = setInterval(tick, 2500);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [projectId, tick]);
+
+  // Decide whether the poll interval should be running, based on the latest
+  // clips/project state — deliberately does NOT live inside tick() itself
+  // (tick referencing its own setInterval(tick, ...) would close over a
+  // stale version of itself if tick's identity ever changed). Re-runs after
+  // every tick() because setClips/setProject always receive a fresh array/
+  // object reference, so this also reliably re-checks the elapsed-time bound
+  // below even when the underlying data hasn't actually changed.
+  useEffect(() => {
+    const anyClipInFlight = clips.some((c) => c.status === "queued" || c.status === "rendering");
+    const projectSettled = project.status === "completed" || project.status === "failed";
+    const shouldPoll = !projectSettled || anyClipInFlight;
+
+    if (shouldPoll && !pollRef.current) {
+      // A per-clip edit (Studio & Insights save, re-render, retry) can flip a
+      // clip back to queued/rendering long after the project itself already
+      // settled — previously polling had already been cleared for good by
+      // then, so the UI silently never saw the clip finish. Resume the same
+      // interval instead of a one-shot refetch, bounded below.
+      if (pollStartRef.current === 0) pollStartRef.current = Date.now();
+      pollRef.current = setInterval(tick, 2500);
+    } else if (!shouldPoll && pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+      pollStartRef.current = 0;
+    } else if (shouldPoll && pollRef.current && Date.now() - pollStartRef.current > MAX_CLIP_POLL_MS) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+      showToast("Still working on one or more clips — this is taking longer than expected. Refresh to check again.", "info");
+    }
+  }, [clips, project, tick, showToast]);
+
+  useEffect(() => {
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, []);
 
   const projectStatus = project.status;
   const ready = clips.filter((c) => c.status === "ready").length;
@@ -763,27 +822,17 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {clips.length > 0
-            ? clips.map((c) => <ClipCard key={c.id} projectId={projectId!} clip={c} onChanged={tick} onSelect={setSelectedClip} />)
+            ? clips.map((c) => <ClipCard key={c.id} projectId={projectId!} clip={c} onChanged={tick} onSelect={(clip) => setSelectedClipId(clip.id)} />)
             : !failedHard && Array.from({ length: Math.max(1, expectedCount) }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
       )}
 
-      {selectedClip && (
-        <ClipEditorDrawer
-          projectId={projectId!}
-          clip={selectedClip}
-          onClose={() => setSelectedClip(null)}
-          onChanged={() => {
-            tick();
-            apiFetch<{ project: ProjectMeta; clips: ClipItem[] }>(`/api/projects/${projectId}/clips`)
-              .then((d) => {
-                const updated = d.clips?.find((c) => c.id === selectedClip.id);
-                if (updated) setSelectedClip(updated);
-              })
-              .catch(() => {});
-          }}
-        />
-      )}
+      <ClipEditorModal
+        projectId={projectId!}
+        clip={selectedClip}
+        onClose={() => setSelectedClipId(null)}
+        onChanged={tick}
+      />
     </div>
   );
 }
@@ -1267,11 +1316,52 @@ function assToHex(ass: string): string {
   return "#ffffff";
 }
 
-// ── Clip Editor Drawer (Studio & Insights) ──────────────────────────────────
-function ClipEditorDrawer({
-  projectId, clip, onClose, onChanged
+// ── Clip Editor Modal (Studio & Insights) ───────────────────────────────────
+
+// Bands the continuous 0-100 progress number against renderOneClip's own
+// real checkpoints (5 at start, climbing through the encode, ~90 before
+// upload, 100 on completion) — labels over the existing number, no new
+// persisted Clip.status sub-states.
+function renderPhaseLabel(progress: number): string {
+  if (progress < 15) return "Preparing";
+  if (progress < 80) return "Rendering";
+  if (progress < 95) return "Processing";
+  return "Finalizing";
+}
+
+// Always mounted (unlike the old conditional-render drawer) so Modal's exit
+// fade/scale animation gets a chance to play when closing — an ancestor that
+// unmounts synchronously the instant selectedClipId goes null would skip the
+// animation entirely. Keeps the last real clip visible via state (updated in
+// an effect, not during render — refs can't be read/written mid-render)
+// while the panel fades out; `key={displayClip.id}` still forces a genuine
+// remount (fresh useState seeds) across a real clip-to-clip change, which can
+// only happen through a null gap since the modal blocks the grid behind it.
+function ClipEditorModal({ projectId, clip, onClose, onChanged }: {
+  projectId: string; clip: ClipItem | null; onClose: () => void; onChanged: () => void;
+}) {
+  const [displayClip, setDisplayClip] = useState<ClipItem | null>(clip);
+  useEffect(() => {
+    if (clip) setDisplayClip(clip);
+  }, [clip]);
+  if (!displayClip) return null; // never opened yet this session
+
+  return (
+    <ClipEditorPanel
+      key={displayClip.id}
+      projectId={projectId}
+      clip={displayClip}
+      open={!!clip}
+      onClose={onClose}
+      onChanged={onChanged}
+    />
+  );
+}
+
+function ClipEditorPanel({
+  projectId, clip, open, onClose, onChanged
 }: {
-  projectId: string; clip: ClipItem; onClose: () => void; onChanged: () => void;
+  projectId: string; clip: ClipItem; open: boolean; onClose: () => void; onChanged: () => void;
 }) {
   const [tab, setTab] = useState<"insights" | "style" | "transcript" | "cuts">("insights");
   const [copied, setCopied] = useState(false);
@@ -1374,6 +1464,45 @@ function ClipEditorDrawer({
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
 
+  // Dirty tracking — lighter than the separate manual editor's zustand
+  // saveState:"dirty" pattern (app/dashboard/editor/store/editorStore.ts)
+  // since this panel's fields are independent useState, not one doc object.
+  // A snapshot-and-compare needs zero changes to any existing setter.
+  const initialSnapshotRef = useRef<string | null>(null);
+  const currentSnapshot = useMemo(() => JSON.stringify({
+    fontName, fontSize, baseColor, highlightColor, outlineColor, shadowColor,
+    outlineWidth, shadowDepth, borderStyle, alignment, animatedCaptions,
+    removeSilence, silenceThresholdMs, removeFillers, reframingPreset,
+    smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, localWords,
+  }), [fontName, fontSize, baseColor, highlightColor, outlineColor, shadowColor, outlineWidth,
+      shadowDepth, borderStyle, alignment, animatedCaptions, removeSilence, silenceThresholdMs,
+      removeFillers, reframingPreset, smartAutoReframe, zoomStrength, speakerMode, smoothness,
+      trackingSpeed, localWords]);
+  if (initialSnapshotRef.current === null) initialSnapshotRef.current = currentSnapshot;
+  const isDirty = currentSnapshot !== initialSnapshotRef.current;
+
+  const isRendering = clip.status === "rendering" || clip.status === "queued";
+  const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
+  function requestClose() {
+    if (isDirty && !isRendering) { setConfirmCloseOpen(true); return; }
+    onClose();
+  }
+
+  // Cmd/Ctrl+S save shortcut, alongside Modal's built-in Esc-to-close.
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.key !== "s") return;
+      e.preventDefault();
+      if (saving || isRendering || !isDirty) return;
+      if (tab === "transcript") void handleSaveTranscript();
+      else void handleSaveStyleOrCuts();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, saving, isRendering, isDirty, tab]);
+
   // Save Style & Cuts
   async function handleSaveStyleOrCuts() {
     setSaving(true); setSaveErr(null);
@@ -1407,6 +1536,7 @@ function ClipEditorDrawer({
           }
         })
       });
+      initialSnapshotRef.current = currentSnapshot;
       onChanged();
     } catch (e: unknown) {
       setSaveErr(e instanceof Error ? e.message : "An error occurred");
@@ -1423,6 +1553,7 @@ function ClipEditorDrawer({
         method: "PUT",
         body: JSON.stringify({ transcript: localWords })
       });
+      initialSnapshotRef.current = currentSnapshot;
       onChanged();
     } catch (e: unknown) {
       setSaveErr(e instanceof Error ? e.message : "An error occurred");
@@ -1453,37 +1584,24 @@ function ClipEditorDrawer({
     setTimeout(() => setCopied(false), 2000);
   }
 
-  const isRendering = clip.status === "rendering" || clip.status === "queued";
-
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-
-      {/* Drawer */}
-      <div className="relative w-full max-w-lg bg-white h-full shadow-2xl flex flex-col z-10 animate-slide-in">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-150 flex items-center justify-between">
-          <div>
-            <h3 className="text-base font-bold text-gray-900 leading-tight">Clip Studio</h3>
-            <p className="text-xs text-gray-400 mt-0.5">{clip.title || `Clip ${clip.index + 1}`}</p>
-          </div>
-          <button onClick={onClose} className="p-1 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M18 6L6 18M6 6l12 12"/></svg>
-          </button>
-        </div>
+    <>
+      <Modal open={open} onClose={requestClose} title="Clip Studio" maxWidth="max-w-3xl">
+        <p className="text-xs text-gray-400 -mt-3 mb-4">{clip.title || `Clip ${clip.index + 1}`}</p>
 
         {/* Rendering Overlay */}
         {isRendering && (
-          <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px] flex flex-col items-center justify-center gap-3 z-20">
+          <div className="absolute inset-0 bg-white/80 backdrop-blur-[1px] flex flex-col items-center justify-center gap-3 z-20 rounded-[var(--radius-card)]">
             <div className="w-10 h-10 border-[3.5px] border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
             <p className="text-sm font-semibold text-gray-800">Applying changes...</p>
-            <p className="text-xs text-gray-400">{clip.status === "queued" ? "Queued" : `${clip.progress}% rendered`}</p>
+            <p className="text-xs text-gray-400">
+              {clip.status === "queued" ? "Queued" : `${renderPhaseLabel(clip.progress)} — ${clip.progress}%`}
+            </p>
           </div>
         )}
 
         {/* Navigation Tabs */}
-        <div className="flex border-b border-gray-150 bg-gray-50/50 px-4 pt-2">
+        <div className="flex gap-1 border-b border-gray-150">
           {[
             { id: "insights", label: "Insights" },
             { id: "style", label: "Styles" },
@@ -1502,8 +1620,11 @@ function ClipEditorDrawer({
           ))}
         </div>
 
-        {/* Content Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* Content Body — Modal's own panel already scrolls (max-h-[90vh]
+            overflow-y-auto) and pads (p-5), so this no longer needs its own
+            flex-1/overflow/padding, unlike when it filled a fixed-height
+            drawer column. */}
+        <div className="pt-4 space-y-6">
           {tab === "insights" && (
             <div className="space-y-6">
               {/* Virality breakdown */}
@@ -1727,7 +1848,7 @@ function ClipEditorDrawer({
 
               {saveErr && <p className="text-xs text-red-600">{saveErr}</p>}
 
-              <Button onClick={handleSaveStyleOrCuts} disabled={saving} className="w-full">
+              <Button onClick={handleSaveStyleOrCuts} disabled={saving || isRendering} className="w-full">
                 {saving ? "Saving & Rendering..." : "Apply Subtitle Styles"}
               </Button>
             </div>
@@ -1760,7 +1881,7 @@ function ClipEditorDrawer({
 
               {saveErr && <p className="text-xs text-red-600">{saveErr}</p>}
 
-              <Button onClick={handleSaveTranscript} disabled={saving} className="w-full">
+              <Button onClick={handleSaveTranscript} disabled={saving || isRendering} className="w-full">
                 {saving ? "Saving & Rendering..." : "Save Transcript Changes"}
               </Button>
             </div>
@@ -1787,21 +1908,32 @@ function ClipEditorDrawer({
 
               {saveErr && <p className="text-xs text-red-600">{saveErr}</p>}
 
-              <Button onClick={handleSaveStyleOrCuts} disabled={saving} className="w-full" size="md">
+              <Button onClick={handleSaveStyleOrCuts} disabled={saving || isRendering} className="w-full" size="md">
                 {saving ? "Saving & Rendering..." : "Apply Camera & Trimming Options"}
               </Button>
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </Modal>
+      <ConfirmDialog
+        open={confirmCloseOpen}
+        title="Discard unsaved changes?"
+        message="You have unsaved edits in the Clip Studio. Closing now will discard them."
+        confirmLabel="Discard changes"
+        danger
+        onConfirm={onClose}
+        onClose={() => setConfirmCloseOpen(false)}
+      />
+    </>
   );
 }
 
 export default function AutoClipPage() {
   return (
-    <Suspense fallback={<div className="flex h-screen items-center justify-center"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>}>
-      <AutoClipFlow />
-    </Suspense>
+    <ToastProvider>
+      <Suspense fallback={<div className="flex h-screen items-center justify-center"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>}>
+        <AutoClipFlow />
+      </Suspense>
+    </ToastProvider>
   );
 }
