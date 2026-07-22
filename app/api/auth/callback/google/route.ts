@@ -18,6 +18,23 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Authorization code not provided" }, { status: 400 });
     }
 
+    // Anti-CSRF: the state Google echoes back must match the nonce we set as
+    // an httpOnly cookie when the flow started (app/api/auth/google/route.ts).
+    // Without this, an attacker could complete a flow *they* initiated in the
+    // victim's browser (login CSRF), silently signing the victim into the
+    // attacker's account.
+    const state = searchParams.get("state");
+    const stateCookie = req.cookies.get("google_oauth_state")?.value;
+    const stateValid =
+      !!state &&
+      !!stateCookie &&
+      state.length === stateCookie.length &&
+      crypto.timingSafeEqual(Buffer.from(state), Buffer.from(stateCookie));
+    if (!stateValid) {
+      logger.warn("google-callback", "OAuth state mismatch or missing");
+      return NextResponse.redirect(new URL("/login?error=oauth_state", appUrl()));
+    }
+
     // Must exactly match the redirect_uri sent during the initial authorize
     // request in app/api/auth/google/route.ts — same fixed, config-driven
     // value (see the comment there), not derived from this request's Host
@@ -39,17 +56,8 @@ export async function GET(req: NextRequest) {
 
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.json();
-      // TEMPORARY diagnostic for the live redirect_uri_mismatch investigation —
-      // redirectUri isn't a secret (it's already visible in the browser's
-      // address bar during the flow), so surfacing it here is safe. Remove
-      // once the mismatch is confirmed resolved.
       logger.error("google-callback", "Token exchange failed", { redirectUri, appUrlValue: env.NEXT_PUBLIC_APP_URL, errorData });
-      return NextResponse.json({
-        error: "Failed to exchange authorization code",
-        details: errorData,
-        debugRedirectUri: redirectUri,
-        debugAppUrl: env.NEXT_PUBLIC_APP_URL,
-      }, { status: 400 });
+      return NextResponse.json({ error: "Failed to exchange authorization code" }, { status: 400 });
     }
 
     const { access_token } = await tokenResponse.json();
@@ -211,6 +219,7 @@ export async function GET(req: NextRequest) {
       headers: { "Content-Type": "text/html" },
     });
     setSessionCookie(res, token);
+    res.cookies.set("google_oauth_state", "", { maxAge: 0, path: "/api/auth/callback/google" });
 
     if (isNewUser) {
       // Clear the affiliate cookie after attribution
@@ -224,13 +233,6 @@ export async function GET(req: NextRequest) {
     return res;
   } catch (err) {
     logger.error("google-callback", "request failed", err);
-    // TEMPORARY diagnostic for the live-debugging session — surfaces what
-    // actually threw instead of a bare "Internal server error". Remove once
-    // the underlying issue is confirmed fixed.
-    return NextResponse.json({
-      error: "Internal server error",
-      debugMessage: err instanceof Error ? err.message : String(err),
-      debugName: err instanceof Error ? err.name : undefined,
-    }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

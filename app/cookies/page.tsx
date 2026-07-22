@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
 import LegalPage from "../components/LegalPage";
+
+export const metadata: Metadata = {
+  title: "Cookie Policy",
+  description: "How Clipiro uses cookies and how to manage your preferences.",
+};
 import CookiePreferences from "./CookiePreferences";
 
 const sections = [

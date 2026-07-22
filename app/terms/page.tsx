@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
 import LegalPage from "../components/LegalPage";
+
+export const metadata: Metadata = {
+  title: "Terms of Service",
+  description: "The terms that govern your use of Clipiro's AI video clipping platform.",
+};
 
 const sections = [
   { id: "acceptance", title: "Acceptance of Terms" },

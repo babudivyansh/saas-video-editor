@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
 import LegalPage from "../components/LegalPage";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy",
+  description: "How Clipiro collects, uses, and protects your data.",
+};
 
 const sections = [
   { id: "information-collection", title: "Information Collection" },

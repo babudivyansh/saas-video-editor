@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
 import LegalPage from "../components/LegalPage";
+
+export const metadata: Metadata = {
+  title: "Refund Policy",
+  description: "When and how refunds apply to Clipiro credit packs and subscriptions.",
+};
 
 const sections = [
   { id: "overview", title: "Overview" },
