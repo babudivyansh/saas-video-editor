@@ -8,9 +8,8 @@ import { pickJob, type PickPayload } from "@/lib/autoclip-pipeline";
 import { REFRAME_PRESETS, ZOOM_STRENGTHS, SPEAKER_MODES, sanitizeReframeEnum, sanitizeReframePercent } from "@/lib/reframe";
 
 // Public API — POST /api/v1/clips: start an AutoClip analysis job for an
-// existing project (create the project first via POST /api/v1/projects... —
-// not built yet; for now, projectId must come from a project created in the
-// dashboard). Mirrors app/api/generate/auto-clip/route.ts exactly, with the
+// existing project (create the project first via POST /api/v1/projects).
+// Mirrors app/api/generate/auto-clip/route.ts exactly, with the
 // session-cookie auth swapped for an API key — same enqueue, same validation,
 // same "no credits charged until confirm" behavior.
 export const maxDuration = 30;
