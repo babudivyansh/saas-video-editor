@@ -28,7 +28,7 @@ export const POST = withAdmin<{ affiliateId: string }>(async (req, { admin, para
     }),
     prisma.affiliate.update({
       where: { id: affiliateId },
-      data: { totalPaid: { increment: totalPaid } },
+      data: { totalPaid: { increment: totalPaid }, payoutRequestedAt: null, payoutThresholdNotifiedAt: null },
     }),
   ]);
 

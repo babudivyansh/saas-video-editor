@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { sendAffiliateReferralSignupEmail } from "@/lib/email";
+import { sendAffiliateReferralSignupEmail, sendAdminAffiliatePayoutReadyEmail } from "@/lib/email";
+import { MIN_PAYOUT_AMOUNT } from "@/lib/affiliate-constants";
 
 export function generateAffiliateCode(name: string): string {
   const prefix = (name ?? "USR").slice(0, 3).toUpperCase().replace(/[^A-Z]/g, "X");
@@ -132,5 +133,60 @@ export async function attributeReferral(input: AttributeReferralInput): Promise<
   } catch (err) {
     logger.error("affiliate", "attributeReferral failed", err);
     return null;
+  }
+}
+
+/**
+ * Best-effort admin alert when an affiliate's "available" balance is at or
+ * above the payout threshold. Called from every place a Commission can
+ * transition to "available" (the cron/manual sweep, admin release), plus the
+ * affiliate's own payout-request route as a defensive catch-all. Idempotent
+ * via payoutThresholdNotifiedAt: re-reads it fresh on every call, so calling
+ * this redundantly for the same affiliate multiple times (e.g. several
+ * commissions flipping in one sweep run) is cheap and safe — no separate
+ * batching/dedup pass is needed by callers. Never throws.
+ */
+export async function notifyAdminsIfPayoutEligible(
+  affiliateId: string,
+  trigger: "threshold" | "requested" = "threshold",
+): Promise<void> {
+  try {
+    const affiliate = await prisma.affiliate.findUnique({
+      where: { id: affiliateId },
+      include: { user: { select: { email: true, firstName: true, name: true } } },
+    });
+    if (!affiliate || affiliate.payoutThresholdNotifiedAt) return;
+
+    const { _sum } = await prisma.commission.aggregate({
+      where: { affiliateId, status: "available" },
+      _sum: { amount: true },
+    });
+    const available = _sum.amount ?? 0;
+    if (available < MIN_PAYOUT_AMOUNT) return;
+
+    const admins = await prisma.user.findMany({ where: { role: "ADMIN" }, select: { email: true } });
+    let sent = 0;
+    for (const admin of admins) {
+      try {
+        await sendAdminAffiliatePayoutReadyEmail(admin.email, {
+          affiliateName: affiliate.user.firstName ?? affiliate.user.name ?? "",
+          affiliateEmail: affiliate.user.email,
+          affiliateCode: affiliate.code,
+          availableAmount: available,
+          trigger,
+        });
+        sent++;
+      } catch (e) {
+        logger.error("affiliate", `payout-ready email failed for admin ${admin.email}`, e);
+      }
+    }
+    // Only mark notified if at least one admin actually got the email — if
+    // every send failed (or there are zero ADMIN users), self-heal: the next
+    // trigger (next sweep, next release, next payout-request) retries.
+    if (sent > 0) {
+      await prisma.affiliate.update({ where: { id: affiliateId }, data: { payoutThresholdNotifiedAt: new Date() } });
+    }
+  } catch (err) {
+    logger.error("affiliate", "notifyAdminsIfPayoutEligible failed", err);
   }
 }

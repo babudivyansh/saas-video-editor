@@ -1,25 +1,46 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sendAffiliateReferralSignupEmail = vi.fn(async () => {});
-vi.mock("@/lib/email", () => ({ sendAffiliateReferralSignupEmail }));
+const sendAdminAffiliatePayoutReadyEmail = vi.fn(async () => {});
+vi.mock("@/lib/email", () => ({ sendAffiliateReferralSignupEmail, sendAdminAffiliatePayoutReadyEmail }));
 
 interface MockAffiliate {
   id: string;
   code: string;
   status: string;
   codeExpiresAt: Date | null;
+  payoutThresholdNotifiedAt?: Date | null;
   user: { id: string; email: string; phone: string | null; firstName: string | null; name: string | null };
 }
 
 let affiliateByCode: Map<string, MockAffiliate>;
+let affiliateById: Map<string, MockAffiliate>;
+let availableSumByAffiliateId: Map<string, number>;
+let adminUsers: Array<{ email: string }>;
 let referralsByAffiliateId: Map<string, { signupIp: string | null; signedUpAt: Date }[]>;
 let createdReferrals: Array<{ affiliateId: string; referredUserId: string; status: string; signupIp: string | null }>;
 let userUpdates: Array<{ id: string; data: Record<string, unknown> }>;
+let affiliateUpdates: Array<{ id: string; data: Record<string, unknown> }>;
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     affiliate: {
-      findUnique: vi.fn(async ({ where }: { where: { code: string } }) => affiliateByCode.get(where.code) ?? null),
+      findUnique: vi.fn(async ({ where }: { where: { code?: string; id?: string } }) => {
+        if (where.code) return affiliateByCode.get(where.code) ?? null;
+        if (where.id) return affiliateById.get(where.id) ?? null;
+        return null;
+      }),
+      update: vi.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        affiliateUpdates.push({ id: where.id, data });
+        const existing = affiliateById.get(where.id);
+        if (existing) affiliateById.set(where.id, { ...existing, ...data });
+        return { id: where.id, ...data };
+      }),
+    },
+    commission: {
+      aggregate: vi.fn(async ({ where }: { where: { affiliateId: string } }) => ({
+        _sum: { amount: availableSumByAffiliateId.get(where.affiliateId) ?? 0 },
+      })),
     },
     referral: {
       findFirst: vi.fn(async ({ where }: { where: { affiliateId: string } }) => {
@@ -37,11 +58,12 @@ vi.mock("@/lib/prisma", () => ({
         userUpdates.push({ id: where.id, data });
         return { id: where.id, ...data };
       }),
+      findMany: vi.fn(async () => adminUsers),
     },
   },
 }));
 
-const { resolveReferralCode, attributeReferral } = await import("./affiliate");
+const { resolveReferralCode, attributeReferral, notifyAdminsIfPayoutEligible } = await import("./affiliate");
 
 function makeAffiliate(overrides: Partial<MockAffiliate> = {}): MockAffiliate {
   return {
@@ -49,6 +71,7 @@ function makeAffiliate(overrides: Partial<MockAffiliate> = {}): MockAffiliate {
     code: "JOH-N4X2",
     status: "active",
     codeExpiresAt: null,
+    payoutThresholdNotifiedAt: null,
     user: { id: "owner-1", email: "owner@test.com", phone: "+911234567890", firstName: "Owner", name: "Owner Name" },
     ...overrides,
   };
@@ -56,10 +79,16 @@ function makeAffiliate(overrides: Partial<MockAffiliate> = {}): MockAffiliate {
 
 beforeEach(() => {
   affiliateByCode = new Map();
+  affiliateById = new Map();
+  availableSumByAffiliateId = new Map();
+  adminUsers = [];
   referralsByAffiliateId = new Map();
   createdReferrals = [];
   userUpdates = [];
+  affiliateUpdates = [];
   vi.clearAllMocks();
+  sendAdminAffiliatePayoutReadyEmail.mockReset();
+  sendAdminAffiliatePayoutReadyEmail.mockImplementation(async () => {});
 });
 
 describe("resolveReferralCode", () => {
@@ -211,5 +240,89 @@ describe("attributeReferral", () => {
       signupIp: "1.2.3.4",
     });
     expect(result).toBeNull();
+  });
+});
+
+describe("notifyAdminsIfPayoutEligible", () => {
+  it("no-ops when the affiliate isn't found", async () => {
+    await notifyAdminsIfPayoutEligible("missing-id");
+    expect(sendAdminAffiliatePayoutReadyEmail).not.toHaveBeenCalled();
+  });
+
+  it("no-ops when already notified", async () => {
+    affiliateById.set("aff-1", makeAffiliate({ payoutThresholdNotifiedAt: new Date() }));
+    availableSumByAffiliateId.set("aff-1", 1000);
+    adminUsers = [{ email: "admin@test.com" }];
+    await notifyAdminsIfPayoutEligible("aff-1");
+    expect(sendAdminAffiliatePayoutReadyEmail).not.toHaveBeenCalled();
+  });
+
+  it("no-ops when the available balance is under the threshold", async () => {
+    affiliateById.set("aff-1", makeAffiliate());
+    availableSumByAffiliateId.set("aff-1", 100);
+    adminUsers = [{ email: "admin@test.com" }];
+    await notifyAdminsIfPayoutEligible("aff-1");
+    expect(sendAdminAffiliatePayoutReadyEmail).not.toHaveBeenCalled();
+  });
+
+  it("emails every admin and sets the notified flag on the happy path", async () => {
+    affiliateById.set("aff-1", makeAffiliate());
+    availableSumByAffiliateId.set("aff-1", 750);
+    adminUsers = [{ email: "admin1@test.com" }, { email: "admin2@test.com" }];
+
+    await notifyAdminsIfPayoutEligible("aff-1", "threshold");
+
+    expect(sendAdminAffiliatePayoutReadyEmail).toHaveBeenCalledTimes(2);
+    expect(sendAdminAffiliatePayoutReadyEmail).toHaveBeenCalledWith(
+      "admin1@test.com",
+      expect.objectContaining({ trigger: "threshold", availableAmount: 750, affiliateCode: "JOH-N4X2" }),
+    );
+    expect(affiliateUpdates.find(u => u.id === "aff-1")?.data.payoutThresholdNotifiedAt).toBeInstanceOf(Date);
+  });
+
+  it("one admin send failing doesn't block the others, and the flag still gets set", async () => {
+    affiliateById.set("aff-1", makeAffiliate());
+    availableSumByAffiliateId.set("aff-1", 750);
+    adminUsers = [{ email: "bad@test.com" }, { email: "good@test.com" }];
+    sendAdminAffiliatePayoutReadyEmail.mockRejectedValueOnce(new Error("smtp down"));
+
+    await notifyAdminsIfPayoutEligible("aff-1");
+
+    expect(sendAdminAffiliatePayoutReadyEmail).toHaveBeenCalledTimes(2);
+    expect(affiliateUpdates.some(u => u.id === "aff-1" && u.data.payoutThresholdNotifiedAt)).toBe(true);
+  });
+
+  it("does not set the flag when every admin send fails (self-heal / retry on next trigger)", async () => {
+    affiliateById.set("aff-1", makeAffiliate());
+    availableSumByAffiliateId.set("aff-1", 750);
+    adminUsers = [{ email: "bad1@test.com" }, { email: "bad2@test.com" }];
+    sendAdminAffiliatePayoutReadyEmail.mockRejectedValue(new Error("smtp down"));
+
+    await notifyAdminsIfPayoutEligible("aff-1");
+
+    expect(affiliateUpdates.some(u => u.id === "aff-1")).toBe(false);
+  });
+
+  it("does not set the flag when there are zero admin users", async () => {
+    affiliateById.set("aff-1", makeAffiliate());
+    availableSumByAffiliateId.set("aff-1", 750);
+    adminUsers = [];
+
+    await notifyAdminsIfPayoutEligible("aff-1");
+
+    expect(affiliateUpdates.some(u => u.id === "aff-1")).toBe(false);
+  });
+
+  it("passes the requested trigger through to the email", async () => {
+    affiliateById.set("aff-1", makeAffiliate());
+    availableSumByAffiliateId.set("aff-1", 750);
+    adminUsers = [{ email: "admin@test.com" }];
+
+    await notifyAdminsIfPayoutEligible("aff-1", "requested");
+
+    expect(sendAdminAffiliatePayoutReadyEmail).toHaveBeenCalledWith(
+      "admin@test.com",
+      expect.objectContaining({ trigger: "requested" }),
+    );
   });
 });

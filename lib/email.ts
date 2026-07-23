@@ -2,6 +2,7 @@ import nodemailer from "nodemailer";
 import { Resend } from "resend";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
+import { MIN_PAYOUT_AMOUNT } from "@/lib/affiliate-constants";
 
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
 
@@ -913,6 +914,38 @@ export async function sendAdminDigestEmail(to: string, d: AdminDigestData): Prom
     ${emailFooter()}`;
 
   await sendEmail(to, "Clipiro weekly ops digest", html, "admin-digest");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN — AFFILIATE PAYOUT READY
+// ─────────────────────────────────────────────────────────────────────────────
+export interface AdminAffiliatePayoutReadyData {
+  affiliateName: string;
+  affiliateEmail: string;
+  affiliateCode: string;
+  availableAmount: number;
+  trigger: "threshold" | "requested";
+}
+
+export async function sendAdminAffiliatePayoutReadyEmail(to: string, d: AdminAffiliatePayoutReadyData): Promise<void> {
+  const who = d.affiliateName || d.affiliateEmail;
+  const heading = d.trigger === "requested"
+    ? `${who} requested a payout`
+    : `${who} crossed the ₹${MIN_PAYOUT_AMOUNT} payout threshold`;
+  const html = `
+    ${emailHeader()}
+    <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 8px;">${heading}</h1>
+    <p style="color:#64748b;font-size:15px;margin:0 0 24px;">
+      ${d.affiliateEmail} (<span style="font-family:monospace;">${d.affiliateCode}</span>) has ₹${d.availableAmount.toFixed(2)} available for payout.
+    </p>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:16px;padding:24px;margin-bottom:24px;text-align:center;">
+      <p style="color:#16a34a;font-size:14px;font-weight:600;margin:0 0 4px;">AVAILABLE FOR PAYOUT</p>
+      <span style="font-size:44px;font-weight:800;color:#15803d;">₹${d.availableAmount.toFixed(2)}</span>
+    </div>
+    ${ctaButton("https://clipiro.com/admin/affiliate", "Open Payouts Tab →")}
+    ${emailFooter()}`;
+
+  await sendEmail(to, `Payout ready: ${d.affiliateCode} — ₹${d.availableAmount.toFixed(2)}`, html, "admin-affiliate-payout-ready");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
