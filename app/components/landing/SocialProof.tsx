@@ -4,10 +4,10 @@ import React from "react";
 import Reveal from "@/app/components/Reveal";
 
 const STATS = [
-  { value: "3.2M+", label: "Creators worldwide" },
-  { value: "48M+", label: "Videos generated" },
-  { value: "5M+", label: "Clips created / month" },
-  { value: "4.9★", label: "Average rating" },
+  { value: "9:16", label: "Vertical auto-reframe" },
+  { value: "50+", label: "AI narrator voices" },
+  { value: "4", label: "Platforms supported" },
+  { value: "Free", label: "Plan, no card needed" },
 ];
 
 // Brand/usage strip — wordmarks rendered as text to stay dependency-free.

@@ -1,3 +1,7 @@
+"use client";
+
+import React, { useRef } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import Reveal from "@/app/components/Reveal";
 import { ArrowRightIcon } from "@/app/components/landing/icons";
@@ -12,8 +16,46 @@ const CATEGORIES: { label: string; blurb: string; tools: FeatureLink[] }[] = [
 ];
 
 function ToolCard({ tool }: { tool: FeatureLink }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const handleEnter = () => {
+    const el = videoRef.current;
+    if (!el) return;
+    el.currentTime = 0;
+    el.play().catch(() => {});
+  };
+  const handleLeave = () => {
+    const el = videoRef.current;
+    if (!el) return;
+    el.pause();
+    el.currentTime = 0;
+  };
+
   const inner = (
     <>
+      {tool.image && (
+        <div className="relative -mx-4 -mt-4 mb-3 h-24 overflow-hidden rounded-t-2xl bg-gray-100">
+          <Image
+            src={tool.image}
+            alt=""
+            fill
+            sizes="(min-width: 1280px) 20vw, (min-width: 640px) 33vw, 100vw"
+            className="object-cover transition-transform duration-500 ease-out group-hover:scale-110"
+          />
+          {tool.video && (
+            <video
+              ref={videoRef}
+              src={tool.video}
+              muted
+              loop
+              playsInline
+              preload="none"
+              className="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-black/0 to-black/0" />
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-bold text-ink">{tool.title}</p>
         <ArrowRightIcon className="h-4 w-4 flex-shrink-0 text-brand-deep opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" />
@@ -22,16 +64,16 @@ function ToolCard({ tool }: { tool: FeatureLink }) {
     </>
   );
   const className =
-    "group block rounded-2xl border border-card-border bg-white p-4 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-card-hover";
+    "group block overflow-hidden rounded-2xl border border-card-border bg-white p-4 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-card-hover";
   if (tool.external) {
     return (
-      <a href={tool.href} target="_blank" rel="noopener noreferrer" className={className}>
+      <a href={tool.href} target="_blank" rel="noopener noreferrer" className={className} onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
         {inner}
       </a>
     );
   }
   return (
-    <Link href={tool.href} className={className}>
+    <Link href={tool.href} className={className} onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
       {inner}
     </Link>
   );

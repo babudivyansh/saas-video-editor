@@ -250,9 +250,3 @@ body {
   font-weight: 600;
 }
 
-/* Make the website full screen (override standard max-widths) */
-.max-w-screen-2xl,
-.max-w-\[1440px\] {
-  max-width: 100% !important;
-}
-

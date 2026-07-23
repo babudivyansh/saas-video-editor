@@ -23,7 +23,7 @@ export default function CTABanner() {
                 Turn your next long video into 10 viral shorts
               </h2>
               <p className="mx-auto mt-4 max-w-xl text-lg text-teal-50">
-                Join 3.2M+ creators using Clipiro to grow faster with AI. Start free — no credit card required.
+                Turn long-form content into ready-to-post shorts with AI. Start free — no credit card required.
               </p>
               <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 {user ? (
