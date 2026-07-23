@@ -51,10 +51,10 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
   return (
     <ToastProvider>
-      <div className="max-w-6xl mx-auto px-4 sm:px-8 pt-6 pb-12 flex flex-col md:flex-row gap-4 md:gap-8 items-stretch md:items-start">
-        <aside className="md:w-56 flex-shrink-0 md:sticky md:top-8">
-          <h1 className="hidden md:block text-xs font-bold text-ink-soft uppercase tracking-widest px-3 mb-2">{t("heading")}</h1>
-          <div className="flex overflow-x-auto gap-1 pb-1 md:flex-col md:overflow-visible md:gap-0 md:space-y-1 md:pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="max-w-6xl mx-auto px-4 sm:px-8 pt-6 pb-12 flex flex-col xl:flex-row gap-4 xl:gap-8 items-stretch xl:items-start">
+        <aside className="xl:w-56 flex-shrink-0 xl:sticky xl:top-8">
+          <h1 className="hidden xl:block text-xs font-bold text-ink-soft uppercase tracking-widest px-3 mb-2">{t("heading")}</h1>
+          <div className="flex overflow-x-auto gap-1 pb-1 xl:flex-col xl:overflow-visible xl:gap-0 xl:space-y-1 xl:pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {TABS.map(({ label, href, icon: Icon, exact, danger, external }) => {
               const active = exact ? pathname === href : pathname?.startsWith(href);
               return (
@@ -67,7 +67,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
                       : danger ? "text-red-500/80 hover:bg-red-50 hover:text-red-600" : "text-ink-soft hover:bg-tint-blue hover:text-ink"
                   }`}
                 >
-                  {active && <span className={`hidden md:block absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${danger ? "bg-red-500" : "grad-brand"}`} />}
+                  {active && <span className={`hidden xl:block absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${danger ? "bg-red-500" : "grad-brand"}`} />}
                   <Icon />
                   <span className="flex-1">{label}</span>
                   {external && <IcExternal />}

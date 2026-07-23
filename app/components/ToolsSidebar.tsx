@@ -62,9 +62,11 @@ export interface ToolsSidebarNavItem {
   href: string;
 }
 
-// Shared with DashboardHeader's mobile drawer (below `lg`, this rail is
+// Shared with DashboardHeader's mobile drawer (below `xl`, this rail is
 // hidden entirely and these same items are what the drawer lists instead) —
 // exported so both surfaces stay in sync with exactly one nav definition.
+// `xl` (1280px), not `lg` (1024px), because iPad Mini/Air land at 1024-1194px
+// in landscape — using `lg` here showed full desktop chrome on those tablets.
 export function useDashboardNavItems(): { nav: ToolsSidebarNavItem[]; bottomNav: ToolsSidebarNavItem[] } {
   const t = useTranslations("Nav.rail");
 
@@ -93,7 +95,7 @@ export default function ToolsSidebar({ active = "home" }: { active?: string }) {
 
   return (
     <aside
-      className="hidden lg:flex flex-col items-center pt-5 pb-5 flex-shrink-0 border-r border-gray-100 bg-white"
+      className="hidden xl:flex flex-col items-center pt-5 pb-5 flex-shrink-0 border-r border-gray-100 bg-white"
       style={{ width: 88 }}
     >
       {/* Main nav */}

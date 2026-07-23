@@ -217,7 +217,7 @@ function CreateMenu() {
   return (
     <div
       ref={ref}
-      className="relative hidden lg:block"
+      className="relative hidden xl:block"
       onMouseEnter={() => { cancelClose(); setOpen(true); }}
       onMouseLeave={scheduleClose}
     >
@@ -273,7 +273,7 @@ export default function DashboardHeader() {
     <header className="flex items-center gap-4 px-5 h-16 flex-shrink-0 border-b border-gray-100 bg-white z-40">
       {user && (
         <button
-          className="lg:hidden p-2 -ml-2 rounded-md text-ink-soft hover:text-ink flex-shrink-0"
+          className="xl:hidden p-2 -ml-2 rounded-md text-ink-soft hover:text-ink flex-shrink-0"
           onClick={() => setMenuOpen((p) => !p)}
           aria-label={menuOpen ? "Close menu" : "Open menu"}
         >
@@ -285,7 +285,7 @@ export default function DashboardHeader() {
         <ClipiroLogo className="h-8" />
       </Link>
 
-      <nav className="hidden lg:flex items-center gap-1 flex-shrink-0">
+      <nav className="hidden xl:flex items-center gap-1 flex-shrink-0">
         <NavDropdown label={t("resources")} width={340}>
           <div className="p-3 space-y-1">
             <DropdownItem
@@ -365,11 +365,11 @@ export default function DashboardHeader() {
       </nav>
 
       {/* Global search — grows to fill the middle */}
-      <div className="hidden lg:flex flex-1 justify-center min-w-0">
+      <div className="hidden xl:flex flex-1 justify-center min-w-0">
         <HeaderSearch />
       </div>
 
-      <div className="flex-1 lg:hidden" />
+      <div className="flex-1 xl:hidden" />
 
       <div className="flex items-center gap-2.5 flex-shrink-0">
         {user ? (
@@ -381,7 +381,7 @@ export default function DashboardHeader() {
               href="/billing"
               title={t("yourPlan")}
               data-tour="plan-chip"
-              className={`hidden lg:inline-flex items-center text-[11px] font-bold uppercase tracking-wider rounded-full px-2.5 py-1 transition-colors ${
+              className={`hidden xl:inline-flex items-center text-[11px] font-bold uppercase tracking-wider rounded-full px-2.5 py-1 transition-colors ${
                 hasActivePlan
                   ? "bg-tint-emerald text-green-700 hover:bg-emerald-100"
                   : "bg-gray-100 text-ink-soft hover:bg-gray-200"
@@ -394,7 +394,7 @@ export default function DashboardHeader() {
             </div>
 
             {/* Monetization CTA: upgrade when free, top up when subscribed */}
-            <Button variant={hasActivePlan ? "secondary" : "primary"} size="sm" href="/billing" className="hidden lg:inline-flex">
+            <Button variant={hasActivePlan ? "secondary" : "primary"} size="sm" href="/billing" className="hidden xl:inline-flex">
               {hasActivePlan ? t("topUp") : t("upgrade")}
             </Button>
 
@@ -412,9 +412,9 @@ export default function DashboardHeader() {
     </header>
 
     {/* Mobile drawer — replaces the ToolsSidebar rail + everything the header
-        hides below `lg`, in one place, mirroring SiteNavbar.tsx's mobile menu. */}
+        hides below `xl`, in one place, mirroring SiteNavbar.tsx's mobile menu. */}
     {user && menuOpen && (
-      <div className="lg:hidden fixed inset-x-0 top-16 bottom-0 z-50 flex" data-testid="mobile-nav-drawer">
+      <div className="xl:hidden fixed inset-x-0 top-16 bottom-0 z-50 flex" data-testid="mobile-nav-drawer">
         <div className="absolute inset-0 bg-black/40" onClick={closeMobile} />
         <div className="relative w-full max-w-xs h-full bg-white shadow-xl overflow-y-auto px-4 py-4 space-y-1">
           <HeaderSearch className="relative mb-3" />

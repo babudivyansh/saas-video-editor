@@ -53,7 +53,7 @@ export default function SidebarTabs() {
   const isCompact = useIsCompactEditor();
   const [collapsed, setCollapsed] = useState(false);
 
-  // Below `lg` (tablet range — phones are already blocked by EditorShell's
+  // Below `xl` (tablet range — phones are already blocked by EditorShell's
   // own gate), default the panel closed so PreviewStage gets full width;
   // tapping a tab still opens it, now as an overlay instead of a push.
   useEffect(() => {
@@ -62,9 +62,9 @@ export default function SidebarTabs() {
 
   return (
     <aside className="relative flex h-full flex-shrink-0 border-r border-editor-border bg-editor-panel">
-      {/* Backdrop — overlay mode only (below lg), dismisses the panel */}
+      {/* Backdrop — overlay mode only (below xl), dismisses the panel */}
       {isCompact && !collapsed && (
-        <div className="fixed inset-0 z-30 bg-black/30 lg:hidden" onClick={() => setCollapsed(true)} />
+        <div className="fixed inset-0 z-30 bg-black/30 xl:hidden" onClick={() => setCollapsed(true)} />
       )}
       {/* Icon rail — icon + always-visible label (11 distinct content-type
           tabs benefit from a text label, unlike single-purpose icon buttons
@@ -103,7 +103,7 @@ export default function SidebarTabs() {
         animate={{ width: collapsed ? 0 : 320, opacity: collapsed ? 0 : 1 }}
         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
         style={{ overflow: "hidden" }}
-        className="fixed inset-y-0 left-16 z-40 bg-editor-bg shadow-2xl lg:static lg:inset-auto lg:left-auto lg:z-auto lg:shadow-none"
+        className="fixed inset-y-0 left-16 z-40 bg-editor-bg shadow-2xl xl:static xl:inset-auto xl:left-auto xl:z-auto xl:shadow-none"
       >
         <div className="h-full w-80 overflow-y-auto overflow-x-hidden">
           {activePanel === "media" && <MediaPanel />}

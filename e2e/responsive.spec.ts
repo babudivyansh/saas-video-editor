@@ -56,7 +56,7 @@ async function mockAuth(page: import("@playwright/test").Page, baseURL: string |
 }
 
 test("dashboard: mobile hamburger opens the nav drawer with the hidden header items", async ({ page, baseURL }) => {
-  await page.setViewportSize({ width: 390, height: 844 }); // phone width — hamburger only shows below `lg`
+  await page.setViewportSize({ width: 390, height: 844 }); // phone width — hamburger only shows below `xl`
   await mockAuth(page, baseURL);
   await page.goto("/dashboard");
 
@@ -76,8 +76,8 @@ test("dashboard: mobile hamburger opens the nav drawer with the hidden header it
   await expect(drawer).toBeHidden();
 });
 
-test("settings: sub-nav is a horizontal tab strip below md, not a squeezed sidebar", async ({ page, baseURL }) => {
-  await page.setViewportSize({ width: 390, height: 844 }); // phone width — tab strip only kicks in below `md`
+test("settings: sub-nav is a horizontal tab strip below xl, not a squeezed sidebar", async ({ page, baseURL }) => {
+  await page.setViewportSize({ width: 390, height: 844 }); // phone width — tab strip only kicks in below `xl`
   await mockAuth(page, baseURL);
   await page.goto("/dashboard/settings");
 
@@ -90,7 +90,7 @@ test("settings: sub-nav is a horizontal tab strip below md, not a squeezed sideb
 });
 
 test("editor: tablet width clears the phone gate and uses overlay panels, not a squeeze", async ({ page, baseURL }) => {
-  await page.setViewportSize({ width: 900, height: 800 }); // tablet range (768-1023px)
+  await page.setViewportSize({ width: 900, height: 800 }); // tablet range (768-1279px)
   await mockAuth(page, baseURL);
 
   await page.route("**/api/projects/e2e-fake-project", (route) =>
@@ -125,4 +125,39 @@ test("editor: tablet width clears the phone gate and uses overlay panels, not a 
   // than pushing the preview area (which would leave ~144px for it).
   await page.getByRole("button", { name: "Media", exact: true }).click();
   await expect(page.locator(".fixed.inset-0.z-30")).toBeVisible();
+});
+
+// Regression coverage for a real bug: iPad Mini/Air land at 1024-1194px wide
+// in landscape (Playwright's `devices["iPad Mini landscape"]` is exactly
+// 1024x768) — using Tailwind's `lg` (1024px) as the compact/desktop cutover
+// meant these tablets got the cramped desktop layout in landscape instead of
+// the mobile-friendly one. Fixed by moving every cutover to `xl` (1280px).
+test("iPad Mini landscape (1024x768): dashboard and editor stay compact, not cramped", async ({ page, baseURL }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await mockAuth(page, baseURL);
+
+  await page.goto("/dashboard");
+  await expect(page.getByRole("button", { name: "Open menu" })).toBeVisible();
+
+  await page.route("**/api/projects/e2e-fake-project", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        project: {
+          id: "e2e-fake-project",
+          title: "E2E Test Project",
+          editorDoc: {
+            version: 1,
+            aspect: "9:16",
+            fps: 30,
+            tracks: { video: [], text: [], audio: [], image: [], caption: [] },
+          },
+        },
+      }),
+    }),
+  );
+  await page.goto("/dashboard/editor?projectId=e2e-fake-project");
+  await expect(page.getByText("The editor needs a bigger screen")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Open properties" })).toBeVisible();
 });

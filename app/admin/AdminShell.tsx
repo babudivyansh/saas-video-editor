@@ -280,7 +280,7 @@ export default function AdminShell({ children, title }: { children: React.ReactN
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
       {/* Sidebar (desktop) */}
-      <aside className="hidden lg:flex w-56 flex-shrink-0 bg-white border-r border-gray-100 flex-col">
+      <aside className="hidden xl:flex w-56 flex-shrink-0 bg-white border-r border-gray-100 flex-col">
         <Link href="/dashboard" className="flex items-center gap-2 px-5 h-16 border-b border-gray-100">
           <span className="bg-blue-600 text-white rounded-lg w-8 h-8 flex items-center justify-center font-extrabold">C</span>
           <span className="font-bold text-gray-900">Admin</span>
@@ -290,7 +290,7 @@ export default function AdminShell({ children, title }: { children: React.ReactN
 
       {/* Mobile drawer */}
       {menuOpen && (
-        <div className="lg:hidden fixed inset-x-0 top-16 bottom-0 z-50 flex">
+        <div className="xl:hidden fixed inset-x-0 top-16 bottom-0 z-50 flex">
           <div className="absolute inset-0 bg-black/40" onClick={() => setMenuOpen(false)} />
           <div className="relative w-full max-w-xs h-full bg-white shadow-xl flex flex-col">
             <div className="flex items-center gap-2 px-5 h-16 border-b border-gray-100">
@@ -306,7 +306,7 @@ export default function AdminShell({ children, title }: { children: React.ReactN
       <main className="flex-1 overflow-y-auto">
         <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-8 h-16 flex items-center gap-3">
           <button
-            className="lg:hidden p-2 -ml-2 rounded-md text-gray-500 hover:text-gray-800 flex-shrink-0"
+            className="xl:hidden p-2 -ml-2 rounded-md text-gray-500 hover:text-gray-800 flex-shrink-0"
             onClick={() => setMenuOpen((p) => !p)}
             aria-label={menuOpen ? "Close menu" : "Open menu"}
           >

@@ -44,9 +44,9 @@ export default function PropertiesPanel() {
 
   return (
     <>
-      {/* Backdrop — overlay mode only (below lg), dismisses the panel */}
+      {/* Backdrop — overlay mode only (below xl), dismisses the panel */}
       {isCompact && open && (
-        <div className="fixed inset-0 z-30 bg-black/30 lg:hidden" onClick={() => setOpen(false)} />
+        <div className="fixed inset-0 z-30 bg-black/30 xl:hidden" onClick={() => setOpen(false)} />
       )}
 
       {/* Manual toggle — overlay mode only, mirrors SidebarTabs' toggle on the opposite edge */}
@@ -54,20 +54,20 @@ export default function PropertiesPanel() {
         onClick={() => setOpen((o) => !o)}
         aria-label={open ? "Close properties" : "Open properties"}
         title={open ? "Close properties" : "Open properties"}
-        className="fixed top-1/2 right-0 z-50 flex h-8 w-6 -translate-y-1/2 items-center justify-center rounded-editor-sm border border-editor-border bg-editor-elevated text-editor-text-muted shadow-editor-sm transition-colors hover:bg-editor-card hover:text-editor-text cursor-pointer lg:hidden"
+        className="fixed top-1/2 right-0 z-50 flex h-8 w-6 -translate-y-1/2 items-center justify-center rounded-editor-sm border border-editor-border bg-editor-elevated text-editor-text-muted shadow-editor-sm transition-colors hover:bg-editor-card hover:text-editor-text cursor-pointer xl:hidden"
       >
         <SlidersHorizontal className="h-3.5 w-3.5" />
       </button>
 
       <aside
-        className={`w-72 flex-shrink-0 overflow-y-auto border-l border-editor-border bg-editor-panel transition-transform duration-200 fixed inset-y-0 right-0 z-40 shadow-2xl lg:static lg:inset-auto lg:right-auto lg:z-auto lg:shadow-none lg:translate-x-0 ${
+        className={`w-72 flex-shrink-0 overflow-y-auto border-l border-editor-border bg-editor-panel transition-transform duration-200 fixed inset-y-0 right-0 z-40 shadow-2xl xl:static xl:inset-auto xl:right-auto xl:z-auto xl:shadow-none xl:translate-x-0 ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
         <button
           onClick={() => setOpen(false)}
           aria-label="Close properties"
-          className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-editor-sm text-editor-text-muted hover:bg-editor-card hover:text-editor-text cursor-pointer lg:hidden"
+          className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-editor-sm text-editor-text-muted hover:bg-editor-card hover:text-editor-text cursor-pointer xl:hidden"
         >
           <X className="h-4 w-4" />
         </button>
