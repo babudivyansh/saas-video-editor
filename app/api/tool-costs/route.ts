@@ -21,7 +21,7 @@ const LABELS: Record<string, string> = {
   "reddit-video": "Reddit Story Video",
   "text-video": "Fake Text Video",
   "enhance-speech": "Speech Enhancer",
-  "video-generator": "Veo3 AI Video",
+  "video-generator": "AI Video Generator",
   "youtube-downloader": "YouTube Downloader",
   "instagram-downloader": "Instagram Downloader",
   "background-remover": "Background Remover",

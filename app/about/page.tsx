@@ -45,10 +45,10 @@ const VALUES = [
 ];
 
 const STATS = [
-  { value: "3.2M+", label: "Creators Empowered" },
-  { value: "48M+", label: "Videos Generated" },
-  { value: "29+", label: "Languages Supported" },
-  { value: "4.9★", label: "Average Review Rating" },
+  { value: "50+", label: "AI Narrator Voices" },
+  { value: "3", label: "Export Aspect Ratios" },
+  { value: "4", label: "Platforms Supported" },
+  { value: "Free", label: "Plan Available" },
 ];
 
 export default function AboutPage() {
@@ -228,7 +228,7 @@ export default function AboutPage() {
                   Ready to turn long content into viral clips?
                 </h2>
                 <p className="mt-4 text-base md:text-lg text-white/80 leading-relaxed">
-                  Start generating vertical short videos now. Join over 3 million creators using Clipiro to dominate feeds.
+                  Start generating vertical short videos now — no credit card required.
                 </p>
                 <div className="mt-8 flex flex-wrap justify-center gap-4">
                   <Link

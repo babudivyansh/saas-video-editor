@@ -26,7 +26,6 @@ const jsonLd = {
       applicationCategory: "MultimediaApplication",
       operatingSystem: "Web",
       offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
-      aggregateRating: { "@type": "AggregateRating", ratingValue: "4.9", ratingCount: "12000" },
     },
     {
       "@type": "FAQPage",

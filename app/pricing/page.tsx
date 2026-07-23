@@ -134,7 +134,7 @@ const TOOLS = [
   { name: "Karaoke Captions", creator: true, pro: true, studio: true },
   { name: "AI Image Generator", creator: true, pro: true, studio: true },
   // Veo3 (veo3-fast) has allowedTiers: ["pro","studio"] — not available on Creator.
-  { name: "AI Video Generator (Veo3)", creator: false, pro: true, studio: true },
+  { name: "AI Video Generator", creator: false, pro: true, studio: true },
   { name: "AI Vocal Remover", creator: true, pro: true, studio: true },
   { name: "AI Voice Changer", creator: true, pro: true, studio: true },
   { name: "AI Speech Enhancer", creator: true, pro: true, studio: true },
@@ -150,7 +150,7 @@ const FAQS = [
   },
   {
     q: "What is a credit?",
-    a: "Credits are spent on AI tools — the cost depends on the tool and model you pick (e.g. 1-8 credits for an image, 2 credits for a voiceover, and per-second pricing for video, including Veo3 AI video). Subscription credits refill each month and unused ones roll over, up to 2× your monthly allowance. Add-on credit packs never expire — they stay on your account even if your subscription lapses.",
+    a: "Credits are spent on AI tools — the cost depends on the tool and model you pick (e.g. 1-8 credits for an image, 2 credits for a voiceover, and per-second pricing for video, including the AI Video Generator). Subscription credits refill each month and unused ones roll over, up to 2× your monthly allowance. Add-on credit packs never expire — they stay on your account even if your subscription lapses.",
   },
   {
     q: "How long can each video be?",
@@ -421,7 +421,7 @@ export default function PricingPage() {
           Pro video tools. One credit at a time.
         </h1>
         <p className="text-lg text-gray-500 max-w-xl mx-auto mb-2">
-          Every AI tool — voiceovers, captions, Veo3 videos, and more — in one plan.
+          Every AI tool — voiceovers, captions, AI-generated videos, and more — in one plan.
           Go <span className="font-semibold text-gray-700">yearly to save 33%</span>.
         </p>
       </section>
