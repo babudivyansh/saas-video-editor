@@ -55,13 +55,23 @@ function NavLink({ id, icon, label, href, active }: { id: string; icon: React.Re
   );
 }
 
-export default function ToolsSidebar({ active = "home" }: { active?: string }) {
+export interface ToolsSidebarNavItem {
+  id: string;
+  icon: React.ReactNode;
+  label: string;
+  href: string;
+}
+
+// Shared with DashboardHeader's mobile drawer (below `lg`, this rail is
+// hidden entirely and these same items are what the drawer lists instead) —
+// exported so both surfaces stay in sync with exactly one nav definition.
+export function useDashboardNavItems(): { nav: ToolsSidebarNavItem[]; bottomNav: ToolsSidebarNavItem[] } {
   const t = useTranslations("Nav.rail");
 
   // "Projects" used to be dead-wired to the same /dashboard URL as "Home" —
   // this is the actual destination it was always meant to have (see the
   // Account/Navigation audit): the AutoClip project library at /dashboard/clips.
-  const NAV = [
+  const nav: ToolsSidebarNavItem[] = [
     { id: "home",     icon: <IcHome />,   label: t("home"),           href: "/dashboard" },
     { id: "projects", icon: <IcFolder />, label: t("projects"),       href: "/dashboard/clips" },
     { id: "assets",   icon: <IcAssets />, label: t("assets"),         href: "/dashboard/assets" },
@@ -69,15 +79,21 @@ export default function ToolsSidebar({ active = "home" }: { active?: string }) {
     { id: "social",   icon: <IcSocial />, label: t("socialTracker"),  href: "/dashboard/social-tracker" },
   ];
 
-  const BOTTOM_NAV = [
+  const bottomNav: ToolsSidebarNavItem[] = [
     { id: "earn",     icon: <IcGift />,     label: t("earnCredits"), href: "/dashboard/referral" },
     { id: "settings", icon: <IcSettings />, label: t("settings"),    href: "/dashboard/settings" },
     { id: "billing",  icon: <IcZap />,      label: t("upgradePlan"), href: "/billing" },
   ];
 
+  return { nav, bottomNav };
+}
+
+export default function ToolsSidebar({ active = "home" }: { active?: string }) {
+  const { nav: NAV, bottomNav: BOTTOM_NAV } = useDashboardNavItems();
+
   return (
     <aside
-      className="flex flex-col items-center pt-5 pb-5 flex-shrink-0 border-r border-gray-100 bg-white"
+      className="hidden lg:flex flex-col items-center pt-5 pb-5 flex-shrink-0 border-r border-gray-100 bg-white"
       style={{ width: 88 }}
     >
       {/* Main nav */}

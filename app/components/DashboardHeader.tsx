@@ -17,6 +17,7 @@ import { NavDropdown, DropdownItem, type NavItem } from "@/app/components/NavDro
 import SidebarAccount from "@/app/components/SidebarAccount";
 import { useAuth } from "@/app/components/AuthContext";
 import { FREE_FEATURES, VIDEO_TOOLS, AI_TOOLS, RESOURCES } from "@/app/components/featureLinks";
+import { useDashboardNavItems } from "@/app/components/ToolsSidebar";
 import { Button } from "@/app/components/ui/Button";
 import { CreditsPill } from "@/app/components/ui/CreditsPill";
 
@@ -34,6 +35,15 @@ function IcChevronDown({ open }: { open: boolean }) {
 }
 function IcGift() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>;
+}
+function IcMenu({ open }: { open: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+      {open
+        ? <path d="M6 18L18 6M6 6l12 12" />
+        : <path d="M4 6h16M4 12h16M4 18h16" />}
+    </svg>
+  );
 }
 function IcDiscord() {
   return <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>;
@@ -83,7 +93,7 @@ function useCorePages(): SearchEntry[] {
   );
 }
 
-function HeaderSearch() {
+function HeaderSearch({ className = "relative flex-1 max-w-md" }: { className?: string }) {
   const t = useTranslations("Nav");
   const corePages = useCorePages();
   const [query, setQuery] = useState("");
@@ -119,7 +129,7 @@ function HeaderSearch() {
   const open = focused && results.length > 0;
 
   return (
-    <div ref={ref} className="relative hidden md:block flex-1 max-w-md">
+    <div ref={ref} className={className}>
       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-soft/50 pointer-events-none"><IcSearch /></span>
       <input
         value={query}
@@ -207,7 +217,7 @@ function CreateMenu() {
   return (
     <div
       ref={ref}
-      className="relative hidden sm:block"
+      className="relative hidden lg:block"
       onMouseEnter={() => { cancelClose(); setOpen(true); }}
       onMouseLeave={scheduleClose}
     >
@@ -238,6 +248,10 @@ function CreateMenu() {
 export default function DashboardHeader() {
   const { user, openAuthModal } = useAuth();
   const t = useTranslations("Nav");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileSection, setMobileSection] = useState<string | null>(null);
+  const { nav: railNav, bottomNav: railBottomNav } = useDashboardNavItems();
+  const createItems = useCreateItems();
 
   const hasActivePlan =
     !!user?.subscriptionEndsAt && new Date(user.subscriptionEndsAt) > new Date();
@@ -252,8 +266,21 @@ export default function DashboardHeader() {
     RESOURCES[1],
   ];
 
+  const closeMobile = () => { setMenuOpen(false); setMobileSection(null); };
+
   return (
+    <>
     <header className="flex items-center gap-4 px-5 h-16 flex-shrink-0 border-b border-gray-100 bg-white z-40">
+      {user && (
+        <button
+          className="lg:hidden p-2 -ml-2 rounded-md text-ink-soft hover:text-ink flex-shrink-0"
+          onClick={() => setMenuOpen((p) => !p)}
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+        >
+          <IcMenu open={menuOpen} />
+        </button>
+      )}
+
       <Link href="/dashboard" className="flex items-center flex-shrink-0" aria-label={t("dashboardHome")}>
         <ClipiroLogo className="h-8" />
       </Link>
@@ -338,9 +365,11 @@ export default function DashboardHeader() {
       </nav>
 
       {/* Global search — grows to fill the middle */}
-      <div className="flex-1 flex justify-center min-w-0">
+      <div className="hidden lg:flex flex-1 justify-center min-w-0">
         <HeaderSearch />
       </div>
+
+      <div className="flex-1 lg:hidden" />
 
       <div className="flex items-center gap-2.5 flex-shrink-0">
         {user ? (
@@ -352,7 +381,7 @@ export default function DashboardHeader() {
               href="/billing"
               title={t("yourPlan")}
               data-tour="plan-chip"
-              className={`hidden md:inline-flex items-center text-[11px] font-bold uppercase tracking-wider rounded-full px-2.5 py-1 transition-colors ${
+              className={`hidden lg:inline-flex items-center text-[11px] font-bold uppercase tracking-wider rounded-full px-2.5 py-1 transition-colors ${
                 hasActivePlan
                   ? "bg-tint-emerald text-green-700 hover:bg-emerald-100"
                   : "bg-gray-100 text-ink-soft hover:bg-gray-200"
@@ -365,7 +394,7 @@ export default function DashboardHeader() {
             </div>
 
             {/* Monetization CTA: upgrade when free, top up when subscribed */}
-            <Button variant={hasActivePlan ? "secondary" : "primary"} size="sm" href="/billing" className="hidden sm:inline-flex">
+            <Button variant={hasActivePlan ? "secondary" : "primary"} size="sm" href="/billing" className="hidden lg:inline-flex">
               {hasActivePlan ? t("topUp") : t("upgrade")}
             </Button>
 
@@ -381,5 +410,117 @@ export default function DashboardHeader() {
         )}
       </div>
     </header>
+
+    {/* Mobile drawer — replaces the ToolsSidebar rail + everything the header
+        hides below `lg`, in one place, mirroring SiteNavbar.tsx's mobile menu. */}
+    {user && menuOpen && (
+      <div className="lg:hidden fixed inset-x-0 top-16 bottom-0 z-50 flex" data-testid="mobile-nav-drawer">
+        <div className="absolute inset-0 bg-black/40" onClick={closeMobile} />
+        <div className="relative w-full max-w-xs h-full bg-white shadow-xl overflow-y-auto px-4 py-4 space-y-1">
+          <HeaderSearch className="relative mb-3" />
+
+          {/* Primary nav (mirrors ToolsSidebar) */}
+          {railNav.map((item) => (
+            <Link key={item.id} href={item.href} onClick={closeMobile} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink hover:bg-tint-blue transition-colors">
+              <span className="text-ink-soft">{item.icon}</span>
+              {item.label}
+            </Link>
+          ))}
+
+          <div className="my-2 border-t border-gray-100" />
+
+          {/* Create */}
+          <button onClick={() => setMobileSection(mobileSection === "create" ? null : "create")} className="flex items-center justify-between w-full text-sm font-semibold text-ink py-2 px-3">
+            {t("create")}
+            <IcChevronDown open={mobileSection === "create"} />
+          </button>
+          {mobileSection === "create" && (
+            <div className="pl-3 pb-1">
+              {createItems.map((item) => (
+                <Link key={item.title} href={item.href} onClick={closeMobile} className="block py-1.5 px-3">
+                  <span className="block text-sm font-medium text-ink">{item.title}</span>
+                  <span className="block text-xs text-ink-soft">{item.desc}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+
+          {/* Features */}
+          <button onClick={() => setMobileSection(mobileSection === "features" ? null : "features")} className="flex items-center justify-between w-full text-sm font-semibold text-ink py-2 px-3">
+            {t("features")}
+            <IcChevronDown open={mobileSection === "features"} />
+          </button>
+          {mobileSection === "features" && (
+            <div className="pl-3 pb-1">
+              {([[t("videoTools"), VIDEO_TOOLS], [t("aiTools"), AI_TOOLS], [t("freeTools"), FREE_FEATURES]] as const).map(([group, items]) => (
+                <div key={group}>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-brand mt-2 mb-1 px-3">{group}</p>
+                  {items.map((item) => (
+                    <Link key={item.title} href={item.href} onClick={closeMobile} className="block py-1.5 px-3">
+                      <span className="block text-sm font-medium text-ink">{item.title}</span>
+                      <span className="block text-xs text-ink-soft">{item.desc}</span>
+                    </Link>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Resources */}
+          <button onClick={() => setMobileSection(mobileSection === "resources" ? null : "resources")} className="flex items-center justify-between w-full text-sm font-semibold text-ink py-2 px-3">
+            {t("resources")}
+            <IcChevronDown open={mobileSection === "resources"} />
+          </button>
+          {mobileSection === "resources" && (
+            <div className="pl-3 pb-1">
+              {dashboardResources.map((item) =>
+                item.external ? (
+                  <a key={item.title} href={item.href} target="_blank" rel="noopener noreferrer" onClick={closeMobile} className="block py-1.5 px-3">
+                    <span className="block text-sm font-medium text-ink">{item.title}</span>
+                    <span className="block text-xs text-ink-soft">{item.desc}</span>
+                  </a>
+                ) : (
+                  <Link key={item.title} href={item.href} onClick={closeMobile} className="block py-1.5 px-3">
+                    <span className="block text-sm font-medium text-ink">{item.title}</span>
+                    <span className="block text-xs text-ink-soft">{item.desc}</span>
+                  </Link>
+                ),
+              )}
+            </div>
+          )}
+
+          {/* Bottom nav (earn / settings / billing) */}
+          <div className="my-2 border-t border-gray-100" />
+          {railBottomNav.map((item) => (
+            <Link key={item.id} href={item.href} onClick={closeMobile} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink hover:bg-tint-blue transition-colors">
+              <span className="text-ink-soft">{item.icon}</span>
+              {item.label}
+            </Link>
+          ))}
+
+          {user && (
+            <>
+              <div className="my-2 border-t border-gray-100" />
+              <div className="flex items-center justify-between px-3 py-2">
+                <span
+                  className={`inline-flex items-center text-[11px] font-bold uppercase tracking-wider rounded-full px-2.5 py-1 ${
+                    hasActivePlan ? "bg-tint-emerald text-green-700" : "bg-gray-100 text-ink-soft"
+                  }`}
+                >
+                  {planName}
+                </span>
+                <CreditsPill credits={user.credits ?? 0} />
+              </div>
+              <div className="px-3 pt-1 pb-2">
+                <Button variant={hasActivePlan ? "secondary" : "primary"} size="sm" href="/billing" className="w-full" onClick={closeMobile}>
+                  {hasActivePlan ? t("topUp") : t("upgrade")}
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    )}
+    </>
   );
 }

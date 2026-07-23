@@ -14,6 +14,13 @@ function IcLog()     { return <svg viewBox="0 0 24 24" fill="none" stroke="curre
 function IcGift()    { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>; }
 function IcTicket()  { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M3 9a2 2 0 012-2h14a2 2 0 012 2v1.5a1.5 1.5 0 000 3V15a2 2 0 01-2 2H5a2 2 0 01-2-2v-1.5a1.5 1.5 0 000-3z"/><path d="M13 7v10" strokeDasharray="2 2"/></svg>; }
 function IcSpinner() { return <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />; }
+function IcMenu({ open }: { open: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+      {open ? <path d="M6 18L18 6M6 6l12 12" /> : <path d="M4 6h16M4 12h16M4 18h16" />}
+    </svg>
+  );
+}
 
 const NAV = [
   { href: "/admin",               label: "Dashboard",    icon: <IcGrid />,     exact: true  },
@@ -213,6 +220,7 @@ export default function AdminShell({ children, title }: { children: React.ReactN
   const { user, isLoading, signOut, token } = useAuth();
   const pathname = usePathname();
   const [elevated, setElevated] = useState<boolean | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!token || !user || user.role !== "ADMIN") return;
@@ -242,42 +250,71 @@ export default function AdminShell({ children, title }: { children: React.ReactN
     return <AdminGate email={user.email} onElevated={() => setElevated(true)} />;
   }
 
+  // Shared between the always-on desktop aside and the mobile drawer, so
+  // there's exactly one NAV/footer definition rather than two to keep in sync.
+  const navContent = (
+    <>
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        {NAV.map(item => {
+          const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
+          return (
+            <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${active ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"}`}>
+              {item.icon} {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+      <div className="px-4 py-4 border-t border-gray-100 space-y-1">
+        <p className="text-[10px] text-gray-400 truncate px-1">{user.email}</p>
+        <Link href="/dashboard" className="block text-sm font-semibold text-gray-500 hover:text-gray-800 px-1 py-1">
+          ← Back to app
+        </Link>
+        <button onClick={signOut} className="block w-full text-left text-sm font-semibold text-red-400 hover:text-red-600 px-1 py-1">
+          Logout
+        </button>
+      </div>
+    </>
+  );
+
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
-      {/* Sidebar */}
-      <aside className="w-56 flex-shrink-0 bg-white border-r border-gray-100 flex flex-col">
+      {/* Sidebar (desktop) */}
+      <aside className="hidden lg:flex w-56 flex-shrink-0 bg-white border-r border-gray-100 flex-col">
         <Link href="/dashboard" className="flex items-center gap-2 px-5 h-16 border-b border-gray-100">
           <span className="bg-blue-600 text-white rounded-lg w-8 h-8 flex items-center justify-center font-extrabold">C</span>
           <span className="font-bold text-gray-900">Admin</span>
         </Link>
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          {NAV.map(item => {
-            const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
-            return (
-              <Link key={item.href} href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${active ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"}`}>
-                {item.icon} {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="px-4 py-4 border-t border-gray-100 space-y-1">
-          <p className="text-[10px] text-gray-400 truncate px-1">{user.email}</p>
-          <Link href="/dashboard" className="block text-sm font-semibold text-gray-500 hover:text-gray-800 px-1 py-1">
-            ← Back to app
-          </Link>
-          <button onClick={signOut} className="block w-full text-left text-sm font-semibold text-red-400 hover:text-red-600 px-1 py-1">
-            Logout
-          </button>
-        </div>
+        {navContent}
       </aside>
+
+      {/* Mobile drawer */}
+      {menuOpen && (
+        <div className="lg:hidden fixed inset-x-0 top-16 bottom-0 z-50 flex">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setMenuOpen(false)} />
+          <div className="relative w-full max-w-xs h-full bg-white shadow-xl flex flex-col">
+            <div className="flex items-center gap-2 px-5 h-16 border-b border-gray-100">
+              <span className="bg-blue-600 text-white rounded-lg w-8 h-8 flex items-center justify-center font-extrabold">C</span>
+              <span className="font-bold text-gray-900">Admin</span>
+            </div>
+            {navContent}
+          </div>
+        </div>
+      )}
 
       {/* Main */}
       <main className="flex-1 overflow-y-auto">
-        <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-8 h-16 flex items-center">
-          <h1 className="text-xl font-bold text-gray-900">{title}</h1>
+        <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-8 h-16 flex items-center gap-3">
+          <button
+            className="lg:hidden p-2 -ml-2 rounded-md text-gray-500 hover:text-gray-800 flex-shrink-0"
+            onClick={() => setMenuOpen((p) => !p)}
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+          >
+            <IcMenu open={menuOpen} />
+          </button>
+          <h1 className="text-xl font-bold text-gray-900 truncate">{title}</h1>
         </div>
-        <div className="max-w-6xl mx-auto px-8 py-8">{children}</div>
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-8">{children}</div>
       </main>
     </div>
   );

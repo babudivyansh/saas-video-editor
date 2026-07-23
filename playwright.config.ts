@@ -14,9 +14,11 @@ export default defineConfig({
     baseURL,
     trace: "on-first-retry",
   },
-  // Single browser project — matches the plan's "start simple" scope.
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    // Mobile viewport — scoped to just the responsive smoke checks so it
+    // doesn't re-run the existing desktop-oriented specs at phone width.
+    { name: "Mobile Safari", use: { ...devices["iPhone 13"] }, testMatch: "responsive.spec.ts" },
   ],
   webServer: {
     command: `npx next dev -p ${PORT}`,
