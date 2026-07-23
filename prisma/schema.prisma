@@ -200,6 +200,16 @@ model Affiliate {
   // be a real, testable rejection reason for the sign-up referral-code field
   // (see lib/affiliate.ts resolveReferralCode) instead of unreachable.
   codeExpiresAt  DateTime?
+  // Set when the affiliate clicks "Request Payout" (payout-request route);
+  // cleared when an admin marks them paid. Purely a UI/visibility signal —
+  // never gates anything server-side.
+  payoutRequestedAt         DateTime?
+  // Dedupe guard for the admin "available balance crossed the payout
+  // threshold" email (see lib/affiliate.ts notifyAdminsIfPayoutEligible).
+  // Set only after at least one admin email actually sends; cleared
+  // alongside payoutRequestedAt when an admin marks them paid, so the next
+  // earning cycle can notify again.
+  payoutThresholdNotifiedAt DateTime?
   createdAt      DateTime     @default(now())
   referrals      Referral[]
   commissions    Commission[]

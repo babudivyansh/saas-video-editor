@@ -5,6 +5,9 @@ vi.mock("@/lib/auth", () => ({
   requireAdmin: vi.fn(async () => ({ userId: "admin-1", email: "admin@test.co" })),
 }));
 
+const notifyAdminsIfPayoutEligible = vi.fn(async () => {});
+vi.mock("@/lib/affiliate", () => ({ notifyAdminsIfPayoutEligible }));
+
 interface CommissionRow {
   id: string;
   affiliateId: string;
@@ -79,6 +82,17 @@ describe("commission release", () => {
     const res = await POST(...post({ action: "release" }));
     expect(res.status).toBe(409);
   });
+
+  it("notifies admins the affiliate may now be payout-eligible", async () => {
+    await POST(...post({ action: "release" }));
+    expect(notifyAdminsIfPayoutEligible).toHaveBeenCalledWith("a1");
+  });
+
+  it("does not notify admins when release is refused", async () => {
+    commission.status = "paid";
+    await POST(...post({ action: "release" }));
+    expect(notifyAdminsIfPayoutEligible).not.toHaveBeenCalled();
+  });
 });
 
 describe("commission reject", () => {
@@ -103,5 +117,10 @@ describe("commission reject", () => {
     const res = await POST(...post({ action: "approve" }));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("Validation failed");
+  });
+
+  it("does not notify admins on reject (rejecting can't increase balance)", async () => {
+    await POST(...post({ action: "reject" }));
+    expect(notifyAdminsIfPayoutEligible).not.toHaveBeenCalled();
   });
 });

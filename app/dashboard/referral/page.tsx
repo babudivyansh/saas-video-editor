@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { EmptyState } from "@/app/components/ui/EmptyState";
+import { MIN_PAYOUT_AMOUNT } from "@/lib/affiliate-constants";
 
 function IcGift() {
   return (
@@ -184,7 +185,7 @@ export default function ReferralPage() {
                   { label: "Total Referred", value: stats.totalReferrals ?? 0 },
                   { label: "Converted", value: stats.convertedReferrals ?? 0 },
                   { label: "Pending (₹)", value: `₹${(stats.pendingAmount ?? 0).toFixed(2)}` },
-                  { label: "Available (₹)", value: `₹${(stats.availableAmount ?? 0).toFixed(2)}`, highlight: available >= 500 },
+                  { label: "Available (₹)", value: `₹${(stats.availableAmount ?? 0).toFixed(2)}`, highlight: available >= MIN_PAYOUT_AMOUNT },
                 ].map(stat => (
                   <div
                     key={stat.label}
@@ -202,13 +203,13 @@ export default function ReferralPage() {
                   <div>
                     <p className="text-sm font-semibold text-gray-800">Request Payout</p>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      Minimum ₹500. Payouts are processed manually, typically within a few business days of request.
-                      {available < 500 && ` You need ₹${(500 - available).toFixed(2)} more.`}
+                      Minimum ₹{MIN_PAYOUT_AMOUNT}. Payouts are processed manually, typically within a few business days of request.
+                      {available < MIN_PAYOUT_AMOUNT && ` You need ₹${(MIN_PAYOUT_AMOUNT - available).toFixed(2)} more.`}
                     </p>
                   </div>
                   <button
                     onClick={handlePayoutRequest}
-                    disabled={available < 500 || payoutRequesting}
+                    disabled={available < MIN_PAYOUT_AMOUNT || payoutRequesting}
                     className="flex-shrink-0 px-5 py-2.5 rounded-xl text-sm font-semibold bg-green-600 hover:bg-green-700 text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {payoutRequesting ? "Requesting..." : `Request ₹${available.toFixed(2)}`}

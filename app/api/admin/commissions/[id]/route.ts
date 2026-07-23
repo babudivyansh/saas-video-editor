@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { withAdmin, parseBody } from "@/lib/admin/api";
 import { auditAdminAction, auditIp } from "@/lib/admin/audit";
 import { commissionActionSchema } from "@/lib/admin/schemas";
+import { notifyAdminsIfPayoutEligible } from "@/lib/affiliate";
+import { logger } from "@/lib/logger";
 
 // POST /api/admin/commissions/[id]  body: { action: "release" | "reject", reason? }
 //
@@ -42,6 +44,14 @@ export const POST = withAdmin<{ id: string }>(async (req, { admin, params }) => 
 
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
+  }
+
+  if (action === "release") {
+    // Bypassing the 30-day hold can push the affiliate's available balance
+    // over the payout threshold — reject can't (it only removes balance).
+    await notifyAdminsIfPayoutEligible(result.commission.affiliateId).catch((e) =>
+      logger.error("admin/commissions", `admin notify failed for affiliate ${result.commission.affiliateId}`, e),
+    );
   }
 
   await auditAdminAction(

@@ -4,6 +4,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { sendCommissionAvailableEmail } from "@/lib/email";
+import { notifyAdminsIfPayoutEligible } from "@/lib/affiliate";
 import { logger } from "@/lib/logger";
 
 export interface CommissionPayoutSweepResult {
@@ -51,6 +52,11 @@ export async function runCommissionPayoutSweep(): Promise<CommissionPayoutSweepR
         data: { status: "available", payoutEmailSent: true },
       });
       notified++;
+      // Best-effort admin alert — must never turn a successful commission
+      // flip into a sweep-reported error.
+      await notifyAdminsIfPayoutEligible(commission.affiliateId).catch((e) =>
+        logger.error("cron/commission-payout", `admin notify failed for affiliate ${commission.affiliateId}`, e),
+      );
     } catch (e) {
       logger.error("cron/commission-payout", `error for commission ${commission.id}`, e);
       errors++;

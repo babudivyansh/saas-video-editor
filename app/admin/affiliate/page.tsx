@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import AdminShell from "@/app/admin/AdminShell";
 import { useAuth } from "@/app/components/AuthContext";
+import { MIN_PAYOUT_AMOUNT } from "@/lib/affiliate-constants";
 
 interface AffiliateRow {
   id: string;
@@ -15,6 +16,7 @@ interface AffiliateRow {
   referralCount: number;
   convertedReferrals: number;
   commissionTotals: { pending: number; available: number; paid: number; rejected: number; count: number };
+  payoutRequestedAt: string | null;
 }
 
 interface CommissionRow {
@@ -45,6 +47,14 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const PAGE_LIMIT = 100;
+
+function timeAgo(iso: string): string {
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
 
 function AffiliateContent() {
   const { token } = useAuth();
@@ -187,7 +197,9 @@ function AffiliateContent() {
 
   const filteredCommissions = statusFilter === "all" ? commissions : commissions.filter(c => c.status === statusFilter);
 
-  const payoutCandidates = affiliates.filter(a => a.commissionTotals.available >= 500);
+  const payoutCandidates = [...affiliates]
+    .filter(a => a.commissionTotals.available >= MIN_PAYOUT_AMOUNT)
+    .sort((a, b) => (b.payoutRequestedAt ? 1 : 0) - (a.payoutRequestedAt ? 1 : 0));
 
   return (
     <>
@@ -411,7 +423,7 @@ function AffiliateContent() {
           )}
           {payoutCandidates.length === 0 && (
             <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-gray-400 shadow-sm">
-              No affiliates have ₹500+ available for payout
+              No affiliates have ₹{MIN_PAYOUT_AMOUNT}+ available for payout
             </div>
           )}
           {payoutCandidates.map(a => {
@@ -420,7 +432,14 @@ function AffiliateContent() {
               <div key={a.id} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div>
-                    <p className="font-semibold text-gray-900">{a.user.name ?? "—"}</p>
+                    <p className="font-semibold text-gray-900 flex items-center gap-2">
+                      {a.user.name ?? "—"}
+                      {a.payoutRequestedAt && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                          Requested {timeAgo(a.payoutRequestedAt)}
+                        </span>
+                      )}
+                    </p>
                     <p className="text-sm text-gray-500">{a.user.email} · <span className="font-mono">{a.code}</span></p>
                     <p className="text-lg font-bold text-green-600 mt-1">₹{avail.toFixed(2)} available</p>
                   </div>
