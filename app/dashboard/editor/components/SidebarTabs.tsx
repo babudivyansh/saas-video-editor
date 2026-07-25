@@ -3,7 +3,7 @@
 // Left sidebar: icon rail + the active panel, with a collapse toggle that
 // hides the panel and leaves just the icon rail.
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Clapperboard,
@@ -20,6 +20,7 @@ import {
   ChevronLeft,
 } from "lucide-react";
 import { useEditorStore, type PanelKind } from "../store/editorStore";
+import { useIsCompactEditor } from "../hooks/useIsCompactEditor";
 import MediaPanel from "./panels/MediaPanel";
 import StockImagePanel from "./panels/StockImagePanel";
 import StockAudioPanel from "./panels/StockAudioPanel";
@@ -49,10 +50,22 @@ const TABS: { id: PanelKind; label: string; icon: React.ReactNode }[] = [
 export default function SidebarTabs() {
   const activePanel = useEditorStore((s) => s.activePanel);
   const setActivePanel = useEditorStore((s) => s.setActivePanel);
+  const isCompact = useIsCompactEditor();
   const [collapsed, setCollapsed] = useState(false);
+
+  // Below `xl` (tablet range — phones are already blocked by EditorShell's
+  // own gate), default the panel closed so PreviewStage gets full width;
+  // tapping a tab still opens it, now as an overlay instead of a push.
+  useEffect(() => {
+    setCollapsed(isCompact);
+  }, [isCompact]);
 
   return (
     <aside className="relative flex h-full flex-shrink-0 border-r border-editor-border bg-editor-panel">
+      {/* Backdrop — overlay mode only (below xl), dismisses the panel */}
+      {isCompact && !collapsed && (
+        <div className="fixed inset-0 z-30 bg-black/30 xl:hidden" onClick={() => setCollapsed(true)} />
+      )}
       {/* Icon rail — icon + always-visible label (11 distinct content-type
           tabs benefit from a text label, unlike single-purpose icon buttons
           elsewhere in the chrome). */}
@@ -90,7 +103,7 @@ export default function SidebarTabs() {
         animate={{ width: collapsed ? 0 : 320, opacity: collapsed ? 0 : 1 }}
         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
         style={{ overflow: "hidden" }}
-        className="bg-editor-bg"
+        className="fixed inset-y-0 left-16 z-40 bg-editor-bg shadow-2xl xl:static xl:inset-auto xl:left-auto xl:z-auto xl:shadow-none"
       >
         <div className="h-full w-80 overflow-y-auto overflow-x-hidden">
           {activePanel === "media" && <MediaPanel />}
@@ -112,7 +125,7 @@ export default function SidebarTabs() {
         onClick={() => setCollapsed((c) => !c)}
         aria-label={collapsed ? "Expand panel" : "Collapse panel"}
         title={collapsed ? "Expand panel" : "Collapse panel"}
-        className="absolute top-1/2 -right-3 z-10 flex h-8 w-6 -translate-y-1/2 items-center justify-center rounded-editor-sm border border-editor-border bg-editor-elevated text-editor-text-muted shadow-editor-sm transition-colors hover:bg-editor-card hover:text-editor-text cursor-pointer"
+        className="absolute top-1/2 -right-3 z-50 flex h-8 w-6 -translate-y-1/2 items-center justify-center rounded-editor-sm border border-editor-border bg-editor-elevated text-editor-text-muted shadow-editor-sm transition-colors hover:bg-editor-card hover:text-editor-text cursor-pointer"
       >
         <ChevronLeft className={`h-3.5 w-3.5 transition-transform ${collapsed ? "rotate-180" : ""}`} />
       </button>

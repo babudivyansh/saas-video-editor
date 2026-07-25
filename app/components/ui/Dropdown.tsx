@@ -47,7 +47,7 @@ export function Dropdown({ trigger, children, align = "left", className = "" }: 
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: -4 }}
             transition={{ duration: 0.12 }}
-            className={`absolute top-full mt-2 z-40 min-w-[10rem] rounded-2xl border border-card-border bg-white shadow-xl overflow-hidden ${align === "right" ? "right-0" : "left-0"} ${className}`}
+            className={`absolute top-full mt-2 z-40 min-w-[10rem] max-w-[calc(100vw-2rem)] rounded-2xl border border-card-border bg-white shadow-xl overflow-hidden ${align === "right" ? "right-0" : "left-0"} ${className}`}
           >
             {children({ close: () => setOpen(false) })}
           </motion.div>

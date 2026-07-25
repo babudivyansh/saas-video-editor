@@ -51,28 +51,30 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
   return (
     <ToastProvider>
-      <div className="max-w-6xl mx-auto px-4 sm:px-8 pt-6 pb-12 flex gap-8 items-start">
-        <aside className="w-56 flex-shrink-0 sticky top-8 space-y-1">
-          <h1 className="text-xs font-bold text-ink-soft uppercase tracking-widest px-3 mb-2">{t("heading")}</h1>
-          {TABS.map(({ label, href, icon: Icon, exact, danger, external }) => {
-            const active = exact ? pathname === href : pathname?.startsWith(href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={`relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors ${
-                  active
-                    ? danger ? "bg-red-50 text-red-600" : "bg-tint-violet text-brand"
-                    : danger ? "text-red-500/80 hover:bg-red-50 hover:text-red-600" : "text-ink-soft hover:bg-tint-blue hover:text-ink"
-                }`}
-              >
-                {active && <span className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${danger ? "bg-red-500" : "grad-brand"}`} />}
-                <Icon />
-                <span className="flex-1">{label}</span>
-                {external && <IcExternal />}
-              </Link>
-            );
-          })}
+      <div className="max-w-6xl mx-auto px-4 sm:px-8 pt-6 pb-12 flex flex-col xl:flex-row gap-4 xl:gap-8 items-stretch xl:items-start">
+        <aside className="xl:w-56 flex-shrink-0 xl:sticky xl:top-8">
+          <h1 className="hidden xl:block text-xs font-bold text-ink-soft uppercase tracking-widest px-3 mb-2">{t("heading")}</h1>
+          <div className="flex overflow-x-auto gap-1 pb-1 xl:flex-col xl:overflow-visible xl:gap-0 xl:space-y-1 xl:pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {TABS.map(({ label, href, icon: Icon, exact, danger, external }) => {
+              const active = exact ? pathname === href : pathname?.startsWith(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={`relative flex flex-shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors ${
+                    active
+                      ? danger ? "bg-red-50 text-red-600" : "bg-tint-violet text-brand"
+                      : danger ? "text-red-500/80 hover:bg-red-50 hover:text-red-600" : "text-ink-soft hover:bg-tint-blue hover:text-ink"
+                  }`}
+                >
+                  {active && <span className={`hidden xl:block absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${danger ? "bg-red-500" : "grad-brand"}`} />}
+                  <Icon />
+                  <span className="flex-1">{label}</span>
+                  {external && <IcExternal />}
+                </Link>
+              );
+            })}
+          </div>
         </aside>
         <section className="flex-1 min-w-0">{children}</section>
       </div>

@@ -30,7 +30,7 @@ export function Tooltip({ content, children, position = "top" }: TooltipProps) {
       <span
         id={id}
         role="tooltip"
-        className={`pointer-events-none absolute ${POSITION[position]} block w-56 px-2.5 py-1.5 text-xs font-medium text-white bg-ink rounded-lg opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 z-50 shadow-lg transition-opacity text-center`}
+        className={`pointer-events-none absolute ${POSITION[position]} block w-56 max-w-[calc(100vw-2rem)] px-2.5 py-1.5 text-xs font-medium text-white bg-ink rounded-lg opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 z-50 shadow-lg transition-opacity text-center`}
       >
         {content}
       </span>

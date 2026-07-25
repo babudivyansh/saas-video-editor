@@ -105,6 +105,24 @@ export default function LegalPage({ title, lastUpdated, sections, children }: Le
             </div>
           </aside>
 
+          {/* Mobile table of contents — collapsible, replaces the sidebar below lg */}
+          <details className="lg:hidden bg-gray-50/60 rounded-2xl border border-gray-100 p-4">
+            <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none">
+              Jump to section
+            </summary>
+            <nav className="mt-3 space-y-1">
+              {sections.map((s) => (
+                <a
+                  key={s.id}
+                  href={`#${s.id}`}
+                  className="block text-sm py-1.5 pl-3 border-l-2 border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300 transition-all"
+                >
+                  {s.title}
+                </a>
+              ))}
+            </nav>
+          </details>
+
           {/* Main content */}
           <main className="flex-1 min-w-0">
             <div className="mb-10 pb-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
