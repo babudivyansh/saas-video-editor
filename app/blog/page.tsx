@@ -2,12 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import SiteNavbar from "@/app/components/SiteNavbar";
 import SiteFooter from "@/app/components/SiteFooter";
+import Breadcrumbs from "@/app/components/ui/Breadcrumbs";
 import { BLOG_POSTS } from "./posts";
+import { getReadingTime } from "./utils";
+import { buildBreadcrumbSchema, buildCollectionPageSchema } from "./schema";
 
 export const metadata: Metadata = {
   title: "Blog",
   description:
     "Tips, tutorials, and product updates on AI video clipping, captions, and growing your audience with short-form content.",
+  alternates: { canonical: "/blog" },
   openGraph: {
     title: "Clipiro Blog",
     description: "Tips, tutorials, and updates on AI-powered short-form video.",
@@ -17,13 +21,24 @@ export const metadata: Metadata = {
 const TOPICS = BLOG_POSTS;
 
 export default function BlogPage() {
+  const collectionSchema = buildCollectionPageSchema();
+  const breadcrumbSchema = buildBreadcrumbSchema([
+    { name: "Home", path: "/" },
+    { name: "Blog", path: "/blog" },
+  ]);
+
   return (
     <div className="min-h-screen bg-white text-gray-900 font-sans">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
       <SiteNavbar solid />
       <main>
         <section className="border-b border-gray-100 bg-gray-50/60">
           <div className="mx-auto w-full max-w-screen-2xl px-4 py-20 text-center md:px-12 lg:px-[120px]">
-            <span className="text-xs font-bold uppercase tracking-widest text-[#335CFF]">Blog</span>
+            <div className="flex justify-center">
+              <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Blog" }]} />
+            </div>
+            <span className="mt-4 block text-xs font-bold uppercase tracking-widest text-[#335CFF]">Blog</span>
             <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-extrabold leading-tight text-gray-900 md:text-6xl">
               The Clipiro creator playbook
             </h1>
@@ -43,13 +58,13 @@ export default function BlogPage() {
               >
                 <div className="flex aspect-[16/9] items-center justify-center bg-gradient-to-br from-[#335CFF]/10 to-purple-400/10">
                   <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-bold uppercase tracking-widest text-[#335CFF]">
-                    {post.tag}
+                    {post.category}
                   </span>
                 </div>
                 <div className="flex flex-1 flex-col p-6">
                   <h3 className="text-base font-bold leading-snug text-gray-900 group-hover:text-[#335CFF]">{post.title}</h3>
                   <div className="mt-auto flex items-center gap-2 pt-4 text-xs text-gray-400">
-                    <span>{post.read}</span>
+                    <span>{getReadingTime(post)}</span>
                   </div>
                 </div>
               </Link>
