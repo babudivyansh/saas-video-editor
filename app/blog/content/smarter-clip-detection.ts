@@ -12,7 +12,7 @@ export const smarterClipDetection: BlogPost = {
   author: AUTHORS.product,
   intro:
     "AutoClip's clip-selection has gotten a real upgrade — not just \"better AI,\" but a specific set of new controls that change what the pipeline optimizes for and give you more say before anything renders.",
-  paragraphs: [
+  body: [
     {
       heading: "Why this update exists",
       text: "The original version of AutoClip made one decision for you: crop to a center frame, cut silence uniformly, apply one caption style to everything. That's fine for simple talking-head content, but it breaks down fast for two-person interviews, fast-cut podcasts, and anything that needs a different visual rhythm than a straight-to-camera monologue. This update replaces those one-size-fits-all defaults with controls that adapt to what's actually in your footage.",

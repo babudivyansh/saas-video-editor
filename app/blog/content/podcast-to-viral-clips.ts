@@ -12,7 +12,7 @@ export const podcastToViralClips: BlogPost = {
   author: AUTHORS.editorial,
   intro:
     "A one-hour podcast episode has maybe 90 seconds of clip-worthy material — the trick isn't finding more moments, it's finding the right ones fast enough that clipping doesn't become a second full-time job.",
-  paragraphs: [
+  body: [
     {
       heading: "Why most podcast clips fail before they're even cut",
       text: "Most creators approach clipping backwards: they scrub the whole recording looking for \"the best part,\" as if a 60-minute conversation has one standout moment waiting to be discovered. It doesn't. It has several small, self-contained moments scattered unevenly through the timeline, and the ones that perform best are rarely the ones that felt most impressive to sit through live. If you're relying on memory or gut feel to find them, you'll gravitate toward the polished, rehearsed answers — exactly the moments that tend to underperform on a feed that rewards specificity and surprise over polish.",

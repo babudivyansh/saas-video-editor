@@ -12,7 +12,7 @@ export const hooksThatStopTheScroll: BlogPost = {
   author: AUTHORS.editorial,
   intro:
     "The hook isn't the first sentence of your video. It's the first sentence someone hears while deciding whether to keep watching — and on a feed that refreshes every second, that decision happens faster than you can finish a normal introduction.",
-  paragraphs: [
+  body: [
     {
       heading: "The hook is a decision window, not a sentence",
       text: "Every short-form platform works the same way at the mechanical level: a viewer's thumb is already in motion, and your video has a fraction of a second to interrupt it. That's not a line you deliver — it's a state you have to create in the first frame, the first word, and the first visual, simultaneously. Treat the hook as a decision window you're trying to win, not a sentence you're trying to write well, and the rest of this gets much easier.",

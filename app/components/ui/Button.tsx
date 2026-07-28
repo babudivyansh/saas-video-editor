@@ -40,8 +40,12 @@ const SIZE: Record<ButtonSize, string> = {
 export function Button({ variant = "primary", size = "md", href, icon, onClick, disabled, className = "", children, type }: ButtonProps) {
   const cls = `inline-flex items-center justify-center font-semibold rounded-full transition-all whitespace-nowrap ${VARIANT[variant]} ${SIZE[size]} ${disabled ? "opacity-50 pointer-events-none" : ""} ${className}`;
   if (href) {
+    // onClick is forwarded here too: next/link accepts it natively, and
+    // dropping it silently meant a tracked or instrumented link rendered fine
+    // and simply never fired its handler. Passing onClick from a *server*
+    // component is still a build error, as it should be.
     return (
-      <Link href={href} className={cls}>
+      <Link href={href} className={cls} onClick={onClick}>
         {children}
         {icon}
       </Link>

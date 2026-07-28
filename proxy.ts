@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE_NAME, verifyToken } from "@/lib/auth";
 import { isPublicApiRoute } from "@/lib/api-public-routes";
+import { ATTRIBUTION_COOKIE, buildAttributionCookie } from "@/lib/marketing-attribution";
 import { rateLimit } from "@/lib/rate-limit";
 
 // Group-level rate limits for route families where abuse-resistance matters
@@ -120,7 +121,8 @@ export async function proxy(request: NextRequest) {
   }
 
   const response = NextResponse.next();
-  const ref = new URL(request.url).searchParams.get("ref");
+  const params = new URL(request.url).searchParams;
+  const ref = params.get("ref");
 
   // Set affiliate cookie on first click only (don't overwrite existing
   // attribution), unless the visitor explicitly opted out of marketing
@@ -136,6 +138,31 @@ export async function proxy(request: NextRequest) {
       httpOnly: true,
       path: "/",
     });
+  }
+
+  // Campaign attribution, on exactly the same terms as affiliate_ref above:
+  // first touch wins, 30 days, httpOnly, and skipped entirely when marketing
+  // consent is denied.
+  //
+  // One cookie holding all three values rather than three separate cookies —
+  // three can expire or be cleared independently and leave a half-attributed
+  // signup, whereas one is atomic. Consumed and cleared at registration; see
+  // lib/marketing-attribution.ts.
+  if (marketingConsent !== "denied" && !request.cookies.get(ATTRIBUTION_COOKIE)) {
+    const attribution = buildAttributionCookie(
+      params.get("utm_source"),
+      params.get("utm_medium"),
+      params.get("utm_campaign"),
+    );
+    if (attribution) {
+      response.cookies.set(ATTRIBUTION_COOKIE, attribution, {
+        maxAge: 30 * 24 * 60 * 60, // 30 days
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        httpOnly: true,
+        path: "/",
+      });
+    }
   }
 
   return response;

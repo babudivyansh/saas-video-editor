@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import SiteNavbar from "@/app/components/SiteNavbar";
 import SiteFooter from "@/app/components/SiteFooter";
 import Breadcrumbs from "@/app/components/ui/Breadcrumbs";
 import FaqAccordion from "@/app/components/ui/FaqAccordion";
+import BlogCta from "../BlogCta";
+import Callout from "../Callout";
+import NewsletterSignup from "../NewsletterSignup";
+import { getCategoryByLabel } from "../categories";
 import { BLOG_POSTS, getBlogPost } from "../posts";
-import { getReadingTime, getRelatedPosts, formatDate } from "../utils";
+import { isParagraphBlock } from "../types";
+import { getReadingTime, getRelatedPosts, formatDate, withMidArticleCta } from "../utils";
 import { buildBlogPostingSchema, buildBreadcrumbSchema, buildFaqPageSchema } from "../schema";
 
 export function generateStaticParams() {
@@ -42,6 +48,10 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
   if (!post) notFound();
 
   const related = getRelatedPosts(post, BLOG_POSTS, 2);
+  const category = getCategoryByLabel(post.category);
+  // Adds a mid-article CTA at a section boundary unless the post already
+  // places one explicitly.
+  const body = withMidArticleCta(post.body);
 
   const blogPostingSchema = buildBlogPostingSchema(post);
   const breadcrumbSchema = buildBreadcrumbSchema([
@@ -67,28 +77,95 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             ]}
           />
 
-          <span className="mt-5 inline-block rounded-full bg-[#335CFF]/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-[#335CFF]">
+          <Link
+            href={`/blog/category/${category.slug}`}
+            className="mt-5 inline-block rounded-full bg-brand/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-brand transition-colors hover:bg-brand/20"
+          >
             {post.category}
-          </span>
+          </Link>
           <h1 className="mt-4 text-3xl font-extrabold leading-tight text-gray-900 md:text-4xl">{post.title}</h1>
           <p className="mt-3 text-sm text-gray-400">
             {post.author.name} · {post.author.role} · {getReadingTime(post)} · Updated {formatDate(post.updatedAt)}
           </p>
 
+          {post.hero && (
+            <figure className="mt-8">
+              <Image
+                src={post.hero.src}
+                alt={post.hero.alt}
+                width={post.hero.width}
+                height={post.hero.height}
+                priority
+                sizes="(min-width: 768px) 768px, 100vw"
+                className="w-full rounded-[var(--radius-card)] object-cover"
+              />
+              {(post.hero.caption || post.hero.credit) && (
+                <figcaption className="mt-2 text-xs text-ink-soft">
+                  {post.hero.caption}
+                  {post.hero.caption && post.hero.credit ? " · " : ""}
+                  {post.hero.credit &&
+                    (post.hero.credit.url ? (
+                      <a href={post.hero.credit.url} className="underline" rel="noopener noreferrer nofollow">
+                        {post.hero.credit.name}
+                      </a>
+                    ) : (
+                      post.hero.credit.name
+                    ))}
+                </figcaption>
+              )}
+            </figure>
+          )}
+
           <p className="mt-8 text-lg leading-relaxed text-gray-700">{post.intro}</p>
 
           <div className="mt-6 space-y-5">
-            {post.paragraphs.map((p, i) => (
-              <div key={i}>
-                {p.heading && (
-                  <h2 className="mb-3 mt-8 text-xl font-extrabold text-gray-900 md:text-2xl">{p.heading}</h2>
-                )}
-                <p className="text-[15px] leading-relaxed text-gray-700">
-                  {p.lead && <strong className="font-bold text-gray-900">{p.lead} </strong>}
-                  {p.text}
-                </p>
-              </div>
-            ))}
+            {body.map((block, i) => {
+              if (isParagraphBlock(block)) {
+                return (
+                  <div key={i}>
+                    {block.heading && (
+                      <h2 className="mb-3 mt-8 text-xl font-extrabold text-gray-900 md:text-2xl">{block.heading}</h2>
+                    )}
+                    <p className="text-[15px] leading-relaxed text-gray-700">
+                      {block.lead && <strong className="font-bold text-gray-900">{block.lead} </strong>}
+                      {block.text}
+                    </p>
+                  </div>
+                );
+              }
+              if (block.type === "callout") {
+                return <Callout key={i} tone={block.tone} title={block.title} text={block.text} />;
+              }
+              if (block.type === "cta") {
+                return (
+                  <div key={i} className="my-10">
+                    <BlogCta
+                      placement="mid_article"
+                      path={`/blog/${post.slug}`}
+                      heading={block.heading}
+                      body={block.body}
+                      label={block.label}
+                      href={block.href}
+                    />
+                  </div>
+                );
+              }
+              return (
+                <figure key={i} className="my-8">
+                  <Image
+                    src={block.image.src}
+                    alt={block.image.alt}
+                    width={block.image.width}
+                    height={block.image.height}
+                    sizes="(min-width: 768px) 768px, 100vw"
+                    className="w-full rounded-[var(--radius-card)] object-cover"
+                  />
+                  {block.image.caption && (
+                    <figcaption className="mt-2 text-xs text-ink-soft">{block.image.caption}</figcaption>
+                  )}
+                </figure>
+              );
+            })}
           </div>
 
           <p className="mt-6 text-[15px] leading-relaxed text-gray-700">{post.closing}</p>
@@ -102,17 +179,12 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             </div>
           )}
 
-          <div className="mt-12 rounded-2xl border border-[#E8EDFF] bg-gradient-to-br from-[#335CFF]/[0.04] to-purple-400/[0.04] p-8 text-center">
-            <h2 className="text-xl font-extrabold text-gray-900">Ready to put this into practice?</h2>
-            <p className="mx-auto mt-2 max-w-md text-sm text-gray-600">
-              Start turning your own long-form videos into clips with Clipiro.
-            </p>
-            <Link
-              href="/pricing"
-              className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#335CFF] px-7 py-3 text-sm font-bold text-white transition-transform duration-200 hover:scale-[1.02]"
-            >
-              Get started free
-            </Link>
+          <div className="mt-12">
+            <BlogCta placement="article_footer" path={`/blog/${post.slug}`} />
+          </div>
+
+          <div className="mt-8">
+            <NewsletterSignup source="blog_article" />
           </div>
 
           {related.length > 0 && (

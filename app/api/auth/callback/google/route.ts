@@ -9,6 +9,7 @@ import { env } from "@/lib/env";
 import { appUrl } from "@/lib/social/oauth";
 import { mintTwoFactorTicket } from "@/lib/two-factor-ticket";
 import { attributeReferral } from "@/lib/affiliate";
+import { recordSignupAttribution } from "@/lib/marketing-analytics";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function GET(req: NextRequest) {
@@ -192,6 +193,9 @@ export async function GET(req: NextRequest) {
     if (isNewUser) {
       // Clear the affiliate cookie after attribution
       res.cookies.set("affiliate_ref", "", { maxAge: 0, path: "/" });
+      // Same shape for campaign attribution: record the conversion and clear
+      // the first-touch cookie. Never throws; a missing cookie is a no-op.
+      await recordSignupAttribution(req, res, "/api/auth/callback/google");
       // ── Welcome email for new Google signup (non-fatal) ───────────
       sendWelcomeEmail(user.email, profile.given_name ?? "", user.credits ?? 10).catch(
         (e) => logger.error("google-callback", "welcome email error", e)

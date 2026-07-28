@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
+import { BLOG_CATEGORIES } from "./blog/categories";
 import { BLOG_POSTS } from "./blog/posts";
+import { getPostsByCategory } from "./blog/utils";
 import { HELP_ARTICLES } from "./help/articles";
 import { prisma } from "@/lib/prisma";
 
@@ -12,6 +14,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: "monthly",
     priority: 0.6,
   }));
+
+  // lastModified is the freshest post in each category rather than new Date():
+  // a category page's content only actually changes when one of its posts does,
+  // and "always now" trains crawlers to ignore the field.
+  const categoryEntries: MetadataRoute.Sitemap = BLOG_CATEGORIES.flatMap((category) => {
+    const posts = getPostsByCategory(category.slug, BLOG_POSTS);
+    if (posts.length === 0) return [];
+    return [
+      {
+        url: `${base}/blog/category/${category.slug}`,
+        lastModified: posts.reduce((latest, p) => (p.updatedAt > latest ? p.updatedAt : latest), posts[0].updatedAt),
+        changeFrequency: "weekly" as const,
+        priority: 0.5,
+      },
+    ];
+  });
 
   const publishedReviews = await prisma.review.findMany({
     where: { status: "published" },
@@ -36,6 +54,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/pricing`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.9 },
     { url: `${base}/about`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.7 },
     { url: `${base}/blog`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.7 },
+    ...categoryEntries,
     ...blogEntries,
     { url: `${base}/reviews`, lastModified: new Date(), changeFrequency: "daily", priority: 0.8 },
     ...reviewEntries,
