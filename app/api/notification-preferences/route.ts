@@ -5,7 +5,7 @@ import { getNotificationPreference, upsertNotificationPreference } from "@/lib/n
 
 const EDITABLE_KEYS = [
   "marketingEmails", "productUpdates", "usageAlerts", "creditAlerts",
-  "weeklySummary", "featureReleases", "newsletter",
+  "weeklySummary", "featureReleases", "newsletter", "reviewPrompts",
 ] as const;
 
 async function handleGET(req: NextRequest) {

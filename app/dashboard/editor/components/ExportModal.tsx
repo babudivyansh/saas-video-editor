@@ -10,6 +10,7 @@ import { useAuth } from "@/app/components/AuthContext";
 import { useEditorStore } from "../store/editorStore";
 import { docDuration } from "@/lib/editor/doc-utils";
 import { useInsufficientCredits } from "@/app/components/billing/CreditModalContext";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 
 type Stage = "confirm" | "waiting-save" | "rendering" | "done" | "error";
 
@@ -28,6 +29,7 @@ export default function ExportModal() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const fireReviewPrompt = useReviewPromptTrigger();
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const close = () => {
@@ -77,6 +79,10 @@ export default function ExportModal() {
             setVideoUrl(project.videoUrl);
             setStage("done");
             refreshUser();
+            // Fired once, right on the export-complete screen — never
+            // mid-render. lib/reviews/prompt-triggers.ts owns eligibility/
+            // throttling; this only asks and shows the modal if it says yes.
+            fireReviewPrompt("export_complete", { featureHint: "ai_video_editor" }).catch(() => { /* non-critical */ });
           } else if (project.status === "failed") {
             if (poll.current) clearInterval(poll.current);
             setError("Render failed — your credit was refunded.");

@@ -17,3 +17,13 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
     />
   );
 }
+
+export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const { className = "", ...rest } = props;
+  return (
+    <textarea
+      {...rest}
+      className={`w-full text-sm bg-white border border-card-border rounded-xl px-4 py-2.5 text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all disabled:bg-surface disabled:text-ink-soft resize-y ${className}`}
+    />
+  );
+}

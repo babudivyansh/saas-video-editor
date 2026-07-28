@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { useJobPolling } from "./useJobPolling";
 import { TOOL_COSTS } from "@/lib/tool-costs";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 
 const VOICE_CHANGER_CREDIT_COST = TOOL_COSTS["voice-changer"].creditCost;
 
@@ -278,6 +279,7 @@ function VoicePickerModal({
 export default function VoiceChangerTool() {
   const { user, token, openAuthModal, refreshUser } = useAuth();
   const job = useJobPolling({ toolSlug: "voice-changer", token });
+  const fireReviewPrompt = useReviewPromptTrigger();
 
   const [voiceSlug, setVoiceSlug] = useState("adam");
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -370,6 +372,7 @@ export default function VoiceChangerTool() {
     if (job.status !== "done" || !job.jobId || !token) return;
     if (downloadedForJobId.current === job.jobId) return;
     downloadedForJobId.current = job.jobId;
+    fireReviewPrompt("tool_generation_complete", { featureHint: "ai_tools" }).catch(() => { /* non-critical */ });
 
     (async () => {
       try {
@@ -396,7 +399,7 @@ export default function VoiceChangerTool() {
         // user has to use "Download again" — no need to flip to an error state.
       }
     })();
-  }, [job.status, job.jobId, token, refreshUser]);
+  }, [job.status, job.jobId, token, refreshUser, fireReviewPrompt]);
 
   return (
     <>

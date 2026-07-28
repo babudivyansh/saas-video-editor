@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "./AuthContext";
 import { useJobPolling } from "./useJobPolling";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 
 // ── Voice catalogue (same as VoiceChangerTool) ───────────────────────────────
 interface Voice {
@@ -296,6 +297,7 @@ export default function AICreatorWizard() {
 
   const { token, refreshUser } = useAuth();
   const job = useJobPolling({ toolSlug: "ai-creator" as const, token });
+  const fireReviewPrompt = useReviewPromptTrigger();
 
   // Wizard state (persists across step navigation via refs so router.push doesn't reset)
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -396,6 +398,7 @@ export default function AICreatorWizard() {
     if (job.status !== "done" || !job.jobId || !token) return;
     if (downloadedForJobId.current === job.jobId) return;
     downloadedForJobId.current = job.jobId;
+    fireReviewPrompt("tool_generation_complete", { featureHint: "ai_tools" }).catch(() => { /* non-critical */ });
 
     (async () => {
       try {
@@ -420,7 +423,7 @@ export default function AICreatorWizard() {
         // means the user needs "Again" rather than a hard error state.
       }
     })();
-  }, [job.status, job.jobId, token, refreshUser]);
+  }, [job.status, job.jobId, token, refreshUser, fireReviewPrompt]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   const isLastStep = step === "select-voiceover";

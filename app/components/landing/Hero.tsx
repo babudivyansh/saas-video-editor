@@ -6,10 +6,17 @@ import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import Reveal from "@/app/components/Reveal";
 import { ZapIcon, PlayIcon, CheckIcon } from "@/app/components/landing/icons";
+import HeroRatingBadge from "@/app/components/landing/HeroRatingBadge";
+import { MINIMUM_REVIEWS_FOR_SCHEMA } from "@/app/reviews/schema";
+import type { ReviewSummary } from "@/lib/reviews/queries";
 
 const TRUST_POINTS = ["No credit card required", "Free plan available", "Export in minutes"];
 
-export default function Hero() {
+interface HeroProps {
+  reviewSummary: ReviewSummary;
+}
+
+export default function Hero({ reviewSummary }: HeroProps) {
   const { user, openAuthModal } = useAuth();
   const [demoOpen, setDemoOpen] = useState(false);
 
@@ -76,6 +83,11 @@ export default function Hero() {
             </button>
           </div>
         </Reveal>
+
+        {/* Rating badge — hidden below MINIMUM_REVIEWS_FOR_SCHEMA to avoid a
+            thin, unconvincing average (same gate the SEO JSON-LD already
+            applies to aggregateRating). */}
+        {reviewSummary.count >= MINIMUM_REVIEWS_FOR_SCHEMA && <HeroRatingBadge summary={reviewSummary} />}
 
         {/* Trust row */}
         <Reveal delay={240}>

@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useRef, useState, useEffect } from "react";
 import { useJobPolling } from "./useJobPolling";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 
 interface BalanceMode {
   id: string;
@@ -76,6 +77,7 @@ function Spinner() {
 export default function AudioBalancerTool() {
   const inputRef = useRef<HTMLInputElement>(null);
   const job = useJobPolling({ toolSlug: "audio-balancer", token: null, requireAuth: false });
+  const fireReviewPrompt = useReviewPromptTrigger();
   const submittingRef = useRef(false);
   const downloadedForJobId = useRef<string | null>(null);
 
@@ -160,6 +162,7 @@ export default function AudioBalancerTool() {
     if (job.status !== "done" || !job.jobId) return;
     if (downloadedForJobId.current === job.jobId) return;
     downloadedForJobId.current = job.jobId;
+    fireReviewPrompt("tool_generation_complete", { featureHint: "ai_tools" }).catch(() => { /* non-critical */ });
 
     (async () => {
       try {
@@ -173,7 +176,7 @@ export default function AudioBalancerTool() {
         // Leave stage at "done" with no output — user can hit "Balance Again".
       }
     })();
-  }, [job.status, job.jobId]);
+  }, [job.status, job.jobId, fireReviewPrompt]);
 
   function handleDownload() {
     if (!outputUrl || !file) return;

@@ -13,34 +13,34 @@ enum Role {
 }
 
 model User {
-  id                   String          @id @default(uuid())
-  email                String          @unique
-  phone                String?         @unique
-  passwordHash         String
+  id                      String    @id @default(uuid())
+  email                   String    @unique
+  phone                   String?   @unique
+  passwordHash            String
   // Denormalized TOTAL balance = bonus + subscription + purchased, maintained
   // atomically by lib/credits.ts in the same statement as every bucket
   // mutation (2026-07 bucket split). Read-only everywhere else — all existing
   // balance reads (auth payloads, admin dashboards) keep working off this.
-  credits              Int             @default(0)
+  credits                 Int       @default(0)
   // Credit buckets. Spend order: bonus -> subscription -> purchased (see
   // lib/credits.ts spendCredits). Subscription credits roll over up to 2x the
   // monthly grant and are zeroed on lapse; purchased (pack) credits never
   // expire; bonus credits expire at bonusCreditsExpireAt.
-  subscriptionCredits  Int             @default(0)
-  purchasedCredits     Int             @default(0)
-  bonusCredits         Int             @default(0)
-  bonusCreditsExpireAt DateTime?
+  subscriptionCredits     Int       @default(0)
+  purchasedCredits        Int       @default(0)
+  bonusCredits            Int       @default(0)
+  bonusCreditsExpireAt    DateTime?
   // Free-tier monthly grant anchor: users without an active plan get a small
   // bonus-credit refill each month (cron step 4). Null for subscribers.
-  freeCreditsRefillAt  DateTime?
+  freeCreditsRefillAt     DateTime?
   // ── Razorpay Subscriptions (true recurring billing, 2026-07) ──
   // Null = legacy prepaid subscriber (one-time orders; cron-refilled).
   // Set = renewals arrive via the subscription.charged webhook.
-  razorpaySubscriptionId String?    @unique
-  razorpayCustomerId     String?
+  razorpaySubscriptionId  String?   @unique
+  razorpayCustomerId      String?
   // 7-day Pro trial: once per account, card-authorized upfront.
-  trialUsedAt            DateTime?
-  trialEndsAt            DateTime?
+  trialUsedAt             DateTime?
+  trialEndsAt             DateTime?
   // Set when the user requests cancel-at-cycle-end (POST /api/billing/cancel).
   // Access continues until subscriptionEndsAt regardless — this only marks
   // intent so the billing UI shows "Cancelled — access until {date}" instead
@@ -51,58 +51,58 @@ model User {
   // balance under the threshold triggers lib/credits.ts's maybeAutoTopup —
   // a debounced attempt to purchase this pack (one-click email in practice;
   // see lib/email.ts sendAutoTopupPromptEmail and the RBI-mandate note there).
-  autoTopupPackSlug      String?
-  role                 Role            @default(USER)
-  firstName            String?
-  lastName             String?
-  name                 String?
-  avatarUrl            String?
-  gender               String? // "male" | "female" | "unspecified" — validated in the API layer
-  intendedUse          String? // "content_creator" | "business_marketing" | "personal" | "other" — validated in the API layer
-  preferredLanguage    String          @default("en") // ISO 639-1 code — validated against lib/i18n-locales.ts's supported-locale list in the API layer
-  planId               String?
-  plan                 Plan?           @relation(fields: [planId], references: [id])
+  autoTopupPackSlug       String?
+  role                    Role      @default(USER)
+  firstName               String?
+  lastName                String?
+  name                    String?
+  avatarUrl               String?
+  gender                  String? // "male" | "female" | "unspecified" — validated in the API layer
+  intendedUse             String? // "content_creator" | "business_marketing" | "personal" | "other" — validated in the API layer
+  preferredLanguage       String    @default("en") // ISO 639-1 code — validated against lib/i18n-locales.ts's supported-locale list in the API layer
+  planId                  String?
+  plan                    Plan?     @relation(fields: [planId], references: [id])
   // Subscription state (Phase C)
-  subscriptionId       String? // Razorpay subscription/order id for the active term
-  subscriptionEndsAt   DateTime? // when the prepaid term expires (null = no active sub)
-  nextRefillAt         DateTime? // when the next monthly credit grant is due
-  monthlyCredits       Int             @default(0) // credits granted on each refill for the active tier
+  subscriptionId          String? // Razorpay subscription/order id for the active term
+  subscriptionEndsAt      DateTime? // when the prepaid term expires (null = no active sub)
+  nextRefillAt            DateTime? // when the next monthly credit grant is due
+  monthlyCredits          Int       @default(0) // credits granted on each refill for the active tier
   // Affiliate program
-  referredBy           String? // affiliateId that referred this user
+  referredBy              String? // affiliateId that referred this user
   // Email lifecycle tracking
-  lastLoginAt          DateTime? // updated on every successful login
-  firstVideoAt         DateTime? // set on first successful render — triggers upsell email
-  lowCreditEmailSentAt DateTime? // reset each monthly refill; prevents duplicate low-credit alerts
-  expiryReminderSentAt DateTime? // tracks which expiry email (7d/3d/1d) was last sent
-  reengagementSentAt   DateTime? // prevents duplicate re-engagement emails
-  onboardingDay1SentAt DateTime?
-  onboardingDay3SentAt DateTime?
-  onboardingDay7SentAt DateTime?
-  onboardingCompletedAt DateTime? // set once the welcome screen is completed or skipped — never shown again after
-  primaryGoal          String? // "auto-clip" | "image" | "video" | "voiceover" | "editor" — picked on the welcome screen, validated in the API layer
-  experienceLevel      String? // "beginner" | "intermediate" | "advanced" — validated in the API layer
-  teamOrIndividual     String? // "individual" | "team" — validated in the API layer
-  tourStep             Int? // current guided-tour step index; null once never started
-  tourCompletedAt      DateTime? // set once the guided tour is completed or skipped
-  dismissedHints       String[]        @default([]) // ids of FeatureHint cards the user has dismissed — never shown again
+  lastLoginAt             DateTime? // updated on every successful login
+  firstVideoAt            DateTime? // set on first successful render — triggers upsell email
+  lowCreditEmailSentAt    DateTime? // reset each monthly refill; prevents duplicate low-credit alerts
+  expiryReminderSentAt    DateTime? // tracks which expiry email (7d/3d/1d) was last sent
+  reengagementSentAt      DateTime? // prevents duplicate re-engagement emails
+  onboardingDay1SentAt    DateTime?
+  onboardingDay3SentAt    DateTime?
+  onboardingDay7SentAt    DateTime?
+  onboardingCompletedAt   DateTime? // set once the welcome screen is completed or skipped — never shown again after
+  primaryGoal             String? // "auto-clip" | "image" | "video" | "voiceover" | "editor" — picked on the welcome screen, validated in the API layer
+  experienceLevel         String? // "beginner" | "intermediate" | "advanced" — validated in the API layer
+  teamOrIndividual        String? // "individual" | "team" — validated in the API layer
+  tourStep                Int? // current guided-tour step index; null once never started
+  tourCompletedAt         DateTime? // set once the guided tour is completed or skipped
+  dismissedHints          String[]  @default([]) // ids of FeatureHint cards the user has dismissed — never shown again
   // Admin moderation (Phase 3): a suspended user fails auth on every request
   // (lib/auth.ts getAuthUser) until un-suspended. Soft alternative to deletion.
-  suspendedAt          DateTime?
-  adminNotes           String? // free-form internal notes, admin console only — never exposed to the user
+  suspendedAt             DateTime?
+  adminNotes              String? // free-form internal notes, admin console only — never exposed to the user
 
   // Email verification / change. email itself flips only once the pending
   // address is confirmed (see app/api/auth/change-email/confirm) — never
   // swapped eagerly.
-  emailVerifiedAt      DateTime?
-  pendingEmail         String?
+  emailVerifiedAt DateTime?
+  pendingEmail    String?
 
   // Password/session security
-  passwordChangedAt    DateTime? // set on every successful change-password; used by the account-dashboard security score
+  passwordChangedAt DateTime? // set on every successful change-password; used by the account-dashboard security score
 
   // Two-factor authentication (TOTP, RFC 6238). Secret is AES-256-GCM
   // ciphertext (lib/encryption.ts) — never stored or returned as plaintext.
-  twoFactorEnabled     Boolean         @default(false)
-  twoFactorSecretEnc   String?
+  twoFactorEnabled      Boolean                 @default(false)
+  twoFactorSecretEnc    String?
   // Highest 30s time-step already spent on a successful verification. A TOTP
   // code stays valid for its whole ±1-step window (~90s), so without this a
   // code captured over the shoulder or through a phishing proxy can be
@@ -110,34 +110,42 @@ model User {
   // Int is safe: the step is unix-seconds/30, ~58M today against a 2.1B
   // ceiling.
   twoFactorLastUsedStep Int?
-  recoveryCodes        TwoFactorRecoveryCode[]
+  recoveryCodes         TwoFactorRecoveryCode[]
 
   // Soft account deactivation — a recovery window before the existing hard-delete
   // flow (DELETE /api/auth/profile) runs. Login is blocked while deactivatedAt is set.
-  deactivatedAt              DateTime?
+  deactivatedAt                DateTime?
   deactivationScheduledPurgeAt DateTime?
 
   notificationPreference NotificationPreference?
 
-  createdAt            DateTime        @default(now())
-  projects             Project[]
-  assets               Asset[]
-  purchases            Purchase[]
-  creditTransactions   CreditTransaction[]
-  quests               UserQuest[]
-  questRewardClaimed   Boolean         @default(false)
-  affiliate            Affiliate?
-  referral             Referral?       @relation("ReferredByAffiliate")
-  socialAccounts       SocialAccount[]
-  competitors          CompetitorProfile[]
-  generations          Generation[]
-  loginEvents          LoginEvent[]
-  apiKeys              ApiKey[]
-  brandKits            BrandKit[]
-  assetFolders         AssetFolder[]
-  tags                 Tag[]
-  assetAuditLogs       AssetAuditLog[]
-  pendingUploads       PendingUpload[]
+  createdAt           DateTime             @default(now())
+  projects            Project[]
+  assets              Asset[]
+  purchases           Purchase[]
+  creditTransactions  CreditTransaction[]
+  quests              UserQuest[]
+  questRewardClaimed  Boolean              @default(false)
+  affiliate           Affiliate?
+  referral            Referral?            @relation("ReferredByAffiliate")
+  socialAccounts      SocialAccount[]
+  competitors         CompetitorProfile[]
+  generations         Generation[]
+  loginEvents         LoginEvent[]
+  apiKeys             ApiKey[]
+  brandKits           BrandKit[]
+  assetFolders        AssetFolder[]
+  tags                Tag[]
+  assetAuditLogs      AssetAuditLog[]
+  pendingUploads      PendingUpload[]
+  review              Review?
+  reviewAttachments   ReviewAttachment[]
+  reviewHelpfulVotes  ReviewHelpfulVote[]
+  reviewReports       ReviewReport[]
+  notifications       Notification[]
+  reviewPromptState   ReviewPromptState?
+  reviewPromptEvents  ReviewPromptEvent[]
+  reviewEmailSequence ReviewEmailSequence?
 }
 
 // One-time hashed 2FA recovery code — issued 10-at-a-time on enrollment,
@@ -168,6 +176,7 @@ model NotificationPreference {
   weeklySummary   Boolean  @default(true)
   featureReleases Boolean  @default(true)
   newsletter      Boolean  @default(true)
+  reviewPrompts   Boolean  @default(true) // gates lib/email.ts's sendReviewPromptEmail (P7) — finer-grained than productUpdates since it's a nudge, not general product news
   updatedAt       DateTime @updatedAt
 }
 
@@ -188,18 +197,18 @@ model LoginEvent {
 }
 
 model Affiliate {
-  id             String       @id @default(cuid())
-  userId         String       @unique
-  user           User         @relation(fields: [userId], references: [id])
-  code           String       @unique
-  status         String       @default("active") // active | suspended | banned
-  commissionRate Float        @default(0.20)
-  totalEarned    Float        @default(0)
-  totalPaid      Float        @default(0)
+  id                        String       @id @default(cuid())
+  userId                    String       @unique
+  user                      User         @relation(fields: [userId], references: [id])
+  code                      String       @unique
+  status                    String       @default("active") // active | suspended | banned
+  commissionRate            Float        @default(0.20)
+  totalEarned               Float        @default(0)
+  totalPaid                 Float        @default(0)
   // Null = never expires (true of every code issued so far). Lets "expired"
   // be a real, testable rejection reason for the sign-up referral-code field
   // (see lib/affiliate.ts resolveReferralCode) instead of unreachable.
-  codeExpiresAt  DateTime?
+  codeExpiresAt             DateTime?
   // Set when the affiliate clicks "Request Payout" (payout-request route);
   // cleared when an admin marks them paid. Purely a UI/visibility signal —
   // never gates anything server-side.
@@ -210,9 +219,9 @@ model Affiliate {
   // alongside payoutRequestedAt when an admin marks them paid, so the next
   // earning cycle can notify again.
   payoutThresholdNotifiedAt DateTime?
-  createdAt      DateTime     @default(now())
-  referrals      Referral[]
-  commissions    Commission[]
+  createdAt                 DateTime     @default(now())
+  referrals                 Referral[]
+  commissions               Commission[]
 }
 
 model Referral {
@@ -252,33 +261,33 @@ model Commission {
 }
 
 model Plan {
-  id             String     @id @default(uuid())
-  slug           String     @unique
-  name           String
-  priceInPaise   Int
-  currency       String     @default("INR")
-  credits        Int
-  features       String[]   @default([])
-  active         Boolean    @default(true)
-  sortOrder      Int        @default(0)
+  id                String     @id @default(uuid())
+  slug              String     @unique
+  name              String
+  priceInPaise      Int
+  currency          String     @default("INR")
+  credits           Int
+  features          String[]   @default([])
+  active            Boolean    @default(true)
+  sortOrder         Int        @default(0)
   // Plan type (Phase C). "pack" = one-time top-up (subscriber-only),
   // "subscription" = recurring tier with monthly credit refills.
-  kind           String     @default("pack")
+  kind              String     @default("pack")
   // Razorpay Plan ids for the recurring Subscriptions flow, per currency.
   // Provisioned by scripts/razorpay-sync-plans.ts; null until synced (the
   // legacy one-time order flow keeps working for unsynced plans).
   razorpayPlanIdInr String?
   razorpayPlanIdUsd String?
-  intervalMonths Int?// subscription term length: 1 / 3 / 6 / 12
-  monthlyCredits Int? // credits granted each month of the term
+  intervalMonths    Int? // subscription term length: 1 / 3 / 6 / 12
+  monthlyCredits    Int? // credits granted each month of the term
   // "creator" | "pro" | "studio" — meaningful only when kind == "subscription";
   // null for pack/addon rows. See lib/plans/tiers.ts for the TierId union and
   // gating helpers. "free" is not a Plan row — it's the sentinel tier for a
   // user with no active subscription.
-  tier           String?
-  createdAt      DateTime   @default(now())
-  users          User[]
-  purchases      Purchase[]
+  tier              String?
+  createdAt         DateTime   @default(now())
+  users             User[]
+  purchases         Purchase[]
 }
 
 model Purchase {
@@ -374,39 +383,39 @@ model Project {
 // separately so the UI can show every clip as its own card with live progress
 // and an Opus-style virality score.
 model Clip {
-  id                String        @id @default(cuid())
-  projectId         String
-  project           Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  index             Int // generation order
-  title             String? // AI-generated catchy title / hook
-  startSec          Float
-  endSec            Float
-  durationSec       Float
-  aspectRatio       String        @default("9:16")
-  score             Int? // calibrated virality 0–99, see lib/virality-score.ts
-  rerenderCount     Int           @default(0) // first re-render per clip is free; charged after that
-  scoreBreakdown    Json? // {hook, pacing, payoff, engagement, audio, speechRate} sub-scores for transparency
-  mood              String? // AI-detected content mood, drives auto color grade (P2.3)
-  status            String        @default("queued") // pending_review | queued | rendering | ready | failed
-  progress          Int           @default(0) // 0–100
-  videoUrl          String?
-  thumbnailUrl      String?
+  id                    String        @id @default(cuid())
+  projectId             String
+  project               Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  index                 Int // generation order
+  title                 String? // AI-generated catchy title / hook
+  startSec              Float
+  endSec                Float
+  durationSec           Float
+  aspectRatio           String        @default("9:16")
+  score                 Int? // calibrated virality 0–99, see lib/virality-score.ts
+  rerenderCount         Int           @default(0) // first re-render per clip is free; charged after that
+  scoreBreakdown        Json? // {hook, pacing, payoff, engagement, audio, speechRate} sub-scores for transparency
+  mood                  String? // AI-detected content mood, drives auto color grade (P2.3)
+  status                String        @default("queued") // pending_review | queued | rendering | ready | failed
+  progress              Int           @default(0) // 0–100
+  videoUrl              String?
+  thumbnailUrl          String?
   // Captioning (P0.3) — transcript is sliced/re-baselined to this clip's own
   // timeline so re-render (P1.3) never needs to re-run STT.
-  transcriptJson    Json?
-  captionStyleIndex Int?
-  hasCaptions       Boolean       @default(false)
+  transcriptJson        Json?
+  captionStyleIndex     Int?
+  hasCaptions           Boolean       @default(false)
   // Speaker-tracking reframe (P1.1) — smoothed crop path in source-pixel
   // coordinates, [{tSec, x, y, w, h}]. Null = static center crop (fallback).
-  cropKeyframes     Json?
+  cropKeyframes         Json?
   // Auto B-roll (P2.3) — a Pexels stock clip spliced in for [brollStartSec,
   // brollEndSec) (clip-relative) while the original audio continues. Null
   // brollUrl = no B-roll for this clip (Gemini found no natural opportunity,
   // clip too short, or Pexels unavailable/unconfigured).
-  brollQuery        String?
-  brollUrl          String?
-  brollStartSec     Float?
-  brollEndSec       Float?
+  brollQuery            String?
+  brollUrl              String?
+  brollStartSec         Float?
+  brollEndSec           Float?
   createdAt             DateTime      @default(now())
   subtitleStyleOverride Json?
   silenceSettings       Json?
@@ -501,9 +510,9 @@ model UserQuest {
 }
 
 model Asset {
-  id       String  @id @default(cuid())
+  id       String @id @default(cuid())
   userId   String
-  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   name     String
   s3Key    String
   url      String // legacy permanent URL, kept for rows created before signed URLs; reads now resolve a fresh presigned URL from s3Key instead of trusting this column
@@ -531,7 +540,7 @@ model Asset {
   // Moderation (Rekognition DetectModerationLabels, async via the
   // asset-moderation queue). "not_configured" is reserved for the malware-scan
   // step, which has no vendor wired up yet — it is never silently marked "clean".
-  moderationStatus String  @default("pending") // "pending" | "clean" | "flagged" | "skipped" | "not_configured"
+  moderationStatus String @default("pending") // "pending" | "clean" | "flagged" | "skipped" | "not_configured"
   moderationLabels Json?
 
   createdAt DateTime @default(now())
@@ -623,9 +632,9 @@ model PendingUpload {
 // OAuth tokens are stored ONLY as AES-256-GCM ciphertext (lib/encryption.ts) and
 // are never returned to the client. Read-only analytics scopes only.
 model SocialAccount {
-  id                String                  @id @default(cuid())
+  id                String                   @id @default(cuid())
   userId            String
-  user              User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
   provider          String // "youtube" | "instagram" | "facebook"
   providerAccountId String // channel id / IG user id / Page id
   username          String?
@@ -634,14 +643,14 @@ model SocialAccount {
   accessTokenEnc    String // AES-256-GCM ciphertext
   refreshTokenEnc   String? // AES-256-GCM ciphertext
   tokenExpiresAt    DateTime?
-  scopes            String[]                @default([])
-  status            String                  @default("active") // active | needs_reauth | revoked
+  scopes            String[]                 @default([])
+  status            String                   @default("active") // active | needs_reauth | revoked
   followers         Int? // convenience copy of the latest snapshot
   lastSyncedAt      DateTime?
-  lastSyncStatus    String                  @default("ok") // ok | partial | failed
+  lastSyncStatus    String                   @default("ok") // ok | partial | failed
   lastSyncError     String? // human-readable reason when partial/failed
-  createdAt         DateTime                @default(now())
-  updatedAt         DateTime                @updatedAt
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
   posts             SocialPost[]
   snapshots         SocialAccountSnapshot[]
   audience          SocialAudienceSnapshot[]
@@ -656,16 +665,16 @@ model SocialAccount {
 // tokens — data comes from a third-party public-data vendor
 // (lib/social/competitor-source.ts), so only public stats are stored.
 model CompetitorProfile {
-  id           String                @id @default(cuid())
+  id           String               @id @default(cuid())
   userId       String
-  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   provider     String // instagram | tiktok | youtube
   handle       String // public @handle / channel handle
   displayName  String?
   avatarUrl    String?
   followers    Int? // convenience copy of the latest snapshot
   lastSyncedAt DateTime?
-  createdAt    DateTime              @default(now())
+  createdAt    DateTime             @default(now())
   snapshots    CompetitorSnapshot[]
 
   @@unique([userId, provider, handle])
@@ -849,4 +858,240 @@ model AuditLog {
   // The viewer lists newest-first and filters by admin — both were seq scans.
   @@index([createdAt])
   @@index([adminId, createdAt])
+}
+
+// ── Rating & Review system ──────────────────────────────────────────────
+// Product-level review (G2/Capterra style), one row per user — not
+// per-feature. "Feature Used" is a tag validated in the API layer against
+// lib/reviews/constants.ts's FEATURE_USED_OPTIONS (string, not a DB enum).
+// No soft-delete: delete is a real DELETE — one review per user means a
+// re-review after delete is just a fresh insert. Admin "hide" is the
+// reversible alternative for moderation.
+model Review {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  rating      Int // 1-5, validated in Zod
+  title       String?
+  body        String
+  featureUsed String // "auto_clips" | "ai_video_editor" | "ai_tools" | "assets" | "billing" | "team_workspaces"
+
+  // Trust signals snapshotted at submission time — a badge earned while
+  // eligible must not disappear on a later downgrade/cancellation.
+  verifiedCustomer Boolean @default(false)
+  tierAtSubmit     String? // TierId snapshot, null if free/trial-not-counted
+
+  // Smart-review-system enrichment (P8) — captured at submission time; no
+  // reliable source for company/country exists elsewhere on User, and both
+  // are spec'd optional, so free-text at submit is the only honest option.
+  wouldRecommend       Boolean? // NPS-style "would you recommend Clipiro?"
+  publicDisplayConsent Boolean  @default(true) // governs public listing only, not the aggregate rating (see getReviewSummary)
+  company              String?
+  country              String?
+
+  // Moderation
+  status          String    @default("pending") // "pending" | "published" | "rejected" | "hidden"
+  moderatedBy     String? // admin User.id, no relation (AuditLog.adminId convention)
+  moderatedAt     DateTime?
+  rejectionReason String?
+  pinned          Boolean   @default(false) // admin-curated "featured"
+  featuredAt      DateTime?
+
+  // Spam heuristics — computed synchronously at submit/edit, no queue
+  spamScore Int?
+  spamFlags Json?
+
+  // Engagement counters — denormalized for sort/listing; kept in sync in a
+  // transaction alongside every vote/report write.
+  helpfulCount    Int @default(0)
+  notHelpfulCount Int @default(0)
+  reportCount     Int @default(0)
+
+  editedAt  DateTime? // last edit after first publish — re-flips status to "pending"
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  attachments ReviewAttachment[]
+  votes       ReviewHelpfulVote[]
+  reports     ReviewReport[]
+  reply       ReviewReply?
+
+  @@index([status, createdAt])
+  @@index([status, pinned, createdAt])
+  @@index([featureUsed])
+  @@index([rating])
+}
+
+// Images/short video attached to a review. Mirrors Asset's moderation
+// convention exactly instead of inventing a new one.
+model ReviewAttachment {
+  id       String @id @default(uuid())
+  reviewId String
+  review   Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  userId   String // denormalized owner, avoids a join for permission checks
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  s3Key          String
+  mimeType       String
+  kind           String // "image" | "video"
+  size           Int
+  width          Int?
+  height         Int?
+  duration       Float?
+  thumbnailS3Key String?
+
+  moderationStatus String @default("pending") // "pending" | "clean" | "flagged" | "skipped" | "not_configured"
+  moderationLabels Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([reviewId])
+  @@index([userId])
+}
+
+// One vote per user per review. Manipulation resistance: required auth
+// (userId NOT NULL + FK — no anonymous rows), this unique constraint (flip
+// via upsert, not duplicate inserts), a self-vote check in the route, and
+// per-user + per-IP rate limiting.
+model ReviewHelpfulVote {
+  id       String @id @default(uuid())
+  reviewId String
+  review   Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  value     Int // 1 = helpful, -1 = not helpful
+  createdAt DateTime @default(now())
+
+  @@unique([reviewId, userId])
+  @@index([userId])
+}
+
+// One open report per user per review — the unique constraint doubles as
+// request idempotency.
+model ReviewReport {
+  id       String @id @default(uuid())
+  reviewId String
+  review   Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  reason     String // "spam" | "offensive" | "fake" | "off_topic" | "other"
+  details    String?
+  status     String    @default("open") // "open" | "reviewed" | "dismissed"
+  reviewedBy String? // admin User.id, no relation
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@unique([reviewId, userId])
+  @@index([status, createdAt])
+  @@index([reviewId])
+}
+
+// One official Clipiro-team reply per review — matches G2/Capterra's single
+// vendor-response model. adminId plain String, no relation.
+model ReviewReply {
+  id        String    @id @default(uuid())
+  reviewId  String    @unique
+  review    Review    @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  adminId   String
+  body      String
+  editedAt  DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([adminId])
+}
+
+// Throttle/cooldown state for smart review-prompt triggers. One row per
+// user — same shape convention as NotificationPreference (userId @id).
+model ReviewPromptState {
+  userId                 String    @id
+  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastPromptedAt         DateTime?
+  promptCount            Int       @default(0)
+  dismissedAt            DateTime?
+  dismissCount           Int       @default(0)
+  permanentlyDismissedAt DateTime?
+  lastTrigger            String? // "export_complete" | "autoclips_milestone" | "days_active" | "tool_generation_complete" | "billing_success"
+  updatedAt              DateTime  @updatedAt
+}
+
+// Append-only per-shown-event funnel log — distinct from ReviewPromptState
+// (which stays the throttle/cooldown mechanism). Needed because funnel
+// analytics (shown -> dismissed vs. converted, broken down by trigger) can't
+// be answered by ReviewPromptState's running counters alone. At most one row
+// per user is normally "open" (dismissedAt/convertedAt both null) at a time,
+// since a new prompt only fires once the throttle allows a prior one to have
+// aged out — see lib/reviews/prompt-triggers.ts.
+model ReviewPromptEvent {
+  id               String    @id @default(uuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trigger          String // PromptTrigger value at fire time
+  featureHint      String? // non-authoritative, for analytics grouping + modal prefill only
+  shownAt          DateTime  @default(now())
+  dismissedAt      DateTime?
+  permanentDismiss Boolean   @default(false)
+  convertedAt      DateTime?
+  reviewId         String?
+
+  @@index([userId, shownAt])
+  @@index([trigger, shownAt])
+}
+
+// One row per user (like ReviewPromptState) — a drip is inherently bounded
+// to 3 sequential stages, so an event-log table would be pointless
+// cardinality here. Open/click tracking is folded into these columns rather
+// than a separate event table for the same reason.
+model ReviewEmailSequence {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  triggerEventAt DateTime // origin timestamp all stage day-offsets are computed from
+  sourceTrigger  String // PromptTrigger value that started the sequence
+
+  email1SentAt    DateTime?
+  email1OpenedAt  DateTime?
+  email1ClickedAt DateTime?
+  email2SentAt    DateTime?
+  email2OpenedAt  DateTime?
+  email2ClickedAt DateTime?
+  email3SentAt    DateTime?
+  email3OpenedAt  DateTime?
+  email3ClickedAt DateTime?
+
+  cancelledAt  DateTime?
+  cancelReason String? // "reviewed" | "opted_out"
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([cancelledAt, triggerEventAt])
+}
+
+// Anonymous, aggregate-only daily impression counter for the landing-page
+// testimonial section. No cookies, no per-visitor identity — a coarse but
+// honest engagement signal without any consent/privacy complexity.
+model TestimonialImpression {
+  date  String @id // "YYYY-MM-DD"
+  count Int    @default(0)
+}
+
+// Generic persisted in-app notification — not review-specific in shape,
+// even though Reviews is the first caller. Also doubles as the admin
+// notification store (userId = the admin's User.id).
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String // "review_published" | "review_rejected" | "review_hidden" | "review_reply" | "review_helpful_milestone" | "admin_review_new" | "admin_review_reported" | "admin_review_spam_detected" | "review_prompt"
+  title     String
+  body      String?
+  href      String?
+  metadata  Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt])
+  @@index([userId, createdAt])
 }

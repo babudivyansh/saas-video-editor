@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { MIN_PAYOUT_AMOUNT } from "@/lib/affiliate-constants";
+import { signTrackToken } from "@/lib/reviews/email-track-token";
 
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
 
@@ -889,6 +890,9 @@ export interface AdminDigestData {
   generations7d: number;
   failedGenerations7d: number;
   syncFailuresToday: number;
+  newReviews7d: number;
+  pendingReviews: number;
+  reportedReviews: number;
 }
 
 export async function sendAdminDigestEmail(to: string, d: AdminDigestData): Promise<void> {
@@ -908,6 +912,9 @@ export async function sendAdminDigestEmail(to: string, d: AdminDigestData): Prom
         ${row("Generations (7d)", String(d.generations7d))}
         ${row("Failed generations (7d)", String(d.failedGenerations7d), d.failedGenerations7d > 0 ? "#dc2626" : "#16a34a")}
         ${row("Social sync failures today", String(d.syncFailuresToday), d.syncFailuresToday > 0 ? "#dc2626" : "#16a34a")}
+        ${row("New reviews (7d)", String(d.newReviews7d))}
+        ${row("Pending reviews", String(d.pendingReviews), d.pendingReviews > 0 ? "#d97706" : "#16a34a")}
+        ${row("Reported reviews", String(d.reportedReviews), d.reportedReviews > 0 ? "#dc2626" : "#16a34a")}
       </table>
     </div>
     ${ctaButton("https://clipiro.com/admin", "Open Admin Dashboard →")}
@@ -1029,4 +1036,139 @@ export async function sendFirstVideoSuccessEmail(to: string, name: string): Prom
     ${emailFooter()}`;
 
   await sendEmail(to, `You just made your first Clipiro video 🎬 Here's what's next`, html, "first-video-success");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 18. REVIEWS — published / rejected / replied
+// ─────────────────────────────────────────────────────────────────────────────
+export async function sendReviewPublishedEmail(to: string, name: string, reviewUrl: string): Promise<void> {
+  const displayName = name || "there";
+  const html = `
+    ${emailHeader()}
+    <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 8px;">Your review is live! ⭐</h1>
+    <p style="color:#64748b;font-size:15px;margin:0 0 24px;line-height:1.6;">
+      Hi ${displayName}, thanks for sharing your experience — your review of Clipiro is now published for other creators to see.
+    </p>
+    ${ctaButton(reviewUrl, "View Your Review →", "#7c3aed")}
+    ${emailFooter()}`;
+
+  await sendEmail(to, "Your Clipiro review is now live", html, "review-published");
+}
+
+export async function sendReviewRejectedEmail(to: string, name: string, reason?: string): Promise<void> {
+  const displayName = name || "there";
+  const html = `
+    ${emailHeader()}
+    <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 8px;">Your review wasn&apos;t approved</h1>
+    <p style="color:#64748b;font-size:15px;margin:0 0 16px;line-height:1.6;">
+      Hi ${displayName}, our team reviewed your recent Clipiro submission and it wasn&apos;t approved for publishing.
+    </p>
+    ${reason ? `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:16px 20px;margin-bottom:24px;">
+      <p style="color:#475569;font-size:14px;margin:0;"><strong>Reason:</strong> ${reason}</p>
+    </div>` : ""}
+    <p style="color:#64748b;font-size:15px;margin:0 0 24px;line-height:1.6;">
+      You&apos;re welcome to update and resubmit your review at any time.
+    </p>
+    ${ctaButton("https://clipiro.com/dashboard?editReview=1", "Edit & Resubmit →", "#7c3aed")}
+    ${emailFooter()}`;
+
+  await sendEmail(to, "An update on your Clipiro review", html, "review-rejected");
+}
+
+export async function sendReviewReplyEmail(to: string, name: string, reviewUrl: string): Promise<void> {
+  const displayName = name || "there";
+  const html = `
+    ${emailHeader()}
+    <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 8px;">Clipiro replied to your review 💬</h1>
+    <p style="color:#64748b;font-size:15px;margin:0 0 24px;line-height:1.6;">
+      Hi ${displayName}, our team just posted a public response to the review you left for Clipiro.
+    </p>
+    ${ctaButton(reviewUrl, "See the Response →", "#7c3aed")}
+    ${emailFooter()}`;
+
+  await sendEmail(to, "Clipiro replied to your review", html, "review-reply");
+}
+
+export async function sendReviewPromptEmail(to: string, name: string, reviewUrl: string): Promise<void> {
+  const displayName = name || "there";
+  const html = `
+    ${emailHeader()}
+    <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 8px;">Got a minute to review Clipiro? ⭐</h1>
+    <p style="color:#64748b;font-size:15px;margin:0 0 24px;line-height:1.6;">
+      Hi ${displayName}, you've been creating with Clipiro for a while now — mind sharing what you think? It helps
+      other creators decide, and helps us keep improving.
+    </p>
+    ${ctaButton(reviewUrl, "Write a Review →", "#7c3aed")}
+    <p style="color:#94a3b8;font-size:13px;margin:20px 0 0;">Takes about a minute. You can turn these nudges off anytime in your notification settings.</p>
+    ${emailFooter()}`;
+
+  await sendEmail(to, "Got a minute to review Clipiro?", html, "review-prompt");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Review email-drip sequence (P12) — up to 3 reminders for a user who saw
+// the in-app review prompt but never submitted. Tracking (open/click) is
+// scoped to just these 3 templates, not retrofitted onto the others.
+// ─────────────────────────────────────────────────────────────────────────────
+const SITE_URL_FOR_TRACKING = "https://clipiro.com";
+
+function trackedCtaUrl(userId: string, stage: 1 | 2 | 3, targetUrl: string): string {
+  const token = signTrackToken(userId, stage);
+  return `${SITE_URL_FOR_TRACKING}/api/reviews/email-track/click?t=${encodeURIComponent(token)}&stage=${stage}&to=${encodeURIComponent(targetUrl)}`;
+}
+
+function openTrackingPixel(userId: string, stage: 1 | 2 | 3): string {
+  const token = signTrackToken(userId, stage);
+  return `<img src="${SITE_URL_FOR_TRACKING}/api/reviews/email-track/open?t=${encodeURIComponent(token)}&stage=${stage}" width="1" height="1" alt="" style="display:block;border:0;" />`;
+}
+
+export async function sendReviewDripEmail1(to: string, name: string, userId: string, reviewUrl: string): Promise<void> {
+  const displayName = name || "there";
+  const html = `
+    ${emailHeader()}
+    <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 8px;">Thanks for creating with Clipiro 🎬</h1>
+    <p style="color:#64748b;font-size:15px;margin:0 0 24px;line-height:1.6;">
+      Hi ${displayName}, thanks for using Clipiro recently! We'd love to know how it's going — a quick review
+      helps other creators decide, and helps us keep improving.
+    </p>
+    ${ctaButton(trackedCtaUrl(userId, 1, reviewUrl), "Leave a Review →", "#7c3aed")}
+    <p style="color:#94a3b8;font-size:13px;margin:20px 0 0;">Takes about a minute. You can turn these nudges off anytime in your notification settings.</p>
+    ${emailFooter()}
+    ${openTrackingPixel(userId, 1)}`;
+
+  await sendEmail(to, "How's Clipiro working out for you?", html, "review-drip-1");
+}
+
+export async function sendReviewDripEmail2(to: string, name: string, userId: string, reviewUrl: string): Promise<void> {
+  const displayName = name || "there";
+  const html = `
+    ${emailHeader()}
+    <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 8px;">A quick favor? 🙏</h1>
+    <p style="color:#64748b;font-size:15px;margin:0 0 24px;line-height:1.6;">
+      Hi ${displayName}, just a gentle nudge — your feedback genuinely shapes what we build next, and it helps
+      other creators trust Clipiro enough to give it a try.
+    </p>
+    ${ctaButton(trackedCtaUrl(userId, 2, reviewUrl), "Share Your Thoughts →", "#7c3aed")}
+    <p style="color:#94a3b8;font-size:13px;margin:20px 0 0;">Takes about a minute. You can turn these nudges off anytime in your notification settings.</p>
+    ${emailFooter()}
+    ${openTrackingPixel(userId, 2)}`;
+
+  await sendEmail(to, "Your feedback shapes what we build next", html, "review-drip-2");
+}
+
+export async function sendReviewDripEmail3(to: string, name: string, userId: string, reviewUrl: string): Promise<void> {
+  const displayName = name || "there";
+  const html = `
+    ${emailHeader()}
+    <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 8px;">One last ask 👋</h1>
+    <p style="color:#64748b;font-size:15px;margin:0 0 24px;line-height:1.6;">
+      Hi ${displayName}, this is the last time we'll ask — if you have a minute to leave a review, we'd
+      really appreciate it. Either way, thank you for creating with Clipiro.
+    </p>
+    ${ctaButton(trackedCtaUrl(userId, 3, reviewUrl), "Leave a Review →", "#7c3aed")}
+    <p style="color:#94a3b8;font-size:13px;margin:20px 0 0;">This is the final reminder — you won't hear about this again. You can turn these nudges off anytime in your notification settings.</p>
+    ${emailFooter()}
+    ${openTrackingPixel(userId, 3)}`;
+
+  await sendEmail(to, "One last ask — thanks for creating with Clipiro", html, "review-drip-3");
 }

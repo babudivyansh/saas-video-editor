@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { useJobPolling } from "./useJobPolling";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 function IcCloud() {
@@ -70,6 +71,7 @@ function SadMuffin() {
 export default function VocalRemoverTool() {
   const { user, token, openAuthModal, refreshUser } = useAuth();
   const job = useJobPolling({ toolSlug: "vocal-remover", token });
+  const fireReviewPrompt = useReviewPromptTrigger();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const submittingRef = useRef(false);
   const downloadedForJobId = useRef<string | null>(null);
@@ -159,6 +161,7 @@ export default function VocalRemoverTool() {
     if (job.status !== "done" || !job.jobId || !token) return;
     if (downloadedForJobId.current === job.jobId) return;
     downloadedForJobId.current = job.jobId;
+    fireReviewPrompt("tool_generation_complete", { featureHint: "ai_tools" }).catch(() => { /* non-critical */ });
 
     (async () => {
       try {
@@ -182,7 +185,7 @@ export default function VocalRemoverTool() {
         // user has to use the download link — no need to flip to an error state.
       }
     })();
-  }, [job.status, job.jobId, token, downloadName, refreshUser]);
+  }, [job.status, job.jobId, token, downloadName, refreshUser, fireReviewPrompt]);
 
   const handleAgain = () => {
     setFile(null);

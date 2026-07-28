@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/app/components/AuthContext";
 import { useJobPolling } from "@/app/components/useJobPolling";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 
 interface VideoInfo {
   title: string;
@@ -57,6 +58,7 @@ function IcSearch() {
 export default function YouTubeDownloaderPage() {
   const { user, token, openAuthModal } = useAuth();
   const job = useJobPolling({ toolSlug: "youtube-downloader", token });
+  const fireReviewPrompt = useReviewPromptTrigger();
   const [url, setUrl] = useState("");
   const [info, setInfo] = useState<VideoInfo | null>(null);
   const [loading, setLoading] = useState(false);
@@ -118,6 +120,7 @@ export default function YouTubeDownloaderPage() {
     if (job.status !== "done" || !job.jobId || !token || !info) return;
     if (downloadedForJobId.current === job.jobId) return;
     downloadedForJobId.current = job.jobId;
+    fireReviewPrompt("tool_generation_complete", { featureHint: "ai_tools" }).catch(() => { /* non-critical */ });
 
     (async () => {
       try {
@@ -140,7 +143,7 @@ export default function YouTubeDownloaderPage() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [job.status, job.jobId, token]);
+  }, [job.status, job.jobId, token, fireReviewPrompt]);
 
   return (
     <div className="min-h-full bg-slate-50">

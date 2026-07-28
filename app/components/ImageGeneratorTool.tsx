@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { useJobPolling } from "./useJobPolling";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID, getImageModel } from "@/lib/models/imageModels";
 import type { ImageParam } from "@/lib/models/types";
 import { Tooltip } from "@/app/components/ui/Tooltip";
@@ -161,6 +162,7 @@ function RatioDropdown({ value, onChange }: { value: string; onChange: (v: strin
 export default function ImageGeneratorTool() {
   const { user, token, openAuthModal, refreshUser } = useAuth();
   const job = useJobPolling({ toolSlug: "image-generator", token });
+  const fireReviewPrompt = useReviewPromptTrigger();
 
   const [model, setModel] = useState(DEFAULT_IMAGE_MODEL_ID);
   const [ratio, setRatio] = useState("9:16");
@@ -265,6 +267,7 @@ export default function ImageGeneratorTool() {
     if (job.status !== "done" || !job.jobId) return;
     if (addedForJobId.current === job.jobId) return;
     addedForJobId.current = job.jobId;
+    fireReviewPrompt("tool_generation_complete", { featureHint: "ai_tools" }).catch(() => { /* non-critical */ });
 
     const imageUrl = (job.meta as { imageUrl?: string } | null)?.imageUrl;
     if (!imageUrl) return;
@@ -273,7 +276,7 @@ export default function ImageGeneratorTool() {
     persistGenerations([item, ...generations]);
     refreshUser();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [job.status, job.jobId, job.meta]);
+  }, [job.status, job.jobId, job.meta, fireReviewPrompt]);
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); void generate(); }

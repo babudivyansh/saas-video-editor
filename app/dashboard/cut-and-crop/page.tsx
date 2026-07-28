@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import { useJobPolling } from "@/app/components/useJobPolling";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { computeMask, type Aspect } from "@/lib/crop";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -160,6 +161,7 @@ function IconZoomIn() {
 export default function CutAndCropPage() {
   const { user, token, openAuthModal, refreshUser } = useAuth();
   const job = useJobPolling({ toolSlug: "cut-and-crop", token });
+  const fireReviewPrompt = useReviewPromptTrigger();
 
   const [clips, setClips] = useState<Clip[]>([]);
   // Undo/redo history — snapshots of the whole `clips` array taken before
@@ -467,6 +469,7 @@ export default function CutAndCropPage() {
     if (job.status !== "done" || !job.jobId || !token) return;
     if (downloadedForJobId.current === job.jobId) return;
     downloadedForJobId.current = job.jobId;
+    fireReviewPrompt("tool_generation_complete", { featureHint: "ai_tools" }).catch(() => { /* non-critical */ });
 
     (async () => {
       try {
@@ -493,7 +496,7 @@ export default function CutAndCropPage() {
         // the user needs "Download again" rather than a hard error state.
       }
     })();
-  }, [job.status, job.jobId, token, refreshUser]);
+  }, [job.status, job.jobId, token, refreshUser, fireReviewPrompt]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (

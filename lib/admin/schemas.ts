@@ -6,6 +6,7 @@
 
 import { z } from "zod";
 import { KNOWN_RENDER_QUEUE_NAMES } from "@/lib/render-queue";
+import { FEATURE_USED_VALUES, REVIEW_RATING_MAX, REVIEW_RATING_MIN, REVIEW_TITLE_MAX, REVIEW_BODY_MIN, REVIEW_BODY_MAX } from "@/lib/reviews/constants";
 
 const credits = z.number().int().min(0).max(1_000_000);
 const paise = z.number().int().min(0).max(10_000_000);
@@ -279,3 +280,48 @@ export const metricsQuerySchema = z.object({
   range: z.coerce.number().pipe(z.union([z.literal(7), z.literal(30), z.literal(90), z.literal(365)])).default(30),
   compare: z.coerce.boolean().default(false),
 });
+
+// ── Reviews ───────────────────────────────────────────────────────────────────
+export const reviewListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  status: z.preprocess(blankAsUndefined, z.enum(["pending", "published", "rejected", "hidden"]).optional()),
+  rating: z.preprocess(blankAsUndefined, z.coerce.number().int().min(REVIEW_RATING_MIN).max(REVIEW_RATING_MAX).optional()),
+  feature: z.preprocess(blankAsUndefined, z.enum(FEATURE_USED_VALUES).optional()),
+  search: z.preprocess(blankAsUndefined, z.string().max(200).optional()),
+  spamMin: z.preprocess(blankAsUndefined, z.coerce.number().int().min(0).max(100).optional()),
+  reported: z.preprocess(blankAsUndefined, z.coerce.boolean().optional()),
+});
+
+export const reviewModerateSchema = z
+  .object({
+    action: z.enum(["approve", "reject", "hide", "unhide", "pin", "unpin"]),
+    reason: z.string().trim().max(500).optional(),
+  })
+  .strict()
+  .refine((v) => v.action !== "reject" || !!v.reason, { message: "A reason is required to reject a review" });
+
+export const reviewAdminPatchSchema = z
+  .object({
+    rating: z.number().int().min(REVIEW_RATING_MIN).max(REVIEW_RATING_MAX).optional(),
+    title: z.string().trim().max(REVIEW_TITLE_MAX).nullable().optional(),
+    body: z.string().trim().min(REVIEW_BODY_MIN).max(REVIEW_BODY_MAX).optional(),
+    featureUsed: z.enum(FEATURE_USED_VALUES).optional(),
+  })
+  .strict()
+  .refine((v) => Object.keys(v).length > 0, { message: "Nothing to update" });
+
+export const reviewSettingsPatchSchema = z
+  .object({
+    minAccountAgeHours: z.number().int().min(0).max(24 * 30).optional(),
+    requireProductUsage: z.boolean().optional(),
+    spamScoreAutoHideThreshold: z.number().int().min(0).max(100).optional(),
+    autoHideReportThreshold: z.number().int().min(1).max(100).optional(),
+    promptThrottleDays: z.number().int().min(1).max(365).optional(),
+    promptMaxLifetime: z.number().int().min(1).max(20).optional(),
+    emailDrip1DelayHours: z.number().int().min(1).max(24 * 30).optional(),
+    emailDrip2DelayDays: z.number().int().min(1).max(60).optional(),
+    emailDrip3DelayDays: z.number().int().min(1).max(60).optional(),
+  })
+  .strict()
+  .refine((v) => Object.keys(v).length > 0, { message: "Nothing to update" });

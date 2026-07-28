@@ -1,8 +1,9 @@
 import type { MetadataRoute } from "next";
 import { BLOG_POSTS } from "./blog/posts";
 import { HELP_ARTICLES } from "./help/articles";
+import { prisma } from "@/lib/prisma";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = "https://clipiro.com";
 
   const blogEntries: MetadataRoute.Sitemap = BLOG_POSTS.map((post) => ({
@@ -10,6 +11,17 @@ export default function sitemap(): MetadataRoute.Sitemap {
     lastModified: post.updatedAt,
     changeFrequency: "monthly",
     priority: 0.6,
+  }));
+
+  const publishedReviews = await prisma.review.findMany({
+    where: { status: "published" },
+    select: { id: true, updatedAt: true },
+  });
+  const reviewEntries: MetadataRoute.Sitemap = publishedReviews.map((r) => ({
+    url: `${base}/reviews/${r.id}`,
+    lastModified: r.updatedAt,
+    changeFrequency: "monthly",
+    priority: 0.4,
   }));
 
   const helpEntries: MetadataRoute.Sitemap = HELP_ARTICLES.map((a) => ({
@@ -25,6 +37,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/about`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.7 },
     { url: `${base}/blog`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.7 },
     ...blogEntries,
+    { url: `${base}/reviews`, lastModified: new Date(), changeFrequency: "daily", priority: 0.8 },
+    ...reviewEntries,
     { url: `${base}/help`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.6 },
     ...helpEntries,
     { url: `${base}/contact`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.5 },

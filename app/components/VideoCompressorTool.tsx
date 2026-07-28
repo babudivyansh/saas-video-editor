@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState, useEffect, useCallback } from "react";
 import { useJobPolling } from "./useJobPolling";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 
 interface QualityOption {
   id: string;
@@ -100,6 +101,7 @@ function Spinner() {
 export default function VideoCompressorTool() {
   const inputRef = useRef<HTMLInputElement>(null);
   const job = useJobPolling({ toolSlug: "video-compressor", token: null, requireAuth: false });
+  const fireReviewPrompt = useReviewPromptTrigger();
   const submittingRef = useRef(false);
   const downloadedForJobId = useRef<string | null>(null);
 
@@ -177,6 +179,7 @@ export default function VideoCompressorTool() {
     if (job.status !== "done" || !job.jobId) return;
     if (downloadedForJobId.current === job.jobId) return;
     downloadedForJobId.current = job.jobId;
+    fireReviewPrompt("tool_generation_complete", { featureHint: "ai_tools" }).catch(() => { /* non-critical */ });
 
     (async () => {
       try {
@@ -190,7 +193,7 @@ export default function VideoCompressorTool() {
         // Leave stage at "done" with no output — user can hit "Compress Again".
       }
     })();
-  }, [job.status, job.jobId]);
+  }, [job.status, job.jobId, fireReviewPrompt]);
 
   function onPick(list: FileList | null) {
     if (!list || list.length === 0) return;

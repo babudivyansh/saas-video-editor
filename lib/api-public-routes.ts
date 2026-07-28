@@ -33,6 +33,14 @@ const PUBLIC_API_PREFIXES = [
   "/api/plans",
   "/api/tool-costs",
   "/api/coupons/active",
+  // Public review browsing — the /reviews marketing page's client-side
+  // sort/filter/search reads GET /api/reviews for logged-out visitors too.
+  // isPublicApiRoute matches by prefix, so this also un-gates
+  // /api/reviews/me and /api/reviews/[id]/** at this layer — each of those
+  // routes still self-enforces real auth via getAuthUser where it applies
+  // (e.g. /api/reviews/me), so this only skips proxy's early-rejection
+  // optimization for them, not the actual security boundary.
+  "/api/reviews",
   // Live referral-code check on the registration form, reachable pre-account.
   // Does its own IP rate limiting (GROUP_LIMITS never applies to public routes).
   "/api/affiliate/validate-code",

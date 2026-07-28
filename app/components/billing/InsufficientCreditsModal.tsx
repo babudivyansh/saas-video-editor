@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import type { InsufficientCreditsInfo } from "./CreditModalContext";
 
 interface DbPlan {
@@ -33,6 +34,7 @@ export function InsufficientCreditsModal({ info, onClose }: {
 }) {
   const { user, token, refreshUser } = useAuth();
   const { startCheckout, activeId } = useRazorpayCheckout();
+  const fireReviewPrompt = useReviewPromptTrigger();
 
   const [packs, setPacks] = useState<DbPlan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,6 +94,7 @@ export function InsufficientCreditsModal({ info, onClose }: {
       onSuccess: () => {
         setDone(true);
         void refreshUser?.();
+        fireReviewPrompt("billing_success", { featureHint: "billing" }).catch(() => { /* non-critical */ });
       },
     });
   }

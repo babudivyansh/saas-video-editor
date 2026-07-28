@@ -1,9 +1,10 @@
 "use client";
-import { Suspense, useRef, useState, type CSSProperties } from "react";
+import { Suspense, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useVideoGenerate, type GenerateStatus } from "@/app/hooks/useVideoGenerate";
 import { useAuth } from "@/app/components/AuthContext";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -88,6 +89,15 @@ function GeneratingOverlay({ status, videoUrl, error, onReset }: { status: Gener
     creating: "Creating your project…",
     rendering: "Rendering your video — this may take 2–5 minutes…",
   };
+
+  const fireReviewPrompt = useReviewPromptTrigger();
+  const reviewPromptFiredRef = useRef(false);
+  useEffect(() => {
+    if (status !== "completed" || !videoUrl || reviewPromptFiredRef.current) return;
+    reviewPromptFiredRef.current = true;
+    fireReviewPrompt("tool_generation_complete", { featureHint: "ai_tools" }).catch(() => { /* non-critical */ });
+  }, [status, videoUrl, fireReviewPrompt]);
+
   if (status === "completed" && videoUrl) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">

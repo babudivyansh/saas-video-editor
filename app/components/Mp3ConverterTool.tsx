@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useRef, useState, useEffect } from "react";
 import { useJobPolling } from "./useJobPolling";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 
 interface QualityOption {
   id: string;
@@ -80,6 +81,7 @@ function Spinner() {
 export default function Mp3ConverterTool() {
   const inputRef = useRef<HTMLInputElement>(null);
   const job = useJobPolling({ toolSlug: "mp3-converter", token: null, requireAuth: false });
+  const fireReviewPrompt = useReviewPromptTrigger();
   const submittingRef = useRef(false);
   const downloadedForJobId = useRef<string | null>(null);
 
@@ -166,6 +168,7 @@ export default function Mp3ConverterTool() {
     if (job.status !== "done" || !job.jobId) return;
     if (downloadedForJobId.current === job.jobId) return;
     downloadedForJobId.current = job.jobId;
+    fireReviewPrompt("tool_generation_complete", { featureHint: "ai_tools" }).catch(() => { /* non-critical */ });
 
     (async () => {
       try {
@@ -179,7 +182,7 @@ export default function Mp3ConverterTool() {
         // Leave stage at "done" with no output — user can hit "Convert Again".
       }
     })();
-  }, [job.status, job.jobId]);
+  }, [job.status, job.jobId, fireReviewPrompt]);
 
   function handleDownload() {
     if (!outputUrl || !file) return;
