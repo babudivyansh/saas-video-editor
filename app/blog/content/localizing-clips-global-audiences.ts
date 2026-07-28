@@ -12,7 +12,7 @@ export const localizingClipsGlobalAudiences: BlogPost = {
   author: AUTHORS.growth,
   intro:
     "The fastest way to grow an audience you don't already have isn't making more content for the audience you do have — it's making your best-performing content legible to people who don't speak the language it was made in.",
-  paragraphs: [
+  body: [
     {
       heading: "Why localization outperforms making more of the same content",
       text: "Creators default to making more content in their existing language because it's the familiar path — write, record, edit, post, repeat. But that path only ever reaches an audience that already speaks that language and is already on the platforms you're posting to. Localization takes a clip you've already validated with real performance data and gives it a second, third, and fourth chance to work with an entirely different audience, without writing a single new script.",

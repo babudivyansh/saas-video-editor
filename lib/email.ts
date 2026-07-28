@@ -1172,3 +1172,27 @@ export async function sendReviewDripEmail3(to: string, name: string, userId: str
 
   await sendEmail(to, "One last ask — thanks for creating with Clipiro", html, "review-drip-3");
 }
+
+/**
+ * Double opt-in confirmation for the blog newsletter.
+ *
+ * Deviates from the house sendXEmail(to, name, ...) shape because a newsletter
+ * subscriber is anonymous — we have an address and nothing else, so there's no
+ * name to greet them by.
+ */
+export async function sendNewsletterConfirmEmail(to: string, confirmUrl: string): Promise<void> {
+  const html = `
+    ${emailHeader()}
+    <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 8px;">Confirm your subscription</h1>
+    <p style="color:#64748b;font-size:15px;margin:0 0 24px;line-height:1.6;">
+      Tap below to start receiving the Clipiro creator playbook — practical short-form video tactics,
+      roughly twice a month. No confirmation, no emails.
+    </p>
+    ${ctaButton(confirmUrl, "Confirm subscription →")}
+    <p style="color:#94a3b8;font-size:13px;margin:20px 0 0;">
+      If you didn't request this, just ignore this email — nothing happens without that tap.
+    </p>
+    ${emailFooter()}`;
+
+  await sendEmail(to, "Confirm your Clipiro newsletter subscription", html, "newsletter-confirm");
+}

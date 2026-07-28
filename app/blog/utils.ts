@@ -1,4 +1,5 @@
-import type { BlogPost } from "./types";
+import { getCategoryBySlug } from "./categories";
+import { isParagraphBlock, type BlogBlock, type BlogPost } from "./types";
 
 const WORDS_PER_MINUTE = 225;
 
@@ -6,15 +7,42 @@ function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+/** Words a reader actually reads. A CTA block scores 0 — it's an action, not prose. */
+function blockWordCount(block: BlogBlock): number {
+  if (isParagraphBlock(block)) {
+    return wordCount(block.heading ?? "") + wordCount(block.lead ?? "") + wordCount(block.text);
+  }
+  switch (block.type) {
+    case "callout":
+      return wordCount(block.title ?? "") + wordCount(block.text);
+    case "image":
+      return wordCount(block.image.caption ?? "");
+    case "cta":
+      return 0;
+  }
+}
+
 export function getReadingTime(post: BlogPost): string {
   const words =
     wordCount(post.intro) +
-    post.paragraphs.reduce((sum, p) => sum + wordCount(p.heading ?? "") + wordCount(p.lead ?? "") + wordCount(p.text), 0) +
+    post.body.reduce((sum, block) => sum + blockWordCount(block), 0) +
     wordCount(post.closing) +
     post.faqs.reduce((sum, f) => sum + wordCount(f.question) + wordCount(f.answer), 0);
 
   const minutes = Math.max(1, Math.round(words / WORDS_PER_MINUTE));
   return `${minutes} min read`;
+}
+
+/**
+ * Newest first. Falls through updatedAt -> publishedAt -> slug so the order is
+ * total and stable: every post currently shares the same updatedAt, and a
+ * comparator that returns -1 on equality is inconsistent (undefined behaviour
+ * for Array.sort, and in practice a silent no-op).
+ */
+function byRecency(a: BlogPost, b: BlogPost): number {
+  if (a.updatedAt !== b.updatedAt) return a.updatedAt < b.updatedAt ? 1 : -1;
+  if (a.publishedAt !== b.publishedAt) return a.publishedAt < b.publishedAt ? 1 : -1;
+  return a.slug < b.slug ? -1 : 1;
 }
 
 /**
@@ -24,12 +52,51 @@ export function getReadingTime(post: BlogPost): string {
  */
 export function getRelatedPosts(post: BlogPost, allPosts: BlogPost[], limit = 2): BlogPost[] {
   const others = allPosts.filter((p) => p.slug !== post.slug);
-  const byRecency = (a: BlogPost, b: BlogPost) => (a.updatedAt < b.updatedAt ? 1 : -1);
-
   const sameCategory = others.filter((p) => p.category === post.category).sort(byRecency);
   const rest = others.filter((p) => p.category !== post.category).sort(byRecency);
 
   return [...sameCategory, ...rest].slice(0, limit);
+}
+
+/** Empty array for an unknown slug — the caller decides whether that's a 404. */
+export function getPostsByCategory(slug: string, allPosts: BlogPost[]): BlogPost[] {
+  const category = getCategoryBySlug(slug);
+  if (!category) return [];
+  return allPosts.filter((p) => p.category === category.label).sort(byRecency);
+}
+
+/**
+ * Inserts a mid-article CTA at the section boundary nearest the halfway point,
+ * unless the author already placed one explicitly.
+ *
+ * Purely positional insertion ("after N paragraphs") was rejected: it lands the
+ * CTA mid-section or directly beneath an H2, and on a post where every
+ * paragraph opens its own section it is wrong by construction. Anchoring to a
+ * section boundary means the CTA always sits between two sections, and posts
+ * with too little structure to place it well get nothing rather than something
+ * broken.
+ */
+export function withMidArticleCta(body: BlogBlock[]): BlogBlock[] {
+  if (body.some((b) => b.type === "cta")) return body;
+
+  const boundaries = body
+    .map((block, i) => (i > 0 && isParagraphBlock(block) && block.heading ? i : -1))
+    .filter((i) => i > 0 && i < body.length - 1);
+
+  if (boundaries.length < 2) return body;
+
+  const total = body.reduce((sum, b) => sum + blockWordCount(b), 0);
+  if (total === 0) return body;
+
+  let running = 0;
+  const cumulative = body.map((b) => (running += blockWordCount(b)));
+
+  const target = total / 2;
+  const insertAt = boundaries.reduce((best, i) =>
+    Math.abs(cumulative[i - 1] - target) < Math.abs(cumulative[best - 1] - target) ? i : best,
+  );
+
+  return [...body.slice(0, insertAt), { type: "cta" as const }, ...body.slice(insertAt)];
 }
 
 export function formatDate(iso: string): string {

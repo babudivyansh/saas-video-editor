@@ -1095,3 +1095,55 @@ model Notification {
   @@index([userId, readAt, createdAt])
   @@index([userId, createdAt])
 }
+
+// Anonymous, aggregate-only first-party marketing analytics. Follows
+// TestimonialImpression's "no cookies, no per-visitor identity" stance rather
+// than ReviewPromptEvent's per-user log: these events fire for logged-out
+// visitors, and a per-row log would either store nothing distinguishing (a
+// counter with extra steps and unbounded growth) or require minting a visitor
+// identifier we have no consent surface for. One counter row per dimension
+// tuple per day.
+model MarketingEventDaily {
+  id        String @id @default(uuid())
+  date      String // "YYYY-MM-DD" UTC, same convention as TestimonialImpression
+  event     String // closed union — see lib/marketing-analytics.ts
+  path      String
+  placement String // "listing" | "article_hero" | "mid_article" | "article_footer" | "newsletter"
+  // Empty string, NOT null. Postgres unique indexes treat NULLs as distinct, so
+  // nullable UTM columns would let duplicate rows accumulate forever and
+  // silently defeat the upsert below. Values are normalized server-side to
+  // [a-z0-9_-]{0,32} or collapsed to "other" — see app/api/marketing/event.
+  utmSource   String @default("")
+  utmMedium   String @default("")
+  utmCampaign String @default("")
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  // Explicitly mapped: the default generated name for a 7-column unique index
+  // exceeds Postgres's 63-char identifier limit and gets silently truncated,
+  // which makes the migration SQL hard to write by hand and hard to review.
+  @@unique([date, event, path, placement, utmSource, utmMedium, utmCampaign], map: "MarketingEventDaily_dimensions_key")
+  @@index([date, event])
+  @@index([utmCampaign, date])
+}
+
+// Double opt-in newsletter list. Separate from NotificationPreference.newsletter,
+// which governs the *logged-in* channel for an existing User — one person can
+// legitimately appear in both, so dedupe at send time once a sender exists.
+model NewsletterSubscriber {
+  id     String @id @default(uuid())
+  email  String @unique
+  status String @default("pending") // "pending" | "confirmed" | "unsubscribed"
+  // Opaque random token, not a JWT: it has to be revocable and single-use,
+  // which a stateless JWT can't be without a DB column anyway — and the column
+  // is right here. Doubles as the unsubscribe token.
+  token          String    @unique
+  confirmedAt    DateTime?
+  unsubscribedAt DateTime?
+  source         String    @default("blog_footer")
+  utmCampaign    String    @default("")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, createdAt])
+}

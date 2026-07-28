@@ -5,6 +5,7 @@ import { completeLogin, setSessionCookie } from "@/lib/auth";
 import { sendWelcomeEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
 import { attributeReferral } from "@/lib/affiliate";
+import { recordSignupAttribution } from "@/lib/marketing-analytics";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -104,6 +105,9 @@ export async function POST(req: NextRequest) {
     setSessionCookie(res, token);
     // Clear the affiliate cookie after attribution
     res.cookies.set("affiliate_ref", "", { maxAge: 0, path: "/" });
+    // Same shape for campaign attribution: record the conversion and clear the
+    // first-touch cookie. Never throws; a missing cookie is a no-op.
+    await recordSignupAttribution(req, res, "/register");
 
     // ── Welcome email (non-fatal) ────────────────────────────────────────
     sendWelcomeEmail(user.email, firstName, user.credits).catch(

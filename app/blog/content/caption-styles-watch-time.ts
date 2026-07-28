@@ -12,7 +12,7 @@ export const captionStylesWatchTime: BlogPost = {
   author: AUTHORS.editorial,
   intro:
     "Captions aren't just accessibility — for short-form video watched on mute in a feed, they're often the only way your content gets consumed at all. The style you pick changes how much of the message actually lands.",
-  paragraphs: [
+  body: [
     {
       heading: "Why caption style is a retention lever, not a polish step",
       text: "Most creators treat captions as a final formatting decision, applied the same way to every video without much thought. That's a missed opportunity — caption style directly affects how much information a muted, half-attentive viewer absorbs in the first few seconds, which means it affects retention the same way a hook does. Two clips with identical footage and identical spoken content can perform differently based on caption treatment alone.",

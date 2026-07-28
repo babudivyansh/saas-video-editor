@@ -12,7 +12,7 @@ export const postingCadence: BlogPost = {
   author: AUTHORS.growth,
   intro:
     "The honest answer is \"more than you're comfortable with at first, then whatever your retention data tells you\" — but that's not useful on its own, so here's how to actually find your number.",
-  paragraphs: [
+  body: [
     {
       heading: "Why \"just post consistently\" isn't a real answer",
       text: "Every creator has heard \"consistency matters\" enough times that it's stopped meaning anything specific. It's true, but it's also incomplete — consistency at the wrong frequency for your platform and content type still underperforms. The real question isn't whether to be consistent, it's what frequency you can sustain long enough for a platform's algorithm to actually learn who your content is for.",
