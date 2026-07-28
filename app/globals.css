@@ -250,3 +250,11 @@ body {
   font-weight: 600;
 }
 
+
+/* Blog article anchor targets.
+   Without this, jumping to a table-of-contents link scrolls the heading to
+   the very top of the viewport, where the sticky SiteNavbar covers it. Same
+   pattern as .legal-content h2 above. */
+.blog-content h2 {
+  scroll-margin-top: 6rem;
+}

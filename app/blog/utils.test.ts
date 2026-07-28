@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BLOG_POSTS } from "./posts";
 import type { BlogBlock, BlogPost } from "./types";
-import { getPostsByCategory, getReadingTime, getRelatedPosts, withMidArticleCta } from "./utils";
+import { getPostsByCategory, getReadingTime, getRelatedPosts, getTocItems, withMidArticleCta } from "./utils";
 
 function makePost(overrides: Partial<BlogPost> = {}): BlogPost {
   return {
@@ -12,7 +12,7 @@ function makePost(overrides: Partial<BlogPost> = {}): BlogPost {
     intro: "",
     publishedAt: "2025-01-01",
     updatedAt: "2025-01-01",
-    author: { name: "Clipiro Team", role: "Editorial" },
+    author: { slug: "clipiro-team", name: "Clipiro Team", role: "Editorial" },
     body: [],
     faqs: [],
     closing: "",
@@ -99,6 +99,66 @@ describe("withMidArticleCta", () => {
 
   it("is a no-op on an empty body", () => {
     expect(withMidArticleCta([])).toEqual([]);
+  });
+});
+
+describe("getTocItems", () => {
+  it("lists every H2 in document order", () => {
+    const post = makePost({
+      body: [
+        { heading: "First", text: "a" },
+        { text: "b" },
+        { heading: "Second", text: "c" },
+      ],
+    });
+    expect(getTocItems(post)).toEqual([
+      { id: "first", text: "First" },
+      { id: "second", text: "Second" },
+    ]);
+  });
+
+  it("ignores non-paragraph blocks", () => {
+    const post = makePost({
+      body: [
+        { heading: "Real", text: "a" },
+        { type: "callout", tone: "tip", title: "Not a heading", text: "b" },
+        { type: "cta", heading: "Also not a heading" },
+      ],
+    });
+    expect(getTocItems(post)).toEqual([{ id: "real", text: "Real" }]);
+  });
+
+  it("disambiguates duplicate headings so no two anchors collide", () => {
+    const post = makePost({
+      body: [
+        { heading: "Recap", text: "a" },
+        { heading: "Recap", text: "b" },
+      ],
+    });
+    expect(getTocItems(post).map((t) => t.id)).toEqual(["recap", "recap-2"]);
+  });
+
+  it("returns empty for a post with no headings", () => {
+    expect(getTocItems(makePost({ body: [{ text: "just prose" }] }))).toEqual([]);
+  });
+
+  it("produces a unique id per heading across every real post", () => {
+    for (const post of BLOG_POSTS) {
+      const ids = getTocItems(post).map((t) => t.id);
+      expect(new Set(ids).size, `${post.slug} has colliding anchor ids`).toBe(ids.length);
+    }
+  });
+
+  // The renderer walks withMidArticleCta(post.body) while the TOC comes from
+  // post.body — an injected CTA must not shift heading/anchor alignment.
+  it("stays aligned with the rendered body after CTA injection", () => {
+    for (const post of BLOG_POSTS) {
+      const toc = getTocItems(post);
+      const renderedHeadings = withMidArticleCta(post.body)
+        .filter((b) => b.type === undefined && b.heading)
+        .map((b) => (b as { heading: string }).heading);
+      expect(renderedHeadings).toEqual(toc.map((t) => t.text));
+    }
   });
 });
 

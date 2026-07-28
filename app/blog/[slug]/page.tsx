@@ -6,13 +6,15 @@ import SiteNavbar from "@/app/components/SiteNavbar";
 import SiteFooter from "@/app/components/SiteFooter";
 import Breadcrumbs from "@/app/components/ui/Breadcrumbs";
 import FaqAccordion from "@/app/components/ui/FaqAccordion";
+import ArticleToc from "../ArticleToc";
 import BlogCta from "../BlogCta";
 import Callout from "../Callout";
 import NewsletterSignup from "../NewsletterSignup";
+import ReadingProgress from "../ReadingProgress";
 import { getCategoryByLabel } from "../categories";
 import { BLOG_POSTS, getBlogPost } from "../posts";
 import { isParagraphBlock } from "../types";
-import { getReadingTime, getRelatedPosts, formatDate, withMidArticleCta } from "../utils";
+import { getReadingTime, getRelatedPosts, getTocItems, formatDate, withMidArticleCta } from "../utils";
 import { buildBlogPostingSchema, buildBreadcrumbSchema, buildFaqPageSchema } from "../schema";
 
 export function generateStaticParams() {
@@ -52,6 +54,20 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
   // Adds a mid-article CTA at a section boundary unless the post already
   // places one explicitly.
   const body = withMidArticleCta(post.body);
+  const toc = getTocItems(post);
+
+  // Maps a position in the *rendered* body (which may contain an injected CTA
+  // the TOC knows nothing about) to its anchor id, so headings and TOC links
+  // stay in lockstep regardless of what else is interleaved.
+  const headingIds = new Map<number, string>();
+  let headingCursor = 0;
+  body.forEach((block, i) => {
+    if (isParagraphBlock(block) && block.heading) {
+      const id = toc[headingCursor]?.id;
+      if (id) headingIds.set(i, id);
+      headingCursor++;
+    }
+  });
 
   const blogPostingSchema = buildBlogPostingSchema(post);
   const breadcrumbSchema = buildBreadcrumbSchema([
@@ -67,8 +83,16 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
       {faqSchema && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />}
       <SiteNavbar solid />
+      <ReadingProgress targetId="blog-article" />
       <main>
-        <article className="mx-auto w-full max-w-3xl px-4 py-16 md:px-6">
+        {/* Below xl this collapses to exactly the previous single centred
+            column; above it, the article shifts off dead-centre to make room
+            for the sticky TOC — the standard docs-site layout. */}
+        {/* No `items-start` here: the aside must stretch to the full row
+            height, otherwise it shrinks to its content and the sticky div
+            inside it has no room to travel, so sticking never engages. */}
+        <div className="mx-auto w-full max-w-6xl px-4 py-16 md:px-6 xl:grid xl:grid-cols-[minmax(0,1fr)_16rem] xl:gap-12">
+        <article id="blog-article" className="blog-content w-full max-w-3xl">
           <Breadcrumbs
             items={[
               { label: "Home", href: "/" },
@@ -85,7 +109,10 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
           </Link>
           <h1 className="mt-4 text-3xl font-extrabold leading-tight text-gray-900 md:text-4xl">{post.title}</h1>
           <p className="mt-3 text-sm text-gray-400">
-            {post.author.name} · {post.author.role} · {getReadingTime(post)} · Updated {formatDate(post.updatedAt)}
+            <Link href={`/blog/author/${post.author.slug}`} className="font-semibold text-ink-soft hover:text-brand">
+              {post.author.name}
+            </Link>{" "}
+            · {post.author.role} · {getReadingTime(post)} · Updated {formatDate(post.updatedAt)}
           </p>
 
           {post.hero && (
@@ -118,13 +145,32 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
 
           <p className="mt-8 text-lg leading-relaxed text-gray-700">{post.intro}</p>
 
+          {/* Collapsed inline TOC for narrow viewports, where the sticky aside
+              is hidden. Closed by default so it doesn't push the article down. */}
+          {toc.length > 1 && (
+            <details className="mt-8 rounded-[var(--radius-card)] border border-card-border p-4 xl:hidden">
+              <summary className="cursor-pointer text-xs font-bold uppercase tracking-widest text-ink-soft">
+                On this page
+              </summary>
+              <ArticleToc items={toc} className="mt-4" />
+            </details>
+          )}
+
           <div className="mt-6 space-y-5">
             {body.map((block, i) => {
               if (isParagraphBlock(block)) {
                 return (
                   <div key={i}>
                     {block.heading && (
-                      <h2 className="mb-3 mt-8 text-xl font-extrabold text-gray-900 md:text-2xl">{block.heading}</h2>
+                      <h2
+                        // id comes from getTocItems, never from re-slugifying
+                        // here — otherwise duplicate headings would emit
+                        // duplicate ids and every TOC link would land on the first.
+                        id={headingIds.get(i)}
+                        className="mb-3 mt-8 text-xl font-extrabold text-gray-900 md:text-2xl"
+                      >
+                        {block.heading}
+                      </h2>
                     )}
                     <p className="text-[15px] leading-relaxed text-gray-700">
                       {block.lead && <strong className="font-bold text-gray-900">{block.lead} </strong>}
@@ -205,6 +251,15 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             </div>
           )}
         </article>
+
+          {/* Hidden below xl, where the collapsed inline TOC above serves the
+              same purpose without stealing horizontal space from the prose. */}
+          <aside className="hidden xl:block">
+            <div className="sticky top-24">
+              <ArticleToc items={toc} />
+            </div>
+          </aside>
+        </div>
       </main>
       <SiteFooter />
     </div>

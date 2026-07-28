@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildBlogPostingSchema, buildCollectionPageSchema } from "./schema";
+import { buildBlogPostingSchema, buildCollectionPageSchema, buildProfilePageSchema } from "./schema";
 import type { BlogPost } from "./types";
 
 const base: BlogPost = {
@@ -10,7 +10,7 @@ const base: BlogPost = {
   intro: "",
   publishedAt: "2025-01-01",
   updatedAt: "2025-02-01",
-  author: { name: "Clipiro Team", role: "Editorial" },
+  author: { slug: "clipiro-team", name: "Clipiro Team", role: "Editorial" },
   body: [],
   faqs: [],
   closing: "",
@@ -61,5 +61,62 @@ describe("buildBlogPostingSchema", () => {
     const schema = buildBlogPostingSchema(base);
     expect(schema.datePublished).toBe("2025-01-01");
     expect(schema.dateModified).toBe("2025-02-01");
+  });
+
+  /**
+   * Claiming a schema.org Person for a name that isn't a real individual is a
+   * worse E-E-A-T signal than an honest Organization, so Organization is the
+   * default and Person must be opted into explicitly.
+   */
+  it("defaults the author to Organization pointing at the site", () => {
+    expect(buildBlogPostingSchema(base).author).toEqual({
+      "@type": "Organization",
+      name: "Clipiro Team",
+      url: "https://clipiro.com",
+    });
+  });
+
+  it("emits Person with the author hub URL only when the byline is a real individual", () => {
+    const schema = buildBlogPostingSchema({
+      ...base,
+      author: { slug: "jane-doe", name: "Jane Doe", role: "Editorial", kind: "Person" },
+    });
+    expect(schema.author).toEqual({
+      "@type": "Person",
+      name: "Jane Doe",
+      url: "https://clipiro.com/blog/author/jane-doe",
+    });
+  });
+});
+
+describe("buildProfilePageSchema", () => {
+  it("describes the author and lists their posts", () => {
+    const schema = buildProfilePageSchema(base.author, [base]);
+    expect(schema["@type"]).toBe("ProfilePage");
+    expect(schema.mainEntity).toMatchObject({
+      "@type": "Organization",
+      name: "Clipiro Team",
+      url: "https://clipiro.com/blog/author/clipiro-team",
+    });
+    expect(schema.hasPart).toEqual([
+      { "@type": "BlogPosting", headline: "Test", url: "https://clipiro.com/blog/test-post", datePublished: "2025-01-01" },
+    ]);
+  });
+
+  it("omits description and sameAs when there's nothing to say", () => {
+    const schema = buildProfilePageSchema(base.author, []);
+    expect(schema.mainEntity).not.toHaveProperty("description");
+    expect(schema.mainEntity).not.toHaveProperty("sameAs");
+  });
+
+  it("includes bio and links when present", () => {
+    const schema = buildProfilePageSchema(
+      { ...base.author, bio: "We build Clipiro.", links: [{ label: "X", href: "https://x.com/clipiro" }] },
+      [],
+    );
+    expect(schema.mainEntity).toMatchObject({
+      description: "We build Clipiro.",
+      sameAs: ["https://x.com/clipiro"],
+    });
   });
 });
