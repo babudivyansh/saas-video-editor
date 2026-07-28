@@ -62,8 +62,24 @@ export interface BlogFaq {
 }
 
 export interface BlogAuthor {
+  /**
+   * Stable URL segment for /blog/author/<slug>. Required — a hub URL is a
+   * contract. Several bylines may share a slug when they're the same entity in
+   * different roles; the hub indexes by slug and collapses them into one page.
+   */
+  slug: string;
   name: string;
+  /** Describes the post's byline, not the author entity — varies per post. */
   role: string;
+  bio?: string;
+  avatar?: BlogImage;
+  links?: { label: string; href: string }[];
+  /**
+   * Drives BlogPosting.author's @type. Defaults to Organization: emitting a
+   * schema.org Person for a name that isn't a real individual is worse for
+   * E-E-A-T than an honest Organization.
+   */
+  kind?: "Person" | "Organization";
 }
 
 export interface BlogPost {

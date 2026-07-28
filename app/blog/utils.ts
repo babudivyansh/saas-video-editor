@@ -1,5 +1,6 @@
 import { getCategoryBySlug } from "./categories";
-import { isParagraphBlock, type BlogBlock, type BlogPost } from "./types";
+import { slugifyAll } from "./slug";
+import { isParagraphBlock, type BlogAuthor, type BlogBlock, type BlogPost } from "./types";
 
 const WORDS_PER_MINUTE = 225;
 
@@ -97,6 +98,48 @@ export function withMidArticleCta(body: BlogBlock[]): BlogBlock[] {
   );
 
   return [...body.slice(0, insertAt), { type: "cta" as const }, ...body.slice(insertAt)];
+}
+
+/**
+ * Authors that actually have published posts, keyed by slug.
+ *
+ * Derived from the posts rather than from the AUTHORS record so a stale or
+ * unused entry can never produce an empty, indexable author page. Bylines
+ * sharing a slug collapse to one entry, which is what keeps the three
+ * "Clipiro Team" roles from becoming three near-duplicate pages.
+ */
+export function getAuthorIndex(allPosts: BlogPost[]): Map<string, BlogAuthor> {
+  const index = new Map<string, BlogAuthor>();
+  for (const post of allPosts) {
+    if (!index.has(post.author.slug)) index.set(post.author.slug, post.author);
+  }
+  return index;
+}
+
+export function getPostsByAuthor(slug: string, allPosts: BlogPost[]): BlogPost[] {
+  return allPosts.filter((p) => p.author.slug === slug).sort(byRecency);
+}
+
+export interface TocItem {
+  id: string;
+  text: string;
+}
+
+/**
+ * The article's H2 outline, with collision-safe anchor ids.
+ *
+ * The renderer MUST take each heading's `id` from this array rather than
+ * calling slugify() per heading at render time: two headings that slugify
+ * identically would then emit the same id twice, and both TOC links would
+ * silently jump to the first one.
+ */
+export function getTocItems(post: BlogPost): TocItem[] {
+  const headings = post.body
+    .filter(isParagraphBlock)
+    .map((block) => block.heading)
+    .filter((heading): heading is string => Boolean(heading));
+
+  return slugifyAll(headings).map((id, i) => ({ id, text: headings[i] }));
 }
 
 export function formatDate(iso: string): string {

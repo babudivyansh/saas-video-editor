@@ -1,4 +1,4 @@
-import type { BlogFaq, BlogPost } from "./types";
+import type { BlogAuthor, BlogFaq, BlogPost } from "./types";
 
 const SITE_URL = "https://clipiro.com";
 
@@ -13,7 +13,14 @@ export function buildBlogPostingSchema(post: BlogPost) {
     ...(post.hero && { image: [`${SITE_URL}${post.hero.src}`] }),
     datePublished: post.publishedAt,
     dateModified: post.updatedAt,
-    author: { "@type": "Organization", name: post.author.name, url: SITE_URL },
+    // Organization unless the byline is a real individual: claiming a
+    // schema.org Person for a team name is a worse E-E-A-T signal than an
+    // honest Organization, not a better one.
+    author: {
+      "@type": post.author.kind ?? "Organization",
+      name: post.author.name,
+      url: post.author.kind === "Person" ? `${SITE_URL}/blog/author/${post.author.slug}` : SITE_URL,
+    },
     publisher: {
       "@type": "Organization",
       name: "Clipiro",
@@ -32,6 +39,26 @@ export function buildFaqPageSchema(faqs: BlogFaq[]) {
       "@type": "Question",
       name: f.question,
       acceptedAnswer: { "@type": "Answer", text: f.answer },
+    })),
+  };
+}
+
+export function buildProfilePageSchema(author: BlogAuthor, posts: BlogPost[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ProfilePage",
+    mainEntity: {
+      "@type": author.kind ?? "Organization",
+      name: author.name,
+      url: `${SITE_URL}/blog/author/${author.slug}`,
+      ...(author.bio && { description: author.bio }),
+      ...(author.links?.length && { sameAs: author.links.map((l) => l.href) }),
+    },
+    hasPart: posts.map((post) => ({
+      "@type": "BlogPosting",
+      headline: post.title,
+      url: `${SITE_URL}/blog/${post.slug}`,
+      datePublished: post.publishedAt,
     })),
   };
 }

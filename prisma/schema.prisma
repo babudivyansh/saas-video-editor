@@ -1147,3 +1147,23 @@ model NewsletterSubscriber {
 
   @@index([status, createdAt])
 }
+
+// Core Web Vitals field data, collected first-party via next/web-vitals'
+// useReportWebVitals. Deliberately NOT @vercel/speed-insights: this app is
+// self-hosted (next.config.ts output: "standalone"), where Speed Insights
+// ships a client script and collects nothing.
+//
+// Stores bucket counts rather than raw samples. Buckets are the official CWV
+// thresholds and are what you actually look at; raw values would grow without
+// bound and invite storing a per-visitor timeline we have no consent for.
+model WebVitalDaily {
+  id     String @id @default(uuid())
+  date   String // "YYYY-MM-DD" UTC
+  metric String // "LCP" | "INP" | "CLS" | "FCP" | "TTFB"
+  path   String
+  bucket String // "good" | "needs_improvement" | "poor"
+  count  Int    @default(0)
+
+  @@unique([date, metric, path, bucket], map: "WebVitalDaily_dimensions_key")
+  @@index([date, metric])
+}
