@@ -65,7 +65,7 @@ export async function sendOtpEmail(to: string, otp: string): Promise<DeliveryCha
 
   // 2. Fallback to Nodemailer SMTP
   if (env.EMAIL_USER) {
-    const smtpFrom = env.EMAIL_FROM || env.EMAIL_USER || "noreply@clipiro.app";
+    const smtpFrom = env.EMAIL_FROM || env.EMAIL_USER || "noreply@clipiro.com";
     await transporter.sendMail({
       from: `"Clipiro" <${smtpFrom}>`,
       to,
@@ -127,7 +127,7 @@ export async function sendPasswordResetEmail(to: string, name: string, resetLink
 
   // 2. Fallback to Nodemailer SMTP
   if (env.EMAIL_USER) {
-    const smtpFrom = env.EMAIL_FROM || env.EMAIL_USER || "noreply@clipiro.app";
+    const smtpFrom = env.EMAIL_FROM || env.EMAIL_USER || "noreply@clipiro.com";
     await transporter.sendMail({
       from: `"Clipiro" <${smtpFrom}>`,
       to,
@@ -220,7 +220,7 @@ export async function sendPurchaseConfirmationEmail(data: PurchaseEmailData): Pr
 
   // 2. Fallback to Nodemailer SMTP
   if (env.EMAIL_USER) {
-    const smtpFrom = env.EMAIL_FROM || env.EMAIL_USER || "noreply@clipiro.app";
+    const smtpFrom = env.EMAIL_FROM || env.EMAIL_USER || "noreply@clipiro.com";
     await transporter.sendMail({
       from: `"Clipiro" <${smtpFrom}>`,
       to: data.userEmail,

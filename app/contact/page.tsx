@@ -83,8 +83,8 @@ export default function ContactPage() {
                     </div>
                     <div>
                       <p className="text-sm font-bold text-gray-800">Customer Support</p>
-                      <a href="mailto:support@clipiro.ai" className="text-sm text-[#335CFF] hover:underline">
-                        support@clipiro.ai
+                      <a href="mailto:support@clipiro.com" className="text-sm text-[#335CFF] hover:underline">
+                        support@clipiro.com
                       </a>
                       <p className="text-xs text-gray-400 mt-0.5">For account issues and editor help.</p>
                     </div>

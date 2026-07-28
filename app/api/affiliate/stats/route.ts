@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ enrolled: false });
   }
 
-  const baseUrl = env.NEXT_PUBLIC_APP_URL ?? "https://clipiro.ai";
+  const baseUrl = env.NEXT_PUBLIC_APP_URL ?? "https://clipiro.com";
 
   const pendingAmount = affiliate.commissions
     .filter(c => c.status === "pending")
