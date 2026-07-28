@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { useJobPolling } from "./useJobPolling";
 import { Tooltip } from "@/app/components/ui/Tooltip";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 
 function IcInfo() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
@@ -483,6 +484,7 @@ function PlayerCard({
 export default function VoiceoverTool() {
   const { user, token, openAuthModal, refreshUser } = useAuth();
   const job = useJobPolling({ toolSlug: "voiceover", token });
+  const fireReviewPrompt = useReviewPromptTrigger();
 
   const [voiceSlug, setVoiceSlug] = useState("william");
   const [title, setTitle] = useState("");
@@ -586,6 +588,7 @@ export default function VoiceoverTool() {
     if (job.status !== "done" || !job.jobId) return;
     if (addedForJobId.current === job.jobId) return;
     addedForJobId.current = job.jobId;
+    fireReviewPrompt("tool_generation_complete", { featureHint: "ai_tools" }).catch(() => { /* non-critical */ });
 
     const meta = job.meta as { audioUrl: string; durationMs: number; characters: number; title: string } | null;
     if (!meta) return;
@@ -602,7 +605,7 @@ export default function VoiceoverTool() {
     setTimeout(() => togglePlay(item), 50);
     refreshUser();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [job.status, job.jobId, job.meta]);
+  }, [job.status, job.jobId, job.meta, fireReviewPrompt]);
 
   function onKeyDown(e: React.KeyboardEvent) {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); if (!busy) generate(); }

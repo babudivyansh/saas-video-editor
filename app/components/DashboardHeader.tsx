@@ -15,6 +15,7 @@ import { useTranslations } from "next-intl";
 import ClipiroLogo from "@/app/components/ClipiroLogo";
 import { NavDropdown, DropdownItem, type NavItem } from "@/app/components/NavDropdown";
 import SidebarAccount from "@/app/components/SidebarAccount";
+import { NotificationBell } from "@/app/components/NotificationBell";
 import { useAuth } from "@/app/components/AuthContext";
 import { FREE_FEATURES, VIDEO_TOOLS, AI_TOOLS, RESOURCES } from "@/app/components/featureLinks";
 import { useDashboardNavItems } from "@/app/components/ToolsSidebar";
@@ -393,6 +394,8 @@ export default function DashboardHeader() {
               <CreditsPill credits={user.credits ?? 0} />
             </div>
 
+            <NotificationBell className="hidden xl:flex" />
+
             {/* Monetization CTA: upgrade when free, top up when subscribed */}
             <Button variant={hasActivePlan ? "secondary" : "primary"} size="sm" href="/billing" className="hidden xl:inline-flex">
               {hasActivePlan ? t("topUp") : t("upgrade")}
@@ -509,7 +512,10 @@ export default function DashboardHeader() {
                 >
                   {planName}
                 </span>
-                <CreditsPill credits={user.credits ?? 0} />
+                <div className="flex items-center gap-1.5">
+                  <NotificationBell />
+                  <CreditsPill credits={user.credits ?? 0} />
+                </div>
               </div>
               <div className="px-3 pt-1 pb-2">
                 <Button variant={hasActivePlan ? "secondary" : "primary"} size="sm" href="/billing" className="w-full" onClick={closeMobile}>

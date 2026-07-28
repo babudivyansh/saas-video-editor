@@ -1,11 +1,12 @@
 "use client";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 import { useTopupCoupon } from "@/app/components/useTopupCoupon";
 import { PlansModal } from "@/app/components/billing/PlansModal";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
@@ -114,6 +115,17 @@ function BillingContent() {
   const tab: TabKey = (TABS.find(t => t.key === params.get("tab"))?.key) ?? "overview";
   const { user, token, refreshUser } = useAuth();
   const { startCheckout, activeId } = useRazorpayCheckout();
+  const fireReviewPrompt = useReviewPromptTrigger();
+  const reviewPromptFiredRef = useRef(false);
+
+  // ?success=1 is route-param driven (persists across re-renders until the
+  // user navigates away), not a one-shot state change — a ref guard keeps
+  // this from re-firing on every render while the param is present.
+  useEffect(() => {
+    if (!success || reviewPromptFiredRef.current) return;
+    reviewPromptFiredRef.current = true;
+    fireReviewPrompt("billing_success", { featureHint: "billing" }).catch(() => { /* non-critical */ });
+  }, [success, fireReviewPrompt]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

@@ -63,6 +63,7 @@ export const KNOWN_RENDER_QUEUE_NAMES = [
   "asset-moderation",
   "asset-zip",
   "account-export",
+  "review-attachment-moderation",
 ] as const;
 export type RenderQueueName = typeof KNOWN_RENDER_QUEUE_NAMES[number];
 

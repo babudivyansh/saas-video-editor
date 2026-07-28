@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/app/components/AuthContext";
+import { NotificationBell } from "@/app/components/NotificationBell";
 
 function IcGrid()    { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>; }
 function IcUsers()   { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>; }
@@ -13,6 +14,7 @@ function IcTool()    { return <svg viewBox="0 0 24 24" fill="none" stroke="curre
 function IcLog()     { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>; }
 function IcGift()    { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>; }
 function IcTicket()  { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M3 9a2 2 0 012-2h14a2 2 0 012 2v1.5a1.5 1.5 0 000 3V15a2 2 0 01-2 2H5a2 2 0 01-2-2v-1.5a1.5 1.5 0 000-3z"/><path d="M13 7v10" strokeDasharray="2 2"/></svg>; }
+function IcStar()    { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M12 2.5l2.95 6.28 6.8.79-5.1 4.7 1.4 6.73L12 17.6l-6.05 3.4 1.4-6.73-5.1-4.7 6.8-.79L12 2.5z"/></svg>; }
 function IcSpinner() { return <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />; }
 function IcMenu({ open }: { open: boolean }) {
   return (
@@ -25,6 +27,7 @@ function IcMenu({ open }: { open: boolean }) {
 const NAV = [
   { href: "/admin",               label: "Dashboard",    icon: <IcGrid />,     exact: true  },
   { href: "/admin/users",         label: "Users",        icon: <IcUsers />,    exact: false },
+  { href: "/admin/reviews",       label: "Reviews",      icon: <IcStar />,     exact: false },
   { href: "/admin/subscriptions", label: "Subscriptions",icon: <IcCalendar />, exact: false },
   { href: "/admin/pricing",       label: "Pricing",      icon: <IcTag />,      exact: false },
   { href: "/admin/coupons",       label: "Coupons",      icon: <IcTicket />,   exact: false },
@@ -312,7 +315,8 @@ export default function AdminShell({ children, title }: { children: React.ReactN
           >
             <IcMenu open={menuOpen} />
           </button>
-          <h1 className="text-xl font-bold text-gray-900 truncate">{title}</h1>
+          <h1 className="text-xl font-bold text-gray-900 truncate flex-1">{title}</h1>
+          <NotificationBell />
         </div>
         <div className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-8">{children}</div>
       </main>

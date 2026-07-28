@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/app/components/AuthContext";
 import { useJobPolling } from "./useJobPolling";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 
 function IcUpload() {
   return (
@@ -120,6 +121,7 @@ function ImageDropZone({
 export default function FaceSwapTool() {
   const { user, token, openAuthModal, refreshUser } = useAuth();
   const job = useJobPolling({ toolSlug: "face-swap", token });
+  const fireReviewPrompt = useReviewPromptTrigger();
   const submittingRef = useRef(false);
   const downloadedForJobId = useRef<string | null>(null);
 
@@ -199,6 +201,7 @@ export default function FaceSwapTool() {
     if (job.status !== "done" || !job.jobId || !token) return;
     if (downloadedForJobId.current === job.jobId) return;
     downloadedForJobId.current = job.jobId;
+    fireReviewPrompt("tool_generation_complete", { featureHint: "ai_tools" }).catch(() => { /* non-critical */ });
 
     (async () => {
       try {
@@ -214,7 +217,7 @@ export default function FaceSwapTool() {
         // a preview rather than flipping to an error state.
       }
     })();
-  }, [job.status, job.jobId, token, refreshUser]);
+  }, [job.status, job.jobId, token, refreshUser, fireReviewPrompt]);
 
   // Revoke the held result object URL on unmount.
   useEffect(() => {

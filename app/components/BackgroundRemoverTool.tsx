@@ -2,6 +2,7 @@
 import { useCallback, useRef, useState, useEffect } from "react";
 import { useAuth } from "@/app/components/AuthContext";
 import { useJobPolling } from "./useJobPolling";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 
 function IcCloud() {
   return (
@@ -71,6 +72,7 @@ function CheckerBg({ children }: { children: React.ReactNode }) {
 export default function BackgroundRemoverTool() {
   const { user, token, openAuthModal, refreshUser } = useAuth();
   const job = useJobPolling({ toolSlug: "background-remover", token });
+  const fireReviewPrompt = useReviewPromptTrigger();
   const submittingRef = useRef(false);
   const downloadedForJobId = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -151,6 +153,7 @@ export default function BackgroundRemoverTool() {
     if (job.status !== "done" || !job.jobId || !token) return;
     if (downloadedForJobId.current === job.jobId) return;
     downloadedForJobId.current = job.jobId;
+    fireReviewPrompt("tool_generation_complete", { featureHint: "ai_tools" }).catch(() => { /* non-critical */ });
 
     (async () => {
       try {
@@ -166,7 +169,7 @@ export default function BackgroundRemoverTool() {
         // a preview rather than flipping to an error state.
       }
     })();
-  }, [job.status, job.jobId, token, refreshUser]);
+  }, [job.status, job.jobId, token, refreshUser, fireReviewPrompt]);
 
   function handleDownload() {
     if (!resultUrl || !file) return;

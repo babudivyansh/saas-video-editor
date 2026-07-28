@@ -1,8 +1,9 @@
 "use client";
-import { Suspense, useRef, useState, type ReactNode, type CSSProperties } from "react";
+import { Suspense, useEffect, useRef, useState, type ReactNode, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useVideoGenerate, getStoredToken, type GenerateStatus } from "@/app/hooks/useVideoGenerate";
 import { useAuth } from "@/app/components/AuthContext";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 function IcFilm() {
@@ -155,6 +156,15 @@ function GeneratingOverlay({ status, videoUrl, error, onReset }: { status: Gener
     creating: "Creating your project…",
     rendering: "Rendering your video — this may take 2–5 minutes…",
   };
+
+  const fireReviewPrompt = useReviewPromptTrigger();
+  const reviewPromptFiredRef = useRef(false);
+  useEffect(() => {
+    if (status !== "completed" || !videoUrl || reviewPromptFiredRef.current) return;
+    reviewPromptFiredRef.current = true;
+    fireReviewPrompt("tool_generation_complete", { featureHint: "ai_tools" }).catch(() => { /* non-critical */ });
+  }, [status, videoUrl, fireReviewPrompt]);
+
   if (status === "completed" && videoUrl) {
     return (
       <div className="mt-4 mx-8 mb-8 rounded-[28px] bg-gray-50 border border-gray-100 flex items-center justify-center" style={{ minHeight: "calc(100vh - 200px)" }}>

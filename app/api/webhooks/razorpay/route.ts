@@ -5,6 +5,32 @@ import { prisma } from "@/lib/prisma";
 import { grantCredits } from "@/lib/credits";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
+import { evaluatePromptTrigger, recordPrompt } from "@/lib/reviews/prompt-triggers";
+import { notify } from "@/lib/notify";
+import { shouldSendCategory } from "@/lib/notifications";
+import { sendReviewPromptEmail } from "@/lib/email";
+
+// No browser context here — mirrors the days_active cron's pattern exactly
+// (in-app notification + gated email) rather than trying to pop a live
+// modal. Only fires for a genuinely NEW charge (fulfilled === true), never a
+// webhook redelivery of an already-processed one. Failures are swallowed —
+// this is a nice-to-have nudge, never allowed to affect payment handling.
+async function maybePromptAfterBillingSuccess(userId: string | undefined) {
+  if (!userId) return;
+  try {
+    const result = await evaluatePromptTrigger(userId, "billing_success");
+    if (!result.shouldPrompt) return;
+    await recordPrompt(userId, "billing_success", "billing");
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, firstName: true, name: true } });
+    if (!user) return;
+    await notify({ userId, type: "review_prompt", title: "Got a minute to review Clipiro?", body: "Your feedback helps other creators decide.", href: "/dashboard?prompt=1" });
+    if (await shouldSendCategory(userId, "reviewPrompts")) {
+      await sendReviewPromptEmail(user.email, user.name ?? user.firstName ?? "there", "https://clipiro.com/dashboard?prompt=1").catch((e) => logger.warn("webhook", "review prompt email failed", e));
+    }
+  } catch (e) {
+    logger.warn("webhook", "review prompt after billing success failed", e);
+  }
+}
 
 // Backup fulfillment path. The primary path is the client-side verify endpoint
 // (app/api/billing/verify); this webhook catches payments where the browser
@@ -81,12 +107,13 @@ export async function POST(req: NextRequest) {
     const paymentEntity = event.payload?.payment?.entity;
     const subEntity = event.payload?.subscription?.entity;
     if (paymentEntity?.id && subEntity?.id) {
-      await fulfillSubscriptionCharge({
+      const result = await fulfillSubscriptionCharge({
         subscriptionId: subEntity.id,
         paymentId: paymentEntity.id,
         amountInPaise: paymentEntity.amount ?? 0,
         eventName: event.event,
       });
+      if (result.fulfilled) await maybePromptAfterBillingSuccess(subEntity.notes?.userId);
     }
     return NextResponse.json({ received: true });
   }
@@ -112,13 +139,14 @@ export async function POST(req: NextRequest) {
     // handled by subscription.charged above; routing them through
     // fulfillPayment too would double-grant.
     if (entity?.id && !entity.invoice_id) {
-      await fulfillPayment({
+      const result = await fulfillPayment({
         paymentId: entity.id,
         orderId: entity.order_id ?? null,
         amountInPaise: entity.amount ?? 0,
         notes: entity.notes,
         eventName: event.event,
       });
+      if (result.fulfilled) await maybePromptAfterBillingSuccess(entity.notes?.userId);
     }
   }
 

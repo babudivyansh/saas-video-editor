@@ -21,12 +21,15 @@ export async function GET(req: NextRequest) {
   }
 
   const weekAgo = new Date(Date.now() - 7 * 86400_000);
-  const [kpis, gen7d, genFailed7d, syncStats, admins] = await Promise.all([
+  const [kpis, gen7d, genFailed7d, syncStats, admins, newReviews7d, pendingReviews, reportedReviews] = await Promise.all([
     kpisSection(7),
     prisma.generation.count({ where: { createdAt: { gte: weekAgo } } }),
     prisma.generation.count({ where: { createdAt: { gte: weekAgo }, status: "failed" } }),
     getSyncStats().catch(() => ({ ok: 0, fail: 0 })),
     prisma.user.findMany({ where: { role: "ADMIN" }, select: { email: true } }),
+    prisma.review.count({ where: { createdAt: { gte: weekAgo } } }),
+    prisma.review.count({ where: { status: "pending" } }),
+    prisma.review.count({ where: { reportCount: { gt: 0 } } }),
   ]);
 
   let sent = 0;
@@ -40,6 +43,9 @@ export async function GET(req: NextRequest) {
         generations7d: gen7d,
         failedGenerations7d: genFailed7d,
         syncFailuresToday: syncStats.fail,
+        newReviews7d,
+        pendingReviews,
+        reportedReviews,
       });
       sent++;
     } catch (e) {

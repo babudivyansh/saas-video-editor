@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { useJobPolling } from "./useJobPolling";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { VIDEO_MODELS, DEFAULT_VIDEO_MODEL_ID, getVideoModel } from "@/lib/models/videoModels";
 import type { VideoParam } from "@/lib/models/types";
 
@@ -371,6 +372,7 @@ function PromptDocsPopover({ onClose }: { onClose: () => void }) {
 export default function VideoGeneratorTool() {
   const { user, token, openAuthModal, refreshUser } = useAuth();
   const job = useJobPolling({ toolSlug: "video-generator", token });
+  const fireReviewPrompt = useReviewPromptTrigger();
   const submittingRef = useRef(false);
   const downloadedForJobId = useRef<string | null>(null);
 
@@ -460,6 +462,7 @@ export default function VideoGeneratorTool() {
     if (job.status !== "done" || !job.jobId || !token) return;
     if (downloadedForJobId.current === job.jobId) return;
     downloadedForJobId.current = job.jobId;
+    fireReviewPrompt("tool_generation_complete", { featureHint: "ai_tools" }).catch(() => { /* non-critical */ });
 
     (async () => {
       try {
@@ -482,7 +485,7 @@ export default function VideoGeneratorTool() {
         // user has to use "Download" again — no need to flip to an error state.
       }
     })();
-  }, [job.status, job.jobId, token, refreshUser]);
+  }, [job.status, job.jobId, token, refreshUser, fireReviewPrompt]);
 
   // Revoke the held video object URL on unmount.
   useEffect(() => {

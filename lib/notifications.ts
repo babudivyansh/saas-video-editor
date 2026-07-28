@@ -18,7 +18,8 @@ export type NotificationCategory =
   | "weeklySummary"
   | "featureReleases"
   | "marketingEmails" // re-engagement 7/30-day
-  | "newsletter";
+  | "newsletter"
+  | "reviewPrompts"; // smart review-prompt nudges (P7) — its own opt-out since it's a marketing-adjacent nudge, not general product news
 
 const DEFAULTS: Omit<NotificationPreference, "userId" | "updatedAt"> = {
   marketingEmails: true,
@@ -28,6 +29,7 @@ const DEFAULTS: Omit<NotificationPreference, "userId" | "updatedAt"> = {
   weeklySummary: true,
   featureReleases: true,
   newsletter: true,
+  reviewPrompts: true,
 };
 
 export async function getNotificationPreference(userId: string): Promise<NotificationPreference> {

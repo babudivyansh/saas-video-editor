@@ -16,6 +16,7 @@ interface Preferences {
   weeklySummary: boolean;
   featureReleases: boolean;
   newsletter: boolean;
+  reviewPrompts: boolean;
 }
 
 export default function NotificationsSettingsPage() {
@@ -31,6 +32,7 @@ export default function NotificationsSettingsPage() {
     { key: "productUpdates", label: t("categories.productUpdates.label"), desc: t("categories.productUpdates.desc") },
     { key: "weeklySummary", label: t("categories.weeklySummary.label"), desc: t("categories.weeklySummary.desc") },
     { key: "featureReleases", label: t("categories.featureReleases.label"), desc: t("categories.featureReleases.desc") },
+    { key: "reviewPrompts", label: t("categories.reviewPrompts.label"), desc: t("categories.reviewPrompts.desc") },
     { key: "marketingEmails", label: t("categories.marketingEmails.label"), desc: t("categories.marketingEmails.desc") },
     { key: "newsletter", label: t("categories.newsletter.label"), desc: t("categories.newsletter.desc") },
   ];

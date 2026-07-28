@@ -3,10 +3,12 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { useAuth } from "@/app/components/AuthContext";
 import { useJobPolling } from "@/app/components/useJobPolling";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 
 export default function SubtitleRemoverTool() {
   const { token, refreshUser } = useAuth();
   const job = useJobPolling({ toolSlug: "subtitle-remover", token });
+  const fireReviewPrompt = useReviewPromptTrigger();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
@@ -111,6 +113,7 @@ export default function SubtitleRemoverTool() {
     if (job.status !== "done" || !job.jobId || !token) return;
     if (downloadedForJobId.current === job.jobId) return;
     downloadedForJobId.current = job.jobId;
+    fireReviewPrompt("tool_generation_complete", { featureHint: "ai_tools" }).catch(() => { /* non-critical */ });
 
     (async () => {
       try {
@@ -135,7 +138,7 @@ export default function SubtitleRemoverTool() {
         // user needs "Download again" rather than a hard error state.
       }
     })();
-  }, [job.status, job.jobId, token, downloadName, refreshUser]);
+  }, [job.status, job.jobId, token, downloadName, refreshUser, fireReviewPrompt]);
 
   const handleAgain = () => {
     if (originalPreviewUrl) URL.revokeObjectURL(originalPreviewUrl);

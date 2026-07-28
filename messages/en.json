@@ -320,6 +320,7 @@
       "productUpdates": { "label": "Product Updates", "desc": "Onboarding tips and getting-started guidance." },
       "weeklySummary": { "label": "Weekly Summary", "desc": "Your Social Tracker performance digest." },
       "featureReleases": { "label": "Feature Releases", "desc": "New tools and features as they ship." },
+      "reviewPrompts": { "label": "Review Prompts", "desc": "Occasional nudges to leave a Clipiro review after a great result." },
       "marketingEmails": { "label": "Re-engagement Emails", "desc": "Occasional \"we miss you\" nudges if you've been away." },
       "newsletter": { "label": "Newsletter", "desc": "Tips, tutorials, and creator spotlights." }
     }

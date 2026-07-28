@@ -1,8 +1,9 @@
 "use client";
-import { Suspense, useState, useRef, type CSSProperties } from "react";
+import { Suspense, useEffect, useState, useRef, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useVideoGenerate, getStoredToken } from "@/app/hooks/useVideoGenerate";
 import { useAuth } from "@/app/components/AuthContext";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 function IcChevron() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M9 18l6-6-6-6"/></svg>; }
@@ -658,6 +659,14 @@ function TextVideoFlow() {
   const [language, setLanguage] = useState("auto");
 
   const { status: genStatus, videoUrl, error: genError, generateTextVideo, reset, progress: renderProgress } = useVideoGenerate();
+
+  const fireReviewPrompt = useReviewPromptTrigger();
+  const reviewPromptFiredRef = useRef(false);
+  useEffect(() => {
+    if (genStatus !== "completed" || !videoUrl || reviewPromptFiredRef.current) return;
+    reviewPromptFiredRef.current = true;
+    fireReviewPrompt("tool_generation_complete", { featureHint: "ai_tools" }).catch(() => { /* non-critical */ });
+  }, [genStatus, videoUrl, fireReviewPrompt]);
 
   function goTo(i: number) { router.push(`/dashboard/create/text-video?step=${STEPS[i].id}`); }
 

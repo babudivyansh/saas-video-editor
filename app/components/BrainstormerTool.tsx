@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { Tooltip } from "@/app/components/ui/Tooltip";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 
 function IcInfo() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
@@ -84,6 +85,7 @@ function IdeaCard({ idea, index }: { idea: Idea; index: number }) {
 
 export default function BrainstormerTool() {
   const { user, token, openAuthModal, refreshUser } = useAuth();
+  const fireReviewPrompt = useReviewPromptTrigger();
   const submittingRef = useRef(false);
 
   const [topic, setTopic] = useState("");
@@ -119,6 +121,7 @@ export default function BrainstormerTool() {
       setIdeas(data.ideas ?? []);
       await refreshUser();
       setStage("done");
+      fireReviewPrompt("tool_generation_complete", { featureHint: "ai_tools" }).catch(() => { /* non-critical */ });
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Something went wrong.");
       setStage("error");

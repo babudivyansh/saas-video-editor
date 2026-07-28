@@ -1,8 +1,9 @@
 "use client";
-import { Suspense, useState, type CSSProperties } from "react";
+import { Suspense, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useVideoGenerate, getStoredToken } from "@/app/hooks/useVideoGenerate";
 import { useAuth } from "@/app/components/AuthContext";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 function IcChevron()      { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M9 18l6-6-6-6"/></svg>; }
@@ -564,6 +565,14 @@ function RedditVideoFlow() {
   const isCompleted  = genStatus === "completed";
   const isFailed     = genStatus === "failed";
   const isGenerating = isRendering;
+
+  const fireReviewPrompt = useReviewPromptTrigger();
+  const reviewPromptFiredRef = useRef(false);
+  useEffect(() => {
+    if (!isCompleted || !videoUrl || reviewPromptFiredRef.current) return;
+    reviewPromptFiredRef.current = true;
+    fireReviewPrompt("tool_generation_complete", { featureHint: "ai_tools" }).catch(() => { /* non-critical */ });
+  }, [isCompleted, videoUrl, fireReviewPrompt]);
 
   function goTo(i: number) { router.push(`/dashboard/create/reddit-video?step=${STEPS[i].id}`); }
 

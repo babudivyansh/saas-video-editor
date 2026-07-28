@@ -10,6 +10,7 @@ import { Button } from "@/app/components/ui/Button";
 import { useVideoGenerate, getStoredToken, type GenerateStatus } from "@/app/hooks/useVideoGenerate";
 import { registerAsset, type AssetRow } from "@/app/dashboard/editor/components/panels/shared/assetData";
 import { useInsufficientCredits } from "@/app/components/billing/CreditModalContext";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 function IcFilm() {
@@ -695,7 +696,9 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
   const [clips, setClips] = useState<ClipItem[]>([]);
   const [project, setProject] = useState<ProjectMeta>({ status: "rendering", warnings: null, captionStyleIndex: null, uploadedVideoUrl: null });
   const [selectedClip, setSelectedClip] = useState<ClipItem | null>(null);
+  const fireReviewPrompt = useReviewPromptTrigger();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reviewPromptFiredRef = useRef(false);
 
   const tick = useCallback(async () => {
     if (!projectId) return;
@@ -723,6 +726,15 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
   const analyzing = clips.length === 0 && !failedHard;
   const pendingReview = projectStatus === "pending_review";
   const allDone = projectStatus === "completed";
+
+  // Fired once, on the results screen after the batch finishes — never
+  // mid-render. lib/reviews/prompt-triggers.ts owns eligibility/throttling;
+  // this only asks and shows the modal if the answer is yes.
+  useEffect(() => {
+    if (!allDone || reviewPromptFiredRef.current) return;
+    reviewPromptFiredRef.current = true;
+    fireReviewPrompt("autoclips_milestone", { featureHint: "auto_clips" }).catch(() => { /* non-critical */ });
+  }, [allDone, fireReviewPrompt]);
 
   let heading: string;
   if (failedHard) heading = "Something went wrong";

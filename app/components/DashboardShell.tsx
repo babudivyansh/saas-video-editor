@@ -14,6 +14,7 @@ import { usePathname } from "next/navigation";
 import DashboardHeader from "@/app/components/DashboardHeader";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
 import { CreditModalProvider } from "@/app/components/billing/CreditModalContext";
+import { ReviewPromptProvider } from "@/app/components/reviews/ReviewPromptProvider";
 
 const CHROMELESS_PREFIXES = ["/dashboard/editor", "/dashboard/admin"];
 
@@ -43,21 +44,29 @@ function activeIdFor(pathname: string): string {
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  // CreditModalProvider wraps both branches so the chromeless editor gets the
-  // shared insufficient-credits (402) modal too.
+  // CreditModalProvider and ReviewPromptProvider wrap both branches so the
+  // chromeless editor gets the shared insufficient-credits (402) modal and
+  // the review-prompt system too — the editor's own export-success trigger
+  // lives inside this chromeless subtree.
   if (CHROMELESS_PREFIXES.some((p) => pathname.startsWith(p))) {
-    return <CreditModalProvider>{children}</CreditModalProvider>;
+    return (
+      <CreditModalProvider>
+        <ReviewPromptProvider>{children}</ReviewPromptProvider>
+      </CreditModalProvider>
+    );
   }
 
   return (
     <CreditModalProvider>
-      <div className="flex h-screen flex-col overflow-hidden bg-surface">
-        <DashboardHeader />
-        <div className="flex flex-1 overflow-hidden">
-          <ToolsSidebar active={activeIdFor(pathname)} />
-          <main className="flex-1 overflow-y-auto bg-surface">{children}</main>
+      <ReviewPromptProvider>
+        <div className="flex h-screen flex-col overflow-hidden bg-surface">
+          <DashboardHeader />
+          <div className="flex flex-1 overflow-hidden">
+            <ToolsSidebar active={activeIdFor(pathname)} />
+            <main className="flex-1 overflow-y-auto bg-surface">{children}</main>
+          </div>
         </div>
-      </div>
+      </ReviewPromptProvider>
     </CreditModalProvider>
   );
 }
