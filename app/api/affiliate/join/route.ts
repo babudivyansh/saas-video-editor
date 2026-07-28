@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
 
   const existing = await prisma.affiliate.findUnique({ where: { userId: user.userId } });
   if (existing) {
-    const baseUrl = env.NEXT_PUBLIC_APP_URL ?? "https://clipiro.ai";
+    const baseUrl = env.NEXT_PUBLIC_APP_URL ?? "https://clipiro.com";
     return NextResponse.json({
       code: existing.code,
       referralLink: `${baseUrl}/register?ref=${existing.code}`,
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     data: { userId: user.userId, code },
   });
 
-  const baseUrl = env.NEXT_PUBLIC_APP_URL ?? "https://clipiro.ai";
+  const baseUrl = env.NEXT_PUBLIC_APP_URL ?? "https://clipiro.com";
   return NextResponse.json({
     code: affiliate.code,
     referralLink: `${baseUrl}/register?ref=${affiliate.code}`,

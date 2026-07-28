@@ -5,7 +5,6 @@ import SocialProof from "@/app/components/landing/SocialProof";
 import Features from "@/app/components/landing/Features";
 import ToolShowcase from "@/app/components/landing/ToolShowcase";
 import HowItWorks from "@/app/components/landing/HowItWorks";
-import PricingPreview from "@/app/components/landing/PricingPreview";
 import FounderSection from "@/app/components/landing/FounderSection";
 import FAQ from "@/app/components/landing/FAQ";
 import CTABanner from "@/app/components/landing/CTABanner";
@@ -73,7 +72,6 @@ export default async function HomePage() {
           <Features />
           <ToolShowcase />
           <HowItWorks />
-          <PricingPreview />
           <FounderSection />
           <FAQ />
           <CTABanner />

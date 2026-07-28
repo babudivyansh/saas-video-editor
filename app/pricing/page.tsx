@@ -1174,7 +1174,7 @@ export default function PricingPage() {
               </button>
             )}
             <a
-              href="mailto:support@clipiro.ai"
+              href="mailto:support@clipiro.com"
               className="inline-flex items-center justify-center gap-2 border-2 border-white/40 text-white font-bold px-8 py-3.5 rounded-full hover:bg-white/10 transition-colors"
             >
               Contact Support

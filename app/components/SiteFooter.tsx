@@ -28,13 +28,23 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
       { label: "Blog", href: "/blog" },
       { label: "Contact", href: "/contact" },
       { label: "Affiliate Program", href: "/affiliate-program" },
-      { label: "Privacy Policy", href: "/privacy" },
-      { label: "Terms of Service", href: "/terms" },
     ],
   },
   { title: "Video Tools", links: asLinks(VIDEO_TOOLS) },
   { title: "AI Tools", links: asLinks(AI_TOOLS) },
   { title: "Free Tools", links: asLinks(FREE_FEATURES) },
+  {
+    // Grouped here rather than scattered through Company: /refund and
+    // /affiliate-tos previously had no entry point anywhere on the site.
+    title: "Legal",
+    links: [
+      { label: "Legal hub", href: "/legal" },
+      { label: "Refund policy", href: "/refund" },
+      { label: "Terms of service", href: "/terms" },
+      { label: "Privacy policy", href: "/privacy" },
+      { label: "Affiliate TOS", href: "/affiliate-tos" },
+    ],
+  },
 ];
 
 const SOCIALS = [
@@ -49,7 +59,7 @@ export default function SiteFooter() {
   return (
     <footer className="border-t border-card-border bg-surface font-sans">
       <div className="mx-auto w-full max-w-screen-2xl px-4 py-16 md:px-12 lg:px-[120px]">
-        <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
           {/* Brand blurb */}
           <div className="col-span-2 sm:col-span-3 lg:col-span-1">
             <Link href="/" className="inline-flex" aria-label="Clipiro home">
