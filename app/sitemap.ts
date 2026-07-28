@@ -3,6 +3,7 @@ import { BLOG_CATEGORIES } from "./blog/categories";
 import { BLOG_POSTS } from "./blog/posts";
 import { getAuthorIndex, getPostsByAuthor, getPostsByCategory } from "./blog/utils";
 import { HELP_ARTICLES } from "./help/articles";
+import { LEGAL_DOCS } from "./legal/documents";
 import { prisma } from "@/lib/prisma";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -55,6 +56,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.4,
   }));
 
+  // lastModified is each document's own `updated` date rather than new Date():
+  // legal text changes rarely, and an always-now timestamp is exactly the
+  // signal crawlers learn to discount.
+  const legalEntries: MetadataRoute.Sitemap = LEGAL_DOCS.map((doc) => ({
+    url: `${base}${doc.slug}`,
+    lastModified: doc.updated,
+    changeFrequency: "yearly",
+    priority: 0.3,
+  }));
+
   const helpEntries: MetadataRoute.Sitemap = HELP_ARTICLES.map((a) => ({
     url: `${base}/help/${a.slug}`,
     lastModified: new Date(),
@@ -76,10 +87,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...helpEntries,
     { url: `${base}/contact`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.5 },
     { url: `${base}/affiliate-program`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.5 },
-    { url: `${base}/terms`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.3 },
-    { url: `${base}/privacy`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.3 },
-    { url: `${base}/refund`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.3 },
-    { url: `${base}/cookies`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.3 },
-    { url: `${base}/affiliate-tos`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.3 },
+    { url: `${base}/legal`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.4 },
+    ...legalEntries,
   ];
 }

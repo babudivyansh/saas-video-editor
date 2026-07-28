@@ -17,26 +17,54 @@ export default function ArticleToc({ items, className = "" }: { items: TocItem[]
   useEffect(() => {
     if (items.length === 0) return;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        // Prefer the heading nearest the top of the viewport among those
-        // currently intersecting, so scrolling up highlights the section you
-        // are entering rather than the one you are leaving.
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible[0]) setActiveId(visible[0].target.id);
-      },
-      // Top inset clears the sticky navbar; the large bottom inset keeps only
-      // headings in the upper part of the viewport eligible.
-      { rootMargin: "-96px 0px -66% 0px", threshold: 0 },
-    );
+    // Driven by scroll position rather than an IntersectionObserver: a jump
+    // from a TOC link can move a heading clean through the observer's band
+    // between frames, so no intersecting entry is ever reported and the
+    // highlight sticks to wherever the reader came from. Reading geometry on
+    // scroll always reflects where the reader actually is.
+    const update = () => {
+      const positions = items
+        .map((item) => ({ id: item.id, top: document.getElementById(item.id)?.getBoundingClientRect().top }))
+        .filter((p): p is { id: string; top: number } => p.top !== undefined);
+      if (positions.length === 0) return;
 
-    for (const item of items) {
-      const el = document.getElementById(item.id);
-      if (el) observer.observe(el);
-    }
-    return () => observer.disconnect();
+      // The last heading scrolled past the navbar line is the one being read;
+      // above the first heading, highlight nothing rather than guessing.
+      // The line has to sit below the largest scroll-margin-top among the
+      // headings (96px on blog posts, 128px on legal documents) or clicking a
+      // TOC link lands its target just short of the line and highlights the
+      // previous section instead.
+      const passed = positions.filter((p) => p.top <= 140);
+      setActiveId(passed.length > 0 ? passed[passed.length - 1].id : "");
+    };
+
+    // Coalesced to one measurement per frame so a scroll never triggers a
+    // burst of layout reads.
+    // Throttled on a timestamp rather than requestAnimationFrame: a frame
+    // requested while the tab is hidden never runs, so an rAF-gated handler
+    // stops tracking until the tab is shown again. A trailing timer catches
+    // the final position after the reader stops scrolling.
+    let last = 0;
+    let trailing: ReturnType<typeof setTimeout> | undefined;
+    const onScroll = () => {
+      const now = Date.now();
+      clearTimeout(trailing);
+      if (now - last >= 80) {
+        last = now;
+        update();
+      } else {
+        trailing = setTimeout(update, 80);
+      }
+    };
+
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+    return () => {
+      clearTimeout(trailing);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
   }, [items]);
 
   if (items.length === 0) return null;
