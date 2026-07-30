@@ -186,7 +186,6 @@ export function ReviewCard({ review }: { review: PublicReviewDTO }) {
               className="aspect-square rounded-xl overflow-hidden border border-card-border bg-surface cursor-pointer hover:opacity-90 transition-opacity"
             >
               {a.kind === "video" ? (
-                // eslint-disable-next-line jsx-a11y/media-has-caption
                 <video src={a.url} className="w-full h-full object-cover" muted />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -239,7 +238,6 @@ export function ReviewCard({ review }: { review: PublicReviewDTO }) {
         <NextIntlClientProvider locale="en" messages={COMMON_MESSAGES}>
           <Modal open onClose={() => setLightboxIndex(null)} maxWidth="max-w-2xl">
             {review.attachments[lightboxIndex].kind === "video" ? (
-              // eslint-disable-next-line jsx-a11y/media-has-caption
               <video src={review.attachments[lightboxIndex].url} className="w-full rounded-xl max-h-[75vh]" controls autoPlay />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element

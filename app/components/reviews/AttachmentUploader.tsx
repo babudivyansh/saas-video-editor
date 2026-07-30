@@ -82,7 +82,6 @@ export function AttachmentUploader({ attachments, onChange, token, maxCount = 5 
           {attachments.map((a) => (
             <div key={a.id} className="relative aspect-square rounded-xl overflow-hidden border border-card-border bg-surface group">
               {a.kind === "video" ? (
-                // eslint-disable-next-line jsx-a11y/media-has-caption
                 <video src={a.url} className="w-full h-full object-cover" muted />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element

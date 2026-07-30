@@ -45,7 +45,7 @@ export function ReviewFilters({
       </div>
 
       <Dropdown
-        trigger={({ toggle, open }) => (
+        trigger={({ toggle }) => (
           <button
             onClick={toggle}
             className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink bg-white border border-card-border rounded-full px-4 py-2 hover:bg-tint-blue transition-colors cursor-pointer"

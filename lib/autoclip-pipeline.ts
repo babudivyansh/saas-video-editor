@@ -6,7 +6,6 @@
 
 import { Prisma, type Clip } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { redis } from "@/lib/redis";
 import { restoreSpend, grantCredits, spendCredits } from "@/lib/credits";
 import { resolveFontFile } from "@/lib/editor/filtergraph";
 import { downloadFile } from "@/utils/download";
@@ -337,7 +336,8 @@ function computeStoredCrop(
 ): StoredCrop | null {
   if (srcW <= 0 || srcH <= 0) return null;
 
-  const preset = options.preset ?? "balanced";
+  // `preset` is not read here — the two keyframe builders below each pull it
+  // off the `options` object they're handed.
   const speakerMode = options.speakerMode ?? "auto";
 
   if (aspectRatio === "9:16" && allFaces.length > 0 && (speakerMode === "split" || speakerMode === "auto")) {
@@ -1091,7 +1091,7 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
       };
 
       const cropKeyframes = clip.brollUrl ? null : computeStoredCrop(allFaces, dummySeg, clip.aspectRatio as Aspect, srcW, srcH, {
-        preset: silenceOpts.reframingPreset ?? "balanced",
+        preset,
         smartAutoReframe: silenceOpts.smartAutoReframe !== false,
         zoomStrength: silenceOpts.zoomStrength ?? "medium",
         speakerMode: silenceOpts.speakerMode ?? "auto",

@@ -142,8 +142,8 @@ function smoothFacesToKeyframes(
   cropH: number,
   preset?: string
 ): CropKeyframe[] {
-  let emaAlpha = 0.35;
-  let maxPanFrac = 0.06;
+  let emaAlpha = EMA_ALPHA;
+  let maxPanFrac = MAX_PAN_FRAC_PER_BUCKET;
   let cinematicZoom = false;
 
   if (preset === "minimal") {
@@ -449,9 +449,7 @@ function computeAdvancedCrop(
     const w = cropW * currentScale;
     const h = cropH * currentScale;
 
-    const faceW = faceWidths[s];
     const faceH = faceHeights[s];
-    const faceX = currentCx - faceW / 2;
     const faceY = currentCy - faceH / 2;
 
     const eyesY = faceY + faceH * 0.35;

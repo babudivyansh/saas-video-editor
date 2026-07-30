@@ -20,33 +20,6 @@ interface RedditPostJSON {
   };
 }
 
-const POPULAR_REDDIT_STORIES = [
-  {
-    subreddit: "r/AskReddit",
-    author: "throwaway_reddit_user",
-    title: "What is a scientific fact that absolutely blows your mind every time you think about it?",
-    selftext: "For me, it's that time dilation is real. If you travel at the speed of light, you could travel across the universe in what feels like an instant to you, while billions of years pass on Earth. It's crazy to think that space and time are so flexible.",
-    ups: 14200,
-    comments: 980
-  },
-  {
-    subreddit: "r/AmItheAsshole",
-    author: "reddit_guru_99",
-    title: "AITA for refusing to pay for my brother's wedding dinner after he uninvited my husband?",
-    selftext: "My brother is getting married next month. Initially, my husband and I were both invited, and I agreed to pay for the rehearsal dinner as a gift. Last week, my brother told me he wanted a 'small family-only' vibe and asked my husband not to come because they 'aren't that close'. I told him if my husband is uninvited, I'm backing out of paying. AITA?",
-    ups: 24500,
-    comments: 3120
-  },
-  {
-    subreddit: "r/confession",
-    author: "secret_keeper_xx",
-    title: "I have been pretending to love my wife's terrible cooking for 7 years and I don't know how to stop.",
-    selftext: "When we first started dating, she made me a lasagne that was completely burnt and tasted like cardboard. I was so in love that I told her it was the best thing I'd ever eaten. Now, she makes it every single week for dinner, thinking it's my favorite. I feel trapped in my own lie.",
-    ups: 8900,
-    comments: 650
-  }
-];
-
 async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
