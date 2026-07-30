@@ -49,6 +49,36 @@ describe("getPlanPriceMinor", () => {
   });
 });
 
+describe("yearly discount parity between currencies", () => {
+  // The pricing cards derive "save N%" from the plan rows, so if a USD yearly
+  // price drifts away from ~33% off 12x its monthly row the card silently
+  // advertises a different discount than the INR card does. That regression
+  // shipped once already (USD read 49/42/35% against a flat 33% in INR),
+  // because the yearly slugs were missing from the price book and fell through
+  // to raw FX. Assert the discount, not the price, so a deliberate repricing
+  // that keeps parity stays green.
+  const TIERS = ["creator", "pro", "studio"] as const;
+  const TARGET_PCT = 33;
+
+  for (const tier of TIERS) {
+    it(`prices sub_${tier}_12mo at ~${TARGET_PCT}% off 12x monthly in USD`, async () => {
+      const monthly = USD_PRICE_BOOK_DEFAULTS[`sub_${tier}_1mo`];
+      const yearly = USD_PRICE_BOOK_DEFAULTS[`sub_${tier}_12mo`];
+      expect(monthly, `sub_${tier}_1mo missing from the USD price book`).toBeGreaterThan(0);
+      expect(yearly, `sub_${tier}_12mo missing from the USD price book — it would fall through to FX`).toBeGreaterThan(0);
+
+      const pct = Math.round(((monthly * 12 - yearly) / (monthly * 12)) * 100);
+      expect(pct).toBe(TARGET_PCT);
+    });
+  }
+
+  it("resolves yearly USD from the price book, not the FX fallback", async () => {
+    // Passing a deliberately mismatched priceInPaise: if the slug were missing
+    // from the book this would convert to something else entirely.
+    expect(await getPlanPriceMinor("sub_pro_12mo", 1768000, "USD")).toBe(USD_PRICE_BOOK_DEFAULTS.sub_pro_12mo);
+  });
+});
+
 describe("getFxConfig", () => {
   it("returns defaults with no Config row", async () => {
     expect(await getFxConfig()).toEqual(FX_DEFAULTS);

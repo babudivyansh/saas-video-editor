@@ -42,16 +42,22 @@ const yearly = (monthlyPaise: number) => Math.round((monthlyPaise * 12 * (1 - YE
 // to expiring subscription credits (2x rollover cap) so the policy change
 // reads as a net gain. Existing subscribers keep their old User.monthlyCredits
 // until their next purchase/renewal.
+// `features` must carry only what the pricing card doesn't already render.
+// The card shows the credit allowance and the yearly saving in its header, so
+// seeding "60 credits / month" or "Save 33% vs monthly" here made every bullet
+// on the yearly cards a duplicate of the line directly above it. /pricing also
+// filters these defensively (features are admin-editable at runtime), but the
+// seed shouldn't ship the redundancy in the first place.
 const SUBSCRIPTIONS: SeedPlan[] = [
   // Creator — 60 cr/mo (₹999/mo).
-  { slug: "sub_creator_1mo",  name: "Creator (Monthly)", priceInPaise: 99900,            intervalMonths: 1,  monthlyCredits: 60,  sortOrder: 10, tier: "creator" as const, features: ["60 credits / month", "All AI tools", "1080p exports"] },
-  { slug: "sub_creator_12mo", name: "Creator (Yearly)",  priceInPaise: yearly(99900),    intervalMonths: 12, monthlyCredits: 60,  sortOrder: 13, tier: "creator" as const, features: ["60 credits / month", "Save 33% vs monthly"] },
+  { slug: "sub_creator_1mo",  name: "Creator (Monthly)", priceInPaise: 99900,            intervalMonths: 1,  monthlyCredits: 60,  sortOrder: 10, tier: "creator" as const, features: ["All AI tools", "1080p exports"] },
+  { slug: "sub_creator_12mo", name: "Creator (Yearly)",  priceInPaise: yearly(99900),    intervalMonths: 12, monthlyCredits: 60,  sortOrder: 13, tier: "creator" as const, features: ["All AI tools", "1080p exports"] },
   // Pro — 160 cr/mo (₹2,199/mo).
-  { slug: "sub_pro_1mo",  name: "Pro (Monthly)", priceInPaise: 219900,           intervalMonths: 1,  monthlyCredits: 160, sortOrder: 20, tier: "pro" as const, features: ["160 credits / month", "All AI tools", "Priority rendering"] },
-  { slug: "sub_pro_12mo", name: "Pro (Yearly)",  priceInPaise: yearly(219900),   intervalMonths: 12, monthlyCredits: 160, sortOrder: 23, tier: "pro" as const, features: ["160 credits / month", "Save 33% vs monthly"] },
+  { slug: "sub_pro_1mo",  name: "Pro (Monthly)", priceInPaise: 219900,           intervalMonths: 1,  monthlyCredits: 160, sortOrder: 20, tier: "pro" as const, features: ["All AI tools", "Priority rendering"] },
+  { slug: "sub_pro_12mo", name: "Pro (Yearly)",  priceInPaise: yearly(219900),   intervalMonths: 12, monthlyCredits: 160, sortOrder: 23, tier: "pro" as const, features: ["All AI tools", "Priority rendering"] },
   // Studio — 400 cr/mo (₹4,999/mo).
-  { slug: "sub_studio_1mo",  name: "Studio (Monthly)", priceInPaise: 499900,          intervalMonths: 1,  monthlyCredits: 400, sortOrder: 30, tier: "studio" as const, features: ["400 credits / month", "Priority rendering", "Dedicated support"] },
-  { slug: "sub_studio_12mo", name: "Studio (Yearly)",  priceInPaise: yearly(499900),  intervalMonths: 12, monthlyCredits: 400, sortOrder: 33, tier: "studio" as const, features: ["400 credits / month", "Save 33% vs monthly"] },
+  { slug: "sub_studio_1mo",  name: "Studio (Monthly)", priceInPaise: 499900,          intervalMonths: 1,  monthlyCredits: 400, sortOrder: 30, tier: "studio" as const, features: ["Priority rendering", "Dedicated support"] },
+  { slug: "sub_studio_12mo", name: "Studio (Yearly)",  priceInPaise: yearly(499900),  intervalMonths: 12, monthlyCredits: 400, sortOrder: 33, tier: "studio" as const, features: ["Priority rendering", "Dedicated support"] },
 ].map(p => ({ ...p, kind: "subscription" as const, credits: p.monthlyCredits * p.intervalMonths }));
 
 // Old 3-month / 6-month terms are retired. Deactivate them (keep rows for
