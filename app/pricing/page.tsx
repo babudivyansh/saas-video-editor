@@ -9,6 +9,7 @@ import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 import {
   PURCHASABLE_TIER_ORDER, TIER_LABEL, type TierId,
   FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_AUTOCLIP_RUNS_PER_MONTH, STORAGE_LIMIT_GB,
+  TIER_MAX_DURATION_SECONDS, TIER_MAX_AUTOCLIP_SOURCE_SECONDS,
 } from "@/lib/plans/tiers";
 import { IMAGE_MODELS, getImageModel } from "@/lib/models/imageModels";
 import { VIDEO_MODELS, getVideoModel } from "@/lib/models/videoModels";
@@ -177,6 +178,10 @@ const TOOLS = [
   // they got no video generation at all, contradicting their own plan card.
   { name: "AI Video Generator", creator: true, pro: true, studio: true },
   { name: "Premium video models (Veo3, Seedance)", creator: false, pro: true, studio: true },
+  // Both carry requiredTier: "pro" in lib/tool-costs.ts but had no row here, so
+  // Pro buyers got no credit for two tools they're paying for.
+  { name: "AI Creator", creator: false, pro: true, studio: true },
+  { name: "AI Face Swap", creator: false, pro: true, studio: true },
   { name: "AI Vocal Remover", creator: true, pro: true, studio: true },
   { name: "AI Voice Changer", creator: true, pro: true, studio: true },
   { name: "AI Speech Enhancer", creator: true, pro: true, studio: true },
@@ -228,35 +233,78 @@ const FAQS = [
   },
 ];
 
-// One-line summary of what a tier unlocks, replacing the old "MODELS INCLUDED"
-// block that listed eight model names across two lines of small grey text —
-// the densest thing on the card and the hardest to scan. The count and the
-// headline names both come from each registry entry's `allowedTiers`, so they
-// track the registries instead of drifting. The exhaustive per-model breakdown
-// still lives in the comparison table further down the page.
-function modelSummary(tier: Exclude<TierId, "free">): { total: number; headline: string[]; all: string } {
-  const images = IMAGE_MODELS.filter(m => m.allowedTiers.includes(tier));
-  const videos = VIDEO_MODELS.filter(m => m.allowedTiers.includes(tier));
-  // Lead with the video models this tier unlocks that the tier below doesn't —
-  // that's the actual reason to move up a tier. Falls back to the tier's own
-  // video models for Creator, which has nothing below it.
-  const below = PURCHASABLE_TIER_ORDER[PURCHASABLE_TIER_ORDER.indexOf(tier) - 1];
-  const exclusive = below ? videos.filter(m => !m.allowedTiers.includes(below)) : videos;
-  const headline = (exclusive.length > 0 ? exclusive : videos).slice(0, 2).map(m => m.displayName);
-  return {
-    total: images.length + videos.length,
-    headline,
-    all: [...images, ...videos].map(m => m.displayName).join(", "),
-  };
+// ── Tier highlights ─────────────────────────────────────────────────────────
+// Deliberately NOT read from Plan.features. Those rows are seeded per billing
+// term, and the yearly rows only ever held a credits line and a savings line —
+// both of which the card header already renders, so once those were filtered
+// as duplicates the yearly cards were left with 2 bullets against monthly's 4.
+// Deriving per tier instead makes the two terms identical by construction, and
+// fixes existing databases on deploy: `npm run build` runs `prisma migrate
+// deploy`, never the seed, so a seed-only fix would never reach production.
+//
+// Every number comes from the constant that enforces it, so the copy can't
+// drift from the behaviour: durations from TIER_MAX_DURATION_SECONDS, storage
+// from STORAGE_LIMIT_GB, Auto Clip length from TIER_MAX_AUTOCLIP_SOURCE_SECONDS,
+// model counts from each registry's `allowedTiers`.
+const hours = (sec: number) => Math.round(sec / 3600);
+const modelCount = (tier: Exclude<TierId, "free">) =>
+  IMAGE_MODELS.filter(m => m.allowedTiers.includes(tier)).length +
+  VIDEO_MODELS.filter(m => m.allowedTiers.includes(tier)).length;
+
+interface TierHighlights {
+  /** Shown above the list on Pro/Studio so the tiers read cumulatively. */
+  inherits?: string;
+  bullets: string[];
 }
 
-// A plan's `features` are admin-editable, and the card header already renders
-// the credit allowance and the yearly saving — so seeded/edited entries like
-// "160 credits / month" or "Save 33% vs monthly" render as bullets that just
-// repeat the line above them. Drop those here rather than trusting the data.
-function isRedundantFeature(feature: string): boolean {
-  const f = feature.toLowerCase();
-  return /\d+\s*credits?\s*\/?\s*(per\s*)?month/.test(f) || /save\s*\d+%/.test(f);
+function tierHighlights(tier: Exclude<TierId, "free">): TierHighlights {
+  const secs = TIER_MAX_DURATION_SECONDS[tier];
+  const gb = STORAGE_LIMIT_GB[tier];
+  const clipHours = hours(TIER_MAX_AUTOCLIP_SOURCE_SECONDS[tier]);
+
+  if (tier === "creator") {
+    return {
+      bullets: [
+        `${modelCount("creator")} AI models, incl. Wan 2.7 & LTX 2.3`,
+        `Videos up to ${secs} seconds`,
+        `Unlimited Auto Clips, ${clipHours}-hour uploads`,
+        // The 720p downscale lives inside filtergraph.ts's `if (input.watermark)`
+        // branch, and watermark is `tier === "free"` — so every paid tier already
+        // exports at full source resolution, not the "1080p" the old copy claimed.
+        "No watermark, full-resolution exports",
+        `Social Tracker · ${gb} GB storage`,
+      ],
+    };
+  }
+
+  if (tier === "pro") {
+    const added = modelCount("pro") - modelCount("creator");
+    return {
+      inherits: "Creator",
+      bullets: [
+        `${modelCount("pro")} AI models — adds Veo 3, Seedance 2.0 & ${added - 2} more`,
+        `Videos up to ${secs} seconds`,
+        // The three tools carrying requiredTier: "pro" in lib/tool-costs.ts.
+        "AI Creator, Face Swap & Subtitle Remover",
+        "Priority rendering",
+        `${clipHours}-hour Auto Clip uploads · ${gb} GB storage`,
+      ],
+    };
+  }
+
+  // Studio adds exactly one model over Pro (nano-banana-pro is the only entry
+  // in either registry with allowedTiers: ["studio"]). Everything else it gains
+  // is quantitative, so the copy must not imply "more models" beyond that one.
+  return {
+    inherits: "Pro",
+    bullets: [
+      "Nano Banana Pro — Studio-only image model",
+      `Videos up to ${secs} seconds`,
+      "Fastest rendering — front of the queue",
+      `${clipHours}-hour Auto Clip uploads`,
+      `${gb} GB asset storage`,
+    ],
+  };
 }
 
 // ── FreeCard ───────────────────────────────────────────────────────────────
@@ -693,46 +741,44 @@ export default function PricingPage() {
                       }`}>
                         {plan.monthlyCredits} credits every month
                       </p>
-                    </div>
-
-                    <ul className="space-y-3 mb-8 flex-1">
-                      {/* Models: one line instead of the old two-line name dump. */}
-                      {plan.tier && (() => {
-                        const m = modelSummary(plan.tier);
-                        return (
-                          <li className="flex items-start gap-2.5 text-sm">
-                            <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${highlighted ? "text-blue-200" : "text-blue-600"}`} />
-                            <span className={highlighted ? "text-blue-100" : "text-gray-700"} title={m.all}>
-                              {m.total} AI models{m.headline.length > 0 && <>, incl. {m.headline.join(" & ")}</>}
-                            </span>
-                          </li>
-                        );
-                      })()}
-                      {/* Credits→output equivalence. The "cheapest model" caveat
-                          is a tooltip rather than inline text — spelled out it
-                          wrapped this bullet onto three lines. */}
+                      {/* Credits→output estimate sits under the credits figure it
+                          qualifies rather than spending one of the five bullets.
+                          The "cheapest model" caveat is a tooltip — spelled out
+                          inline it wrapped onto three lines. */}
                       {plan.monthlyCredits != null && (() => {
                         const perRender = plan.tier ? cheapestVideoCostPerRender(plan.tier) : null;
                         const images = Math.floor(plan.monthlyCredits / IMAGE_GENERATOR_STARTING_CREDIT_COST);
                         return (
-                          <li className="flex items-start gap-2.5 text-sm">
-                            <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${highlighted ? "text-blue-200" : "text-blue-600"}`} />
-                            <span
-                              className={highlighted ? "text-blue-100" : "text-gray-700"}
-                              title="Based on the lowest-cost model available on this plan; premium models cost more credits."
-                            >
-                              ≈ {images} images or {perRender ? Math.floor(plan.monthlyCredits / perRender) : 0} videos
-                            </span>
-                          </li>
+                          <p
+                            className={`text-xs mt-1 ${highlighted ? "text-blue-200" : "text-gray-400"}`}
+                            title="Based on the lowest-cost model available on this plan; premium models cost more credits."
+                          >
+                            ≈ {images} images or {perRender ? Math.floor(plan.monthlyCredits / perRender) : 0} videos
+                          </p>
                         );
                       })()}
-                      {plan.features.filter(f => !isRedundantFeature(f)).map((f) => (
-                        <li key={f} className="flex items-start gap-2.5 text-sm">
-                          <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${highlighted ? "text-blue-200" : "text-blue-600"}`} />
-                          <span className={highlighted ? "text-blue-100" : "text-gray-700"}>{f}</span>
-                        </li>
-                      ))}
-                    </ul>
+                    </div>
+
+                    {plan.tier && (() => {
+                      const { inherits, bullets } = tierHighlights(plan.tier);
+                      return (
+                        <>
+                          {inherits && (
+                            <p className={`text-xs font-bold mb-3 ${highlighted ? "text-blue-200" : "text-gray-500"}`}>
+                              Everything in {inherits}, plus:
+                            </p>
+                          )}
+                          <ul className="space-y-3 mb-8 flex-1">
+                            {bullets.map((b) => (
+                              <li key={b} className="flex items-start gap-2.5 text-sm">
+                                <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${highlighted ? "text-blue-200" : "text-blue-600"}`} />
+                                <span className={highlighted ? "text-blue-100" : "text-gray-700"}>{b}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      );
+                    })()}
 
                     <button
                       onClick={() => {
