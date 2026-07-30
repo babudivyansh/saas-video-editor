@@ -30,31 +30,30 @@ const doc: LegalDoc = {
       title: "Free Credits",
       body: (
         <p>
-          All new accounts receive 30 free credits upon registration. Free credits are non-refundable and have no
-          monetary value. They cannot be exchanged for cash or transferred to another account.
+          Free accounts receive a monthly grant of bonus credits, which expire 30 days after they are issued. Free
+          credits are non-refundable and have no monetary value. They cannot be exchanged for cash or transferred to
+          another account.
         </p>
       ),
     },
     {
       id: "paid-credits",
-      title: "Paid Credit Packs",
+      title: "Paid Plans and Credit Packs",
       body: (
         <>
-          <p>We offer three one-time credit packs:</p>
-          <ul>
-            <li>
-              <strong>Starter:</strong> 60 credits — ₹799
-            </li>
-            <li>
-              <strong>Pro:</strong> 180 credits — ₹1,599
-            </li>
-            <li>
-              <strong>Studio:</strong> 600 credits — ₹3,999
-            </li>
-          </ul>
           <p>
-            Credit purchases are one-time transactions. There are no subscriptions, recurring charges, or auto-renewals.
-            Purchased credits do not expire.
+            Credits can be obtained two ways. A <strong>subscription</strong> (Creator, Pro or Studio, billed monthly or
+            yearly) grants an allowance of credits that refills each month and renews automatically until cancelled.
+            A <strong>credit pack</strong> is a one-time purchase with no recurring charge.
+          </p>
+          <p>
+            Current plan names, credit allowances and prices are listed on our{" "}
+            <a href="/pricing">Pricing page</a>, which always reflects live pricing.
+          </p>
+          <p>
+            Subscription credits refill monthly and roll over up to twice your monthly allowance; unused credits beyond
+            that cap do not carry forward, and subscription credits are cleared if the subscription lapses. Credits from
+            packs never expire and remain on your account even if a subscription ends.
           </p>
         </>
       ),

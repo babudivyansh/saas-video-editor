@@ -117,24 +117,19 @@ const doc: LegalDoc = {
         <>
           <h3>Credit System</h3>
           <p>
-            The Service operates on a credit-based system. Each video generation consumes one credit. New accounts
-            receive 30 free credits upon registration. Additional credits are available for purchase in the following
-            packs:
+            The Service operates on a credit-based system. The number of credits an action consumes depends on the tool
+            and the AI model chosen — image and video generation are priced per model, and video generation is billed
+            per second. Free accounts receive a monthly grant of bonus credits, which expire 30 days after they are
+            issued.
           </p>
-          <ul>
-            <li>
-              <strong>Starter:</strong> 60 credits for ₹799
-            </li>
-            <li>
-              <strong>Pro:</strong> 180 credits for ₹1,599
-            </li>
-            <li>
-              <strong>Studio:</strong> 600 credits for ₹3,999
-            </li>
-          </ul>
           <p>
-            Credits are non-transferable between accounts. Purchased credits do not expire, but free credits may expire
-            after 90 days of account inactivity.
+            Additional credits come from a subscription plan, which grants a monthly allowance and renews automatically
+            until cancelled, or from a one-time credit pack. Current plan names, allowances and prices are listed on
+            our <a href="/pricing">Pricing page</a>, which always reflects live pricing.
+          </p>
+          <p>
+            Credits are non-transferable between accounts. Credits from packs do not expire. Subscription credits refill
+            each month and roll over up to twice the monthly allowance, and are cleared if the subscription lapses.
           </p>
 
           <h3>Payment Processing</h3>

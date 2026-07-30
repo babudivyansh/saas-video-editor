@@ -36,6 +36,11 @@ export async function GET(req: NextRequest) {
       subscriptionCancelledAt: true,
       nextRefillAt: true,
       monthlyCredits: true,
+      // Lets the client hide the "start free trial" CTA for accounts that have
+      // already used theirs, instead of offering a button the checkout route
+      // will reject.
+      trialUsedAt: true,
+      trialEndsAt: true,
       // Security/account-dashboard surface (Settings hub) — closes the audit
       // finding that lastLoginAt was tracked but never actually sent to the client.
       emailVerifiedAt: true,

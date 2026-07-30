@@ -6,9 +6,14 @@ import SiteNavbar from "@/app/components/SiteNavbar";
 import SiteFooter from "@/app/components/SiteFooter";
 import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
-import { PURCHASABLE_TIER_ORDER, TIER_LABEL, type TierId } from "@/lib/plans/tiers";
+import {
+  PURCHASABLE_TIER_ORDER, TIER_LABEL, type TierId,
+  FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_AUTOCLIP_RUNS_PER_MONTH, STORAGE_LIMIT_GB,
+} from "@/lib/plans/tiers";
 import { IMAGE_MODELS, getImageModel } from "@/lib/models/imageModels";
 import { VIDEO_MODELS, getVideoModel } from "@/lib/models/videoModels";
+import { IMAGE_GENERATOR_STARTING_CREDIT_COST } from "@/lib/tool-costs";
+import { formatMoney, inferCurrencyFromLocale, type Currency } from "@/lib/currency-shared";
 
 // ── Icons ──────────────────────────────────────────────────────────────────
 function ZapIcon({ className = "" }: { className?: string }) {
@@ -53,6 +58,8 @@ interface DbPlan {
   slug: string;
   name: string;
   priceInPaise: number;
+  /** USD minor units, computed server-side per plan by /api/plans. */
+  usdPriceInCents: number;
   currency: string;
   credits: number;
   features: string[];
@@ -119,7 +126,38 @@ const TERMS = [
   { months: 1,  label: "Monthly" },
   { months: 12, label: "Yearly" },
 ];
-const YEARLY_SAVE_PCT = 33; // yearly plans are 33% cheaper than 12× monthly
+
+/** Minor units for the selected currency, from the fields /api/plans always returns. */
+function minorUnits(plan: DbPlan, currency: Currency): number {
+  return currency === "USD" ? plan.usdPriceInCents : plan.priceInPaise;
+}
+
+// The yearly discount is *derived* from the actual plan rows rather than
+// hardcoded. Plan prices are editable at runtime in /admin/pricing, so a
+// constant here would silently drift from the real saving the moment anyone
+// edits a price. Returns null when there's nothing to compare against.
+//
+// Takes the *smallest* saving across the tiers, not the largest or an average:
+// this figure headlines the term toggle, and every tier has to deliver at
+// least what the badge claims. The tiers can genuinely differ — USD monthly
+// prices come from a price book while USD yearly falls back to FX conversion,
+// so the discount is not uniform there the way it is in INR. Each card shows
+// its own exact percentage alongside this.
+function yearlySavePct(subs: DbPlan[], currency: Currency): number | null {
+  const pairs = PURCHASABLE_TIER_ORDER.map(tier => {
+    const monthly = subs.find(p => p.tier === tier && p.intervalMonths === 1);
+    const yearly  = subs.find(p => p.tier === tier && p.intervalMonths === 12);
+    if (!monthly || !yearly) return null;
+    const full = minorUnits(monthly, currency) * 12;
+    if (full <= 0) return null;
+    return (full - minorUnits(yearly, currency)) / full;
+  }).filter((n): n is number => n != null && n > 0);
+
+  if (pairs.length === 0) return null;
+  // Round the same way the per-card figures do, so the badge and the card it
+  // was derived from never disagree by a point.
+  return Math.round(Math.min(...pairs) * 100);
+}
 
 const WORKFLOWS = [
   { name: "Reddit Story Videos", creator: true, pro: true, studio: true },
@@ -133,8 +171,12 @@ const TOOLS = [
   { name: "AI Voiceover (50+ voices)", creator: true, pro: true, studio: true },
   { name: "Karaoke Captions", creator: true, pro: true, studio: true },
   { name: "AI Image Generator", creator: true, pro: true, studio: true },
-  // Veo3 (veo3-fast) has allowedTiers: ["pro","studio"] — not available on Creator.
-  { name: "AI Video Generator", creator: false, pro: true, studio: true },
+  // Creator *does* get the video generator — wan-2.7, ltx-2.3 and pixverse-v6
+  // all list "creator" in allowedTiers. Only the premium models are gated, so
+  // that's a separate row; marking the whole tool false told Creator buyers
+  // they got no video generation at all, contradicting their own plan card.
+  { name: "AI Video Generator", creator: true, pro: true, studio: true },
+  { name: "Premium video models (Veo3, Seedance)", creator: false, pro: true, studio: true },
   { name: "AI Vocal Remover", creator: true, pro: true, studio: true },
   { name: "AI Voice Changer", creator: true, pro: true, studio: true },
   { name: "AI Speech Enhancer", creator: true, pro: true, studio: true },
@@ -158,7 +200,7 @@ const FAQS = [
   },
   {
     q: "Do longer terms cost less?",
-    a: "Yes — the yearly plan is 33% cheaper than paying month-to-month (4 months free). You're billed once upfront for the full year.",
+    a: "Yes — the yearly plan works out cheaper than paying month-to-month, and the exact saving is shown on each plan card. You're billed once upfront for the full year.",
   },
   {
     q: "Can I switch plans later?",
@@ -166,7 +208,7 @@ const FAQS = [
   },
   {
     q: "Do you offer refunds?",
-    a: "We offer a 3-day money-back guarantee on your first purchase if you have not used more than 5 credits. Please see our Refund Policy for full details.",
+    a: "Yes — if you request within 48 hours of purchase and have not spent any of the purchased credits, we'll refund you in full. Please see our Refund Policy for full details.",
   },
   {
     q: "Can I use the videos commercially?",
@@ -221,6 +263,52 @@ function ModelBadgeRow({ tier, highlighted }: { tier: Exclude<TierId, "free">; h
   );
 }
 
+// ── FreeCard ───────────────────────────────────────────────────────────────
+// The free tier is real (free tools, a monthly bonus grant, watermarked Auto
+// Clip runs) but used to appear only in an FAQ answer near the foot of the
+// page. Every figure is read from lib/plans/tiers.ts so it can't drift.
+function FreeCard({ currency }: { currency: Currency }) {
+  const perks = [
+    "All free tools — compressor, MP3, downloaders",
+    `${FREE_TIER_MONTHLY_BONUS_CREDITS} bonus credits every month`,
+    `${FREE_TIER_AUTOCLIP_RUNS_PER_MONTH} Auto Clip runs / month (watermarked)`,
+    `${STORAGE_LIMIT_GB.free * 1000} MB storage`,
+  ];
+  return (
+    <div className="relative rounded-2xl p-8 border-2 border-gray-100 bg-white text-gray-900 shadow-sm flex flex-col">
+      <div className="mb-6">
+        <p className="text-sm font-bold uppercase tracking-widest mb-1 text-gray-400">Free</p>
+        <div className="flex items-start gap-0.5">
+          <span className="text-xl font-bold mt-1.5 text-gray-400">{currency === "USD" ? "$" : "₹"}</span>
+          <span className="text-5xl font-black leading-none tracking-tight">0</span>
+          <span className="text-sm font-medium self-end mb-1 ml-1 text-gray-400">/month</span>
+        </div>
+        <p className="text-xs mt-2 text-gray-500">No card required</p>
+        <p className="text-sm font-semibold mt-4 pt-4 border-t border-gray-100 text-gray-900">
+          {FREE_TIER_MONTHLY_BONUS_CREDITS} credits every month
+        </p>
+      </div>
+
+      <ul className="space-y-3 mb-8 flex-1">
+        {perks.map(p => (
+          <li key={p} className="flex items-start gap-2.5 text-sm">
+            <CheckIcon className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-600" />
+            <span className="text-gray-700">{p}</span>
+          </li>
+        ))}
+      </ul>
+
+      <Link
+        href="/register"
+        className="w-full text-center font-bold py-3 rounded-full bg-gray-900 text-white hover:bg-gray-800 transition-all"
+      >
+        Start free
+      </Link>
+      <p className="text-center text-[11px] mt-2 text-gray-400">Upgrade whenever you need more</p>
+    </div>
+  );
+}
+
 // ── CompareRow ─────────────────────────────────────────────────────────────
 function CompareRow({ feature, creator, pro, studio, shaded }: {
   feature: string; creator: boolean; pro: boolean; studio: boolean; shaded: boolean;
@@ -250,12 +338,19 @@ export default function PricingPage() {
   const [plans, setPlans] = useState<DbPlan[]>([]);
   const [plansLoading, setPlansLoading] = useState(true);
   const [term, setTerm] = useState(1);
+  // Default from the browser locale, then let the visitor override. Set in an
+  // effect rather than during render so server and client markup agree.
+  const [currency, setCurrency] = useState<Currency>("INR");
+  useEffect(() => {
+    setCurrency(inferCurrencyFromLocale(typeof navigator !== "undefined" ? navigator.language : null));
+  }, []);
   const [toolCosts, setToolCosts] = useState<ToolCost[]>([]);
   const [showAllCosts, setShowAllCosts] = useState(false);
 
   // Checkout state
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const [checkoutPlan, setCheckoutPlan] = useState<DbPlan | null>(null);
+  const [checkoutTrial, setCheckoutTrial] = useState(false);
   const [successBanner, setSuccessBanner] = useState(false);
   const [renewalWarningDismissed, setRenewalWarningDismissed] = useState(false);
 
@@ -304,6 +399,7 @@ export default function PricingPage() {
 
   const packs = plans.filter(p => p.kind === "pack");
   const subs  = plans.filter(p => p.kind === "subscription");
+  const savePct = yearlySavePct(subs, currency);
 
   // True only while the subscription period hasn't lapsed.
   const hasActivePlan =
@@ -336,13 +432,23 @@ export default function PricingPage() {
     setCouponError("");
   };
 
-  const openCheckout = (plan: DbPlan) => {
+  const openCheckout = (plan: DbPlan, trial = false) => {
     setCheckoutPlan(plan);
+    setCheckoutTrial(trial);
     setRenewalWarningDismissed(false);
     setCouponInput("");
     setCouponError("");
     setAppliedCoupon(null);
   };
+
+  // Coupons are INR-native (validated and discounted against the stored
+  // priceInPaise), so hide the coupon UI on USD rather than showing a field
+  // that silently does nothing server-side — same rule as PlansModal.
+  const couponsAvailable = currency === "INR";
+
+  // The 7-day trial is Pro-only and once per account, matching what
+  // /api/billing/checkout will actually accept.
+  const trialEligible = !!user && !user.trialUsedAt && !hasActivePlan;
 
   // Re-validate / clear the coupon whenever the cart (plan or add-ons) changes.
   const clearCoupon = () => { setAppliedCoupon(null); setCouponError(""); };
@@ -376,7 +482,9 @@ export default function PricingPage() {
     startCheckout({
       planId: checkoutPlan.slug,
       addonIds: selectedAddons,
-      couponCode: appliedCoupon?.code,
+      couponCode: couponsAvailable ? appliedCoupon?.code : undefined,
+      trial: checkoutTrial,
+      currency,
       onSuccess: () => { window.location.href = "/pricing?success=1"; },
     });
   };
@@ -384,21 +492,24 @@ export default function PricingPage() {
   const handleBuyPack = (pack: DbPlan) => {
     startCheckout({
       planId: pack.slug,
+      currency,
       onSuccess: () => { window.location.href = "/pricing?success=1"; },
     });
   };
 
-  const totalDue =
-    (checkoutPlan ? Math.round(checkoutPlan.priceInPaise / 100) : 0) +
+  // Cart totals in the selected currency's minor units, so the summary matches
+  // the figures on the cards instead of always quoting rupees.
+  const totalDueMinor =
+    (checkoutPlan ? minorUnits(checkoutPlan, currency) : 0) +
     selectedAddons.reduce((s, slug) => {
       const pack = packs.find(p => p.slug === slug);
-      return s + (pack ? Math.round(pack.priceInPaise / 100) : 0);
+      return s + (pack ? minorUnits(pack, currency) : 0);
     }, 0);
 
-  // Total after any applied coupon discount (₹).
-  const discountedTotal = appliedCoupon
-    ? Math.max(1, totalDue - Math.round(appliedCoupon.discountInPaise / 100))
-    : totalDue;
+  // Coupon discounts are stored in paise and only offered on INR checkout.
+  const discountedTotalMinor = appliedCoupon && couponsAvailable
+    ? Math.max(100, totalDueMinor - appliedCoupon.discountInPaise)
+    : totalDueMinor;
 
   return (
     <div className="min-h-screen bg-white">
@@ -422,14 +533,16 @@ export default function PricingPage() {
         </h1>
         <p className="text-lg text-gray-500 max-w-xl mx-auto mb-2">
           Every AI tool — voiceovers, captions, AI-generated videos, and more — in one plan.
-          Go <span className="font-semibold text-gray-700">yearly to save 33%</span>.
+          {savePct != null && (
+            <> Go <span className="font-semibold text-gray-700">yearly to save {savePct}%</span>.</>
+          )}
         </p>
       </section>
 
       {/* ── Trust Strip ── */}
       <div className="border-y border-gray-100 bg-gray-50 py-5 px-4">
         <div className="max-w-4xl mx-auto flex flex-wrap justify-center gap-x-10 gap-y-3 text-center text-sm">
-          <span className="text-gray-500">✓ <strong className="text-gray-700">3-day money-back</strong> guarantee</span>
+          <span className="text-gray-500">✓ <strong className="text-gray-700">48-hour money-back</strong> guarantee</span>
           <span className="text-gray-500">✓ <strong className="text-gray-700">No hidden fees</strong> — cancel anytime</span>
           <span className="text-gray-500">✓ <strong className="text-gray-700">UPI, cards & wallets</strong> via Razorpay</span>
           <span className="text-gray-500">✓ <strong className="text-gray-700">Commercial license</strong> on all plans</span>
@@ -438,8 +551,8 @@ export default function PricingPage() {
 
       {/* ── Pricing Cards ── */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Term toggle */}
-        <div className="flex justify-center mb-10">
+        {/* Term + currency toggles */}
+        <div className="flex flex-wrap justify-center items-center gap-3 mb-10">
           <div className="inline-flex bg-gray-100 rounded-full p-1">
             {TERMS.map(t => (
               <button
@@ -450,13 +563,28 @@ export default function PricingPage() {
                 }`}
               >
                 {t.label}
-                {t.months === 12 && (
+                {t.months === 12 && savePct != null && (
                   <span className={`ml-2 text-[10px] font-black px-1.5 py-0.5 rounded-full ${
                     term === 12 ? "bg-green-400 text-green-900" : "bg-green-100 text-green-700"
                   }`}>
-                    SAVE {YEARLY_SAVE_PCT}%
+                    SAVE {savePct}%
                   </span>
                 )}
+              </button>
+            ))}
+          </div>
+
+          <div className="inline-flex bg-gray-100 rounded-full p-1" role="group" aria-label="Currency">
+            {(["INR", "USD"] as const).map(c => (
+              <button
+                key={c}
+                onClick={() => { setCurrency(c); clearCoupon(); }}
+                aria-pressed={currency === c}
+                className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
+                  currency === c ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                {c === "INR" ? "₹ INR" : "$ USD"}
               </button>
             ))}
           </div>
@@ -493,20 +621,23 @@ export default function PricingPage() {
           }
 
           return (
-            <div className="grid md:grid-cols-3 gap-6 items-start">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
+              <FreeCard currency={currency} />
               {cards.map((plan, idx) => {
                 const highlighted = idx === 1;
-                const price    = Math.round(plan.priceInPaise / 100);
+                const total    = minorUnits(plan, currency);
                 const months   = plan.intervalMonths ?? 1;
-                const perMonth = Math.round(price / months);
+                const perMonth = Math.round(total / months);
                 const baseTier = plan.tier ? TIER_LABEL[plan.tier] : plan.name.replace(/\s*\(.*\)$/, "");
-                // For yearly, find the matching monthly plan to show savings.
+                // Per-tier saving, derived from this tier's own monthly row so
+                // the figure is never a rounded page-wide average.
                 const monthlyPlan = months > 1 && plan.tier
                   ? subs.find(p => p.tier === plan.tier && p.intervalMonths === 1)
                   : null;
-                const monthlyEquiv = monthlyPlan ? Math.round(monthlyPlan.priceInPaise / 100) : null;
-                const fullYear = monthlyEquiv ? monthlyEquiv * 12 : null;
-                const saved = fullYear ? fullYear - price : null;
+                const fullYear = monthlyPlan ? minorUnits(monthlyPlan, currency) * 12 : null;
+                const tierSavePct = fullYear && fullYear > total
+                  ? Math.round(((fullYear - total) / fullYear) * 100)
+                  : null;
                 return (
                   <div
                     key={plan.id}
@@ -528,41 +659,61 @@ export default function PricingPage() {
                       <p className={`text-sm font-bold uppercase tracking-widest mb-1 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
                         {baseTier}
                       </p>
-                      <div className="flex items-end gap-1.5 mb-1">
-                        <span className="text-4xl font-black">₹{perMonth.toLocaleString("en-IN")}</span>
-                        <span className={`text-sm mb-1.5 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>/mo</span>
-                        {months > 1 && monthlyEquiv && (
-                          <span className={`text-sm mb-1.5 line-through ${highlighted ? "text-blue-300/70" : "text-gray-300"}`}>
-                            ₹{monthlyEquiv.toLocaleString("en-IN")}
-                          </span>
-                        )}
+                      {/* The price, and nothing competing with it. The symbol is
+                          its own element so it can sit small and top-aligned
+                          rather than reading as another digit. */}
+                      <div className="flex items-start gap-0.5">
+                        <span className={`text-xl font-bold mt-1.5 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
+                          {currency === "USD" ? "$" : "₹"}
+                        </span>
+                        <span className="text-5xl font-black leading-none tracking-tight">
+                          {perMonth === 0 ? "0" : formatMoney(perMonth, currency).replace(/^[₹$]/, "")}
+                        </span>
+                        <span className={`text-sm font-medium self-end mb-1 ml-1 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
+                          /month
+                        </span>
                       </div>
-                      <p className={`text-sm mt-2 ${highlighted ? "text-blue-100" : "text-gray-500"}`}>
-                        {plan.monthlyCredits} credits / month
-                        {months > 1 && <> · ₹{price.toLocaleString("en-IN")} billed yearly</>}
-                      </p>
-                      <p className={`text-[11px] mt-0.5 ${highlighted ? "text-blue-300/70" : "text-gray-400"}`}>
-                        Refills monthly
-                      </p>
-                      {months > 1 && saved && saved > 0 && (
-                        <p className={`text-xs font-bold mt-1 ${highlighted ? "text-green-300" : "text-green-600"}`}>
-                          Save ₹{saved.toLocaleString("en-IN")} a year ({YEARLY_SAVE_PCT}% off)
+
+                      {/* One secondary line, only when yearly changes the story. */}
+                      {months > 1 && (
+                        <p className={`text-xs mt-2 ${highlighted ? "text-blue-100" : "text-gray-500"}`}>
+                          Billed {formatMoney(total, currency)} yearly
+                          {tierSavePct && (
+                            <span className={`font-bold ${highlighted ? "text-green-300" : "text-green-600"}`}>
+                              {" "}· save {tierSavePct}%
+                            </span>
+                          )}
                         </p>
                       )}
-                      {plan.monthlyCredits != null && (() => {
-                        const perRender = plan.tier ? cheapestVideoCostPerRender(plan.tier) : null;
-                        return (
-                          <p className={`text-xs mt-1 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
-                            ≈ {plan.monthlyCredits} images
-                            {perRender && <> or {Math.floor(plan.monthlyCredits / perRender)} video renders</>}
-                          </p>
-                        );
-                      })()}
+
+                      <p className={`text-sm font-semibold mt-4 pt-4 border-t ${
+                        highlighted ? "text-white border-white/20" : "text-gray-900 border-gray-100"
+                      }`}>
+                        {plan.monthlyCredits} credits every month
+                      </p>
                     </div>
 
                     {plan.tier && <ModelBadgeRow tier={plan.tier} highlighted={highlighted} />}
 
                     <ul className="space-y-3 mb-8 flex-1">
+                      {/* Credits→output equivalence lives here, not in the price
+                          block, and names the cheapest model explicitly — the old
+                          copy implied a flat "1 credit = 1 image" rate that the
+                          page's own FAQ ("1-8 credits for an image") contradicts. */}
+                      {plan.monthlyCredits != null && (() => {
+                        const perRender = plan.tier ? cheapestVideoCostPerRender(plan.tier) : null;
+                        const images = Math.floor(plan.monthlyCredits / IMAGE_GENERATOR_STARTING_CREDIT_COST);
+                        return (
+                          <li className="flex items-start gap-2.5 text-sm">
+                            <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${highlighted ? "text-blue-200" : "text-blue-600"}`} />
+                            <span className={highlighted ? "text-blue-100" : "text-gray-700"}>
+                              Up to {images} images
+                              {perRender && <> or {Math.floor(plan.monthlyCredits / perRender)} video renders</>}
+                              <span className={highlighted ? "text-blue-300/80" : "text-gray-400"}> on the cheapest model</span>
+                            </span>
+                          </li>
+                        );
+                      })()}
                       {plan.features.map((f) => (
                         <li key={f} className="flex items-start gap-2.5 text-sm">
                           <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${highlighted ? "text-blue-200" : "text-blue-600"}`} />
@@ -594,9 +745,24 @@ export default function PricingPage() {
                       )}
                     </button>
 
+                    {/* The 7-day trial is Pro-only and once per account, so it
+                        shows as a secondary action rather than a third card. */}
+                    {plan.tier === "pro" && trialEligible && (
+                      <button
+                        onClick={() => openCheckout(plan, true)}
+                        className={`w-full font-semibold py-2.5 mt-2.5 rounded-full text-sm transition-all ${
+                          highlighted
+                            ? "bg-blue-500/40 text-white ring-1 ring-white/30 hover:bg-blue-500/60"
+                            : "bg-white text-blue-600 ring-1 ring-blue-200 hover:bg-blue-50"
+                        }`}
+                      >
+                        Or start a 7-day free trial
+                      </button>
+                    )}
+
                     {/* ── Guarantee micro-copy ── */}
                     <p className={`text-center text-[11px] mt-2 ${highlighted ? "text-blue-300/80" : "text-gray-400"}`}>
-                      ✓ 3-day money-back guarantee
+                      ✓ 48-hour money-back guarantee
                     </p>
                   </div>
                 );
@@ -624,7 +790,6 @@ export default function PricingPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {packs.map(pack => {
                   const checked   = selectedAddons.includes(pack.slug);
-                  const price     = Math.round(pack.priceInPaise / 100);
                   const isLoading = buyingPack === pack.slug;
                   return (
                     <div
@@ -645,7 +810,7 @@ export default function PricingPage() {
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-gray-900 text-sm leading-snug">{pack.name}</p>
                           <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · never expire</p>
-                          <p className="text-xl font-black text-gray-900 mt-3">₹{price.toLocaleString("en-IN")}</p>
+                          <p className="text-xl font-black text-gray-900 mt-3">{formatMoney(minorUnits(pack, currency), currency)}</p>
                         </div>
                       </label>
                       {hasActivePlan && (
@@ -800,7 +965,7 @@ export default function PricingPage() {
                   <p className="font-extrabold text-gray-900 text-lg leading-snug">{checkoutPlan.name}</p>
                   <p className="text-sm text-gray-500 mt-0.5">{checkoutPlan.monthlyCredits} credits / month</p>
                   <p className="text-2xl font-black text-gray-900 mt-2">
-                    ₹{Math.round(checkoutPlan.priceInPaise / 100).toLocaleString("en-IN")}
+                    {formatMoney(minorUnits(checkoutPlan, currency), currency)}
                     <span className="text-sm font-normal text-gray-400 ml-1">
                       {checkoutPlan.intervalMonths && checkoutPlan.intervalMonths > 1
                         ? `/ ${checkoutPlan.intervalMonths} months`
@@ -841,7 +1006,6 @@ export default function PricingPage() {
                     <div className="space-y-3">
                       {packs.map(pack => {
                         const checked = selectedAddons.includes(pack.slug);
-                        const price   = Math.round(pack.priceInPaise / 100);
                         return (
                           <label
                             key={pack.id}
@@ -862,7 +1026,7 @@ export default function PricingPage() {
                               <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · never expire</p>
                             </div>
                             <p className="font-bold text-gray-900 whitespace-nowrap">
-                              ₹{price.toLocaleString("en-IN")}
+                              {formatMoney(minorUnits(pack, currency), currency)}
                             </p>
                           </label>
                         );
@@ -892,7 +1056,7 @@ export default function PricingPage() {
                       <p className="text-xs text-gray-400">Subscription plan</p>
                     </div>
                     <p className="text-sm font-semibold text-gray-900 whitespace-nowrap">
-                      ₹{Math.round(checkoutPlan.priceInPaise / 100).toLocaleString("en-IN")}
+                      {formatMoney(minorUnits(checkoutPlan, currency), currency)}
                     </p>
                   </div>
 
@@ -907,7 +1071,7 @@ export default function PricingPage() {
                           <p className="text-xs text-gray-400">{pack.credits} credits · add-on</p>
                         </div>
                         <p className="text-sm font-semibold text-gray-900 whitespace-nowrap">
-                          ₹{Math.round(pack.priceInPaise / 100).toLocaleString("en-IN")}
+                          {formatMoney(minorUnits(pack, currency), currency)}
                         </p>
                       </div>
                     );
@@ -917,7 +1081,8 @@ export default function PricingPage() {
                     <p className="text-xs text-gray-400 italic">No add-ons selected yet.</p>
                   )}
 
-                  {/* Coupon */}
+                  {/* Coupon — INR only; see couponsAvailable. */}
+                  {couponsAvailable && (
                   <div className="border-t border-gray-100 pt-4">
                     {appliedCoupon ? (
                       <div className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
@@ -949,27 +1114,33 @@ export default function PricingPage() {
                       </div>
                     )}
                   </div>
+                  )}
 
                   {/* Total */}
                   <div className="border-t border-gray-100 pt-4 mt-2">
-                    {appliedCoupon && appliedCoupon.discountInPaise > 0 && (
+                    {couponsAvailable && appliedCoupon && appliedCoupon.discountInPaise > 0 && (
                       <>
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-gray-500">Subtotal</span>
-                          <span className="text-gray-500">₹{totalDue.toLocaleString("en-IN")}</span>
+                          <span className="text-gray-500">{formatMoney(totalDueMinor, currency)}</span>
                         </div>
                         <div className="flex items-center justify-between text-sm mt-1">
                           <span className="text-green-600 font-medium">Discount ({appliedCoupon.code})</span>
-                          <span className="text-green-600 font-medium">−₹{Math.round(appliedCoupon.discountInPaise / 100).toLocaleString("en-IN")}</span>
+                          <span className="text-green-600 font-medium">−{formatMoney(appliedCoupon.discountInPaise, currency)}</span>
                         </div>
                       </>
                     )}
                     <div className="flex items-center justify-between mt-2">
-                      <p className="font-bold text-gray-900">Total Due</p>
+                      <p className="font-bold text-gray-900">{checkoutTrial ? "Due today" : "Total Due"}</p>
                       <p className="text-xl font-black text-gray-900">
-                        ₹{discountedTotal.toLocaleString("en-IN")}
+                        {checkoutTrial ? formatMoney(0, currency) : formatMoney(discountedTotalMinor, currency)}
                       </p>
                     </div>
+                    {checkoutTrial && (
+                      <p className="text-xs text-gray-500 mt-1.5">
+                        Free for 7 days, then {formatMoney(discountedTotalMinor, currency)}. Cancel any time before it ends.
+                      </p>
+                    )}
                     <p className="text-xs text-gray-400 mt-1">Secure payment via Razorpay</p>
                   </div>
                 </div>
@@ -993,7 +1164,7 @@ export default function PricingPage() {
                   <Link href="/terms" className="underline hover:text-gray-600">Terms of Service</Link>
                 </p>
                 <p className="text-xs text-gray-400 text-center mt-1">
-                  3-day money-back guarantee ·{" "}
+                  48-hour money-back guarantee ·{" "}
                   <Link href="/refund" className="underline hover:text-gray-600">Refund Policy</Link>
                 </p>
               </div>
