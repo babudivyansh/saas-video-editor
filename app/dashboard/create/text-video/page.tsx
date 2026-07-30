@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useEffect, useState, useRef, type CSSProperties } from "react";
+import { Suspense, useEffect, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useVideoGenerate, getStoredToken } from "@/app/hooks/useVideoGenerate";
 import { useAuth } from "@/app/components/AuthContext";
@@ -260,7 +260,6 @@ function ChatPreview({ name, profilePic, messages, theme }: {
 
   const isImessage = theme.id.startsWith("imessage");
   const isSignal = theme.id.startsWith("signal");
-  const isWhatsapp = theme.id.startsWith("whatsapp");
 
   return (
     <div className="flex-1 overflow-y-auto px-6 pt-4 pb-6">

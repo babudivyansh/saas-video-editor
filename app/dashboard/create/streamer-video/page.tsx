@@ -1,7 +1,6 @@
 "use client";
 import { Suspense, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { useVideoGenerate, type GenerateStatus } from "@/app/hooks/useVideoGenerate";
 import { useAuth } from "@/app/components/AuthContext";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";

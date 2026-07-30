@@ -7,7 +7,6 @@ import path from "path";
 import fs from "fs";
 import { spawn } from "child_process";
 import { prisma } from "@/lib/prisma";
-import { redis } from "@/lib/redis";
 import { setRenderProgress } from "@/lib/render-queue";
 import { restoreSpend } from "@/lib/credits";
 import { runFFmpegWithProgress } from "@/utils/ffmpeg-render";
