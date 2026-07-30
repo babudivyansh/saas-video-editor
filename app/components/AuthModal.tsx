@@ -9,7 +9,7 @@ export default function AuthModal() {
 
   if (!authModal.isOpen) return null;
 
-  const handleSuccess = async (token: string) => {
+  const handleSuccess = async (_token: string) => {
     await refreshUser();
     closeAuthModal();
     // If opened from the pricing page (feature = plan name, not a free tool), go to billing

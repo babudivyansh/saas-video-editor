@@ -222,7 +222,8 @@ export default function AdminDashboardPage() {
   }
 
   const [overview, overviewRef] = useSection<Overview>("overview", range, refreshKey, { eager: true });
-  const [infra, infraRef] = useSection<Infra>("infra", range, refreshKey, { eager: true });
+  // Eager and always mounted, so unlike the lazy sections below it needs no ref.
+  const [infra] = useSection<Infra>("infra", range, refreshKey, { eager: true });
   const [revenue, revenueRef] = useSection<Revenue>("revenue", range, refreshKey, { compare: true });
   const [ai, aiRef] = useSection<Ai>("ai", range, refreshKey);
   const [social, socialRef] = useSection<Social>("social", range, refreshKey);

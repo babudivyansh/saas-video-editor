@@ -22,6 +22,7 @@ import { ListNode, ListItemNode } from "@lexical/list";
 import { $getRoot, $createParagraphNode, $createTextNode, type EditorState } from "lexical";
 import { useEditorStore } from "../../../store/editorStore";
 import type { RichTextState, TextClip } from "@/lib/editor/types";
+import { logger } from "@/lib/logger";
 import TextToolbar from "./TextToolbar";
 
 // Hydrates the editor from the clip's saved content exactly once per clip
@@ -107,7 +108,7 @@ export default function LexicalTextEditor({ clip }: { clip: TextClip }) {
         namespace: "clipiro-text",
         nodes: [ListNode, ListItemNode],
         theme,
-        onError: (error) => console.error("Lexical editor error:", error),
+        onError: (error) => logger.error("editor:lexical", "Lexical editor error", error),
       }}
     >
       <div className="flex flex-col gap-1.5">

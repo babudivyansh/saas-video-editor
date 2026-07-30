@@ -34,6 +34,20 @@ const eslintConfig = defineConfig([
       // piped to Sentry on error) instead of bare console.*. See the per-file
       // override below for the logger's own implementation and scripts/.
       "no-console": "warn",
+      // A leading underscore is this codebase's marker for "required by the
+      // signature, deliberately unused" — e.g. a route handler that ignores
+      // its Request, or a stub that must keep its parameter list. Honour the
+      // convention instead of forcing every such site to carry a disable
+      // comment.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+        },
+      ],
     },
   },
   {
@@ -45,6 +59,7 @@ const eslintConfig = defineConfig([
       "prisma/seed.ts",
       "prisma/repair-subscription.ts",
       "utils/test-ffmpeg.ts",
+      "utils/test-effects.ts",
     ],
     rules: {
       "no-console": "off",

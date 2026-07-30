@@ -3,7 +3,6 @@ import { getAuthUser } from "@/lib/auth";
 import { checkFreeToolDailyCap, freeToolCapResponseBody } from "@/lib/free-tool-caps";
 import { spendCredits, restoreSpend } from "@/lib/credits";
 import { redis } from "@/lib/redis";
-import { prisma } from "@/lib/prisma";
 import { create as createYoutubeDl } from "youtube-dl-exec";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { logger } from "@/lib/logger";
