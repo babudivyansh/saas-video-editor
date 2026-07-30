@@ -20,11 +20,22 @@ export interface FxConfig {
 export const FX_DEFAULTS: FxConfig = { inrPerUsd: 88 };
 
 /** slug -> price in USD cents. Anchors flagship SKUs at clean $X/mo prices
- * instead of a raw FX conversion (e.g. Creator ₹999 -> $15, not $11.35). */
+ * instead of a raw FX conversion (e.g. Creator ₹999 -> $15, not $11.35).
+ *
+ * The yearly rows have to be listed explicitly alongside the monthly ones. If
+ * only monthly is anchored, yearly falls through to the FX path below and
+ * inherits none of the USD premium — which made the annual discount 49/42/35%
+ * in USD against a flat 33% in INR, i.e. US customers buying annual at Indian
+ * rates. Each yearly price here is ~33% off 12x its monthly row, so the
+ * discount reads the same in both currencies; see lib/currency.test.ts, which
+ * fails if a future edit breaks that parity. */
 export const USD_PRICE_BOOK_DEFAULTS: Record<string, number> = {
   sub_creator_1mo: 1500,
   sub_pro_1mo: 2900,
   sub_studio_1mo: 5900,
+  sub_creator_12mo: 11999, // vs $180 at 12x monthly -> 33% off
+  sub_pro_12mo: 23299,     // vs $348 -> 33% off
+  sub_studio_12mo: 47399,  // vs $708 -> 33% off
 };
 
 async function loadFx(): Promise<FxConfig> {

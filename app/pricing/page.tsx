@@ -228,39 +228,35 @@ const FAQS = [
   },
 ];
 
-// ── ModelBadgeRow ────────────────────────────────────────────────────────────
-// Shows which AI models a tier unlocks, using each registry entry's own
-// `allowedTiers` field — the single source of truth Phase 1 introduced.
-function ModelNameList({ tier, kind, highlighted }: { tier: Exclude<TierId, "free">; kind: "image" | "video"; highlighted: boolean }) {
-  const models = (kind === "image" ? IMAGE_MODELS : VIDEO_MODELS).filter(m => m.allowedTiers.includes(tier));
-  if (models.length === 0) return null;
-  const shown = models.slice(0, 4);
-  const rest = models.slice(4);
-  return (
-    <p className={`text-xs ${highlighted ? "text-blue-100" : "text-gray-600"}`}>
-      <span className={`font-semibold ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
-        {kind === "image" ? "Images" : "Video"}:
-      </span>{" "}
-      {shown.map(m => m.displayName).join(" · ")}
-      {rest.length > 0 && (
-        <span title={rest.map(m => m.displayName).join(", ")} className="cursor-help">
-          {" "}· +{rest.length} more
-        </span>
-      )}
-    </p>
-  );
+// One-line summary of what a tier unlocks, replacing the old "MODELS INCLUDED"
+// block that listed eight model names across two lines of small grey text —
+// the densest thing on the card and the hardest to scan. The count and the
+// headline names both come from each registry entry's `allowedTiers`, so they
+// track the registries instead of drifting. The exhaustive per-model breakdown
+// still lives in the comparison table further down the page.
+function modelSummary(tier: Exclude<TierId, "free">): { total: number; headline: string[]; all: string } {
+  const images = IMAGE_MODELS.filter(m => m.allowedTiers.includes(tier));
+  const videos = VIDEO_MODELS.filter(m => m.allowedTiers.includes(tier));
+  // Lead with the video models this tier unlocks that the tier below doesn't —
+  // that's the actual reason to move up a tier. Falls back to the tier's own
+  // video models for Creator, which has nothing below it.
+  const below = PURCHASABLE_TIER_ORDER[PURCHASABLE_TIER_ORDER.indexOf(tier) - 1];
+  const exclusive = below ? videos.filter(m => !m.allowedTiers.includes(below)) : videos;
+  const headline = (exclusive.length > 0 ? exclusive : videos).slice(0, 2).map(m => m.displayName);
+  return {
+    total: images.length + videos.length,
+    headline,
+    all: [...images, ...videos].map(m => m.displayName).join(", "),
+  };
 }
 
-function ModelBadgeRow({ tier, highlighted }: { tier: Exclude<TierId, "free">; highlighted: boolean }) {
-  return (
-    <div className={`mb-6 pb-6 border-b space-y-1.5 ${highlighted ? "border-white/20" : "border-gray-100"}`}>
-      <p className={`text-[11px] font-bold uppercase tracking-widest mb-2 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
-        Models included
-      </p>
-      <ModelNameList tier={tier} kind="image" highlighted={highlighted} />
-      <ModelNameList tier={tier} kind="video" highlighted={highlighted} />
-    </div>
-  );
+// A plan's `features` are admin-editable, and the card header already renders
+// the credit allowance and the yearly saving — so seeded/edited entries like
+// "160 credits / month" or "Save 33% vs monthly" render as bullets that just
+// repeat the line above them. Drop those here rather than trusting the data.
+function isRedundantFeature(feature: string): boolean {
+  const f = feature.toLowerCase();
+  return /\d+\s*credits?\s*\/?\s*(per\s*)?month/.test(f) || /save\s*\d+%/.test(f);
 }
 
 // ── FreeCard ───────────────────────────────────────────────────────────────
@@ -275,7 +271,7 @@ function FreeCard({ currency }: { currency: Currency }) {
     `${STORAGE_LIMIT_GB.free * 1000} MB storage`,
   ];
   return (
-    <div className="relative rounded-2xl p-8 border-2 border-gray-100 bg-white text-gray-900 shadow-sm flex flex-col">
+    <div className="relative h-full rounded-2xl p-8 border-2 border-gray-100 bg-white text-gray-900 shadow-sm flex flex-col">
       <div className="mb-6">
         <p className="text-sm font-bold uppercase tracking-widest mb-1 text-gray-400">Free</p>
         <div className="flex items-start gap-0.5">
@@ -300,7 +296,7 @@ function FreeCard({ currency }: { currency: Currency }) {
 
       <Link
         href="/register"
-        className="w-full text-center font-bold py-3 rounded-full bg-gray-900 text-white hover:bg-gray-800 transition-all"
+        className="w-full mt-auto text-center font-bold py-3 rounded-full bg-gray-900 text-white hover:bg-gray-800 transition-all"
       >
         Start free
       </Link>
@@ -620,8 +616,11 @@ export default function PricingPage() {
             );
           }
 
+          // items-stretch (not items-start) so all four cards share the tallest
+          // height and their CTAs line up — the row was previously ragged at
+          // 542/629/677/645px.
           return (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
               <FreeCard currency={currency} />
               {cards.map((plan, idx) => {
                 const highlighted = idx === 1;
@@ -641,15 +640,18 @@ export default function PricingPage() {
                 return (
                   <div
                     key={plan.id}
-                    className={`relative rounded-2xl p-8 border-2 flex flex-col ${
+                    className={`relative h-full rounded-2xl p-8 border-2 flex flex-col ${
                       highlighted
-                        ? "border-blue-600 bg-blue-600 text-white shadow-2xl md:scale-105"
+                        ? "border-blue-600 bg-blue-600 text-white shadow-2xl lg:scale-105 lg:z-10"
                         : "border-gray-100 bg-white text-gray-900 shadow-sm"
                     }`}
                   >
                     {highlighted && (
-                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                        <span className="bg-green-400 text-green-900 text-xs font-black px-4 py-1 rounded-full uppercase tracking-wide">
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                        {/* whitespace-nowrap is load-bearing: the grid went from
+                            3 cards to 4, and at ~267px the pill wrapped onto two
+                            lines and hung off the top of the card. */}
+                        <span className="block whitespace-nowrap bg-green-400 text-green-900 text-[11px] font-black px-3 py-1 rounded-full uppercase tracking-wide">
                           Most Popular
                         </span>
                       </div>
@@ -693,28 +695,38 @@ export default function PricingPage() {
                       </p>
                     </div>
 
-                    {plan.tier && <ModelBadgeRow tier={plan.tier} highlighted={highlighted} />}
-
                     <ul className="space-y-3 mb-8 flex-1">
-                      {/* Credits→output equivalence lives here, not in the price
-                          block, and names the cheapest model explicitly — the old
-                          copy implied a flat "1 credit = 1 image" rate that the
-                          page's own FAQ ("1-8 credits for an image") contradicts. */}
+                      {/* Models: one line instead of the old two-line name dump. */}
+                      {plan.tier && (() => {
+                        const m = modelSummary(plan.tier);
+                        return (
+                          <li className="flex items-start gap-2.5 text-sm">
+                            <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${highlighted ? "text-blue-200" : "text-blue-600"}`} />
+                            <span className={highlighted ? "text-blue-100" : "text-gray-700"} title={m.all}>
+                              {m.total} AI models{m.headline.length > 0 && <>, incl. {m.headline.join(" & ")}</>}
+                            </span>
+                          </li>
+                        );
+                      })()}
+                      {/* Credits→output equivalence. The "cheapest model" caveat
+                          is a tooltip rather than inline text — spelled out it
+                          wrapped this bullet onto three lines. */}
                       {plan.monthlyCredits != null && (() => {
                         const perRender = plan.tier ? cheapestVideoCostPerRender(plan.tier) : null;
                         const images = Math.floor(plan.monthlyCredits / IMAGE_GENERATOR_STARTING_CREDIT_COST);
                         return (
                           <li className="flex items-start gap-2.5 text-sm">
                             <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${highlighted ? "text-blue-200" : "text-blue-600"}`} />
-                            <span className={highlighted ? "text-blue-100" : "text-gray-700"}>
-                              Up to {images} images
-                              {perRender && <> or {Math.floor(plan.monthlyCredits / perRender)} video renders</>}
-                              <span className={highlighted ? "text-blue-300/80" : "text-gray-400"}> on the cheapest model</span>
+                            <span
+                              className={highlighted ? "text-blue-100" : "text-gray-700"}
+                              title="Based on the lowest-cost model available on this plan; premium models cost more credits."
+                            >
+                              ≈ {images} images or {perRender ? Math.floor(plan.monthlyCredits / perRender) : 0} videos
                             </span>
                           </li>
                         );
                       })()}
-                      {plan.features.map((f) => (
+                      {plan.features.filter(f => !isRedundantFeature(f)).map((f) => (
                         <li key={f} className="flex items-start gap-2.5 text-sm">
                           <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${highlighted ? "text-blue-200" : "text-blue-600"}`} />
                           <span className={highlighted ? "text-blue-100" : "text-gray-700"}>{f}</span>
@@ -729,7 +741,7 @@ export default function PricingPage() {
                         else openAuthModal("register", baseTier);
                       }}
                       disabled={authLoading}
-                      className={`w-full font-bold py-3 rounded-full transition-all disabled:opacity-60 disabled:cursor-wait ${
+                      className={`w-full mt-auto font-bold py-3 rounded-full transition-all disabled:opacity-60 disabled:cursor-wait ${
                         highlighted
                           ? "bg-white text-blue-600 hover:bg-blue-50 shadow-lg"
                           : "bg-blue-600 text-white hover:bg-blue-700 ring-1 ring-blue-200"
