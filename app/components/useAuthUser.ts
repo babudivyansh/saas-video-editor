@@ -36,6 +36,8 @@ export interface AuthUser {
   monthlyCredits: number;
   trialUsedAt: string | null;
   trialEndsAt: string | null;
+  paymentFailedAt: string | null;
+  paymentFailureCount: number;
   emailVerifiedAt: string | null;
   twoFactorEnabled: boolean;
   passwordChangedAt: string | null;

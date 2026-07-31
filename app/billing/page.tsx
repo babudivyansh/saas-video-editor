@@ -332,6 +332,26 @@ function BillingContent() {
           Subscription cancelled — you&apos;ll keep access until {user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "the end of your billing period"}.
         </div>
       )}
+      {/* Dunning banner. Without this the page kept saying "Renews in N days"
+          while the card was actually failing, so the first the user knew was
+          access disappearing. Sits above the tabs because it outranks
+          everything else on the page. */}
+      {user?.paymentFailedAt && (
+        <div role="alert" className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-amber-900">We couldn&apos;t take your last payment</p>
+            <p className="text-xs text-amber-800 mt-0.5">
+              Your plan is still active and we&apos;ll retry automatically
+              {user.paymentFailureCount > 1 ? ` (attempt ${user.paymentFailureCount})` : ""}.
+              Updating your payment method now avoids any interruption.
+            </p>
+          </div>
+          <Button variant="primary" size="sm" onClick={() => setPlansModalOpen(true)} className="flex-shrink-0">
+            Update payment method
+          </Button>
+        </div>
+      )}
+
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-800 rounded-2xl px-5 py-3.5 text-sm font-medium">
           {error}

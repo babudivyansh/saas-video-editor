@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { Prisma } from "@prisma/client";
 import { fulfillPayment, fulfillSubscriptionCharge, type FulfillNotes } from "@/lib/fulfillment";
+import { recordSubscriptionFailure, recordSubscriptionLifecycle } from "@/lib/dunning";
 import { prisma } from "@/lib/prisma";
 import { grantCredits } from "@/lib/credits";
 import { logger } from "@/lib/logger";
@@ -57,7 +58,14 @@ export async function POST(req: NextRequest) {
   const event = JSON.parse(body) as {
     event: string;
     payload: {
-      payment?: { entity: { id: string; order_id: string; amount: number; notes: FulfillNotes; invoice_id?: string | null } };
+      payment?: {
+        entity: {
+          id: string; order_id: string; amount: number; notes: FulfillNotes;
+          invoice_id?: string | null;
+          error_description?: string | null;
+          error_reason?: string | null;
+        };
+      };
       refund?: { entity: { id: string; payment_id: string; amount: number } };
       subscription?: { entity: { id: string; notes?: { userId?: string; planId?: string; trial?: string } } };
     };
@@ -159,17 +167,48 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true });
   }
 
+  // ── Dunning ──────────────────────────────────────────────────────────────
+  // These used to be log-only (or unsubscribed entirely), so a declined card
+  // was invisible: no DB write, no email, no in-app signal, no admin alert.
+  // Because a successful charge extends the term by a month plus three days,
+  // a halted subscription bought the customer ~33 days of access while the
+  // billing page still said "Renews in N days" — and the first anyone knew was
+  // when it silently lapsed.
+  if (event.event === "payment.failed" || event.event === "subscription.pending") {
+    const sub = event.payload?.subscription?.entity;
+    const payment = event.payload?.payment?.entity;
+    const reason = payment?.error_description ?? payment?.error_reason ?? null;
+    // payment.failed also fires for one-off pack purchases, which have no
+    // subscription and need no dunning — the user simply retries checkout.
+    if (sub?.id) {
+      await recordSubscriptionFailure({
+        subscriptionId: sub.id,
+        notesUserId: sub.notes?.userId,
+        type: event.event === "payment.failed" ? "payment_failed" : "pending",
+        reason,
+      }).catch((e) => logger.error("webhook", `dunning record failed for ${sub.id}`, e));
+    }
+    return NextResponse.json({ received: true });
+  }
+
   if (
     event.event === "subscription.halted" ||
     event.event === "subscription.cancelled" ||
-    event.event === "subscription.completed"
+    event.event === "subscription.completed" ||
+    event.event === "subscription.paused" ||
+    event.event === "subscription.resumed"
   ) {
     const sub = event.payload?.subscription?.entity;
-    // Record-only: don't zero credits immediately. The refill cron's lapse
-    // step zeroes the subscription bucket once subscriptionEndsAt passes —
-    // this gives a grace period instead of an abrupt cutoff on a webhook.
+    // Still no immediate credit revocation — the refill cron's lapse step owns
+    // that, so a slow retry doesn't cut someone off mid-month. What changed is
+    // that the event is now persisted and, for a halt, surfaced to the user.
     if (sub?.id) {
-      logger.info("webhook", `subscription ${sub.id} -> ${event.event}`);
+      const type = event.event.replace("subscription.", "");
+      await recordSubscriptionLifecycle({
+        subscriptionId: sub.id,
+        notesUserId: sub.notes?.userId,
+        type,
+      }).catch((e) => logger.error("webhook", `lifecycle record failed for ${sub.id}`, e));
     }
     return NextResponse.json({ received: true });
   }

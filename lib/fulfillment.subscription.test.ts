@@ -12,7 +12,10 @@ vi.mock("@/lib/redis", () => ({
 vi.mock("@/lib/email", () => ({
   sendPurchaseConfirmationEmail: vi.fn(async () => {}),
   sendAffiliateCommissionEmail: vi.fn(async () => {}),
+  // Recurring renewals now send a receipt — previously they sent nothing.
+  sendSubscriptionRenewedEmail: vi.fn(async () => { renewalEmails++; }),
 }));
+let renewalEmails = 0;
 
 vi.mock("@/lib/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
@@ -81,6 +84,7 @@ vi.mock("@/lib/prisma", () => {
     purchase: {
       create: vi.fn(async ({ data }: { data: { id: string } }) => { purchases.set(data.id, data); }),
     },
+    subscriptionEvent: { create: vi.fn(async () => ({})) },
     $transaction: vi.fn(async (arg: unknown) =>
       Array.isArray(arg) ? Promise.all(arg) : (arg as (tx: unknown) => Promise<unknown>)(client)),
   };
@@ -106,6 +110,7 @@ beforeEach(() => {
   events = new Set();
   purchases = new Map();
   ledger = [];
+  renewalEmails = 0;
   vi.clearAllMocks();
 });
 
@@ -118,6 +123,9 @@ describe("fulfillSubscriptionCharge", () => {
     expect(user.nextRefillAt).toBeNull(); // never cron-refills
     expect(purchases.has("pay_1")).toBe(true);
     expect(ledger).toEqual([expect.objectContaining({ bucket: "subscription", delta: 160, refId: "pay_1" })]);
+    // Recurring subscribers used to be the only customers charged every month
+    // and the only ones never emailed about it.
+    expect(renewalEmails).toBe(1);
   });
 
   it("is idempotent on webhook redelivery", async () => {

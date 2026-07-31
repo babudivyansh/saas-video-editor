@@ -47,6 +47,19 @@ model User {
   // of offering Cancel again. Cleared whenever a subscription (re)activates
   // (subscription.activated webhook) or lapses (refill-credits cron).
   subscriptionCancelledAt DateTime?
+  // ── Dunning (2026-07 billing audit) ──
+  // Set when Razorpay reports a recurring charge failed (payment.failed) or the
+  // subscription entered its retry state (subscription.pending). Cleared on the
+  // next successful charge. Before this existed a declined card produced no DB
+  // write, no email and no in-app signal — the customer kept full access for
+  // the ~33 days of accumulated grace while the UI still read "Renews in N
+  // days", and nobody on either side knew anything was wrong.
+  paymentFailedAt         DateTime?
+  // Consecutive failed charge attempts, reset on success. Drives how insistent
+  // the in-app banner is, and stops the same failure emailing repeatedly when
+  // Razorpay retries.
+  paymentFailureCount     Int       @default(0)
+  paymentFailedEmailSentAt DateTime?
   // Opt-in auto top-up (2026-07 audit): when set, a spend that leaves the
   // balance under the threshold triggers lib/credits.ts's maybeAutoTopup —
   // a debounced attempt to purchase this pack (one-click email in practice;
@@ -143,6 +156,7 @@ model User {
   reviewHelpfulVotes  ReviewHelpfulVote[]
   reviewReports       ReviewReport[]
   notifications       Notification[]
+  subscriptionEvents  SubscriptionEvent[]
   reviewPromptState   ReviewPromptState?
   reviewPromptEvents  ReviewPromptEvent[]
   reviewEmailSequence ReviewEmailSequence?
@@ -472,6 +486,27 @@ model RazorpayEvent {
   id          String   @id
   event       String
   processedAt DateTime @default(now())
+}
+
+// Append-only log of subscription lifecycle events from Razorpay. Separate
+// from RazorpayEvent, which is keyed on payment id purely as an idempotency
+// claim and records nothing useful: it cannot answer "why did this customer
+// lose access?", which is the question support actually gets. Halts, pending
+// retries, pauses and cancellations were previously log-only — they vanished
+// into stdout with no queryable record at all.
+model SubscriptionEvent {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptionId String   // Razorpay sub_...
+  type           String   // "payment_failed" | "pending" | "halted" | "cancelled" | "paused" | "resumed" | "charged" | "activated"
+  /// Failure reason / error code from the provider, when it gave one.
+  reason         String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([subscriptionId])
 }
 
 // Append-only ledger of every credit balance change, per bucket. Written

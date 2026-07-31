@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
-import { sendPurchaseConfirmationEmail, sendAffiliateCommissionEmail } from "@/lib/email";
+import { sendPurchaseConfirmationEmail, sendAffiliateCommissionEmail, sendSubscriptionRenewedEmail } from "@/lib/email";
 import { markQuestComplete } from "@/lib/quests";
 import { grantCredits, getBalances } from "@/lib/credits";
 import { logger } from "@/lib/logger";
@@ -146,18 +146,45 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
         // Recurring subs never cron-refill; renewal IS the refill.
         nextRefillAt: null,
         trialEndsAt: null,
+        // A successful charge ends any dunning state — the card worked.
+        paymentFailedAt: null,
+        paymentFailureCount: 0,
+        paymentFailedEmailSentAt: null,
       },
     });
     await tx.purchase.create({
       data: { id: paymentId, userId: user.id, planId: user.plan?.id ?? user.planId, amountInPaise, credits: applied, status: "captured" },
     });
-    return { alreadyProcessed: false };
+    return { alreadyProcessed: false, applied, endsAt };
   });
 
   if (result.alreadyProcessed) return { fulfilled: false, alreadyProcessed: true };
 
   const balances = await getBalances(user.id);
   await redis.set(`credits:${user.id}`, String(balances.total), "EX", 3600).catch(() => {});
+
+  // Renewal receipt. Recurring subscribers previously got no email on any
+  // renewal, ever — sendPurchaseConfirmationEmail only fires from
+  // fulfillPayment (first purchase), and the cron's refill email excludes
+  // subscription-backed accounts. So the only customers charged every month
+  // were the only ones never told.
+  const recipient = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { email: true, firstName: true, name: true },
+  });
+  if (recipient) {
+    await prisma.subscriptionEvent.create({
+      data: { userId: user.id, subscriptionId, type: "charged" },
+    }).catch(() => {});
+    await sendSubscriptionRenewedEmail(
+      recipient.email,
+      recipient.firstName ?? recipient.name ?? "",
+      amountInPaise,
+      result.applied ?? 0,
+      result.endsAt ?? null,
+    ).catch((e: unknown) => logger.error("fulfillment", `renewal email failed for ${user.id}`, e));
+  }
+
   return { fulfilled: true, alreadyProcessed: false };
 }
 
