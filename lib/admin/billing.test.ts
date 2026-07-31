@@ -29,6 +29,9 @@ const tx = {
     }),
   },
   creditTransaction: { create: vi.fn(async () => ({})) },
+  // lockUserRow's SELECT ... FOR UPDATE, taken by every balance mutation that
+  // reads then writes (clawbackCredits here).
+  $queryRaw: vi.fn(async () => []),
 };
 
 vi.mock("@/lib/prisma", () => ({

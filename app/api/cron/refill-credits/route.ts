@@ -9,6 +9,25 @@ import {
 import { sendCreditsRefilledEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
+import Razorpay from "razorpay";
+
+// Constructed on first use, not at module load: this route is imported by
+// tests and by the scheduler, and the SDK throws at construction time when
+// key_id is absent.
+let razorpayClient: Razorpay | null = null;
+function getRazorpay(): Razorpay {
+  razorpayClient ??= new Razorpay({
+    key_id: env.RAZORPAY_KEY_ID,
+    key_secret: env.RAZORPAY_KEY_SECRET,
+  });
+  return razorpayClient;
+}
+
+// How long past subscriptionEndsAt a *recurring* subscription is left alone
+// before we give up on the renewal. subscriptionEndsAt already includes a
+// 3-day grace, so this is the additional window Razorpay has to land a retried
+// charge. Prepaid/legacy subscriptions are unaffected and lapse at term end.
+const RECURRING_LAPSE_GRACE_DAYS = 14;
 
 // Credit-economy cron (hourly/daily via external scheduler):
 //
@@ -84,11 +103,55 @@ export async function GET(req: NextRequest) {
   }
 
   // ── 2. Expire lapsed subscriptions ──────────────────────────────────────────
-  const lapsed = await prisma.user.findMany({
-    where: { subscriptionEndsAt: { not: null, lte: now } },
-    select: { id: true },
+  // A recurring Razorpay Subscription must NOT be lapsed the moment
+  // subscriptionEndsAt passes. That timestamp already carries only a 3-day
+  // grace (lib/fulfillment.ts), and a renewal can legitimately land later than
+  // that — a soft decline Razorpay is still retrying, a bank outage, a webhook
+  // backlog. Lapsing nulled razorpaySubscriptionId, so when the retry finally
+  // arrived fulfillSubscriptionCharge could not find the user: the customer was
+  // charged and got nothing, permanently, with no Purchase row and no alert.
+  // Meanwhile the mandate stayed live at Razorpay, so they kept being billed
+  // while sitting on the free tier.
+  //
+  // So: prepaid/legacy subscriptions lapse at term end as before, and recurring
+  // ones get a longer window for the retry to succeed. Only once that window
+  // closes do we give up — and then we cancel the mandate first, so we never
+  // leave a free-tier account being charged.
+  const lapsedPrepaid = await prisma.user.findMany({
+    where: { subscriptionEndsAt: { not: null, lte: now }, razorpaySubscriptionId: null },
+    select: { id: true, razorpaySubscriptionId: true },
   });
-  for (const u of lapsed) {
+
+  const recurringCutoff = new Date(now.getTime() - RECURRING_LAPSE_GRACE_DAYS * 24 * 60 * 60 * 1000);
+  const lapsedRecurring = await prisma.user.findMany({
+    where: { subscriptionEndsAt: { not: null, lte: recurringCutoff }, razorpaySubscriptionId: { not: null } },
+    select: { id: true, razorpaySubscriptionId: true },
+  });
+
+  for (const u of [...lapsedPrepaid, ...lapsedRecurring]) {
+    // Stop the mandate before dropping the local link, so a still-live
+    // subscription can't keep charging a user we've moved to the free tier.
+    // If this fails, skip the user entirely and retry next run rather than
+    // orphaning the subscription — that's the exact failure this block exists
+    // to prevent.
+    if (u.razorpaySubscriptionId) {
+      try {
+        await getRazorpay().subscriptions.cancel(u.razorpaySubscriptionId, false);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        // Already cancelled/completed at Razorpay is a success for our purposes.
+        const alreadyGone = /not found|already|invalid.*state|cancelled/i.test(message);
+        if (!alreadyGone) {
+          logger.error(
+            "cron/refill-credits",
+            `could not cancel subscription ${u.razorpaySubscriptionId} for ${u.id} — leaving the link intact and retrying next run`,
+            e,
+          );
+          continue;
+        }
+      }
+    }
+
     await prisma.user.update({
       where: { id: u.id },
       data: {

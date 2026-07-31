@@ -1,7 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-vi.mock("@/lib/env", () => ({ env: { CRON_SECRET: "test-secret" } }));
+vi.mock("@/lib/env", () => ({
+  env: { CRON_SECRET: "test-secret", RAZORPAY_KEY_ID: "rzp_test_x", RAZORPAY_KEY_SECRET: "s" },
+}));
+
+// Records every subscription the cron asks Razorpay to cancel, so the lapse
+// tests can assert we stop the mandate before dropping the local link.
+const cancelledSubs: string[] = [];
+let cancelShouldFail = false;
+vi.mock("razorpay", () => ({
+  default: class {
+    subscriptions = {
+      cancel: vi.fn(async (id: string) => {
+        if (cancelShouldFail) throw new Error("network down");
+        cancelledSubs.push(id);
+        return { id, status: "cancelled" };
+      }),
+    };
+  },
+}));
 vi.mock("@/lib/email", () => ({ sendCreditsRefilledEmail: vi.fn(async () => {}) }));
 vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/redis", () => ({ redis: { set: vi.fn(async () => {}) } }));
@@ -22,6 +40,8 @@ interface UserRow {
   nextRefillAt: Date | null;
   planId: string | null;
   subscriptionId: string | null;
+  razorpaySubscriptionId: string | null;
+  subscriptionCancelledAt: Date | null;
   lowCreditEmailSentAt: Date | null;
 }
 let users: UserRow[];
@@ -37,12 +57,14 @@ vi.mock("@/lib/prisma", () => ({
         (await import("@/lib/prisma")).prisma,
       );
     }),
+    // lockUserRow's advisory SELECT ... FOR UPDATE.
+    $queryRaw: vi.fn(async () => []),
     creditTransaction: { create: vi.fn(async () => ({})) },
     user: {
       findMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
         const now = new Date();
         if ("nextRefillAt" in where) {
-          return users.filter((u) => u.nextRefillAt !== null && u.nextRefillAt <= now);
+          return users.filter((u) => u.nextRefillAt !== null && u.nextRefillAt <= now && u.razorpaySubscriptionId === null);
         }
         if ("bonusCreditsExpireAt" in where) {
           return users.filter((u) => u.bonusCreditsExpireAt !== null && u.bonusCreditsExpireAt <= now && u.bonusCredits > 0);
@@ -50,7 +72,15 @@ vi.mock("@/lib/prisma", () => ({
         if ("freeCreditsRefillAt" in where) {
           return users.filter((u) => u.planId === null && u.freeCreditsRefillAt !== null && u.freeCreditsRefillAt <= now);
         }
-        return users.filter((u) => u.subscriptionEndsAt !== null && u.subscriptionEndsAt <= now);
+        // The lapse step now runs two queries: prepaid subs lapse at term end,
+        // recurring ones only after an extra grace window.
+        const ends = where.subscriptionEndsAt as { lte: Date };
+        const cutoff = ends.lte;
+        const wantsRecurring = typeof where.razorpaySubscriptionId === "object" && where.razorpaySubscriptionId !== null;
+        return users.filter((u) =>
+          u.subscriptionEndsAt !== null &&
+          u.subscriptionEndsAt <= cutoff &&
+          (wantsRecurring ? u.razorpaySubscriptionId !== null : u.razorpaySubscriptionId === null));
       }),
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) => {
         const u = users.find((x) => x.id === where.id);
@@ -75,7 +105,7 @@ vi.mock("@/lib/prisma", () => ({
             void delta;
           }
         }
-        for (const k of ["planId", "subscriptionId", "subscriptionEndsAt", "nextRefillAt", "monthlyCredits", "lowCreditEmailSentAt", "bonusCreditsExpireAt", "freeCreditsRefillAt"] as const) {
+        for (const k of ["planId", "subscriptionId", "razorpaySubscriptionId", "subscriptionCancelledAt", "subscriptionEndsAt", "nextRefillAt", "monthlyCredits", "lowCreditEmailSentAt", "bonusCreditsExpireAt", "freeCreditsRefillAt"] as const) {
           if (k in data) (u as Record<string, unknown>)[k] = data[k];
         }
         return { ...u };
@@ -95,6 +125,8 @@ const DAY = 86400_000;
 
 beforeEach(() => {
   users = [];
+  cancelledSubs.length = 0;
+  cancelShouldFail = false;
   vi.clearAllMocks();
 });
 
@@ -115,6 +147,8 @@ function user(overrides: Partial<UserRow>): UserRow {
     nextRefillAt: null,
     planId: "plan-1",
     subscriptionId: "order-1",
+    razorpaySubscriptionId: null,
+    subscriptionCancelledAt: null,
     lowCreditEmailSentAt: null,
     ...overrides,
   };
@@ -167,6 +201,58 @@ describe("cron refill", () => {
     expect(u.monthlyCredits).toBe(0);
     // Free-tier drip starts next cycle, not in this run.
     expect(u.bonusCredits).toBe(0);
+  });
+
+  // ── Recurring subscriptions must survive a late renewal ───────────────────
+  // Regression: the lapse step used to select purely on subscriptionEndsAt and
+  // null razorpaySubscriptionId. A renewal delayed past the 3-day grace (soft
+  // decline, bank outage, webhook backlog) therefore severed the link, and the
+  // retried subscription.charged could no longer find the user — money taken,
+  // no credits, no Purchase row, no alert, and the mandate still live.
+  it("does not lapse a recurring subscription during the retry window", async () => {
+    const u = user({
+      razorpaySubscriptionId: "sub_live_1",
+      subscriptionCredits: 40,
+      subscriptionEndsAt: new Date(Date.now() - 2 * DAY), // renewal 2 days late
+    });
+    const body = await (await run()).json();
+    expect(body.expired).toBe(0);
+    expect(u.razorpaySubscriptionId).toBe("sub_live_1");
+    expect(u.planId).toBe("plan-1");
+    expect(u.subscriptionCredits).toBe(40);
+    expect(cancelledSubs).toEqual([]);
+  });
+
+  it("lapses a recurring subscription once the retry window closes, cancelling the mandate first", async () => {
+    const u = user({
+      razorpaySubscriptionId: "sub_dead_1",
+      subscriptionCredits: 40,
+      purchasedCredits: 15,
+      subscriptionEndsAt: new Date(Date.now() - 20 * DAY), // past the 14-day grace
+    });
+    const body = await (await run()).json();
+    expect(body.expired).toBe(1);
+    // The mandate must be stopped before we drop the link, or Razorpay keeps
+    // charging a user we've just moved to the free tier.
+    expect(cancelledSubs).toEqual(["sub_dead_1"]);
+    expect(u.razorpaySubscriptionId).toBeNull();
+    expect(u.planId).toBeNull();
+    expect(u.subscriptionCredits).toBe(0);
+    expect(u.purchasedCredits).toBe(15);
+  });
+
+  it("keeps the link intact when the mandate cannot be cancelled, and retries next run", async () => {
+    cancelShouldFail = true;
+    const u = user({
+      razorpaySubscriptionId: "sub_flaky_1",
+      subscriptionCredits: 40,
+      subscriptionEndsAt: new Date(Date.now() - 20 * DAY),
+    });
+    const body = await (await run()).json();
+    expect(body.expired).toBe(0);
+    // Orphaning the subscription is the exact failure this guards against.
+    expect(u.razorpaySubscriptionId).toBe("sub_flaky_1");
+    expect(u.subscriptionCredits).toBe(40);
   });
 
   it("nulls nextRefillAt once the next refill would pass term end", async () => {

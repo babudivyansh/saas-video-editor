@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
+import { Prisma } from "@prisma/client";
 import { fulfillPayment, fulfillSubscriptionCharge, type FulfillNotes } from "@/lib/fulfillment";
 import { prisma } from "@/lib/prisma";
 import { grantCredits } from "@/lib/credits";
@@ -72,32 +73,70 @@ export async function POST(req: NextRequest) {
     const isTrial = sub?.notes?.trial === "1";
     if (sub?.id && userId && planSlug) {
       const plan = await prisma.plan.findUnique({ where: { slug: planSlug } });
-      const user = await prisma.user.findUnique({ where: { id: userId }, select: { trialUsedAt: true } });
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { trialUsedAt: true, subscriptionEndsAt: true, razorpaySubscriptionId: true },
+      });
       if (plan && user) {
         const endsAt = new Date();
         endsAt.setDate(endsAt.getDate() + 7); // covers the trial window; extended for real on first charge
         // Trial grant: exactly 25 credits, once per account, hard-capped —
         // it does NOT establish a subscription bucket base for rollover.
         const grantTrial = isTrial && !user.trialUsedAt;
-        await prisma.user.update({
-          where: { id: userId },
-          data: {
-            planId: plan.id,
-            razorpaySubscriptionId: sub.id,
-            monthlyCredits: plan.monthlyCredits ?? plan.credits,
-            subscriptionEndsAt: endsAt,
-            nextRefillAt: null,
-            // A fresh/renewed subscription supersedes any prior cancel-at-cycle-end
-            // request (e.g. the user re-subscribed after cancelling).
-            subscriptionCancelledAt: null,
-            ...(grantTrial ? { trialUsedAt: new Date(), trialEndsAt: endsAt } : {}),
-          },
-        }).catch((e) => logger.error("webhook", "subscription.activated update failed", e));
-        if (grantTrial) {
-          await grantCredits({
-            userId, bucket: "subscription", amount: 25,
-            reason: "grant:trial", refId: sub.id,
-          }).catch((e) => logger.error("webhook", "trial grant failed", e));
+        // Only ever push the term outwards. A replayed activation arriving
+        // after the first real charge would otherwise pull a paid term back to
+        // 7 days from today.
+        const extendsTerm = !user.subscriptionEndsAt || endsAt > user.subscriptionEndsAt;
+
+        // Claim the event and do the work in one transaction. This was the only
+        // fulfilment-affecting branch without an idempotency guard — Razorpay
+        // retries activations and the signature check has no replay window, so
+        // a redelivered body re-ran the whole block. Claiming inside the
+        // transaction means a mid-flight failure rolls the claim back and the
+        // retry can still succeed, rather than the claim locking out the work.
+        try {
+          await prisma.$transaction(async (tx) => {
+            try {
+              await tx.razorpayEvent.create({
+                data: { id: `activated:${sub.id}`, event: event.event },
+              });
+            } catch (e) {
+              if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+                return; // already activated — nothing to do
+              }
+              throw e;
+            }
+
+            await tx.user.update({
+              where: { id: userId },
+              data: {
+                planId: plan.id,
+                razorpaySubscriptionId: sub.id,
+                monthlyCredits: plan.monthlyCredits ?? plan.credits,
+                ...(extendsTerm ? { subscriptionEndsAt: endsAt } : {}),
+                nextRefillAt: null,
+                // Clearing a pending cancel-at-cycle-end is only right when this
+                // activation is genuinely a NEW subscription. Doing it
+                // unconditionally meant a redelivered webhook silently
+                // resurrected a subscription the user had deliberately cancelled.
+                ...(user.razorpaySubscriptionId !== sub.id ? { subscriptionCancelledAt: null } : {}),
+                ...(grantTrial ? { trialUsedAt: new Date(), trialEndsAt: endsAt } : {}),
+              },
+            });
+
+            if (grantTrial) {
+              await grantCredits({
+                userId, bucket: "subscription", amount: 25,
+                reason: "grant:trial", refId: sub.id, tx,
+              });
+            }
+          });
+        } catch (e) {
+          // Signal failure so Razorpay retries. Previously this was swallowed
+          // and the route still returned 200, so a lost activation was lost for
+          // good — the user paid and never got their plan.
+          logger.error("webhook", `subscription.activated failed for ${sub.id}`, e);
+          return NextResponse.json({ error: "activation failed" }, { status: 500 });
         }
       }
     }
@@ -112,6 +151,8 @@ export async function POST(req: NextRequest) {
         paymentId: paymentEntity.id,
         amountInPaise: paymentEntity.amount ?? 0,
         eventName: event.event,
+        // Lets fulfilment recover if the local subscription link was lost.
+        notesUserId: subEntity.notes?.userId,
       });
       if (result.fulfilled) await maybePromptAfterBillingSuccess(subEntity.notes?.userId);
     }

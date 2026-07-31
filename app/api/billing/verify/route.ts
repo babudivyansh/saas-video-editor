@@ -4,6 +4,7 @@ import Razorpay from "razorpay";
 import { getAuthUser } from "@/lib/auth";
 import { fulfillPayment, type FulfillNotes } from "@/lib/fulfillment";
 import { env } from "@/lib/env";
+import { withRateLimit } from "@/lib/with-rate-limit";
 
 const razorpay = new Razorpay({
   key_id: env.RAZORPAY_KEY_ID,
@@ -13,11 +14,14 @@ const razorpay = new Razorpay({
 // Client-callback verification. The Razorpay checkout `handler` posts the
 // payment id/order id/signature here on success; we verify the signature and
 // fulfill the order server-side — independent of the (unreliable) webhook.
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json();
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
   const paymentId: string | undefined = body.razorpay_payment_id;
   const orderId: string | undefined = body.razorpay_order_id;
   const signature: string | undefined = body.razorpay_signature;
@@ -55,3 +59,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ success: true, fulfilled: result.fulfilled, alreadyProcessed: result.alreadyProcessed });
 }
+
+// Each call fetches the order from Razorpay. Generous enough for legitimate
+// retries after a flaky network, tight enough to bound provider calls.
+export const POST = withRateLimit(handlePOST, { limit: 30, windowSec: 60, keyBy: "user", name: "billing:verify" });
