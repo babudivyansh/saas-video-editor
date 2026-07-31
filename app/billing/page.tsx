@@ -6,6 +6,7 @@ import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 import { useTopupCoupon } from "@/app/components/useTopupCoupon";
 import { PlansModal } from "@/app/components/billing/PlansModal";
+import { ManageSubscriptionPanel } from "@/app/components/billing/ManageSubscriptionPanel";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
@@ -113,7 +114,7 @@ function BillingContent() {
   const params = useSearchParams();
   const success = params.get("success");
   const tab: TabKey = (TABS.find(t => t.key === params.get("tab"))?.key) ?? "overview";
-  const { user, token, refreshUser } = useAuth();
+  const { user, token, refreshUser, isLoading: authLoading } = useAuth();
   const { startCheckout, activeId } = useRazorpayCheckout();
   const fireReviewPrompt = useReviewPromptTrigger();
   const reviewPromptFiredRef = useRef(false);
@@ -134,6 +135,7 @@ function BillingContent() {
   const [launch, setLaunch] = useState<LaunchCoupon | null>(null);
   const [copied, setCopied] = useState(false);
   const [plansModalOpen, setPlansModalOpen] = useState(false);
+  const [managePanelOpen, setManagePanelOpen] = useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [cancelSuccess, setCancelSuccess] = useState(false);
@@ -157,6 +159,13 @@ function BillingContent() {
   const coupon = useTopupCoupon({ planId: cheapestPackSlug });
 
   useEffect(() => {
+    // Wait for AuthContext to finish reading localStorage before deciding the
+    // visitor is signed out. Redirecting on the first render — when `token` is
+    // still null purely because storage hasn't been read — bounced signed-in
+    // users off /billing: the push to /login was then caught by the proxy,
+    // which sends authenticated users to /dashboard. A hard refresh of the
+    // billing page could therefore land you on the dashboard.
+    if (authLoading) return;
     if (!token) { router.push("/login"); return; }
 
     Promise.all([
@@ -178,7 +187,7 @@ function BillingContent() {
       setPurchasesLoaded(true);
     }).catch(() => setError("Failed to load billing data."))
       .finally(() => setLoading(false));
-  }, [token, router]);
+  }, [token, router, authLoading]);
 
   async function loadMoreHistory() {
     if (!historyCursor || historyLoadingMore) return;
@@ -203,8 +212,21 @@ function BillingContent() {
   const balance = user?.credits ?? 0;
   const used = Math.max(0, allowance - balance);
 
+  // `replace` + scroll:false, not `push`. Pushing added a history entry per tab
+  // click (so Back walked the tabs instead of leaving billing) and reset scroll
+  // to the top each time.
   function setTab(next: TabKey) {
-    router.push(next === "overview" ? "/billing" : `/billing?tab=${next}`);
+    router.replace(next === "overview" ? "/billing" : `/billing?tab=${next}`, { scroll: false });
+  }
+
+  // Roving-focus arrow-key movement for the tablist, per the WAI-ARIA pattern.
+  function onTabKeyDown(e: React.KeyboardEvent, index: number) {
+    const delta = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!delta) return;
+    e.preventDefault();
+    const next = TABS[(index + delta + TABS.length) % TABS.length];
+    setTab(next.key);
+    document.getElementById(`billing-tab-${next.key}`)?.focus();
   }
 
   function handleBuy(slug: string) {
@@ -317,11 +339,19 @@ function BillingContent() {
       )}
 
       {/* ── Tabs ── */}
-      <div className="flex gap-1 border-b border-gray-100 -mb-1 overflow-x-auto">
-        {TABS.map(t => (
+      {/* A real tablist: these were plain buttons in a div, so nothing was
+          announced as a tab and arrow keys did nothing. */}
+      <div role="tablist" aria-label="Billing sections" className="flex gap-1 border-b border-gray-100 -mb-1 overflow-x-auto">
+        {TABS.map((t, i) => (
           <button
             key={t.key}
+            id={`billing-tab-${t.key}`}
+            role="tab"
+            aria-selected={tab === t.key}
+            aria-controls={`billing-panel-${t.key}`}
+            tabIndex={tab === t.key ? 0 : -1}
             onClick={() => setTab(t.key)}
+            onKeyDown={(e) => onTabKeyDown(e, i)}
             className={`px-4 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors ${
               tab === t.key ? "border-brand text-brand" : "border-transparent text-ink-soft hover:text-ink"
             }`}
@@ -332,6 +362,7 @@ function BillingContent() {
       </div>
 
       {tab === "overview" && (
+        <div role="tabpanel" id="billing-panel-overview" aria-labelledby="billing-tab-overview">
         <OverviewTab
           user={user}
           hasActivePlan={hasActivePlan}
@@ -341,12 +372,15 @@ function BillingContent() {
           used={used}
           summary={summary}
           onViewPlans={() => setPlansModalOpen(true)}
+          onManagePlan={() => setManagePanelOpen(true)}
           onGoToTopup={() => setTab("topup")}
           onCancelClick={() => setCancelDialogOpen(true)}
         />
+        </div>
       )}
 
       {tab === "usage" && (
+        <div role="tabpanel" id="billing-panel-usage" aria-labelledby="billing-tab-usage">
         <UsageTab
           summary={summary}
           history={history}
@@ -354,9 +388,11 @@ function BillingContent() {
           historyLoadingMore={historyLoadingMore}
           onLoadMore={loadMoreHistory}
         />
+        </div>
       )}
 
       {tab === "topup" && (
+        <div role="tabpanel" id="billing-panel-topup" aria-labelledby="billing-tab-topup">
         <TopupTab
           hasActivePlan={hasActivePlan}
           packs={packs}
@@ -366,9 +402,14 @@ function BillingContent() {
           coupon={coupon}
           onViewPlans={() => setPlansModalOpen(true)}
         />
+        </div>
       )}
 
-      {tab === "history" && <HistoryTab purchases={purchases} purchasesLoaded={purchasesLoaded} />}
+      {tab === "history" && (
+        <div role="tabpanel" id="billing-panel-history" aria-labelledby="billing-tab-history">
+          <HistoryTab purchases={purchases} purchasesLoaded={purchasesLoaded} />
+        </div>
+      )}
 
       <p className="text-center text-xs text-ink-soft/60 pb-6">
         Payments powered by Razorpay · Secure &amp; encrypted
@@ -380,6 +421,17 @@ function BillingContent() {
           onPurchaseSuccess={handlePlanPurchaseSuccess}
         />
       )}
+
+      <ManageSubscriptionPanel
+        open={managePanelOpen}
+        onClose={() => setManagePanelOpen(false)}
+        user={user}
+        token={token}
+        purchases={purchases}
+        onChangePlan={() => { setManagePanelOpen(false); setPlansModalOpen(true); }}
+        onCancelClick={() => { setManagePanelOpen(false); setCancelDialogOpen(true); }}
+        onResumed={() => { refreshUser(); setManagePanelOpen(false); }}
+      />
 
       <ConfirmDialog
         open={cancelDialogOpen}
@@ -395,7 +447,7 @@ function BillingContent() {
 }
 
 // ── Overview tab ─────────────────────────────────────────────────────────────
-function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, summary, onViewPlans, onGoToTopup, onCancelClick }: {
+function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, summary, onViewPlans, onManagePlan, onGoToTopup, onCancelClick }: {
   user: ReturnType<typeof useAuth>["user"];
   hasActivePlan: boolean;
   daysLeft: number;
@@ -404,6 +456,7 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
   used: number;
   summary: GenerationSummary | null;
   onViewPlans: () => void;
+  onManagePlan: () => void;
   onGoToTopup: () => void;
   onCancelClick: () => void;
 }) {
@@ -435,7 +488,7 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
               </p>
               <p className="text-xs text-ink-soft/70 mt-1">Member since {memberSince}</p>
               <div className="flex items-center gap-4 mt-2">
-                <button onClick={onViewPlans} className="inline-flex items-center gap-1 text-xs text-brand hover:text-brand-dark font-medium transition-colors cursor-pointer">
+                <button onClick={onManagePlan} className="inline-flex items-center gap-1 text-xs text-brand hover:text-brand-dark font-medium transition-colors cursor-pointer">
                   Manage plan
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
                     <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
