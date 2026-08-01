@@ -138,7 +138,10 @@ export function InsufficientCreditsModal({ info, onClose }: {
                 ? <>This needs <strong>{info.required}</strong> credit{info.required === 1 ? "" : "s"} — you have <strong>{balance}</strong>.</>
                 : <>Your balance is <strong>{balance}</strong> credit{balance === 1 ? "" : "s"}.</>}
               {" "}Top up below, or{" "}
-              <Link href="/pricing" className="text-blue-600 underline hover:text-blue-800">upgrade your plan</Link>{" "}
+              {/* /billing, not /pricing: the user is signed in, and /billing is
+                  where plan changes happen (PlansModal) without bouncing them
+                  out to the marketing site. */}
+              <Link href="/billing" className="text-blue-600 underline hover:text-blue-800">upgrade your plan</Link>{" "}
               for monthly credits at a better rate.
             </p>
 

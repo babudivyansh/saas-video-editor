@@ -747,7 +747,9 @@ function RedditVideoFlow() {
                     <p className="text-xs font-bold text-orange-900">2 credits per render</p>
                     <p className="text-[11px] text-orange-600 mt-0.5">Credits come with any plan. Need more? Get a top-up.</p>
                   </div>
-                  <a href="/pricing" className="text-xs font-extrabold text-orange-600 hover:underline bg-white px-3.5 py-2 rounded-lg border border-orange-200 shadow-sm whitespace-nowrap">View plans</a>
+                  {/* Every other in-dashboard upsell goes to /billing; this was
+                      the one that still bounced signed-in users to marketing. */}
+                  <a href="/billing" className="text-xs font-extrabold text-orange-600 hover:underline bg-white px-3.5 py-2 rounded-lg border border-orange-200 shadow-sm whitespace-nowrap">View plans</a>
                 </div>
               </div>
 
