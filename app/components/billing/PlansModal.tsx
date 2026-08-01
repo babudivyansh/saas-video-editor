@@ -3,42 +3,22 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
-import { PURCHASABLE_TIER_ORDER, TIER_LABEL } from "@/lib/plans/tiers";
+import { PURCHASABLE_TIER_ORDER } from "@/lib/plans/tiers";
 import { formatMoney, inferCurrencyFromLocale, type Currency } from "@/lib/currency-shared";
+import { PlanCard } from "@/app/components/billing/PlanCard";
+import {
+  minorUnits, yearlySavePct, type DisplayPlan,
+} from "@/lib/plans/display";
 
-interface DbPlan {
-  id: string;
-  slug: string;
-  name: string;
-  priceInPaise: number;
-  usdPriceInCents: number;
-  currency: string;
-  credits: number;
-  features: string[];
-  kind: "subscription" | "pack" | "addon";
-  intervalMonths: number | null;
-  monthlyCredits: number | null;
-  tier: "creator" | "pro" | "studio" | null;
-}
-
-/** Minor units for the selected currency, from the fields /api/plans always returns. */
-function minorUnits(plan: DbPlan, currency: Currency): number {
-  return currency === "USD" ? plan.usdPriceInCents : plan.priceInPaise;
-}
+// The plan shape and its price maths are shared with /pricing so the two
+// surfaces cannot drift apart again — see lib/plans/display.ts.
+type DbPlan = DisplayPlan;
 
 const TERMS = [
   { months: 1, label: "Monthly" },
   { months: 12, label: "Yearly" },
 ];
-const YEARLY_SAVE_PCT = 33;
 
-function CheckIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-      <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 function XIcon({ className = "" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -228,6 +208,7 @@ export function PlansModal({ onClose, onPurchaseSuccess }: PlansModalProps) {
             selectedAddons={selectedAddons}
             onToggleAddon={toggleAddon}
             onSelectPlan={openCheckout}
+            currentPlanSlug={user?.plan?.slug ?? null}
           />
         )}
       </div>
@@ -236,7 +217,7 @@ export function PlansModal({ onClose, onPurchaseSuccess }: PlansModalProps) {
 }
 
 // ── Browse step ──────────────────────────────────────────────────────────────
-function BrowseStep({ plansLoading, subs, packs, term, onTermChange, currency, onCurrencyChange, selectedAddons, onToggleAddon, onSelectPlan }: {
+function BrowseStep({ plansLoading, subs, packs, term, onTermChange, currency, onCurrencyChange, selectedAddons, onToggleAddon, onSelectPlan, currentPlanSlug }: {
   plansLoading: boolean;
   subs: DbPlan[];
   packs: DbPlan[];
@@ -247,10 +228,14 @@ function BrowseStep({ plansLoading, subs, packs, term, onTermChange, currency, o
   selectedAddons: string[];
   onToggleAddon: (slug: string) => void;
   onSelectPlan: (plan: DbPlan) => void;
+  currentPlanSlug: string | null;
 }) {
   const cards = PURCHASABLE_TIER_ORDER
     .map(tier => subs.find(p => p.tier === tier && p.intervalMonths === term))
     .filter((p): p is DbPlan => !!p);
+  // Derived from the real plan rows, not a hardcoded constant — prices are
+  // editable at runtime in /admin/pricing.
+  const savePct = yearlySavePct(subs, currency);
 
   return (
     <div className="overflow-y-auto flex-1 min-h-0 p-8">
@@ -270,11 +255,11 @@ function BrowseStep({ plansLoading, subs, packs, term, onTermChange, currency, o
               }`}
             >
               {t.label}
-              {t.months === 12 && (
+              {t.months === 12 && savePct != null && (
                 <span className={`ml-2 text-[10px] font-black px-1.5 py-0.5 rounded-full ${
                   term === 12 ? "bg-green-400 text-green-900" : "bg-green-100 text-green-700"
                 }`}>
-                  SAVE {YEARLY_SAVE_PCT}%
+                  SAVE {savePct}%
                 </span>
               )}
             </button>
@@ -302,57 +287,19 @@ function BrowseStep({ plansLoading, subs, packs, term, onTermChange, currency, o
       ) : cards.length === 0 ? (
         <p className="text-center text-gray-400 text-sm py-12">Pricing is being updated. Please check back shortly.</p>
       ) : (
-        <div className="grid md:grid-cols-3 gap-6 items-start">
-          {cards.map((plan, idx) => {
-            const highlighted = idx === 1;
-            const priceMinor = minorUnits(plan, currency);
-            const months = plan.intervalMonths ?? 1;
-            const perMonthMinor = Math.round(priceMinor / months);
-            const baseTier = plan.tier ? TIER_LABEL[plan.tier] : plan.name;
-            return (
-              <div
-                key={plan.id}
-                className={`relative rounded-2xl p-6 border-2 flex flex-col ${
-                  highlighted ? "border-blue-600 bg-blue-600 text-white shadow-xl" : "border-gray-100 bg-white text-gray-900 shadow-sm"
-                }`}
-              >
-                {highlighted && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                    <span className="bg-green-400 text-green-900 text-xs font-black px-4 py-1 rounded-full uppercase tracking-wide">
-                      Most Popular
-                    </span>
-                  </div>
-                )}
-                <p className={`text-sm font-bold uppercase tracking-widest mb-1 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
-                  {baseTier}
-                </p>
-                <div className="flex items-end gap-1.5 mb-1">
-                  <span className="text-3xl font-black">{formatMoney(perMonthMinor, currency)}</span>
-                  <span className={`text-sm mb-1 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>/mo</span>
-                </div>
-                <p className={`text-sm mb-4 ${highlighted ? "text-blue-100" : "text-gray-500"}`}>
-                  {plan.monthlyCredits} credits / month
-                  {months > 1 && <> · {formatMoney(priceMinor, currency)} billed yearly</>}
-                </p>
-                <ul className="space-y-2.5 mb-6 flex-1">
-                  {plan.features.slice(0, 5).map(f => (
-                    <li key={f} className="flex items-start gap-2 text-sm">
-                      <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${highlighted ? "text-blue-200" : "text-blue-600"}`} />
-                      <span className={highlighted ? "text-blue-100" : "text-gray-700"}>{f}</span>
-                    </li>
-                  ))}
-                </ul>
-                <button
-                  onClick={() => onSelectPlan(plan)}
-                  className={`w-full font-bold py-3 rounded-full transition-all ${
-                    highlighted ? "bg-white text-blue-600 hover:bg-blue-50" : "bg-blue-600 text-white hover:bg-blue-700"
-                  }`}
-                >
-                  Get {baseTier}
-                </button>
-              </div>
-            );
-          })}
+        <div className="grid md:grid-cols-3 gap-6 items-stretch">
+          {cards.map((plan, idx) => (
+            <PlanCard
+              key={plan.id}
+              plan={plan}
+              subs={subs}
+              currency={currency}
+              highlighted={idx === 1}
+              isCurrent={currentPlanSlug === plan.slug}
+              onSelect={onSelectPlan}
+              size="compact"
+            />
+          ))}
         </div>
       )}
 
