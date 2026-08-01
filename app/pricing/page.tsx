@@ -9,12 +9,15 @@ import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 import {
   PURCHASABLE_TIER_ORDER, TIER_LABEL, type TierId,
   FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_AUTOCLIP_RUNS_PER_MONTH, STORAGE_LIMIT_GB,
-  TIER_MAX_DURATION_SECONDS, TIER_MAX_AUTOCLIP_SOURCE_SECONDS,
 } from "@/lib/plans/tiers";
 import { IMAGE_MODELS, getImageModel } from "@/lib/models/imageModels";
 import { VIDEO_MODELS, getVideoModel } from "@/lib/models/videoModels";
-import { IMAGE_GENERATOR_STARTING_CREDIT_COST } from "@/lib/tool-costs";
 import { formatMoney, inferCurrencyFromLocale, type Currency } from "@/lib/currency-shared";
+import { PlanCard } from "@/app/components/billing/PlanCard";
+// Price maths and tier copy are shared with the billing PlansModal so the two
+// surfaces can't drift — the modal a signed-in customer buys through had been
+// left on the pre-audit design while this page was rebuilt.
+import { minorUnits, yearlySavePct } from "@/lib/plans/display";
 
 // ── Icons ──────────────────────────────────────────────────────────────────
 function ZapIcon({ className = "" }: { className?: string }) {
@@ -111,54 +114,10 @@ function computeRecommendation(selections: CalcSelection[], subs: DbPlan[], term
   return { totalCredits, eligibleTiers, recommendedPlan };
 }
 
-// Cheapest a single video render actually costs at this tier — used for the
-// "≈ N video renders" estimate on each pricing card, mirroring the
-// calculator's own math instead of a flat guess.
-function cheapestVideoCostPerRender(tier: Exclude<TierId, "free">): number | null {
-  const models = VIDEO_MODELS.filter(m => m.allowedTiers.includes(tier));
-  if (models.length === 0) return null;
-  return Math.min(...models.map(m => {
-    const dur = typeof m.defaultValues.duration === "number" ? m.defaultValues.duration : m.minDurationSeconds;
-    return Math.ceil(m.creditsPerSecond * dur);
-  }));
-}
-
 const TERMS = [
   { months: 1,  label: "Monthly" },
   { months: 12, label: "Yearly" },
 ];
-
-/** Minor units for the selected currency, from the fields /api/plans always returns. */
-function minorUnits(plan: DbPlan, currency: Currency): number {
-  return currency === "USD" ? plan.usdPriceInCents : plan.priceInPaise;
-}
-
-// The yearly discount is *derived* from the actual plan rows rather than
-// hardcoded. Plan prices are editable at runtime in /admin/pricing, so a
-// constant here would silently drift from the real saving the moment anyone
-// edits a price. Returns null when there's nothing to compare against.
-//
-// Takes the *smallest* saving across the tiers, not the largest or an average:
-// this figure headlines the term toggle, and every tier has to deliver at
-// least what the badge claims. The tiers can genuinely differ — USD monthly
-// prices come from a price book while USD yearly falls back to FX conversion,
-// so the discount is not uniform there the way it is in INR. Each card shows
-// its own exact percentage alongside this.
-function yearlySavePct(subs: DbPlan[], currency: Currency): number | null {
-  const pairs = PURCHASABLE_TIER_ORDER.map(tier => {
-    const monthly = subs.find(p => p.tier === tier && p.intervalMonths === 1);
-    const yearly  = subs.find(p => p.tier === tier && p.intervalMonths === 12);
-    if (!monthly || !yearly) return null;
-    const full = minorUnits(monthly, currency) * 12;
-    if (full <= 0) return null;
-    return (full - minorUnits(yearly, currency)) / full;
-  }).filter((n): n is number => n != null && n > 0);
-
-  if (pairs.length === 0) return null;
-  // Round the same way the per-card figures do, so the badge and the card it
-  // was derived from never disagree by a point.
-  return Math.round(Math.min(...pairs) * 100);
-}
 
 const WORKFLOWS = [
   { name: "Reddit Story Videos", creator: true, pro: true, studio: true },
@@ -232,80 +191,6 @@ const FAQS = [
     a: "Yes. Our ElevenLabs-powered voiceover engine supports 29+ languages including Hindi, English, Spanish, French, German, Portuguese, and more.",
   },
 ];
-
-// ── Tier highlights ─────────────────────────────────────────────────────────
-// Deliberately NOT read from Plan.features. Those rows are seeded per billing
-// term, and the yearly rows only ever held a credits line and a savings line —
-// both of which the card header already renders, so once those were filtered
-// as duplicates the yearly cards were left with 2 bullets against monthly's 4.
-// Deriving per tier instead makes the two terms identical by construction, and
-// fixes existing databases on deploy: `npm run build` runs `prisma migrate
-// deploy`, never the seed, so a seed-only fix would never reach production.
-//
-// Every number comes from the constant that enforces it, so the copy can't
-// drift from the behaviour: durations from TIER_MAX_DURATION_SECONDS, storage
-// from STORAGE_LIMIT_GB, Auto Clip length from TIER_MAX_AUTOCLIP_SOURCE_SECONDS,
-// model counts from each registry's `allowedTiers`.
-const hours = (sec: number) => Math.round(sec / 3600);
-const modelCount = (tier: Exclude<TierId, "free">) =>
-  IMAGE_MODELS.filter(m => m.allowedTiers.includes(tier)).length +
-  VIDEO_MODELS.filter(m => m.allowedTiers.includes(tier)).length;
-
-interface TierHighlights {
-  /** Shown above the list on Pro/Studio so the tiers read cumulatively. */
-  inherits?: string;
-  bullets: string[];
-}
-
-function tierHighlights(tier: Exclude<TierId, "free">): TierHighlights {
-  const secs = TIER_MAX_DURATION_SECONDS[tier];
-  const gb = STORAGE_LIMIT_GB[tier];
-  const clipHours = hours(TIER_MAX_AUTOCLIP_SOURCE_SECONDS[tier]);
-
-  if (tier === "creator") {
-    return {
-      bullets: [
-        `${modelCount("creator")} AI models, incl. Wan 2.7 & LTX 2.3`,
-        `Videos up to ${secs} seconds`,
-        `Unlimited Auto Clips, ${clipHours}-hour uploads`,
-        // The 720p downscale lives inside filtergraph.ts's `if (input.watermark)`
-        // branch, and watermark is `tier === "free"` — so every paid tier already
-        // exports at full source resolution, not the "1080p" the old copy claimed.
-        "No watermark, full-resolution exports",
-        `Social Tracker · ${gb} GB storage`,
-      ],
-    };
-  }
-
-  if (tier === "pro") {
-    const added = modelCount("pro") - modelCount("creator");
-    return {
-      inherits: "Creator",
-      bullets: [
-        `${modelCount("pro")} AI models — adds Veo 3, Seedance 2.0 & ${added - 2} more`,
-        `Videos up to ${secs} seconds`,
-        // The three tools carrying requiredTier: "pro" in lib/tool-costs.ts.
-        "AI Creator, Face Swap & Subtitle Remover",
-        "Priority rendering",
-        `${clipHours}-hour Auto Clip uploads · ${gb} GB storage`,
-      ],
-    };
-  }
-
-  // Studio adds exactly one model over Pro (nano-banana-pro is the only entry
-  // in either registry with allowedTiers: ["studio"]). Everything else it gains
-  // is quantitative, so the copy must not imply "more models" beyond that one.
-  return {
-    inherits: "Pro",
-    bullets: [
-      "Nano Banana Pro — Studio-only image model",
-      `Videos up to ${secs} seconds`,
-      "Fastest rendering — front of the queue",
-      `${clipHours}-hour Auto Clip uploads`,
-      `${gb} GB asset storage`,
-    ],
-  };
-}
 
 // ── FreeCard ───────────────────────────────────────────────────────────────
 // The free tier is real (free tools, a monthly bonus grant, watermarked Auto
@@ -670,161 +555,41 @@ export default function PricingPage() {
           return (
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
               <FreeCard currency={currency} />
-              {cards.map((plan, idx) => {
-                const highlighted = idx === 1;
-                const total    = minorUnits(plan, currency);
-                const months   = plan.intervalMonths ?? 1;
-                const perMonth = Math.round(total / months);
-                const baseTier = plan.tier ? TIER_LABEL[plan.tier] : plan.name.replace(/\s*\(.*\)$/, "");
-                // Per-tier saving, derived from this tier's own monthly row so
-                // the figure is never a rounded page-wide average.
-                const monthlyPlan = months > 1 && plan.tier
-                  ? subs.find(p => p.tier === plan.tier && p.intervalMonths === 1)
-                  : null;
-                const fullYear = monthlyPlan ? minorUnits(monthlyPlan, currency) * 12 : null;
-                const tierSavePct = fullYear && fullYear > total
-                  ? Math.round(((fullYear - total) / fullYear) * 100)
-                  : null;
-                return (
-                  <div
-                    key={plan.id}
-                    className={`relative h-full rounded-2xl p-8 border-2 flex flex-col ${
-                      highlighted
-                        ? "border-blue-600 bg-blue-600 text-white shadow-2xl lg:scale-105 lg:z-10"
-                        : "border-gray-100 bg-white text-gray-900 shadow-sm"
-                    }`}
-                  >
-                    {highlighted && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                        {/* whitespace-nowrap is load-bearing: the grid went from
-                            3 cards to 4, and at ~267px the pill wrapped onto two
-                            lines and hung off the top of the card. */}
-                        <span className="block whitespace-nowrap bg-green-400 text-green-900 text-[11px] font-black px-3 py-1 rounded-full uppercase tracking-wide">
-                          Most Popular
-                        </span>
-                      </div>
-                    )}
-
-                    <div className="mb-6">
-                      <p className={`text-sm font-bold uppercase tracking-widest mb-1 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
-                        {baseTier}
-                      </p>
-                      {/* The price, and nothing competing with it. The symbol is
-                          its own element so it can sit small and top-aligned
-                          rather than reading as another digit. */}
-                      <div className="flex items-start gap-0.5">
-                        <span className={`text-xl font-bold mt-1.5 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
-                          {currency === "USD" ? "$" : "₹"}
-                        </span>
-                        <span className="text-5xl font-black leading-none tracking-tight">
-                          {perMonth === 0 ? "0" : formatMoney(perMonth, currency).replace(/^[₹$]/, "")}
-                        </span>
-                        <span className={`text-sm font-medium self-end mb-1 ml-1 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
-                          /month
-                        </span>
-                      </div>
-
-                      {/* One secondary line, only when yearly changes the story. */}
-                      {months > 1 && (
-                        <p className={`text-xs mt-2 ${highlighted ? "text-blue-100" : "text-gray-500"}`}>
-                          Billed {formatMoney(total, currency)} yearly
-                          {tierSavePct && (
-                            <span className={`font-bold ${highlighted ? "text-green-300" : "text-green-600"}`}>
-                              {" "}· save {tierSavePct}%
-                            </span>
-                          )}
-                        </p>
+              {cards.map((plan, idx) => (
+                <PlanCard
+                  key={plan.id}
+                  plan={plan}
+                  subs={subs}
+                  currency={currency}
+                  highlighted={idx === 1}
+                  onSelect={(p) => {
+                    if (authLoading) return;
+                    if (user) openCheckout(p);
+                    else openAuthModal("register", p.tier ? TIER_LABEL[p.tier] : p.name);
+                  }}
+                  footer={
+                    <>
+                      {/* The 7-day trial is Pro-only and once per account, so it
+                          shows as a secondary action rather than a third card. */}
+                      {plan.tier === "pro" && trialEligible && (
+                        <button
+                          onClick={() => openCheckout(plan, true)}
+                          className={`w-full font-semibold py-2.5 mt-2.5 rounded-full text-sm transition-all ${
+                            idx === 1
+                              ? "bg-blue-500/40 text-white ring-1 ring-white/30 hover:bg-blue-500/60"
+                              : "bg-white text-blue-600 ring-1 ring-blue-200 hover:bg-blue-50"
+                          }`}
+                        >
+                          Or start a 7-day free trial
+                        </button>
                       )}
-
-                      <p className={`text-sm font-semibold mt-4 pt-4 border-t ${
-                        highlighted ? "text-white border-white/20" : "text-gray-900 border-gray-100"
-                      }`}>
-                        {plan.monthlyCredits} credits every month
+                      <p className={`text-center text-[11px] mt-2 ${idx === 1 ? "text-blue-300/80" : "text-gray-400"}`}>
+                        ✓ 48-hour money-back guarantee
                       </p>
-                      {/* Credits→output estimate sits under the credits figure it
-                          qualifies rather than spending one of the five bullets.
-                          The "cheapest model" caveat is a tooltip — spelled out
-                          inline it wrapped onto three lines. */}
-                      {plan.monthlyCredits != null && (() => {
-                        const perRender = plan.tier ? cheapestVideoCostPerRender(plan.tier) : null;
-                        const images = Math.floor(plan.monthlyCredits / IMAGE_GENERATOR_STARTING_CREDIT_COST);
-                        return (
-                          <p
-                            className={`text-xs mt-1 ${highlighted ? "text-blue-200" : "text-gray-400"}`}
-                            title="Based on the lowest-cost model available on this plan; premium models cost more credits."
-                          >
-                            ≈ {images} images or {perRender ? Math.floor(plan.monthlyCredits / perRender) : 0} videos
-                          </p>
-                        );
-                      })()}
-                    </div>
-
-                    {plan.tier && (() => {
-                      const { inherits, bullets } = tierHighlights(plan.tier);
-                      return (
-                        <>
-                          {inherits && (
-                            <p className={`text-xs font-bold mb-3 ${highlighted ? "text-blue-200" : "text-gray-500"}`}>
-                              Everything in {inherits}, plus:
-                            </p>
-                          )}
-                          <ul className="space-y-3 mb-8 flex-1">
-                            {bullets.map((b) => (
-                              <li key={b} className="flex items-start gap-2.5 text-sm">
-                                <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${highlighted ? "text-blue-200" : "text-blue-600"}`} />
-                                <span className={highlighted ? "text-blue-100" : "text-gray-700"}>{b}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </>
-                      );
-                    })()}
-
-                    <button
-                      onClick={() => {
-                        if (authLoading) return;
-                        if (user) openCheckout(plan);
-                        else openAuthModal("register", baseTier);
-                      }}
-                      disabled={authLoading}
-                      className={`w-full mt-auto font-bold py-3 rounded-full transition-all disabled:opacity-60 disabled:cursor-wait ${
-                        highlighted
-                          ? "bg-white text-blue-600 hover:bg-blue-50 shadow-lg"
-                          : "bg-blue-600 text-white hover:bg-blue-700 ring-1 ring-blue-200"
-                      }`}
-                    >
-                      {authLoading ? (
-                        <span className="inline-flex items-center justify-center gap-2">
-                          <span className={`w-4 h-4 border-2 rounded-full animate-spin ${highlighted ? "border-blue-200/40 border-t-blue-600" : "border-white/30 border-t-white"}`} />
-                          Loading…
-                        </span>
-                      ) : (
-                        `Get ${baseTier}`
-                      )}
-                    </button>
-
-                    {/* The 7-day trial is Pro-only and once per account, so it
-                        shows as a secondary action rather than a third card. */}
-                    {plan.tier === "pro" && trialEligible && (
-                      <button
-                        onClick={() => openCheckout(plan, true)}
-                        className={`w-full font-semibold py-2.5 mt-2.5 rounded-full text-sm transition-all ${
-                          highlighted
-                            ? "bg-blue-500/40 text-white ring-1 ring-white/30 hover:bg-blue-500/60"
-                            : "bg-white text-blue-600 ring-1 ring-blue-200 hover:bg-blue-50"
-                        }`}
-                      >
-                        Or start a 7-day free trial
-                      </button>
-                    )}
-
-                    {/* ── Guarantee micro-copy ── */}
-                    <p className={`text-center text-[11px] mt-2 ${highlighted ? "text-blue-300/80" : "text-gray-400"}`}>
-                      ✓ 48-hour money-back guarantee
-                    </p>
-                  </div>
-                );
-              })}
+                    </>
+                  }
+                />
+              ))}
             </div>
           );
         })()}
