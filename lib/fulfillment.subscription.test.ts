@@ -41,10 +41,12 @@ vi.mock("@/lib/prisma", () => {
     user: {
       findUnique: vi.fn(async ({ where }: { where: { razorpaySubscriptionId?: string; id?: string } }) => {
         if (where.razorpaySubscriptionId && where.razorpaySubscriptionId !== user.razorpaySubscriptionId) return null;
+        if (where.id && where.id !== user.id) return null;
         return {
           id: user.id,
           planId: user.planId,
           monthlyCredits: user.monthlyCredits,
+          razorpaySubscriptionId: user.razorpaySubscriptionId,
           bonusCredits: user.bonusCredits,
           subscriptionCredits: user.subscriptionCredits,
           purchasedCredits: user.purchasedCredits,
@@ -59,7 +61,7 @@ vi.mock("@/lib/prisma", () => {
             if (op.increment) user[k] += op.increment;
           }
         }
-        for (const k of ["subscriptionEndsAt", "monthlyCredits", "lowCreditEmailSentAt", "nextRefillAt", "trialEndsAt"] as const) {
+        for (const k of ["subscriptionEndsAt", "monthlyCredits", "lowCreditEmailSentAt", "nextRefillAt", "trialEndsAt", "razorpaySubscriptionId"] as const) {
           if (k in data) (user as Record<string, unknown>)[k] = data[k];
         }
         return { ...user };
@@ -133,8 +135,39 @@ describe("fulfillSubscriptionCharge", () => {
     expect(ledger).toEqual([expect.objectContaining({ delta: 70 })]);
   });
 
-  it("no-ops for an unknown subscription id", async () => {
+  it("no-ops for an unknown subscription when there is no owner to recover from", async () => {
     const res = await fulfillSubscriptionCharge({ subscriptionId: "sub_unknown", paymentId: "pay_2", amountInPaise: 219900 });
     expect(res).toEqual({ fulfilled: false, alreadyProcessed: false });
+  });
+
+  // Regression: this case used to be a silent no-op — the customer was charged
+  // and got nothing, permanently, because the refill cron had nulled
+  // razorpaySubscriptionId while a renewal was still being retried. The
+  // subscription's notes.userId identifies the real owner, so recover from it.
+  it("re-links and fulfils when the local subscription link was lost", async () => {
+    user.razorpaySubscriptionId = null as unknown as string; // cron wiped it
+    const res = await fulfillSubscriptionCharge({
+      subscriptionId: "sub_1",
+      paymentId: "pay_recover",
+      amountInPaise: 219900,
+      notesUserId: "u1",
+    });
+    expect(res).toEqual({ fulfilled: true, alreadyProcessed: false });
+    expect(user.razorpaySubscriptionId).toBe("sub_1");
+    expect(user.subscriptionCredits).toBe(160);
+    expect(purchases.has("pay_recover")).toBe(true);
+  });
+
+  it("never steals a subscription from a user already on a different one", async () => {
+    user.razorpaySubscriptionId = "sub_other";
+    const res = await fulfillSubscriptionCharge({
+      subscriptionId: "sub_1",
+      paymentId: "pay_3",
+      amountInPaise: 219900,
+      notesUserId: "u1",
+    });
+    expect(res).toEqual({ fulfilled: false, alreadyProcessed: false });
+    expect(user.razorpaySubscriptionId).toBe("sub_other");
+    expect(user.subscriptionCredits).toBe(0);
   });
 });

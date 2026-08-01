@@ -119,6 +119,16 @@ interface SpendRow {
   nb: number; ns: number; np: number; // balances after
 }
 
+/**
+ * Take the user's row lock for the rest of the transaction. Every balance
+ * mutation that reads current state and then writes it back must call this
+ * first, otherwise the read is not isolated under Postgres' default READ
+ * COMMITTED and two concurrent callers can both act on the same stale numbers.
+ */
+async function lockUserRow(tx: Tx, userId: string): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
+}
+
 /** Atomically drain `amount` across buckets (bonus -> subscription ->
  * purchased). Fails without side effects when the total is insufficient. */
 export async function spendCredits(params: SpendCreditsParams): Promise<SpendCreditsResult> {
@@ -216,6 +226,15 @@ export async function restoreSpend(params: {
   const reason = params.reason ?? "refund";
 
   const restoredTotal = await prisma.$transaction(async (tx) => {
+    // Serialise against every other balance mutation for this user before
+    // reading the ledger. Without this the read-then-write below is not
+    // isolated under READ COMMITTED: two concurrent restores of the same refId
+    // (a user-triggered cancel racing the job-failure refund, or a webhook
+    // racing the admin panel) both saw the same pre-refund rows and both paid
+    // out — a double refund. spendCredits has always taken this lock; the
+    // refund paths did not.
+    await lockUserRow(tx, userId);
+
     const rows = await tx.creditTransaction.findMany({
       where: { userId, refId },
       select: { bucket: true, delta: true, reason: true },
@@ -264,6 +283,7 @@ export async function clawbackCredits(params: {
 }): Promise<number> {
   const { userId, amount, reason, refId } = params;
   const run = async (tx: Tx) => {
+    await lockUserRow(tx, userId);
     const bal = await getBalances(userId, tx);
     let remaining = Math.max(amount, 0);
     let total = 0;
@@ -293,6 +313,7 @@ export async function clawbackCredits(params: {
 /** Zero a user's expired bonus bucket (cron step). Returns credits expired. */
 export async function expireBonusCredits(userId: string): Promise<number> {
   const expiredAmount = await prisma.$transaction(async (tx) => {
+    await lockUserRow(tx, userId);
     const bal = await getBalances(userId, tx);
     if (bal.bonus <= 0) return 0;
     await tx.user.update({
@@ -319,6 +340,7 @@ export async function setSubscriptionCredits(
   tx?: Tx,
 ): Promise<void> {
   const run = async (t: Tx) => {
+    await lockUserRow(t, userId);
     const cur = await getBalances(userId, t);
     const delta = value - cur.subscription;
     if (delta === 0) return cur.total;

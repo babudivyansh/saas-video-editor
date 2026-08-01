@@ -209,7 +209,7 @@ const FAQS = [
   },
   {
     q: "Can I switch plans later?",
-    a: "Absolutely. You can upgrade or downgrade your plan at any time. Upgrades take effect immediately (with prorated billing); downgrades take effect at the start of your next billing cycle.",
+    a: "Yes. You can switch to any plan at any time from your billing page. Switching starts a fresh term on the new plan from that day — it doesn't extend or pro-rate your current one — and any credits already in your account come with you. If you'd rather wait, cancel instead and pick the new plan when your current term ends.",
   },
   {
     q: "Do you offer refunds?",

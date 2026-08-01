@@ -51,6 +51,12 @@ export interface SubscriptionChargeArgs {
   paymentId: string;
   amountInPaise: number;
   eventName?: string;
+  /**
+   * `notes.userId` from the subscription entity, set at checkout. Used only to
+   * recover when the razorpaySubscriptionId link has been lost — see the
+   * re-link path in fulfillSubscriptionCharge.
+   */
+  notesUserId?: string;
 }
 
 /**
@@ -60,13 +66,43 @@ export interface SubscriptionChargeArgs {
  * recorded. Idempotent via the same RazorpayEvent claim as one-time payments.
  */
 export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): Promise<FulfillResult> {
-  const { subscriptionId, paymentId, amountInPaise } = args;
+  const { subscriptionId, paymentId, amountInPaise, notesUserId } = args;
   if (!subscriptionId || !paymentId) return { fulfilled: false, alreadyProcessed: false };
 
-  const user = await prisma.user.findUnique({
+  const SELECT = {
+    id: true, planId: true, monthlyCredits: true, razorpaySubscriptionId: true,
+    plan: { select: { id: true, monthlyCredits: true, credits: true } },
+  } as const;
+
+  let user = await prisma.user.findUnique({
     where: { razorpaySubscriptionId: subscriptionId },
-    select: { id: true, planId: true, monthlyCredits: true, plan: { select: { id: true, monthlyCredits: true, credits: true } } },
+    select: SELECT,
   });
+
+  // Recovery path. The link can be missing because a renewal arrived after the
+  // account had already been lapsed locally (a soft decline that Razorpay
+  // retried, a bank outage, a webhook backlog). Before this existed the charge
+  // was dropped on the floor: money captured, no credits, no Purchase row, no
+  // alert — and no RazorpayEvent claim either, so the payment was invisible.
+  // `notes.userId` is stamped on the subscription at checkout and is the
+  // authoritative owner, so re-link from it and carry on with fulfilment.
+  if (!user && notesUserId) {
+    const byNotes = await prisma.user.findUnique({ where: { id: notesUserId }, select: SELECT });
+    // Never steal a subscription from a user who is actively on a different
+    // one — that would be a worse failure than dropping the charge.
+    if (byNotes && !byNotes.razorpaySubscriptionId) {
+      await prisma.user.update({
+        where: { id: byNotes.id },
+        data: { razorpaySubscriptionId: subscriptionId },
+      });
+      logger.warn(
+        "fulfillment",
+        `re-linked subscription ${subscriptionId} to user ${byNotes.id} from notes.userId — the local link had been lost`,
+      );
+      user = { ...byNotes, razorpaySubscriptionId: subscriptionId };
+    }
+  }
+
   if (!user) {
     logger.error("fulfillment", `subscription.charged for unknown subscription ${subscriptionId}`);
     return { fulfilled: false, alreadyProcessed: false };
