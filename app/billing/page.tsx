@@ -10,6 +10,7 @@ import { ManageSubscriptionPanel } from "@/app/components/billing/ManageSubscrip
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
+import { Skeleton } from "@/app/components/ui/Skeleton";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { CreditRing } from "@/app/components/ui/CreditRing";
 import { StatTile } from "@/app/components/ui/StatTile";
@@ -210,7 +211,14 @@ function BillingContent() {
 
   const allowance = user?.monthlyCredits ?? 0;
   const balance = user?.credits ?? 0;
-  const used = Math.max(0, allowance - balance);
+  // "Used this cycle" must come from the *subscription* bucket alone. Deriving
+  // it from the total (`allowance - credits`) counted purchased and bonus
+  // credits against the monthly allowance, so buying a top-up made the ring
+  // jump back to "0 used" — the page's own Usage tab, which sums the ledger,
+  // then disagreed with it. Falls back to the old maths only if the per-bucket
+  // balances are missing.
+  const subscriptionBalance = user?.creditBalances?.subscription;
+  const used = Math.max(0, allowance - (subscriptionBalance ?? balance));
 
   // `replace` + scroll:false, not `push`. Pushing added a history entry per tab
   // click (so Back walked the tabs instead of leaving billing) and reset scroll
@@ -273,10 +281,35 @@ function BillingContent() {
     });
   }
 
+  // A skeleton that mirrors the real layout, rather than a centred spinner in
+  // an otherwise blank page: the header and tab bar are static, so showing them
+  // immediately means the page doesn't visibly jump when data lands.
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-32">
-        <div className="w-6 h-6 border-2 border-brand/30 border-t-brand rounded-full animate-spin" />
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-6" aria-busy="true" aria-live="polite">
+        <span className="sr-only">Loading your billing details…</span>
+        <div>
+          <h1 className="text-2xl font-extrabold grad-text inline-block">Billing</h1>
+          <p className="text-sm text-ink-soft mt-1">Manage your plan, credits, and usage.</p>
+        </div>
+        <div className="flex gap-1 border-b border-gray-100 -mb-1">
+          {TABS.map(t => (
+            <span key={t.key} className="px-4 py-2.5 text-sm font-semibold text-ink-soft/40">{t.label}</span>
+          ))}
+        </div>
+        <Card className="p-6 space-y-5">
+          <div className="flex flex-col sm:flex-row gap-6 sm:items-center">
+            <div className="flex-1 space-y-2.5">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-3 w-36" />
+            </div>
+            <Skeleton className="h-24 w-56 rounded-2xl" />
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {[0, 1, 2].map(i => <Skeleton key={i} className="h-20 rounded-2xl" />)}
+          </div>
+        </Card>
       </div>
     );
   }
@@ -332,6 +365,26 @@ function BillingContent() {
           Subscription cancelled — you&apos;ll keep access until {user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "the end of your billing period"}.
         </div>
       )}
+      {/* Dunning banner. Without this the page kept saying "Renews in N days"
+          while the card was actually failing, so the first the user knew was
+          access disappearing. Sits above the tabs because it outranks
+          everything else on the page. */}
+      {user?.paymentFailedAt && (
+        <div role="alert" className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-amber-900">We couldn&apos;t take your last payment</p>
+            <p className="text-xs text-amber-800 mt-0.5">
+              Your plan is still active and we&apos;ll retry automatically
+              {user.paymentFailureCount > 1 ? ` (attempt ${user.paymentFailureCount})` : ""}.
+              Updating your payment method now avoids any interruption.
+            </p>
+          </div>
+          <Button variant="primary" size="sm" onClick={() => setPlansModalOpen(true)} className="flex-shrink-0">
+            Update payment method
+          </Button>
+        </div>
+      )}
+
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-800 rounded-2xl px-5 py-3.5 text-sm font-medium">
           {error}
@@ -509,6 +562,20 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
                   <p className="text-xs text-ink-soft font-medium">Monthly credits</p>
                   <p className="text-sm font-bold text-ink mt-0.5">{used} / {allowance} used</p>
                   <p className="text-xs text-ink-soft mt-0.5">Total balance: <span className="font-semibold text-ink">{balance}</span></p>
+                  {/* The three buckets behave differently — subscription credits
+                      end with the term, purchased ones never expire, bonus ones
+                      expire in 30 days — but the page only ever showed a single
+                      total, so which credits you were about to lose was
+                      invisible. */}
+                  {user?.creditBalances && balance > 0 && (
+                    <p className="text-xs text-ink-soft/70 mt-1">
+                      {[
+                        user.creditBalances.subscription > 0 && `${user.creditBalances.subscription} monthly`,
+                        user.creditBalances.purchased > 0 && `${user.creditBalances.purchased} top-up`,
+                        user.creditBalances.bonus > 0 && `${user.creditBalances.bonus} bonus`,
+                      ].filter(Boolean).join(" · ")}
+                    </p>
+                  )}
                   {generationsThisMonth > 0 && (
                     <p className="text-xs text-ink-soft/70 mt-0.5">
                       {generationsThisMonth} generation{generationsThisMonth === 1 ? "" : "s"} in the last 30 days
@@ -638,6 +705,7 @@ function AutoTopupToggle({ packs }: { packs: DbPlan[] }) {
   const [slug, setSlug] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -650,14 +718,24 @@ function AutoTopupToggle({ packs }: { packs: DbPlan[] }) {
 
   async function update(next: string | null) {
     if (!token) return;
+    const previous = slug;
     setSaving(true);
+    setError(null);
     setSlug(next); // optimistic
     try {
-      await fetch("/api/billing/auto-topup", {
+      const res = await fetch("/api/billing/auto-topup", {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ packSlug: next }),
       });
+      // The response was previously never inspected and nothing caught a
+      // network error, so a rejected change still rendered as applied — the
+      // toggle showed "On" while the server had it off, and the user only found
+      // out by never receiving a top-up prompt.
+      if (!res.ok) throw new Error("save failed");
+    } catch {
+      setSlug(previous);
+      setError("Couldn't save that — please try again.");
     } finally {
       setSaving(false);
     }
@@ -679,6 +757,7 @@ function AutoTopupToggle({ packs }: { packs: DbPlan[] }) {
             ? `We'll email you a one-click link to buy ${selected?.name ?? "a pack"} whenever your balance drops below 10 credits.`
             : "Get a one-click reminder to top up whenever your balance runs low — never get blocked mid-render."}
         </p>
+        {error && <p role="alert" className="text-xs text-red-600 mt-1.5">{error}</p>}
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
         {enabled && (
@@ -694,6 +773,7 @@ function AutoTopupToggle({ packs }: { packs: DbPlan[] }) {
         <button
           role="switch"
           aria-checked={enabled}
+          aria-label="Auto top-up"
           onClick={() => update(enabled ? null : (packs[0]?.slug ?? null))}
           disabled={saving}
           className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${enabled ? "bg-green-500" : "bg-ink-soft/30"}`}
@@ -837,20 +917,79 @@ function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onVie
 }
 
 // ── Payment History tab ──────────────────────────────────────────────────────
+const HISTORY_FILTERS = [
+  { key: "all", label: "All" },
+  { key: "captured", label: "Paid" },
+  { key: "refunded", label: "Refunded" },
+] as const;
+
 function HistoryTab({ purchases, purchasesLoaded }: { purchases: Purchase[]; purchasesLoaded: boolean }) {
+  const [filter, setFilter] = useState<string>("all");
+  const [query, setQuery] = useState("");
+
+  // Filtering is client-side because the list is already bounded by the API's
+  // 100-row cap; there's nothing here worth a round-trip per keystroke.
+  const visible = purchases.filter(p => {
+    if (filter !== "all" && p.status !== filter) return false;
+    if (!query.trim()) return true;
+    const haystack = `${p.plan?.name ?? "Credit Pack"} ${formatDate(p.createdAt)}`.toLowerCase();
+    return haystack.includes(query.trim().toLowerCase());
+  });
+
   return (
     <Card className="p-6">
-      <h2 className="text-base font-extrabold text-ink mb-4">Purchase History</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <h2 className="text-base font-extrabold text-ink">Purchase History</h2>
+        {purchasesLoaded && purchases.length > 0 && (
+          <div className="flex items-center gap-2">
+            <label className="sr-only" htmlFor="history-search">Search purchases</label>
+            <input
+              id="history-search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search…"
+              className="text-xs border border-card-border rounded-lg px-2.5 py-1.5 bg-surface text-ink w-28 sm:w-36"
+            />
+            <div role="group" aria-label="Filter by status" className="inline-flex bg-surface rounded-lg p-0.5">
+              {HISTORY_FILTERS.map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => setFilter(f.key)}
+                  aria-pressed={filter === f.key}
+                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
+                    filter === f.key ? "bg-white text-ink shadow-sm" : "text-ink-soft hover:text-ink"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
       {!purchasesLoaded ? (
-        <div className="flex items-center gap-2 text-sm text-ink-soft py-6"><Spinner /> Loading…</div>
+        <div className="space-y-2" aria-busy="true">
+          <span className="sr-only">Loading your purchases…</span>
+          {[0, 1, 2].map(i => <Skeleton key={i} className="h-16 rounded-xl" />)}
+        </div>
       ) : purchases.length === 0 ? (
         <div className="text-center py-10">
           <p className="text-sm text-ink font-semibold">No purchases yet</p>
           <p className="text-xs text-ink-soft mt-1">Your credit pack purchases will appear here.</p>
         </div>
+      ) : visible.length === 0 ? (
+        <div className="text-center py-10">
+          <p className="text-sm text-ink font-semibold">Nothing matches that</p>
+          <button
+            onClick={() => { setQuery(""); setFilter("all"); }}
+            className="text-xs font-semibold text-brand hover:text-brand-dark mt-1 cursor-pointer"
+          >
+            Clear filters
+          </button>
+        </div>
       ) : (
         <div className="space-y-2">
-          {purchases.map(p => (
+          {visible.map(p => (
             <div key={p.id} className="flex items-center justify-between py-3 px-4 bg-surface rounded-xl">
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-ink truncate">{p.plan?.name ?? "Credit Pack"}</p>

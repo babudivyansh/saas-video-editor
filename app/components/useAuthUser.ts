@@ -36,6 +36,14 @@ export interface AuthUser {
   monthlyCredits: number;
   trialUsedAt: string | null;
   trialEndsAt: string | null;
+  paymentFailedAt: string | null;
+  paymentFailureCount: number;
+  /**
+   * Per-bucket balances, returned by /api/auth/me but until now absent from
+   * this type — so callers fell back to the denormalized `credits` total and
+   * could not tell subscription credits from purchased or bonus ones.
+   */
+  creditBalances: { bonus: number; subscription: number; purchased: number; total: number };
   emailVerifiedAt: string | null;
   twoFactorEnabled: boolean;
   passwordChangedAt: string | null;

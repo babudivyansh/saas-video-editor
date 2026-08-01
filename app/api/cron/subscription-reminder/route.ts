@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import {
   sendSubscriptionExpiryWarningEmail,
   sendSubscriptionExpiredEmail,
+  sendTrialEndingEmail,
 } from "@/lib/email";
 import { shouldSendCategory } from "@/lib/notifications";
 import { logger } from "@/lib/logger";
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
   }
 
   const now = new Date();
-  const results = { warned7d: 0, warned3d: 0, warned1d: 0, expired: 0, errors: 0 };
+  const results = { warned7d: 0, warned3d: 0, warned1d: 0, expired: 0, trialEnding: 0, errors: 0 };
 
   // ── Helper: days from now ────────────────────────────────────────────────
   function daysFromNow(d: number) {
@@ -186,6 +187,44 @@ export async function GET(req: NextRequest) {
     }
   } catch (e) {
     logger.error("cron/sub-reminder", "expired batch error", e);
+  }
+
+  // ── 5. Trial ending tomorrow ─────────────────────────────────────────────
+  // trialEndsAt has been stored since the 7-day Pro trial shipped, but nothing
+  // ever read it — trials converted to a paid charge with no warning at all,
+  // which is both a support burden and, for a card-on-file trial, the kind of
+  // surprise that earns a chargeback.
+  try {
+    const target = daysFromNow(1);
+    const windowStart = new Date(target); windowStart.setHours(0, 0, 0, 0);
+    const windowEnd = new Date(target); windowEnd.setHours(23, 59, 59, 999);
+
+    // Deduped by the one-day window against a daily cron, the same basis the
+    // 7d/3d/1d warnings use — there's no separate marker column for trials.
+    const endingTrials = await prisma.user.findMany({
+      where: { trialEndsAt: { gte: windowStart, lte: windowEnd } },
+      select: { id: true, email: true, firstName: true, name: true, trialEndsAt: true, plan: { select: { name: true, priceInPaise: true } } },
+    });
+
+    for (const u of endingTrials) {
+      try {
+        if (await shouldSendCategory(u.id, "creditAlerts")) {
+          await sendTrialEndingEmail(
+            u.email,
+            u.firstName ?? u.name ?? "",
+            u.plan?.name ?? "Pro",
+            u.plan?.priceInPaise ?? 0,
+            u.trialEndsAt,
+          );
+        }
+        results.trialEnding++;
+      } catch (e) {
+        logger.error("cron/sub-reminder", `trial-ending email error for ${u.id}`, e);
+        results.errors++;
+      }
+    }
+  } catch (e) {
+    logger.error("cron/sub-reminder", "trial-ending batch error", e);
   }
 
   return NextResponse.json({ ok: true, ...results, at: now.toISOString() });

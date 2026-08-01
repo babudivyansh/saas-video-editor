@@ -41,6 +41,10 @@ export async function GET(req: NextRequest) {
       // will reject.
       trialUsedAt: true,
       trialEndsAt: true,
+      // Dunning state, so the billing page can tell the user their card failed
+      // instead of continuing to show "Renews in N days".
+      paymentFailedAt: true,
+      paymentFailureCount: true,
       // Security/account-dashboard surface (Settings hub) — closes the audit
       // finding that lastLoginAt was tracked but never actually sent to the client.
       emailVerifiedAt: true,

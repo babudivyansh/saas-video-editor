@@ -25,6 +25,11 @@ const SUBSCRIBED_USER = {
   monthlyCredits: 160,
   trialUsedAt: null,
   trialEndsAt: null,
+  paymentFailedAt: null as string | null,
+  paymentFailureCount: 0,
+  // 40 of the 160 monthly credits left, plus a 80-credit top-up pack. The old
+  // maths (allowance − total balance) made this read "0 used".
+  creditBalances: { bonus: 0, subscription: 40, purchased: 80, total: 120 },
   plan: { id: "plan-pro", slug: "sub_pro_1mo", name: "Pro (Monthly)", credits: 160, priceInPaise: 219900 },
 };
 
@@ -118,6 +123,51 @@ test("a cancelled subscription offers resume, and explains when it can't", async
   // rather than silently clearing the flag and implying renewal is back on.
   await expect(panel.getByRole("alert")).toContainText("can't be switched back on");
   await expect(panel.getByRole("button", { name: "Choose a plan →" })).toBeVisible();
+});
+
+test("credits used counts the monthly allowance only, not top-ups", async ({ page, baseURL }) => {
+  await signIn(page, baseURL, SUBSCRIBED_USER);
+  await page.goto("/billing");
+
+  // 160 allowance, 40 subscription credits left => 120 used. Counting the
+  // 80-credit top-up pack against the allowance previously produced "0 used",
+  // contradicting the Usage tab on the same page.
+  await expect(page.getByText("120 / 160 used")).toBeVisible();
+  // The three buckets behave differently on expiry, so they're now itemised.
+  await expect(page.getByText("40 monthly · 80 top-up")).toBeVisible();
+  // The ring is labelled rather than exposing a bare number.
+  await expect(page.getByRole("img", { name: "120 of 160 monthly credits used" })).toBeVisible();
+});
+
+test("a failed payment is surfaced instead of still promising a renewal", async ({ page, baseURL }) => {
+  await signIn(page, baseURL, {
+    ...SUBSCRIBED_USER,
+    paymentFailedAt: new Date().toISOString(),
+    paymentFailureCount: 2,
+  });
+  await page.goto("/billing");
+
+  const banner = page.getByRole("alert").filter({ hasText: "We couldn't take your last payment" });
+  await expect(banner).toBeVisible();
+  await expect(banner).toContainText("attempt 2");
+  await expect(banner.getByRole("button", { name: "Update payment method" })).toBeVisible();
+});
+
+test("payment history can be filtered", async ({ page, baseURL }) => {
+  await signIn(page, baseURL, SUBSCRIBED_USER);
+  await page.goto("/billing?tab=history");
+
+  // Scope to the panel — the header's plan chip also reads "Pro (Monthly)".
+  const panel = page.getByRole("tabpanel");
+  await expect(page.getByRole("heading", { name: "Purchase History" })).toBeVisible();
+  await expect(panel.getByText("Pro (Monthly)")).toBeVisible();
+
+  // The seeded purchase is "captured", so filtering to Refunded empties it.
+  await page.getByRole("button", { name: "Refunded" }).click();
+  await expect(panel.getByText("Nothing matches that")).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await expect(panel.getByText("Pro (Monthly)")).toBeVisible();
 });
 
 test("billing tabs are a real tablist and keep scroll position", async ({ page, baseURL }) => {
