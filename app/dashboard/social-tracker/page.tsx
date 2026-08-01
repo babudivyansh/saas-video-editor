@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
+import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
 import { EmptyState } from "@/app/components/ui/EmptyState";
 import { AccountAnalytics } from "./components/AccountAnalytics";
 import { CompetitorsSection } from "./components/CompetitorsSection";
@@ -376,6 +377,7 @@ export default function SocialTrackerPage() {
 }
 
 function Upsell() {
+  const { openBilling } = useBillingOverlay();
   return (
     <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-10 text-center max-w-lg mx-auto mt-6">
       <div className="w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center mx-auto mb-4">

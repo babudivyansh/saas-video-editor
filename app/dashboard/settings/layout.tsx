@@ -41,7 +41,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     { label: t("security"), href: "/dashboard/settings/security", icon: IcShield },
     { label: t("sessions"), href: "/dashboard/settings/sessions", icon: IcDevices },
     { label: t("notifications"), href: "/dashboard/settings/notifications", icon: IcBell },
-    { label: t("billing"), href: "/billing", icon: IcCoin, external: true },
+    { label: t("billing"), href: "/dashboard?billing=1", icon: IcCoin, external: true },
     { label: t("apiKeys"), href: "/dashboard/settings/api-keys", icon: IcKey },
     { label: t("messages"), href: "/dashboard/settings/messages", icon: IcMessage },
     { label: t("preferences"), href: "/dashboard/settings/preferences", icon: IcGlobe },

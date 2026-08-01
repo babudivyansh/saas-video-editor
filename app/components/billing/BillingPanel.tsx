@@ -1,12 +1,18 @@
 "use client";
-import { useState, useEffect, useRef, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+
+// The billing UI itself, with no routing or dialog chrome of its own.
+//
+// This was app/billing/page.tsx — a 1,000-line route that owned its own data
+// fetching, URL-driven tab state, and the Manage/Plans dialogs. It's now a
+// plain component so BillingOverlay can render it in place from anywhere in
+// the app, and so the Manage and Plans views can be siblings rather than
+// dialogs stacked on top of it.
+
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 import { useTopupCoupon } from "@/app/components/useTopupCoupon";
-import { PlansModal } from "@/app/components/billing/PlansModal";
-import { ManageSubscriptionPanel } from "@/app/components/billing/ManageSubscriptionPanel";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
@@ -110,12 +116,31 @@ const TABS = [
 ] as const;
 type TabKey = typeof TABS[number]["key"];
 
-function BillingContent() {
-  const router = useRouter();
-  const params = useSearchParams();
-  const success = params.get("success");
-  const tab: TabKey = (TABS.find(t => t.key === params.get("tab"))?.key) ?? "overview";
-  const { user, token, refreshUser, isLoading: authLoading } = useAuth();
+export interface BillingPanelProps {
+  /** Tab to open on, from the ?tab= query param. */
+  initialTab?: TabKey;
+  /** True when ?success=1 is present — reveals the post-purchase banner. */
+  success?: boolean;
+  /** Pack slug from ?autotopup=, preselected in the Top Up tab. */
+  autotopupSlug?: string | null;
+  /** Mirrors tab changes back into the URL so the overlay stays deep-linkable. */
+  onTabChange?: (tab: TabKey) => void;
+  /** Swap the overlay to the Manage Subscription view. */
+  onOpenManage: () => void;
+  /** Swap the overlay to the Plans view. */
+  onOpenPlans: () => void;
+  /** Called after a successful purchase so the overlay can show the banner. */
+  onPurchaseSuccess: () => void;
+}
+
+export function BillingPanel({
+  initialTab = "overview", success = false, autotopupSlug = null,
+  onTabChange, onOpenManage, onOpenPlans, onPurchaseSuccess,
+}: BillingPanelProps) {
+  // Tab state is local now; the URL is a mirror rather than the source, because
+  // the overlay can open over any route and must not own that route's params.
+  const [tab, setTabState] = useState<TabKey>(initialTab);
+  const { user, token, refreshUser } = useAuth();
   const { startCheckout, activeId } = useRazorpayCheckout();
   const fireReviewPrompt = useReviewPromptTrigger();
   const reviewPromptFiredRef = useRef(false);
@@ -135,8 +160,6 @@ function BillingContent() {
   const [addons, setAddons] = useState<DbPlan[]>([]);
   const [launch, setLaunch] = useState<LaunchCoupon | null>(null);
   const [copied, setCopied] = useState(false);
-  const [plansModalOpen, setPlansModalOpen] = useState(false);
-  const [managePanelOpen, setManagePanelOpen] = useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [cancelSuccess, setCancelSuccess] = useState(false);
@@ -160,14 +183,11 @@ function BillingContent() {
   const coupon = useTopupCoupon({ planId: cheapestPackSlug });
 
   useEffect(() => {
-    // Wait for AuthContext to finish reading localStorage before deciding the
-    // visitor is signed out. Redirecting on the first render — when `token` is
-    // still null purely because storage hasn't been read — bounced signed-in
-    // users off /billing: the push to /login was then caught by the proxy,
-    // which sends authenticated users to /dashboard. A hard refresh of the
-    // billing page could therefore land you on the dashboard.
-    if (authLoading) return;
-    if (!token) { router.push("/login"); return; }
+    // No auth redirect here any more: this only renders inside DashboardShell,
+    // which is already behind the proxy's auth gate. The old redirect was also
+    // the source of a bug where a null token on the first render (before
+    // localStorage had been read) bounced signed-in users to /dashboard.
+    if (!token) return;
 
     Promise.all([
       fetch("/api/plans").then(r => r.ok ? r.json() : { plans: [] }),
@@ -188,7 +208,7 @@ function BillingContent() {
       setPurchasesLoaded(true);
     }).catch(() => setError("Failed to load billing data."))
       .finally(() => setLoading(false));
-  }, [token, router, authLoading]);
+  }, [token]);
 
   async function loadMoreHistory() {
     if (!historyCursor || historyLoadingMore) return;
@@ -220,11 +240,11 @@ function BillingContent() {
   const subscriptionBalance = user?.creditBalances?.subscription;
   const used = Math.max(0, allowance - (subscriptionBalance ?? balance));
 
-  // `replace` + scroll:false, not `push`. Pushing added a history entry per tab
-  // click (so Back walked the tabs instead of leaving billing) and reset scroll
-  // to the top each time.
+  // Local state first, then mirror to the URL. The overlay owns the router
+  // write so it can preserve whatever route it opened over.
   function setTab(next: TabKey) {
-    router.replace(next === "overview" ? "/billing" : `/billing?tab=${next}`, { scroll: false });
+    setTabState(next);
+    onTabChange?.(next);
   }
 
   // Roving-focus arrow-key movement for the tablist, per the WAI-ARIA pattern.
@@ -242,18 +262,9 @@ function BillingContent() {
     startCheckout({
       planId: slug,
       couponCode: coupon.appliedCoupon?.code,
-      onSuccess: () => { refreshUser(); router.push("/billing?success=1"); },
+      onSuccess: () => { refreshUser(); onPurchaseSuccess(); },
       onError: setError,
     });
-  }
-
-  // Reuses the exact same success path as top-up purchases (handleBuy above) —
-  // refresh the cached user object and reveal the existing ?success=1 banner —
-  // rather than inventing a separate confirmation for plan/subscription
-  // purchases made through the new modal.
-  function handlePlanPurchaseSuccess() {
-    refreshUser();
-    router.push("/billing?success=1");
   }
 
   async function handleCancelSubscription() {
@@ -286,12 +297,8 @@ function BillingContent() {
   // immediately means the page doesn't visibly jump when data lands.
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-6" aria-busy="true" aria-live="polite">
+      <div className="space-y-6" aria-busy="true" aria-live="polite">
         <span className="sr-only">Loading your billing details…</span>
-        <div>
-          <h1 className="text-2xl font-extrabold grad-text inline-block">Billing</h1>
-          <p className="text-sm text-ink-soft mt-1">Manage your plan, credits, and usage.</p>
-        </div>
         <div className="flex gap-1 border-b border-gray-100 -mb-1">
           {TABS.map(t => (
             <span key={t.key} className="px-4 py-2.5 text-sm font-semibold text-ink-soft/40">{t.label}</span>
@@ -315,12 +322,7 @@ function BillingContent() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold grad-text inline-block">Billing</h1>
-        <p className="text-sm text-ink-soft mt-1">Manage your plan, credits, and usage.</p>
-      </div>
-
+    <div className="space-y-6">
       {/* ── Launch offer banner ── */}
       {launch && (
         <div className="relative overflow-hidden rounded-[var(--radius-card)] grad-hero px-6 py-5 text-white shadow-glow">
@@ -379,7 +381,7 @@ function BillingContent() {
               Updating your payment method now avoids any interruption.
             </p>
           </div>
-          <Button variant="primary" size="sm" onClick={() => setPlansModalOpen(true)} className="flex-shrink-0">
+          <Button variant="primary" size="sm" onClick={onOpenPlans} className="flex-shrink-0">
             Update payment method
           </Button>
         </div>
@@ -424,8 +426,8 @@ function BillingContent() {
           balance={balance}
           used={used}
           summary={summary}
-          onViewPlans={() => setPlansModalOpen(true)}
-          onManagePlan={() => setManagePanelOpen(true)}
+          onViewPlans={onOpenPlans}
+          onManagePlan={onOpenManage}
           onGoToTopup={() => setTab("topup")}
           onCancelClick={() => setCancelDialogOpen(true)}
         />
@@ -453,7 +455,8 @@ function BillingContent() {
           activeId={activeId}
           onBuy={handleBuy}
           coupon={coupon}
-          onViewPlans={() => setPlansModalOpen(true)}
+          onViewPlans={onOpenPlans}
+          highlightSlug={autotopupSlug}
         />
         </div>
       )}
@@ -468,24 +471,10 @@ function BillingContent() {
         Payments powered by Razorpay · Secure &amp; encrypted
       </p>
 
-      {plansModalOpen && (
-        <PlansModal
-          onClose={() => setPlansModalOpen(false)}
-          onPurchaseSuccess={handlePlanPurchaseSuccess}
-        />
-      )}
-
-      <ManageSubscriptionPanel
-        open={managePanelOpen}
-        onClose={() => setManagePanelOpen(false)}
-        user={user}
-        token={token}
-        purchases={purchases}
-        onChangePlan={() => { setManagePanelOpen(false); setPlansModalOpen(true); }}
-        onCancelClick={() => { setManagePanelOpen(false); setCancelDialogOpen(true); }}
-        onResumed={() => { refreshUser(); setManagePanelOpen(false); }}
-      />
-
+      {/* Manage and Plans are sibling views of this one inside BillingOverlay,
+          not dialogs stacked on top of it — three layers deep is unusable on a
+          phone. Only the cancel confirmation stays a true dialog, because it's
+          a yes/no prompt rather than a place you work. */}
       <ConfirmDialog
         open={cancelDialogOpen}
         title="Cancel subscription?"
@@ -786,7 +775,7 @@ function AutoTopupToggle({ packs }: { packs: DbPlan[] }) {
 }
 
 // ── Top Up tab ───────────────────────────────────────────────────────────────
-function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onViewPlans }: {
+function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onViewPlans, highlightSlug }: {
   hasActivePlan: boolean;
   packs: DbPlan[];
   addons: DbPlan[];
@@ -794,6 +783,8 @@ function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onVie
   onBuy: (slug: string) => void;
   coupon: ReturnType<typeof useTopupCoupon>;
   onViewPlans: () => void;
+  /** Pack named by ?autotopup= — the auto-top-up email's one-click target. */
+  highlightSlug?: string | null;
 }) {
   if (!hasActivePlan) {
     return (
@@ -852,7 +843,12 @@ function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onVie
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {packs.map((pack, i) => {
               const isLoading = activeId === pack.slug;
-              const isPopular = i === 1;
+              // The pack the auto-top-up email pointed at wins the emphasis —
+              // that link has been carrying ?autotopup= since the feature
+              // shipped and nothing ever read it, so arriving from the email
+              // dropped you on an undifferentiated grid.
+              const isTarget = !!highlightSlug && pack.slug === highlightSlug;
+              const isPopular = isTarget || (!highlightSlug && i === 1);
               return (
                 <div
                   key={pack.id}
@@ -861,7 +857,9 @@ function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onVie
                   }`}
                 >
                   {isPopular && (
-                    <div className="grad-brand text-white text-[10px] font-bold text-center py-1 tracking-widest uppercase">Most Popular</div>
+                    <div className="grad-brand text-white text-[10px] font-bold text-center py-1 tracking-widest uppercase">
+                      {isTarget ? "Your top-up" : "Most Popular"}
+                    </div>
                   )}
                   <div className="p-5 flex flex-col flex-1 text-center">
                     <p className="text-sm font-bold text-ink">{pack.name}</p>
@@ -1017,17 +1015,5 @@ function HistoryTab({ purchases, purchasesLoaded }: { purchases: Purchase[]; pur
         </div>
       )}
     </Card>
-  );
-}
-
-export default function BillingPage() {
-  return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center py-32">
-        <div className="w-6 h-6 border-2 border-brand/30 border-t-brand rounded-full animate-spin" />
-      </div>
-    }>
-      <BillingContent />
-    </Suspense>
   );
 }

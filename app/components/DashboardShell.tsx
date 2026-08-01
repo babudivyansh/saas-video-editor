@@ -14,6 +14,7 @@ import { usePathname } from "next/navigation";
 import DashboardHeader from "@/app/components/DashboardHeader";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
 import { CreditModalProvider } from "@/app/components/billing/CreditModalContext";
+import { BillingOverlayProvider, useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
 import { ReviewPromptProvider } from "@/app/components/reviews/ReviewPromptProvider";
 
 const CHROMELESS_PREFIXES = ["/dashboard/editor", "/dashboard/admin"];
@@ -36,9 +37,26 @@ const ROUTE_ACTIVE: { prefix: string; id: string }[] = [
 
 function activeIdFor(pathname: string): string {
   if (pathname === "/dashboard") return "home";
-  if (pathname.startsWith("/billing")) return "billing";
   const match = ROUTE_ACTIVE.find((r) => pathname.startsWith(r.prefix));
   return match?.id ?? "home";
+}
+
+// Billing has no route of its own any more, so the sidebar's active state can't
+// come from the pathname — it comes from whether the overlay is showing. This
+// has to be a child of BillingOverlayProvider to read that.
+function ShellChrome({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const { isBillingOpen } = useBillingOverlay();
+
+  return (
+    <div className="flex h-screen flex-col overflow-hidden bg-surface">
+      <DashboardHeader />
+      <div className="flex flex-1 overflow-hidden">
+        <ToolsSidebar active={isBillingOpen ? "billing" : activeIdFor(pathname)} />
+        <main className="flex-1 overflow-y-auto bg-surface">{children}</main>
+      </div>
+    </div>
+  );
 }
 
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -48,25 +66,28 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   // chromeless editor gets the shared insufficient-credits (402) modal and
   // the review-prompt system too — the editor's own export-success trigger
   // lives inside this chromeless subtree.
+  // Order is load-bearing. Each provider renders its overlay as a *sibling* of
+  // children, so an overlay can only use contexts from providers above it:
+  //   ReviewPrompt  — needs only useAuth, from the root layout
+  //   BillingOverlay — its panel calls useReviewPromptTrigger, so it sits inside
+  //   CreditModal   — its 402 modal links into billing, so it sits inside that
   if (CHROMELESS_PREFIXES.some((p) => pathname.startsWith(p))) {
     return (
-      <CreditModalProvider>
-        <ReviewPromptProvider>{children}</ReviewPromptProvider>
-      </CreditModalProvider>
+      <ReviewPromptProvider>
+        <BillingOverlayProvider>
+          <CreditModalProvider>{children}</CreditModalProvider>
+        </BillingOverlayProvider>
+      </ReviewPromptProvider>
     );
   }
 
   return (
-    <CreditModalProvider>
-      <ReviewPromptProvider>
-        <div className="flex h-screen flex-col overflow-hidden bg-surface">
-          <DashboardHeader />
-          <div className="flex flex-1 overflow-hidden">
-            <ToolsSidebar active={activeIdFor(pathname)} />
-            <main className="flex-1 overflow-y-auto bg-surface">{children}</main>
-          </div>
-        </div>
-      </ReviewPromptProvider>
-    </CreditModalProvider>
+    <ReviewPromptProvider>
+      <BillingOverlayProvider>
+        <CreditModalProvider>
+          <ShellChrome>{children}</ShellChrome>
+        </CreditModalProvider>
+      </BillingOverlayProvider>
+    </ReviewPromptProvider>
   );
 }

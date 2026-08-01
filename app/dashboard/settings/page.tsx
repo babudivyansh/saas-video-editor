@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/app/components/AuthContext";
+import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
 import { Card } from "@/app/components/ui/Card";
 import { StatTile } from "@/app/components/ui/StatTile";
 import { Skeleton } from "@/app/components/ui/Skeleton";
@@ -32,17 +33,23 @@ function Meter({ label, pct, sublabel }: { label: string; pct: number; sublabel:
   );
 }
 
-function QuickAction({ href, label, desc }: { href: string; label: string; desc: string }) {
-  return (
-    <Link href={href} className="flex flex-col gap-1 rounded-2xl border border-card-border bg-white p-4 hover:border-violet-200 hover:shadow-card-hover transition-all">
+function QuickAction({ href, onClick, label, desc }: { href?: string; onClick?: () => void; label: string; desc: string }) {
+  const cls = "flex flex-col gap-1 rounded-2xl border border-card-border bg-white p-4 hover:border-violet-200 hover:shadow-card-hover transition-all text-left w-full";
+  const body = (
+    <>
       <p className="text-sm font-bold text-ink">{label}</p>
       <p className="text-xs text-ink-soft">{desc}</p>
-    </Link>
+    </>
   );
+  // Billing opens an overlay rather than navigating.
+  return onClick
+    ? <button onClick={onClick} className={cls}>{body}</button>
+    : <Link href={href!} className={cls}>{body}</Link>;
 }
 
 export default function SettingsGeneralPage() {
   const { user, token } = useAuth();
+  const { openBilling } = useBillingOverlay();
   const t = useTranslations("SettingsGeneral");
   const locale = useLocale();
   const [assetStats, setAssetStats] = useState<AssetStats | null>(null);
@@ -108,7 +115,7 @@ export default function SettingsGeneralPage() {
           <QuickAction href="/dashboard/settings/profile" label={t("editProfile.label")} desc={t("editProfile.desc")} />
           <QuickAction href="/dashboard/settings/security" label={t("secureAccount.label")} desc={t("secureAccount.desc")} />
           <QuickAction href="/dashboard/settings/api-keys" label={t("manageApiKeys.label")} desc={t("manageApiKeys.desc")} />
-          <QuickAction href="/billing" label={t("viewBilling.label")} desc={t("viewBilling.desc")} />
+          <QuickAction onClick={() => openBilling()} label={t("viewBilling.label")} desc={t("viewBilling.desc")} />
           <QuickAction href="/dashboard/profile/my-videos" label={t("myVideos.label")} desc={t("myVideos.desc")} />
         </div>
       </div>

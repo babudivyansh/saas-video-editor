@@ -1,10 +1,11 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signToken, SESSION_COOKIE_NAME } from "@/lib/auth";
 
-// The Manage Plan slide-over. The brief for this work was explicit that
-// managing a subscription must never navigate away from /billing, so the
-// assertions below are mostly about what *doesn't* happen: no route change, no
-// lost scroll position, no state reset.
+// Billing is an overlay now, not a route: /billing permanently redirects to
+// /dashboard?billing=1, and Manage Plan is a view *inside* that overlay rather
+// than a second dialog on top of it. So these assert that the pathname never
+// changes, that swapping views works in both directions, and that ESC closes
+// the whole thing.
 
 const SUBSCRIBED_USER = {
   id: "e2e-billing-user",
@@ -58,6 +59,13 @@ async function signIn(page: Page, baseURL: string | undefined, user: typeof SUBS
   await page.route("**/api/billing/auto-topup", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ packSlug: null }) }));
 
+  // The overlay now renders over /dashboard, so the dashboard page mounts too —
+  // its own endpoints need stubbing or it errors behind the overlay.
+  await page.route("**/api/quests", (r) =>
+    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ quests: [], earnedXp: 0, remaining: 0, level: { level: 1, label: "New" } }) }));
+  await page.route("**/api/dashboard/summary", (r) =>
+    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ projects: [], stats: {} }) }));
+
   await page.addInitScript(() => localStorage.setItem("token", "e2e-fake-token"));
   await page.context().addCookies([{
     name: SESSION_COOKIE_NAME,
@@ -66,31 +74,63 @@ async function signIn(page: Page, baseURL: string | undefined, user: typeof SUBS
   }]);
 }
 
-test("Manage plan opens a panel without leaving /billing", async ({ page, baseURL }) => {
+test("Manage plan swaps views in place without changing route", async ({ page, baseURL }) => {
   await signIn(page, baseURL, SUBSCRIBED_USER);
-  await page.goto("/billing");
+  await page.goto("/dashboard?billing=1");
 
-  const urlBefore = page.url();
+  const billing = page.getByRole("dialog", { name: "Billing" });
+  await expect(billing).toBeVisible();
+
   await page.getByRole("button", { name: "Manage plan" }).click();
 
   const panel = page.getByRole("dialog", { name: "Manage subscription" });
   await expect(panel).toBeVisible();
-  // The whole point: no route navigation.
-  expect(page.url()).toBe(urlBefore);
-  // Billing is still mounted behind the panel, not unmounted or replaced.
-  await expect(page.getByRole("heading", { name: "Billing", exact: true })).toBeVisible();
+  // The whole point: the route never changes. Query params do — that's what
+  // keeps the overlay deep-linkable.
+  expect(new URL(page.url()).pathname).toBe("/dashboard");
 
-  // "Pro (Monthly)" appears twice — the plan heading and its history row — so
-  // scope to the heading.
+  // "Pro (Monthly)" appears twice — the plan heading and its history row.
   await expect(panel.getByText("Pro (Monthly)").first()).toBeVisible();
   await expect(panel.getByText("Renews on")).toBeVisible();
   await expect(panel.getByRole("heading", { name: "Billing history" })).toBeVisible();
 
-  // ESC closes it — the hand-rolled billing overlays this replaces had no key
-  // handling at all.
+  // Back returns to the billing view rather than closing the overlay — the
+  // reason these are swappable views and not stacked dialogs.
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page.getByRole("dialog", { name: "Billing" })).toBeVisible();
+
   await page.keyboard.press("Escape");
-  await expect(panel).not.toBeVisible();
-  expect(page.url()).toBe(urlBefore);
+  await expect(page.getByRole("dialog", { name: "Billing" })).not.toBeVisible();
+  expect(new URL(page.url()).pathname).toBe("/dashboard");
+});
+
+test("the overlay fits a phone without overflowing", async ({ page, baseURL }) => {
+  // A centred overlay holding the whole billing panel is the main layout risk
+  // in moving billing off its own full-width page.
+  await page.setViewportSize({ width: 375, height: 812 });
+  await signIn(page, baseURL, SUBSCRIBED_USER);
+  await page.goto("/dashboard?billing=1");
+
+  const dialog = page.getByRole("dialog", { name: "Billing" });
+  await expect(dialog).toBeVisible();
+
+  const overflows = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  expect(overflows).toBe(false);
+
+  const box = await dialog.boundingBox();
+  expect(box!.width).toBeLessThanOrEqual(375);
+  // The tab bar scrolls horizontally rather than forcing the dialog wider.
+  await expect(page.getByRole("tab", { name: "Overview" })).toBeVisible();
+});
+
+test("/billing still resolves for links already in the wild", async ({ page, baseURL }) => {
+  await signIn(page, baseURL, SUBSCRIBED_USER);
+  // Four email CTAs, the auto-top-up link and existing Notification rows all
+  // point at /billing and cannot be edited retroactively.
+  await page.goto("/billing?tab=history");
+  expect(new URL(page.url()).pathname).toBe("/dashboard");
+  await expect(page.getByRole("dialog", { name: "Billing" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Purchase History" })).toBeVisible();
 });
 
 test("a cancelled subscription offers resume, and explains when it can't", async ({ page, baseURL }) => {
@@ -108,7 +148,7 @@ test("a cancelled subscription offers resume, and explains when it can't", async
       }),
     }));
 
-  await page.goto("/billing");
+  await page.goto("/dashboard?billing=1");
   await page.getByRole("button", { name: "Manage plan" }).click();
 
   const panel = page.getByRole("dialog", { name: "Manage subscription" });
@@ -127,7 +167,7 @@ test("a cancelled subscription offers resume, and explains when it can't", async
 
 test("credits used counts the monthly allowance only, not top-ups", async ({ page, baseURL }) => {
   await signIn(page, baseURL, SUBSCRIBED_USER);
-  await page.goto("/billing");
+  await page.goto("/dashboard?billing=1");
 
   // 160 allowance, 40 subscription credits left => 120 used. Counting the
   // 80-credit top-up pack against the allowance previously produced "0 used",
@@ -145,7 +185,7 @@ test("a failed payment is surfaced instead of still promising a renewal", async 
     paymentFailedAt: new Date().toISOString(),
     paymentFailureCount: 2,
   });
-  await page.goto("/billing");
+  await page.goto("/dashboard?billing=1");
 
   const banner = page.getByRole("alert").filter({ hasText: "We couldn't take your last payment" });
   await expect(banner).toBeVisible();
@@ -155,7 +195,7 @@ test("a failed payment is surfaced instead of still promising a renewal", async 
 
 test("payment history can be filtered", async ({ page, baseURL }) => {
   await signIn(page, baseURL, SUBSCRIBED_USER);
-  await page.goto("/billing?tab=history");
+  await page.goto("/dashboard?billing=1&tab=history");
 
   // Scope to the panel — the header's plan chip also reads "Pro (Monthly)".
   const panel = page.getByRole("tabpanel");
@@ -172,7 +212,7 @@ test("payment history can be filtered", async ({ page, baseURL }) => {
 
 test("billing tabs are a real tablist and keep scroll position", async ({ page, baseURL }) => {
   await signIn(page, baseURL, SUBSCRIBED_USER);
-  await page.goto("/billing");
+  await page.goto("/dashboard?billing=1");
 
   const tablist = page.getByRole("tablist", { name: "Billing sections" });
   await expect(tablist).toBeVisible();

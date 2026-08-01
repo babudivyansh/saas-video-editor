@@ -7,10 +7,10 @@
 // A link to /pricing covers users who'd rather upgrade their plan.
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
+import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
 import type { InsufficientCreditsInfo } from "./CreditModalContext";
 
 interface DbPlan {
@@ -35,6 +35,7 @@ export function InsufficientCreditsModal({ info, onClose }: {
   const { user, token, refreshUser } = useAuth();
   const { startCheckout, activeId } = useRazorpayCheckout();
   const fireReviewPrompt = useReviewPromptTrigger();
+  const { openBilling } = useBillingOverlay();
 
   const [packs, setPacks] = useState<DbPlan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -141,7 +142,12 @@ export function InsufficientCreditsModal({ info, onClose }: {
               {/* /billing, not /pricing: the user is signed in, and /billing is
                   where plan changes happen (PlansModal) without bouncing them
                   out to the marketing site. */}
-              <Link href="/billing" className="text-blue-600 underline hover:text-blue-800">upgrade your plan</Link>{" "}
+              <button
+                onClick={() => { onClose(); openBilling({ view: "plans" }); }}
+                className="text-blue-600 underline hover:text-blue-800 cursor-pointer"
+              >
+                upgrade your plan
+              </button>{" "}
               for monthly credits at a better rate.
             </p>
 

@@ -19,6 +19,7 @@ import { NotificationBell } from "@/app/components/NotificationBell";
 import { useAuth } from "@/app/components/AuthContext";
 import { FREE_FEATURES, VIDEO_TOOLS, AI_TOOLS, RESOURCES } from "@/app/components/featureLinks";
 import { useDashboardNavItems } from "@/app/components/ToolsSidebar";
+import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
 import { Button } from "@/app/components/ui/Button";
 import { CreditsPill } from "@/app/components/ui/CreditsPill";
 
@@ -65,6 +66,13 @@ const TOOL_COUNT = VIDEO_TOOLS.length + AI_TOOLS.length + FREE_FEATURES.length;
 
 interface SearchEntry extends NavItem {
   group: string;
+  /**
+   * Set instead of navigating, for destinations that are overlays rather than
+   * routes. Billing needs this: linking to /dashboard?billing=1 does nothing
+   * when you're already on /dashboard, because the provider reads that param
+   * once on mount and a client-side param change doesn't remount it.
+   */
+  onSelect?: () => void;
 }
 
 // Href/group are structural (untranslated); title/desc for pages defined in
@@ -74,6 +82,7 @@ interface SearchEntry extends NavItem {
 // too rather than translating a chrome-only view of still-English tool pages.
 function useCorePages(): SearchEntry[] {
   const t = useTranslations("Nav.corePages");
+  const { openBilling } = useBillingOverlay();
   return useMemo<SearchEntry[]>(
     () => [
       { title: t("dashboardHome.title"), desc: t("dashboardHome.desc"), href: "/dashboard", group: "Page" },
@@ -81,7 +90,7 @@ function useCorePages(): SearchEntry[] {
       { title: t("assets.title"), desc: t("assets.desc"), href: "/dashboard/assets", group: "Page" },
       { title: t("socialTracker.title"), desc: t("socialTracker.desc"), href: "/dashboard/social-tracker", group: "Page" },
       { title: t("earnCredits.title"), desc: t("earnCredits.desc"), href: "/dashboard/referral", group: "Page" },
-      { title: t("billing.title"), desc: t("billing.desc"), href: "/billing", group: "Page" },
+      { title: t("billing.title"), desc: t("billing.desc"), href: "", group: "Page", onSelect: openBilling },
       { title: t("myAccount.title"), desc: t("myAccount.desc"), href: "/dashboard/settings/profile", group: "Page" },
       { title: t("settings.title"), desc: t("settings.desc"), href: "/dashboard/settings", group: "Page" },
       { title: t("security.title"), desc: t("security.desc"), href: "/dashboard/settings/security", group: "Page" },
@@ -90,7 +99,7 @@ function useCorePages(): SearchEntry[] {
       { title: t("preferences.title"), desc: t("preferences.desc"), href: "/dashboard/settings/preferences", group: "Page" },
       { title: t("myVideos.title"), desc: t("myVideos.desc"), href: "/dashboard/profile/my-videos", group: "Page" },
     ],
-    [t]
+    [t, openBilling]
   );
 }
 
@@ -146,20 +155,34 @@ function HeaderSearch({ className = "relative flex-1 max-w-md" }: { className?: 
         }`}
       >
         <div className="py-1.5">
-          {results.map((r) => (
-            <Link
-              key={r.href + r.title}
-              href={r.href}
-              onClick={() => { setQuery(""); setFocused(false); }}
-              className="flex items-center gap-3 px-4 py-2.5 hover:bg-tint-blue transition-colors group"
-            >
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-ink group-hover:text-brand transition-colors truncate">{r.title}</p>
-                <p className="text-xs text-ink-soft truncate">{r.desc}</p>
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-accent-violet bg-tint-violet rounded-full px-2 py-0.5 flex-shrink-0">{r.group}</span>
-            </Link>
-          ))}
+          {results.map((r) => {
+            const rowClass = "flex items-center gap-3 px-4 py-2.5 hover:bg-tint-blue transition-colors group w-full text-left";
+            const dismiss = () => { setQuery(""); setFocused(false); };
+            const body = (
+              <>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-ink group-hover:text-brand transition-colors truncate">{r.title}</p>
+                  <p className="text-xs text-ink-soft truncate">{r.desc}</p>
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-accent-violet bg-tint-violet rounded-full px-2 py-0.5 flex-shrink-0">{r.group}</span>
+              </>
+            );
+            // Billing is an overlay, not a route, so its result is a button.
+            return r.onSelect ? (
+              <button
+                key={r.title}
+                type="button"
+                onClick={() => { dismiss(); r.onSelect!(); }}
+                className={rowClass}
+              >
+                {body}
+              </button>
+            ) : (
+              <Link key={r.href + r.title} href={r.href} onClick={dismiss} className={rowClass}>
+                {body}
+              </Link>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -248,6 +271,7 @@ function CreateMenu() {
 
 export default function DashboardHeader() {
   const { user, openAuthModal } = useAuth();
+  const { openBilling } = useBillingOverlay();
   const t = useTranslations("Nav");
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileSection, setMobileSection] = useState<string | null>(null);
@@ -378,18 +402,18 @@ export default function DashboardHeader() {
             <CreateMenu />
 
             {/* Plan chip + credits */}
-            <Link
-              href="/billing"
+            <button
+              onClick={() => openBilling()}
               title={t("yourPlan")}
               data-tour="plan-chip"
-              className={`hidden xl:inline-flex items-center text-[11px] font-bold uppercase tracking-wider rounded-full px-2.5 py-1 transition-colors ${
+              className={`hidden xl:inline-flex items-center text-[11px] font-bold uppercase tracking-wider rounded-full px-2.5 py-1 transition-colors cursor-pointer ${
                 hasActivePlan
                   ? "bg-tint-emerald text-green-700 hover:bg-emerald-100"
                   : "bg-gray-100 text-ink-soft hover:bg-gray-200"
               }`}
             >
               {planName}
-            </Link>
+            </button>
             <div data-tour="credits-pill" className="flex items-center">
               <CreditsPill credits={user.credits ?? 0} />
             </div>
@@ -397,7 +421,12 @@ export default function DashboardHeader() {
             <NotificationBell className="hidden xl:flex" />
 
             {/* Monetization CTA: upgrade when free, top up when subscribed */}
-            <Button variant={hasActivePlan ? "secondary" : "primary"} size="sm" href="/billing" className="hidden xl:inline-flex">
+            <Button
+              variant={hasActivePlan ? "secondary" : "primary"}
+              size="sm"
+              onClick={() => openBilling({ tab: hasActivePlan ? "topup" : "overview" })}
+              className="hidden xl:inline-flex"
+            >
               {hasActivePlan ? t("topUp") : t("upgrade")}
             </Button>
 
@@ -424,7 +453,7 @@ export default function DashboardHeader() {
 
           {/* Primary nav (mirrors ToolsSidebar) */}
           {railNav.map((item) => (
-            <Link key={item.id} href={item.href} onClick={closeMobile} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink hover:bg-tint-blue transition-colors">
+            <Link key={item.id} href={item.href!} onClick={closeMobile} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink hover:bg-tint-blue transition-colors">
               <span className="text-ink-soft">{item.icon}</span>
               {item.label}
             </Link>
@@ -494,12 +523,21 @@ export default function DashboardHeader() {
 
           {/* Bottom nav (earn / settings / billing) */}
           <div className="my-2 border-t border-gray-100" />
-          {railBottomNav.map((item) => (
-            <Link key={item.id} href={item.href} onClick={closeMobile} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink hover:bg-tint-blue transition-colors">
-              <span className="text-ink-soft">{item.icon}</span>
-              {item.label}
-            </Link>
-          ))}
+          {railBottomNav.map((item) => {
+            const cls = "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink hover:bg-tint-blue transition-colors w-full text-left";
+            // Billing opens an overlay rather than navigating.
+            return item.onSelect ? (
+              <button key={item.id} onClick={() => { closeMobile(); item.onSelect!(); }} className={cls}>
+                <span className="text-ink-soft">{item.icon}</span>
+                {item.label}
+              </button>
+            ) : (
+              <Link key={item.id} href={item.href!} onClick={closeMobile} className={cls}>
+                <span className="text-ink-soft">{item.icon}</span>
+                {item.label}
+              </Link>
+            );
+          })}
 
           {user && (
             <>
@@ -518,7 +556,12 @@ export default function DashboardHeader() {
                 </div>
               </div>
               <div className="px-3 pt-1 pb-2">
-                <Button variant={hasActivePlan ? "secondary" : "primary"} size="sm" href="/billing" className="w-full" onClick={closeMobile}>
+                <Button
+                  variant={hasActivePlan ? "secondary" : "primary"}
+                  size="sm"
+                  className="w-full"
+                  onClick={() => { closeMobile(); openBilling({ tab: hasActivePlan ? "topup" : "overview" }); }}
+                >
                   {hasActivePlan ? t("topUp") : t("upgrade")}
                 </Button>
               </div>

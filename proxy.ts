@@ -20,7 +20,10 @@ const GROUP_LIMITS: { prefix: string; name: string; limit: number; windowSec: nu
 // before the page ever renders, instead of relying on each page's own
 // client-side check (previously inconsistent — e.g. /dashboard had none at
 // all, so a signed-out visitor just saw an empty shell).
-const PROTECTED_PAGE_PREFIXES = ["/dashboard", "/billing", "/editor"];
+// /billing is no longer a route — it redirects to /dashboard?billing=1, which
+// this list already covers. redirects() runs before the proxy, so a signed-out
+// hit on /billing lands on /dashboard and is bounced to /login from there.
+const PROTECTED_PAGE_PREFIXES = ["/dashboard", "/editor"];
 // Signed-out-only entry points: once authenticated, redirect straight into
 // the app instead of re-showing the landing/login/register screen.
 const SIGNED_OUT_ONLY_PATHS = ["/", "/login", "/register"];

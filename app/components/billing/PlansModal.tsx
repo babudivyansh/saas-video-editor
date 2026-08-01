@@ -28,20 +28,17 @@ function XIcon({ className = "" }: { className?: string }) {
 }
 
 interface PlansModalProps {
-  onClose: () => void;
-  /** Called the moment a purchase is confirmed server-side — before the modal closes. */
+  /** Called the moment a purchase is confirmed server-side. */
   onPurchaseSuccess: () => void;
 }
 
-// Self-contained "browse all plans + top-ups" overlay reachable from /billing,
-// so users never have to leave the billing page to subscribe or upgrade.
-// Deliberately not shared with /pricing (a much larger marketing page with a
-// credit calculator, comparison table, and FAQ this modal has no need for) —
-// this duplicates the plan-card/checkout-modal JSX from /pricing rather than
-// extracting a shared component, an explicit scope trade-off. Purchase logic
-// itself (useRazorpayCheckout, /api/billing/checkout, /api/billing/verify,
-// /api/coupons/validate) is reused as-is, not reimplemented.
-export function PlansModal({ onClose, onPurchaseSuccess }: PlansModalProps) {
+// "Browse all plans + top-ups", rendered as one of BillingOverlay's views so
+// users never leave whatever they were doing to subscribe or upgrade. The plan
+// cards themselves come from components/billing/PlanCard, shared with /pricing.
+// Purchase logic (useRazorpayCheckout, /api/billing/checkout,
+// /api/billing/verify, /api/coupons/validate) is reused as-is, not
+// reimplemented.
+export function PlansModal({ onPurchaseSuccess }: PlansModalProps) {
   const { user, token } = useAuth();
   const { startCheckout, activeId } = useRazorpayCheckout();
 
@@ -137,14 +134,8 @@ export function PlansModal({ onClose, onPurchaseSuccess }: PlansModalProps) {
       currency,
       onSuccess: () => {
         onPurchaseSuccess();
-        onClose();
       },
     });
-  }
-
-  function handleClose() {
-    if (checkoutLoading) return;
-    onClose();
   }
 
   const totalDueMinor =
@@ -157,20 +148,12 @@ export function PlansModal({ onClose, onPurchaseSuccess }: PlansModalProps) {
     ? Math.max(1, totalDueMinor - appliedCoupon.discountInPaise)
     : totalDueMinor;
 
+  // Renders bare — BillingOverlay supplies the dialog, backdrop and close
+  // button. This used to be a hand-rolled `fixed inset-0` overlay with no focus
+  // trap, ESC handling or portal; folding it into the shared overlay means it
+  // inherits all three.
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Plans and top-ups">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleClose} />
-
-      <div className="relative z-10 w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-        <button
-          onClick={handleClose}
-          disabled={checkoutLoading}
-          className="absolute top-4 right-4 z-10 p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all disabled:opacity-40"
-          aria-label="Close"
-        >
-          <XIcon className="w-5 h-5" />
-        </button>
-
+    <div className="flex flex-col min-h-0">
         {checkoutPlan ? (
           <CheckoutStep
             plan={checkoutPlan}
@@ -211,7 +194,6 @@ export function PlansModal({ onClose, onPurchaseSuccess }: PlansModalProps) {
             currentPlanSlug={user?.plan?.slug ?? null}
           />
         )}
-      </div>
     </div>
   );
 }
