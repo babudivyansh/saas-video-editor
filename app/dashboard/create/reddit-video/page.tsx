@@ -3,6 +3,7 @@ import { Suspense, useEffect, useRef, useState, type CSSProperties } from "react
 import { useRouter, useSearchParams } from "next/navigation";
 import { useVideoGenerate, getStoredToken } from "@/app/hooks/useVideoGenerate";
 import { useAuth } from "@/app/components/AuthContext";
+import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -525,6 +526,7 @@ function RedditVideoFlow() {
   const router       = useRouter();
   const params       = useSearchParams();
   const { openAuthModal } = useAuth();
+  const { openBilling } = useBillingOverlay();
 
   const stepParam  = params.get("step") || "script";
   const stepIndex  = Math.max(0, STEPS.findIndex(s => s.id === stepParam));
@@ -747,9 +749,10 @@ function RedditVideoFlow() {
                     <p className="text-xs font-bold text-orange-900">2 credits per render</p>
                     <p className="text-[11px] text-orange-600 mt-0.5">Credits come with any plan. Need more? Get a top-up.</p>
                   </div>
-                  {/* Every other in-dashboard upsell goes to /billing; this was
-                      the one that still bounced signed-in users to marketing. */}
-                  <a href="/billing" className="text-xs font-extrabold text-orange-600 hover:underline bg-white px-3.5 py-2 rounded-lg border border-orange-200 shadow-sm whitespace-nowrap">View plans</a>
+                  {/* Opens the billing overlay in place — this page holds a lot
+                      of unsaved editor state, so navigating away to buy credits
+                      would have thrown it out. */}
+                  <button onClick={() => openBilling({ view: "plans" })} className="text-xs font-extrabold text-orange-600 hover:underline bg-white px-3.5 py-2 rounded-lg border border-orange-200 shadow-sm whitespace-nowrap cursor-pointer">View plans</button>
                 </div>
               </div>
 

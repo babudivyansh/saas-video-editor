@@ -208,7 +208,7 @@ async function maybeAutoTopup(userId: string, total: number): Promise<void> {
   if (!pack || !pack.active || pack.kind !== "pack") return;
 
   const { sendAutoTopupPromptEmail } = await import("@/lib/email");
-  const checkoutUrl = `https://clipiro.com/billing?autotopup=${encodeURIComponent(pack.slug)}`;
+  const checkoutUrl = `https://clipiro.com/dashboard?billing=1&tab=topup&autotopup=${encodeURIComponent(pack.slug)}`;
   await sendAutoTopupPromptEmail(user.email, user.firstName ?? user.name ?? "", total, pack.name, checkoutUrl);
 }
 

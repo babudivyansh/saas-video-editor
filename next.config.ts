@@ -74,9 +74,16 @@ const nextConfig: NextConfig = {
   // on the right content.
   async redirects() {
     return [
-      { source: "/dashboard/profile/subscription", destination: "/billing", permanent: true },
-      { source: "/dashboard/profile/credits", destination: "/billing?tab=usage", permanent: true },
-      { source: "/dashboard/profile/payment-history", destination: "/billing?tab=history", permanent: true },
+      // Billing is an overlay now, not a route. /billing must keep resolving:
+      // four email CTAs and the auto-top-up link hardcode
+      // https://clipiro.com/billing, and Notification rows in the database
+      // carry href "/billing" — none of which can be edited retroactively.
+      // Query strings forward automatically (same mechanism the /signup
+      // redirect below relies on), so /billing?tab=history arrives intact.
+      { source: "/billing", destination: "/dashboard?billing=1", permanent: true },
+      { source: "/dashboard/profile/subscription", destination: "/dashboard?billing=1", permanent: true },
+      { source: "/dashboard/profile/credits", destination: "/dashboard?billing=1&tab=usage", permanent: true },
+      { source: "/dashboard/profile/payment-history", destination: "/dashboard?billing=1&tab=history", permanent: true },
       // /signup never existed as a route — every affiliate referral link
       // generated before this fix points here. redirects() runs before Proxy
       // (see proxy.ts), and the query string forwards automatically, so
