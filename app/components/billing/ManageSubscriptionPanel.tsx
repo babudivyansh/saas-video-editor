@@ -1,17 +1,16 @@
 "use client";
 
 // "Manage plan" used to open PlansModal — i.e. the *buy* flow — so there was no
-// surface anywhere for managing an existing subscription. This is that surface:
-// a slide-over that keeps /billing mounted behind it, so the route never
-// changes and page state and scroll position survive.
+// surface anywhere for managing an existing subscription. This is that surface.
 //
-// Built on ui/Modal rather than a hand-rolled overlay so it inherits the focus
-// trap, ESC-to-close, body scroll lock, focus restore and portal that the two
-// existing billing modals each go without.
+// It renders bare, with no dialog chrome of its own: BillingOverlay shows it as
+// one of three swappable views. It was previously a right-hand slide-over, but
+// once billing itself became an overlay that would have meant a dialog on top
+// of a dialog — three layers deep once Change plan opened, which is
+// unescapable on a phone.
 
 import { useState } from "react";
 import Link from "next/link";
-import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
 import { formatMoney } from "@/lib/currency-shared";
 import type { AuthUser } from "@/app/components/useAuthUser";
@@ -26,12 +25,10 @@ interface Purchase {
 }
 
 interface Props {
-  open: boolean;
-  onClose: () => void;
   user: AuthUser | null;
   token: string | null;
   purchases: Purchase[];
-  /** Opens PlansModal — switching plans is still a purchase. */
+  /** Swaps the overlay to the Plans view — switching plans is still a purchase. */
   onChangePlan: () => void;
   onCancelClick: () => void;
   onResumed: () => void;
@@ -51,7 +48,7 @@ function Row({ label, value, muted }: { label: string; value: React.ReactNode; m
 }
 
 export function ManageSubscriptionPanel({
-  open, onClose, user, token, purchases, onChangePlan, onCancelClick, onResumed,
+  user, token, purchases, onChangePlan, onCancelClick, onResumed,
 }: Props) {
   const [resuming, setResuming] = useState(false);
   const [resumeError, setResumeError] = useState<string | null>(null);
@@ -86,8 +83,7 @@ export function ManageSubscriptionPanel({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Manage subscription" variant="drawer" maxWidth="max-w-md">
-      <div className="space-y-6">
+    <div className="space-y-6">
         {/* ── Current plan ── */}
         <section>
           <div className="flex items-center gap-2 mb-3 flex-wrap">
@@ -207,7 +203,6 @@ export function ManageSubscriptionPanel({
             your account carry over.
           </p>
         )}
-      </div>
-    </Modal>
+    </div>
   );
 }

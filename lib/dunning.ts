@@ -75,7 +75,7 @@ export async function recordSubscriptionFailure(args: {
     body: reason
       ? `We couldn't charge your card: ${reason}. Your plan stays active for now — please update your payment method.`
       : "We couldn't charge your card. Your plan stays active for now — please update your payment method.",
-    href: "/billing",
+    href: "/dashboard?billing=1",
   }).catch((e) => logger.error("dunning", "in-app notify failed", e));
 
   const lastEmail = user.paymentFailedEmailSentAt;
@@ -122,7 +122,7 @@ export async function recordSubscriptionLifecycle(args: {
       type: "billing_subscription_halted",
       title: "Your subscription is paused",
       body: "We couldn't collect your latest payment after several attempts. Choose a plan to restart — your credits are unaffected.",
-      href: "/billing",
+      href: "/dashboard?billing=1",
     }).catch((e) => logger.error("dunning", "halt notify failed", e));
   }
 }

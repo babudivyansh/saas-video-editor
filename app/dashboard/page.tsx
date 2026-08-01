@@ -120,7 +120,7 @@ function useQuests() {
       { id: "picture-this", icon: <IcImage />, title: t("pictureThis.title"), xp: 200, desc: t("pictureThis.desc"), color: "#d946ef", href: "/dashboard/tools/image-generator" },
       { id: "first-video", icon: <IcVideo />, title: t("firstVideo.title"), xp: 200, desc: t("firstVideo.desc"), color: "#10b981", href: "/dashboard/tools/video-generator" },
       { id: "first-export", icon: <IcDownload />, title: t("firstExport.title"), xp: 200, desc: t("firstExport.desc"), color: "#f59e0b", href: "/dashboard/editor" },
-      { id: "upgraded-plan", icon: <IcCrown />, title: t("upgradedPlan.title"), xp: 300, desc: t("upgradedPlan.desc"), color: "#d97706", href: "/billing" },
+      { id: "upgraded-plan", icon: <IcCrown />, title: t("upgradedPlan.title"), xp: 300, desc: t("upgradedPlan.desc"), color: "#d97706", href: "/dashboard?billing=1" },
     ],
     [t]
   );
@@ -271,7 +271,10 @@ export default function DashboardPage() {
   // never shown again once dismissed.
   const goalDef = user?.primaryGoal ? PRIMARY_GOALS.find(g => g.id === user.primaryGoal) : undefined;
   const goalQuestId = user?.primaryGoal ? GOAL_TO_QUEST[user.primaryGoal as keyof typeof GOAL_TO_QUEST] : undefined;
-  const goalQuestDone = questData?.quests.find(q => q.id === goalQuestId)?.completedAt != null;
+  // quests?.find, not quests.find: any response body without a quests array —
+  // a 401 or error payload that still parses as JSON — otherwise throws here and
+  // takes the whole dashboard into the error boundary.
+  const goalQuestDone = questData?.quests?.find(q => q.id === goalQuestId)?.completedAt != null;
   const onboardedDaysAgo = user?.onboardingCompletedAt
     ? (now - new Date(user.onboardingCompletedAt).getTime()) / 86_400_000
     : 0;
@@ -409,7 +412,7 @@ export default function DashboardPage() {
 
                 <div className="grid grid-cols-2 border-t border-gray-100">
                   {quests.map((q, i) => {
-                    const liveQuest = questData?.quests.find(lq => lq.id === q.id);
+                    const liveQuest = questData?.quests?.find(lq => lq.id === q.id);
                     const done = !!liveQuest?.completedAt;
                     const isDiscord = q.id === "join-community";
                     const cls = `flex items-start gap-3 px-4 py-3.5 text-left transition-colors group

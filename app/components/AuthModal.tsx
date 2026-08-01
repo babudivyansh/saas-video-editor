@@ -13,7 +13,9 @@ export default function AuthModal() {
     await refreshUser();
     closeAuthModal();
     // If opened from the pricing page (feature = plan name, not a free tool), go to billing
-    const dest = feature && !isFree ? "/billing" : "/dashboard";
+    // Full page load, so it cannot open the overlay directly — the ?billing=1
+    // param is what BillingOverlayProvider reads on mount.
+    const dest = feature && !isFree ? "/dashboard?billing=1" : "/dashboard";
     window.location.href = dest;
   };
 

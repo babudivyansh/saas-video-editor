@@ -56,6 +56,13 @@ test("the billing plans modal shows the same corrected cards as /pricing", async
   await page.route("**/api/billing/auto-topup", (r) =>
     r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ autoTopupPackSlug: null }) }));
 
+  // The overlay now renders over /dashboard, so the dashboard page mounts too —
+  // its own endpoints need stubbing or it errors behind the overlay.
+  await page.route("**/api/quests", (r) =>
+    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ quests: [], earnedXp: 0, remaining: 0, level: { level: 1, label: "New" } }) }));
+  await page.route("**/api/dashboard/summary", (r) =>
+    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ projects: [], stats: {} }) }));
+
   await page.addInitScript(() => localStorage.setItem("token", "e2e-fake-token"));
   await page.context().addCookies([{
     name: SESSION_COOKIE_NAME,
@@ -63,15 +70,21 @@ test("the billing plans modal shows the same corrected cards as /pricing", async
     url: baseURL!,
   }]);
 
-  await page.goto("/billing");
+  await page.goto("/dashboard?billing=1");
   await page.getByRole("button", { name: "Manage plan" }).click();
+
+  // Wait for each view to settle before driving the next. Chaining the clicks
+  // straight through passed in isolation but raced under full-suite load, where
+  // the dev server compiles the plans view lazily.
+  await expect(page.getByRole("dialog", { name: "Manage subscription" })).toBeVisible();
   await page.getByRole("button", { name: "Change plan" }).click();
 
-  const modal = page.getByRole("dialog", { name: "Plans and top-ups" });
+  const modal = page.getByRole("dialog", { name: "Plans & top-ups" });
   await expect(modal).toBeVisible();
 
-  // The cumulative framing from /pricing, which the modal never had.
-  await expect(modal.getByText("Everything in Creator, plus:")).toBeVisible();
+  // The cumulative framing from /pricing, which the modal never had. Generous
+  // timeout: this is the first assertion after the plans fetch resolves.
+  await expect(modal.getByText("Everything in Creator, plus:")).toBeVisible({ timeout: 15_000 });
   await expect(modal.getByText("Everything in Pro, plus:")).toBeVisible();
 
   // Derived tier copy, not the stale seeded features.

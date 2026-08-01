@@ -22,9 +22,14 @@ interface ModalProps {
    * restore, portal) is identical, so a drawer is never a second-class dialog.
    */
   variant?: "center" | "drawer";
+  /**
+   * When set, a back arrow appears before the title. For dialogs that swap
+   * between views in place rather than stacking a second dialog on top.
+   */
+  onBack?: () => void;
 }
 
-export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", variant = "center" }: ModalProps) {
+export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", variant = "center", onBack }: ModalProps) {
   const t = useTranslations("Common");
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -111,7 +116,20 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", v
               <div className={`flex items-center justify-between px-5 py-4 border-b border-card-border ${
                 isDrawer ? "sticky top-0 bg-white z-10" : ""
               }`}>
-                <h2 id={titleId} className="text-base font-bold text-ink">{title}</h2>
+                <div className="flex items-center gap-2 min-w-0">
+                  {onBack && (
+                    <button
+                      onClick={onBack}
+                      aria-label="Back"
+                      className="w-7 h-7 -ml-1 rounded-full flex items-center justify-center text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors cursor-pointer flex-shrink-0"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
+                        <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                  )}
+                  <h2 id={titleId} className="text-base font-bold text-ink truncate">{title}</h2>
+                </div>
                 <button
                   onClick={onClose}
                   aria-label={t("close")}

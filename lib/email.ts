@@ -640,7 +640,7 @@ export async function sendSubscriptionRenewedEmail(
       <span style="font-size:52px;font-weight:800;color:#1e40af;">${creditsAdded}</span>
     </div>
 
-    ${ctaButton("https://clipiro.com/billing", "View billing →")}
+    ${ctaButton("https://clipiro.com/dashboard?billing=1", "View billing →")}
     ${nextLine}
     ${emailFooter()}`;
 
@@ -672,7 +672,7 @@ export async function sendPaymentFailedEmail(
       </p>
     </div>
 
-    ${ctaButton("https://clipiro.com/billing", "Update payment method →")}
+    ${ctaButton("https://clipiro.com/dashboard?billing=1", "Update payment method →")}
     ${attemptLine}
     ${emailFooter()}`;
 
@@ -697,7 +697,7 @@ export async function sendTrialEndingEmail(
       Hi ${displayName}, just so there are no surprises: your Clipiro trial finishes on ${when}. ${chargeLine}
       If it isn't for you, cancel before then and you won't be charged anything.
     </p>
-    ${ctaButton("https://clipiro.com/billing", "Manage subscription →")}
+    ${ctaButton("https://clipiro.com/dashboard?billing=1&view=manage", "Manage subscription →")}
     ${emailFooter()}`;
 
   await sendEmail(to, `Your Clipiro trial ends tomorrow`, html, "trial-ending");
@@ -717,7 +717,7 @@ export async function sendSubscriptionCancelledEmail(
       Hi ${displayName}, we've cancelled your renewal, so you won't be charged again. ${untilLine}
       Any top-up credits you've bought stay on your account and never expire.
     </p>
-    ${ctaButton("https://clipiro.com/billing", "View billing →")}
+    ${ctaButton("https://clipiro.com/dashboard?billing=1", "View billing →")}
     <p style="color:#94a3b8;font-size:12px;margin:20px 0 0;">Changed your mind? You can pick a plan again any time.</p>
     ${emailFooter()}`;
 

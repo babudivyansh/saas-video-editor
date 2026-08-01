@@ -70,7 +70,8 @@ test("dashboard: mobile hamburger opens the nav drawer with the hidden header it
   // in the always-mounted account dropdown and the desktop ToolsSidebar.
   const drawer = page.getByTestId("mobile-nav-drawer");
   await expect(drawer.locator('a[href="/dashboard/settings"]')).toBeVisible();
-  await expect(drawer.locator('a[href="/billing"]').first()).toBeVisible();
+  // Billing is an overlay now, so its drawer entry is a button, not a link.
+  await expect(drawer.getByRole("button", { name: /upgrade|billing|plan/i }).first()).toBeVisible();
 
   await page.getByRole("button", { name: "Close menu" }).click();
   await expect(drawer).toBeHidden();
