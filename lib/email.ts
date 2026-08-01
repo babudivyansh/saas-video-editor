@@ -614,6 +614,117 @@ export async function sendCreditsRefilledEmail(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 8a-i. BILLING LIFECYCLE (2026-07 billing audit)
+// ─────────────────────────────────────────────────────────────────────────────
+// Recurring subscribers previously received no email on any renewal, ever, and
+// none at all when a card was declined — the one group being charged every
+// month was the one group never told anything.
+
+export async function sendSubscriptionRenewedEmail(
+  to: string, name: string, amountInPaise: number, creditsAdded: number, nextChargeAt: Date | null,
+): Promise<void> {
+  const displayName = name || "there";
+  const amount = `₹${Math.round(amountInPaise / 100).toLocaleString("en-IN")}`;
+  const nextLine = nextChargeAt
+    ? `<p style="color:#94a3b8;font-size:13px;margin:16px 0 0;">Your next payment is due on ${nextChargeAt.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}.</p>`
+    : "";
+  const html = `
+    ${emailHeader()}
+    <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 8px;">Your subscription renewed</h1>
+    <p style="color:#64748b;font-size:15px;margin:0 0 24px;">
+      Hi ${displayName}, we've received your payment of <strong>${amount}</strong> and topped your account back up.
+    </p>
+
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:16px;padding:28px;text-align:center;margin-bottom:24px;">
+      <p style="color:#1d4ed8;font-size:14px;font-weight:600;margin:0 0 4px;">CREDITS ADDED</p>
+      <span style="font-size:52px;font-weight:800;color:#1e40af;">${creditsAdded}</span>
+    </div>
+
+    ${ctaButton("https://clipiro.com/billing", "View billing →")}
+    ${nextLine}
+    ${emailFooter()}`;
+
+  await sendEmail(to, `Your Clipiro subscription renewed — ${amount}`, html, "subscription-renewed");
+}
+
+export async function sendPaymentFailedEmail(
+  to: string, name: string, reason: string | null, attempt: number,
+): Promise<void> {
+  const displayName = name || "there";
+  const reasonLine = reason
+    ? `<p style="color:#b45309;font-size:14px;margin:0 0 8px;"><strong>Reason given by the bank:</strong> ${reason}</p>`
+    : "";
+  const attemptLine = attempt > 1
+    ? `<p style="color:#94a3b8;font-size:12px;margin:16px 0 0;">This was attempt ${attempt}. We'll keep retrying for a few days before the plan stops.</p>`
+    : `<p style="color:#94a3b8;font-size:12px;margin:16px 0 0;">We'll retry automatically over the next few days.</p>`;
+  const html = `
+    ${emailHeader()}
+    <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 8px;">We couldn't process your payment</h1>
+    <p style="color:#64748b;font-size:15px;margin:0 0 20px;">
+      Hi ${displayName}, your latest Clipiro subscription payment didn't go through.
+      <strong>Your plan is still active</strong> — nothing has been taken away yet.
+    </p>
+
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:16px;padding:20px;margin-bottom:24px;">
+      ${reasonLine}
+      <p style="color:#92400e;font-size:14px;margin:0;">
+        The usual causes are an expired card, insufficient balance, or a bank block on recurring payments.
+      </p>
+    </div>
+
+    ${ctaButton("https://clipiro.com/billing", "Update payment method →")}
+    ${attemptLine}
+    ${emailFooter()}`;
+
+  await sendEmail(to, "Action needed: your Clipiro payment didn't go through", html, "payment-failed");
+}
+
+export async function sendTrialEndingEmail(
+  to: string, name: string, planName: string, priceInPaise: number, endsAt: Date | null,
+): Promise<void> {
+  const displayName = name || "there";
+  const amount = priceInPaise ? `₹${Math.round(priceInPaise / 100).toLocaleString("en-IN")}` : "";
+  const when = endsAt
+    ? endsAt.toLocaleDateString("en-IN", { day: "numeric", month: "long" })
+    : "tomorrow";
+  const chargeLine = amount
+    ? `Your card will be charged <strong>${amount}</strong> on ${when} and ${planName} continues uninterrupted.`
+    : `Your ${planName} plan continues on ${when}.`;
+  const html = `
+    ${emailHeader()}
+    <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 8px;">Your free trial ends tomorrow</h1>
+    <p style="color:#64748b;font-size:15px;margin:0 0 24px;">
+      Hi ${displayName}, just so there are no surprises: your Clipiro trial finishes on ${when}. ${chargeLine}
+      If it isn't for you, cancel before then and you won't be charged anything.
+    </p>
+    ${ctaButton("https://clipiro.com/billing", "Manage subscription →")}
+    ${emailFooter()}`;
+
+  await sendEmail(to, `Your Clipiro trial ends tomorrow`, html, "trial-ending");
+}
+
+export async function sendSubscriptionCancelledEmail(
+  to: string, name: string, accessUntil: Date | null,
+): Promise<void> {
+  const displayName = name || "there";
+  const untilLine = accessUntil
+    ? `You'll keep full access until <strong>${accessUntil.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}</strong>.`
+    : "You'll keep access until the end of your current billing period.";
+  const html = `
+    ${emailHeader()}
+    <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 8px;">Your subscription is set to end</h1>
+    <p style="color:#64748b;font-size:15px;margin:0 0 24px;">
+      Hi ${displayName}, we've cancelled your renewal, so you won't be charged again. ${untilLine}
+      Any top-up credits you've bought stay on your account and never expire.
+    </p>
+    ${ctaButton("https://clipiro.com/billing", "View billing →")}
+    <p style="color:#94a3b8;font-size:12px;margin:20px 0 0;">Changed your mind? You can pick a plan again any time.</p>
+    ${emailFooter()}`;
+
+  await sendEmail(to, "Your Clipiro subscription won't renew", html, "subscription-cancelled");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 8b. AUTO TOP-UP: one-click purchase link (2026-07 audit)
 // ─────────────────────────────────────────────────────────────────────────────
 // Auto top-up in India mostly can't complete as an instant background charge

@@ -5,6 +5,7 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
+import { sendSubscriptionCancelledEmail } from "@/lib/email";
 
 const razorpay = new Razorpay({
   key_id: env.RAZORPAY_KEY_ID,
@@ -51,10 +52,28 @@ async function handlePOST(req: NextRequest) {
   const updated = await prisma.user.update({
     where: { id: auth.userId },
     data: { subscriptionCancelledAt: new Date() },
-    select: { subscriptionCancelledAt: true, subscriptionEndsAt: true },
+    select: { subscriptionCancelledAt: true, subscriptionEndsAt: true, email: true, firstName: true, name: true },
   });
 
-  return NextResponse.json(updated);
+  if (user.razorpaySubscriptionId) {
+    await prisma.subscriptionEvent.create({
+      data: { userId: auth.userId, subscriptionId: user.razorpaySubscriptionId, type: "cancelled", reason: "user_requested" },
+    }).catch(() => {});
+  }
+
+  // Cancelling produced no confirmation of any kind before — no email, no
+  // in-app record — so a user had nothing to show for the request and no
+  // reassurance about how long their access lasts.
+  sendSubscriptionCancelledEmail(
+    updated.email,
+    updated.firstName ?? updated.name ?? "",
+    updated.subscriptionEndsAt,
+  ).catch((e) => logger.error("billing/cancel", `cancellation email failed for ${auth.userId}`, e));
+
+  return NextResponse.json({
+    subscriptionCancelledAt: updated.subscriptionCancelledAt,
+    subscriptionEndsAt: updated.subscriptionEndsAt,
+  });
 }
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "billing:cancel" });

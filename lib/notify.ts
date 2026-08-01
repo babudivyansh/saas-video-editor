@@ -16,7 +16,11 @@ export type NotificationType =
   | "admin_review_new"
   | "admin_review_reported"
   | "admin_review_spam_detected"
-  | "review_prompt";
+  | "review_prompt"
+  // Billing (2026-07 audit). The bell was review-only, so nothing about money
+  // ever reached the user in-app — a declined card had no surface at all.
+  | "billing_payment_failed"
+  | "billing_subscription_halted";
 
 export interface NotifyInput {
   userId: string;
