@@ -1,5 +1,6 @@
 import { redirectUri } from "./oauth";
 import { ProviderApiError } from "./errors";
+import { batchMostlyFailed, graphBatch } from "./meta-batch";
 import type { AudienceRow, NormalizedAccount, NormalizedPost, OAuthTokens, ProviderId, ProviderSync, SyncOptions } from "./types";
 import { env } from "@/lib/env";
 
@@ -207,6 +208,28 @@ async function graphPaged<T>(firstPath: string, token: string, max: number): Pro
 const BACKFILL_POSTS = 100;
 const STEADY_POSTS = 20;
 
+// Per-post insight metrics.
+//
+// VERIFY THESE AGAINST A LIVE ACCOUNT BEFORE TRUSTING THEM. Meta retires
+// insight metrics aggressively — `impressions` was removed for IG media in
+// Graph v22 — and a single unsupported name fails the whole sub-request rather
+// than being ignored. scripts/social-probe.mjs reports which of these actually
+// return data for a given account; lib/social/capabilities.ts should be authored
+// from that output, not from documentation.
+const FB_POST_METRICS = [
+  "post_impressions",
+  "post_impressions_unique",
+  "post_engaged_users",
+  "post_clicks",
+  "post_video_views",
+  "post_video_avg_time_watched",
+] as const;
+
+const IG_MEDIA_METRICS = ["reach", "saved", "shares", "views", "profile_visits", "follows"] as const;
+
+/** Reels-only. Requesting these on other media types fails the sub-request. */
+const IG_REEL_METRICS = ["ig_reels_avg_watch_time", "ig_reels_video_view_total_time"] as const;
+
 // Re-fetch one account's profile + recent posts/media with analytics.
 export async function syncAccount(
   providerAccountId: string,
@@ -243,24 +266,43 @@ async function syncFacebook(pageId: string, token: string, opts?: SyncOptions): 
       token,
       max,
     );
-    posts = await Promise.all(
-      feed.map(async (post) => {
-        const insights = await graph(`/${post.id}/insights?metric=post_impressions,post_engaged_users`, token).catch(
-          () => ({}),
-        );
-        const m = readInsights(insights as InsightsResponse);
-        return {
-          providerPostId: post.id,
-          caption: post.message,
-          thumbnailUrl: post.full_picture,
-          permalink: post.permalink_url,
-          mediaType: "post",
-          publishedAt: post.created_time ? new Date(post.created_time) : undefined,
-          reach: m.post_impressions,
-          likes: m.post_engaged_users,
-        } satisfies NormalizedPost;
-      }),
+    // Batched, not one call per post: a 100-post backfill previously fired 100
+    // concurrent Graph calls, which trips Meta's app-wide Business Use Case
+    // rate limit and degrades every user's sync.
+    const insights = await graphBatch<InsightsResponse>(
+      GRAPH,
+      feed.map((post) => ({
+        method: "GET" as const,
+        relative_url: `${post.id}/insights?metric=${FB_POST_METRICS.join(",")}`,
+      })),
+      token,
     );
+
+    posts = feed.map((post, i) => {
+      const result = insights[i];
+      const m = result?.ok ? readInsights(result.body) : {};
+      return {
+        providerPostId: post.id,
+        caption: post.message,
+        thumbnailUrl: post.full_picture,
+        permalink: post.permalink_url,
+        mediaType: "post",
+        publishedAt: post.created_time ? new Date(post.created_time) : undefined,
+        impressions: m.post_impressions,
+        reach: m.post_impressions_unique ?? m.post_impressions,
+        likes: m.post_engaged_users,
+        views: m.post_video_views,
+        linkClicks: m.post_clicks,
+        avgWatchTimeSec:
+          typeof m.post_video_avg_time_watched === "number"
+            ? m.post_video_avg_time_watched / 1000 // Graph reports milliseconds
+            : undefined,
+      } satisfies NormalizedPost;
+    });
+
+    if (batchMostlyFailed(insights)) {
+      partialError = "Facebook post insights were mostly unavailable for this sync.";
+    }
   } catch (e) {
     // Profile synced fine but posts didn't — persist what we have and surface why.
     partialError = `Facebook posts could not be fetched: ${(e as Error).message}`;
@@ -304,24 +346,57 @@ async function syncInstagram(igId: string, token: string, opts?: SyncOptions): P
       token,
       max,
     );
-    posts = await Promise.all(
-      media.map(async (item) => {
-        const insights = await graph(`/${item.id}/insights?metric=reach,saved`, token).catch(() => ({}));
-        const m = readInsights(insights as InsightsResponse);
-        return {
-          providerPostId: item.id,
-          caption: item.caption,
-          thumbnailUrl: item.thumbnail_url || item.media_url,
-          permalink: item.permalink,
-          mediaType: (item.media_product_type || item.media_type || "").toLowerCase() === "reels" ? "reel" : item.media_type?.toLowerCase(),
-          publishedAt: item.timestamp ? new Date(item.timestamp) : undefined,
-          likes: item.like_count,
-          comments: item.comments_count,
-          reach: m.reach,
-          saves: m.saved,
-        } satisfies NormalizedPost;
-      }),
+    // Reels expose watch-time metrics that other media types reject outright, so
+    // the metric list is per-item rather than uniform — asking for
+    // ig_reels_avg_watch_time on a carousel fails the whole sub-request.
+    const isReel = (item: { media_product_type?: string; media_type?: string }) =>
+      (item.media_product_type || item.media_type || "").toLowerCase() === "reels";
+
+    const insights = await graphBatch<InsightsResponse>(
+      GRAPH,
+      media.map((item) => ({
+        method: "GET" as const,
+        relative_url: `${item.id}/insights?metric=${(isReel(item)
+          ? [...IG_MEDIA_METRICS, ...IG_REEL_METRICS]
+          : IG_MEDIA_METRICS
+        ).join(",")}`,
+      })),
+      token,
     );
+
+    posts = media.map((item, i) => {
+      const result = insights[i];
+      const m = result?.ok ? readInsights(result.body) : {};
+      return {
+        providerPostId: item.id,
+        caption: item.caption,
+        thumbnailUrl: item.thumbnail_url || item.media_url,
+        permalink: item.permalink,
+        mediaType: isReel(item) ? "reel" : item.media_type?.toLowerCase(),
+        publishedAt: item.timestamp ? new Date(item.timestamp) : undefined,
+        likes: item.like_count,
+        comments: item.comments_count,
+        reach: m.reach,
+        saves: m.saved,
+        shares: m.shares,
+        views: m.views,
+        // Meta retired `impressions` for IG media in Graph v22; views is the
+        // documented stand-in, and capabilities.ts marks it as derived.
+        impressions: m.views,
+        profileVisits: m.profile_visits,
+        follows: m.follows,
+        watchTimeSec:
+          typeof m.ig_reels_video_view_total_time === "number"
+            ? m.ig_reels_video_view_total_time / 1000
+            : undefined,
+        avgWatchTimeSec:
+          typeof m.ig_reels_avg_watch_time === "number" ? m.ig_reels_avg_watch_time / 1000 : undefined,
+      } satisfies NormalizedPost;
+    });
+
+    if (batchMostlyFailed(insights)) {
+      partialError = "Instagram media insights were mostly unavailable for this sync.";
+    }
   } catch (e) {
     partialError = `Instagram media could not be fetched: ${(e as Error).message}`;
   }

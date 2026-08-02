@@ -133,6 +133,20 @@ async function markNeedsReauth(account: SocialAccount, reason: string): Promise<
 // ── Re-sync an existing account (manual refresh / scheduled job) ──────────────
 const SYNC_LOCK_TTL = 300; // seconds — generously above the slowest backfill
 
+/**
+ * Providers restate the most recent day or two after first publishing it, so a
+ * steady sync deliberately re-requests an overlap rather than resuming exactly
+ * where it stopped. The (accountId, date) unique makes the re-fetch a no-op
+ * update.
+ */
+const DAILY_RESTATEMENT_DAYS = 2;
+
+/** Where to resume daily metrics from, or undefined to let the adapter backfill. */
+function dailyMetricsSince(account: SocialAccount): Date | undefined {
+  if (!account.lastDailyMetricDate) return undefined;
+  return new Date(account.lastDailyMetricDate.getTime() - DAILY_RESTATEMENT_DAYS * 86_400_000);
+}
+
 export async function syncAccount(account: SocialAccount): Promise<void> {
   // Manual refresh, page-load auto-refresh, and the scheduled job can all fire
   // for the same account; the fixed-window counter doubles as a lock.
@@ -146,7 +160,10 @@ export async function syncAccount(account: SocialAccount): Promise<void> {
     // First sync (no posts yet) backfills deeper history so charts open useful.
     const backfill = (await prisma.socialPost.count({ where: { accountId: account.id } })) === 0;
     const sync: ProviderSync = await withRetry(() =>
-      PROVIDERS[account.provider as ProviderId].sync(account.providerAccountId, accessToken, { backfill }),
+      PROVIDERS[account.provider as ProviderId].sync(account.providerAccountId, accessToken, {
+        backfill,
+        since: dailyMetricsSince(account),
+      }),
     );
 
     await prisma.socialAccount.update({
@@ -616,7 +633,16 @@ async function persistSync(accountId: string, sync: ProviderSync): Promise<void>
       shares: p.shares,
       saves: p.saves,
       reach: p.reach,
+      impressions: p.impressions,
+      plays: p.plays,
       watchTimeSec: p.watchTimeSec,
+      avgWatchTimeSec: p.avgWatchTimeSec,
+      avgViewPercentage: p.avgViewPercentage,
+      ctr: p.ctr,
+      profileVisits: p.profileVisits,
+      follows: p.follows,
+      linkClicks: p.linkClicks,
+      navigationTaps: p.navigationTaps,
       metricsJson: (p.metrics ?? undefined) as Prisma.InputJsonValue | undefined,
       fetchedAt: new Date(),
     };
@@ -626,4 +652,98 @@ async function persistSync(accountId: string, sync: ProviderSync): Promise<void>
       update: data,
     });
   }
+
+  await persistDailyMetrics(accountId, sync);
+  await persistObservedCapabilities(accountId, sync);
+}
+
+/** Columns SocialDailyMetric has, so an unknown MetricKey lands in extraJson. */
+const DAILY_COLUMNS = new Set([
+  "impressions", "reach", "views", "plays",
+  "followers", "followersGained", "followersLost", "profileViews", "websiteClicks",
+  "likes", "comments", "shares", "saves", "totalInteractions", "accountsEngaged",
+  "watchTimeSec", "avgViewDurationSec", "avgViewPercentage", "ctr",
+  "postsPublished",
+]);
+
+/**
+ * Upsert provider-reported days.
+ *
+ * Idempotent on (accountId, date), which is what makes the deliberate 2-day
+ * re-fetch overlap safe: providers restate the most recent 24-48h, so a steady
+ * sync re-requests those days and overwrites rather than duplicating.
+ *
+ * The cursor advances only to the newest day RECEIVED, never to today — today is
+ * always partial, and recording it as complete would freeze a half-day of data.
+ */
+async function persistDailyMetrics(accountId: string, sync: ProviderSync): Promise<void> {
+  const days = sync.daily ?? [];
+  if (days.length === 0) return;
+
+  let newest: string | null = null;
+
+  for (const day of days) {
+    // Reject anything that is not a calendar date before it reaches @db.Date.
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day.date)) continue;
+    const date = new Date(`${day.date}T00:00:00.000Z`);
+    if (Number.isNaN(date.getTime())) continue;
+
+    const columns: Record<string, number> = {};
+    const extra: Record<string, number> = {};
+    for (const [key, value] of Object.entries(day.metrics)) {
+      if (!Number.isFinite(value)) continue;
+      if (DAILY_COLUMNS.has(key)) columns[key] = value;
+      else extra[key] = value;
+    }
+    if (Object.keys(columns).length === 0 && Object.keys(extra).length === 0) continue;
+
+    const data = {
+      ...columns,
+      extraJson: (Object.keys(extra).length > 0 ? extra : undefined) as Prisma.InputJsonValue | undefined,
+      source: "provider",
+      fetchedAt: new Date(),
+    };
+
+    await prisma.socialDailyMetric.upsert({
+      where: { accountId_date: { accountId, date } },
+      create: { accountId, date, ...data },
+      update: data,
+    });
+
+    if (newest === null || day.date > newest) newest = day.date;
+  }
+
+  if (newest !== null) {
+    await prisma.socialAccount.update({
+      where: { id: accountId },
+      data: { lastDailyMetricDate: new Date(`${newest}T00:00:00.000Z`) },
+    });
+  }
+}
+
+/**
+ * Record what this account's provider actually returned.
+ *
+ * Merged rather than replaced: one sync that skipped audience fetching must not
+ * erase what a previous sync established. This overlay is what lets the UI say
+ * "reconnect to grant yt-analytics.readonly" instead of showing a tile that is
+ * permanently and inexplicably empty.
+ */
+async function persistObservedCapabilities(accountId: string, sync: ProviderSync): Promise<void> {
+  const observed = sync.observedCapabilities;
+  if (!observed || Object.keys(observed).length === 0) return;
+
+  const existing = await prisma.socialAccount.findUnique({
+    where: { id: accountId },
+    select: { capabilitiesJson: true },
+  });
+  const prior =
+    existing?.capabilitiesJson && typeof existing.capabilitiesJson === "object"
+      ? (existing.capabilitiesJson as Record<string, string>)
+      : {};
+
+  await prisma.socialAccount.update({
+    where: { id: accountId },
+    data: { capabilitiesJson: { ...prior, ...observed } as Prisma.InputJsonValue },
+  });
 }

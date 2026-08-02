@@ -51,7 +51,16 @@ export interface NormalizedPost {
   shares?: number;
   saves?: number;
   reach?: number;
+  impressions?: number;
+  plays?: number;
   watchTimeSec?: number;
+  avgWatchTimeSec?: number;
+  avgViewPercentage?: number;
+  ctr?: number;
+  profileVisits?: number;
+  follows?: number;
+  linkClicks?: number;
+  navigationTaps?: number;
   metrics?: Record<string, unknown>;
 }
 
@@ -59,14 +68,57 @@ export interface NormalizedPost {
 // analytics start meaningful. Steady-state syncs fetch only the newest page.
 export interface SyncOptions {
   backfill?: boolean;
+  /**
+   * Earliest day to request daily metrics from. Steady-state syncs pass
+   * (lastDailyMetricDate - 2 days), because providers restate the most recent
+   * 24-48h; the overlap plus the (accountId, date) unique makes re-fetch
+   * idempotent.
+   */
+  since?: Date;
 }
 
-// One audience demographic data point (percentage of the account's audience).
+export type AudienceDimension =
+  | "age"
+  | "gender"
+  | "country"
+  | "city"
+  | "language"
+  | "device"
+  | "activeHour"
+  | "activeDay"
+  | "followerType";
+
+// One audience demographic data point.
 export interface AudienceRow {
-  dimension: "age" | "gender" | "country";
+  dimension: AudienceDimension;
   bucket: string;
-  value: number; // 0–100
+  value: number;
+  /**
+   * "percent" (0-100) or "count". Not optional in spirit: Instagram's
+   * online_followers returns ABSOLUTE COUNTS, and treating those as percentages
+   * renders bars reading 4,200%. Defaults to percent for existing callers.
+   */
+  unit?: "percent" | "count";
+  /**
+   * Which population this describes. Instagram exposes follower, reached and
+   * engaged demographics as three different audiences that must not be merged.
+   */
+  audience?: "followers" | "reached" | "engaged";
 }
+
+/** One provider-reported day, keyed by MetricKey. */
+export interface NormalizedDailyMetric {
+  /** yyyy-mm-dd in the provider's reporting timezone. */
+  date: string;
+  metrics: Record<string, number>;
+}
+
+/**
+ * What a sync observed about this account's metric coverage. Narrows the static
+ * matrix in ./capabilities so the UI can explain WHY a tile is empty instead of
+ * showing a permanent dash.
+ */
+export type ObservedCapabilityMap = Record<string, "native" | "derived" | "unavailable">;
 
 // One linked account plus its freshly-fetched analytics. `partialError` is set
 // when the profile fetch succeeded but posts/insights could not be fetched —
@@ -74,5 +126,10 @@ export interface AudienceRow {
 export interface ProviderSync {
   account: NormalizedAccount;
   posts: NormalizedPost[];
+  /** Per-day account metrics, when the provider reports them. */
+  daily?: NormalizedDailyMetric[];
+  /** Audience breakdowns, when fetched inline rather than on the weekly cadence. */
+  audience?: AudienceRow[];
+  observedCapabilities?: ObservedCapabilityMap;
   partialError?: string;
 }
