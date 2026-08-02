@@ -13,3 +13,8 @@ export * from "./timing";
 export * from "./alerts";
 export * from "./compare";
 export * from "./account";
+export * from "./scores";
+export * from "./growth";
+export * from "./forecast";
+export * from "./goals";
+export * from "./kpis";
