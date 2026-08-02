@@ -76,10 +76,13 @@ export async function GET(req: NextRequest) {
       })
     : [];
 
+  // One `now` for the whole payload, so every figure in it describes the same
+  // instant even if the computation straddles a second boundary.
+  const now = new Date();
   const payload = {
-    analytics: computeAnalytics(snapshots, posts, range),
+    analytics: computeAnalytics(snapshots, posts, range, now),
     bestTimes: computeBestTimes(posts, tz),
-    alerts: computeAlerts(snapshots, posts),
+    alerts: computeAlerts(snapshots, posts, now),
     benchmark: ER_BENCHMARKS[account.provider] ?? null,
     audience,
   };

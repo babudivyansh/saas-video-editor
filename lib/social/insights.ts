@@ -77,8 +77,9 @@ export async function generateInsight(accountId: string, provider: string): Prom
     }),
   ]);
 
-  const analytics = computeAnalytics(snapshots, posts, 7);
-  const alerts = computeAlerts(snapshots, posts);
+  const now = new Date();
+  const analytics = computeAnalytics(snapshots, posts, 7, now);
+  const alerts = computeAlerts(snapshots, posts, now);
   const { best } = computeBestTimes(posts);
   const context = buildInsightContext(provider, analytics, alerts, best);
 

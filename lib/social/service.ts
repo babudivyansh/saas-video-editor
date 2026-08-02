@@ -7,6 +7,7 @@ import * as google from "./google";
 import * as meta from "./meta";
 import { PROVIDERS } from "./providers";
 import { classifyError, withRetry } from "./errors";
+import { CACHE_TTL, cached, invalidateAccount, invalidateUser, keys, userVersion } from "./cache";
 import type { NormalizedAccount, OAuthProvider, OAuthTokens, ProviderId, ProviderSync } from "./types";
 import { logger } from "@/lib/logger";
 import { shouldSendCategory } from "@/lib/notifications";
@@ -160,7 +161,7 @@ export async function syncAccount(account: SocialAccount): Promise<void> {
     });
     await persistSync(account.id, sync);
     await refreshAudienceIfStale(account, accessToken);
-    await invalidateAnalytics(account.id);
+    await invalidateAccount(account.id, account.userId);
     await bumpSyncCounter("ok");
     logger.info("social", "sync completed", {
       accountId: account.id,
@@ -244,14 +245,13 @@ export async function disconnect(userId: string, accountId: string): Promise<boo
     /* revoke is best-effort; deletion below removes our copy regardless */
   }
   await prisma.socialAccount.delete({ where: { id: accountId } });
-  await invalidateOverview(userId);
-  await invalidateAnalytics(accountId);
+  await invalidateAccount(accountId, userId);
   await recordAudit(userId, "social.disconnect", accountId, { provider: account.provider });
   return true;
 }
 
 // ── Read side: dashboard overview (token fields are never selected) ──────────
-const OVERVIEW_TTL = 300; // seconds
+// TTL and cache keys live in ./cache, which owns every Redis key in the feature.
 
 // Safe projection — note no accessTokenEnc / refreshTokenEnc anywhere.
 const overviewSelect = {
@@ -282,42 +282,31 @@ const overviewSelect = {
 } satisfies Prisma.SocialAccountSelect;
 
 export async function getOverview(userId: string) {
-  const cacheKey = `social:overview:${userId}`;
-  const cached = await redis.get(cacheKey);
-  if (cached) {
-    try { return JSON.parse(cached); } catch { /* fall through to refetch */ }
-  }
-  const accounts = await prisma.socialAccount.findMany({
-    where: { userId },
-    orderBy: { createdAt: "asc" },
-    select: overviewSelect,
-  });
-  const payload = { accounts };
-  await redis.set(cacheKey, JSON.stringify(payload), "EX", OVERVIEW_TTL);
-  return payload;
+  const version = await userVersion(userId);
+  return cached(keys.overview(userId, version), CACHE_TTL, async () => ({
+    accounts: await prisma.socialAccount.findMany({
+      where: { userId },
+      orderBy: { createdAt: "asc" },
+      select: overviewSelect,
+    }),
+  }));
 }
 
+/** @deprecated Use `invalidateUser` / `invalidateAccount` from ./cache. */
 export async function invalidateOverview(userId: string): Promise<void> {
-  await redis.del(`social:overview:${userId}`);
+  await invalidateUser(userId);
 }
 
-// Computed-analytics cache (app/api/social/analytics) is keyed by a per-account
-// version stamp, since range/timezone variants make the key space open-ended.
-// Bumping the version orphans every cached variant at once (they expire by TTL).
+/** @deprecated Key construction now lives in ./cache. */
 export function analyticsCacheVersionKey(accountId: string): string {
-  return `social:analytics-ver:${accountId}`;
-}
-
-async function invalidateAnalytics(accountId: string): Promise<void> {
-  await redis.incrWithExpire(analyticsCacheVersionKey(accountId), 30 * 86400);
+  return keys.version(accountId);
 }
 
 // ── Refresh (manual / scheduled) ─────────────────────────────────────────────
 export async function refreshAccount(userId: string, accountId: string): Promise<boolean> {
   const account = await prisma.socialAccount.findFirst({ where: { id: accountId, userId } });
   if (!account) return false;
-  await syncAccount(account);
-  await invalidateOverview(userId);
+  await syncAccount(account); // already invalidates both versions
   await recordAudit(userId, "social.refresh", accountId, { provider: account.provider });
   return true;
 }
@@ -327,7 +316,9 @@ export async function refreshAllForUser(userId: string): Promise<void> {
   for (const a of accounts) {
     try { await syncAccount(a); } catch (e) { logger.error("social", `sync failed for ${a.id}`, e); }
   }
-  await invalidateOverview(userId);
+  // syncAccount invalidates per account; bump once more so a run where every
+  // account failed still refreshes the account list (statuses will have changed).
+  await invalidateUser(userId);
 }
 
 // Refresh active accounts whose data is older than `maxAgeHours`. Drives both
@@ -344,18 +335,19 @@ export async function refreshStaleAccounts(
   });
   let refreshed = 0;
   let failed = 0;
-  const affected = new Set<string>();
   for (const a of accounts) {
     try {
+      // syncAccount invalidates this account AND its owner's cross-account views
+      // before returning. Doing it here rather than after the loop matters: an
+      // account synced at iteration 3 of 50 used to keep serving pre-sync numbers
+      // for the rest of the run.
       await syncAccount(a);
       refreshed++;
-      affected.add(a.userId);
     } catch (e) {
       failed++;
       logger.error("social", `stale sync failed for ${a.id}`, e);
     }
   }
-  for (const uid of affected) await invalidateOverview(uid);
   return { refreshed, failed };
 }
 

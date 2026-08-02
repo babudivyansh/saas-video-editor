@@ -57,7 +57,7 @@ export default async function SocialReportPage({ params }: { params: Promise<{ t
       },
     }),
   ]);
-  const a = computeAnalytics(snapshots, posts, 30);
+  const a = computeAnalytics(snapshots, posts, 30, new Date());
   const platform = PROVIDER_LABELS[account.provider as ProviderId] ?? account.provider;
 
   return (
