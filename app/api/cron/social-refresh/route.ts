@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { refreshStaleAccounts, pruneOldSnapshots, sendWeeklyDigests } from "@/lib/social/service";
+import { refreshStaleAccounts, pruneTimeSeries, sendWeeklyDigests } from "@/lib/social/service";
 import { refreshStaleCompetitors } from "@/lib/social/competitors";
 import { refreshClipPublishMetrics } from "@/lib/autoclip-publish";
 import { recalibrateViralityWeights } from "@/lib/virality-calibration";
@@ -38,8 +38,9 @@ export async function GET(req: NextRequest) {
 
   const job = req.nextUrl.searchParams.get("job") ?? "refresh";
   if (job === "retention") {
-    const { deleted } = await pruneOldSnapshots();
-    return NextResponse.json({ ok: true, job, deleted });
+    const pruned = await pruneTimeSeries();
+    // `deleted` is retained for any existing monitoring that reads it.
+    return NextResponse.json({ ok: true, job, deleted: pruned.snapshots, pruned });
   }
   if (job === "digest") {
     const { sent } = await sendWeeklyDigests();

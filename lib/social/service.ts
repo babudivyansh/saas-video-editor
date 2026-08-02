@@ -408,8 +408,30 @@ export async function sendWeeklyDigests(): Promise<{ sent: number }> {
 // Snapshots older than 90 days collapse to one per account per day (the day's
 // latest). Charts past that horizon are daily-granularity anyway; this bounds
 // table growth to ~365 rows/account/year. Runs from the weekly cron job.
-export async function pruneOldSnapshots(): Promise<{ deleted: number }> {
-  const deleted = await prisma.$executeRaw`
+export interface RetentionResult {
+  /** Intra-day snapshot captures collapsed to one per day. */
+  snapshots: number;
+  /** Daily metric rows folded into monthly rollups. */
+  dailyMetrics: number;
+  /** Monthly rollup rows written back. */
+  rollups: number;
+  /** Audience captures collapsed to one per month. */
+  audience: number;
+  /** Competitor captures collapsed to one per day. */
+  competitors: number;
+}
+
+/**
+ * Time-series retention. Each table has a different shape and therefore a
+ * different policy — collapsing them into one rule would either lose resolution
+ * we need or keep rows nobody reads.
+ *
+ * Raw SQL throughout: `DISTINCT ON` is the right tool for "keep one row per
+ * group" and Postgres-specific, which is fine here.
+ */
+export async function pruneTimeSeries(): Promise<RetentionResult> {
+  // 1. Snapshots older than 90 days: keep one capture per day.
+  const snapshots = await prisma.$executeRaw`
     DELETE FROM "SocialAccountSnapshot"
     WHERE "capturedAt" < NOW() - INTERVAL '90 days'
       AND id NOT IN (
@@ -418,8 +440,79 @@ export async function pruneOldSnapshots(): Promise<{ deleted: number }> {
         WHERE "capturedAt" < NOW() - INTERVAL '90 days'
         ORDER BY "accountId", date_trunc('day', "capturedAt"), "capturedAt" DESC
       )`;
-  logger.info("social", "snapshot retention pruned", { deleted });
-  return { deleted };
+
+  // 2. Daily metrics older than 400 days roll up to one row per month.
+  //    400 rather than 365 so a year-over-year comparison always has a complete
+  //    prior year to compare against.
+  //
+  //    Sums for additive metrics; averages for rates, where summing would be
+  //    nonsense. `followers` takes the month's last value because it is a level,
+  //    not a flow. Written back as source='derived' so it is distinguishable
+  //    from provider data, and ON CONFLICT so a re-run is idempotent.
+  const rollups = await prisma.$executeRaw`
+    INSERT INTO "SocialDailyMetric" (
+      id, "accountId", date, impressions, reach, views, plays,
+      followers, "followersGained", "followersLost", "profileViews", "websiteClicks",
+      likes, comments, shares, saves, "totalInteractions", "accountsEngaged",
+      "watchTimeSec", "avgViewDurationSec", "avgViewPercentage", ctr,
+      "postsPublished", source, "fetchedAt"
+    )
+    SELECT
+      gen_random_uuid()::text,
+      "accountId",
+      date_trunc('month', date)::date,
+      SUM(impressions)::int, SUM(reach)::int, SUM(views)::int, SUM(plays)::int,
+      (ARRAY_AGG(followers ORDER BY date DESC) FILTER (WHERE followers IS NOT NULL))[1],
+      SUM("followersGained")::int, SUM("followersLost")::int,
+      SUM("profileViews")::int, SUM("websiteClicks")::int,
+      SUM(likes)::int, SUM(comments)::int, SUM(shares)::int, SUM(saves)::int,
+      SUM("totalInteractions")::int, SUM("accountsEngaged")::int,
+      SUM("watchTimeSec"),
+      AVG("avgViewDurationSec"), AVG("avgViewPercentage"), AVG(ctr),
+      SUM("postsPublished")::int,
+      'derived', NOW()
+    FROM "SocialDailyMetric"
+    WHERE date < (NOW() - INTERVAL '400 days')::date AND source = 'provider'
+    GROUP BY "accountId", date_trunc('month', date)
+    ON CONFLICT ("accountId", date) DO NOTHING`;
+
+  const dailyMetrics = await prisma.$executeRaw`
+    DELETE FROM "SocialDailyMetric"
+    WHERE date < (NOW() - INTERVAL '400 days')::date AND source = 'provider'`;
+
+  // 3. Audience captures older than 180 days: keep one per month. Demographics
+  //    move slowly, so monthly resolution loses nothing beyond that horizon.
+  const audience = await prisma.$executeRaw`
+    DELETE FROM "SocialAudienceSnapshot"
+    WHERE "capturedAt" < NOW() - INTERVAL '180 days'
+      AND id NOT IN (
+        SELECT DISTINCT ON ("accountId", dimension, bucket, audience, date_trunc('month', "capturedAt")) id
+        FROM "SocialAudienceSnapshot"
+        WHERE "capturedAt" < NOW() - INTERVAL '180 days'
+        ORDER BY "accountId", dimension, bucket, audience,
+                 date_trunc('month', "capturedAt"), "capturedAt" DESC
+      )`;
+
+  // 4. Competitor captures older than 400 days: keep one per day.
+  const competitors = await prisma.$executeRaw`
+    DELETE FROM "CompetitorSnapshot"
+    WHERE "capturedAt" < NOW() - INTERVAL '400 days'
+      AND id NOT IN (
+        SELECT DISTINCT ON ("competitorId", date_trunc('day', "capturedAt")) id
+        FROM "CompetitorSnapshot"
+        WHERE "capturedAt" < NOW() - INTERVAL '400 days'
+        ORDER BY "competitorId", date_trunc('day', "capturedAt"), "capturedAt" DESC
+      )`;
+
+  const result = { snapshots, dailyMetrics, rollups, audience, competitors };
+  logger.info("social", "time-series retention pruned", result);
+  return result;
+}
+
+/** @deprecated Renamed to `pruneTimeSeries`, which also covers the new tables. */
+export async function pruneOldSnapshots(): Promise<{ deleted: number }> {
+  const { snapshots } = await pruneTimeSeries();
+  return { deleted: snapshots };
 }
 
 // ── Audit trail ──────────────────────────────────────────────────────────────
