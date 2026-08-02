@@ -6,7 +6,7 @@ export const postingCadence: BlogPost = {
   category: "Growth",
   title: "Posting cadence: how often should you publish shorts?",
   metaDescription:
-    "How often should you post short-form video? A practical framework for finding your posting cadence across TikTok, Reels, and YouTube Shorts without burning out.",
+    "How often should you post short-form video? A practical framework for finding your posting cadence across Reels and YouTube Shorts without burning out.",
   publishedAt: "2025-11-03",
   updatedAt: "2026-07-26",
   author: AUTHORS.growth,
@@ -31,7 +31,7 @@ export const postingCadence: BlogPost = {
     },
     {
       heading: "Different platforms reward different cadences",
-      text: "TikTok and Instagram Reels tend to reward frequency more directly; YouTube Shorts has historically been more forgiving of a slower, steadier pace tied to a channel's existing subscriber base. If you're repurposing one long video across all three, consider staggering release rather than posting everywhere simultaneously — a clip that underperforms on TikTok can still be re-timed and posted to Shorts a few days later without looking recycled, since each platform's audience is largely separate.",
+      text: "Instagram Reels tends to reward frequency more directly; YouTube Shorts has historically been more forgiving of a slower, steadier pace tied to a channel's existing subscriber base. If you're repurposing one long video across both, consider staggering release rather than posting everywhere simultaneously — a clip that underperforms on Reels can still be re-timed and posted to Shorts a few days later without looking recycled, since each platform's audience is largely separate.",
     },
     {
       heading: "The floor is consistent, not frequent",
@@ -58,9 +58,9 @@ export const postingCadence: BlogPost = {
         "For most creators, once a day sustained consistently outperforms multiple posts in a single day followed by gaps. Algorithms on most platforms reward steady, spaced-out signal more than short bursts of high-frequency posting.",
     },
     {
-      question: "Should I use the same cadence on TikTok, Reels, and YouTube Shorts?",
+      question: "Should I use the same cadence on Reels and YouTube Shorts?",
       answer:
-        "Not necessarily. TikTok and Reels tend to reward frequency more directly, while YouTube Shorts is often more forgiving of a slower pace tied to your subscriber base. Staggering release across platforms instead of posting everywhere at once is usually more effective than a single identical schedule.",
+        "Not necessarily. Reels tends to reward frequency more directly, while YouTube Shorts is often more forgiving of a slower pace tied to your subscriber base. Staggering release across platforms instead of posting everywhere at once is usually more effective than a single identical schedule.",
     },
     {
       question: "How do I know if I'm posting too often?",

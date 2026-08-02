@@ -31,7 +31,6 @@ interface OwnAccount {
 
 const PROVIDER_OPTIONS = [
   { value: "instagram", label: "Instagram" },
-  { value: "tiktok", label: "TikTok" },
   { value: "youtube", label: "YouTube" },
 ];
 

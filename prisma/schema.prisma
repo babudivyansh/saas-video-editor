@@ -703,7 +703,7 @@ model CompetitorProfile {
   id           String               @id @default(cuid())
   userId       String
   user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  provider     String // instagram | tiktok | youtube
+  provider     String // instagram | youtube
   handle       String // public @handle / channel handle
   displayName  String?
   avatarUrl    String?

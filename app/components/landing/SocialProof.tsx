@@ -6,12 +6,12 @@ import Reveal from "@/app/components/Reveal";
 const STATS = [
   { value: "9:16", label: "Vertical auto-reframe" },
   { value: "50+", label: "AI narrator voices" },
-  { value: "4", label: "Platforms supported" },
+  { value: "3", label: "Platforms supported" },
   { value: "Free", label: "Plan, no card needed" },
 ];
 
 // Brand/usage strip — wordmarks rendered as text to stay dependency-free.
-const BRANDS = ["TikTok", "YouTube", "Instagram", "Spotify", "Twitch", "LinkedIn", "Podcasts", "Shorts"];
+const BRANDS = ["YouTube", "Instagram", "Spotify", "Twitch", "LinkedIn", "Podcasts", "Shorts"];
 
 export default function SocialProof() {
   return (

@@ -78,7 +78,7 @@ export const podcastToViralClips: BlogPost = {
     {
       question: "What aspect ratio should podcast clips use for social platforms?",
       answer:
-        "9:16 vertical is the standard for TikTok, Reels, and YouTube Shorts. Clipiro exports in 9:16, 1:1, and 16:9 presets from the same clip, so you can repurpose one export across platforms with different native formats without re-cutting from scratch.",
+        "9:16 vertical is the standard for Reels and YouTube Shorts. Clipiro exports in 9:16, 1:1, and 16:9 presets from the same clip, so you can repurpose one export across platforms with different native formats without re-cutting from scratch.",
     },
   ],
   closing:

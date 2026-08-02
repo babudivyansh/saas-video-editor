@@ -7,7 +7,6 @@ import { prisma } from "@/lib/prisma";
 import { resolveProviderPostId } from "@/lib/autoclip-publish";
 import { getValidAccessToken } from "@/lib/social/service";
 import { uploadVideo as uploadToYouTube, NeedsReauthError } from "@/lib/social/google";
-import { uploadVideo as uploadToTikTok, TikTokNeedsReauthError } from "@/lib/social/tiktok";
 import { downloadFile } from "@/utils/download";
 import { logger } from "@/lib/logger";
 
@@ -17,7 +16,7 @@ import { logger } from "@/lib/logger";
 // — publishing there needs both a new write scope grant AND a completed Meta
 // app review before any code here would even be authorized to call it, so
 // there's no "flip a flag" version of that — it's unbuilt, not just disabled.
-const AUTO_PUBLISH_PROVIDERS = new Set(["youtube", "tiktok"]);
+const AUTO_PUBLISH_PROVIDERS = new Set(["youtube"]);
 
 // GET /api/projects/[id]/clips/[clipId]/publish
 // Returns the user's connected social accounts (publish targets) and any
@@ -48,13 +47,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 // POST /api/projects/[id]/clips/[clipId]/publish { socialAccountId, permalink? }
 //
 // Two modes:
-//  - YouTube or TikTok + no permalink given: actually uploads the rendered
-//    clip via that platform's API (P2.5 for YouTube; TikTok's Content
-//    Posting API is implemented but UNVERIFIED — see lib/social/tiktok.ts's
-//    uploadVideo doc comment). Requires the connected account to have
-//    granted the relevant publish scope — accounts connected before that
-//    scope existed get a clear "reconnect" error rather than a confusing
-//    API failure.
+//  - YouTube + no permalink given: actually uploads the rendered clip via
+//    the platform's API (P2.5 for YouTube). Requires the connected account
+//    to have granted the relevant publish scope — accounts connected before
+//    that scope existed get a clear "reconnect" error rather than a
+//    confusing API failure.
 //  - Everything else (Instagram/Facebook, or an explicit permalink): the
 //    manual-link flow — actually pushing to Meta platforms needs both a new
 //    OAuth write scope this codebase doesn't request yet AND a completed
@@ -93,38 +90,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const buffer = fs.readFileSync(localPath);
       const title = clip.title || `Clip ${clip.index + 1}`;
 
-      if (account.provider === "youtube") {
-        const result = await uploadToYouTube(accessToken, {
-          buffer,
-          title,
-          description: "Published via Clipiro AutoClip",
-          privacyStatus: "unlisted", // safest default — user can change visibility on YouTube afterward
-        });
-        const publish = await prisma.clipPublish.create({
-          data: {
-            clipId, socialAccountId: account.id,
-            permalink: result.permalink, providerPostId: result.videoId,
-            status: "linked", publishedAt: new Date(),
-          },
-        });
-        return NextResponse.json({ publish }, { status: 201 });
-      }
-
-      // TikTok: publish is asynchronous and unverified (see uploadVideo's doc
-      // comment) — record it as "pending" with the publishId as a reference,
-      // not "linked" with a real permalink, since we don't have one yet and
-      // there's no status-polling implemented to learn when/if it goes live.
-      const result = await uploadToTikTok(accessToken, { buffer, title });
+      const result = await uploadToYouTube(accessToken, {
+        buffer,
+        title,
+        description: "Published via Clipiro AutoClip",
+        privacyStatus: "unlisted", // safest default — user can change visibility on YouTube afterward
+      });
       const publish = await prisma.clipPublish.create({
         data: {
           clipId, socialAccountId: account.id,
-          providerPostId: result.publishId,
-          status: "pending",
+          permalink: result.permalink, providerPostId: result.videoId,
+          status: "linked", publishedAt: new Date(),
         },
       });
       return NextResponse.json({ publish }, { status: 201 });
     } catch (err) {
-      if (err instanceof NeedsReauthError || err instanceof TikTokNeedsReauthError) {
+      if (err instanceof NeedsReauthError) {
         await prisma.socialAccount.update({ where: { id: account.id }, data: { status: "needs_reauth" } });
         return NextResponse.json({ error: err.message, needsReauth: true }, { status: 409 });
       }

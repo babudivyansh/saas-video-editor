@@ -35,13 +35,9 @@ export function normalizePermalink(url: string): string | null {
   }
 }
 
-// YouTube and TikTok permalinks encode the provider post id (the video id).
+// YouTube permalinks encode the provider post id (the video id).
 export function providerPostIdFromPermalink(provider: string, permalink: string): string | null {
   if (provider === "youtube") return extractYouTubeId(permalink);
-  if (provider === "tiktok") {
-    const m = /tiktok\.com\/@[\w.-]+\/video\/(\d+)/.exec(permalink);
-    return m ? m[1] : null;
-  }
   return null;
 }
 

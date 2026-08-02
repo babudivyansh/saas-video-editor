@@ -96,7 +96,7 @@ const doc: LegalDoc = {
           <ul>
             <li>Your own website, blog, or online publication with original content</li>
             <li>
-              YouTube, TikTok, Instagram, Twitter/X, LinkedIn, and other social media platforms where you have a genuine
+              YouTube, Instagram, Twitter/X, LinkedIn, and other social media platforms where you have a genuine
               following
             </li>
             <li>Email newsletters to your own opted-in subscriber list (no purchased or rented lists)</li>

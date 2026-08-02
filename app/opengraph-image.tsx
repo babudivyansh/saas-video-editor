@@ -68,7 +68,7 @@ export default function OpengraphImage() {
             lineHeight: 1.4,
           }}
         >
-          AI clipping, captions, and one-click formatting for TikTok, Reels &amp; Shorts
+          AI clipping, captions, and one-click formatting for Reels &amp; Shorts
         </div>
       </div>
     ),

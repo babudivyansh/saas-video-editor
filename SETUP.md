@@ -85,7 +85,9 @@ The app is deployed live at clipiro.com via cPanel's **Setup Node.js App**
 
 Three routes expect an external scheduler and are fail-closed (401) unless
 `CRON_SECRET` / `SOCIAL_REFRESH_SECRET` are set in `.env` — set them, then add
-matching entries under cPanel → **Cron Jobs**:
+matching entries under cPanel → **Cron Jobs**. Social Tracker's `social-refresh`
+route runs three separate jobs off the same secret (`refresh` hourly,
+`retention` and `digest` weekly), so it needs three crontab entries on its own:
 
 ```
 # Monthly credit refill + subscription expiry — daily is enough, the route
@@ -94,6 +96,12 @@ matching entries under cPanel → **Cron Jobs**:
 
 # Social Tracker snapshot refresh
 0 * * * * curl -s -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" https://clipiro.com/api/cron/social-refresh
+
+# Social Tracker weekly retention check
+0 3 * * 1 curl -s -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" https://clipiro.com/api/cron/social-refresh?job=retention
+
+# Social Tracker weekly digest email
+0 8 * * 1 curl -s -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" https://clipiro.com/api/cron/social-refresh?job=digest
 
 # Affiliate commission payout notifications — daily is enough; the route only
 # acts on commissions whose 30-day hold has already elapsed, so a missed day
@@ -104,3 +112,23 @@ matching entries under cPanel → **Cron Jobs**:
 
 Use cPanel's Cron Jobs UI to enter the schedule and command — it writes to the
 same underlying crontab, this is just documenting what to enter.
+
+## 8. Social Tracker — manual OAuth verification
+
+All Social Tracker OAuth/sync code is covered by mocked unit tests only — none
+of it has ever been run against a real account. Before relying on it in
+production, do one manual pass:
+
+- [ ] Connect a real YouTube account from `/dashboard/social-tracker`; confirm
+      the initial sync populates followers, views, and recent videos.
+- [ ] Connect a real Meta account (Instagram and/or Facebook Page); confirm
+      the initial sync populates followers, reach, and recent posts.
+- [ ] Wait past each provider's access-token lifetime (or temporarily lower
+      `REFRESH_WINDOW_MS` in `lib/social/service.ts` for the test) and confirm
+      the next scheduled sync transparently refreshes the token instead of
+      marking the account `needs_reauth`.
+- [ ] Confirm `fetchAudience` (YouTube Analytics, Instagram follower insights)
+      returns real demographic data, not just an empty array.
+
+This checklist is a reminder, not automation — it requires real connected
+accounts and has to be run by hand.

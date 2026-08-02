@@ -47,7 +47,7 @@ const REQUIREMENTS = [
 ];
 
 const DOS = [
-  "Your own website, blog, or YouTube/TikTok/Instagram content",
+  "Your own website, blog, or YouTube/Instagram content",
   "Opted-in email newsletters to your own subscriber list",
   "Honest reviews, tutorials, or comparison content",
 ];

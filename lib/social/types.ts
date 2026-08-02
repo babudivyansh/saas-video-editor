@@ -2,18 +2,16 @@
 // (google.ts, meta.ts) normalizes its API into these so the service + UI never
 // care which platform the data came from.
 
-export type ProviderId = "youtube" | "instagram" | "facebook" | "tiktok";
+export type ProviderId = "youtube" | "instagram" | "facebook";
 
 // Which OAuth app a provider authenticates through. Instagram + Facebook share
-// one Meta app, so they map to the "meta" callback; YouTube uses Google;
-// TikTok has its own app (Display API).
-export type OAuthProvider = "youtube" | "meta" | "tiktok";
+// one Meta app, so they map to the "meta" callback; YouTube uses Google.
+export type OAuthProvider = "youtube" | "meta";
 
 export const PROVIDER_LABELS: Record<ProviderId, string> = {
   youtube: "YouTube",
   instagram: "Instagram",
   facebook: "Facebook",
-  tiktok: "TikTok",
 };
 
 export interface OAuthTokens {
