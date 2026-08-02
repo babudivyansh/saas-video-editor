@@ -203,14 +203,14 @@ async function getClipsFromGemini(
   const hasTranscript = transcriptText.trim().length > 0;
 
   const sharedRules = `Return ONLY a valid JSON array — no explanation, no markdown fences. Example:
-[{"start":12.5,"end":35.0,"title":"The mistake everyone makes","hook":87,"pacing":75,"payoff":80,"engagement":82,"mood":"energetic","brollQuery":"city traffic at night","brollOffsetSec":8.0,"reasoning":"A very high energy hook that immediately challenges the viewer. Pacing remains fast throughout.","hookExplanation":"The hook poses a counter-intuitive question in the first 2 seconds, forcing curiosity.","retentionPrediction":"High: Pacing has no gaps, and the story resolves in under 25 seconds.","audience":"Content creators, marketing professionals","platform":"TikTok, YouTube Shorts","suggestedPostingTime":"5:00 PM - 8:00 PM local time","hashtags":["#videomarketing","#contentcreation","#growth"],"suggestedCaption":"Avoid this one mistake at all costs!"}]
+[{"start":12.5,"end":35.0,"title":"The mistake everyone makes","hook":87,"pacing":75,"payoff":80,"engagement":82,"mood":"energetic","brollQuery":"city traffic at night","brollOffsetSec":8.0,"reasoning":"A very high energy hook that immediately challenges the viewer. Pacing remains fast throughout.","hookExplanation":"The hook poses a counter-intuitive question in the first 2 seconds, forcing curiosity.","retentionPrediction":"High: Pacing has no gaps, and the story resolves in under 25 seconds.","audience":"Content creators, marketing professionals","platform":"YouTube Shorts, Instagram Reels","suggestedPostingTime":"5:00 PM - 8:00 PM local time","hashtags":["#videomarketing","#contentcreation","#growth"],"suggestedCaption":"Avoid this one mistake at all costs!"}]
 
 For each clip include:
 - "title": a short, punchy, scroll-stopping hook (max 60 characters), no quotes inside
 - "hook": 0-99, how strong/attention-grabbing the first 2 seconds are
 - "pacing": 0-99, how tight and well-paced the clip is (no dead air, no rambling)
 - "payoff": 0-99, whether the clip has a clear punchline, insight, or resolution
-- "engagement": 0-99, overall predicted engagement if posted to TikTok/Reels/Shorts
+- "engagement": 0-99, overall predicted engagement if posted to Reels/Shorts
 - "mood": one of "energetic", "calm", "dramatic", "funny", "neutral" — the dominant emotional tone
 - "brollQuery": a short 2-4 word visual search term for stock B-roll footage (or null if none needed)
 - "brollOffsetSec": seconds from THIS clip's own start (not the source video) where the B-roll should play — pick a moment where the speaker is describing something visual rather than delivering the hook or punchline (or null if brollQuery is null)
@@ -218,7 +218,7 @@ For each clip include:
 - "hookExplanation": brief explanation of the initial hook's strength
 - "retentionPrediction": short sentence predicting viewer retention potential
 - "audience": target audience demographic
-- "platform": best social platforms for this video (e.g. TikTok, Reels, Shorts)
+- "platform": best social platforms for this video (e.g. YouTube Shorts, Instagram Reels)
 - "suggestedPostingTime": time window suggestion for maximum exposure
 - "hashtags": array of 3-4 trending hashtags
 - "suggestedCaption": engaging, ready-to-use social caption
@@ -291,7 +291,7 @@ ${sharedRules}`;
       hookExplanation: (typeof c.hookExplanation === "string" && c.hookExplanation.trim()) ? c.hookExplanation.trim() : "Strong dynamic start.",
       retentionPrediction: (typeof c.retentionPrediction === "string" && c.retentionPrediction.trim()) ? c.retentionPrediction.trim() : "High potential retention.",
       audience: (typeof c.audience === "string" && c.audience.trim()) ? c.audience.trim() : "General social media audience.",
-      platform: (typeof c.platform === "string" && c.platform.trim()) ? c.platform.trim() : "TikTok, Shorts, Reels",
+      platform: (typeof c.platform === "string" && c.platform.trim()) ? c.platform.trim() : "YouTube Shorts, Instagram Reels",
       suggestedPostingTime: (typeof c.suggestedPostingTime === "string" && c.suggestedPostingTime.trim()) ? c.suggestedPostingTime.trim() : "5:00 PM local time",
       hashtags: Array.isArray(c.hashtags) ? c.hashtags.map(String) : ["#highlight", "#viral"],
       suggestedCaption: (typeof c.suggestedCaption === "string" && c.suggestedCaption.trim()) ? c.suggestedCaption.trim() : "Check out this amazing moment!",

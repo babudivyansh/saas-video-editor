@@ -489,7 +489,6 @@ function PublishPanel({ projectId, clip }: { projectId: string; clip: ClipItem }
 
   const selectedAccount = accounts.find((a) => a.id === accountId);
   const isYoutube = selectedAccount?.provider === "youtube";
-  const isTiktok = selectedAccount?.provider === "tiktok";
 
   async function submit(body: { permalink?: string }) {
     if (!accountId) return;
@@ -527,12 +526,6 @@ function PublishPanel({ projectId, clip }: { projectId: string; clip: ClipItem }
               <p className="text-[10px] text-gray-400">Uploads this clip directly to YouTube as Unlisted — change visibility on YouTube afterward if you want it Public.</p>
               {err && <p className="text-[11px] text-red-600">{err} {needsReauth && <a href="/dashboard/social-tracker" className="underline font-semibold">Reconnect →</a>}</p>}
               <button onClick={() => submit({})} disabled={busy} className="w-full text-xs font-semibold py-1.5 rounded-lg grad-brand text-white shadow-glow disabled:opacity-50">{busy ? "Uploading…" : "Publish to YouTube"}</button>
-            </>
-          ) : isTiktok ? (
-            <>
-              <p className="text-[10px] text-amber-600">Experimental: uploads directly to TikTok as private (only visible to you) — this path hasn&apos;t been verified against a real TikTok account yet, so double-check it worked on TikTok afterward.</p>
-              {err && <p className="text-[11px] text-red-600">{err} {needsReauth && <a href="/dashboard/social-tracker" className="underline font-semibold">Reconnect →</a>}</p>}
-              <button onClick={() => submit({})} disabled={busy} className="w-full text-xs font-semibold py-1.5 rounded-lg grad-brand text-white shadow-glow disabled:opacity-50">{busy ? "Uploading…" : "Publish to TikTok (experimental)"}</button>
             </>
           ) : (
             <>
@@ -1562,7 +1555,7 @@ function ClipEditorDrawer({
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Ideal Platforms</h4>
-                  <p className="text-sm font-semibold text-gray-800">{bd?.platform || "TikTok, Shorts, Reels"}</p>
+                  <p className="text-sm font-semibold text-gray-800">{bd?.platform || "YouTube Shorts, Instagram Reels"}</p>
                 </div>
                 <div className="col-span-2">
                   <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Suggested Posting Time</h4>

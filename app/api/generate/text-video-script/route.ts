@@ -39,7 +39,7 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "tone must be one of: funny, dramatic, romantic, scary" }, { status: 400 });
   }
 
-  const systemPrompt = `You are a viral TikTok fake-texts screenwriter. Generate a realistic SMS text message conversation for the following topic.
+  const systemPrompt = `You are a viral fake-texts screenwriter for short-form video. Generate a realistic SMS text message conversation for the following topic.
 
 Topic: ${prompt}
 Tone: ${tone.toUpperCase()} — ${TONE_PROMPTS[tone]}

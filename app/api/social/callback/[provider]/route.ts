@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
   const code = sp.get("code");
   const state = sp.get("state");
   if (!code || !state) return NextResponse.redirect(dest(req, { error: "missing_code" }));
-  if (provider !== "youtube" && provider !== "meta" && provider !== "tiktok") {
+  if (provider !== "youtube" && provider !== "meta") {
     return NextResponse.redirect(dest(req, { error: "bad_provider" }));
   }
 

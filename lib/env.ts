@@ -105,10 +105,6 @@ const schema = z.object({
   // Meta (Facebook/Instagram) OAuth — social account linking.
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
-  // TikTok Display API OAuth — social account linking. The TikTok connect card
-  // only appears once these are set (requires an approved TikTok developer app).
-  TIKTOK_CLIENT_KEY: z.string().optional(),
-  TIKTOK_CLIENT_SECRET: z.string().optional(),
   // Competitor tracking public-data vendor (pay-as-you-go). Feature is hidden
   // until the key is set; the monthly budget hard-caps vendor spend.
   SCRAPECREATORS_API_KEY: z.string().optional(),

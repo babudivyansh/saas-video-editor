@@ -19,7 +19,7 @@ function IcSocial() {
   );
 }
 
-type Provider = "youtube" | "instagram" | "facebook" | "tiktok";
+type Provider = "youtube" | "instagram" | "facebook";
 
 interface Post {
   id: string;
@@ -86,17 +86,6 @@ const PLATFORMS: Record<Provider, { name: string; color: string; bg: string; ico
     icon: (
       <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
         <path d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07c0 6 4.39 10.97 10.13 11.85v-8.38H7.08v-3.47h3.05V9.43c0-3 1.79-4.67 4.53-4.67 1.31 0 2.68.24 2.68.24v2.95H15.83c-1.49 0-1.96.93-1.96 1.87v2.25h3.33l-.53 3.47h-2.8v8.38C19.61 23.04 24 18.07 24 12.07z" />
-      </svg>
-    ),
-  },
-  tiktok: {
-    name: "TikTok",
-    color: "#161823",
-    bg: "#f3f4f6",
-    note: "Follower count, video views & engagement",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
-        <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005.1 20.14a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1.14-.14z" />
       </svg>
     ),
   },

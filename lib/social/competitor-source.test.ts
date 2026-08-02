@@ -17,9 +17,9 @@ describe("normalizeProfile", () => {
     expect(p).toEqual({ displayName: "Creator", avatarUrl: "https://x/pic.jpg", followers: 12345 });
   });
 
-  it("plucks TikTok-shaped payloads with nested stats", () => {
-    const p = normalizeProfile({ user: { nickname: "Tok", avatar_url: "https://x/a.jpg", stats: { followerCount: 999 } } });
-    expect(p.displayName).toBe("Tok");
+  it("plucks payloads with nested stats", () => {
+    const p = normalizeProfile({ user: { nickname: "Creator", avatar_url: "https://x/a.jpg", stats: { followerCount: 999 } } });
+    expect(p.displayName).toBe("Creator");
     expect(p.followers).toBe(999);
   });
 

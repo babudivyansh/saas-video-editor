@@ -4,9 +4,8 @@ import { getOverview } from "@/lib/social/service";
 import { availableProviders } from "@/lib/social/providers";
 
 // Dashboard payload: linked accounts + latest metrics + recent posts + trend
-// snapshots, plus which providers this deployment can connect (TikTok only
-// appears once its app credentials are configured). Token fields are never
-// selected (see service.overviewSelect).
+// snapshots, plus which providers this deployment can connect. Token fields
+// are never selected (see service.overviewSelect).
 export async function GET(req: NextRequest) {
   const auth = await requireSubscriber(req);
   if (!auth) {

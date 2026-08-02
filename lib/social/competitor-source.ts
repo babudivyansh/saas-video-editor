@@ -16,8 +16,8 @@ export interface PublicProfile {
   followers: number | null;
 }
 
-export type CompetitorProvider = "instagram" | "tiktok" | "youtube";
-export const COMPETITOR_PROVIDERS: CompetitorProvider[] = ["instagram", "tiktok", "youtube"];
+export type CompetitorProvider = "instagram" | "youtube";
+export const COMPETITOR_PROVIDERS: CompetitorProvider[] = ["instagram", "youtube"];
 
 const API = "https://api.scrapecreators.com/v1";
 
@@ -71,7 +71,6 @@ export function normalizeProfile(raw: Record<string, unknown>): PublicProfile {
 
 const ENDPOINTS: Record<CompetitorProvider, (handle: string) => string> = {
   instagram: (h) => `${API}/instagram/profile?handle=${encodeURIComponent(h)}`,
-  tiktok: (h) => `${API}/tiktok/profile?handle=${encodeURIComponent(h)}`,
   youtube: (h) => `${API}/youtube/channel?handle=${encodeURIComponent(h)}`,
 };
 

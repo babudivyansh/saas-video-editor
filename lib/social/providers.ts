@@ -1,6 +1,5 @@
 import * as google from "./google";
 import * as meta from "./meta";
-import * as tiktok from "./tiktok";
 import type { AudienceRow, OAuthProvider, OAuthTokens, ProviderId, ProviderSync, SyncOptions } from "./types";
 
 // One uniform surface per platform so the sync engine and routes never branch
@@ -47,18 +46,10 @@ export const PROVIDERS: Record<ProviderId, ProviderAdapter> = {
   youtube,
   instagram: metaAdapter("instagram"),
   facebook: metaAdapter("facebook"),
-  tiktok: {
-    oauthApp: "tiktok",
-    getAuthUrl: tiktok.getAuthUrl,
-    refreshTokens: (refreshToken) => tiktok.refreshTokens(refreshToken),
-    sync: (_providerAccountId, accessToken, opts) => tiktok.sync(accessToken, opts),
-    revoke: tiktok.revoke,
-  },
 };
 
 // Providers whose OAuth app is actually configured in this deployment — the
-// UI only offers these. YouTube/Meta cards keep their historical always-on
-// behavior (their connect flow reports missing config); TikTok is opt-in.
+// UI only offers these.
 export function availableProviders(): ProviderId[] {
-  return (Object.keys(PROVIDERS) as ProviderId[]).filter((p) => p !== "tiktok" || tiktok.isConfigured());
+  return Object.keys(PROVIDERS) as ProviderId[];
 }

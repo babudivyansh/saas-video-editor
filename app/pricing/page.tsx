@@ -176,7 +176,7 @@ const FAQS = [
   },
   {
     q: "Can I use the videos commercially?",
-    a: "Yes. All videos generated with Clipiro are yours to use commercially on any platform — TikTok, YouTube, Instagram, client work, and more.",
+    a: "Yes. All videos generated with Clipiro are yours to use commercially on any platform — YouTube, Instagram, client work, and more.",
   },
   {
     q: "What payment methods are accepted?",

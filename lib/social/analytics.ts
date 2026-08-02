@@ -220,7 +220,6 @@ export const ER_BENCHMARKS: Record<string, { low: number; high: number }> = {
   instagram: { low: 1, high: 3.5 },
   facebook: { low: 0.5, high: 2 },
   youtube: { low: 2, high: 5 },
-  tiktok: { low: 3, high: 9 },
 };
 
 // Snapshots must be sorted ascending by capturedAt; posts in any order.

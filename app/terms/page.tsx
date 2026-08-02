@@ -158,7 +158,7 @@ const doc: LegalDoc = {
           </p>
           <ul>
             <li>Generate videos for personal, educational, or commercial use within the bounds of these Terms</li>
-            <li>Use generated videos on social media platforms (TikTok, YouTube, Instagram, etc.)</li>
+            <li>Use generated videos on social media platforms (YouTube, Instagram, etc.)</li>
             <li>Monetise generated content on platforms that permit AI-generated material</li>
           </ul>
         </>

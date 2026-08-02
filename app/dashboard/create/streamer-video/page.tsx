@@ -235,13 +235,13 @@ function UploadStep({
   const [linkError, setLinkError] = useState("");
 
   function isValidUrl(url: string) {
-    return /youtube\.com|youtu\.be|tiktok\.com/.test(url);
+    return /youtube\.com|youtu\.be/.test(url);
   }
 
   function handleLinkSubmit() {
     if (!link.trim()) return;
     if (!isValidUrl(link)) {
-      setLinkError("Please enter a valid YouTube or TikTok link.");
+      setLinkError("Please enter a valid YouTube link.");
       return;
     }
     setLinkError("");
@@ -303,7 +303,7 @@ function UploadStep({
         </div>
 
         <div className="px-4">
-          <p className="text-sm text-gray-500 mb-2">Add Youtube or Tiktok link</p>
+          <p className="text-sm text-gray-500 mb-2">Add YouTube link</p>
           <div className="flex items-center gap-2">
             <input
               value={link}
