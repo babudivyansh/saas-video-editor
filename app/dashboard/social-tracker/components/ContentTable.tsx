@@ -12,6 +12,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { fmtCompact, fmtDateShort, fmtDuration, fmtPct } from "@/app/components/charts/format";
 import { Button } from "@/app/components/ui/Button";
 import type { MetricKey, Support } from "@/lib/social/capabilities";
+import { useSocialApi } from "./useSocialApi";
 
 export interface ContentPost {
   id: string;
@@ -84,15 +85,15 @@ export function ContentTable({
   const loading = state.key !== key;
   const { posts, cursor, error } = state;
 
+  const api = useSocialApi();
+
   const fetchPage = useCallback(
     async (nextCursor?: string) => {
       const qs = new URLSearchParams({ accountId, sort, limit: "25" });
       if (nextCursor) qs.set("cursor", nextCursor);
-      const res = await fetch(`/api/social/content?${qs}`);
-      if (!res.ok) throw new Error(`Request failed (${res.status})`);
-      return (await res.json()).data as { posts: ContentPost[]; nextCursor: string | null };
+      return api<{ posts: ContentPost[]; nextCursor: string | null }>(`/api/social/content?${qs}`);
     },
-    [accountId, sort],
+    [api, accountId, sort],
   );
 
   // The first page loads inside the effect with a cancellation flag. Beyond

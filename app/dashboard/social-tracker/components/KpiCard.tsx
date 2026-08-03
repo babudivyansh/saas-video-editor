@@ -152,14 +152,30 @@ function ValueText({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Animates BETWEEN values, and renders the real value on first paint.
+ *
+ * Counting up from zero on mount looked right in isolation and was wrong in
+ * practice: this is a Server Component tree, so the server emitted "0" for every
+ * live KPI, which is a hydration mismatch and — worse — briefly shows the user
+ * numbers that are not true. Motion belongs on a *change* (a filter or range
+ * switch), where it communicates that the figure moved. On mount there is
+ * nothing to communicate.
+ */
 function CountUpValue({ value, unit }: { value: number; unit: ValueUnit }) {
-  const [shown, setShown] = useState(0);
+  const [shown, setShown] = useState(value);
+  const previous = useRef(value);
   const frame = useRef<number | null>(null);
 
   useEffect(() => {
+    const from = previous.current;
+    previous.current = value;
+    // First paint, or an unchanged value: nothing to animate, and no setState
+    // in the effect body.
+    if (from === value) return;
+
     const DURATION = 700;
     const start = performance.now();
-    const from = 0;
 
     const step = (now: number) => {
       const t = Math.min(1, (now - start) / DURATION);

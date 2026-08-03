@@ -11,6 +11,7 @@ import { Button } from "@/app/components/ui/Button";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { FieldLabel, Input } from "@/app/components/ui/Field";
 import { useToast } from "@/app/components/ui/Toast";
+import { useSocialApi } from "./useSocialApi";
 
 export interface TrackedCompetitor {
   id: string;
@@ -32,6 +33,7 @@ export function CompetitorManager({
 }) {
   const router = useRouter();
   const { showToast } = useToast();
+  const api = useSocialApi();
   const [provider, setProvider] = useState<string>("instagram");
   const [handle, setHandle] = useState("");
   const [busy, setBusy] = useState(false);
@@ -43,15 +45,10 @@ export function CompetitorManager({
       if (!handle.trim()) return;
       setBusy(true);
       try {
-        const res = await fetch("/api/social/competitors", {
+        await api("/api/social/competitors", {
           method: "POST",
-          headers: { "content-type": "application/json" },
           body: JSON.stringify({ provider, handle: handle.trim() }),
         });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body.error ?? `Request failed (${res.status})`);
-        }
         showToast(`Now tracking @${handle.replace(/^@/, "")}`, "success");
         setHandle("");
         router.refresh();
@@ -61,15 +58,14 @@ export function CompetitorManager({
         setBusy(false);
       }
     },
-    [handle, provider, router, showToast],
+    [api, handle, provider, router, showToast],
   );
 
   const remove = useCallback(async () => {
     if (!pendingRemove) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/social/competitors/${pendingRemove.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      await api(`/api/social/competitors/${pendingRemove.id}`, { method: "DELETE" });
       showToast(`Stopped tracking @${pendingRemove.handle}`, "success");
       router.refresh();
     } catch {
@@ -78,7 +74,7 @@ export function CompetitorManager({
       setBusy(false);
       setPendingRemove(null);
     }
-  }, [pendingRemove, router, showToast]);
+  }, [api, pendingRemove, router, showToast]);
 
   return (
     <section

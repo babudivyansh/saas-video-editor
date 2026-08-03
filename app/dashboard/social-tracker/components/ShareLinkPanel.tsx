@@ -14,6 +14,7 @@
 import { useCallback, useState } from "react";
 import { Button } from "@/app/components/ui/Button";
 import { useToast } from "@/app/components/ui/Toast";
+import { useSocialApi } from "./useSocialApi";
 
 export function ShareLinkPanel({
   accounts,
@@ -21,6 +22,7 @@ export function ShareLinkPanel({
   accounts: Array<{ id: string; label: string }>;
 }) {
   const { showToast } = useToast();
+  const api = useSocialApi();
   const [busy, setBusy] = useState<string | null>(null);
   const [links, setLinks] = useState<Record<string, string>>({});
 
@@ -28,13 +30,10 @@ export function ShareLinkPanel({
     async (accountId: string) => {
       setBusy(accountId);
       try {
-        const res = await fetch("/api/social/report-link", {
+        const { url } = await api<{ url: string }>("/api/social/report-link", {
           method: "POST",
-          headers: { "content-type": "application/json" },
           body: JSON.stringify({ accountId }),
         });
-        if (!res.ok) throw new Error(`Request failed (${res.status})`);
-        const { url } = await res.json();
         setLinks((prev) => ({ ...prev, [accountId]: url }));
 
         // Clipboard can reject (permissions, insecure context) — the link is
@@ -51,7 +50,7 @@ export function ShareLinkPanel({
         setBusy(null);
       }
     },
-    [showToast],
+    [api, showToast],
   );
 
   return (

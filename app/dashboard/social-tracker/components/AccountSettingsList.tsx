@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/app/components/ui/Button";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { useToast } from "@/app/components/ui/Toast";
+import { useSocialApi, type SocialApiError } from "./useSocialApi";
 
 export interface ConnectableAccount {
   id: string;
@@ -36,6 +37,7 @@ export function AccountSettingsList({
 }) {
   const router = useRouter();
   const { showToast } = useToast();
+  const api = useSocialApi();
   const [busy, setBusy] = useState<string | null>(null);
   const [pendingDisconnect, setPendingDisconnect] = useState<ConnectableAccount | null>(null);
 
@@ -60,45 +62,43 @@ export function AccountSettingsList({
     async (provider: string) => {
       setBusy(provider);
       try {
-        const res = await fetch(`/api/social/connect/${provider}`);
-        if (!res.ok) throw new Error(String(res.status));
-        const { url } = await res.json();
+        const { url } = await api<{ url: string }>(`/api/social/connect/${provider}`);
         window.location.href = url;
       } catch {
         showToast("Couldn't start the connection. Try again.", "error");
         setBusy(null);
       }
     },
-    [showToast],
+    [api, showToast],
   );
 
   const resync = useCallback(
     async (account: ConnectableAccount) => {
       setBusy(account.id);
       try {
-        const res = await fetch(`/api/social/accounts/${account.id}`, { method: "POST" });
-        if (res.status === 429) {
-          showToast("Already refreshed recently — try again in a few minutes.", "info");
-          return;
-        }
-        if (!res.ok) throw new Error(String(res.status));
+        await api(`/api/social/accounts/${account.id}`, { method: "POST" });
         showToast(`${account.label} re-synced`, "success");
         router.refresh();
-      } catch {
-        showToast("Sync failed. The platform may be rate-limiting us.", "error");
+      } catch (err) {
+        // 429 is the per-account cooldown, not a failure worth alarming about.
+        showToast(
+          (err as SocialApiError).status === 429
+            ? "Already refreshed recently — try again in a few minutes."
+            : "Sync failed. The platform may be rate-limiting us.",
+          (err as SocialApiError).status === 429 ? "info" : "error",
+        );
       } finally {
         setBusy(null);
       }
     },
-    [router, showToast],
+    [api, router, showToast],
   );
 
   const disconnect = useCallback(async () => {
     if (!pendingDisconnect) return;
     setBusy(pendingDisconnect.id);
     try {
-      const res = await fetch(`/api/social/accounts/${pendingDisconnect.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error(String(res.status));
+      await api(`/api/social/accounts/${pendingDisconnect.id}`, { method: "DELETE" });
       showToast(`${pendingDisconnect.label} disconnected`, "success");
       router.refresh();
     } catch {
@@ -107,7 +107,7 @@ export function AccountSettingsList({
       setBusy(null);
       setPendingDisconnect(null);
     }
-  }, [pendingDisconnect, router, showToast]);
+  }, [api, pendingDisconnect, router, showToast]);
 
   return (
     <div className="space-y-6">

@@ -17,25 +17,40 @@ export default async function AudiencePage({
   const { accounts } = await loadViewContext(await searchParams);
   if (accounts.length === 0) return <EmptyAccounts />;
 
+  // One `now` for the whole page. Same discipline the metrics engine enforces:
+  // every figure describes the same instant, and the render body stays pure.
+  const now = new Date();
+  const audienceSince = new Date(now.getTime() - 45 * 86_400_000);
+
   const sections = await Promise.all(
     accounts.map(async (account) => {
-      // Demographics are captured weekly, so take the newest capture and read
-      // only that one — mixing captures would blend different snapshots.
-      const latest = await prisma.socialAudienceSnapshot.findFirst({
-        where: { accountId: account.id },
-        orderBy: { capturedAt: "desc" },
-        select: { capturedAt: true },
+      // Keep the newest row per (audience, dimension, bucket) rather than
+      // filtering on one exact capturedAt.
+      //
+      // Rows written during a single sync do NOT share a timestamp — each gets
+      // its own default now(), microseconds apart — so an equality filter
+      // returns a fragment of the capture. That silently dropped age and gender
+      // and left only whichever dimension happened to be written last.
+      const recent = await prisma.socialAudienceSnapshot.findMany({
+        where: {
+          accountId: account.id,
+          capturedAt: { gte: audienceSince },
+        },
+        select: {
+          capturedAt: true, dimension: true, bucket: true, value: true, unit: true, audience: true,
+        },
+        orderBy: { capturedAt: "asc" },
       });
 
-      const rows: AudienceRowView[] = latest
-        ? (
-            await prisma.socialAudienceSnapshot.findMany({
-              where: { accountId: account.id, capturedAt: latest.capturedAt },
-              select: { dimension: true, bucket: true, value: true, unit: true, audience: true },
-              orderBy: { value: "desc" },
-            })
-          ).map((r) => ({ ...r }))
-        : [];
+      const newest = new Map<string, (typeof recent)[number]>();
+      for (const row of recent) {
+        // Ascending input, so a later row for the same key overwrites an
+        // earlier one.
+        newest.set(`${row.audience}::${row.dimension}::${row.bucket}`, row);
+      }
+
+      const rows: AudienceRowView[] = [...newest.values()].map(({ capturedAt: _ignored, ...r }) => r);
+      const latest = recent.length > 0 ? recent[recent.length - 1] : null;
 
       const posts = await prisma.socialPost.findMany({
         where: { accountId: account.id, publishedAt: { not: null } },

@@ -157,12 +157,25 @@ describe("KpiCard motion", () => {
     expect(screen.getByText("5K")).toBeInTheDocument();
   });
 
-  it("starts from zero when motion is allowed", () => {
+  it("renders the true value on first paint even when motion is allowed", () => {
+    // Regression: the count-up used to start at 0, so this Server Component
+    // tree emitted "0" for every live KPI — a hydration mismatch, and a brief
+    // flash of numbers that are not true. Motion belongs on a value CHANGE.
     prefersReducedMotion = false;
     render(<KpiCard metric="followers" label="Followers" available="native" unit="count" value={5000} />);
-    // First paint before any animation frame runs.
-    expect(screen.getByText("0")).toBeInTheDocument();
+    expect(screen.getByText("5K")).toBeInTheDocument();
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
+
+  it("shows the true value on first paint under reduced motion too", () => {
+    // Both motion paths must agree on what the server rendered.
+    prefersReducedMotion = true;
+    render(<KpiCard metric="views" label="Views" available="native" unit="count" value={148_900} />);
+    expect(screen.getByText("148.9K")).toBeInTheDocument();
+  });
+  // The animation itself is not asserted: requestAnimationFrame under jsdom is
+  // timing-dependent, and a flaky test here would be worse than none. What
+  // matters — that first paint is correct — is covered above.
 });
 
 describe("KpiGrid", () => {
