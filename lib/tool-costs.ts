@@ -37,6 +37,17 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   "enhance-prompt":   { creditCost: 0, costUsd: 0, costBasis: "Google Gemini text, negligible cost", generationType: "utility" },
   "brainstormer":     { creditCost: 1, costUsd: null, costBasis: "Google Gemini text, near-zero real cost", generationType: "utility" },
   "social-insights":  { creditCost: 2, costUsd: null, costBasis: "Google Gemini text over computed social metrics, near-zero real cost", generationType: "utility" },
+  // Social Tracker v2 AI layer. All of these send a ≤2 kB factsheet of numbers
+  // the deterministic engine already computed and get back a few hundred tokens
+  // of prose — genuinely sub-cent per call, same basis as brainstormer above.
+  // Prices are relative effort, not cost recovery: the exec report fans out over
+  // a whole period and several accounts, kpi-explain is a tooltip and is free
+  // (and cached 24h on rounded values, so an idle dashboard never re-bills).
+  "social-exec-report":   { creditCost: 5, costUsd: null, costBasis: "Google Gemini text over a computed multi-account period factsheet, near-zero real cost", generationType: "utility" },
+  "social-content-recs":  { creditCost: 3, costUsd: null, costBasis: "Google Gemini text over computed post scores, near-zero real cost", generationType: "utility" },
+  "social-caption":       { creditCost: 1, costUsd: null, costBasis: "Google Gemini text, near-zero real cost", generationType: "utility" },
+  "social-post-narration": { creditCost: 1, costUsd: null, costBasis: "Google Gemini text, batched 10 posts per call, near-zero real cost", generationType: "utility" },
+  "social-kpi-explain":   { creditCost: 0, costUsd: null, costBasis: "Google Gemini text, cached 24h on rounded metric values, near-zero real cost", generationType: "utility" },
   "cut-and-crop":     { creditCost: 1, costUsd: 0, costBasis: "FFmpeg (local compute only)", generationType: "utility" },
   // Duration-scaled (2-20 credits — see creditCostForDuration in the route)
   // since Phase 2 replaced the old fixed-band blur with real per-frame OCR
