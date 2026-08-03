@@ -13,6 +13,7 @@ import { Suspense } from "react";
 import { requireServerSubscriber } from "@/lib/auth";
 import { isFeatureEnabled } from "@/lib/flags";
 import { loadAccounts } from "@/lib/social/queries";
+import { ToastProvider } from "@/app/components/ui/Toast";
 import { FilterBar } from "../components/FilterBar";
 import { TabsNav } from "../components/TabsNav";
 
@@ -35,6 +36,10 @@ export default async function SocialTrackerV2Layout({
   const accounts = await loadAccounts(auth.userId);
 
   return (
+    // ToastProvider is not mounted globally in this app (assets/page.tsx wraps
+    // itself the same way), and useToast throws without it. Server-rendered
+    // children pass straight through as a prop.
+    <ToastProvider>
     <div className="mx-auto w-full max-w-[1600px] flex-1 p-4 sm:p-8">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -77,5 +82,6 @@ export default async function SocialTrackerV2Layout({
 
       {children}
     </div>
+    </ToastProvider>
   );
 }

@@ -1,3 +1,4 @@
+import { env } from "@/lib/env";
 import * as google from "./google";
 import * as meta from "./meta";
 import type { AudienceRow, OAuthProvider, OAuthTokens, ProviderId, ProviderSync, SyncOptions } from "./types";
@@ -48,8 +49,26 @@ export const PROVIDERS: Record<ProviderId, ProviderAdapter> = {
   facebook: metaAdapter("facebook"),
 };
 
-// Providers whose OAuth app is actually configured in this deployment — the
-// UI only offers these.
+/** Which env credentials each OAuth app needs before a connect can succeed. */
+const OAUTH_APP_CONFIGURED: Record<OAuthProvider, () => boolean> = {
+  youtube: () => Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
+  meta: () => Boolean(env.META_APP_ID && env.META_APP_SECRET),
+};
+
+/**
+ * Providers whose OAuth app is actually configured in this deployment.
+ *
+ * This used to return every registry key regardless, contradicting its own doc
+ * comment: the UI offered a Connect button that started a flow which could only
+ * fail, and the user had no way to tell that from a real error.
+ */
 export function availableProviders(): ProviderId[] {
-  return Object.keys(PROVIDERS) as ProviderId[];
+  return (Object.keys(PROVIDERS) as ProviderId[]).filter((id) =>
+    OAUTH_APP_CONFIGURED[PROVIDERS[id].oauthApp](),
+  );
+}
+
+/** Whether one provider can be connected right now. */
+export function isProviderConfigured(id: ProviderId): boolean {
+  return OAUTH_APP_CONFIGURED[PROVIDERS[id].oauthApp]();
 }
