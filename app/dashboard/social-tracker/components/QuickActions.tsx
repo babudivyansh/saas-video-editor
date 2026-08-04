@@ -72,11 +72,11 @@ export function QuickActions({ accountIds, disabledReason }: QuickActionsProps) 
           {status.kind === "syncing" ? "Syncing…" : "Sync now"}
         </Button>
 
-        <Button size="sm" variant="secondary" href="/dashboard/social-tracker/v2/reports">
+        <Button size="sm" variant="secondary" href="/dashboard/social-tracker/reports">
           Build a report
         </Button>
 
-        <Button size="sm" variant="secondary" href="/dashboard/social-tracker/v2/settings#share">
+        <Button size="sm" variant="secondary" href="/dashboard/social-tracker/settings#share">
           Share a link
         </Button>
 

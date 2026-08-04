@@ -49,11 +49,13 @@ export interface ViewContext {
  * Auth + account load for a sub-route.
  *
  * Redirects rather than throwing when the session is gone, so an expired tab
- * lands on the v1 page instead of an error boundary.
+ * lands somewhere useful instead of on an error boundary.
  */
 export async function loadViewContext(params: SearchParams): Promise<ViewContext> {
   const auth = await requireServerSubscriber();
-  if (!auth) redirect("/dashboard/social-tracker");
+  // The layout already gated this; the redirect is the belt to its braces, and
+  // it must not point at this same route or an expired session loops forever.
+  if (!auth) redirect("/dashboard/billing");
 
   const filters = parseFilters(params);
   const accounts = await loadAccounts(auth.userId, filters.accountIds);

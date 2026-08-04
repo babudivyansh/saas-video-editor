@@ -1,7 +1,7 @@
 // Settings — connections and sync health.
 
 import { availableProviders } from "@/lib/social/providers";
-import { AccountSettingsList } from "../../components/AccountSettingsList";
+import { AccountSettingsList } from "../components/AccountSettingsList";
 import { accountLabel, loadViewContext, type SearchParams } from "../shared";
 
 export const dynamic = "force-dynamic";

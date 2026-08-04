@@ -1,8 +1,7 @@
 import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { assertOwnedAccount, parseQuery, withSocial } from "@/lib/social/api";
+import { assertOwnedAccount, ok, parseQuery, withSocial } from "@/lib/social/api";
 import { CACHE_TTL, cached, keys, accountVersion } from "@/lib/social/cache";
 import { accountIdSchema, tzOffsetSchema } from "@/lib/social/schemas";
 import { loadAudience } from "@/lib/social/queries";
@@ -16,9 +15,8 @@ import { ER_BENCHMARKS, computeAlerts, computeAnalytics, computeBestTimes } from
 // audience demographics. Derived on read from synced rows — no metrics store to
 // drift out of sync.
 //
-// v1's endpoint, now on withSocial + zod + the shared cache helper. The response
-// shape is unchanged because the v1 page still reads it; stage 10 retrofits the
-// {data} envelope once that page is gone.
+// v1's endpoint, now on withSocial + zod + the shared cache helper and the
+// {data} envelope every other /api/social route uses.
 //
 // The audience block changed, though, and that IS a fix: it used to select rows
 // matching the newest capturedAt EXACTLY, and rows from one sync do not share a
@@ -26,7 +24,8 @@ import { ER_BENCHMARKS, computeAlerts, computeAnalytics, computeBestTimes } from
 // loadAudience helper as everything else.
 const AUDIENCE_WINDOW_DAYS = 45;
 
-/** v1 offered exactly these three. Widening it here would change v1's cache keys. */
+/** The three ranges this endpoint has always offered. Widening it would change
+ *  its cache keys for no gain — /api/social/overview is the wider surface. */
 const legacyRangeSchema = z.coerce.number().int().refine((v) => [7, 30, 90].includes(v), {
   message: "range must be 7, 30 or 90",
 });
@@ -74,7 +73,7 @@ export const GET = withSocial(async (req: NextRequest, { auth }) => {
     };
   });
 
-  return NextResponse.json(payload);
+  return ok(payload);
 }, {
   rateLimit: { key: (auth) => `social:analytics:${auth.userId}`, max: 60, windowSec: 60 },
 });

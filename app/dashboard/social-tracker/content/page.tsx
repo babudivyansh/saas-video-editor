@@ -1,8 +1,8 @@
 // Content — "what worked?"
 
 import { capabilityMap } from "@/lib/social/capabilities";
-import { ContentTable } from "../../components/ContentTable";
-import { EmptyAccounts } from "../../components/EmptyAccounts";
+import { ContentTable } from "../components/ContentTable";
+import { EmptyAccounts } from "../components/EmptyAccounts";
 import { accountLabel, loadViewContext, type SearchParams } from "../shared";
 
 export const dynamic = "force-dynamic";

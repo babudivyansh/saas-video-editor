@@ -19,7 +19,7 @@ export function EmptyAccounts({
       title={title}
       subtitle={subtitle}
       // Empty states name the next action rather than only describing absence.
-      action={{ label: "Connect an account", href: "/dashboard/social-tracker/v2/settings" }}
+      action={{ label: "Connect an account", href: "/dashboard/social-tracker/settings" }}
     />
   );
 }

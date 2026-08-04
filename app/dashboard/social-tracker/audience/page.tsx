@@ -4,8 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { computeBestTimes } from "@/lib/social/metrics";
 import { loadAudience } from "@/lib/social/queries";
 import { BLOCK_LABELS, Heatmap, WEEKDAY_LABELS } from "@/app/components/charts";
-import { AudienceBreakdown, type AudienceRowView } from "../../components/AudienceBreakdown";
-import { EmptyAccounts } from "../../components/EmptyAccounts";
+import { AudienceBreakdown, type AudienceRowView } from "../components/AudienceBreakdown";
+import { EmptyAccounts } from "../components/EmptyAccounts";
 import { accountLabel, loadViewContext, type SearchParams } from "../shared";
 
 export const dynamic = "force-dynamic";

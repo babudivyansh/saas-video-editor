@@ -13,7 +13,7 @@ export interface GoalsStripProps {
   href?: string;
 }
 
-export function GoalsStrip({ goals, href = "/dashboard/social-tracker/v2/settings" }: GoalsStripProps) {
+export function GoalsStrip({ goals, href = "/dashboard/social-tracker/settings" }: GoalsStripProps) {
   if (goals.length === 0) return null;
 
   return (

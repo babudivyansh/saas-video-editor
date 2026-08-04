@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { compareCompetitors } from "@/lib/social/metrics";
 import { fmtCompact, fmtPct } from "@/app/components/charts/format";
-import { CompetitorManager } from "../../components/CompetitorManager";
+import { CompetitorManager } from "../components/CompetitorManager";
 import { loadViewContext, type SearchParams } from "../shared";
 
 export const dynamic = "force-dynamic";

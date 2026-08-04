@@ -4,9 +4,9 @@
 // that publish a read-only view of an account.
 
 import { Button } from "@/app/components/ui/Button";
-import { EmptyAccounts } from "../../components/EmptyAccounts";
-import { ShareLinkPanel } from "../../components/ShareLinkPanel";
-import { ReportBuilder } from "../../components/ReportBuilder";
+import { EmptyAccounts } from "../components/EmptyAccounts";
+import { ShareLinkPanel } from "../components/ShareLinkPanel";
+import { ReportBuilder } from "../components/ReportBuilder";
 import { prisma } from "@/lib/prisma";
 import { accountLabel, loadViewContext, type SearchParams } from "../shared";
 

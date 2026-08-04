@@ -1,21 +1,18 @@
-// Social Tracker v2 shell.
+// Social Tracker shell.
 //
 // A Server Component: it reads the session cookie directly, so the KPI grid is
-// in the first HTML response. The v1 page is a Client Component that renders
-// nothing until JavaScript hydrates, reads a token out of localStorage, then
-// fetches — four sequential hops before a single number appears.
-//
-// Lives under /v2 while the flag is off. Stage 10 promotes it to the parent
-// route and deletes v1.
+// in the first HTML response. The page this replaced was a Client Component
+// that rendered nothing until JavaScript hydrated, read a token out of
+// localStorage, then fetched — four sequential hops before a single number
+// appeared.
 
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { requireServerSubscriber } from "@/lib/auth";
-import { isFeatureEnabled } from "@/lib/flags";
 import { loadAccounts } from "@/lib/social/queries";
 import { ToastProvider } from "@/app/components/ui/Toast";
-import { FilterBar } from "../components/FilterBar";
-import { TabsNav } from "../components/TabsNav";
+import { FilterBar } from "./components/FilterBar";
+import { TabsNav } from "./components/TabsNav";
 
 export const dynamic = "force-dynamic";
 
@@ -24,14 +21,10 @@ export default async function SocialTrackerV2Layout({
 }: {
   children: React.ReactNode;
 }) {
-  // Flag resolved server-side — lib/flags.ts touches prisma and redis, so it
-  // cannot be read from a Client Component.
-  if (!(await isFeatureEnabled("social_tracker_v2"))) {
-    redirect("/dashboard/social-tracker");
-  }
-
+  // No feature flag any more: this IS the Social Tracker. Redirect to billing
+  // rather than to the old page, which no longer exists.
   const auth = await requireServerSubscriber();
-  if (!auth) redirect("/dashboard/social-tracker");
+  if (!auth) redirect("/dashboard/billing");
 
   const accounts = await loadAccounts(auth.userId);
 
