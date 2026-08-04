@@ -1,6 +1,6 @@
 // Settings — connections and sync health.
 
-import { availableProviders } from "@/lib/social/providers";
+import { providerAvailability } from "@/lib/social/providers";
 import { AccountSettingsList } from "../components/AccountSettingsList";
 import { accountLabel, loadViewContext, type SearchParams } from "../shared";
 
@@ -17,7 +17,7 @@ export default async function SettingsPage({
 
   return (
     <AccountSettingsList
-      providers={availableProviders()}
+      providers={providerAvailability()}
       accounts={accounts.map((a) => ({
         id: a.id,
         provider: a.provider,

@@ -122,6 +122,16 @@ export function ChartFrame({
  *
  * Not a fallback — it is the accessible representation, and it is exact where a
  * spoken summary of a line chart never can be.
+ *
+ * THE WRAPPER IS LOAD-BEARING. `sr-only` works by pinning an element to 1×1 and
+ * clipping it, but `width`/`height` on a `display: table` box are MINIMUMS — a
+ * table always grows to fit its content. Put `sr-only` on the <table> itself and
+ * it keeps its natural size (measured up to 142×792px in production), and since
+ * nothing here is positioned, it resolves against <body>, escapes the dashboard
+ * shell's `overflow-hidden`, and stretches the whole document. That shipped: the
+ * page scrolled ~1100px past its content into a blank white screen.
+ *
+ * A <div> honours 1×1, so hiding the wrapper hides the table with it.
  */
 function DataTable({
   title,
@@ -147,7 +157,8 @@ function DataTable({
   }));
 
   return (
-    <table className="sr-only">
+    <div className="sr-only">
+    <table>
       <caption>{title} — data table</caption>
       <thead>
         <tr>
@@ -170,5 +181,6 @@ function DataTable({
         ))}
       </tbody>
     </table>
+    </div>
   );
 }

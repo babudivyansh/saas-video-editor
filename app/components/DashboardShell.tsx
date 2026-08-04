@@ -49,11 +49,28 @@ function ShellChrome({ children }: { children: React.ReactNode }) {
   const { isBillingOpen } = useBillingOverlay();
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-surface">
+    // h-[100dvh], not h-screen: 100vh is the address-bar-RETRACTED height on
+    // mobile, so the shell sits 50-120px taller than what is actually visible
+    // and the document picks up a second scrollbar underneath this one. dvh
+    // tracks the real viewport.
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-surface">
       <DashboardHeader />
       <div className="flex flex-1 overflow-hidden">
         <ToolsSidebar active={isBillingOpen ? "billing" : activeIdFor(pathname)} />
-        <main className="flex-1 overflow-y-auto bg-surface">{children}</main>
+        {/*
+          `relative` is not cosmetic — it makes this pane the containing block
+          for the absolutely-positioned boxes inside it, and `sr-only` is
+          exactly that (position:absolute, 1×1, clipped). Without it, a 1px
+          screen-reader box resolves against the DOCUMENT at its static offset,
+          so one sitting 1,300px down a scrolled pane drags the document out to
+          1,300px tall. Measured in production: 386px of phantom document
+          scroll from twelve of them, on top of this pane's own scrolling.
+          One declaration fixes every sr-only on every dashboard page.
+
+          overscroll-contain then stops a scroll that reaches the end of this
+          pane from chaining out to whatever is behind it.
+        */}
+        <main className="relative flex-1 overflow-y-auto overscroll-contain bg-surface">{children}</main>
       </div>
     </div>
   );

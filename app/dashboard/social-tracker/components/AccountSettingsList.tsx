@@ -33,7 +33,8 @@ export function AccountSettingsList({
   providers,
 }: {
   accounts: ConnectableAccount[];
-  providers: string[];
+  /** Every provider in the registry, each with whether it can be connected. */
+  providers: Array<{ id: string; configured: boolean }>;
 }) {
   const router = useRouter();
   const { showToast } = useToast();
@@ -116,32 +117,55 @@ export function AccountSettingsList({
           Connect an account
         </h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {providers.map((p) => {
+          {providers.map(({ id: p, configured }) => {
             const meta = PLATFORM[p] ?? { name: p, color: "#64748b", bg: "#f1f5f9" };
             const already = accounts.some((a) => a.provider === p);
             return (
               <div
                 key={p}
-                className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-card-border bg-white p-4 shadow-card"
+                className={`flex flex-col gap-3 rounded-[var(--radius-card)] border p-4 ${
+                  configured
+                    ? "border-card-border bg-white shadow-card"
+                    : // Visibly inert, but still present: the platform exists,
+                      // this deployment just cannot reach it yet.
+                      "border-dashed border-card-border bg-surface"
+                }`}
               >
                 <div className="flex items-center gap-3">
                   <span
                     aria-hidden="true"
                     className="flex h-10 w-10 items-center justify-center rounded-xl text-sm font-bold"
-                    style={{ background: meta.bg, color: meta.color }}
+                    style={{
+                      background: meta.bg,
+                      color: meta.color,
+                      opacity: configured ? 1 : 0.45,
+                    }}
                   >
                     {meta.name[0]}
                   </span>
-                  <p className="font-semibold text-ink">{meta.name}</p>
+                  <p className={`font-semibold ${configured ? "text-ink" : "text-ink-soft"}`}>
+                    {meta.name}
+                  </p>
                 </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => void connect(p)}
-                  disabled={busy === p}
-                >
-                  {busy === p ? "Connecting…" : already ? `Reconnect ${meta.name}` : `Connect ${meta.name}`}
-                </Button>
+
+                {configured ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void connect(p)}
+                    disabled={busy === p}
+                  >
+                    {busy === p ? "Connecting…" : already ? `Reconnect ${meta.name}` : `Connect ${meta.name}`}
+                  </Button>
+                ) : (
+                  // Deliberately not a disabled button: there is nothing to
+                  // click and nothing to wait for, and a greyed button invites
+                  // the user to keep trying. State the reason instead.
+                  <p className="text-xs text-ink-soft">
+                    Not enabled on this deployment yet — {meta.name} needs its API credentials
+                    configured before accounts can be connected.
+                  </p>
+                )}
               </div>
             );
           })}
@@ -175,7 +199,7 @@ export function AccountSettingsList({
                   >
                     {busy === a.id ? "Syncing…" : "Re-sync"}
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setPendingDisconnect(a)}>
+                  <Button variant="danger" size="sm" onClick={() => setPendingDisconnect(a)}>
                     Disconnect
                   </Button>
                 </div>

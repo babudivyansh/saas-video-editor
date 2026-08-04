@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "inverse";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "inverse" | "danger";
 type ButtonSize = "sm" | "md" | "lg";
 
 interface ButtonProps {
@@ -26,9 +26,16 @@ interface ButtonProps {
 const VARIANT: Record<ButtonVariant, string> = {
   primary: "grad-brand text-white shadow-glow hover:shadow-glow-hover hover:brightness-105",
   secondary: "bg-white border border-card-border text-ink hover:bg-tint-blue",
-  // ghost is designed for use on gradient/hero surfaces
+  // ghost is designed for use on gradient/hero surfaces. On a white card it is
+  // white-on-white and effectively invisible — which is exactly how the Social
+  // Tracker's Disconnect button shipped. Use `danger` for destructive actions
+  // on light surfaces instead of reaching for this one.
   ghost: "bg-white/15 text-white border border-white/25 hover:bg-white/25",
   inverse: "bg-white text-ink shadow-card hover:shadow-card-hover",
+  // Destructive, on a light surface. Outlined rather than filled: a solid red
+  // button pulls more attention than "Disconnect" deserves sitting next to a
+  // routine "Re-sync", but it must still read as dangerous before the click.
+  danger: "bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300",
 };
 
 const SIZE: Record<ButtonSize, string> = {
