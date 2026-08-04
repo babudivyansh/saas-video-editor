@@ -116,7 +116,18 @@ export function Heatmap({
                       ) : (
                         <span className="sr-only">No posts published in this slot</span>
                       )}
-                      <span aria-hidden="true" className="text-[0.6875rem] text-ink-soft">
+                      {/*
+                        The label sits ON the fill, whose alpha runs 0 to 1, so
+                        a single colour cannot stay readable across the scale —
+                        grey on a saturated cell was the worst case. Flip to
+                        white once the fill is dark enough to carry it.
+                      */}
+                      <span
+                        aria-hidden="true"
+                        className={`text-[0.6875rem] font-semibold ${
+                          alpha >= 0.55 ? "text-white" : "text-ink"
+                        }`}
+                      >
                         {cell && cell.count >= 2 ? valueFmt(cell.value) : ""}
                       </span>
                     </td>

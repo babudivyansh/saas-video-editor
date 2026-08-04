@@ -63,7 +63,14 @@ export default async function AudiencePage({
 
           <Heatmap
             title="Best time to post"
-            subtitle={`Based on ${account.timezone ?? "UTC"} local time`}
+            subtitle={
+              account.timezone
+                ? `Times shown in ${account.timezone}`
+                : // Saying "UTC local time" reads as though it were the user's
+                  // own timezone. It is the fallback, and the difference
+                  // decides whether "post at 8pm" means anything.
+                  "Times shown in UTC — this account has no timezone set"
+            }
             cells={bestTimes.cells.map((c) => ({
               row: c.day,
               col: c.block,

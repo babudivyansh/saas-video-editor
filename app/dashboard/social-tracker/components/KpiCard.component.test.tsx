@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { KpiCard } from "./KpiCard";
 import { KpiGrid, type KpiEntry } from "./KpiGrid";
@@ -188,7 +188,7 @@ describe("KpiGrid", () => {
     ...over,
   });
 
-  it("renders every catalogued metric it is given", () => {
+  it("names every metric it is given, promoted or demoted", () => {
     render(
       <KpiGrid
         kpis={{
@@ -198,12 +198,16 @@ describe("KpiGrid", () => {
         }}
       />,
     );
+    // followers and reach are promoted into the hero row; impressions is not
+    // reported by this platform, so it is named in the summary line instead of
+    // taking a card that would only say "Not available".
     expect(screen.getByText("Total followers")).toBeInTheDocument();
     expect(screen.getByText("Total reach")).toBeInTheDocument();
-    expect(screen.getByText("Total impressions")).toBeInTheDocument();
+    expect(screen.getByText(/Not reported by this platform/)).toBeInTheDocument();
+    expect(screen.getByText(/impressions/)).toBeInTheDocument();
   });
 
-  it("keeps the grid shape stable by rendering unavailable metrics rather than hiding them", () => {
+  it("collapses unreported metrics into one line instead of a wall of empty cards", () => {
     render(
       <KpiGrid
         kpis={{
@@ -213,7 +217,60 @@ describe("KpiGrid", () => {
         }}
       />,
     );
-    expect(screen.getAllByText("Not available")).toHaveLength(2);
+    // These used to render as two "Not available" cards, so a page could lead
+    // with eight of them. Both metrics are still NAMED — the information is
+    // kept — but absence no longer carries the same weight as a real number.
+    expect(screen.queryByText("Not available")).not.toBeInTheDocument();
+    // The label is its own <span>, so read the whole sentence off the paragraph.
+    const line = screen.getByText(/Not reported by this platform/).closest("p")!;
+    expect(line.textContent).toMatch(/impressions/);
+    expect(line.textContent).toMatch(/click-through rate/);
+  });
+
+  it("promotes the headline metrics into a hero row with display-size type", () => {
+    // The flat grid gave "Total followers" and "Click-through rate — not
+    // available" identical weight, so the eye had nowhere to land.
+    render(
+      <KpiGrid
+        kpis={{
+          followers: entry({ current: 12_000 }),
+          views: entry({ current: 900 }),
+          reach: entry({ current: 800 }),
+          engagementRate: entry({ current: 4, unit: "percent" }),
+          likes: entry({ current: 5 }),
+        }}
+      />,
+    );
+    const hero = screen.getByRole("region", { name: /headline metrics/i });
+    expect(within(hero).getByText("Total followers")).toBeInTheDocument();
+    // Four is the cap, so a lesser metric stays in the compact grid below.
+    expect(within(hero).queryByText("Likes")).not.toBeInTheDocument();
+    expect(screen.getByText("Likes")).toBeInTheDocument();
+  });
+
+  it("fills the hero with reported metrics only, never with empty cards", () => {
+    render(
+      <KpiGrid
+        kpis={{
+          followers: entry({ current: 100 }),
+          reach: entry({ available: "unavailable", current: null, reason: "No reach on YouTube." }),
+        }}
+      />,
+    );
+    const hero = screen.getByRole("region", { name: /headline metrics/i });
+    expect(within(hero).queryByText("Total reach")).not.toBeInTheDocument();
+  });
+
+  it("keeps the benchmark band when engagement rate is promoted", () => {
+    // Promoting a rate must not lose the band that gives it meaning.
+    render(
+      <KpiGrid
+        kpis={{ engagementRate: entry({ unit: "percent", current: 2 }) }}
+        benchmark={{ low: 1, high: 3.5 }}
+      />,
+    );
+    const hero = screen.getByRole("region", { name: /headline metrics/i });
+    expect(within(hero).getByText(/typical · 1–3.5%/)).toBeInTheDocument();
   });
 
   it("has an accessible section name", () => {
