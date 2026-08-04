@@ -1,47 +1,45 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireSubscriber } from "@/lib/auth";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { chargeCredits, refundCredits, markGenerationStatus } from "@/lib/credits";
 import { getToolConfig } from "@/lib/tool-config";
+import { HttpError, assertOwnedAccount, parseBody, parseQuery, withSocial } from "@/lib/social/api";
+import { accountIdSchema } from "@/lib/social/schemas";
 import { generateInsight } from "@/lib/social/insights";
+import { runCharged } from "@/lib/social/ai/charge";
 import { isoWeekKey } from "@/lib/social/metrics";
-import { logger } from "@/lib/logger";
 
 // AI insights for one owned account.
-//   GET  ?accountId=…       → latest stored insight (if any)
-//   POST { accountId }      → generate this week's insight (credit-gated).
-// One insight per account per 7 days: a fresh-enough insight is returned
-// as-is without charging, so retries and double-clicks stay free.
-const FRESH_MS = 6 * 86400_000;
+//   GET  ?accountId=…   → the latest stored insight (if any)
+//   POST { accountId }  → generate this week's insight (credit-gated)
+//
+// v1's endpoint. The generator behind it is now the v2 weekly executive summary
+// (lib/social/insights.ts is a thin adapter), and the charge/refund path is the
+// shared runCharged — this route's hand-written version was the original that
+// the shared one was extracted from.
+//
+// One insight per account per 7 days: a fresh-enough insight is returned as-is
+// without charging, so retries and double-clicks stay free.
+const FRESH_MS = 6 * 86_400_000;
 
-export async function GET(req: NextRequest) {
-  const auth = await requireSubscriber(req);
-  if (!auth) return NextResponse.json({ error: "Social Tracker is available on paid plans." }, { status: 402 });
-  const accountId = req.nextUrl.searchParams.get("accountId");
-  if (!accountId) return NextResponse.json({ error: "accountId is required" }, { status: 400 });
-  const account = await prisma.socialAccount.findFirst({ where: { id: accountId, userId: auth.userId }, select: { id: true } });
-  if (!account) return NextResponse.json({ error: "Account not found" }, { status: 404 });
+export const GET = withSocial(async (req: NextRequest, { auth }) => {
+  const q = parseQuery(req, z.object({ accountId: accountIdSchema }));
+  await assertOwnedAccount(auth.userId, q.accountId);
 
   const insight = await prisma.aiInsight.findFirst({
-    where: { accountId },
+    where: { accountId: q.accountId },
     orderBy: { createdAt: "desc" },
     select: { id: true, kind: true, content: true, periodStart: true, periodEnd: true, createdAt: true },
   });
   const cost = (await getToolConfig("social-insights")).creditCost;
   return NextResponse.json({ insight, cost });
-}
+}, {
+  rateLimit: { key: (auth) => `social:insights:${auth.userId}`, max: 60, windowSec: 60 },
+});
 
-export async function POST(req: NextRequest) {
-  const auth = await requireSubscriber(req);
-  if (!auth) return NextResponse.json({ error: "Social Tracker is available on paid plans." }, { status: 402 });
-  const body = (await req.json().catch(() => ({}))) as { accountId?: string };
-  if (!body.accountId) return NextResponse.json({ error: "accountId is required" }, { status: 400 });
-
-  const account = await prisma.socialAccount.findFirst({
-    where: { id: body.accountId, userId: auth.userId },
-    select: { id: true, provider: true },
-  });
-  if (!account) return NextResponse.json({ error: "Account not found" }, { status: 404 });
+export const POST = withSocial(async (req: NextRequest, { auth }) => {
+  const body = await parseBody(req, z.object({ accountId: accountIdSchema }));
+  const account = await assertOwnedAccount(auth.userId, body.accountId);
 
   const existing = await prisma.aiInsight.findFirst({
     where: { accountId: account.id },
@@ -53,46 +51,35 @@ export async function POST(req: NextRequest) {
 
   const postCount = await prisma.socialPost.count({ where: { accountId: account.id } });
   if (postCount === 0) {
-    return NextResponse.json({ error: "Not enough data yet — sync some posts first." }, { status: 409 });
+    throw new HttpError(409, "Not enough data yet — sync some posts first.", "insufficient_data");
   }
 
-  const cost = (await getToolConfig("social-insights")).creditCost;
-  // Week-scoped idempotency: a retried request in the same ISO week never
-  // double-charges even if the freshness check races.
-  // A real ISO week. This used to be a sliced yyyy-mm-dd labelled "week", which
-  // made every calendar day its own week and the key useless for its purpose.
-  const week = isoWeekKey(new Date());
-  const charge = await chargeCredits({
-    userId: auth.userId,
-    toolSlug: "social-insights",
-    amount: cost,
-    idempotencyKey: `social-insights:${account.id}:${week}`,
-    log: { generationType: "utility", prompt: `weekly insight for ${account.provider} account` },
-  });
-  if (!charge.ok) {
-    if (charge.reason === "insufficient_credits") {
-      return NextResponse.json({ error: "Not enough credits.", code: "insufficient_credits" }, { status: 402 });
-    }
-    return NextResponse.json({ error: "Insights are temporarily disabled." }, { status: 503 });
-  }
+  const insight = await runCharged(
+    {
+      userId: auth.userId,
+      toolSlug: "social-insights",
+      // A real ISO week. This used to be a sliced yyyy-mm-dd labelled "week",
+      // which made every calendar day its own week and the key useless for the
+      // one thing it exists to do.
+      idempotencyKey: `social-insights:${account.id}:${isoWeekKey(new Date())}`,
+      description: `weekly insight for ${account.provider} account`,
+    },
+    async () => {
+      const content = await generateInsight(account.id, auth.userId);
+      const periodEnd = new Date();
+      return prisma.aiInsight.create({
+        data: {
+          accountId: account.id,
+          kind: "weekly_summary",
+          content: content as object,
+          periodStart: new Date(periodEnd.getTime() - 7 * 86_400_000),
+          periodEnd,
+        },
+      });
+    },
+  );
 
-  try {
-    const content = await generateInsight(account.id, auth.userId);
-    const periodEnd = new Date();
-    const insight = await prisma.aiInsight.create({
-      data: {
-        accountId: account.id,
-        kind: "weekly_summary",
-        content: content as object,
-        periodStart: new Date(periodEnd.getTime() - 7 * 86400_000),
-        periodEnd,
-      },
-    });
-    if (charge.generationId) await markGenerationStatus(charge.generationId, "completed");
-    return NextResponse.json({ insight }, { status: 201 });
-  } catch (e) {
-    logger.error("social-insights", `generation failed for ${account.id}`, e);
-    await refundCredits({ userId: auth.userId, amount: cost, generationId: charge.generationId });
-    return NextResponse.json({ error: "Insight generation failed — you were not charged." }, { status: 502 });
-  }
-}
+  return NextResponse.json({ insight }, { status: 201 });
+}, {
+  rateLimit: { key: (auth) => `social:insights:write:${auth.userId}`, max: 20, windowSec: 3600 },
+});

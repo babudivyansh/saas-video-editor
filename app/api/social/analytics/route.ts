@@ -1,91 +1,80 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireSubscriber } from "@/lib/auth";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { redis } from "@/lib/redis";
+import { assertOwnedAccount, parseQuery, withSocial } from "@/lib/social/api";
+import { CACHE_TTL, cached, keys, accountVersion } from "@/lib/social/cache";
+import { accountIdSchema, tzOffsetSchema } from "@/lib/social/schemas";
+import { loadAudience } from "@/lib/social/queries";
 import { ER_BENCHMARKS, computeAlerts, computeAnalytics, computeBestTimes } from "@/lib/social/analytics";
-import { analyticsCacheVersionKey } from "@/lib/social/service";
-
-const RANGES = new Set([7, 30, 90]);
-const CACHE_TTL = 300; // seconds — invalidated on sync (lib/social/service.ts)
 
 // GET /api/social/analytics?accountId=…&range=30&tz=<minutes east of UTC>
+//
 // Computed metrics for one owned account: tiles with period-over-period deltas,
 // chart series, top posts, content-type breakdown, best-time-to-post heatmap
 // (in the viewer's timezone), weekly alerts, benchmark band, and the latest
-// audience demographics. Derived on read from synced rows — no metrics store
-// to drift out of sync.
-export async function GET(req: NextRequest) {
-  const auth = await requireSubscriber(req);
-  if (!auth) {
-    return NextResponse.json({ error: "Social Tracker is available on paid plans." }, { status: 402 });
-  }
-  const accountId = req.nextUrl.searchParams.get("accountId");
-  if (!accountId) return NextResponse.json({ error: "accountId is required" }, { status: 400 });
-  const range = Number(req.nextUrl.searchParams.get("range") ?? 30);
-  if (!RANGES.has(range)) return NextResponse.json({ error: "range must be 7, 30 or 90" }, { status: 400 });
-  // Client's minutes east of UTC (-new Date().getTimezoneOffset()); quarter-hour
-  // granularity keeps the cache from fragmenting on odd values.
-  const tzRaw = Number(req.nextUrl.searchParams.get("tz") ?? 0);
-  const tz = Number.isFinite(tzRaw) ? Math.round(Math.max(-840, Math.min(840, tzRaw)) / 15) * 15 : 0;
+// audience demographics. Derived on read from synced rows — no metrics store to
+// drift out of sync.
+//
+// v1's endpoint, now on withSocial + zod + the shared cache helper. The response
+// shape is unchanged because the v1 page still reads it; stage 10 retrofits the
+// {data} envelope once that page is gone.
+//
+// The audience block changed, though, and that IS a fix: it used to select rows
+// matching the newest capturedAt EXACTLY, and rows from one sync do not share a
+// timestamp, so it returned a fragment of the capture. It now uses the same
+// loadAudience helper as everything else.
+const AUDIENCE_WINDOW_DAYS = 45;
 
-  const account = await prisma.socialAccount.findFirst({
-    where: { id: accountId, userId: auth.userId },
-    select: { id: true, provider: true },
+/** v1 offered exactly these three. Widening it here would change v1's cache keys. */
+const legacyRangeSchema = z.coerce.number().int().refine((v) => [7, 30, 90].includes(v), {
+  message: "range must be 7, 30 or 90",
+});
+
+export const GET = withSocial(async (req: NextRequest, { auth }) => {
+  const q = parseQuery(req, z.object({
+    accountId: accountIdSchema,
+    range: legacyRangeSchema.default(30),
+    tz: tzOffsetSchema.default(0),
+  }));
+  const account = await assertOwnedAccount(auth.userId, q.accountId);
+
+  const version = await accountVersion(account.id);
+  const payload = await cached(keys.analytics(account.id, version, q.range, q.tz), CACHE_TTL, async () => {
+    const [snapshots, posts, audience] = await Promise.all([
+      prisma.socialAccountSnapshot.findMany({
+        where: { accountId: account.id },
+        orderBy: { capturedAt: "asc" },
+        select: { capturedAt: true, followers: true, views: true, impressions: true, reach: true, engagement: true },
+      }),
+      // Full history (bounded by the backfill cap) — the engine range-filters in
+      // memory, and the heatmap and alerts want everything we have.
+      prisma.socialPost.findMany({
+        where: { accountId: account.id },
+        select: {
+          id: true, caption: true, thumbnailUrl: true, permalink: true, mediaType: true,
+          publishedAt: true, views: true, likes: true, comments: true, shares: true,
+          saves: true, reach: true, watchTimeSec: true,
+        },
+      }),
+      loadAudience(account.id, new Date(Date.now() - AUDIENCE_WINDOW_DAYS * 86_400_000)),
+    ]);
+
+    // One `now` for the whole payload, so every figure in it describes the same
+    // instant even if the computation straddles a second boundary.
+    const now = new Date();
+    return {
+      analytics: computeAnalytics(snapshots, posts, q.range, now),
+      bestTimes: computeBestTimes(posts, q.tz),
+      alerts: computeAlerts(snapshots, posts, now),
+      benchmark: ER_BENCHMARKS[account.provider] ?? null,
+      audience: audience.rows
+        .map(({ dimension, bucket, value }) => ({ dimension, bucket, value }))
+        .sort((a, b) => b.value - a.value),
+    };
   });
-  if (!account) return NextResponse.json({ error: "Account not found" }, { status: 404 });
 
-  const version = (await redis.get(analyticsCacheVersionKey(accountId))) ?? "0";
-  const cacheKey = `social:analytics:${accountId}:v${version}:${range}:${tz}`;
-  const cached = await redis.get(cacheKey);
-  if (cached) {
-    try {
-      return NextResponse.json(JSON.parse(cached));
-    } catch {
-      /* fall through to recompute */
-    }
-  }
-
-  const [snapshots, posts, latestAudience] = await Promise.all([
-    prisma.socialAccountSnapshot.findMany({
-      where: { accountId },
-      orderBy: { capturedAt: "asc" },
-      select: { capturedAt: true, followers: true, views: true, impressions: true, reach: true, engagement: true },
-    }),
-    // Full history (bounded by the backfill cap) — the engine range-filters
-    // in memory, and the heatmap/alerts want everything we have.
-    prisma.socialPost.findMany({
-      where: { accountId },
-      select: {
-        id: true, caption: true, thumbnailUrl: true, permalink: true, mediaType: true,
-        publishedAt: true, views: true, likes: true, comments: true, shares: true,
-        saves: true, reach: true, watchTimeSec: true,
-      },
-    }),
-    prisma.socialAudienceSnapshot.findFirst({
-      where: { accountId },
-      orderBy: { capturedAt: "desc" },
-      select: { capturedAt: true },
-    }),
-  ]);
-
-  const audience = latestAudience
-    ? await prisma.socialAudienceSnapshot.findMany({
-        where: { accountId, capturedAt: latestAudience.capturedAt },
-        select: { dimension: true, bucket: true, value: true },
-        orderBy: { value: "desc" },
-      })
-    : [];
-
-  // One `now` for the whole payload, so every figure in it describes the same
-  // instant even if the computation straddles a second boundary.
-  const now = new Date();
-  const payload = {
-    analytics: computeAnalytics(snapshots, posts, range, now),
-    bestTimes: computeBestTimes(posts, tz),
-    alerts: computeAlerts(snapshots, posts, now),
-    benchmark: ER_BENCHMARKS[account.provider] ?? null,
-    audience,
-  };
-  await redis.set(cacheKey, JSON.stringify(payload), "EX", CACHE_TTL);
   return NextResponse.json(payload);
-}
+}, {
+  rateLimit: { key: (auth) => `social:analytics:${auth.userId}`, max: 60, windowSec: 60 },
+});
