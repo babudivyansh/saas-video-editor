@@ -16,17 +16,38 @@ export function first(v: string | string[] | undefined): string | undefined {
 
 const VALID_RANGES = [7, 30, 90, 365];
 
+/** The one account in view, every account at once, or "not chosen yet". */
+export type AccountScope = { kind: "one"; id: string } | { kind: "all" } | { kind: "unset" };
+
 export interface ViewFilters {
   range: number;
   granularity: "day" | "week" | "month";
   compare: boolean;
   accountIds?: string[];
   sort?: string;
+  /**
+   * Which account the whole surface is scoped to, from `?account=`.
+   *
+   * The tracker is account-first: you land on a picker, choose one, and every
+   * tab stays on it. `?account=all` is the deliberate opt-in to the
+   * cross-account comparison, and no `?account=` at all means "show me the
+   * picker" — which is why "unset" is a distinct state and not just a default
+   * of "all".
+   */
+  scope: AccountScope;
 }
 
 export function parseFilters(params: SearchParams): ViewFilters {
   const rangeRaw = Number(first(params.range) ?? 30);
   const granularityRaw = first(params.granularity);
+  const account = first(params.account);
+  // The legacy `?accounts=a,b` still narrows the load; `?account=` is what
+  // drives the account-first flow.
+  const legacyIds = first(params.accounts)?.split(",").filter(Boolean);
+
+  const scope: AccountScope =
+    account === "all" ? { kind: "all" } : account ? { kind: "one", id: account } : { kind: "unset" };
+
   return {
     // Fall back rather than 400: a hand-edited URL should degrade to the
     // default view, not to an error page.
@@ -34,14 +55,18 @@ export function parseFilters(params: SearchParams): ViewFilters {
     granularity:
       granularityRaw === "week" || granularityRaw === "month" ? granularityRaw : "day",
     compare: first(params.compare) === "previous",
-    accountIds: first(params.accounts)?.split(",").filter(Boolean),
+    accountIds: scope.kind === "one" ? [scope.id] : legacyIds,
     sort: first(params.sort),
+    scope,
   };
 }
 
 export interface ViewContext {
   userId: string;
+  /** The accounts this view renders — one when scoped, otherwise all of them. */
   accounts: AccountContext[];
+  /** Every connected account, for the picker and the switcher. */
+  allAccounts: AccountContext[];
   filters: ViewFilters;
 }
 
@@ -50,6 +75,10 @@ export interface ViewContext {
  *
  * Redirects rather than throwing when the session is gone, so an expired tab
  * lands somewhere useful instead of on an error boundary.
+ *
+ * Scoping to one account narrows `accounts` to a single element, which is why
+ * the five sub-pages needed no changes: they already loop over this array, so a
+ * one-element array renders exactly one account's analytics.
  */
 export async function loadViewContext(params: SearchParams): Promise<ViewContext> {
   const auth = await requireServerSubscriber();
@@ -58,8 +87,28 @@ export async function loadViewContext(params: SearchParams): Promise<ViewContext
   if (!auth) redirect("/dashboard/billing");
 
   const filters = parseFilters(params);
-  const accounts = await loadAccounts(auth.userId, filters.accountIds);
-  return { userId: auth.userId, accounts, filters };
+  // One query, then filter in memory: nobody connects enough accounts for this
+  // to matter, and every account here is already ownership-scoped by userId, so
+  // an `?account=` pointing at someone else's id simply matches nothing.
+  const allAccounts = await loadAccounts(auth.userId);
+  const requested = filters.accountIds;
+  const scoped = requested?.length
+    ? allAccounts.filter((a) => requested.includes(a.id))
+    : allAccounts;
+
+  // An id that matches nothing — stale bookmark, disconnected account, someone
+  // else's — falls back to the picker instead of rendering a convincing empty
+  // dashboard that looks like the account has no data.
+  const accounts = scoped.length > 0 ? scoped : allAccounts;
+  const resolvedScope: AccountScope =
+    filters.scope.kind === "one" && scoped.length === 0 ? { kind: "unset" } : filters.scope;
+
+  return {
+    userId: auth.userId,
+    accounts,
+    allAccounts,
+    filters: { ...filters, scope: resolvedScope },
+  };
 }
 
 export function accountLabel(a: AccountContext): string {
