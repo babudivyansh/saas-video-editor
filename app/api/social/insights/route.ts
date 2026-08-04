@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { chargeCredits, refundCredits, markGenerationStatus } from "@/lib/credits";
 import { getToolConfig } from "@/lib/tool-config";
 import { generateInsight } from "@/lib/social/insights";
+import { isoWeekKey } from "@/lib/social/metrics";
 import { logger } from "@/lib/logger";
 
 // AI insights for one owned account.
@@ -58,7 +59,9 @@ export async function POST(req: NextRequest) {
   const cost = (await getToolConfig("social-insights")).creditCost;
   // Week-scoped idempotency: a retried request in the same ISO week never
   // double-charges even if the freshness check races.
-  const week = new Date().toISOString().slice(0, 10);
+  // A real ISO week. This used to be a sliced yyyy-mm-dd labelled "week", which
+  // made every calendar day its own week and the key useless for its purpose.
+  const week = isoWeekKey(new Date());
   const charge = await chargeCredits({
     userId: auth.userId,
     toolSlug: "social-insights",
@@ -74,7 +77,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const content = await generateInsight(account.id, account.provider);
+    const content = await generateInsight(account.id, auth.userId);
     const periodEnd = new Date();
     const insight = await prisma.aiInsight.create({
       data: {

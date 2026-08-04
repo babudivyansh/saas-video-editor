@@ -174,6 +174,41 @@ export const overviewQuerySchema = z.object({
   tz: timezoneSchema,
 });
 
+// ── AI layer ────────────────────────────────────────────────────────────────
+
+export const kpiExplainQuerySchema = z.object({
+  accountId: accountIdSchema,
+  metric: metricKeySchema,
+  range: rangeDaysSchema.default(30),
+  tz: timezoneSchema,
+});
+
+export const summaryBodySchema = z.object({
+  accountId: accountIdSchema,
+  period: periodSchema.default("weekly"),
+  tz: timezoneSchema,
+});
+
+export const recommendationsBodySchema = z.object({
+  accountId: accountIdSchema,
+  range: rangeDaysSchema.default(30),
+  tz: timezoneSchema,
+});
+
+export const captionsBodySchema = z.object({
+  accountId: accountIdSchema,
+  /** Free text from the user. The generator fences it; this only bounds it. */
+  brief: z.string().trim().min(1).max(500),
+  tone: z.string().trim().max(60).optional(),
+  tz: timezoneSchema,
+});
+
+/** One batch. The cap matches NARRATION_BATCH_SIZE — one call, one charge. */
+export const narrateBodySchema = z.object({
+  accountId: accountIdSchema,
+  postIds: z.array(idSchema).min(1).max(10),
+});
+
 export const contentQuerySchema = z.object({
   accountId: accountIdSchema,
   sort: postSortSchema,
