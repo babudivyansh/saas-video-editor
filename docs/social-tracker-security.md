@@ -5,8 +5,7 @@ Facebook account to the Social Tracker. This documents the threat model, the
 controls in code, the data we store (and deliberately don't), and operational
 procedures (key rotation, breach response, compliance).
 
-> TL;DR — We use OAuth with **least-privilege** scopes (read-only, plus YouTube
-> upload for the Auto-Clip publish flow), the platform's tokens **never
+> TL;DR — We use OAuth with **read-only** scopes, the platform's tokens **never
 > reach the browser**, they are **encrypted at rest with AES-256-GCM** under a key
 > kept separate from the database, and connecting is **CSRF-protected** (signed
 > state + PKCE). We store analytics numbers and minimal public profile data —
@@ -21,7 +20,7 @@ procedures (key rotation, breach response, compliance).
 | Stolen DB dump exposes OAuth tokens | Tokens stored only as AES-256-GCM ciphertext; key is **not** in the DB (§4) |
 | XSS steals tokens from the browser | Tokens are **never sent to the client**; they live server-side only (§3) |
 | CSRF / forged OAuth callback links a victim's account to an attacker | Signed, expiring `state` JWT + one-time PKCE verifier (§2) |
-| Over-broad access (DMs, PII, ads) | Least-privilege scopes only — read-only everywhere except YouTube upload (§5) |
+| Over-broad access (posting, DMs, PII) | Least-privilege **read-only** scopes only (§5) |
 | Leaked token used indefinitely | Short-lived access tokens + server-side refresh; revoke on disconnect (§6) |
 | Non-paying users probing the feature | Every endpoint is subscriber-gated server-side (§7) |
 | Key compromise | Documented rotation + forced re-auth (§9) |
@@ -84,33 +83,22 @@ social platform tokens stay entirely on the server.
 
 ---
 
-## 5. Least privilege
+## 5. Least privilege (read-only scopes)
 
 | Platform | Scopes requested | Notably **not** requested |
 |---|---|---|
-| YouTube (`lib/social/google.ts`) | `youtube.readonly`, `yt-analytics.readonly`, `youtube.upload` | manage, delete, partner/monetisation |
+| YouTube (`lib/social/google.ts`) | `youtube.readonly`, `yt-analytics.readonly` | upload, manage, delete |
 | Instagram + Facebook (`lib/social/meta.ts`) | `pages_show_list`, `pages_read_engagement`, `read_insights`, `instagram_basic`, `instagram_manage_insights` | publishing, messaging, ads management |
 
-`youtube.upload` is the **one** write scope. It exists solely for the Auto-Clip
-publish flow (`app/api/projects/[id]/clips/[clipId]/publish/route.ts` →
-`google.uploadVideo`), is only ever exercised on an explicit user action, and
-cannot delete or modify anything that already exists on the channel. Meta access
-is read-only.
-
-No scope grants the ability to delete content, message, or read follower lists / DMs.
+No scope grants the ability to post, delete, message, or read follower lists / DMs.
 
 ---
 
 ## 6. Token lifecycle & revocation
 
-- **Refresh:** `service.getValidAccessToken()` refreshes an access token once it
-  falls inside the provider's refresh window (`REFRESH_WINDOW_MS` in
-  `lib/social/service.ts` — **5 minutes** for YouTube, **7 days** for Meta) and
-  re-encrypts the result. The windows differ because Google access tokens live
-  ~1 hour and are cheap to re-mint from a refresh token, whereas Meta long-lived
-  tokens live ~60 days and re-exchanging early is the only way to avoid an
-  expiry cliff. Google issues refresh tokens (offline access); Meta uses
-  long-lived tokens.
+- **Refresh:** `service.getValidAccessToken()` refreshes an access token when it is
+  within 60s of expiry and re-encrypts the result. Google issues refresh tokens
+  (offline access); Meta uses long-lived tokens (~60 days).
 - **Re-auth on failure:** if a refresh isn't possible, the account is marked
   `needs_reauth` and the UI prompts the user to reconnect — we never silently
   retry with a dead token.

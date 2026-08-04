@@ -177,31 +177,6 @@ body {
   .clipiro-blob {
     animation: none;
   }
-  /* Chart path draw-in and KPI count-up. Skipped entirely rather than
-     shortened — a fast animation is still motion. */
-  .chart-animate,
-  .kpi-count {
-    animation: none;
-    transition: none;
-  }
-}
-
-/* Chart line draw-in. Paired with useReducedMotion() in the component, so the
-   class is not even applied when the user has asked for reduced motion — the
-   media query above is the belt to that braces. */
-@keyframes clipiro-chart-draw {
-  from {
-    stroke-dasharray: 1200;
-    stroke-dashoffset: 1200;
-  }
-  to {
-    stroke-dasharray: 1200;
-    stroke-dashoffset: 0;
-  }
-}
-
-.chart-animate {
-  animation: clipiro-chart-draw 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* Editor scrollbars — black/faded instead of the OS-default light-gray bars,

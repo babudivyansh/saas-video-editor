@@ -185,48 +185,6 @@ export async function getAuthUser(req: NextRequest): Promise<TokenPayload | null
 }
 
 /**
- * Same verification as `getAuthUser`, but reading the httpOnly `session` cookie
- * instead of an Authorization header — so Server Components can render
- * authenticated data.
- *
- * Without this the Social Tracker is a four-hop client waterfall: HTML, then
- * hydrate, then read the token out of localStorage, then fetch. Nothing renders
- * until JavaScript runs.
- *
- * The session record check is identical and deliberately so: a valid JWT alone
- * is not enough, the server-side session must still exist and its hash must
- * match. `cookies()` is a Promise in Next 16 and must be awaited.
- */
-export async function getServerAuthUser(): Promise<TokenPayload | null> {
-  const { cookies } = await import("next/headers");
-  const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
-  if (!token) return null;
-  try {
-    const payload = verifyToken(token);
-    if (!payload.sessionId) return null;
-    const records = await readSessions(payload.userId);
-    const match = records.find((r) => r.sessionId === payload.sessionId);
-    if (!match || match.tokenHash !== hashToken(token)) return null;
-    touchSession(payload.userId, payload.sessionId);
-    return payload;
-  } catch {
-    return null;
-  }
-}
-
-/** Server Component counterpart to `requireSubscriber`. */
-export async function requireServerSubscriber(): Promise<TokenPayload | null> {
-  const auth = await getServerAuthUser();
-  if (!auth) return null;
-  const user = await prisma.user.findUnique({
-    where: { id: auth.userId },
-    select: { subscriptionEndsAt: true },
-  });
-  const active = !!user?.subscriptionEndsAt && user.subscriptionEndsAt > new Date();
-  return active ? auth : null;
-}
-
-/**
  * Completes a login (password, phone/email OTP, or Google OAuth) — issues a
  * session-bound JWT and registers it with device/IP metadata. The one place
  * every login-completing route shares, so device capture and session

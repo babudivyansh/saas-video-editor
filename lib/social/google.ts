@@ -1,6 +1,5 @@
 import { redirectUri } from "./oauth";
 import { ProviderApiError } from "./errors";
-import { fetchAudienceBreakdowns, fetchDailyMetrics, fetchVideoReport } from "./google-analytics";
 import type { AudienceRow, NormalizedAccount, NormalizedPost, OAuthTokens, ProviderSync, SyncOptions } from "./types";
 import { env } from "@/lib/env";
 
@@ -29,6 +28,7 @@ const TOKEN = "https://oauth2.googleapis.com/token";
 const REVOKE = "https://oauth2.googleapis.com/revoke";
 const API = "https://www.googleapis.com/youtube/v3";
 const UPLOAD_API = "https://www.googleapis.com/upload/youtube/v3/videos";
+const ANALYTICS = "https://youtubeanalytics.googleapis.com/v2/reports";
 
 function clientId() {
   const id = env.GOOGLE_CLIENT_ID;
@@ -109,6 +109,33 @@ async function api(path: string, accessToken: string): Promise<Record<string, un
   return res.json();
 }
 
+// Pull watch-time per video from the Analytics API (last 90 days). Non-fatal —
+// returns an empty map if the call is unavailable.
+async function fetchWatchTime(accessToken: string, videoIds: string[]): Promise<Record<string, number>> {
+  if (videoIds.length === 0) return {};
+  const end = new Date().toISOString().slice(0, 10);
+  const start = new Date(Date.now() - 90 * 86400_000).toISOString().slice(0, 10);
+  const p = new URLSearchParams({
+    ids: "channel==MINE",
+    startDate: start,
+    endDate: end,
+    metrics: "estimatedMinutesWatched,views",
+    dimensions: "video",
+    filters: `video==${videoIds.join(",")}`,
+    maxResults: "200",
+  });
+  try {
+    const res = await fetch(`${ANALYTICS}?${p.toString()}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!res.ok) return {};
+    const j = (await res.json()) as { rows?: [string, number, number][] };
+    const map: Record<string, number> = {};
+    for (const row of j.rows ?? []) map[row[0]] = Number(row[1]) * 60; // minutes -> seconds
+    return map;
+  } catch {
+    return {};
+  }
+}
+
 // First sync pulls deeper history so charts start meaningful; steady-state
 // syncs only need the newest page (uploads come back newest-first, so a
 // 20-item page always covers everything since the last 12h-ish sync).
@@ -162,7 +189,7 @@ export async function sync(accessToken: string, opts?: SyncOptions): Promise<Pro
 
     // /videos and the Analytics filter both cap at 50 ids per call.
     for (const batch of chunks(ids, 50)) {
-      const [vids, analytics] = await Promise.all([
+      const [vids, watch] = await Promise.all([
         api(`/videos?part=snippet,statistics,contentDetails&id=${batch.join(",")}`, accessToken) as Promise<{
           items?: Array<{
             id: string;
@@ -171,57 +198,63 @@ export async function sync(accessToken: string, opts?: SyncOptions): Promise<Pro
             contentDetails?: { duration?: string };
           }>;
         }>,
-        // One report call now returns eight metrics where the old fetchWatchTime
-        // asked for one — notably avgViewPercentage, the only real retention
-        // signal any of our three providers exposes.
-        fetchVideoReport(accessToken, batch),
+        fetchWatchTime(accessToken, batch),
       ]);
       posts.push(
-        ...(vids.items ?? []).map((v) => {
-          const a = analytics[v.id];
-          return {
-            providerPostId: v.id,
-            caption: v.snippet?.title,
-            thumbnailUrl: v.snippet?.thumbnails?.medium?.url,
-            permalink: `https://www.youtube.com/watch?v=${v.id}`,
-            mediaType: isShort(v.contentDetails?.duration) ? "short" : "video",
-            publishedAt: v.snippet?.publishedAt ? new Date(v.snippet.publishedAt) : undefined,
-            // Lifetime counters from the Data API; the Analytics report covers
-            // only its window, so it must not overwrite them.
-            views: Number(v.statistics?.viewCount ?? 0),
-            likes: Number(v.statistics?.likeCount ?? 0),
-            comments: Number(v.statistics?.commentCount ?? 0),
-            watchTimeSec: a?.watchTimeSec,
-            avgWatchTimeSec: a?.avgWatchTimeSec,
-            avgViewPercentage: a?.avgViewPercentage,
-            shares: a?.shares,
-            follows: a?.follows,
-          };
-        }),
+        ...(vids.items ?? []).map((v) => ({
+          providerPostId: v.id,
+          caption: v.snippet?.title,
+          thumbnailUrl: v.snippet?.thumbnails?.medium?.url,
+          permalink: `https://www.youtube.com/watch?v=${v.id}`,
+          mediaType: isShort(v.contentDetails?.duration) ? "short" : "video",
+          publishedAt: v.snippet?.publishedAt ? new Date(v.snippet.publishedAt) : undefined,
+          views: Number(v.statistics?.viewCount ?? 0),
+          likes: Number(v.statistics?.likeCount ?? 0),
+          comments: Number(v.statistics?.commentCount ?? 0),
+          watchTimeSec: watch[v.id],
+        })),
       );
     }
   }
 
-  const { days, observed } = await fetchDailyMetrics(accessToken, opts?.since);
-
-  return {
-    account,
-    posts,
-    daily: days,
-    observedCapabilities: observed,
-  };
+  return { account, posts };
 }
 
 // Audience demographics for the authenticated channel (viewer percentages,
 // last 90 days) via the YouTube Analytics API. Only available for owned
 // channels — exactly our case.
 export async function fetchAudience(accessToken: string): Promise<AudienceRow[]> {
-  // Delegates to google-analytics.ts, which returns the same age/gender/country
-  // breakdowns plus device, all normalised to percentage shares with an explicit
-  // unit. Kept as a named export because providers.ts wires it as the adapter's
-  // fetchAudience hook.
-  const { rows } = await fetchAudienceBreakdowns(accessToken);
-  return rows;
+  const end = new Date().toISOString().slice(0, 10);
+  const start = new Date(Date.now() - 90 * 86400_000).toISOString().slice(0, 10);
+  const report = async (dimensions: string, metrics: string) => {
+    const p = new URLSearchParams({ ids: "channel==MINE", startDate: start, endDate: end, metrics, dimensions, maxResults: "50" });
+    const res = await fetch(`${ANALYTICS}?${p.toString()}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!res.ok) throw new ProviderApiError(`youtube analytics ${dimensions} failed: ${res.status}`, res.status, await res.text());
+    return ((await res.json()) as { rows?: Array<Array<string | number>> }).rows ?? [];
+  };
+
+  const out: AudienceRow[] = [];
+  // ageGroup×gender viewerPercentage rows: ["age18-24","female",12.3]
+  const demo = await report("ageGroup,gender", "viewerPercentage");
+  const byAge = new Map<string, number>();
+  const byGender = new Map<string, number>();
+  for (const [age, gender, pct] of demo) {
+    const bucket = String(age).replace(/^age/, "");
+    byAge.set(bucket, (byAge.get(bucket) ?? 0) + Number(pct));
+    byGender.set(String(gender), (byGender.get(String(gender)) ?? 0) + Number(pct));
+  }
+  for (const [bucket, value] of byAge) out.push({ dimension: "age", bucket, value });
+  for (const [bucket, value] of byGender) out.push({ dimension: "gender", bucket, value });
+
+  // country views → percentage of total views
+  const countries = await report("country", "views");
+  const total = countries.reduce((s, r) => s + Number(r[1] ?? 0), 0);
+  if (total > 0) {
+    for (const [country, views] of countries) {
+      out.push({ dimension: "country", bucket: String(country), value: (Number(views) / total) * 100 });
+    }
+  }
+  return out;
 }
 
 export class NeedsReauthError extends Error {
