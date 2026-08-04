@@ -40,6 +40,10 @@ export const keys = {
 
   overview: (userId: string, version: string | number) => `social:overview:${userId}:v${version}`,
 
+  audience: (userId: string, version: string | number) => `social:audience:${userId}:v${version}`,
+
+  compare: (userId: string, version: string | number) => `social:compare:${userId}:v${version}`,
+
   analytics: (accountId: string, version: string | number, range: number, tz: string | number) =>
     `social:analytics:${accountId}:v${version}:${range}:${tz}`,
 

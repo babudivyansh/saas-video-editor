@@ -267,6 +267,47 @@ export async function loadSeries(
   return { ...base, points };
 }
 
+export interface AudienceRow {
+  dimension: string;
+  bucket: string;
+  value: number;
+  unit: string;
+  audience: string;
+}
+
+export interface AudienceResult {
+  accountId: string;
+  rows: AudienceRow[];
+  /** When the surviving rows were captured. Null when there are none. */
+  capturedAt: Date | null;
+}
+
+/**
+ * The newest audience row per (audience, dimension, bucket).
+ *
+ * NOT "every row at the latest capturedAt". Rows written during a single sync
+ * do not share a timestamp — each takes its own `now()`, microseconds apart —
+ * so an equality filter returns a fragment of the capture and silently drops
+ * whole dimensions. That bug shipped once; this helper is why it cannot again.
+ */
+export async function loadAudience(accountId: string, since: Date): Promise<AudienceResult> {
+  const recent = await prisma.socialAudienceSnapshot.findMany({
+    where: { accountId, capturedAt: { gte: since } },
+    select: { capturedAt: true, dimension: true, bucket: true, value: true, unit: true, audience: true },
+    orderBy: { capturedAt: "asc" },
+  });
+
+  const newest = new Map<string, (typeof recent)[number]>();
+  // Ascending input, so a later row for the same key overwrites an earlier one.
+  for (const row of recent) newest.set(`${row.audience}::${row.dimension}::${row.bucket}`, row);
+
+  return {
+    accountId,
+    rows: [...newest.values()].map(({ capturedAt: _capturedAt, ...rest }) => rest),
+    capturedAt: recent.length > 0 ? recent[recent.length - 1].capturedAt : null,
+  };
+}
+
 /** Capability map across a selection — a metric is available if ANY account has it. */
 export function combinedCapabilities(accounts: AccountContext[]): Record<MetricKey, Support> {
   return mergeCapabilities(accounts.map((a) => capabilityMap(a.provider, a.observed)));

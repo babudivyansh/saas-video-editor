@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { computeBestTimes } from "@/lib/social/metrics";
+import { loadAudience } from "@/lib/social/queries";
 import { BLOCK_LABELS, Heatmap, WEEKDAY_LABELS } from "@/app/components/charts";
 import { AudienceBreakdown, type AudienceRowView } from "../../components/AudienceBreakdown";
 import { EmptyAccounts } from "../../components/EmptyAccounts";
@@ -24,33 +25,11 @@ export default async function AudiencePage({
 
   const sections = await Promise.all(
     accounts.map(async (account) => {
-      // Keep the newest row per (audience, dimension, bucket) rather than
-      // filtering on one exact capturedAt.
-      //
-      // Rows written during a single sync do NOT share a timestamp — each gets
-      // its own default now(), microseconds apart — so an equality filter
-      // returns a fragment of the capture. That silently dropped age and gender
-      // and left only whichever dimension happened to be written last.
-      const recent = await prisma.socialAudienceSnapshot.findMany({
-        where: {
-          accountId: account.id,
-          capturedAt: { gte: audienceSince },
-        },
-        select: {
-          capturedAt: true, dimension: true, bucket: true, value: true, unit: true, audience: true,
-        },
-        orderBy: { capturedAt: "asc" },
-      });
-
-      const newest = new Map<string, (typeof recent)[number]>();
-      for (const row of recent) {
-        // Ascending input, so a later row for the same key overwrites an
-        // earlier one.
-        newest.set(`${row.audience}::${row.dimension}::${row.bucket}`, row);
-      }
-
-      const rows: AudienceRowView[] = [...newest.values()].map(({ capturedAt: _ignored, ...r }) => r);
-      const latest = recent.length > 0 ? recent[recent.length - 1] : null;
+      // The newest-row-per-key dedup lives in loadAudience — the same helper
+      // /api/social/audience uses, so the page and the API cannot disagree
+      // about what the latest capture contains.
+      const audience = await loadAudience(account.id, audienceSince);
+      const rows: AudienceRowView[] = audience.rows;
 
       const posts = await prisma.socialPost.findMany({
         where: { accountId: account.id, publishedAt: { not: null } },
@@ -63,7 +42,7 @@ export default async function AudiencePage({
       });
 
       const bestTimes = computeBestTimes(posts, account.timezone ?? "UTC");
-      return { account, rows, bestTimes, capturedAt: latest?.capturedAt ?? null };
+      return { account, rows, bestTimes, capturedAt: audience.capturedAt };
     }),
   );
 
