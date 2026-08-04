@@ -6,15 +6,15 @@
 // text, and the full series is available in the chart below. Announcing 30 more
 // numbers per tile would make the KPI grid unusable with a screen reader.
 
-export function Sparkline({
-  points,
-  color = "var(--brand)",
-  height = 24,
-}: {
+export interface SparklineProps {
   points: Array<{ date: string; value: number }>;
   color?: string;
   height?: number;
-}) {
+  /** Fill under the line. Off by default — it is noise at tile size. */
+  filled?: boolean;
+}
+
+export function Sparkline({ points, color = "var(--brand)", height = 24, filled = false }: SparklineProps) {
   if (points.length < 2) return null;
 
   const W = 100;
@@ -42,6 +42,14 @@ export function Sparkline({
       focusable="false"
       preserveAspectRatio="none"
     >
+      {filled && (
+        <path
+          d={`${path} L${W} ${height} L0 ${height} Z`}
+          fill={color}
+          opacity="0.12"
+          stroke="none"
+        />
+      )}
       <path d={path} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );

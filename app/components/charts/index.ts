@@ -33,8 +33,26 @@ export {
 
 export { ChartFrame, type ChartFrameProps, type ChartSeriesMeta } from "./ChartFrame";
 export { TimeSeriesChart, type TimeSeriesChartProps } from "./TimeSeriesChart";
+export { StackedBarChart, type StackedBarChartProps } from "./StackedBarChart";
+export { ComparisonBars, type ComparisonBarsProps } from "./ComparisonBars";
+export { DonutChart, type DonutChartProps } from "./DonutChart";
+export { FunnelChart, type FunnelChartProps, type FunnelStage } from "./FunnelChart";
+export { Gauge, type GaugeProps } from "./Gauge";
+export { Sparkline, type SparklineProps } from "./Sparkline";
+export { BrushRange, type BrushRangeProps } from "./BrushRange";
 export { Heatmap, WEEKDAY_LABELS, BLOCK_LABELS, type HeatmapProps, type HeatmapCell } from "./Heatmap";
+export { ChartExportMenu, type ChartExportMenuProps } from "./ChartExportMenu";
 export { useChartCursor } from "./useChartCursor";
+export {
+  seriesToCsv,
+  seriesToText,
+  svgToPngBlob,
+  flattenSvgStyles,
+  downloadBlob,
+  downloadCsv,
+  exportFilename,
+  type ExportSeries,
+} from "./export";
 export {
   fmtCompact,
   fmtFull,

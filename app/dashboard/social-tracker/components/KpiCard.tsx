@@ -17,7 +17,7 @@ import { useReducedMotion } from "framer-motion";
 import type { MetricKey, Support } from "@/lib/social/capabilities";
 import { fmtByUnit, type ValueUnit } from "@/app/components/charts/format";
 import { Tooltip } from "@/app/components/ui/Tooltip";
-import { Sparkline } from "./Sparkline";
+import { Sparkline } from "@/app/components/charts";
 
 export interface KpiCardProps {
   metric: MetricKey;
