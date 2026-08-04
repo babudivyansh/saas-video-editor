@@ -18,6 +18,30 @@ const category = (key: string, label: string, value: number): ChartSeriesMeta =>
   points: [{ date: label, value }],
 });
 
+describe("the sr-only data table", () => {
+  // The regression test for the blank-screen scroll bug. `sr-only` on a <table>
+  // does not collapse it: width/height on a display:table box are minimums, so
+  // the table keeps its natural size, resolves against <body> for want of a
+  // positioned ancestor, escapes the dashboard shell's overflow-hidden, and
+  // stretches the document. Production scrolled ~1100px past its content.
+  it("is wrapped in a div, because sr-only cannot collapse a table itself", () => {
+    const { container } = render(
+      <ComparisonBars title="Followers" series={[category("me", "You", 12_000)]} />,
+    );
+    const table = container.querySelector("table");
+    expect(table).not.toBeNull();
+    expect(table!.classList.contains("sr-only")).toBe(false);
+    expect(table!.parentElement).toHaveClass("sr-only");
+  });
+
+  it("hides the table by hiding its wrapper, so the data is still exposed", () => {
+    render(<ComparisonBars title="Followers" series={[category("me", "You", 12_000)]} />);
+    // Still reachable as a table for assistive tech — hidden visually, not
+    // removed from the accessibility tree.
+    expect(screen.getByRole("table", { name: /data table/i })).toBeInTheDocument();
+  });
+});
+
 describe("ComparisonBars", () => {
   const series = [category("me", "You", 12_000), category("rival", "@rival", 25_000)];
 

@@ -4,12 +4,12 @@
 // not: analytics were nested per account behind a tab, so comparing two accounts
 // meant scrolling and remembering numbers.
 
-import { requireServerSubscriber } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import { EmptyState } from "@/app/components/ui/EmptyState";
 import { mergeCapabilities, METRIC_KEYS, type MetricKey, type Support } from "@/lib/social/capabilities";
 import { capabilityMap } from "@/lib/social/capabilities";
 import { loadAccountKpis, loadAccounts, loadSeries } from "@/lib/social/queries";
+import { loadViewContext, type SearchParams } from "./shared";
+import { AccountPicker } from "./components/AccountPicker";
 import { ER_BENCHMARKS, computeAlerts, delta, goalProgress, rangeBounds, type AccountAlert } from "@/lib/social/metrics";
 import { METRIC_LABELS } from "@/lib/social/ai/factsheets";
 import { prisma } from "@/lib/prisma";
@@ -23,29 +23,20 @@ import { QuickActions } from "./components/QuickActions";
 
 export const dynamic = "force-dynamic";
 
-const VALID_RANGES = [7, 30, 90, 365];
-
 export default async function OverviewPage({
   searchParams,
 }: {
   // Next 16: searchParams is a Promise and MUST be awaited. The v15 sync shim
   // was removed entirely.
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  searchParams: Promise<SearchParams>;
 }) {
-  const auth = await requireServerSubscriber();
-  // The layout already gated this; the redirect is the belt to its braces, and
-  // it must not point at this same route or an expired session loops forever.
-  if (!auth) redirect("/dashboard/billing");
-
   const params = await searchParams;
-  const rangeRaw = Number(first(params.range) ?? 30);
-  const range = VALID_RANGES.includes(rangeRaw) ? rangeRaw : 30;
-  const granularity = (first(params.granularity) ?? "day") as "day" | "week" | "month";
-  const selectedIds = first(params.accounts)?.split(",").filter(Boolean);
+  const { userId, accounts: scoped, allAccounts, filters } = await loadViewContext(params);
+  const range = filters.range;
+  const granularity = filters.granularity;
+  const auth = { userId };
 
-  const accounts = await loadAccounts(auth.userId, selectedIds);
-
-  if (accounts.length === 0) {
+  if (allAccounts.length === 0) {
     return (
       <EmptyState
         icon={
@@ -60,6 +51,16 @@ export default async function OverviewPage({
       />
     );
   }
+
+  // Account-first: with nothing chosen and more than one account to choose
+  // from, ask. A single account skips the picker — offering a choice of one is
+  // just an extra click.
+  if (filters.scope.kind === "unset" && allAccounts.length > 1) {
+    return <AccountPicker accounts={allAccounts} query={queryString(params)} />;
+  }
+
+  const accounts =
+    filters.scope.kind === "unset" && allAccounts.length === 1 ? allAccounts : scoped;
 
   const now = new Date();
   const { from, to } = rangeBounds(range, now);
@@ -177,8 +178,18 @@ export default async function OverviewPage({
   );
 }
 
-function first(v: string | string[] | undefined): string | undefined {
-  return Array.isArray(v) ? v[0] : v;
+/**
+ * The current query string minus `account`, so picking one keeps the range and
+ * granularity the user already chose rather than resetting them.
+ */
+function queryString(params: SearchParams): string {
+  const out = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (key === "account") continue;
+    const v = Array.isArray(value) ? value[0] : value;
+    if (v !== undefined) out.set(key, v);
+  }
+  return out.toString();
 }
 
 /** Metrics that are rates or levels — summing across accounts is nonsense. */

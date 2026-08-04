@@ -66,9 +66,18 @@ export function percentileRank(values: number[], value: number): number | null {
   return below / values.length;
 }
 
+/**
+ * Percentage change, or null where a percentage would mislead.
+ *
+ * Null on a previous of zero (a change from nothing has no percentage) AND on a
+ * NEGATIVE previous. The second case shipped: an account whose net likes went
+ * from -2 to -1 rendered "Likes -1, up 50%" with a green arrow. The arithmetic
+ * is right and the sentence is nonsense — nobody reads "up 50%" as "still
+ * negative, just less so". A metric below zero gets its value and no percentage.
+ */
 export function pctChange(current: number | null, previous: number | null): number | null {
-  if (current === null || previous === null || previous === 0) return null;
-  return ((current - previous) / Math.abs(previous)) * 100;
+  if (current === null || previous === null || previous <= 0) return null;
+  return ((current - previous) / previous) * 100;
 }
 
 export function delta(current: number | null, previous: number | null): MetricDelta {

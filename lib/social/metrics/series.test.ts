@@ -83,8 +83,18 @@ describe("pctChange", () => {
     expect(pctChange(100, null)).toBeNull();
   });
 
-  it("uses the absolute baseline so a negative previous still reads correctly", () => {
-    expect(pctChange(-50, -100)).toBe(50); // moved up by half the magnitude
+  it("refuses a percentage against a negative baseline", () => {
+    // This used to return +50 by dividing through Math.abs(previous). The
+    // arithmetic was right and the result was unreadable: production rendered
+    // "Likes -1, up 50%" with a green arrow, because net likes had gone from
+    // -2 to -1. Nobody reads "up 50%" as "still negative, just less so".
+    expect(pctChange(-50, -100)).toBeNull();
+    expect(pctChange(-1, -2)).toBeNull();
+  });
+
+  it("still reports a fall into negative territory as a percentage", () => {
+    // The baseline is positive here, so the percentage means something.
+    expect(pctChange(-50, 100)).toBe(-150);
   });
 });
 

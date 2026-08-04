@@ -40,7 +40,8 @@ export function FilterBar({ accounts }: { accounts: AccountChip[] }) {
   const range = Number(params.get("range") ?? 30);
   const granularity = params.get("granularity") ?? "day";
   const compare = params.get("compare") === "previous";
-  const selected = params.get("accounts")?.split(",").filter(Boolean) ?? [];
+  const account = params.get("account");
+  const current = account && account !== "all" ? accounts.find((a) => a.id === account) : null;
 
   /** Merge into the query string, dropping empty values so URLs stay readable. */
   const setParam = useCallback(
@@ -57,30 +58,40 @@ export function FilterBar({ accounts }: { accounts: AccountChip[] }) {
     [params, pathname, router],
   );
 
-  const toggleAccount = (id: string) => {
-    const next = selected.includes(id) ? selected.filter((a) => a !== id) : [...selected, id];
-    setParam({ accounts: next.length === 0 || next.length === accounts.length ? null : next.join(",") });
-  };
-
-  const allSelected = selected.length === 0;
-
   return (
     <div className="sticky top-0 z-20 -mx-4 mb-6 border-b border-card-border bg-white/85 px-4 py-3 backdrop-blur sm:-mx-8 sm:px-8">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+        {/*
+          An account SWITCHER, not a set of filters. The tracker is scoped to one
+          account at a time, so the question here is "which one am I looking at",
+          which a select answers in one control — and it keeps working when the
+          user has ten accounts, where a row of pills would wrap into a wall.
+        */}
         {accounts.length > 1 && (
-          <div role="group" aria-label="Filter by account" className="flex flex-wrap items-center gap-1.5">
-            <Chip active={allSelected} onClick={() => setParam({ accounts: null })}>
-              All accounts
-            </Chip>
-            {accounts.map((a) => (
-              <Chip
-                key={a.id}
-                active={selected.includes(a.id)}
-                onClick={() => toggleAccount(a.id)}
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1.5 text-xs text-ink-soft">
+              <span className="sr-only">Account</span>
+              <select
+                value={account ?? ""}
+                onChange={(e) => setParam({ account: e.target.value || null })}
+                className="max-w-[13rem] rounded-lg border border-card-border bg-white px-2 py-1 text-xs font-semibold text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
               >
-                {a.label}
-              </Chip>
-            ))}
+                {/* The empty value is the picker, so "back to my accounts" is
+                    reachable from inside any tab without using Back. */}
+                <option value="">Choose an account…</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.label}
+                  </option>
+                ))}
+                <option value="all">All accounts (compare)</option>
+              </select>
+            </label>
+            {current && (
+              <span className="hidden text-xs text-ink-soft sm:inline">
+                Showing {current.label}
+              </span>
+            )}
           </div>
         )}
 

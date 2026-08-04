@@ -1,16 +1,20 @@
 "use client";
 
-// The executive KPI grid.
+// The executive KPI block: a hero row, a compact grid, and one honest line
+// about what this platform cannot report.
 //
-// Every requested KPI renders, always, on every platform. Which ones are LIVE
-// depends on the capability matrix — the grid's shape stays stable so switching
-// between a YouTube and an Instagram account does not reflow the page, and a
-// greyed tile teaches the user something ("YouTube doesn't publish impressions")
-// rather than hiding the gap.
+// It used to render all nineteen KPIs as identical tiles, including the eight
+// that said "Not available" — so the page led with absence and nothing had more
+// weight than anything else. The information is unchanged; the ranking is new.
+//
+// Unavailable metrics are still NAMED, because "YouTube doesn't publish
+// impressions" is worth knowing and silently dropping it would leave the user
+// wondering. They are named in a sentence rather than in eight empty cards.
 
 import type { MetricKey, Support } from "@/lib/social/capabilities";
 import type { ValueUnit } from "@/app/components/charts/format";
 import { KpiCard } from "./KpiCard";
+import { KpiHero } from "./KpiHero";
 
 export interface KpiEntry {
   current: number | null;
@@ -61,17 +65,77 @@ const CATALOGUE: Array<{ metric: MetricKey; label: string; invert?: boolean }> =
   { metric: "followersLost", label: "Followers lost", invert: true },
 ];
 
-export function KpiGrid({ kpis, derived, sparklines, benchmark }: KpiGridProps) {
-  return (
-    <section aria-labelledby="kpi-grid-heading">
-      <h2 id="kpi-grid-heading" className="sr-only">
-        Key performance indicators
-      </h2>
+/**
+ * Candidates for the hero row, best first.
+ *
+ * The first four that this platform actually reports get promoted. It is a
+ * preference list rather than a fixed set because a YouTube channel and an
+ * Instagram account do not report the same things, and a hero row with two
+ * empty cards would be worse than the flat grid it replaces.
+ */
+const HERO_PRIORITY: MetricKey[] = [
+  "followers",
+  "views",
+  "reach",
+  "engagementRate",
+  "impressions",
+  "totalInteractions",
+  "likes",
+];
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
-        {CATALOGUE.map(({ metric, label, invert }) => {
+const HERO_COUNT = 4;
+
+export function KpiGrid({ kpis, derived, sparklines, benchmark }: KpiGridProps) {
+  const labelOf = (metric: MetricKey) =>
+    CATALOGUE.find((c) => c.metric === metric)?.label ?? metric;
+
+  const reports = (metric: MetricKey) => {
+    const kpi = kpis[metric];
+    return Boolean(kpi && kpi.available !== "unavailable");
+  };
+
+  // Prefer metrics that have a number; fall back to available-but-empty so the
+  // row is always full rather than collapsing on a freshly connected account.
+  const heroKeys = [
+    ...HERO_PRIORITY.filter((m) => reports(m) && kpis[m]?.current !== null),
+    ...HERO_PRIORITY.filter((m) => reports(m) && kpis[m]?.current === null),
+  ].slice(0, HERO_COUNT);
+
+  const heroSet = new Set<MetricKey>(heroKeys);
+
+  // Everything this platform cannot report, named once instead of occupying
+  // eight cards that all say "Not available".
+  const unavailable = CATALOGUE.filter(({ metric }) => kpis[metric]?.available === "unavailable");
+  const unavailableReason = unavailable
+    .map(({ metric }) => kpis[metric]?.reason)
+    .find((r): r is string => Boolean(r));
+
+  return (
+    <div className="space-y-6">
+      <KpiHero
+        metrics={heroKeys.map((metric) => ({
+          key: metric,
+          label: labelOf(metric),
+          value: kpis[metric]!.current,
+          deltaPct: kpis[metric]!.deltaPct,
+          unit: kpis[metric]!.unit,
+          sparkline: sparklines?.[metric],
+          invertDelta: CATALOGUE.find((c) => c.metric === metric)?.invert,
+          benchmark: metric === "engagementRate" ? benchmark : undefined,
+        }))}
+      />
+
+      <section aria-labelledby="kpi-grid-heading">
+        <h2 id="kpi-grid-heading" className="sr-only">
+          Key performance indicators
+        </h2>
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
+          {CATALOGUE.map(({ metric, label, invert }) => {
           const kpi = kpis[metric];
-          if (!kpi) return null;
+          // Promoted into the hero, or not reported at all — either way it does
+          // not belong in this grid.
+          if (!kpi || heroSet.has(metric) || kpi.available === "unavailable") return null;
           return (
             <KpiCard
               key={metric}
@@ -111,8 +175,18 @@ export function KpiGrid({ kpis, derived, sparklines, benchmark }: KpiGridProps) 
             <GrowthTile label="Monthly growth" pct={derived.monthlyGrowth} />
           </>
         )}
-      </div>
-    </section>
+        </div>
+
+        {unavailable.length > 0 && (
+          // One line, not eight dead cards. The information is the same and it
+          // stops absence from being the loudest thing on the page.
+          <p className="mt-3 text-xs text-ink-soft" title={unavailableReason}>
+            <span className="font-semibold">Not reported by this platform:</span>{" "}
+            {unavailable.map(({ label }) => label.replace(/^Total /, "").toLowerCase()).join(", ")}.
+          </p>
+        )}
+      </section>
+    </div>
   );
 }
 

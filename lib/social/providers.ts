@@ -72,3 +72,25 @@ export function availableProviders(): ProviderId[] {
 export function isProviderConfigured(id: ProviderId): boolean {
   return OAUTH_APP_CONFIGURED[PROVIDERS[id].oauthApp]();
 }
+
+export interface ProviderAvailability {
+  id: ProviderId;
+  configured: boolean;
+}
+
+/**
+ * EVERY provider, each with whether this deployment can actually connect it.
+ *
+ * `availableProviders()` filters unconfigured ones out, which is right for
+ * anything that acts on a provider but wrong for the UI: production offered
+ * only YouTube and said nothing about Instagram or Facebook, so a user with no
+ * way to know about the missing META_APP_ID simply saw a product that appeared
+ * to have lost two platforms. The settings page renders from this instead and
+ * explains the gap.
+ */
+export function providerAvailability(): ProviderAvailability[] {
+  return (Object.keys(PROVIDERS) as ProviderId[]).map((id) => ({
+    id,
+    configured: isProviderConfigured(id),
+  }));
+}

@@ -138,6 +138,8 @@ export function ContentTable({
     }
   }, [cursor, fetchPage]);
 
+  const [showAllColumns, setShowAllColumns] = useState(false);
+
   const setSort = (value: string) => {
     const next = new URLSearchParams(params.toString());
     next.set("sort", value);
@@ -149,8 +151,22 @@ export function ContentTable({
     return !metric || capabilities[metric] !== "unavailable";
   };
 
-  const columns = ["Views", "Reach", "Impressions", "Engagement", "Likes", "Comments", "Shares", "Saves", "Watch time", "Completion", "Viral"]
-    .filter(visible);
+  const supported = ALL_COLUMNS.filter(visible);
+
+  /**
+   * Columns the capability matrix allows but which are empty for every row.
+   *
+   * The matrix answers "can this platform ever report it"; it cannot answer
+   * "did we get it". A YouTube channel synced without the analytics scope, or
+   * before the nightly scoring job has run, passes the first test and fails the
+   * second — which is how the live table ended up ten columns wide with five of
+   * them entirely em-dashes.
+   */
+  const empty = posts
+    ? supported.filter((c) => posts.length > 0 && posts.every((p) => cellRaw(c, p) === null))
+    : [];
+
+  const columns = showAllColumns ? supported : supported.filter((c) => !empty.includes(c));
 
   if (loading) {
     return (
@@ -193,6 +209,21 @@ export function ContentTable({
             ))}
           </select>
         </label>
+
+        {empty.length > 0 && (
+          // The hidden columns are named, not just dropped: a user who expects
+          // watch time needs to know it is missing rather than assume the table
+          // never had it.
+          <button
+            type="button"
+            onClick={() => setShowAllColumns((v) => !v)}
+            className="ml-auto text-xs font-semibold text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          >
+            {showAllColumns
+              ? `Hide ${empty.length} empty ${empty.length === 1 ? "column" : "columns"}`
+              : `Show ${empty.length} empty ${empty.length === 1 ? "column" : "columns"} (${empty.join(", ").toLowerCase()})`}
+          </button>
+        )}
       </div>
 
       {posts && posts.length === 0 ? (
@@ -292,6 +323,29 @@ function PostCell({ post }: { post: ContentPost }) {
   ) : (
     body
   );
+}
+
+const ALL_COLUMNS = [
+  "Views", "Reach", "Impressions", "Engagement", "Likes", "Comments",
+  "Shares", "Saves", "Watch time", "Completion", "Viral",
+];
+
+/** The underlying number, so "is this column entirely empty?" can be asked. */
+function cellRaw(column: string, p: ContentPost): number | null {
+  switch (column) {
+    case "Views": return p.views;
+    case "Reach": return p.reach;
+    case "Impressions": return p.impressions;
+    case "Engagement": return p.engagementRate;
+    case "Likes": return p.likes;
+    case "Comments": return p.comments;
+    case "Shares": return p.shares;
+    case "Saves": return p.saves;
+    case "Watch time": return p.watchTimeSec;
+    case "Completion": return p.avgViewPercentage;
+    case "Viral": return p.viralScore;
+    default: return null;
+  }
 }
 
 function cellValue(column: string, p: ContentPost): string {
