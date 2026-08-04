@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { refreshStaleAccounts, pruneTimeSeries, sendWeeklyDigests } from "@/lib/social/service";
 import { refreshStaleCompetitors } from "@/lib/social/competitors";
-import { evaluateGoals, recomputeScores, syncDailyMetrics } from "@/lib/social/jobs";
+import { evaluateGoals, recomputeScores, runScheduledReports, syncDailyMetrics } from "@/lib/social/jobs";
 import { refreshClipPublishMetrics } from "@/lib/autoclip-publish";
 import { recalibrateViralityWeights } from "@/lib/virality-calibration";
 import { env } from "@/lib/env";
@@ -17,6 +17,7 @@ import { env } from "@/lib/env";
 //   daily-metrics                  — fill gaps in the per-day series (refresh keeps the
 //                                    CURRENT numbers current; this keeps the HISTORY complete)
 //   scores                         — recompute persisted viral/ai post scores + account health
+//   reports                        — queue runs for scheduled report configs that are due
 //   goals                          — flip reached goals to hit and lapsed ones to missed
 //   recalibrate-virality           — recompute AutoClip virality-score weights from
 //                                    real ClipPublish engagement (no-op unless the
@@ -34,6 +35,7 @@ import { env } from "@/lib/env";
 //   30 2 * * *   …?job=daily-metrics   (late enough that provider restatement has settled)
 //   0 3 * * *    …?job=scores          (cohorts shift nightly)
 //   15 3 * * *   …?job=goals           (immediately after scores, so both agree)
+//   0 6 * * *    …?job=reports         (due configs; due-ness is elapsed time, not a calendar match)
 export async function GET(req: NextRequest) {
   const secret = env.SOCIAL_REFRESH_SECRET;
   const provided =
@@ -64,6 +66,10 @@ export async function GET(req: NextRequest) {
   }
   if (job === "scores") {
     const result = await recomputeScores();
+    return NextResponse.json({ ok: true, job, ...result });
+  }
+  if (job === "reports") {
+    const result = await runScheduledReports();
     return NextResponse.json({ ok: true, job, ...result });
   }
   if (job === "goals") {

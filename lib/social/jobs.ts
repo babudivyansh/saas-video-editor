@@ -19,6 +19,7 @@ import {
   newlyMissedGoals,
   postingConsistency,
   postScoreComponents,
+  periodBounds,
   rangeBounds,
   viralCohort,
   viralScore,
@@ -29,6 +30,7 @@ import { loadAccountKpis, loadAccounts, loadFollowerSeries, loadSeries } from ".
 import { invalidateAccount } from "./cache";
 import type { MetricKey } from "./capabilities";
 import { syncAccount } from "./service";
+import { enqueueReport } from "./reports/queue";
 
 /** How many accounts one cron invocation will touch. Bounded on purpose. */
 const ACCOUNT_BATCH = 50;
@@ -184,6 +186,63 @@ async function computeAccountHealth(
   // publish "this account is in terrible health" as a fact about our own
   // missing data.
   return health.confidence > 0 ? health.score : null;
+}
+
+export interface ScheduledReportsResult {
+  due: number;
+  queued: number;
+}
+
+/**
+ * Queue runs for report configs whose schedule has come round.
+ *
+ * Due-ness is computed from `lastRunAt` rather than from a calendar match, so a
+ * cron that was down on Monday still produces Monday's report on Tuesday
+ * instead of skipping the week silently. `lastRunAt` is stamped at ENQUEUE, not
+ * at completion: a build that fails must not make the config due again on the
+ * next tick and queue a second one every five minutes.
+ */
+export async function runScheduledReports(now = new Date()): Promise<ScheduledReportsResult> {
+  const configs = await prisma.socialReportConfig.findMany({
+    where: { schedule: { in: ["weekly", "monthly"] } },
+    take: ACCOUNT_BATCH,
+  });
+
+  const due = configs.filter((c) => {
+    if (!c.lastRunAt) return true;
+    const elapsed = now.getTime() - c.lastRunAt.getTime();
+    return elapsed >= (c.schedule === "weekly" ? 7 : 28) * 86_400_000;
+  });
+
+  let queued = 0;
+  for (const config of due) {
+    try {
+      const period = (["weekly", "monthly", "quarterly", "annual"] as const).includes(
+        config.period as "weekly",
+      )
+        ? (config.period as "weekly" | "monthly" | "quarterly" | "annual")
+        : "monthly";
+      const { from, to } = periodBounds(period, now, "UTC");
+
+      const run = await prisma.socialReportRun.create({
+        data: {
+          userId: config.userId,
+          configId: config.id,
+          periodStart: from,
+          periodEnd: to,
+          format: config.format,
+          status: "queued",
+        },
+      });
+      await prisma.socialReportConfig.update({ where: { id: config.id }, data: { lastRunAt: now } });
+      await enqueueReport(run.id);
+      queued += 1;
+    } catch (e) {
+      logger.warn("social-jobs", `scheduled report failed to queue for config ${config.id}`, e);
+    }
+  }
+
+  return { due: due.length, queued };
 }
 
 export interface GoalsResult {
