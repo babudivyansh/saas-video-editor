@@ -143,6 +143,10 @@ model User {
   referral            Referral?            @relation("ReferredByAffiliate")
   socialAccounts      SocialAccount[]
   competitors         CompetitorProfile[]
+  socialGoals         SocialGoal[]
+  socialReportConfigs SocialReportConfig[]
+  socialReportRuns    SocialReportRun[]
+  socialReportLinks   SocialReportLink[]
   generations         Generation[]
   loginEvents         LoginEvent[]
   apiKeys             ApiKey[]
@@ -684,12 +688,29 @@ model SocialAccount {
   lastSyncedAt      DateTime?
   lastSyncStatus    String                   @default("ok") // ok | partial | failed
   lastSyncError     String? // human-readable reason when partial/failed
+  // IANA zone (e.g. "Asia/Kolkata"), from the provider or the user's setting.
+  // Storing it removes the per-request `tz` query param that fragmented the
+  // analytics cache across every client offset.
+  timezone          String?
+  // Per-account capability overlay written by the sync: which metrics THIS
+  // account actually returned. Narrows the static matrix in
+  // lib/social/capabilities.ts so the UI can say "your Page hasn't granted
+  // read_insights" rather than showing a permanently empty tile.
+  // Shape: Partial<Record<MetricKey, "native" | "derived" | "unavailable">>
+  capabilitiesJson  Json?
+  healthScore       Float? // 0-100, recomputed nightly (lib/social/metrics/scores)
+  healthScoreAt     DateTime?
+  // Incremental cursor for SocialDailyMetric. Steady-state syncs re-fetch from
+  // (cursor - 2 days) because providers restate the last 24-48h.
+  lastDailyMetricDate DateTime?               @db.Date
   createdAt         DateTime                 @default(now())
   updatedAt         DateTime                 @updatedAt
   posts             SocialPost[]
   snapshots         SocialAccountSnapshot[]
+  dailyMetrics      SocialDailyMetric[]
   audience          SocialAudienceSnapshot[]
   insights          AiInsight[]
+  goals             SocialGoal[]
   clipPublishes     ClipPublish[]
 
   @@unique([userId, provider, providerAccountId])
@@ -707,6 +728,8 @@ model CompetitorProfile {
   handle       String // public @handle / channel handle
   displayName  String?
   avatarUrl    String?
+  category     String? // vendor-reported niche, when available
+  bio          String?
   followers    Int? // convenience copy of the latest snapshot
   lastSyncedAt DateTime?
   createdAt    DateTime             @default(now())
@@ -716,12 +739,22 @@ model CompetitorProfile {
   @@index([userId])
 }
 
+// Only `followers` was captured before, which is why competitor tracking could
+// not answer anything beyond "are they bigger than me". The added columns are
+// what the comparison view needs; all remain nullable because vendor coverage
+// varies by platform and by profile.
 model CompetitorSnapshot {
-  id           String            @id @default(cuid())
-  competitorId String
-  competitor   CompetitorProfile @relation(fields: [competitorId], references: [id], onDelete: Cascade)
-  capturedAt   DateTime          @default(now())
-  followers    Int?
+  id             String            @id @default(cuid())
+  competitorId   String
+  competitor     CompetitorProfile @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  capturedAt     DateTime          @default(now())
+  followers      Int?
+  following      Int?
+  postsCount     Int?
+  avgLikes       Float?
+  avgComments    Float?
+  engagementRate Float? // percent, computed by the vendor adapter
+  postsPerWeek   Float?
 
   @@index([competitorId, capturedAt])
 }
@@ -744,19 +777,95 @@ model AiInsight {
 }
 
 // Audience demographics for an owned, connected account — one row per
-// (dimension, bucket) per capture. Values are percentages (0–100). Refreshed
-// at most weekly during sync; only providers that expose demographics for the
-// authenticated account write rows (YouTube Analytics, IG follower insights).
+// (dimension, bucket) per capture. Refreshed at most weekly during sync; only
+// providers that expose demographics for the authenticated account write rows
+// (YouTube Analytics, IG follower insights).
+//
+// `unit` is load-bearing, not decoration: the original contract was "value is a
+// percentage 0-100", but Instagram's online_followers (the source for
+// active-hours) returns ABSOLUTE COUNTS. Writing those under the old contract
+// renders bars reading 4,200%.
+//
+// `audience` exists because Instagram exposes follower_demographics,
+// engaged_audience_demographics and reached_audience_demographics as three
+// different populations. Averaging them together would be meaningless.
 model SocialAudienceSnapshot {
   id         String        @id @default(cuid())
   accountId  String
   account    SocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
   capturedAt DateTime      @default(now())
-  dimension  String // age | gender | country
-  bucket     String // e.g. "18-24", "female", "US"
-  value      Float // percentage of audience (0-100)
+  dimension  String // age | gender | country | city | language | device | activeHour | activeDay | followerType
+  bucket     String // e.g. "18-24", "female", "US", "14" (hour), "mobile"
+  value      Float // interpretation depends on `unit`
+  unit       String        @default("percent") // percent (0-100) | count
+  audience   String        @default("followers") // followers | reached | engaged
 
   @@index([accountId, dimension, capturedAt])
+  @@index([accountId, capturedAt, dimension])
+}
+
+// Provider-reported metrics for ONE CALENDAR DAY.
+//
+// Deliberately NOT an extension of SocialAccountSnapshot. That table holds
+// *cumulative lifetime* values captured at sync time, with de-dup logic in
+// persistSync and retention keyed to that semantic; windowDelta() reads it and
+// assumes a monotonic series. These rows are per-day deltas, restated by the
+// provider for ~48h, keyed by calendar date and idempotently upsertable.
+// Overloading one table would silently corrupt both readers.
+//
+// Narrow columns rather than EAV: the metric vocabulary is bounded by
+// lib/social/capabilities.ts, so range scans stay index-only and computeKpis is
+// one findMany instead of a pivot. extraJson absorbs provider drift without a
+// migration.
+//
+// Volume: ~365 rows/account/year (~1.1k per user at three accounts). Retention
+// keeps 400 days of dailies then rolls up to monthly — see pruneTimeSeries.
+model SocialDailyMetric {
+  id        String        @id @default(cuid())
+  accountId String
+  account   SocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  // The provider's day as a calendar date, not an instant — this is what makes
+  // the unique constraint mean what it should and removes a class of tz bug.
+  date      DateTime      @db.Date
+
+  // distribution
+  impressions Int?
+  reach       Int?
+  views       Int?
+  plays       Int?
+
+  // audience
+  followers       Int? // cumulative mirror, so charts need no join
+  followersGained Int?
+  followersLost   Int?
+  profileViews    Int?
+  websiteClicks   Int?
+
+  // interaction
+  likes             Int?
+  comments          Int?
+  shares            Int?
+  saves             Int?
+  totalInteractions Int?
+  accountsEngaged   Int?
+
+  // video
+  watchTimeSec       Float?
+  avgViewDurationSec Float?
+  avgViewPercentage  Float?
+  ctr                Float?
+
+  // publishing
+  postsPublished Int?
+
+  // Anything the provider returned that has no column yet, keyed by MetricKey.
+  // Never read without going through capabilities.ts.
+  extraJson Json?
+  source    String   @default("provider") // provider | derived (monthly rollup)
+  fetchedAt DateTime @default(now())
+
+  @@unique([accountId, date])
+  @@index([accountId, date])
 }
 
 // Daily account-level metric snapshot — powers follower/view growth charts.
@@ -791,12 +900,117 @@ model SocialPost {
   shares         Int?
   saves          Int?
   reach          Int?
+  impressions    Int?
+  plays          Int?
   watchTimeSec   Float?
+  avgWatchTimeSec   Float?
+  avgViewPercentage Float? // completion rate, where the provider reports length
+  ctr               Float?
+  profileVisits     Int?
+  follows           Int?
+  linkClicks        Int?
+  navigationTaps    Int? // IG stories/reels
+  // Scores are PERSISTED, not computed per request: the viral-score cohort is
+  // the trailing 90 days of the same media type, which is expensive to rebuild
+  // on every page load and non-reproducible as the cohort shifts. Recomputed by
+  // the nightly `scores` cron; the *At columns make staleness visible.
+  viralScore     Float? // 0-100, deterministic (lib/social/metrics/scores)
+  viralScoreAt   DateTime?
+  aiScore        Float? // deterministic components; the model only narrates
+  aiScoreReason  String? // one-sentence Gemini narration, nullable
+  scoredAt       DateTime?
   metricsJson    Json? // full provider payload for future-proofing
   fetchedAt      DateTime      @default(now())
 
   @@unique([accountId, providerPostId])
   @@index([accountId, publishedAt])
+  @@index([accountId, viralScore(sort: Desc)])
+}
+
+// A target the user is working toward. `baseline` is captured at creation so
+// progress is measured from the starting point rather than from zero.
+model SocialGoal {
+  id        String         @id @default(cuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId String? // null = across every connected account
+  account   SocialAccount? @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  metric    String // MetricKey (lib/social/capabilities.ts)
+  target    Float
+  baseline  Float?
+  startAt   DateTime       @default(now())
+  dueAt     DateTime
+  status    String         @default("active") // active | hit | missed | archived
+  hitAt     DateTime?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([userId, status])
+  @@index([accountId, status])
+}
+
+// A saved report definition. `schedule` drives the ?job=reports cron.
+model SocialReportConfig {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  accountIds String[]
+  period     String // weekly | monthly | quarterly | annual | custom
+  sections   String[] // kpis | trends | content | audience | competitors | ai
+  format     String // pdf | csv | xlsx
+  schedule   String   @default("none") // none | weekly | monthly
+  recipients String[] @default([])
+  lastRunAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+  @@index([schedule, lastRunAt])
+}
+
+// One generation of a report. Queued rather than built in the request: an
+// annual multi-account PDF with rasterized charts is a 5-20s job that would
+// block the event loop for every other request on the instance.
+model SocialReportRun {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  configId    String?
+  periodStart DateTime
+  periodEnd   DateTime
+  format      String
+  status      String    @default("queued") // queued | running | done | failed
+  storageKey  String? // S3 key; downloaded via a presigned URL
+  sizeBytes   Int?
+  error       String?
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+// A shareable public report link.
+//
+// Replaces a bare 7-day JWT that could not be revoked: a link pasted into the
+// wrong channel stayed live for a week, and the only kill switch was rotating
+// JWT_SECRET (which signs out every user). The token now carries only a `jti`
+// and the scope lives here, so the link is revocable and auditable.
+model SocialReportLink {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jti          String    @unique
+  accountIds   String[]
+  sections     String[]  @default([])
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  viewCount    Int       @default(0)
+  lastViewedAt DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([userId, createdAt])
 }
 
 // Usage ledger for AI-tool generations — records what a user generated, with

@@ -7,6 +7,7 @@ import * as google from "./google";
 import * as meta from "./meta";
 import { PROVIDERS } from "./providers";
 import { classifyError, withRetry } from "./errors";
+import { CACHE_TTL, cached, invalidateAccount, invalidateUser, keys, userVersion } from "./cache";
 import type { NormalizedAccount, OAuthProvider, OAuthTokens, ProviderId, ProviderSync } from "./types";
 import { logger } from "@/lib/logger";
 import { shouldSendCategory } from "@/lib/notifications";
@@ -132,6 +133,20 @@ async function markNeedsReauth(account: SocialAccount, reason: string): Promise<
 // ── Re-sync an existing account (manual refresh / scheduled job) ──────────────
 const SYNC_LOCK_TTL = 300; // seconds — generously above the slowest backfill
 
+/**
+ * Providers restate the most recent day or two after first publishing it, so a
+ * steady sync deliberately re-requests an overlap rather than resuming exactly
+ * where it stopped. The (accountId, date) unique makes the re-fetch a no-op
+ * update.
+ */
+const DAILY_RESTATEMENT_DAYS = 2;
+
+/** Where to resume daily metrics from, or undefined to let the adapter backfill. */
+function dailyMetricsSince(account: SocialAccount): Date | undefined {
+  if (!account.lastDailyMetricDate) return undefined;
+  return new Date(account.lastDailyMetricDate.getTime() - DAILY_RESTATEMENT_DAYS * 86_400_000);
+}
+
 export async function syncAccount(account: SocialAccount): Promise<void> {
   // Manual refresh, page-load auto-refresh, and the scheduled job can all fire
   // for the same account; the fixed-window counter doubles as a lock.
@@ -145,7 +160,10 @@ export async function syncAccount(account: SocialAccount): Promise<void> {
     // First sync (no posts yet) backfills deeper history so charts open useful.
     const backfill = (await prisma.socialPost.count({ where: { accountId: account.id } })) === 0;
     const sync: ProviderSync = await withRetry(() =>
-      PROVIDERS[account.provider as ProviderId].sync(account.providerAccountId, accessToken, { backfill }),
+      PROVIDERS[account.provider as ProviderId].sync(account.providerAccountId, accessToken, {
+        backfill,
+        since: dailyMetricsSince(account),
+      }),
     );
 
     await prisma.socialAccount.update({
@@ -160,7 +178,7 @@ export async function syncAccount(account: SocialAccount): Promise<void> {
     });
     await persistSync(account.id, sync);
     await refreshAudienceIfStale(account, accessToken);
-    await invalidateAnalytics(account.id);
+    await invalidateAccount(account.id, account.userId);
     await bumpSyncCounter("ok");
     logger.info("social", "sync completed", {
       accountId: account.id,
@@ -244,14 +262,13 @@ export async function disconnect(userId: string, accountId: string): Promise<boo
     /* revoke is best-effort; deletion below removes our copy regardless */
   }
   await prisma.socialAccount.delete({ where: { id: accountId } });
-  await invalidateOverview(userId);
-  await invalidateAnalytics(accountId);
+  await invalidateAccount(accountId, userId);
   await recordAudit(userId, "social.disconnect", accountId, { provider: account.provider });
   return true;
 }
 
 // ── Read side: dashboard overview (token fields are never selected) ──────────
-const OVERVIEW_TTL = 300; // seconds
+// TTL and cache keys live in ./cache, which owns every Redis key in the feature.
 
 // Safe projection — note no accessTokenEnc / refreshTokenEnc anywhere.
 const overviewSelect = {
@@ -282,42 +299,31 @@ const overviewSelect = {
 } satisfies Prisma.SocialAccountSelect;
 
 export async function getOverview(userId: string) {
-  const cacheKey = `social:overview:${userId}`;
-  const cached = await redis.get(cacheKey);
-  if (cached) {
-    try { return JSON.parse(cached); } catch { /* fall through to refetch */ }
-  }
-  const accounts = await prisma.socialAccount.findMany({
-    where: { userId },
-    orderBy: { createdAt: "asc" },
-    select: overviewSelect,
-  });
-  const payload = { accounts };
-  await redis.set(cacheKey, JSON.stringify(payload), "EX", OVERVIEW_TTL);
-  return payload;
+  const version = await userVersion(userId);
+  return cached(keys.overview(userId, version), CACHE_TTL, async () => ({
+    accounts: await prisma.socialAccount.findMany({
+      where: { userId },
+      orderBy: { createdAt: "asc" },
+      select: overviewSelect,
+    }),
+  }));
 }
 
+/** @deprecated Use `invalidateUser` / `invalidateAccount` from ./cache. */
 export async function invalidateOverview(userId: string): Promise<void> {
-  await redis.del(`social:overview:${userId}`);
+  await invalidateUser(userId);
 }
 
-// Computed-analytics cache (app/api/social/analytics) is keyed by a per-account
-// version stamp, since range/timezone variants make the key space open-ended.
-// Bumping the version orphans every cached variant at once (they expire by TTL).
+/** @deprecated Key construction now lives in ./cache. */
 export function analyticsCacheVersionKey(accountId: string): string {
-  return `social:analytics-ver:${accountId}`;
-}
-
-async function invalidateAnalytics(accountId: string): Promise<void> {
-  await redis.incrWithExpire(analyticsCacheVersionKey(accountId), 30 * 86400);
+  return keys.version(accountId);
 }
 
 // ── Refresh (manual / scheduled) ─────────────────────────────────────────────
 export async function refreshAccount(userId: string, accountId: string): Promise<boolean> {
   const account = await prisma.socialAccount.findFirst({ where: { id: accountId, userId } });
   if (!account) return false;
-  await syncAccount(account);
-  await invalidateOverview(userId);
+  await syncAccount(account); // already invalidates both versions
   await recordAudit(userId, "social.refresh", accountId, { provider: account.provider });
   return true;
 }
@@ -327,7 +333,9 @@ export async function refreshAllForUser(userId: string): Promise<void> {
   for (const a of accounts) {
     try { await syncAccount(a); } catch (e) { logger.error("social", `sync failed for ${a.id}`, e); }
   }
-  await invalidateOverview(userId);
+  // syncAccount invalidates per account; bump once more so a run where every
+  // account failed still refreshes the account list (statuses will have changed).
+  await invalidateUser(userId);
 }
 
 // Refresh active accounts whose data is older than `maxAgeHours`. Drives both
@@ -344,18 +352,19 @@ export async function refreshStaleAccounts(
   });
   let refreshed = 0;
   let failed = 0;
-  const affected = new Set<string>();
   for (const a of accounts) {
     try {
+      // syncAccount invalidates this account AND its owner's cross-account views
+      // before returning. Doing it here rather than after the loop matters: an
+      // account synced at iteration 3 of 50 used to keep serving pre-sync numbers
+      // for the rest of the run.
       await syncAccount(a);
       refreshed++;
-      affected.add(a.userId);
     } catch (e) {
       failed++;
       logger.error("social", `stale sync failed for ${a.id}`, e);
     }
   }
-  for (const uid of affected) await invalidateOverview(uid);
   return { refreshed, failed };
 }
 
@@ -416,8 +425,30 @@ export async function sendWeeklyDigests(): Promise<{ sent: number }> {
 // Snapshots older than 90 days collapse to one per account per day (the day's
 // latest). Charts past that horizon are daily-granularity anyway; this bounds
 // table growth to ~365 rows/account/year. Runs from the weekly cron job.
-export async function pruneOldSnapshots(): Promise<{ deleted: number }> {
-  const deleted = await prisma.$executeRaw`
+export interface RetentionResult {
+  /** Intra-day snapshot captures collapsed to one per day. */
+  snapshots: number;
+  /** Daily metric rows folded into monthly rollups. */
+  dailyMetrics: number;
+  /** Monthly rollup rows written back. */
+  rollups: number;
+  /** Audience captures collapsed to one per month. */
+  audience: number;
+  /** Competitor captures collapsed to one per day. */
+  competitors: number;
+}
+
+/**
+ * Time-series retention. Each table has a different shape and therefore a
+ * different policy — collapsing them into one rule would either lose resolution
+ * we need or keep rows nobody reads.
+ *
+ * Raw SQL throughout: `DISTINCT ON` is the right tool for "keep one row per
+ * group" and Postgres-specific, which is fine here.
+ */
+export async function pruneTimeSeries(): Promise<RetentionResult> {
+  // 1. Snapshots older than 90 days: keep one capture per day.
+  const snapshots = await prisma.$executeRaw`
     DELETE FROM "SocialAccountSnapshot"
     WHERE "capturedAt" < NOW() - INTERVAL '90 days'
       AND id NOT IN (
@@ -426,8 +457,79 @@ export async function pruneOldSnapshots(): Promise<{ deleted: number }> {
         WHERE "capturedAt" < NOW() - INTERVAL '90 days'
         ORDER BY "accountId", date_trunc('day', "capturedAt"), "capturedAt" DESC
       )`;
-  logger.info("social", "snapshot retention pruned", { deleted });
-  return { deleted };
+
+  // 2. Daily metrics older than 400 days roll up to one row per month.
+  //    400 rather than 365 so a year-over-year comparison always has a complete
+  //    prior year to compare against.
+  //
+  //    Sums for additive metrics; averages for rates, where summing would be
+  //    nonsense. `followers` takes the month's last value because it is a level,
+  //    not a flow. Written back as source='derived' so it is distinguishable
+  //    from provider data, and ON CONFLICT so a re-run is idempotent.
+  const rollups = await prisma.$executeRaw`
+    INSERT INTO "SocialDailyMetric" (
+      id, "accountId", date, impressions, reach, views, plays,
+      followers, "followersGained", "followersLost", "profileViews", "websiteClicks",
+      likes, comments, shares, saves, "totalInteractions", "accountsEngaged",
+      "watchTimeSec", "avgViewDurationSec", "avgViewPercentage", ctr,
+      "postsPublished", source, "fetchedAt"
+    )
+    SELECT
+      gen_random_uuid()::text,
+      "accountId",
+      date_trunc('month', date)::date,
+      SUM(impressions)::int, SUM(reach)::int, SUM(views)::int, SUM(plays)::int,
+      (ARRAY_AGG(followers ORDER BY date DESC) FILTER (WHERE followers IS NOT NULL))[1],
+      SUM("followersGained")::int, SUM("followersLost")::int,
+      SUM("profileViews")::int, SUM("websiteClicks")::int,
+      SUM(likes)::int, SUM(comments)::int, SUM(shares)::int, SUM(saves)::int,
+      SUM("totalInteractions")::int, SUM("accountsEngaged")::int,
+      SUM("watchTimeSec"),
+      AVG("avgViewDurationSec"), AVG("avgViewPercentage"), AVG(ctr),
+      SUM("postsPublished")::int,
+      'derived', NOW()
+    FROM "SocialDailyMetric"
+    WHERE date < (NOW() - INTERVAL '400 days')::date AND source = 'provider'
+    GROUP BY "accountId", date_trunc('month', date)
+    ON CONFLICT ("accountId", date) DO NOTHING`;
+
+  const dailyMetrics = await prisma.$executeRaw`
+    DELETE FROM "SocialDailyMetric"
+    WHERE date < (NOW() - INTERVAL '400 days')::date AND source = 'provider'`;
+
+  // 3. Audience captures older than 180 days: keep one per month. Demographics
+  //    move slowly, so monthly resolution loses nothing beyond that horizon.
+  const audience = await prisma.$executeRaw`
+    DELETE FROM "SocialAudienceSnapshot"
+    WHERE "capturedAt" < NOW() - INTERVAL '180 days'
+      AND id NOT IN (
+        SELECT DISTINCT ON ("accountId", dimension, bucket, audience, date_trunc('month', "capturedAt")) id
+        FROM "SocialAudienceSnapshot"
+        WHERE "capturedAt" < NOW() - INTERVAL '180 days'
+        ORDER BY "accountId", dimension, bucket, audience,
+                 date_trunc('month', "capturedAt"), "capturedAt" DESC
+      )`;
+
+  // 4. Competitor captures older than 400 days: keep one per day.
+  const competitors = await prisma.$executeRaw`
+    DELETE FROM "CompetitorSnapshot"
+    WHERE "capturedAt" < NOW() - INTERVAL '400 days'
+      AND id NOT IN (
+        SELECT DISTINCT ON ("competitorId", date_trunc('day', "capturedAt")) id
+        FROM "CompetitorSnapshot"
+        WHERE "capturedAt" < NOW() - INTERVAL '400 days'
+        ORDER BY "competitorId", date_trunc('day', "capturedAt"), "capturedAt" DESC
+      )`;
+
+  const result = { snapshots, dailyMetrics, rollups, audience, competitors };
+  logger.info("social", "time-series retention pruned", result);
+  return result;
+}
+
+/** @deprecated Renamed to `pruneTimeSeries`, which also covers the new tables. */
+export async function pruneOldSnapshots(): Promise<{ deleted: number }> {
+  const { snapshots } = await pruneTimeSeries();
+  return { deleted: snapshots };
 }
 
 // ── Audit trail ──────────────────────────────────────────────────────────────
@@ -531,7 +633,16 @@ async function persistSync(accountId: string, sync: ProviderSync): Promise<void>
       shares: p.shares,
       saves: p.saves,
       reach: p.reach,
+      impressions: p.impressions,
+      plays: p.plays,
       watchTimeSec: p.watchTimeSec,
+      avgWatchTimeSec: p.avgWatchTimeSec,
+      avgViewPercentage: p.avgViewPercentage,
+      ctr: p.ctr,
+      profileVisits: p.profileVisits,
+      follows: p.follows,
+      linkClicks: p.linkClicks,
+      navigationTaps: p.navigationTaps,
       metricsJson: (p.metrics ?? undefined) as Prisma.InputJsonValue | undefined,
       fetchedAt: new Date(),
     };
@@ -541,4 +652,98 @@ async function persistSync(accountId: string, sync: ProviderSync): Promise<void>
       update: data,
     });
   }
+
+  await persistDailyMetrics(accountId, sync);
+  await persistObservedCapabilities(accountId, sync);
+}
+
+/** Columns SocialDailyMetric has, so an unknown MetricKey lands in extraJson. */
+const DAILY_COLUMNS = new Set([
+  "impressions", "reach", "views", "plays",
+  "followers", "followersGained", "followersLost", "profileViews", "websiteClicks",
+  "likes", "comments", "shares", "saves", "totalInteractions", "accountsEngaged",
+  "watchTimeSec", "avgViewDurationSec", "avgViewPercentage", "ctr",
+  "postsPublished",
+]);
+
+/**
+ * Upsert provider-reported days.
+ *
+ * Idempotent on (accountId, date), which is what makes the deliberate 2-day
+ * re-fetch overlap safe: providers restate the most recent 24-48h, so a steady
+ * sync re-requests those days and overwrites rather than duplicating.
+ *
+ * The cursor advances only to the newest day RECEIVED, never to today — today is
+ * always partial, and recording it as complete would freeze a half-day of data.
+ */
+async function persistDailyMetrics(accountId: string, sync: ProviderSync): Promise<void> {
+  const days = sync.daily ?? [];
+  if (days.length === 0) return;
+
+  let newest: string | null = null;
+
+  for (const day of days) {
+    // Reject anything that is not a calendar date before it reaches @db.Date.
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day.date)) continue;
+    const date = new Date(`${day.date}T00:00:00.000Z`);
+    if (Number.isNaN(date.getTime())) continue;
+
+    const columns: Record<string, number> = {};
+    const extra: Record<string, number> = {};
+    for (const [key, value] of Object.entries(day.metrics)) {
+      if (!Number.isFinite(value)) continue;
+      if (DAILY_COLUMNS.has(key)) columns[key] = value;
+      else extra[key] = value;
+    }
+    if (Object.keys(columns).length === 0 && Object.keys(extra).length === 0) continue;
+
+    const data = {
+      ...columns,
+      extraJson: (Object.keys(extra).length > 0 ? extra : undefined) as Prisma.InputJsonValue | undefined,
+      source: "provider",
+      fetchedAt: new Date(),
+    };
+
+    await prisma.socialDailyMetric.upsert({
+      where: { accountId_date: { accountId, date } },
+      create: { accountId, date, ...data },
+      update: data,
+    });
+
+    if (newest === null || day.date > newest) newest = day.date;
+  }
+
+  if (newest !== null) {
+    await prisma.socialAccount.update({
+      where: { id: accountId },
+      data: { lastDailyMetricDate: new Date(`${newest}T00:00:00.000Z`) },
+    });
+  }
+}
+
+/**
+ * Record what this account's provider actually returned.
+ *
+ * Merged rather than replaced: one sync that skipped audience fetching must not
+ * erase what a previous sync established. This overlay is what lets the UI say
+ * "reconnect to grant yt-analytics.readonly" instead of showing a tile that is
+ * permanently and inexplicably empty.
+ */
+async function persistObservedCapabilities(accountId: string, sync: ProviderSync): Promise<void> {
+  const observed = sync.observedCapabilities;
+  if (!observed || Object.keys(observed).length === 0) return;
+
+  const existing = await prisma.socialAccount.findUnique({
+    where: { id: accountId },
+    select: { capabilitiesJson: true },
+  });
+  const prior =
+    existing?.capabilitiesJson && typeof existing.capabilitiesJson === "object"
+      ? (existing.capabilitiesJson as Record<string, string>)
+      : {};
+
+  await prisma.socialAccount.update({
+    where: { id: accountId },
+    data: { capabilitiesJson: { ...prior, ...observed } as Prisma.InputJsonValue },
+  });
 }
