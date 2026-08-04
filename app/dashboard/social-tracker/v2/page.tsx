@@ -10,10 +10,16 @@ import { EmptyState } from "@/app/components/ui/EmptyState";
 import { mergeCapabilities, METRIC_KEYS, type MetricKey, type Support } from "@/lib/social/capabilities";
 import { capabilityMap } from "@/lib/social/capabilities";
 import { loadAccountKpis, loadAccounts, loadSeries } from "@/lib/social/queries";
-import { ER_BENCHMARKS, delta, rangeBounds } from "@/lib/social/metrics";
+import { ER_BENCHMARKS, computeAlerts, delta, goalProgress, rangeBounds, type AccountAlert } from "@/lib/social/metrics";
+import { METRIC_LABELS } from "@/lib/social/ai/factsheets";
+import { prisma } from "@/lib/prisma";
+import { Gauge } from "@/app/components/charts";
 import { KpiGrid, type KpiEntry } from "../components/KpiGrid";
 import { TrendSection } from "../components/TrendSection";
 import { PlatformOverview } from "../components/PlatformOverview";
+import { AlertStrip } from "../components/AlertStrip";
+import { GoalsStrip } from "../components/GoalsStrip";
+import { QuickActions } from "../components/QuickActions";
 
 export const dynamic = "force-dynamic";
 
@@ -72,8 +78,51 @@ export default async function OverviewPage({
   const providers = new Set(accounts.map((a) => a.provider));
   const benchmark = providers.size === 1 ? (ER_BENCHMARKS[accounts[0].provider] ?? null) : null;
 
+  // Alerts, goals and health all come from rows we already hold, so the
+  // overview costs the same number of round trips it did before.
+  const [alerts, goalRows] = await Promise.all([
+    loadAlerts(accounts, now),
+    prisma.socialGoal.findMany({
+      where: { userId: auth.userId, status: "active" },
+      orderBy: { dueAt: "asc" },
+      take: 6,
+    }),
+  ]);
+
+  const goals = await Promise.all(
+    goalRows.map(async (goal) => {
+      const scoped = goal.accountId ? accounts.find((a) => a.id === goal.accountId) : accounts[0];
+      const points = scoped
+        ? (await loadSeries(scoped, goal.metric as MetricKey, from, to, "day", scoped.timezone ?? tz)).points
+        : [];
+      return {
+        metric: goal.metric,
+        label: `${METRIC_LABELS[goal.metric as MetricKey] ?? goal.metric}${
+          goal.accountId ? "" : " · all accounts"
+        }`,
+        measurable: points.length > 0,
+        ...goalProgress(
+          {
+            id: goal.id, metric: goal.metric, target: goal.target, baseline: goal.baseline,
+            startAt: goal.startAt, dueAt: goal.dueAt, status: goal.status,
+          },
+          points,
+          now,
+        ),
+      };
+    }),
+  );
+
+  const health = perAccount.length === 1 ? perAccount[0] : null;
+
   return (
     <div className="space-y-8">
+      <QuickActions accountIds={accounts.map((a) => a.id)} />
+
+      <AlertStrip alerts={alerts} />
+
+      <GoalsStrip goals={goals} />
+
       <KpiGrid
         kpis={totals}
         derived={{
@@ -92,6 +141,19 @@ export default async function OverviewPage({
         rangeDays={range}
         granularity={granularity}
       />
+
+      {health && (
+        <Gauge
+          label="Account health"
+          value={health.account.healthScore}
+          confidence={health.completeness}
+          components={[
+            { label: "Engagement", value: health.kpis.engagementRate.current },
+            { label: "Growth", value: health.derived.weeklyGrowth },
+            { label: "Data completeness", value: health.completeness * 100 },
+          ]}
+        />
+      )}
 
       <PlatformOverview
         accounts={perAccount.map((p) => ({
@@ -170,4 +232,37 @@ function aggregate(
   }
 
   return out;
+}
+
+/**
+ * Signals across the selection, newest-first, capped.
+ *
+ * Computed from stored rows rather than recorded at sync time so the rules can
+ * change without a backfill — and so a milestone crossed while the cron was
+ * down still shows up.
+ */
+async function loadAlerts(
+  accounts: Awaited<ReturnType<typeof loadAccounts>>,
+  now: Date,
+): Promise<Array<AccountAlert & { accountLabel?: string }>> {
+  const per = await Promise.all(
+    accounts.map(async (account) => {
+      const [snapshots, posts] = await Promise.all([
+        prisma.socialAccountSnapshot.findMany({
+          where: { accountId: account.id },
+          orderBy: { capturedAt: "asc" },
+          select: { capturedAt: true, followers: true, views: true, impressions: true, reach: true, engagement: true },
+        }),
+        prisma.socialPost.findMany({
+          where: { accountId: account.id },
+          orderBy: { publishedAt: "desc" },
+          take: 200,
+          select: { id: true, publishedAt: true, views: true, reach: true, likes: true, comments: true, shares: true, saves: true },
+        }),
+      ]);
+      const label = accounts.length > 1 ? (account.displayName ?? account.username ?? account.provider) : undefined;
+      return computeAlerts(snapshots, posts, now).map((alert) => ({ ...alert, accountLabel: label }));
+    }),
+  );
+  return per.flat().slice(0, 4);
 }

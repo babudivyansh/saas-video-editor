@@ -1,11 +1,13 @@
 // Reports — "give me something to send".
 //
-// CSV export works today via /api/social/export. PDF and Excel are Stage 9; the
-// page states that plainly rather than showing dead buttons.
+// CSV exports of raw data, queued PDF/XLSX/CSV reports, and the share links
+// that publish a read-only view of an account.
 
 import { Button } from "@/app/components/ui/Button";
 import { EmptyAccounts } from "../../components/EmptyAccounts";
 import { ShareLinkPanel } from "../../components/ShareLinkPanel";
+import { ReportBuilder } from "../../components/ReportBuilder";
+import { prisma } from "@/lib/prisma";
 import { accountLabel, loadViewContext, type SearchParams } from "../shared";
 
 export const dynamic = "force-dynamic";
@@ -22,8 +24,15 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const { accounts } = await loadViewContext(await searchParams);
+  const { accounts, userId } = await loadViewContext(await searchParams);
   if (accounts.length === 0) return <EmptyAccounts />;
+
+  const runs = await prisma.socialReportRun.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+    select: { id: true, format: true, status: true, error: true, sizeBytes: true, createdAt: true },
+  });
 
   return (
     <div className="space-y-8">
@@ -63,19 +72,17 @@ export default async function ReportsPage({
         accounts={accounts.map((a) => ({ id: a.id, label: accountLabel(a) }))}
       />
 
-      <section
-        aria-labelledby="scheduled-heading"
-        className="rounded-[var(--radius-card)] border border-dashed border-card-border bg-surface p-6"
-      >
-        <h2 id="scheduled-heading" className="text-sm font-semibold text-ink">
-          PDF and Excel reports
-        </h2>
-        <p className="mt-1 max-w-2xl text-sm text-ink-soft">
-          Scheduled weekly, monthly, quarterly and annual reports — with an AI executive summary —
-          are being built. They generate as a background job rather than in the request, because a
-          multi-account annual PDF takes long enough to block everything else on the server.
-        </p>
-      </section>
+      <ReportBuilder
+        accounts={accounts.map((a) => ({ id: a.id, label: accountLabel(a) }))}
+        initialRuns={runs.map((r) => ({
+          id: r.id,
+          format: r.format,
+          status: r.status,
+          error: r.error,
+          sizeBytes: r.sizeBytes,
+          createdAt: r.createdAt.toISOString(),
+        }))}
+      />
     </div>
   );
 }
