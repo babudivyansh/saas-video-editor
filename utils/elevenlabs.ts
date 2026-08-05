@@ -227,3 +227,70 @@ export async function listVoices(): Promise<{ voice_id: string; name: string; pr
   const json = (await res.json()) as { voices: { voice_id: string; name: string; preview_url: string }[] };
   return json.voices;
 }
+
+// The ElevenLabs account backing this app is shared across every Clipiro
+// user — its voice-slot limit is a property of the account, not of any one
+// user. Default is deliberately conservative; the real ceiling depends on
+// the ElevenLabs plan and should be set via ELEVENLABS_MAX_VOICE_SLOTS.
+const DEFAULT_MAX_VOICE_SLOTS = 100;
+
+function maxVoiceSlots(): number {
+  const n = Number(env.ELEVENLABS_MAX_VOICE_SLOTS ?? DEFAULT_MAX_VOICE_SLOTS);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_MAX_VOICE_SLOTS;
+}
+
+// How many more voices (of any kind — stock + cloned) the shared account can
+// hold before hitting ElevenLabs' own limit. Callers should check this
+// *before* cloneVoice() — a breached shared limit is a hard outage for every
+// user's cloning attempt, not a per-user problem, so it must never be
+// discovered only when the vendor call itself fails.
+export async function elevenLabsVoiceSlotsRemaining(): Promise<number> {
+  const voices = await listVoices();
+  return Math.max(0, maxVoiceSlots() - voices.length);
+}
+
+export interface ClonedVoiceResult {
+  voiceId: string;
+}
+
+// ElevenLabs Instant Voice Cloning: one short sample in, a reusable voice_id
+// out. That id is then usable anywhere a voice slug already is —
+// resolveVoiceId() (utils/voice-ids.ts) passes through any string it
+// doesn't recognize as a stock slug, so the synthesis/preview pipeline
+// needs no changes at all to support a cloned voice.
+export async function cloneVoice(name: string, sampleAudio: Buffer, filename: string): Promise<ClonedVoiceResult> {
+  const apiKey = env.ELEVENLABS_API_KEY!;
+  const form = new FormData();
+  form.append("name", name);
+  form.append("files", new Blob([new Uint8Array(sampleAudio)]), filename);
+
+  const res = await withRetry(
+    (signal) => fetch("https://api.elevenlabs.io/v1/voices/add", {
+      method: "POST",
+      headers: { "xi-api-key": apiKey },
+      body: form,
+      signal,
+    }),
+    { timeoutMs: 30_000 },
+  );
+  if (!res.ok) {
+    throw new Error(`ElevenLabs voice clone failed: ${res.status} ${await res.text()}`);
+  }
+  const json = (await res.json()) as { voice_id: string };
+  return { voiceId: json.voice_id };
+}
+
+export async function deleteClonedVoice(voiceId: string): Promise<void> {
+  const apiKey = env.ELEVENLABS_API_KEY!;
+  const res = await withRetry(
+    (signal) => fetch(`https://api.elevenlabs.io/v1/voices/${voiceId}`, {
+      method: "DELETE",
+      headers: { "xi-api-key": apiKey },
+      signal,
+    }),
+    { timeoutMs: 10_000 },
+  );
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`ElevenLabs voice delete failed: ${res.status} ${await res.text()}`);
+  }
+}

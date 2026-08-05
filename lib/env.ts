@@ -116,6 +116,12 @@ const schema = z.object({
   // Render worker concurrency — defaults to 2 (lib/render-queue.ts).
   RENDER_CONCURRENCY: z.string().optional(),
 
+  // Ceiling on total cloned voices across ALL Clipiro users combined — the
+  // ElevenLabs account (and its voice-slot limit) is shared, not per-user.
+  // Default is conservative; raise to match the actual ElevenLabs plan's
+  // real limit (utils/elevenlabs.ts).
+  ELEVENLABS_MAX_VOICE_SLOTS: z.string().optional(),
+
   // Custom/cloned ElevenLabs voice IDs — each falls back to a stock voice
   // when unset (utils/voice-ids.ts).
   ELEVENLABS_VOICE_WILLIAM: z.string().optional(),

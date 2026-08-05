@@ -151,6 +151,7 @@ model User {
   loginEvents         LoginEvent[]
   apiKeys             ApiKey[]
   brandKits           BrandKit[]
+  clonedVoices        ClonedVoice[]
   assetFolders        AssetFolder[]
   tags                Tag[]
   assetAuditLogs      AssetAuditLog[]
@@ -1090,6 +1091,23 @@ model BrandKit {
   logoUrl        String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// A user's custom cloned voice (ElevenLabs Instant Voice Cloning). The
+// ElevenLabs account itself is shared across every Clipiro user, so this is
+// the only place "which voice belongs to which user" is tracked — there's
+// no way to ask ElevenLabs that question directly. elevenLabsVoiceId is
+// unique because it identifies one real slot in that shared account; two
+// rows can never legitimately point at the same voice.
+model ClonedVoice {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  elevenLabsVoiceId String   @unique
+  name              String
+  createdAt         DateTime @default(now())
 
   @@index([userId])
 }
