@@ -11,8 +11,20 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const findUnique = vi.fn(async () => ({ id: "user_1" }));
 const shouldSend = vi.fn(async () => true);
+const suppressionFind = vi.fn(async () => null as { email: string } | null);
+const logCreate = vi.fn(async () => ({}));
 
-vi.mock("@/lib/prisma", () => ({ prisma: { user: { findUnique: (...a: unknown[]) => findUnique(...(a as [])) } } }));
+// The full surface send.ts touches. An incomplete mock here would still pass —
+// suppression.ts and logEmail both swallow their own errors by design — but the
+// suppression path would never actually run, so the tests would be green for
+// the wrong reason.
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    user: { findUnique: (...a: unknown[]) => findUnique(...(a as [])) },
+    emailSuppression: { findUnique: (...a: unknown[]) => suppressionFind(...(a as [])) },
+    emailLog: { create: (...a: unknown[]) => logCreate(...(a as [])) },
+  },
+}));
 vi.mock("@/lib/notifications", () => ({ shouldSendCategory: (...a: unknown[]) => shouldSend(...(a as [])) }));
 
 const { sendTemplate } = await import("./send");
@@ -20,8 +32,18 @@ const { sendTemplate } = await import("./send");
 beforeEach(() => {
   findUnique.mockClear();
   shouldSend.mockClear();
+  suppressionFind.mockClear();
+  logCreate.mockClear();
   shouldSend.mockResolvedValue(true);
+  suppressionFind.mockResolvedValue(null);
+  findUnique.mockResolvedValue({ id: "user_1" });
 });
+
+/** The status recorded on the EmailLog row for the most recent write. */
+function loggedStatus(): string | undefined {
+  const last = logCreate.mock.calls.at(-1) as [{ data: { status: string } }] | undefined;
+  return last?.[0].data.status;
+}
 
 describe("sendTemplate", () => {
   // No RESEND_API_KEY and no EMAIL_USER in the test environment, so every send
@@ -76,6 +98,67 @@ describe("sendTemplate", () => {
   it("survives a database failure during user lookup", async () => {
     findUnique.mockRejectedValue(new Error("db down") as never);
     const r = await sendTemplate("welcome", "a@b.com", { firstName: "Div", credits: 30 });
+    expect(r.status).toBe("dev-logged");
+  });
+});
+
+describe("suppression", () => {
+  it("refuses to send to a suppressed address", async () => {
+    suppressionFind.mockResolvedValue({ email: "dead@b.com" });
+    const r = await sendTemplate("welcome", "dead@b.com", { firstName: "Div", credits: 30 });
+    expect(r.status).toBe("suppressed");
+  });
+
+  /**
+   * Suppression outranks even transactional mail. A hard bounce means the
+   * mailbox does not exist, so a receipt sent there reaches nobody either — it
+   * only damages the sending domain's reputation.
+   */
+  it("suppresses transactional mail too, not just marketing", async () => {
+    suppressionFind.mockResolvedValue({ email: "dead@b.com" });
+    const r = await sendTemplate("otp", "dead@b.com", { otp: "123456" });
+    expect(r.status).toBe("suppressed");
+  });
+
+  it("checks suppression before consulting preferences", async () => {
+    suppressionFind.mockResolvedValue({ email: "dead@b.com" });
+    await sendTemplate("welcome", "dead@b.com", { firstName: "Div", credits: 30 });
+    expect(shouldSend).not.toHaveBeenCalled();
+  });
+
+  // A database blip must not stop transactional email. A receipt that fails to
+  // send is worse than one sent to an address we should have skipped, and the
+  // next webhook re-asserts the suppression anyway.
+  it("sends anyway when the suppression lookup itself fails", async () => {
+    suppressionFind.mockRejectedValue(new Error("db down") as never);
+    const r = await sendTemplate("otp", "a@b.com", { otp: "123456" });
+    expect(r.status).toBe("dev-logged");
+  });
+});
+
+describe("delivery log", () => {
+  it("records every outcome, including the ones that never left the building", async () => {
+    await sendTemplate("otp", "a@b.com", { otp: "123456" });
+    expect(loggedStatus()).toBe("dev-logged");
+
+    suppressionFind.mockResolvedValue({ email: "dead@b.com" });
+    await sendTemplate("otp", "dead@b.com", { otp: "123456" });
+    expect(loggedStatus()).toBe("suppressed");
+
+    suppressionFind.mockResolvedValue(null);
+    shouldSend.mockResolvedValue(false);
+    await sendTemplate("reengagement-7d", "a@b.com", { name: "Div", creditsLeft: 5 });
+    expect(loggedStatus()).toBe("skipped-optout");
+  });
+
+  it("records a failure with its reason", async () => {
+    await sendTemplate("social-digest", "a@b.com", { name: "Div", accounts: null });
+    expect(loggedStatus()).toBe("failed");
+  });
+
+  it("does not fail a send when the log write itself fails", async () => {
+    logCreate.mockRejectedValue(new Error("db down") as never);
+    const r = await sendTemplate("otp", "a@b.com", { otp: "123456" });
     expect(r.status).toBe("dev-logged");
   });
 });

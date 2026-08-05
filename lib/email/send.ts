@@ -24,10 +24,11 @@ import { shouldSendCategory } from "@/lib/notifications";
 import { renderEmail, type LocaleCode } from "./layout";
 import { EMAIL_REGISTRY } from "./templates/registry";
 import { unsubscribeUrl } from "./unsubscribe";
+import { isSuppressed, logEmail } from "./suppression";
 import { LEGAL, PRODUCT_NAME } from "./tokens";
 
 export interface SendResult {
-  status: "sent" | "skipped-optout" | "dev-logged" | "failed";
+  status: "sent" | "suppressed" | "skipped-optout" | "dev-logged" | "failed";
   channel: "resend" | "smtp" | "dev-console" | null;
   messageId: string | null;
   error?: string;
@@ -166,6 +167,15 @@ export async function sendTemplate<P>(
     const optOutCategory = entry.category === "transactional" ? null : entry.category;
     const transactional = optOutCategory === null;
 
+    // Suppression comes before everything, including transactional mail. A hard
+    // bounce means the mailbox does not exist, so a receipt sent there is not
+    // reaching anyone either — it only damages the sending domain's reputation.
+    // A spam complaint is a stronger signal still.
+    if (await isSuppressed(to)) {
+      await logEmail({ recipient: to, templateId: id, status: "suppressed" });
+      return { status: "suppressed", channel: null, messageId: null };
+    }
+
     // An unsubscribe link needs a user id, but the 41 existing call sites pass
     // only an address — sendWelcomeEmail(to, name, credits) and friends. Rather
     // than change 39 signatures, resolve it here.
@@ -181,6 +191,7 @@ export async function sendTemplate<P>(
     if (optOutCategory && userId) {
       const allowed = await shouldSendCategory(userId, optOutCategory);
       if (!allowed) {
+        await logEmail({ recipient: to, templateId: id, status: "skipped-optout", userId });
         return { status: "skipped-optout", channel: null, messageId: null };
       }
     }
@@ -215,6 +226,9 @@ export async function sendTemplate<P>(
     if (env.RESEND_API_KEY) {
       try {
         const { id: messageId } = await viaResend(payload);
+        await logEmail({
+          recipient: to, templateId: id, status: "sent", channel: "resend", providerMessageId: messageId, userId,
+        });
         return { status: "sent", channel: "resend", messageId };
       } catch (err) {
         // Fall through to SMTP — but say so, because a silent provider failure
@@ -233,20 +247,22 @@ export async function sendTemplate<P>(
         replyTo: payload.replyTo,
         headers: payload.headers,
       });
+      await logEmail({
+        recipient: to, templateId: id, status: "sent", channel: "smtp",
+        providerMessageId: info.messageId ?? null, userId,
+      });
       return { status: "sent", channel: "smtp", messageId: info.messageId ?? null };
     }
 
     // No provider configured. Reported as its own status rather than as success,
     // so a misconfigured deploy is visible instead of looking like it worked.
     logger.info("email:dev", `${id} -> ${to} :: ${payload.subject}`);
+    await logEmail({ recipient: to, templateId: id, status: "dev-logged", channel: "dev-console", userId });
     return { status: "dev-logged", channel: "dev-console", messageId: null };
   } catch (err) {
     logger.error("email:send", `${id} -> ${to} failed`, err);
-    return {
-      status: "failed",
-      channel: null,
-      messageId: null,
-      error: err instanceof Error ? err.message : String(err),
-    };
+    const error = err instanceof Error ? err.message : String(err);
+    await logEmail({ recipient: to, templateId: id, status: "failed", error });
+    return { status: "failed", channel: null, messageId: null, error };
   }
 }
