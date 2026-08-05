@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import AuthForm from "@/app/components/AuthForm";
+import { useAuth } from "@/app/components/AuthContext";
 
 function BlurredBackground() {
   return (
@@ -28,8 +29,16 @@ function BlurredBackground() {
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { refreshUser } = useAuth();
 
-  const handleSuccess = () => {
+  // AuthProvider is mounted once at the root layout and never remounts on
+  // client-side navigation, so a bare router.push here used to leave its
+  // token/user state stale (null) straight through the redirect — which
+  // deterministically opened the "Welcome back, sign in" modal on a session
+  // that was actually valid. refreshUser() re-reads the token AuthForm just
+  // wrote to localStorage and resolves the user before we navigate.
+  const handleSuccess = async () => {
+    await refreshUser();
     router.push("/dashboard");
   };
 

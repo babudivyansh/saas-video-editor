@@ -22,6 +22,7 @@ import { useDashboardNavItems } from "@/app/components/ToolsSidebar";
 import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
 import { Button } from "@/app/components/ui/Button";
 import { CreditsPill } from "@/app/components/ui/CreditsPill";
+import { Skeleton } from "@/app/components/ui/Skeleton";
 
 function IcZap() {
   return <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 flex-shrink-0"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>;
@@ -270,7 +271,7 @@ function CreateMenu() {
 // ── Header ─────────────────────────────────────────────────────────────────
 
 export default function DashboardHeader() {
-  const { user, openAuthModal } = useAuth();
+  const { user, isLoading, openAuthModal } = useAuth();
   const { openBilling } = useBillingOverlay();
   const t = useTranslations("Nav");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -397,7 +398,13 @@ export default function DashboardHeader() {
       <div className="flex-1 xl:hidden" />
 
       <div className="flex items-center gap-2.5 flex-shrink-0">
-        {user ? (
+        {isLoading ? (
+          // "Still checking" must not render like "confirmed logged out" — a
+          // brief in-flight /api/auth/me request used to show the Login
+          // button (and, right after registration, trigger the sign-in
+          // modal) on sessions that were actually valid.
+          <Skeleton className="h-8 w-24 rounded-full" />
+        ) : user ? (
           <>
             <CreateMenu />
 
