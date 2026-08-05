@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { fmtCompact, fmtDateShort, fmtDuration, fmtPct } from "@/app/components/charts/format";
+import { fmtCompact, fmtDateLong, fmtDuration, fmtPct } from "@/app/components/charts/format";
 import { Button } from "@/app/components/ui/Button";
 import type { MetricKey, Support } from "@/lib/social/capabilities";
 import { useSocialApi } from "./useSocialApi";
@@ -64,6 +64,11 @@ export function ContentTable({
   const pathname = usePathname();
   const params = useSearchParams();
   const sort = params.get("sort") ?? "publishedAt";
+  // The global range filter applies here too. It did not before: the table
+  // fetched every post regardless, so "30 days" sat above a list running back
+  // years. Only dateFrom is sent — clamping the top end would hide a post whose
+  // publishedAt is slightly ahead of our clock, which providers do report.
+  const dateFrom = isoDaysAgo(Number(params.get("range") ?? 30));
 
   /** Bumped by Retry to re-trigger the load effect. */
   const [retryToken, setRetryToken] = useState(0);
@@ -74,7 +79,9 @@ export function ContentTable({
   // synchronously on entry, which is what react-hooks/set-state-in-effect
   // objects to. It also makes a stale response structurally impossible to
   // display: the result carries the key it was fetched for.
-  const key = `${accountId}|${sort}|${retryToken}`;
+  // dateFrom is part of the key, so changing the range refetches rather than
+  // leaving the previous window's rows on screen under the new label.
+  const key = `${accountId}|${sort}|${dateFrom}|${retryToken}`;
   const [state, setState] = useState<{
     key: string;
     posts: ContentPost[] | null;
@@ -89,11 +96,11 @@ export function ContentTable({
 
   const fetchPage = useCallback(
     async (nextCursor?: string) => {
-      const qs = new URLSearchParams({ accountId, sort, limit: "25" });
+      const qs = new URLSearchParams({ accountId, sort, dateFrom, limit: "25" });
       if (nextCursor) qs.set("cursor", nextCursor);
       return api<{ posts: ContentPost[]; nextCursor: string | null }>(`/api/social/content?${qs}`);
     },
-    [api, accountId, sort],
+    [api, accountId, sort, dateFrom],
   );
 
   // The first page loads inside the effect with a cancellation flag. Beyond
@@ -286,9 +293,26 @@ export function ContentTable({
   );
 }
 
+/**
+ * `yyyy-mm-dd`, n days back, in the viewer's own timezone.
+ *
+ * Local rather than UTC on purpose: the range reads as "the last 30 days" to the
+ * person looking at it, and toISOString() would shift the boundary by a day for
+ * anyone far enough east or west.
+ */
+function isoDaysAgo(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - (Number.isFinite(days) && days > 0 ? days : 30));
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 function PostCell({ post }: { post: ContentPost }) {
   const label = post.caption?.trim() || "Untitled post";
-  const date = post.publishedAt ? fmtDateShort(post.publishedAt.slice(0, 10)) : "—";
+  // fmtDateLong, not fmtDateShort: the short form drops the year because a chart
+  // axis implies it, but this table lists posts up to a year apart. "13 Aug" on a
+  // post from last year reads as a date in the future.
+  const date = post.publishedAt ? fmtDateLong(post.publishedAt.slice(0, 10)) : "—";
 
   const body = (
     <span className="flex items-center gap-2">

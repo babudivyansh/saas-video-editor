@@ -70,6 +70,25 @@ export default async function OverviewPage({
   const capabilities = mergeCapabilities(accounts.map((a) => capabilityMap(a.provider, a.observed)));
   const totals = aggregate(perAccount, capabilities);
 
+  // The follower TILE reads the last daily row that carried a follower count;
+  // the account CARD lower down reads SocialAccount.followers, the convenience
+  // copy of the newest snapshot. When a provider sends snapshots but no daily
+  // follower column — YouTube, today — the tile went blank while the card said
+  // 94, on the same screen. The snapshot copy is the better answer of the two,
+  // so fall back to it rather than showing a dash next to a number.
+  if (totals.followers && totals.followers.current === null) {
+    const known = accounts
+      .map((a) => a.followers)
+      .filter((f): f is number => typeof f === "number");
+    if (known.length > 0) {
+      totals.followers = {
+        ...totals.followers,
+        current: known.reduce((s, f) => s + f, 0),
+        available: "derived",
+      };
+    }
+  }
+
   // Sparkline data for the two tiles where a trend adds most.
   const [followerSeries, viewsSeries] = await Promise.all([
     loadSeries(accounts[0], "followers", from, to, granularity, tz),

@@ -86,9 +86,13 @@ export function CompetitorManager({
       </h2>
 
       {existing.length === 0 ? (
+        // The add form below is hidden when the provider is unconfigured, so
+        // telling people to "add a public profile" pointed at a control that
+        // was not on the page. Say which of the two situations they are in.
         <p className="mt-2 text-sm text-ink-soft">
-          Not tracking anyone yet. Add a public profile to compare follower growth and posting
-          cadence against your own.
+          {enabled
+            ? "Not tracking anyone yet. Add a public profile to compare follower growth and posting cadence against your own."
+            : "Not tracking anyone yet, and competitor tracking can't be set up on this deployment until a public-data provider is configured."}
         </p>
       ) : (
         <ul className="mt-3 flex flex-wrap gap-2">

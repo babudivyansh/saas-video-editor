@@ -168,6 +168,7 @@ export function ReportBuilder({ accounts, initialRuns }: ReportBuilderProps) {
             <Checkbox
               key={a.id}
               label={a.label}
+              showLabel
               checked={selected.includes(a.id)}
               onChange={() => setSelected((s) => toggle(s, a.id))}
             />
@@ -179,6 +180,7 @@ export function ReportBuilder({ accounts, initialRuns }: ReportBuilderProps) {
             <Checkbox
               key={s.id}
               label={s.label}
+              showLabel
               checked={sections.includes(s.id)}
               onChange={() => setSections((current) => toggle(current, s.id))}
             />
@@ -239,7 +241,12 @@ export function ReportBuilder({ accounts, initialRuns }: ReportBuilderProps) {
 function statusText(run: ReportRun): string {
   if (run.status === "queued") return "Queued…";
   if (run.status === "running") return "Building…";
-  if (run.status === "failed") return run.error ?? "Failed.";
+  // Not run.error. That field holds whatever the worker threw, and it went
+  // straight to the page — the live dashboard was showing users
+  // "ENOENT: no such file or directory, open '/ROOT/node_modules/pdfkit/…'",
+  // which tells them nothing and tells everyone else our install path. The row
+  // keeps the real message for support.
+  if (run.status === "failed") return "Couldn't build this report. Try again, or pick another format.";
   const kb = run.sizeBytes ? Math.max(1, Math.round(run.sizeBytes / 1024)) : null;
   return kb ? `Ready · ${kb} KB` : "Ready";
 }
