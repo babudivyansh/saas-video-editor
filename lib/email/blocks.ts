@@ -13,6 +13,9 @@ import { escapeHtml, safeUrl, toSafe, type SafeHtml } from "./html";
 
 export type Tone = "neutral" | "brand" | "success" | "warning" | "danger" | "violet";
 
+/** How much brand the document wears — see EmailDocument.accent in layout.ts. */
+export type Accent = "plain" | "brand";
+
 export type Block =
   | { kind: "heading"; text: string | SafeHtml; level?: 1 | 2 }
   | { kind: "paragraph"; text: string | SafeHtml; tone?: "body" | "muted" | "fine" }
@@ -86,13 +89,18 @@ function renderParagraph(b: Extract<Block, { kind: "paragraph" }>): string {
  * with the brand gradient layered over a solid fallback — Apple Mail honours the
  * gradient, Gmail and Outlook fall back to solid #335cff rather than to nothing.
  */
-function renderButton(b: Extract<Block, { kind: "button" }>): string {
+function renderButton(b: Extract<Block, { kind: "button" }>, accent: Accent): string {
   const href = safeUrl(b.href);
   const label = escapeHtml(b.label);
-  // Solid fill, no gradient. The gradient belongs to the product UI; on a white
-  // card in an inbox it reads as an ad. One flat accent on the single thing you
-  // want clicked is what makes the CTA obvious.
   const bg = b.tone && b.tone !== "brand" ? TONE_COLORS[b.tone].fg : COLOR.brand;
+
+  // The gradient is reserved for marketing mail, and only on an untoned button.
+  // A semantic tone (danger on "Secure my account", warning on "Renew") is
+  // carrying meaning, and painting a gradient over it would throw that away.
+  const useGradient = accent === "brand" && (!b.tone || b.tone === "brand");
+  const gradient = useGradient
+    ? `background-image:linear-gradient(135deg,${COLOR.brand} 0%,${COLOR.violet} 55%,${COLOR.fuchsia} 100%);`
+    : "";
 
   return `<tr><td align="center" class="px" style="padding:6px 40px 26px;text-align:center;">
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;"><tr><td align="center">
@@ -104,7 +112,7 @@ function renderButton(b: Extract<Block, { kind: "button" }>): string {
         </v:roundrect>
         <![endif]-->
         <!--[if !mso]><!-- -->
-        <a href="${href}" style="display:inline-block;background-color:${bg};color:#ffffff;text-decoration:none;font-family:${FONT_STACK};font-size:15px;font-weight:600;line-height:1;padding:15px 36px;border-radius:999px;mso-hide:all;">${label}</a>
+        <a href="${href}" style="display:inline-block;background-color:${bg};${gradient}color:#ffffff;text-decoration:none;font-family:${FONT_STACK};font-size:15px;font-weight:600;line-height:1;padding:15px 36px;border-radius:999px;mso-hide:all;">${label}</a>
         <!--<![endif]-->
       </td></tr></table>
     </td></tr>`;
@@ -263,14 +271,14 @@ function renderPixel(b: Extract<Block, { kind: "pixel" }>): string {
 }
 
 /** Render one block to its table row(s). */
-export function renderBlock(block: Block): string {
+export function renderBlock(block: Block, accent: Accent = "plain"): string {
   switch (block.kind) {
     case "heading":
       return renderHeading(block);
     case "paragraph":
       return renderParagraph(block);
     case "button":
-      return renderButton(block);
+      return renderButton(block, accent);
     case "hero":
       return renderHero(block);
     case "kv":
@@ -294,8 +302,8 @@ export function renderBlock(block: Block): string {
   }
 }
 
-export function renderBlocks(blocks: Block[]): string {
-  return blocks.map(renderBlock).join("\n");
+export function renderBlocks(blocks: Block[], accent: Accent = "plain"): string {
+  return blocks.map((b) => renderBlock(b, accent)).join("\n");
 }
 
 export { WIDTH };

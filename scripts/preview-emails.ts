@@ -73,14 +73,16 @@ function renderAll(logoDataUrl: string): Rendered[] {
   for (const entry of Object.values(EMAIL_REGISTRY)) {
     for (const [sample, props] of Object.entries(entry.samples)) {
       const doc = entry.build(props as never);
+      const transactional = entry.category === "transactional";
       const r = renderEmail({
         ...doc,
-        // Non-transactional mail carries an unsubscribe link, so the footer in
-        // the preview matches what would really be sent.
-        unsubscribeUrl:
-          entry.category === "transactional"
-            ? undefined
-            : "https://clipiro.com/api/email/unsubscribe?t=preview-token",
+        // Both of these follow from the category, exactly as they will when
+        // sendTemplate drives them: transactional mail gets no unsubscribe link
+        // and no brand accent; everything else gets both.
+        unsubscribeUrl: transactional
+          ? undefined
+          : "https://clipiro.com/api/email/unsubscribe?t=preview-token",
+        accent: transactional ? "plain" : "brand",
       });
       out.push({
         entry,

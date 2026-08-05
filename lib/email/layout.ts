@@ -26,6 +26,21 @@ export interface EmailDocument {
   /** Present only on non-transactional mail. Drives the footer link and headers. */
   unsubscribeUrl?: string;
   locale?: LocaleCode;
+  /**
+   * How much brand the message wears.
+   *
+   * "plain" (the default) is the Google-reference treatment: no gradient, a flat
+   * accent, nothing competing with the content. "brand" adds a hairline gradient
+   * at the top of the card and a gradient CTA.
+   *
+   * The split is by intent, not by taste. A receipt, a password reset or a
+   * security alert is a document of record — it should look like infrastructure,
+   * and decoration there erodes trust. A welcome or re-engagement email is
+   * marketing and can carry the product's personality. In practice this is set
+   * from the registry's category: "transactional" gets plain, everything else
+   * gets brand.
+   */
+  accent?: "plain" | "brand";
 }
 
 export interface RenderedEmail {
@@ -136,9 +151,23 @@ function footer(unsubscribeUrl?: string): string {
     </td></tr>`;
 }
 
+/**
+ * A 3px gradient hairline across the very top of the card.
+ *
+ * Three pixels, not the six the earlier pass used: enough to register as Clipiro
+ * at a glance, not enough to become the first thing you look at. Solid brand
+ * blue underneath, since Outlook and Gmail webmail do not render CSS gradients
+ * and would otherwise show nothing at all.
+ */
+function gradientRule(): string {
+  return `<tr><td style="font-size:0;line-height:0;height:3px;background-color:${COLOR.brand};background-image:linear-gradient(90deg,${COLOR.brand} 0%,${COLOR.violet} 55%,${COLOR.fuchsia} 100%);border-radius:12px 12px 0 0;">&nbsp;</td></tr>`;
+}
+
 export function renderEmail(doc: EmailDocument): RenderedEmail {
   const locale = doc.locale ?? "en";
   const dir = RTL_LOCALES.has(locale.split("-")[0]) ? "rtl" : "ltr";
+  const accent = doc.accent ?? "plain";
+  const brand = accent === "brand";
 
   const html = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" lang="${escapeHtml(locale)}" dir="${dir}">
@@ -158,8 +187,9 @@ export function renderEmail(doc: EmailDocument): RenderedEmail {
   <tr><td align="center" style="padding:32px 12px 8px;">
     <!-- The card: hairline border, no shadow, no fill beyond white. -->
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="${WIDTH}" class="container bg-card" style="width:${WIDTH}px;max-width:${WIDTH}px;background-color:${COLOR.card};border:1px solid ${COLOR.border};border-radius:12px;">
+      ${brand ? gradientRule() : ""}
       ${header()}
-      ${renderBlocks(doc.blocks)}
+      ${renderBlocks(doc.blocks, accent)}
       <tr><td style="height:16px;font-size:0;line-height:0;">&nbsp;</td></tr>
     </table>
   </td></tr>
