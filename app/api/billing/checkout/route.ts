@@ -7,6 +7,7 @@ import { getPlanPriceMinor, type Currency } from "@/lib/currency";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { withRateLimit } from "@/lib/with-rate-limit";
+import { cancelExistingSubscriptionForSwitch } from "@/lib/billing/subscription-switch";
 
 const razorpay = new Razorpay({
   key_id: env.RAZORPAY_KEY_ID,
@@ -102,9 +103,26 @@ async function handlePOST(req: NextRequest) {
   // order below, so rollout can happen plan-by-plan without breaking checkout.
   const razorpayPlanId = currency === "USD" ? basePlan.razorpayPlanIdUsd : basePlan.razorpayPlanIdInr;
   if (basePlan.kind === "subscription" && razorpayPlanId) {
-    const user = await prisma.user.findUnique({ where: { id: auth.userId }, select: { trialUsedAt: true } });
+    const user = await prisma.user.findUnique({
+      where: { id: auth.userId },
+      select: { trialUsedAt: true, razorpaySubscriptionId: true },
+    });
     // Trial: Pro-tier only, once per account, requested explicitly by the client.
     const wantsTrial = body.trial === true && basePlan.tier === "pro" && !user?.trialUsedAt;
+
+    // A user already on a subscription who buys another one (upgrade,
+    // downgrade, or an early renewal) must have the old subscription
+    // cancelled at Razorpay before the new one is created — otherwise it
+    // keeps auto-charging, orphaned, after the activation webhook overwrites
+    // this user's subscription link. This is an immediate cutover: the new
+    // plan starts today and unused time on the old one isn't credited.
+    const switchResult = await cancelExistingSubscriptionForSwitch(
+      auth.userId,
+      user?.razorpaySubscriptionId ?? null,
+    );
+    if (!switchResult.ok) {
+      return NextResponse.json({ error: switchResult.error }, { status: switchResult.status });
+    }
 
     let subscription;
     try {

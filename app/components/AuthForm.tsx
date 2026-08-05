@@ -549,7 +549,10 @@ export default function AuthForm({
             />
           </div>
 
-          {/* Phone */}
+          {/* Phone — required (used for sign-in and account security), but
+              nothing else on the page said so, so a filled-out form with an
+              empty/invalid phone left the submit button permanently inert
+              with no explanation. This hint is the fix. */}
           <div className="relative">
             <span className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"><PhoneIcon /></span>
             <input
@@ -558,8 +561,14 @@ export default function AuthForm({
               onChange={e => setReg({ ...reg, phone: e.target.value })}
               required
               placeholder="Phone number (+91...)"
+              aria-required="true"
               className={inputClass}
             />
+            {reg.phone.trim() === "" ? (
+              <p className="mt-1 text-xs text-gray-400">Required — used for sign-in and account security</p>
+            ) : !isValidPhone(reg.phone) ? (
+              <p className="mt-1 text-xs text-red-600">Enter a valid phone number (7–15 digits)</p>
+            ) : null}
           </div>
 
           {/* Referral code — collapsed by default; auto-expands from ?ref= */}
