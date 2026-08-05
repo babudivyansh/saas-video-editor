@@ -30,6 +30,7 @@ export default async function SettingsPage({
         followers: a.followers,
         status: a.status,
         lastSyncedAt: a.lastSyncedAt?.toISOString() ?? null,
+        timezone: a.timezone,
       }))}
     />
   );
