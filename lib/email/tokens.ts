@@ -31,25 +31,33 @@ export const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? "https://clipiro.com"
  */
 export const ASSET_URL = (process.env.EMAIL_ASSET_BASE_URL ?? "https://clipiro.com").replace(/\/$/, "");
 
-/** app/globals.css :root */
+/**
+ * app/globals.css :root, plus a quieter neutral ramp for email.
+ *
+ * The neutrals are deliberately softer and lower-contrast than the app's. An
+ * email is read once in someone's inbox next to thirty other messages, so the
+ * design that reads as trustworthy there is a restrained one — a white card, a
+ * hairline border, one accent colour doing all the work. The brand gradient
+ * stays in the product; here it only appears where it earns attention.
+ */
 export const COLOR = {
   brand: "#335cff",
   brandDark: "#2348d8",
   brandDeep: "#3b5eff",
-  brandSoft: "#e8edff",
+  brandSoft: "#eaefff",
   violet: "#7c3aed",
   fuchsia: "#d946ef",
 
-  ink: "#0f172a",
-  inkSoft: "#475569",
-  muted: "#64748b",
-  faint: "#94a3b8",
+  ink: "#1a1c1e",
+  inkSoft: "#44474e",
+  muted: "#5f6368",
+  faint: "#80868b",
 
-  page: "#f1f5f9",
+  page: "#ffffff",
   card: "#ffffff",
-  surface: "#f8fafc",
-  border: "#e2e8f0",
-  borderSoft: "#f1f5f9",
+  surface: "#f7f8fa",
+  border: "#dfe1e5",
+  borderSoft: "#ebedf0",
 
   success: "#16a34a",
   successSoft: "#f0fdf4",

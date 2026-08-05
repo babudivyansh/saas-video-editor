@@ -55,9 +55,9 @@ function styleBlock(): string {
 
     /* Mobile. Inline styles remain the floor for clients that strip <style>. */
     @media screen and (max-width:600px){
-      .container{width:100%!important;}
-      .px{padding-left:20px!important;padding-right:20px!important;}
-      .h1{font-size:22px!important;}
+      .container{width:100%!important;border-radius:0!important;border-left:0!important;border-right:0!important;}
+      .px{padding-left:22px!important;padding-right:22px!important;}
+      .h1{font-size:21px!important;}
       .h2{font-size:17px!important;}
       .pin{font-size:30px!important;letter-spacing:8px!important;}
       .stack{display:block!important;width:100%!important;padding:0 0 12px 0!important;}
@@ -83,45 +83,55 @@ function styleBlock(): string {
 }
 
 /**
- * Header. A hosted PNG, not the old inline <svg> inside a display:flex row —
- * Outlook's Word engine drops SVG entirely and ignores flex, so that lockup
- * collapsed. The gradient bar above it is also a PNG for the same reason: CSS
- * gradients do not render in Outlook or Gmail webmail.
+ * Header: the logo, centred, and nothing else.
+ *
+ * A hosted PNG rather than the old inline <svg> in a display:flex row — Outlook's
+ * Word engine drops SVG and ignores flex, so that lockup collapsed there.
+ *
+ * The brand gradient bar that used to sit above it is gone. In an inbox the
+ * message is competing with thirty others, and the design that reads as
+ * trustworthy is the restrained one: a white card, a hairline border, one accent
+ * colour on the single thing you want clicked.
  */
 function header(): string {
   return `
-    <tr><td class="bar" style="font-size:0;line-height:0;height:6px;background-color:${COLOR.brand};background-image:linear-gradient(90deg,${COLOR.brand} 0%,${COLOR.violet} 55%,${COLOR.fuchsia} 100%);">&nbsp;</td></tr>
-    <tr><td class="px" style="padding:26px 32px 6px;">
+    <tr><td class="px" align="center" style="padding:40px 40px 8px;text-align:center;">
       <a href="${safeUrl(APP_URL)}" style="text-decoration:none;">
-        <img src="${LOGO_URL}" width="${LOGO_WIDTH}" height="${LOGO_HEIGHT}" alt="${PRODUCT_NAME}" style="display:block;border:0;width:${LOGO_WIDTH}px;height:${LOGO_HEIGHT}px;"/>
+        <img src="${LOGO_URL}" width="${LOGO_WIDTH}" height="${LOGO_HEIGHT}" alt="${PRODUCT_NAME}" style="display:inline-block;border:0;width:${LOGO_WIDTH}px;height:${LOGO_HEIGHT}px;"/>
       </a>
     </td></tr>`;
 }
 
+/**
+ * Footer, centred and set OUTSIDE the card.
+ *
+ * Deliberately quieter than the body and visually separate from it: this is
+ * housekeeping — who sent this, why you got it, how to stop it — not content.
+ * Putting it on the page rather than inside the card is what keeps the card
+ * reading as the message.
+ */
+const FINE = (extra = "") =>
+  `font-family:${FONT_STACK};font-size:12px;line-height:1.7;color:${COLOR.faint};margin:0;${extra}`;
+
 function footer(unsubscribeUrl?: string): string {
-  const unsub = unsubscribeUrl
-    ? `<p class="t-fine" style="font-family:${FONT_STACK};font-size:12px;line-height:1.6;color:${COLOR.faint};margin:0 0 8px;">
-         You are receiving this because you have a ${PRODUCT_NAME} account.
-         <a href="${safeUrl(unsubscribeUrl)}" style="color:${COLOR.muted};text-decoration:underline;">Unsubscribe from these emails</a>
-         · <a href="${safeUrl(`${APP_URL}/dashboard/settings/notifications`)}" style="color:${COLOR.muted};text-decoration:underline;">Manage preferences</a>
-       </p>`
-    : `<p class="t-fine" style="font-family:${FONT_STACK};font-size:12px;line-height:1.6;color:${COLOR.faint};margin:0 0 8px;">
-         This is a service message about your ${PRODUCT_NAME} account, so it has no unsubscribe link.
-       </p>`;
+  const why = unsubscribeUrl
+    ? `You are receiving this because you have a ${PRODUCT_NAME} account.<br/>
+       <a href="${safeUrl(unsubscribeUrl)}" style="color:${COLOR.muted};text-decoration:underline;">Unsubscribe</a>
+       &nbsp;·&nbsp;
+       <a href="${safeUrl(`${APP_URL}/dashboard/settings/notifications`)}" style="color:${COLOR.muted};text-decoration:underline;">Manage preferences</a>`
+    : `You received this because it relates to your ${PRODUCT_NAME} account.<br/>
+       Service messages like this one have no unsubscribe link.`;
 
   return `
-    <tr><td class="px" style="padding:8px 32px 32px;">
-      <div class="divider" style="border-top:1px solid ${COLOR.borderSoft};font-size:0;line-height:0;margin:0 0 18px;">&nbsp;</div>
-      ${unsub}
-      <p class="t-fine" style="font-family:${FONT_STACK};font-size:12px;line-height:1.6;color:${COLOR.faint};margin:0 0 6px;">
-        <strong style="color:${COLOR.muted};">${escapeHtml(LEGAL.entity)}</strong><br/>
-        ${escapeHtml(LEGAL.address)}
+    <tr><td align="center" class="px" style="padding:24px 40px 40px;text-align:center;">
+      <p class="t-fine" style="${FINE("padding:0 0 10px;")}">${why}</p>
+      <p class="t-fine" style="${FINE("padding:0 0 10px;")}">
+        <a href="mailto:${escapeHtml(LEGAL.supportEmail)}" style="color:${COLOR.muted};text-decoration:none;">${escapeHtml(LEGAL.supportEmail)}</a>
+        &nbsp;·&nbsp;<a href="${safeUrl(`${APP_URL}/privacy`)}" style="color:${COLOR.muted};text-decoration:none;">Privacy</a>
+        &nbsp;·&nbsp;<a href="${safeUrl(`${APP_URL}/terms`)}" style="color:${COLOR.muted};text-decoration:none;">Terms</a>
       </p>
-      <p class="t-fine" style="font-family:${FONT_STACK};font-size:12px;line-height:1.6;color:${COLOR.faint};margin:0;">
-        Need help? <a href="mailto:${escapeHtml(LEGAL.supportEmail)}" style="color:${COLOR.muted};">${escapeHtml(LEGAL.supportEmail)}</a>
-        · <a href="${safeUrl(`${APP_URL}/privacy`)}" style="color:${COLOR.muted};">Privacy</a>
-        · <a href="${safeUrl(`${APP_URL}/terms`)}" style="color:${COLOR.muted};">Terms</a>
-        <br/>&copy; ${new Date().getFullYear()} ${PRODUCT_NAME}. All rights reserved.
+      <p class="t-fine" style="${FINE()}">
+        &copy; ${new Date().getFullYear()} ${escapeHtml(LEGAL.entity)}, ${escapeHtml(LEGAL.address)}
       </p>
     </td></tr>`;
 }
@@ -145,10 +155,17 @@ export function renderEmail(doc: EmailDocument): RenderedEmail {
 <body class="bg-page" style="margin:0;padding:0;background-color:${COLOR.page};">
 <div style="display:none;font-size:1px;color:${COLOR.page};line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">${escapeHtml(doc.preheader)}${PREHEADER_PAD}</div>
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="bg-page" style="background-color:${COLOR.page};">
-  <tr><td align="center" style="padding:24px 12px;">
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="${WIDTH}" class="container bg-card" style="width:${WIDTH}px;max-width:${WIDTH}px;background-color:${COLOR.card};border-radius:18px;overflow:hidden;">
+  <tr><td align="center" style="padding:32px 12px 8px;">
+    <!-- The card: hairline border, no shadow, no fill beyond white. -->
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="${WIDTH}" class="container bg-card" style="width:${WIDTH}px;max-width:${WIDTH}px;background-color:${COLOR.card};border:1px solid ${COLOR.border};border-radius:12px;">
       ${header()}
       ${renderBlocks(doc.blocks)}
+      <tr><td style="height:16px;font-size:0;line-height:0;">&nbsp;</td></tr>
+    </table>
+  </td></tr>
+  <!-- Footer lives OUTSIDE the card, so the card reads as the message. -->
+  <tr><td align="center" style="padding:0 12px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="${WIDTH}" class="container" style="width:${WIDTH}px;max-width:${WIDTH}px;">
       ${footer(doc.unsubscribeUrl)}
     </table>
   </td></tr>

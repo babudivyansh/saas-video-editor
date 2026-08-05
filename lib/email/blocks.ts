@@ -41,16 +41,29 @@ const BASE_TEXT = `font-family:${FONT_STACK};margin:0;`;
 
 /** Wrap block content in the full-width row every block sits in. */
 function row(inner: string, paddingY = "0"): string {
-  return `<tr><td style="padding:${paddingY} 32px;" class="px">${inner}</td></tr>`;
+  return `<tr><td style="padding:${paddingY} 40px;" class="px">${inner}</td></tr>`;
 }
 
+/**
+ * The h1 is centred and set at a NORMAL weight, not the 800 the old templates
+ * used everywhere.
+ *
+ * Heavy weight at large size reads as shouting in an inbox. Restraint here is
+ * what separates a message that looks like it came from a company from one that
+ * looks like it came from a marketing tool — the hierarchy comes from size and
+ * whitespace, not from making everything bolder.
+ */
 function renderHeading(b: Extract<Block, { kind: "heading" }>): string {
   const content = toSafe(b.text).html;
   const isH1 = (b.level ?? 1) === 1;
-  const size = isH1 ? 26 : 19;
-  const cls = isH1 ? "h1" : "h2";
+
+  if (isH1) {
+    return `<tr><td align="center" class="px" style="padding:14px 40px 18px;text-align:center;">
+      <h1 class="h1 t-ink" style="${BASE_TEXT}font-size:25px;line-height:1.35;font-weight:500;letter-spacing:-0.2px;color:${COLOR.ink};">${content}</h1>
+    </td></tr>`;
+  }
   return row(
-    `<h${isH1 ? 1 : 2} class="${cls}" style="${BASE_TEXT}font-size:${size}px;line-height:1.3;font-weight:800;color:${COLOR.ink};padding:0 0 10px;">${content}</h${isH1 ? 1 : 2}>`,
+    `<h2 class="h2 t-ink" style="${BASE_TEXT}font-size:17px;line-height:1.45;font-weight:600;color:${COLOR.ink};padding:6px 0 8px;">${content}</h2>`,
   );
 }
 
@@ -60,7 +73,7 @@ function renderParagraph(b: Extract<Block, { kind: "paragraph" }>): string {
   const size = tone === "fine" ? 13 : 15;
   const cls = tone === "fine" ? "t-fine" : "t-soft";
   return row(
-    `<p class="${cls}" style="${BASE_TEXT}font-size:${size}px;line-height:1.65;color:${color};padding:0 0 16px;">${toSafe(b.text).html}</p>`,
+    `<p class="${cls}" style="${BASE_TEXT}font-size:${size}px;line-height:1.7;color:${color};padding:0 0 18px;">${toSafe(b.text).html}</p>`,
   );
 }
 
@@ -76,36 +89,37 @@ function renderParagraph(b: Extract<Block, { kind: "paragraph" }>): string {
 function renderButton(b: Extract<Block, { kind: "button" }>): string {
   const href = safeUrl(b.href);
   const label = escapeHtml(b.label);
+  // Solid fill, no gradient. The gradient belongs to the product UI; on a white
+  // card in an inbox it reads as an ad. One flat accent on the single thing you
+  // want clicked is what makes the CTA obvious.
   const bg = b.tone && b.tone !== "brand" ? TONE_COLORS[b.tone].fg : COLOR.brand;
-  const gradient =
-    !b.tone || b.tone === "brand"
-      ? `background-image:linear-gradient(135deg,${COLOR.brand} 0%,${COLOR.violet} 55%,${COLOR.fuchsia} 100%);`
-      : "";
 
-  return row(
-    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 20px;"><tr><td>
-      <!--[if mso]>
-      <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
-        href="${href}" style="height:48px;v-text-anchor:middle;width:260px;" arcsize="50%" stroke="f" fillcolor="${bg}">
-        <w:anchorlock/>
-        <center style="color:#ffffff;font-family:${FONT_STACK};font-size:15px;font-weight:700;">${label}</center>
-      </v:roundrect>
-      <![endif]-->
-      <!--[if !mso]><!-- -->
-      <a href="${href}" style="display:inline-block;background-color:${bg};${gradient}color:#ffffff;text-decoration:none;font-family:${FONT_STACK};font-size:15px;font-weight:700;line-height:1;padding:16px 34px;border-radius:999px;mso-hide:all;">${label}</a>
-      <!--<![endif]-->
-    </td></tr></table>`,
-  );
+  return `<tr><td align="center" class="px" style="padding:6px 40px 26px;text-align:center;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;"><tr><td align="center">
+        <!--[if mso]>
+        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
+          href="${href}" style="height:46px;v-text-anchor:middle;width:250px;" arcsize="50%" stroke="f" fillcolor="${bg}">
+          <w:anchorlock/>
+          <center style="color:#ffffff;font-family:${FONT_STACK};font-size:15px;font-weight:600;">${label}</center>
+        </v:roundrect>
+        <![endif]-->
+        <!--[if !mso]><!-- -->
+        <a href="${href}" style="display:inline-block;background-color:${bg};color:#ffffff;text-decoration:none;font-family:${FONT_STACK};font-size:15px;font-weight:600;line-height:1;padding:15px 36px;border-radius:999px;mso-hide:all;">${label}</a>
+        <!--<![endif]-->
+      </td></tr></table>
+    </td></tr>`;
 }
 
 function renderHero(b: Extract<Block, { kind: "hero" }>): string {
   const t = TONE_COLORS[b.tone ?? "brand"];
+  // Borderless soft fill rather than a bordered box: one less line competing for
+  // attention with the number, which is the only thing this block exists to say.
   return row(
-    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="panel" style="background-color:${t.bg};border:1px solid ${t.border};border-radius:16px;margin:0 0 20px;">
-      <tr><td align="center" style="padding:28px 24px;">
-        <p style="${BASE_TEXT}font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:${t.fg};padding:0 0 6px;">${escapeHtml(b.label)}</p>
-        <p style="${BASE_TEXT}font-size:44px;line-height:1.1;font-weight:800;color:${t.fg};padding:0;">${escapeHtml(b.value)}</p>
-        ${b.caption ? `<p style="${BASE_TEXT}font-size:14px;color:${t.fg};opacity:0.85;padding:8px 0 0;">${escapeHtml(b.caption)}</p>` : ""}
+    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="panel" style="background-color:${t.bg};border-radius:12px;margin:0 0 22px;">
+      <tr><td align="center" style="padding:26px 24px;">
+        <p style="${BASE_TEXT}font-size:12px;font-weight:600;letter-spacing:0.8px;text-transform:uppercase;color:${t.fg};padding:0 0 8px;">${escapeHtml(b.label)}</p>
+        <p style="${BASE_TEXT}font-size:40px;line-height:1.1;font-weight:600;color:${t.fg};padding:0;">${escapeHtml(b.value)}</p>
+        ${b.caption ? `<p style="${BASE_TEXT}font-size:14px;color:${t.fg};padding:10px 0 0;">${escapeHtml(b.caption)}</p>` : ""}
       </td></tr>
     </table>`,
   );
@@ -124,9 +138,9 @@ function renderKv(b: Extract<Block, { kind: "kv" }>): string {
     .join("");
 
   return row(
-    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="panel" style="background-color:${COLOR.surface};border:1px solid ${COLOR.border};border-radius:16px;margin:0 0 20px;">
+    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="panel" style="background-color:${COLOR.surface};border-radius:12px;margin:0 0 22px;">
       <tr><td style="padding:20px 24px;">
-        ${b.title ? `<p style="${BASE_TEXT}font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${COLOR.faint};padding:0 0 10px;">${escapeHtml(b.title)}</p>` : ""}
+        ${b.title ? `<p style="${BASE_TEXT}font-size:12px;font-weight:600;letter-spacing:0.8px;text-transform:uppercase;color:${COLOR.faint};padding:0 0 12px;">${escapeHtml(b.title)}</p>` : ""}
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">${rows}</table>
       </td></tr>
     </table>`,
@@ -178,25 +192,27 @@ function renderList(b: Extract<Block, { kind: "list" }>): string {
             ? `<span style="color:${COLOR.brand};font-weight:700;">${i + 1}.</span>`
             : `<span style="color:${COLOR.brand};font-weight:700;">&bull;</span>`;
       return `<tr>
-        <td valign="top" width="24" style="${BASE_TEXT}font-size:15px;line-height:1.6;padding:5px 0;width:24px;">${bullet}</td>
-        <td valign="top" style="${BASE_TEXT}font-size:15px;line-height:1.6;color:${COLOR.inkSoft};padding:5px 0;">${toSafe(item).html}</td>
+        <td valign="top" width="26" style="${BASE_TEXT}font-size:15px;line-height:1.65;padding:6px 0;width:26px;">${bullet}</td>
+        <td valign="top" style="${BASE_TEXT}font-size:15px;line-height:1.65;color:${COLOR.inkSoft};padding:6px 0;">${toSafe(item).html}</td>
       </tr>`;
     })
     .join("");
 
   return row(
-    `${b.title ? `<p style="${BASE_TEXT}font-size:14px;font-weight:700;color:${COLOR.ink};padding:0 0 8px;">${escapeHtml(b.title)}</p>` : ""}
-     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 20px;">${items}</table>`,
+    `${b.title ? `<p style="${BASE_TEXT}font-size:14px;font-weight:600;color:${COLOR.ink};padding:0 0 10px;">${escapeHtml(b.title)}</p>` : ""}
+     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 22px;">${items}</table>`,
   );
 }
 
 function renderCallout(b: Extract<Block, { kind: "callout" }>): string {
   const t = TONE_COLORS[b.tone];
+  // No left accent stripe. The tint alone is enough to separate this from body
+  // copy, and the stripe made every callout look like a compiler warning.
   return row(
-    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="panel" style="background-color:${t.bg};border:1px solid ${t.border};border-left:4px solid ${t.fg};border-radius:12px;margin:0 0 20px;">
-      <tr><td style="padding:16px 20px;">
-        ${b.title ? `<p style="${BASE_TEXT}font-size:14px;font-weight:700;color:${t.fg};padding:0 0 4px;">${escapeHtml(b.title)}</p>` : ""}
-        <p style="${BASE_TEXT}font-size:14px;line-height:1.6;color:${COLOR.inkSoft};padding:0;">${toSafe(b.body).html}</p>
+    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="panel" style="background-color:${t.bg};border-radius:12px;margin:0 0 22px;">
+      <tr><td style="padding:18px 22px;">
+        ${b.title ? `<p style="${BASE_TEXT}font-size:14px;font-weight:600;color:${t.fg};padding:0 0 6px;">${escapeHtml(b.title)}</p>` : ""}
+        <p style="${BASE_TEXT}font-size:14px;line-height:1.65;color:${COLOR.inkSoft};padding:0;">${toSafe(b.body).html}</p>
       </td></tr>
     </table>`,
   );
@@ -208,10 +224,10 @@ function renderCards(b: Extract<Block, { kind: "cards" }>): string {
     .map((c) => {
       const t = TONE_COLORS[c.tone ?? "neutral"];
       return `<td class="stack" width="50%" valign="top" style="width:50%;padding:0 6px;">
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="panel" style="background-color:${t.bg};border:1px solid ${t.border};border-radius:14px;">
-          <tr><td style="padding:18px;">
-            <p style="${BASE_TEXT}font-size:16px;font-weight:800;color:${t.fg};padding:0 0 4px;">${escapeHtml(c.title)}</p>
-            <p style="${BASE_TEXT}font-size:13px;line-height:1.55;color:${COLOR.inkSoft};padding:0;">${escapeHtml(c.subtitle)}</p>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="panel" style="background-color:${t.bg};border-radius:12px;">
+          <tr><td style="padding:20px;">
+            <p style="${BASE_TEXT}font-size:16px;font-weight:600;color:${t.fg};padding:0 0 6px;">${escapeHtml(c.title)}</p>
+            <p style="${BASE_TEXT}font-size:13px;line-height:1.6;color:${COLOR.inkSoft};padding:0;">${escapeHtml(c.subtitle)}</p>
           </td></tr>
         </table>
       </td>`;
@@ -219,15 +235,15 @@ function renderCards(b: Extract<Block, { kind: "cards" }>): string {
     .join("");
 
   return row(
-    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 20px;"><tr>${cells}</tr></table>`,
+    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 22px;"><tr>${cells}</tr></table>`,
   );
 }
 
 function renderPin(b: Extract<Block, { kind: "pin" }>): string {
   return row(
-    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="panel" style="background-color:${COLOR.surface};border:1px solid ${COLOR.border};border-radius:16px;margin:0 0 20px;">
-      <tr><td align="center" style="padding:26px 20px;">
-        <span class="pin" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:38px;font-weight:800;letter-spacing:12px;color:${COLOR.ink};">${escapeHtml(b.code)}</span>
+    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="panel" style="background-color:${COLOR.surface};border-radius:12px;margin:0 0 22px;">
+      <tr><td align="center" style="padding:28px 20px;">
+        <span class="pin" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:36px;font-weight:600;letter-spacing:10px;color:${COLOR.ink};">${escapeHtml(b.code)}</span>
       </td></tr>
     </table>`,
   );
