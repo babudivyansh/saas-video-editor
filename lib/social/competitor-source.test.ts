@@ -7,7 +7,7 @@ vi.mock("@/lib/redis", () => ({
   redis: { get: vi.fn(async () => null), set: vi.fn(async () => {}), del: vi.fn(async () => {}), incrWithExpire: vi.fn(async () => 1) },
 }));
 
-const { normalizeProfile } = await import("./competitor-source");
+const { normalizeProfile, normalizePosts } = await import("./competitor-source");
 
 describe("normalizeProfile", () => {
   it("plucks Instagram-shaped payloads", () => {
@@ -32,5 +32,37 @@ describe("normalizeProfile", () => {
   it("returns null followers rather than guessing on unknown shapes", () => {
     const p = normalizeProfile({ something: "else" });
     expect(p.followers).toBeNull();
+  });
+});
+
+describe("normalizePosts", () => {
+  it("plucks a top-level array of Instagram-shaped posts", () => {
+    const posts = normalizePosts([
+      { like_count: 100, comment_count: 10, taken_at: "2026-01-01T00:00:00Z" },
+      { like_count: 200, comment_count: 20, taken_at: "2026-01-08T00:00:00Z" },
+    ]);
+    expect(posts).toEqual([
+      { likes: 100, comments: 10, publishedAt: "2026-01-01T00:00:00Z" },
+      { likes: 200, comments: 20, publishedAt: "2026-01-08T00:00:00Z" },
+    ]);
+  });
+
+  it("plucks a { data: [...] } or { videos: [...] } wrapper", () => {
+    expect(normalizePosts({ data: [{ likes: 5, comments: 1 }] })).toEqual([
+      { likes: 5, comments: 1, publishedAt: null },
+    ]);
+    expect(normalizePosts({ videos: [{ likeCount: "9", commentCount: "3" }] })).toEqual([
+      { likes: 9, comments: 3, publishedAt: null },
+    ]);
+  });
+
+  it("caps at 20 posts", () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({ likes: i }));
+    expect(normalizePosts(many)).toHaveLength(20);
+  });
+
+  it("returns an empty array rather than guessing on an unknown shape", () => {
+    expect(normalizePosts({ something: "else" })).toEqual([]);
+    expect(normalizePosts(null)).toEqual([]);
   });
 });
