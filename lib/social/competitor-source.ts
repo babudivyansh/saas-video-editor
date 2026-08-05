@@ -84,3 +84,77 @@ export async function fetchPublicProfile(provider: CompetitorProvider, handle: s
   }
   return normalizeProfile((await res.json()) as Record<string, unknown>);
 }
+
+export interface PublicPost {
+  likes: number | null;
+  comments: number | null;
+  publishedAt: string | null;
+}
+
+// Best-effort URL following the same /v1/{provider}/{resource} shape as
+// ENDPOINTS above — NOT verified against ScrapeCreators' real API docs
+// (no "recent posts" call exists anywhere else in this codebase to copy
+// from, and hitting the real vendor here would spend real budget). Confirm
+// the actual path/response shape against ScrapeCreators' docs (or a real
+// account) before this is relied on in production; fetchRecentPublicPosts
+// fails closed (empty array) rather than throwing on a shape mismatch, so a
+// wrong guess degrades to "no post-level stats yet" rather than breaking
+// the whole competitor refresh.
+const POST_ENDPOINTS: Record<CompetitorProvider, (handle: string) => string> = {
+  instagram: (h) => `${API}/instagram/posts?handle=${encodeURIComponent(h)}`,
+  youtube: (h) => `${API}/youtube/videos?handle=${encodeURIComponent(h)}`,
+};
+
+// Vendor payloads vary by field naming, same defensive approach as
+// normalizeProfile. Caps at 20 most-recent posts — enough for a meaningful
+// average without over-reading a large channel's history.
+// Exported for tests, matching normalizeProfile's convention.
+export function normalizePosts(raw: unknown): PublicPost[] {
+  const list: unknown[] = Array.isArray(raw)
+    ? raw
+    : Array.isArray((raw as Record<string, unknown>)?.data)
+      ? ((raw as Record<string, unknown>).data as unknown[])
+      : Array.isArray((raw as Record<string, unknown>)?.posts)
+        ? ((raw as Record<string, unknown>).posts as unknown[])
+        : Array.isArray((raw as Record<string, unknown>)?.videos)
+          ? ((raw as Record<string, unknown>).videos as unknown[])
+          : [];
+
+  const num = (o: Record<string, unknown>, ...keys: string[]): number | null => {
+    for (const k of keys) {
+      const v = o[k];
+      if (typeof v === "number") return v;
+      if (typeof v === "string" && /^\d+$/.test(v)) return Number(v);
+    }
+    return null;
+  };
+  const str = (o: Record<string, unknown>, ...keys: string[]): string | null => {
+    for (const k of keys) {
+      const v = o[k];
+      if (typeof v === "string" && v) return v;
+    }
+    return null;
+  };
+
+  return list.slice(0, 20).map((item) => {
+    const o = (item ?? {}) as Record<string, unknown>;
+    return {
+      likes: num(o, "like_count", "likes", "likeCount"),
+      comments: num(o, "comment_count", "comments", "commentCount"),
+      publishedAt: str(o, "taken_at", "published_at", "publishedAt", "timestamp"),
+    };
+  });
+}
+
+export async function fetchRecentPublicPosts(provider: CompetitorProvider, handle: string): Promise<PublicPost[]> {
+  const key = env.SCRAPECREATORS_API_KEY;
+  if (!key) throw new Error("SCRAPECREATORS_API_KEY is not configured");
+  await consumeBudget();
+  try {
+    const res = await fetch(POST_ENDPOINTS[provider](handle.replace(/^@/, "")), { headers: { "x-api-key": key } });
+    if (!res.ok) return [];
+    return normalizePosts(await res.json());
+  } catch {
+    return [];
+  }
+}
