@@ -79,8 +79,17 @@ export const FONT_STACK =
 /** Container width. 600px is the widest safe value across desktop clients. */
 export const WIDTH = 600;
 
-export const LOGO_URL = `${ASSET_URL}/email/clipiro-logo.png`;
-export const GRADIENT_BAR_URL = `${ASSET_URL}/email/gradient-bar.png`;
+/**
+ * The product's real logo, already served from public/ and already live at
+ * https://clipiro.com/logo.png — so there is no new asset to deploy before email
+ * can ship. Intrinsic size is 760×261 (a ~2.91:1 wordmark), displayed at 120×41.
+ *
+ * A PNG rather than the inline SVG the old header used: Outlook's Word engine
+ * drops SVG entirely, which is why that logo lockup collapsed there.
+ */
+export const LOGO_URL = `${ASSET_URL}/logo.png`;
+export const LOGO_WIDTH = 120;
+export const LOGO_HEIGHT = 41;
 
 /**
  * Footer legal block.

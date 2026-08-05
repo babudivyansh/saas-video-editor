@@ -9,8 +9,9 @@
 // Runs with no .env at all. That is the payoff of keeping lib/email/tokens.ts
 // off lib/env: nothing in the render path parses the environment schema.
 
-import { mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { renderEmail } from "../lib/email/layout";
 import {
   EMAIL_REGISTRY,
@@ -19,38 +20,39 @@ import {
   type EmailGroup,
   type TemplateEntry,
 } from "../lib/email/templates/registry";
-import { COLOR, GRADIENT_BAR_URL, LOGO_URL } from "../lib/email/tokens";
+import { COLOR, LOGO_URL, LOGO_WIDTH } from "../lib/email/tokens";
 
 const OUT_DIR = join(process.cwd(), ".email-preview");
 
 /**
- * The hosted brand assets do not exist yet, and a preview page cannot reach an
- * external host anyway. Swap them for data URIs so the review shows the intended
- * design rather than two broken-image icons. Production HTML keeps the real URLs
- * — this substitution happens only here.
+ * Inline the real logo for the preview.
+ *
+ * Production points at https://clipiro.com/logo.png, which is live — but a
+ * preview page cannot reach an external host, so the same file is read from
+ * public/ and embedded as a data URI. It is downscaled to twice its display
+ * width first: the source is 760px wide for a 120px slot, and embedding it at
+ * full size 110 times (two iframes per sample) would add megabytes to the page
+ * for pixels no one sees.
+ *
+ * Only the preview substitutes anything — the emitted HTML keeps the real URL.
  */
-const LOGO_DATA_URI = `data:image/svg+xml;utf8,${encodeURIComponent(
-  `<svg xmlns="http://www.w3.org/2000/svg" width="118" height="28" viewBox="0 0 118 28">
-    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="${COLOR.brand}"/><stop offset="55%" stop-color="${COLOR.violet}"/><stop offset="100%" stop-color="${COLOR.fuchsia}"/>
-    </linearGradient></defs>
-    <rect x="0" y="2" width="24" height="24" rx="7" fill="url(#g)"/>
-    <path d="M13 7L7 16h5l-0.6 5L18 12h-5l0.6-5z" fill="#fff"/>
-    <text x="31" y="20" font-family="Segoe UI,Helvetica,Arial,sans-serif" font-size="17" font-weight="800" fill="${COLOR.ink}">Clipiro</text>
-  </svg>`,
-)}`;
+async function logoDataUri(): Promise<string> {
+  const source = readFileSync(join(process.cwd(), "public", "logo.png"));
+  // loadImage, not `new Image()` with a Buffer src — the latter decodes nothing
+  // here and silently yields a blank canvas (a 185-byte transparent PNG).
+  const img = await loadImage(source);
 
-const GRADIENT_DATA_URI = `data:image/svg+xml;utf8,${encodeURIComponent(
-  `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="6" viewBox="0 0 600 6" preserveAspectRatio="none">
-    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="${COLOR.brand}"/><stop offset="55%" stop-color="${COLOR.violet}"/><stop offset="100%" stop-color="${COLOR.fuchsia}"/>
-    </linearGradient></defs>
-    <rect width="600" height="6" fill="url(#g)"/>
-  </svg>`,
-)}`;
+  const w = LOGO_WIDTH * 2;
+  const h = Math.round((img.height / img.width) * w);
+  const canvas = createCanvas(w, h);
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0, w, h);
 
-function withPreviewAssets(htmlDoc: string): string {
-  return htmlDoc.split(LOGO_URL).join(LOGO_DATA_URI).split(GRADIENT_BAR_URL).join(GRADIENT_DATA_URI);
+  return `data:image/png;base64,${canvas.toBuffer("image/png").toString("base64")}`;
+}
+
+function withPreviewAssets(htmlDoc: string, logoDataUrl: string): string {
+  return htmlDoc.split(LOGO_URL).join(logoDataUrl);
 }
 
 const esc = (s: string) =>
@@ -66,7 +68,7 @@ interface Rendered {
   slug: string;
 }
 
-function renderAll(): Rendered[] {
+function renderAll(logoDataUrl: string): Rendered[] {
   const out: Rendered[] = [];
   for (const entry of Object.values(EMAIL_REGISTRY)) {
     for (const [sample, props] of Object.entries(entry.samples)) {
@@ -85,7 +87,7 @@ function renderAll(): Rendered[] {
         sample,
         subject: r.subject,
         preheader: doc.preheader,
-        html: withPreviewAssets(r.html),
+        html: withPreviewAssets(r.html, logoDataUrl),
         text: r.text,
         slug: `${entry.id}.${sample.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`,
       });
@@ -262,11 +264,11 @@ ${groups}
 </div></body></html>`;
 }
 
-function main(): void {
+async function main(): Promise<void> {
   rmSync(OUT_DIR, { recursive: true, force: true });
   mkdirSync(OUT_DIR, { recursive: true });
 
-  const rendered = renderAll();
+  const rendered = renderAll(await logoDataUri());
   for (const r of rendered) {
     writeFileSync(join(OUT_DIR, `${r.slug}.html`), r.html, "utf8");
     writeFileSync(join(OUT_DIR, `${r.slug}.txt`), r.text, "utf8");
@@ -278,4 +280,4 @@ function main(): void {
   process.stdout.write(`Rendered ${emails} emails / ${rendered.length} samples to ${OUT_DIR}\n`);
 }
 
-main();
+void main();

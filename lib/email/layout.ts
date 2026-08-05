@@ -8,7 +8,9 @@
 import { renderBlocks, type Block } from "./blocks";
 import { renderText } from "./text";
 import { escapeHtml, safeUrl } from "./html";
-import { APP_URL, COLOR, DARK, FONT_STACK, GRADIENT_BAR_URL, LEGAL, LOGO_URL, PRODUCT_NAME, WIDTH } from "./tokens";
+import {
+  APP_URL, COLOR, DARK, FONT_STACK, LEGAL, LOGO_HEIGHT, LOGO_URL, LOGO_WIDTH, PRODUCT_NAME, WIDTH,
+} from "./tokens";
 
 export type LocaleCode = string;
 
@@ -88,10 +90,10 @@ function styleBlock(): string {
  */
 function header(): string {
   return `
-    <tr><td style="font-size:0;line-height:0;background-color:${COLOR.brand};background-image:url('${GRADIENT_BAR_URL}');background-size:100% 6px;background-repeat:no-repeat;height:6px;">&nbsp;</td></tr>
-    <tr><td class="px" style="padding:28px 32px 8px;">
+    <tr><td class="bar" style="font-size:0;line-height:0;height:6px;background-color:${COLOR.brand};background-image:linear-gradient(90deg,${COLOR.brand} 0%,${COLOR.violet} 55%,${COLOR.fuchsia} 100%);">&nbsp;</td></tr>
+    <tr><td class="px" style="padding:26px 32px 6px;">
       <a href="${safeUrl(APP_URL)}" style="text-decoration:none;">
-        <img src="${LOGO_URL}" width="118" height="28" alt="${PRODUCT_NAME}" style="display:block;border:0;width:118px;height:28px;"/>
+        <img src="${LOGO_URL}" width="${LOGO_WIDTH}" height="${LOGO_HEIGHT}" alt="${PRODUCT_NAME}" style="display:block;border:0;width:${LOGO_WIDTH}px;height:${LOGO_HEIGHT}px;"/>
       </a>
     </td></tr>`;
 }
