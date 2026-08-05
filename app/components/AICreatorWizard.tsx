@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "./AuthContext";
 import { useJobPolling } from "./useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
+import { EmptyState } from "@/app/components/ui/EmptyState";
 
 // ── Voice catalogue (same as VoiceChangerTool) ───────────────────────────────
 interface Voice {
@@ -299,6 +300,22 @@ export default function AICreatorWizard() {
   const job = useJobPolling({ toolSlug: "ai-creator" as const, token });
   const fireReviewPrompt = useReviewPromptTrigger();
 
+  // Previously the only signal that FAL_KEY/AWS aren't configured was a 503
+  // after the user had already uploaded a video and picked an avatar. Check
+  // upfront instead. A failed/slow check fails open (available stays true)
+  // rather than blocking a tool that may well work — the POST route remains
+  // the real gate either way.
+  const [available, setAvailable] = useState(true);
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    fetch("/api/tools/ai-creator/availability", { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => (res.ok ? res.json() : { available: true }))
+      .then((data: { available?: boolean }) => { if (!cancelled) setAvailable(data.available !== false); })
+      .catch(() => { if (!cancelled) setAvailable(true); });
+    return () => { cancelled = true; };
+  }, [token]);
+
   // Wizard state (persists across step navigation via refs so router.push doesn't reset)
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
@@ -428,6 +445,19 @@ export default function AICreatorWizard() {
   // ── Render ────────────────────────────────────────────────────────────────
   const isLastStep = step === "select-voiceover";
   const selectedVoice = voiceSlug !== "original" ? voiceBySlug(voiceSlug) : null;
+
+  if (!available) {
+    return (
+      <div className="flex flex-col h-full min-w-0 bg-white items-center justify-center px-6">
+        <EmptyState
+          icon={<IcGrid />}
+          title="AI Creator isn't available right now"
+          subtitle="This tool needs additional setup on our end — check back soon, or try another AI tool in the meantime."
+          action={{ label: "Browse other tools", href: "/dashboard/tools" }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full min-w-0 bg-white">

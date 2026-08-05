@@ -32,6 +32,7 @@ placeholders and should stay that way.
 | **AI Voice Changer** (`/dashboard/tools/voice-changer`) | `ELEVENLABS_API_KEY` | same as above |
 | **AI Vocal Remover** (`/dashboard/tools/vocal-remover`) | `FAL_KEY` | https://fal.ai/dashboard/keys |
 | **AI Video Generator (VEO3)** (`/dashboard/tools/video-generator`) | `FAL_KEY` | same as above |
+| **AI Creator** (`/dashboard/ai-creator`) | `FAL_KEY` + AWS S3* | same as above |
 | **AI Subtitle Remover** (`/dashboard/tools/subtitle-remover`) | None — needs **FFmpeg** on PATH | https://ffmpeg.org/download.html |
 | **Create / video pipeline** (`/dashboard/create/*`) | `ELEVENLABS_API_KEY` + AWS S3* + FFmpeg | as above |
 
@@ -44,7 +45,6 @@ placeholders and should stay that way.
 | Key | Needed for |
 |---|---|
 | `RAZORPAY_KEY_ID` / `_SECRET` / `_WEBHOOK_SECRET` | Paid plans / credit purchases |
-| `HEYGEN_API_KEY` + `HEYGEN_AVATAR_*` | AI Creator avatar video generation |
 
 ## 5. Verify
 
@@ -83,11 +83,14 @@ The app is deployed live at clipiro.com via cPanel's **Setup Node.js App**
 
 ## 7. Cron Jobs (cPanel)
 
-Three routes expect an external scheduler and are fail-closed (401) unless
-`CRON_SECRET` / `SOCIAL_REFRESH_SECRET` are set in `.env` — set them, then add
-matching entries under cPanel → **Cron Jobs**. Social Tracker's `social-refresh`
-route runs three separate jobs off the same secret (`refresh` hourly,
-`retention` and `digest` weekly), so it needs three crontab entries on its own:
+Eleven routes expect an external scheduler and are fail-closed (401) unless
+`CRON_SECRET` / `SOCIAL_REFRESH_SECRET` / `ASSET_CLEANUP_SECRET` are set in
+`.env` — set them, then add matching entries under cPanel → **Cron Jobs**.
+As of a 2026-08 launch-readiness audit, only the first three below (`refill-
+credits`, the three `social-refresh` jobs, `commission-payout`) were actually
+wired into the production crontab — the rest existed as working routes with
+no schedule, so lifecycle emails, cleanup, and re-engagement were silently
+never firing. This list is now the complete set of 11.
 
 ```
 # Monthly credit refill + subscription expiry — daily is enough, the route
@@ -108,10 +111,37 @@ route runs three separate jobs off the same secret (`refresh` hourly,
 # self-heals on the next run. Also reachable on demand via
 # POST /api/admin/commissions/run-payout-sweep (admin-authenticated).
 0 4 * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/commission-payout
+
+# Admin weekly ops digest — same secret as social-refresh
+0 8 * * 1 curl -s -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" https://clipiro.com/api/cron/admin-digest
+
+# Hard-delete accounts whose 30-day deactivation recovery window has passed
+0 2 * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/account-purge
+
+# Asset cleanup — orphaned S3 objects (frequent) + archived-asset retention (daily)
+*/15 * * * * curl -s -H "Authorization: Bearer $ASSET_CLEANUP_SECRET" https://clipiro.com/api/cron/asset-cleanup
+0 5 * * * curl -s -H "Authorization: Bearer $ASSET_CLEANUP_SECRET" https://clipiro.com/api/cron/asset-cleanup?job=retention
+
+# Onboarding email sequence (day 1 / 3 / 7 after signup)
+0 9 * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/onboarding
+
+# Re-engagement (7d/30d inactive win-back) + mid-month unused-credits nudge
+0 9 * * 1 curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/reengagement
+
+# Review request drip sequence (up to 3 emails per user, stops on submit/opt-out)
+0 10 * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/review-drip
+
+# Calendar-driven review prompt notifications (in-app + email)
+0 10 * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/review-prompts
+
+# Subscription expiry warnings (7d/3d/1d before) + expired notice
+0 6 * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/subscription-reminder
 ```
 
 Use cPanel's Cron Jobs UI to enter the schedule and command — it writes to the
-same underlying crontab, this is just documenting what to enter.
+same underlying crontab, this is just documenting what to enter. Times above
+are suggestions matching each route's own header comment; adjust to spread
+load if several land in the same minute.
 
 ## 8. Social Tracker — manual OAuth verification
 
