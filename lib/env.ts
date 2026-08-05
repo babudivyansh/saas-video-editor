@@ -93,6 +93,14 @@ const schema = z.object({
   EMAIL_PASS: z.string().optional(),
   EMAIL_FROM: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
+  // Resend webhook signing secret ("whsec_…"). Without it the bounce/complaint
+  // endpoint rejects everything, which is the correct failure: an unverified
+  // webhook could suppress any address an attacker names.
+  RESEND_WEBHOOK_SECRET: z.string().optional(),
+  // Where images in email are loaded from. Split from NEXT_PUBLIC_APP_URL on
+  // purpose — links must follow the deployment, but a staging or preview build
+  // still needs the logo to resolve to a host a mail client can reach.
+  EMAIL_ASSET_BASE_URL: z.string().optional(),
 
   // Preset avatar assets for the AI-creator tool — public S3 URLs, feature
   // degrades to "upload your own face" when unset.
