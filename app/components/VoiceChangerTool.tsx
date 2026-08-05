@@ -4,47 +4,9 @@ import { useAuth } from "./AuthContext";
 import { useJobPolling } from "./useJobPolling";
 import { TOOL_COSTS } from "@/lib/tool-costs";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
+import { VOICES, voiceBySlug, type Voice } from "@/app/components/voice-catalog";
 
 const VOICE_CHANGER_CREDIT_COST = TOOL_COSTS["voice-changer"].creditCost;
-
-// ── Voice catalogue ──────────────────────────────────────────────────────────
-interface Voice {
-  slug: string;
-  name: string;
-  desc: string;
-  gender: "Male" | "Female";
-  age: "Young" | "Middle aged" | "Mature";
-  language: "English" | "Multilingual";
-  color: string;
-}
-
-const VOICES: Voice[] = [
-  { slug: "adam",      name: "Adam",        desc: "Adam is one of the most recognizable voices used in many viral short-form videos",      gender: "Male",   age: "Middle aged", language: "Multilingual", color: "#3b82f6" },
-  { slug: "dandan",    name: "Dan Dan",     desc: "The AI voice used in Kimberly Shorts (100k+ yt channel by crayo)",                    gender: "Male",   age: "Middle aged", language: "Multilingual", color: "#6366f1" },
-  { slug: "natasha",   name: "Natasha",     desc: "Natasha is the soft voice most notably used in viral short-form videos for female voices", gender: "Female", age: "Young",       language: "Multilingual", color: "#10b981" },
-  { slug: "amir1",     name: "Amir #1",     desc: "The one and only built-different sir Uber driver",                                     gender: "Male",   age: "Young",       language: "Multilingual", color: "#f59e0b" },
-  { slug: "amir2",     name: "Amir #2 (Ameer)", desc: "Amir's brother who is rivaling on doordash",                                     gender: "Male",   age: "Young",       language: "Multilingual", color: "#22c55e" },
-  { slug: "william",   name: "William",     desc: "William is the default voice used in Crayo, recommended for most use cases",           gender: "Male",   age: "Middle aged", language: "English",      color: "#ec4899" },
-  { slug: "daniel",    name: "Daniel",      desc: "Deep, authoritative British voice. Perfect for documentaries and explainers",          gender: "Male",   age: "Middle aged", language: "English",      color: "#7c3aed" },
-  { slug: "harry",     name: "Harry",       desc: "Bold and expressive British voice ideal for dramatic storytelling and gaming",         gender: "Male",   age: "Young",       language: "English",      color: "#f97316" },
-  { slug: "liam",      name: "Liam",        desc: "Energetic and clear American voice. Great for YouTube tutorials and reviews",          gender: "Male",   age: "Young",       language: "Multilingual", color: "#0ea5e9" },
-  { slug: "charlie",   name: "Charlie",     desc: "Friendly, conversational voice well suited for podcasts and storytelling",             gender: "Male",   age: "Young",       language: "Multilingual", color: "#14b8a6" },
-  { slug: "thomas",    name: "Thomas",      desc: "Calm and measured voice ideal for educational content and e-learning",                 gender: "Male",   age: "Middle aged", language: "English",      color: "#8b5cf6" },
-  { slug: "matthew",   name: "Matthew",     desc: "Warm American narrator voice with excellent clarity for audiobooks",                   gender: "Male",   age: "Middle aged", language: "English",      color: "#06b6d4" },
-  { slug: "aria",      name: "Aria",        desc: "Versatile, expressive female voice great for a wide range of content",                gender: "Female", age: "Young",       language: "Multilingual", color: "#a855f7" },
-  { slug: "rachel",    name: "Rachel",      desc: "Clear, neutral American accent. The go-to voice for professional voiceovers",         gender: "Female", age: "Middle aged", language: "English",      color: "#f43f5e" },
-  { slug: "bella",     name: "Bella",       desc: "Soft and soothing voice perfect for meditation guides and gentle narration",           gender: "Female", age: "Young",       language: "English",      color: "#d946ef" },
-  { slug: "charlotte", name: "Charlotte",   desc: "British female voice with natural warmth. Great for storytelling and lifestyle",       gender: "Female", age: "Middle aged", language: "English",      color: "#7c3aed" },
-  { slug: "emily",     name: "Emily",       desc: "Young and lively American voice ideal for social media and vlogs",                    gender: "Female", age: "Young",       language: "English",      color: "#f97316" },
-  { slug: "sarah",     name: "Sarah",       desc: "Confident and engaging female voice with a neutral American accent",                   gender: "Female", age: "Young",       language: "English",      color: "#f59e0b" },
-  { slug: "matilda",   name: "Matilda",     desc: "Warm and nurturing voice great for educational and kids content",                      gender: "Female", age: "Middle aged", language: "English",      color: "#22c55e" },
-  { slug: "freya",     name: "Freya",       desc: "Dynamic and expressive voice perfect for gaming and entertainment content",            gender: "Female", age: "Young",       language: "English",      color: "#10b981" },
-  { slug: "grace",     name: "Grace",       desc: "Elegant and articulate voice suited for news-style narration and documentaries",       gender: "Female", age: "Middle aged", language: "English",      color: "#84cc16" },
-];
-
-function voiceBySlug(slug: string): Voice {
-  return VOICES.find(v => v.slug === slug) ?? VOICES[0];
-}
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 function IcMic() {
