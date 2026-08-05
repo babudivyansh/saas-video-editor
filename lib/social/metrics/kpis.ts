@@ -90,6 +90,26 @@ function sumOrNull(rows: DailyMetricRow[], field: keyof DailyMetricRow): number 
   return values.length === 0 ? null : sum(values);
 }
 
+/**
+ * Floor a tally of countable things at zero, preserving null.
+ *
+ * Providers report some of these as NET daily movements, so a single day can
+ * legitimately arrive negative — YouTube Analytics `likes` goes below zero on a
+ * day when removed likes outnumber new ones. Summed over a quiet window that
+ * produced "Likes −1" and, once it reached the engagement-rate denominator,
+ * "Engagement rate −100%" on a live dashboard.
+ *
+ * Clamping the WINDOW SUM rather than each day is deliberate: a provider
+ * restating a day (+5, then a −1 correction) should net to 4. Clamping per day
+ * would read that as 5 and quietly inflate every total. Only a window that is
+ * negative overall — which is not a real quantity — gets floored.
+ *
+ * null still means "not reported" and survives untouched; it is not a zero.
+ */
+function nonNegative(value: number | null): number | null {
+  return value === null ? null : Math.max(0, value);
+}
+
 function meanOrNull(rows: DailyMetricRow[], field: keyof DailyMetricRow): number | null {
   const values = column(rows, field);
   return values.length === 0 ? null : values.reduce((s, v) => s + v, 0) / values.length;
@@ -127,7 +147,10 @@ function engagementRateOf(rows: DailyMetricRow[]): number | null {
 
   const denominator = sumOrNull(rows, "reach") ?? sumOrNull(rows, "views");
   if (denominator === null || denominator <= 0) return null;
-  return (interactions / denominator) * 100;
+  // A negative interaction total is not a negative rate of engagement — see
+  // nonNegative. Without this, one net-unliked day over a low-view window
+  // renders as "-100%".
+  return ((nonNegative(interactions) as number) / denominator) * 100;
 }
 
 /** Impressions, falling back to views where the platform retired the metric. */
@@ -165,8 +188,10 @@ export function computeKpis(input: KpiInput): KpiSet {
   const growth = growthRates(followerSeries);
 
   const valueFor = (metric: MetricKey, rows: DailyMetricRow[]): number | null => {
+    // Every ADDITIVE metric is a count of things that happened — posts, likes,
+    // seconds watched. None of them can be negative over a window.
     const additive = ADDITIVE[metric];
-    if (additive) return sumOrNull(rows, additive);
+    if (additive) return nonNegative(sumOrNull(rows, additive));
     const averaged = AVERAGED[metric];
     if (averaged) return meanOrNull(rows, averaged);
 
