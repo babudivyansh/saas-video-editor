@@ -47,7 +47,7 @@ export async function accountExportJob(payload: AccountExportPayload): Promise<v
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error(`User ${userId} not found`);
 
-    const [projects, assets, purchases, loginEvents, notificationPreference] = await Promise.all([
+    const [projects, assets, purchases, loginEvents, notificationPreference, socialAccounts, competitorProfiles, socialGoals] = await Promise.all([
       prisma.project.findMany({
         where: { userId },
         include: { clips: { select: { id: true, title: true, startSec: true, endSec: true, status: true, videoUrl: true, createdAt: true } } },
@@ -56,11 +56,43 @@ export async function accountExportJob(payload: AccountExportPayload): Promise<v
       prisma.purchase.findMany({ where: { userId } }),
       prisma.loginEvent.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: LOGIN_HISTORY_LIMIT }),
       prisma.notificationPreference.findUnique({ where: { userId } }),
+      // Never accessTokenEnc/refreshTokenEnc — same treatment assets already
+      // gets for s3Key below. Everything else here is metadata, not secrets.
+      prisma.socialAccount.findMany({
+        where: { userId },
+        select: {
+          id: true, provider: true, providerAccountId: true, username: true, displayName: true,
+          avatarUrl: true, tokenExpiresAt: true, scopes: true, status: true, followers: true,
+          lastSyncedAt: true, lastSyncStatus: true, lastSyncError: true, timezone: true,
+          healthScore: true, healthScoreAt: true, createdAt: true, updatedAt: true,
+        },
+      }),
+      prisma.competitorProfile.findMany({ where: { userId } }), // no OAuth tokens on this model — public-data only
+      prisma.socialGoal.findMany({ where: { userId } }),
     ]);
 
     const assetsWithUrls = await Promise.all(
       assets.map(async (a) => ({ ...a, url: await getAssetReadUrl(a.s3Key).catch(() => null) })),
     );
+
+    // These four are keyed by accountId/competitorId (FKs), not userId
+    // directly, so they need the ids from the first batch before they can be
+    // queried. SocialDailyMetric is bounded to the last 12 months — unlike
+    // every other domain here, it's high-volume by design (~365 rows/account/
+    // year), so an unbounded findMany would scale very differently.
+    const accountIds = socialAccounts.map((a) => a.id);
+    const competitorIds = competitorProfiles.map((c) => c.id);
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
+
+    const [socialAccountSnapshots, socialDailyMetrics, socialPosts, socialAudienceSnapshots, aiInsights, competitorSnapshots] = await Promise.all([
+      accountIds.length ? prisma.socialAccountSnapshot.findMany({ where: { accountId: { in: accountIds } } }) : [],
+      accountIds.length ? prisma.socialDailyMetric.findMany({ where: { accountId: { in: accountIds }, date: { gte: twelveMonthsAgo } } }) : [],
+      accountIds.length ? prisma.socialPost.findMany({ where: { accountId: { in: accountIds } } }) : [],
+      accountIds.length ? prisma.socialAudienceSnapshot.findMany({ where: { accountId: { in: accountIds } } }) : [],
+      accountIds.length ? prisma.aiInsight.findMany({ where: { accountId: { in: accountIds } } }) : [],
+      competitorIds.length ? prisma.competitorSnapshot.findMany({ where: { competitorId: { in: competitorIds } } }) : [],
+    ]);
 
     const bundle = {
       exportedAt: new Date().toISOString(),
@@ -74,6 +106,17 @@ export async function accountExportJob(payload: AccountExportPayload): Promise<v
       purchases,
       loginHistory: loginEvents,
       notificationPreferences: notificationPreference,
+      social: {
+        accounts: socialAccounts,
+        accountSnapshots: socialAccountSnapshots,
+        dailyMetrics: socialDailyMetrics, // last 12 months only — see note above
+        posts: socialPosts,
+        audienceSnapshots: socialAudienceSnapshots,
+        aiInsights,
+        goals: socialGoals,
+        competitors: competitorProfiles,
+        competitorSnapshots,
+      },
     };
 
     const tmpDir = path.join(os.tmpdir(), `account-export-${jobId}`);
