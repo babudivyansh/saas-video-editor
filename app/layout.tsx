@@ -34,6 +34,15 @@ export const metadata: Metadata = {
     "AI faceless video",
     "Clipiro",
   ],
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
   openGraph: {
     type: "website",
     siteName: "Clipiro",
