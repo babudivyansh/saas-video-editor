@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import SiteNavbar from "@/app/components/SiteNavbar";
 import SiteFooter from "@/app/components/SiteFooter";
+import { JsonLd } from "@/app/components/JsonLd";
 import Breadcrumbs from "@/app/components/ui/Breadcrumbs";
 import { ReviewCard } from "@/app/components/reviews/ReviewCard";
 import { getPublishedReviewById } from "@/lib/reviews/queries";
@@ -44,8 +45,8 @@ export default async function ReviewDetailPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-white text-gray-900 font-sans">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(reviewSchema) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
+      <JsonLd data={reviewSchema} />
+      <JsonLd data={breadcrumbSchema} />
       <SiteNavbar solid />
       <main>
         <section className="mx-auto w-full max-w-2xl px-4 py-14 md:px-12">

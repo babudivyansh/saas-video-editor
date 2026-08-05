@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import SiteNavbar from "@/app/components/SiteNavbar";
 import SiteFooter from "@/app/components/SiteFooter";
+import { JsonLd } from "@/app/components/JsonLd";
 import Breadcrumbs from "@/app/components/ui/Breadcrumbs";
 import { Button } from "@/app/components/ui/Button";
 import { ReviewsPageClient } from "@/app/components/reviews/ReviewsPageClient";
@@ -39,9 +40,9 @@ export default async function ReviewsPage() {
 
   return (
     <div className="min-h-screen bg-white text-gray-900 font-sans">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareAppSchema) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
+      <JsonLd data={softwareAppSchema} />
+      <JsonLd data={faqSchema} />
+      <JsonLd data={breadcrumbSchema} />
       <SiteNavbar solid />
       <main>
         <section className="border-b border-gray-100 bg-gray-50/60">

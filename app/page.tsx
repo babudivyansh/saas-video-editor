@@ -1,3 +1,4 @@
+import { JsonLd } from "@/app/components/JsonLd";
 import SiteNavbar from "@/app/components/SiteNavbar";
 import SiteFooter from "@/app/components/SiteFooter";
 import Hero from "@/app/components/landing/Hero";
@@ -62,7 +63,7 @@ export default async function HomePage() {
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <JsonLd data={jsonLd} />
       <div className="min-h-screen bg-white text-gray-900 font-sans">
         <SiteNavbar />
         <main>
