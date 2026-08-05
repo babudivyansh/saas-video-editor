@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { env } from "@/lib/env";
+import { withRateLimit } from "@/lib/with-rate-limit";
 
 export const maxDuration = 30;
 
 // Uses Gemini to rewrite a short image prompt into a detailed, vivid description
 // that produces better results from image generation models.
-export async function POST(req: NextRequest) {
-  const limit = await rateLimit(`enhance-prompt:ip:${getClientIp(req)}`, 20, 3600);
-  if (!limit.allowed) {
-    return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
-  }
-
+async function handlePOST(req: NextRequest) {
   if (!env.GEMINI_API_KEY) {
     return NextResponse.json({ error: "Prompt enhancement not configured" }, { status: 503 });
   }
@@ -37,3 +32,7 @@ export async function POST(req: NextRequest) {
   const enhanced = result.response.text().trim();
   return NextResponse.json({ prompt: enhanced });
 }
+
+// Same bucket/limit as before this was converted to the shared wrapper —
+// unauthenticated route, so this keys on IP either way.
+export const POST = withRateLimit(handlePOST, { limit: 20, windowSec: 3600, keyBy: "ip", name: "enhance-prompt" });
