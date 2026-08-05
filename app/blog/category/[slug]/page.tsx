@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import SiteNavbar from "@/app/components/SiteNavbar";
 import SiteFooter from "@/app/components/SiteFooter";
+import { JsonLd } from "@/app/components/JsonLd";
 import Breadcrumbs from "@/app/components/ui/Breadcrumbs";
 import { EmptyState } from "@/app/components/ui/EmptyState";
 import { BLOG_CATEGORIES, getCategoryBySlug } from "../../categories";
@@ -51,8 +52,8 @@ export default async function BlogCategoryPage({ params }: { params: Promise<{ s
 
   return (
     <div className="min-h-screen bg-white text-gray-900 font-sans">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionSchema) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
+      <JsonLd data={collectionSchema} />
+      <JsonLd data={breadcrumbSchema} />
       <SiteNavbar solid />
       <main>
         <section className="border-b border-gray-100 bg-gray-50/60">

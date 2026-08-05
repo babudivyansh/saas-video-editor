@@ -3,6 +3,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import SiteNavbar from "@/app/components/SiteNavbar";
 import SiteFooter from "@/app/components/SiteFooter";
+import { JsonLd } from "@/app/components/JsonLd";
 import Breadcrumbs from "@/app/components/ui/Breadcrumbs";
 import NewsletterSignup from "../../NewsletterSignup";
 import PostCard from "../../PostCard";
@@ -47,8 +48,8 @@ export default async function BlogAuthorPage({ params }: { params: Promise<{ slu
 
   return (
     <div className="min-h-screen bg-white text-gray-900 font-sans">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(profileSchema) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
+      <JsonLd data={profileSchema} />
+      <JsonLd data={breadcrumbSchema} />
       <SiteNavbar solid />
       <main>
         <section className="border-b border-gray-100 bg-gray-50/60">

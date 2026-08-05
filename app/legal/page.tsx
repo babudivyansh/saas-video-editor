@@ -4,6 +4,7 @@ import { buildBreadcrumbSchema, buildCollectionPageSchema } from "@/app/blog/sch
 import { formatDate } from "@/app/blog/utils";
 import SiteFooter from "@/app/components/SiteFooter";
 import SiteNavbar from "@/app/components/SiteNavbar";
+import { JsonLd } from "@/app/components/JsonLd";
 import { LEGAL_DOCS } from "./documents";
 
 const DESCRIPTION = "Everything that governs your use of Clipiro — the rules, how we handle your data, and how billing works.";
@@ -27,7 +28,7 @@ export default function LegalHubPage() {
     <div className="min-h-screen bg-white">
       <SiteNavbar solid />
 
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />
+      <JsonLd data={schema} />
 
       <main>
         <section className="border-b border-card-border">

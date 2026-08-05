@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import SiteNavbar from "@/app/components/SiteNavbar";
 import SiteFooter from "@/app/components/SiteFooter";
+import { JsonLd } from "@/app/components/JsonLd";
 import Breadcrumbs from "@/app/components/ui/Breadcrumbs";
 import BlogCta from "./BlogCta";
 import NewsletterSignup from "./NewsletterSignup";
@@ -32,8 +33,8 @@ export default function BlogPage() {
 
   return (
     <div className="min-h-screen bg-white text-gray-900 font-sans">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionSchema) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
+      <JsonLd data={collectionSchema} />
+      <JsonLd data={breadcrumbSchema} />
       <SiteNavbar solid />
       <main>
         <section className="border-b border-gray-100 bg-gray-50/60">
