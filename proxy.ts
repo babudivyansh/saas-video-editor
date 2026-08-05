@@ -1,8 +1,20 @@
+import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE_NAME, verifyToken } from "@/lib/auth";
 import { isPublicApiRoute } from "@/lib/api-public-routes";
 import { ATTRIBUTION_COOKIE, buildAttributionCookie } from "@/lib/marketing-attribution";
 import { rateLimit } from "@/lib/rate-limit";
+import { buildCsp } from "@/lib/csp";
+
+// Sets the same per-request CSP (see lib/csp.ts) on every response this file
+// returns, so removing the static header from next.config.ts (which can't
+// vary per request) doesn't drop CSP coverage from any path — API responses
+// included, even though only page responses actually consume the nonce via
+// JsonLd's headers() read.
+function withCsp(response: NextResponse, csp: string): NextResponse {
+  response.headers.set("Content-Security-Policy-Report-Only", csp);
+  return response;
+}
 
 // Group-level rate limits for route families where abuse-resistance matters
 // more than per-route cost tuning (unlike generate/*, tools/*, which use
@@ -58,10 +70,12 @@ function getOptimisticAuth(request: NextRequest): { userId: string } | null {
  */
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const nonce = Buffer.from(randomUUID()).toString("base64");
+  const csp = buildCsp(nonce);
 
   if (pathname.startsWith("/api/")) {
     if (isPublicApiRoute(pathname)) {
-      return NextResponse.next();
+      return withCsp(NextResponse.next(), csp);
     }
 
     // Maintenance mode: block non-admin API traffic with a clear 503. Admin
@@ -84,46 +98,51 @@ export async function proxy(request: NextRequest) {
         }
 
         if (!isAdmin) {
-          return NextResponse.json(
+          return withCsp(NextResponse.json(
             { error: maint.message || "Clipiro is briefly down for maintenance — back shortly.", maintenance: true },
             { status: 503, headers: { "Retry-After": "300" } },
-          );
+          ), csp);
         }
       }
     }
 
     const auth = getOptimisticAuth(request);
     if (!auth) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return withCsp(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), csp);
     }
 
     const group = GROUP_LIMITS.find((g) => pathname.startsWith(g.prefix));
     if (group) {
       const result = await rateLimit(`${group.name}:user:${auth.userId}`, group.limit, group.windowSec);
       if (!result.allowed) {
-        return NextResponse.json(
+        return withCsp(NextResponse.json(
           { error: "Too many requests. Please try again later." },
           { status: 429, headers: { "Retry-After": String(group.windowSec) } },
-        );
+        ), csp);
       }
     }
 
-    return NextResponse.next();
+    return withCsp(NextResponse.next(), csp);
   }
 
   const auth = getOptimisticAuth(request);
 
   const isProtectedPage = PROTECTED_PAGE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   if (isProtectedPage && !auth) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return withCsp(NextResponse.redirect(new URL("/login", request.url)), csp);
   }
 
   const isSignedOutOnlyPage = SIGNED_OUT_ONLY_PATHS.includes(pathname);
   if (isSignedOutOnlyPage && auth) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return withCsp(NextResponse.redirect(new URL("/dashboard", request.url)), csp);
   }
 
-  const response = NextResponse.next();
+  // Page responses additionally get the nonce threaded through as a request
+  // header — this is what JsonLd's headers() read picks up server-side, via
+  // Next's documented middleware pattern for per-request CSP nonces.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
+  const response = withCsp(NextResponse.next({ request: { headers: requestHeaders } }), csp);
   const params = new URL(request.url).searchParams;
   const ref = params.get("ref");
 
