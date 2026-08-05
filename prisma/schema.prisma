@@ -13,40 +13,40 @@ enum Role {
 }
 
 model User {
-  id                      String    @id @default(uuid())
-  email                   String    @unique
-  phone                   String?   @unique
-  passwordHash            String
+  id                       String    @id @default(uuid())
+  email                    String    @unique
+  phone                    String?   @unique
+  passwordHash             String
   // Denormalized TOTAL balance = bonus + subscription + purchased, maintained
   // atomically by lib/credits.ts in the same statement as every bucket
   // mutation (2026-07 bucket split). Read-only everywhere else — all existing
   // balance reads (auth payloads, admin dashboards) keep working off this.
-  credits                 Int       @default(0)
+  credits                  Int       @default(0)
   // Credit buckets. Spend order: bonus -> subscription -> purchased (see
   // lib/credits.ts spendCredits). Subscription credits roll over up to 2x the
   // monthly grant and are zeroed on lapse; purchased (pack) credits never
   // expire; bonus credits expire at bonusCreditsExpireAt.
-  subscriptionCredits     Int       @default(0)
-  purchasedCredits        Int       @default(0)
-  bonusCredits            Int       @default(0)
-  bonusCreditsExpireAt    DateTime?
+  subscriptionCredits      Int       @default(0)
+  purchasedCredits         Int       @default(0)
+  bonusCredits             Int       @default(0)
+  bonusCreditsExpireAt     DateTime?
   // Free-tier monthly grant anchor: users without an active plan get a small
   // bonus-credit refill each month (cron step 4). Null for subscribers.
-  freeCreditsRefillAt     DateTime?
+  freeCreditsRefillAt      DateTime?
   // ── Razorpay Subscriptions (true recurring billing, 2026-07) ──
   // Null = legacy prepaid subscriber (one-time orders; cron-refilled).
   // Set = renewals arrive via the subscription.charged webhook.
-  razorpaySubscriptionId  String?   @unique
-  razorpayCustomerId      String?
+  razorpaySubscriptionId   String?   @unique
+  razorpayCustomerId       String?
   // 7-day Pro trial: once per account, card-authorized upfront.
-  trialUsedAt             DateTime?
-  trialEndsAt             DateTime?
+  trialUsedAt              DateTime?
+  trialEndsAt              DateTime?
   // Set when the user requests cancel-at-cycle-end (POST /api/billing/cancel).
   // Access continues until subscriptionEndsAt regardless — this only marks
   // intent so the billing UI shows "Cancelled — access until {date}" instead
   // of offering Cancel again. Cleared whenever a subscription (re)activates
   // (subscription.activated webhook) or lapses (refill-credits cron).
-  subscriptionCancelledAt DateTime?
+  subscriptionCancelledAt  DateTime?
   // ── Dunning (2026-07 billing audit) ──
   // Set when Razorpay reports a recurring charge failed (payment.failed) or the
   // subscription entered its retry state (subscription.pending). Cleared on the
@@ -54,54 +54,54 @@ model User {
   // write, no email and no in-app signal — the customer kept full access for
   // the ~33 days of accumulated grace while the UI still read "Renews in N
   // days", and nobody on either side knew anything was wrong.
-  paymentFailedAt         DateTime?
+  paymentFailedAt          DateTime?
   // Consecutive failed charge attempts, reset on success. Drives how insistent
   // the in-app banner is, and stops the same failure emailing repeatedly when
   // Razorpay retries.
-  paymentFailureCount     Int       @default(0)
+  paymentFailureCount      Int       @default(0)
   paymentFailedEmailSentAt DateTime?
   // Opt-in auto top-up (2026-07 audit): when set, a spend that leaves the
   // balance under the threshold triggers lib/credits.ts's maybeAutoTopup —
   // a debounced attempt to purchase this pack (one-click email in practice;
   // see lib/email.ts sendAutoTopupPromptEmail and the RBI-mandate note there).
-  autoTopupPackSlug       String?
-  role                    Role      @default(USER)
-  firstName               String?
-  lastName                String?
-  name                    String?
-  avatarUrl               String?
-  gender                  String? // "male" | "female" | "unspecified" — validated in the API layer
-  intendedUse             String? // "content_creator" | "business_marketing" | "personal" | "other" — validated in the API layer
-  preferredLanguage       String    @default("en") // ISO 639-1 code — validated against lib/i18n-locales.ts's supported-locale list in the API layer
-  planId                  String?
-  plan                    Plan?     @relation(fields: [planId], references: [id])
+  autoTopupPackSlug        String?
+  role                     Role      @default(USER)
+  firstName                String?
+  lastName                 String?
+  name                     String?
+  avatarUrl                String?
+  gender                   String? // "male" | "female" | "unspecified" — validated in the API layer
+  intendedUse              String? // "content_creator" | "business_marketing" | "personal" | "other" — validated in the API layer
+  preferredLanguage        String    @default("en") // ISO 639-1 code — validated against lib/i18n-locales.ts's supported-locale list in the API layer
+  planId                   String?
+  plan                     Plan?     @relation(fields: [planId], references: [id])
   // Subscription state (Phase C)
-  subscriptionId          String? // Razorpay subscription/order id for the active term
-  subscriptionEndsAt      DateTime? // when the prepaid term expires (null = no active sub)
-  nextRefillAt            DateTime? // when the next monthly credit grant is due
-  monthlyCredits          Int       @default(0) // credits granted on each refill for the active tier
+  subscriptionId           String? // Razorpay subscription/order id for the active term
+  subscriptionEndsAt       DateTime? // when the prepaid term expires (null = no active sub)
+  nextRefillAt             DateTime? // when the next monthly credit grant is due
+  monthlyCredits           Int       @default(0) // credits granted on each refill for the active tier
   // Affiliate program
-  referredBy              String? // affiliateId that referred this user
+  referredBy               String? // affiliateId that referred this user
   // Email lifecycle tracking
-  lastLoginAt             DateTime? // updated on every successful login
-  firstVideoAt            DateTime? // set on first successful render — triggers upsell email
-  lowCreditEmailSentAt    DateTime? // reset each monthly refill; prevents duplicate low-credit alerts
-  expiryReminderSentAt    DateTime? // tracks which expiry email (7d/3d/1d) was last sent
-  reengagementSentAt      DateTime? // prevents duplicate re-engagement emails
-  onboardingDay1SentAt    DateTime?
-  onboardingDay3SentAt    DateTime?
-  onboardingDay7SentAt    DateTime?
-  onboardingCompletedAt   DateTime? // set once the welcome screen is completed or skipped — never shown again after
-  primaryGoal             String? // "auto-clip" | "image" | "video" | "voiceover" | "editor" — picked on the welcome screen, validated in the API layer
-  experienceLevel         String? // "beginner" | "intermediate" | "advanced" — validated in the API layer
-  teamOrIndividual        String? // "individual" | "team" — validated in the API layer
-  tourStep                Int? // current guided-tour step index; null once never started
-  tourCompletedAt         DateTime? // set once the guided tour is completed or skipped
-  dismissedHints          String[]  @default([]) // ids of FeatureHint cards the user has dismissed — never shown again
+  lastLoginAt              DateTime? // updated on every successful login
+  firstVideoAt             DateTime? // set on first successful render — triggers upsell email
+  lowCreditEmailSentAt     DateTime? // reset each monthly refill; prevents duplicate low-credit alerts
+  expiryReminderSentAt     DateTime? // tracks which expiry email (7d/3d/1d) was last sent
+  reengagementSentAt       DateTime? // prevents duplicate re-engagement emails
+  onboardingDay1SentAt     DateTime?
+  onboardingDay3SentAt     DateTime?
+  onboardingDay7SentAt     DateTime?
+  onboardingCompletedAt    DateTime? // set once the welcome screen is completed or skipped — never shown again after
+  primaryGoal              String? // "auto-clip" | "image" | "video" | "voiceover" | "editor" — picked on the welcome screen, validated in the API layer
+  experienceLevel          String? // "beginner" | "intermediate" | "advanced" — validated in the API layer
+  teamOrIndividual         String? // "individual" | "team" — validated in the API layer
+  tourStep                 Int? // current guided-tour step index; null once never started
+  tourCompletedAt          DateTime? // set once the guided tour is completed or skipped
+  dismissedHints           String[]  @default([]) // ids of FeatureHint cards the user has dismissed — never shown again
   // Admin moderation (Phase 3): a suspended user fails auth on every request
   // (lib/auth.ts getAuthUser) until un-suspended. Soft alternative to deletion.
-  suspendedAt             DateTime?
-  adminNotes              String? // free-form internal notes, admin console only — never exposed to the user
+  suspendedAt              DateTime?
+  adminNotes               String? // free-form internal notes, admin console only — never exposed to the user
 
   // Email verification / change. email itself flips only once the pending
   // address is confirmed (see app/api/auth/change-email/confirm) — never
@@ -503,8 +503,8 @@ model SubscriptionEvent {
   id             String   @id @default(uuid())
   userId         String
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subscriptionId String   // Razorpay sub_...
-  type           String   // "payment_failed" | "pending" | "halted" | "cancelled" | "paused" | "resumed" | "charged" | "activated"
+  subscriptionId String // Razorpay sub_...
+  type           String // "payment_failed" | "pending" | "halted" | "cancelled" | "paused" | "resumed" | "charged" | "activated"
   /// Failure reason / error code from the provider, when it gave one.
   reason         String?
   metadata       Json?
@@ -672,47 +672,47 @@ model PendingUpload {
 // OAuth tokens are stored ONLY as AES-256-GCM ciphertext (lib/encryption.ts) and
 // are never returned to the client. Read-only analytics scopes only.
 model SocialAccount {
-  id                String                   @id @default(cuid())
-  userId            String
-  user              User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  provider          String // "youtube" | "instagram" | "facebook"
-  providerAccountId String // channel id / IG user id / Page id
-  username          String?
-  displayName       String?
-  avatarUrl         String?
-  accessTokenEnc    String // AES-256-GCM ciphertext
-  refreshTokenEnc   String? // AES-256-GCM ciphertext
-  tokenExpiresAt    DateTime?
-  scopes            String[]                 @default([])
-  status            String                   @default("active") // active | needs_reauth | revoked
-  followers         Int? // convenience copy of the latest snapshot
-  lastSyncedAt      DateTime?
-  lastSyncStatus    String                   @default("ok") // ok | partial | failed
-  lastSyncError     String? // human-readable reason when partial/failed
+  id                  String                   @id @default(cuid())
+  userId              String
+  user                User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider            String // "youtube" | "instagram" | "facebook"
+  providerAccountId   String // channel id / IG user id / Page id
+  username            String?
+  displayName         String?
+  avatarUrl           String?
+  accessTokenEnc      String // AES-256-GCM ciphertext
+  refreshTokenEnc     String? // AES-256-GCM ciphertext
+  tokenExpiresAt      DateTime?
+  scopes              String[]                 @default([])
+  status              String                   @default("active") // active | needs_reauth | revoked
+  followers           Int? // convenience copy of the latest snapshot
+  lastSyncedAt        DateTime?
+  lastSyncStatus      String                   @default("ok") // ok | partial | failed
+  lastSyncError       String? // human-readable reason when partial/failed
   // IANA zone (e.g. "Asia/Kolkata"), from the provider or the user's setting.
   // Storing it removes the per-request `tz` query param that fragmented the
   // analytics cache across every client offset.
-  timezone          String?
+  timezone            String?
   // Per-account capability overlay written by the sync: which metrics THIS
   // account actually returned. Narrows the static matrix in
   // lib/social/capabilities.ts so the UI can say "your Page hasn't granted
   // read_insights" rather than showing a permanently empty tile.
   // Shape: Partial<Record<MetricKey, "native" | "derived" | "unavailable">>
-  capabilitiesJson  Json?
-  healthScore       Float? // 0-100, recomputed nightly (lib/social/metrics/scores)
-  healthScoreAt     DateTime?
+  capabilitiesJson    Json?
+  healthScore         Float? // 0-100, recomputed nightly (lib/social/metrics/scores)
+  healthScoreAt       DateTime?
   // Incremental cursor for SocialDailyMetric. Steady-state syncs re-fetch from
   // (cursor - 2 days) because providers restate the last 24-48h.
-  lastDailyMetricDate DateTime?               @db.Date
-  createdAt         DateTime                 @default(now())
-  updatedAt         DateTime                 @updatedAt
-  posts             SocialPost[]
-  snapshots         SocialAccountSnapshot[]
-  dailyMetrics      SocialDailyMetric[]
-  audience          SocialAudienceSnapshot[]
-  insights          AiInsight[]
-  goals             SocialGoal[]
-  clipPublishes     ClipPublish[]
+  lastDailyMetricDate DateTime?                @db.Date
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  posts               SocialPost[]
+  snapshots           SocialAccountSnapshot[]
+  dailyMetrics        SocialDailyMetric[]
+  audience            SocialAudienceSnapshot[]
+  insights            AiInsight[]
+  goals               SocialGoal[]
+  clipPublishes       ClipPublish[]
 
   @@unique([userId, provider, providerAccountId])
   @@index([userId])
@@ -886,24 +886,24 @@ model SocialAccountSnapshot {
 
 // A single post/video and its latest analytics for a linked account.
 model SocialPost {
-  id             String        @id @default(cuid())
-  accountId      String
-  account        SocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  providerPostId String
-  caption        String?
-  thumbnailUrl   String?
-  permalink      String?
-  mediaType      String? // video | image | reel | short
-  publishedAt    DateTime?
-  views          Int?
-  likes          Int?
-  comments       Int?
-  shares         Int?
-  saves          Int?
-  reach          Int?
-  impressions    Int?
-  plays          Int?
-  watchTimeSec   Float?
+  id                String        @id @default(cuid())
+  accountId         String
+  account           SocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  providerPostId    String
+  caption           String?
+  thumbnailUrl      String?
+  permalink         String?
+  mediaType         String? // video | image | reel | short
+  publishedAt       DateTime?
+  views             Int?
+  likes             Int?
+  comments          Int?
+  shares            Int?
+  saves             Int?
+  reach             Int?
+  impressions       Int?
+  plays             Int?
+  watchTimeSec      Float?
   avgWatchTimeSec   Float?
   avgViewPercentage Float? // completion rate, where the provider reports length
   ctr               Float?
@@ -915,13 +915,13 @@ model SocialPost {
   // the trailing 90 days of the same media type, which is expensive to rebuild
   // on every page load and non-reproducible as the cohort shifts. Recomputed by
   // the nightly `scores` cron; the *At columns make staleness visible.
-  viralScore     Float? // 0-100, deterministic (lib/social/metrics/scores)
-  viralScoreAt   DateTime?
-  aiScore        Float? // deterministic components; the model only narrates
-  aiScoreReason  String? // one-sentence Gemini narration, nullable
-  scoredAt       DateTime?
-  metricsJson    Json? // full provider payload for future-proofing
-  fetchedAt      DateTime      @default(now())
+  viralScore        Float? // 0-100, deterministic (lib/social/metrics/scores)
+  viralScoreAt      DateTime?
+  aiScore           Float? // deterministic components; the model only narrates
+  aiScoreReason     String? // one-sentence Gemini narration, nullable
+  scoredAt          DateTime?
+  metricsJson       Json? // full provider payload for future-proofing
+  fetchedAt         DateTime      @default(now())
 
   @@unique([accountId, providerPostId])
   @@index([accountId, publishedAt])
@@ -952,19 +952,19 @@ model SocialGoal {
 
 // A saved report definition. `schedule` drives the ?job=reports cron.
 model SocialReportConfig {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   name       String
   accountIds String[]
   period     String // weekly | monthly | quarterly | annual | custom
   sections   String[] // kpis | trends | content | audience | competitors | ai
   format     String // pdf | csv | xlsx
-  schedule   String   @default("none") // none | weekly | monthly
-  recipients String[] @default([])
+  schedule   String    @default("none") // none | weekly | monthly
+  recipients String[]  @default([])
   lastRunAt  DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@index([userId])
   @@index([schedule, lastRunAt])
@@ -1371,20 +1371,20 @@ model Notification {
 // identifier we have no consent surface for. One counter row per dimension
 // tuple per day.
 model MarketingEventDaily {
-  id        String @id @default(uuid())
-  date      String // "YYYY-MM-DD" UTC, same convention as TestimonialImpression
-  event     String // closed union — see lib/marketing-analytics.ts
-  path      String
-  placement String // "listing" | "article_hero" | "mid_article" | "article_footer" | "newsletter"
+  id          String   @id @default(uuid())
+  date        String // "YYYY-MM-DD" UTC, same convention as TestimonialImpression
+  event       String // closed union — see lib/marketing-analytics.ts
+  path        String
+  placement   String // "listing" | "article_hero" | "mid_article" | "article_footer" | "newsletter"
   // Empty string, NOT null. Postgres unique indexes treat NULLs as distinct, so
   // nullable UTM columns would let duplicate rows accumulate forever and
   // silently defeat the upsert below. Values are normalized server-side to
   // [a-z0-9_-]{0,32} or collapsed to "other" — see app/api/marketing/event.
-  utmSource   String @default("")
-  utmMedium   String @default("")
-  utmCampaign String @default("")
-  count     Int      @default(0)
-  updatedAt DateTime @updatedAt
+  utmSource   String   @default("")
+  utmMedium   String   @default("")
+  utmCampaign String   @default("")
+  count       Int      @default(0)
+  updatedAt   DateTime @updatedAt
 
   // Explicitly mapped: the default generated name for a 7-column unique index
   // exceeds Postgres's 63-char identifier limit and gets silently truncated,
@@ -1398,9 +1398,9 @@ model MarketingEventDaily {
 // which governs the *logged-in* channel for an existing User — one person can
 // legitimately appear in both, so dedupe at send time once a sender exists.
 model NewsletterSubscriber {
-  id     String @id @default(uuid())
-  email  String @unique
-  status String @default("pending") // "pending" | "confirmed" | "unsubscribed"
+  id             String    @id @default(uuid())
+  email          String    @unique
+  status         String    @default("pending") // "pending" | "confirmed" | "unsubscribed"
   // Opaque random token, not a JWT: it has to be revocable and single-use,
   // which a stateless JWT can't be without a DB column anyway — and the column
   // is right here. Doubles as the unsubscribe token.
@@ -1433,4 +1433,56 @@ model WebVitalDaily {
 
   @@unique([date, metric, path, bucket], map: "WebVitalDaily_dimensions_key")
   @@index([date, metric])
+}
+
+// Delivery record for every email the product sends.
+//
+// There was no send history at all: a failed Resend call was a log line and
+// nothing else, so "did this user ever get their receipt?" was unanswerable and
+// a hard-bouncing address was retried by every cron, forever.
+//
+// Deliberately NOT a queue. Rows are written after the attempt, so this is an
+// audit trail rather than a delivery mechanism — nothing reads it to decide what
+// to send next.
+model EmailLog {
+  id String @id @default(uuid())
+
+  // `recipient`, not `to` — TO is a reserved word in Postgres, and a column that
+  // only works while it stays quoted is a trap for the next raw query.
+  recipient         String
+  templateId        String
+  // sent | skipped-optout | dev-logged | failed, then updated by the provider
+  // webhook to delivered | bounced | complained.
+  status            String
+  channel           String? // resend | smtp | dev-console
+  // Resend's id. Unique so a webhook can find the row it belongs to, and so a
+  // redelivered webhook cannot create a duplicate.
+  providerMessageId String? @unique
+  userId            String?
+  error             String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([recipient, createdAt])
+  @@index([templateId, createdAt])
+  @@index([status, createdAt])
+}
+
+// Addresses we must stop mailing.
+//
+// Continuing to send to a hard bounce or to someone who pressed "report spam"
+// is the fastest way to lose domain reputation, and it was previously
+// impossible to stop: every cron just re-read the user table.
+//
+// Keyed by email rather than userId on purpose — a complaint is about the
+// mailbox, and it must keep applying if the address is later attached to a
+// different account.
+model EmailSuppression {
+  email     String   @id
+  reason    String // hard_bounce | complaint | manual
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([reason])
 }
