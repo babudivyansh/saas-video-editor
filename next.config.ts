@@ -4,8 +4,16 @@ import createNextIntlPlugin from "next-intl/plugin";
 
 const nextConfig: NextConfig = {
   output: "standalone", // Optimizes build size for Node.js shared hosting
-  // Keep native packages out of the server bundle to prevent Turbopack build errors
-  serverExternalPackages: ["ffmpeg-static", "@napi-rs/canvas"],
+  // Keep native packages out of the server bundle to prevent Turbopack build errors.
+  //
+  // pdfkit is here for a different reason than the other two: it is pure JS, but
+  // it loads its built-in font metrics (.afm) from disk by path at runtime. When
+  // it is bundled, those data files are not traced into the standalone output and
+  // every report build dies with
+  //   ENOENT … node_modules/pdfkit/js/data/Helvetica.afm
+  // Only the standalone build shows this — in dev the files resolve from the
+  // source tree, so it looked fine locally while PDF was broken in production.
+  serverExternalPackages: ["ffmpeg-static", "@napi-rs/canvas", "pdfkit"],
   turbopack: {
     // Pin the workspace root to this project. Without this, Next can infer the
     // wrong root if an ancestor directory (e.g. the home dir) contains a stray

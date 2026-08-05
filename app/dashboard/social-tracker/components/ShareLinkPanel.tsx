@@ -54,7 +54,7 @@ export function ShareLinkPanel({
   );
 
   return (
-    <section aria-labelledby="share-heading">
+    <section id="share" aria-labelledby="share-heading">
       <h2 id="share-heading" className="mb-1 text-sm font-semibold text-ink">
         Share a read-only report
       </h2>

@@ -7,8 +7,8 @@
 // take a while), so it reports what happened rather than silently succeeding.
 
 import { useCallback, useState } from "react";
-import Link from "next/link";
 import { Button } from "@/app/components/ui/Button";
+import { SocialApiError, useSocialDownload } from "./useSocialApi";
 
 export interface QuickActionsProps {
   accountIds: string[];
@@ -20,6 +20,9 @@ type Status = { kind: "idle" } | { kind: "syncing" } | { kind: "done"; message: 
 
 export function QuickActions({ accountIds, disabledReason }: QuickActionsProps) {
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const download = useSocialDownload();
 
   const sync = useCallback(async () => {
     setStatus({ kind: "syncing" });
@@ -57,8 +60,29 @@ export function QuickActions({ accountIds, disabledReason }: QuickActionsProps) 
     }
   }, [accountIds]);
 
-  const exportHref =
-    accountIds.length > 0 ? `/api/social/export?accountId=${accountIds[0]}&kind=posts` : undefined;
+  const exportAccountId = accountIds[0];
+
+  const exportCsv = useCallback(async () => {
+    if (!exportAccountId) return;
+    setExportError(null);
+    setExporting(true);
+    try {
+      await download(
+        `/api/social/export?accountId=${encodeURIComponent(exportAccountId)}&kind=posts`,
+        "posts.csv",
+      );
+    } catch (e) {
+      setExportError(
+        e instanceof SocialApiError
+          ? e.status === 429
+            ? "Too many exports just now — try again in a few minutes."
+            : e.message
+          : "Could not download the file.",
+      );
+    } finally {
+      setExporting(false);
+    }
+  }, [download, exportAccountId]);
 
   return (
     <section aria-label="Quick actions" className="space-y-2">
@@ -76,21 +100,36 @@ export function QuickActions({ accountIds, disabledReason }: QuickActionsProps) 
           Build a report
         </Button>
 
-        <Button size="sm" variant="secondary" href="/dashboard/social-tracker/settings#share">
+        {/* Was /settings#share, where the share panel does not live and no #share
+            target existed — the button silently landed on an unrelated tab. */}
+        <Button size="sm" variant="secondary" href="/dashboard/social-tracker/reports#share">
           Share a link
         </Button>
 
-        {exportHref && (
-          // A plain anchor, not fetch: the CSV comes back as a file download,
-          // and routing it through JS would mean buffering it in memory first.
-          <Link
-            href={exportHref}
-            className="inline-flex items-center rounded-full border border-card-border px-3.5 py-1.5 text-sm font-semibold text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        {exportAccountId && (
+          // This was a <Link> with the comment "a plain anchor, not fetch — routing
+          // it through JS would mean buffering it in memory first". The buffering
+          // is real, but the anchor never worked: /api/social/* is bearer-only, a
+          // navigation carries no Authorization header, and every click returned
+          // 402 "available on paid plans". <Link> also prefetched it, running the
+          // scan on render. Exports are capped at 5k rows, so one CSV in memory is
+          // a cost worth paying for a button that functions.
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => void exportCsv()}
+            disabled={exporting}
           >
-            Export CSV
-          </Link>
+            {exporting ? "Preparing…" : "Export CSV"}
+          </Button>
         )}
       </div>
+
+      {exportError && (
+        <p role="alert" className="text-xs text-red-600">
+          {exportError}
+        </p>
+      )}
 
       {/* Announced politely — a sync is background work, not an alert. */}
       <p

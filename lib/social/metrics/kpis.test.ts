@@ -163,6 +163,41 @@ describe("derived metrics", () => {
     expect(set.engagementRate.current).toBeNull();
   });
 
+  // Regression: this shipped. YouTube reports net daily likes, so a quiet window
+  // in which likes were removed sent a negative numerator into the rate and the
+  // live dashboard read "Engagement rate -100%".
+  it("floors a net-negative interaction total at zero rather than a negative rate", () => {
+    const set = computeKpis(
+      input({ current: [day("2026-07-10", { likes: -1, views: 1 })] }),
+    );
+    expect(set.engagementRate.current).toBe(0);
+  });
+
+  it("still nets restatements within a window instead of clamping day by day", () => {
+    const set = computeKpis(
+      input({
+        current: [
+          day("2026-07-10", { likes: 5, reach: 100 }),
+          day("2026-07-11", { likes: -1, reach: 0 }),
+        ],
+      }),
+    );
+    // 4 interactions over 100 reach — not 5. Clamping per day would report 5%.
+    expect(set.engagementRate.current).toBe(4);
+  });
+});
+
+describe("negative provider values", () => {
+  it("does not show a negative count for a net-unliked window", () => {
+    const set = computeKpis(input({ current: [day("2026-07-10", { likes: -1 })] }));
+    expect(set.likes.current).toBe(0);
+  });
+
+  it("keeps an unreported metric null rather than clamping it to zero", () => {
+    const set = computeKpis(input({ current: [day("2026-07-10", { views: 10 })] }));
+    expect(set.likes.current).toBeNull();
+  });
+
   it("derives Instagram impressions from views", () => {
     const set = computeKpis(input({ provider: "instagram", current: [day("2026-07-10", { views: 800 })] }));
     expect(set.impressions.available).toBe("derived");

@@ -61,3 +61,61 @@ export function useSocialApi() {
     [token],
   );
 }
+
+/**
+ * Download an authenticated file (the CSV exports) to disk.
+ *
+ * The same bearer-only constraint as `useSocialApi`, but it has to be a separate
+ * helper because the response is a file, not JSON.
+ *
+ * This replaces `<Button href="/api/social/export?…">`, which was broken twice
+ * over. A Next `<Link>` navigation carries no Authorization header, so every
+ * export button returned 402 "available on paid plans" — to paying users. And
+ * because `<Link>` prefetches, merely rendering the Reports tab fired four
+ * export requests, each a multi-thousand-row scan, against a limit of 10 per
+ * five minutes. Fetching here fixes both: the header is attached, and nothing
+ * happens until the click.
+ */
+export function useSocialDownload() {
+  const { token } = useAuth();
+
+  return useCallback(
+    async (path: string, fallbackFilename: string): Promise<void> => {
+      const res = await fetch(path, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+        throw new SocialApiError(
+          res.status,
+          body.error ?? `Download failed (${res.status})`,
+          body.code,
+        );
+      }
+
+      // Prefer the filename the server chose — it encodes provider, handle and
+      // export kind, and it is the one users expect to see in Downloads.
+      const disposition = res.headers.get("content-disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(disposition);
+      const filename = match?.[1] ?? fallbackFilename;
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      try {
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.rel = "noopener";
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+      } finally {
+        // Revoking synchronously can cancel the download in some browsers; one
+        // turn of the event loop is enough for the click to be handled.
+        setTimeout(() => URL.revokeObjectURL(url), 0);
+      }
+    },
+    [token],
+  );
+}

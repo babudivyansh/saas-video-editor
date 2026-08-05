@@ -3,8 +3,8 @@
 // CSV exports of raw data, queued PDF/XLSX/CSV reports, and the share links
 // that publish a read-only view of an account.
 
-import { Button } from "@/app/components/ui/Button";
 import { EmptyAccounts } from "../components/EmptyAccounts";
+import { ExportButtons } from "../components/ExportButtons";
 import { ShareLinkPanel } from "../components/ShareLinkPanel";
 import { ReportBuilder } from "../components/ReportBuilder";
 import { prisma } from "@/lib/prisma";
@@ -51,18 +51,7 @@ export default async function ReportsPage({
               className="rounded-[var(--radius-card)] border border-card-border bg-white p-4 shadow-card"
             >
               <p className="mb-3 font-semibold text-ink">{accountLabel(account)}</p>
-              <div className="flex flex-wrap gap-2">
-                {EXPORTS.map((e) => (
-                  <Button
-                    key={e.kind}
-                    variant="secondary"
-                    size="sm"
-                    href={`/api/social/export?accountId=${account.id}&kind=${e.kind}`}
-                  >
-                    {e.label}
-                  </Button>
-                ))}
-              </div>
+              <ExportButtons accountId={account.id} exports={EXPORTS} />
             </div>
           ))}
         </div>
