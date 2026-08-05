@@ -32,6 +32,32 @@ export interface AccountChip {
   provider: string;
 }
 
+const ROOT = "/dashboard/social-tracker";
+
+/**
+ * Which controls each tab actually reads.
+ *
+ * The bar is rendered by the shared layout, so it used to appear in full on
+ * every tab — including Settings, Reports and Competitors, none of which look at
+ * a date range. A control that visibly does nothing teaches people to distrust
+ * the ones that do.
+ */
+function controlsFor(pathname: string): { account: boolean; range: boolean; granularity: boolean } {
+  const tab = pathname.startsWith(`${ROOT}/`) ? pathname.slice(ROOT.length + 1).split("/")[0] : "";
+  switch (tab) {
+    case "":
+      return { account: true, range: true, granularity: true };
+    case "content":
+      return { account: true, range: true, granularity: false };
+    case "audience":
+      return { account: true, range: false, granularity: false };
+    // competitors / reports / settings act on every connected account and have
+    // no time axis at all.
+    default:
+      return { account: false, range: false, granularity: false };
+  }
+}
+
 export function FilterBar({ accounts }: { accounts: AccountChip[] }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -39,8 +65,8 @@ export function FilterBar({ accounts }: { accounts: AccountChip[] }) {
 
   const range = Number(params.get("range") ?? 30);
   const granularity = params.get("granularity") ?? "day";
-  const compare = params.get("compare") === "previous";
   const account = params.get("account");
+  const show = controlsFor(pathname);
   const current = account && account !== "all" ? accounts.find((a) => a.id === account) : null;
 
   /** Merge into the query string, dropping empty values so URLs stay readable. */
@@ -58,6 +84,10 @@ export function FilterBar({ accounts }: { accounts: AccountChip[] }) {
     [params, pathname, router],
   );
 
+  // Nothing on this tab is filterable — render no bar at all rather than an
+  // empty sticky strip.
+  if (!show.account && !show.range && !show.granularity) return null;
+
   return (
     <div className="sticky top-0 z-20 -mx-4 mb-6 border-b border-card-border bg-white/85 px-4 py-3 backdrop-blur sm:-mx-8 sm:px-8">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
@@ -67,7 +97,7 @@ export function FilterBar({ accounts }: { accounts: AccountChip[] }) {
           which a select answers in one control — and it keeps working when the
           user has ten accounts, where a row of pills would wrap into a wall.
         */}
-        {accounts.length > 1 && (
+        {show.account && accounts.length > 1 && (
           <div className="flex items-center gap-2">
             <label className="flex items-center gap-1.5 text-xs text-ink-soft">
               <span className="sr-only">Account</span>
@@ -95,38 +125,40 @@ export function FilterBar({ accounts }: { accounts: AccountChip[] }) {
           </div>
         )}
 
-        <div role="group" aria-label="Date range" className="flex items-center gap-1">
-          {RANGES.map((r) => (
-            <Chip key={r} active={range === r} onClick={() => setParam({ range: String(r) })}>
-              {RANGE_LABEL[r]}
-            </Chip>
-          ))}
-        </div>
-
-        <label className="flex items-center gap-1.5 text-xs text-ink-soft">
-          <span>Group by</span>
-          <select
-            value={granularity}
-            onChange={(e) => setParam({ granularity: e.target.value === "day" ? null : e.target.value })}
-            className="rounded-lg border border-card-border bg-white px-2 py-1 text-xs text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-          >
-            {GRANULARITIES.map((g) => (
-              <option key={g.value} value={g.value}>
-                {g.label}
-              </option>
+        {show.range && (
+          <div role="group" aria-label="Date range" className="flex items-center gap-1">
+            {RANGES.map((r) => (
+              <Chip key={r} active={range === r} onClick={() => setParam({ range: String(r) })}>
+                {RANGE_LABEL[r]}
+              </Chip>
             ))}
-          </select>
-        </label>
+          </div>
+        )}
 
-        <label className="flex items-center gap-1.5 text-xs text-ink-soft">
-          <input
-            type="checkbox"
-            checked={compare}
-            onChange={(e) => setParam({ compare: e.target.checked ? "previous" : null })}
-            className="h-3.5 w-3.5 rounded border-card-border text-brand focus:ring-brand"
-          />
-          Compare to previous period
-        </label>
+        {show.granularity && (
+          <label className="flex items-center gap-1.5 text-xs text-ink-soft">
+            <span>Group by</span>
+            <select
+              value={granularity}
+              onChange={(e) => setParam({ granularity: e.target.value === "day" ? null : e.target.value })}
+              className="rounded-lg border border-card-border bg-white px-2 py-1 text-xs text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            >
+              {GRANULARITIES.map((g) => (
+                <option key={g.value} value={g.value}>
+                  {g.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        {/*
+          "Compare to previous period" lived here and was wired to nothing. The
+          param was parsed in shared.ts and unit-tested, but no page ever read
+          it, so the box was pure decoration — and redundant besides, since every
+          KPI tile already carries its period-over-period delta unconditionally.
+          Removed rather than wired: there is no second behaviour to switch to.
+        */}
       </div>
     </div>
   );

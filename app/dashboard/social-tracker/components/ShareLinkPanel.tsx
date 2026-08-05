@@ -7,14 +7,27 @@
 // a week and the only kill switch was rotating JWT_SECRET — which signs out
 // every user of the product.
 //
-// Revocation lands with the SocialReportLink model in Stage 9; this panel is
-// already shaped for it, and deliberately warns about the current behaviour
-// rather than presenting an unrevocable link as if it were safe.
+// The SocialReportLink model landed and made revocation instant (a row plus a
+// Redis denylist the public page checks first). The panel never caught up: it
+// still warned that links "cannot currently be revoked early" and offered no way
+// to do it, while DELETE /api/social/report-link/[id] had been live the whole
+// time. It also POSTed `{ accountId }` to a route that requires `accountIds`,
+// so every "Create share link" click 400'd. Both are fixed here.
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/app/components/ui/Button";
+import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { useToast } from "@/app/components/ui/Toast";
 import { useSocialApi } from "./useSocialApi";
+
+interface ShareLink {
+  id: string;
+  accountIds: string[];
+  expiresAt: string;
+  revokedAt: string | null;
+  viewCount: number;
+  createdAt: string;
+}
 
 export function ShareLinkPanel({
   accounts,
@@ -24,17 +37,46 @@ export function ShareLinkPanel({
   const { showToast } = useToast();
   const api = useSocialApi();
   const [busy, setBusy] = useState<string | null>(null);
-  const [links, setLinks] = useState<Record<string, string>>({});
+  const [links, setLinks] = useState<ShareLink[]>([]);
+  const [urls, setUrls] = useState<Record<string, string>>({});
+  const [pendingRevoke, setPendingRevoke] = useState<ShareLink | null>(null);
+
+  /** Bumped after a create or revoke to re-run the listing effect. */
+  const [reloadToken, setReloadToken] = useState(0);
+  const reload = useCallback(() => setReloadToken((n) => n + 1), []);
+
+  // The token is only ever returned once, at creation. Everything after that is
+  // metadata, which is why the list can show a link's status but not its URL.
+  //
+  // Fetched inside the effect behind a cancellation flag, the same shape
+  // ContentTable uses: it satisfies react-hooks/set-state-in-effect, and it
+  // stops a slow response from a previous render landing after a newer one.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { links: rows } = await api<{ links: ShareLink[] }>("/api/social/report-link");
+        if (!cancelled) setLinks(rows);
+      } catch {
+        // A listing failure is not worth a toast on page load; the create path
+        // still works and will refresh this.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, reloadToken]);
 
   const create = useCallback(
     async (accountId: string) => {
       setBusy(accountId);
       try {
-        const { url } = await api<{ url: string }>("/api/social/report-link", {
+        const { url, link } = await api<{ url: string; link: ShareLink }>("/api/social/report-link", {
           method: "POST",
-          body: JSON.stringify({ accountId }),
+          body: JSON.stringify({ accountIds: [accountId] }),
         });
-        setLinks((prev) => ({ ...prev, [accountId]: url }));
+        setUrls((prev) => ({ ...prev, [link.id]: url }));
+        reload();
 
         // Clipboard can reject (permissions, insecure context) — the link is
         // shown regardless, so a copy failure is not a failure to create.
@@ -50,8 +92,35 @@ export function ShareLinkPanel({
         setBusy(null);
       }
     },
-    [api, showToast],
+    [api, reload, showToast],
   );
+
+  const revoke = useCallback(async () => {
+    if (!pendingRevoke) return;
+    setBusy(pendingRevoke.id);
+    try {
+      await api(`/api/social/report-link/${pendingRevoke.id}`, { method: "DELETE" });
+      showToast("Link revoked — it stops working immediately.", "success");
+      setUrls((prev) => {
+        const next = { ...prev };
+        delete next[pendingRevoke.id];
+        return next;
+      });
+      reload();
+    } catch {
+      showToast("Couldn't revoke that link.", "error");
+    } finally {
+      setBusy(null);
+      setPendingRevoke(null);
+    }
+  }, [api, reload, pendingRevoke, showToast]);
+
+  const labelFor = (link: ShareLink) =>
+    link.accountIds
+      .map((id) => accounts.find((a) => a.id === id)?.label ?? "Unknown account")
+      .join(", ");
+
+  const live = links.filter((l) => !l.revokedAt && new Date(l.expiresAt) > new Date());
 
   return (
     <section id="share" aria-labelledby="share-heading">
@@ -60,9 +129,7 @@ export function ShareLinkPanel({
       </h2>
       <p className="mb-3 max-w-2xl text-sm text-ink-soft">
         Anyone with the link can see this account&apos;s headline metrics — no sign-in needed.
-        Links expire after 7 days and{" "}
-        <strong className="font-semibold text-ink">cannot currently be revoked early</strong>, so
-        only share them where you would share the numbers themselves.
+        Links expire after 7 days, and you can revoke one at any time below.
       </p>
 
       <div className="space-y-3">
@@ -82,21 +149,67 @@ export function ShareLinkPanel({
                 {busy === a.id ? "Creating…" : "Create share link"}
               </Button>
             </div>
-
-            {links[a.id] && (
-              <label className="mt-3 block">
-                <span className="sr-only">Share link for {a.label}</span>
-                <input
-                  readOnly
-                  value={links[a.id]}
-                  onFocus={(e) => e.currentTarget.select()}
-                  className="w-full rounded-xl border border-card-border bg-surface px-3 py-2 font-mono text-xs text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                />
-              </label>
-            )}
           </div>
         ))}
       </div>
+
+      {live.length > 0 && (
+        <div className="mt-4">
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-ink-soft">
+            Active links
+          </h3>
+          <ul className="space-y-2">
+            {live.map((link) => (
+              <li
+                key={link.id}
+                className="rounded-[var(--radius-card)] border border-card-border bg-white p-4 shadow-card"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-ink">{labelFor(link)}</p>
+                    <p className="text-xs text-ink-soft">
+                      Expires {new Date(link.expiresAt).toLocaleDateString("en-GB")} ·{" "}
+                      {link.viewCount === 0
+                        ? "not opened yet"
+                        : `${link.viewCount} view${link.viewCount === 1 ? "" : "s"}`}
+                    </p>
+                  </div>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => setPendingRevoke(link)}
+                    disabled={busy === link.id}
+                  >
+                    Revoke
+                  </Button>
+                </div>
+
+                {urls[link.id] && (
+                  <label className="mt-3 block">
+                    <span className="sr-only">Share link for {labelFor(link)}</span>
+                    <input
+                      readOnly
+                      value={urls[link.id]}
+                      onFocus={(e) => e.currentTarget.select()}
+                      className="w-full rounded-xl border border-card-border bg-surface px-3 py-2 font-mono text-xs text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                    />
+                  </label>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={pendingRevoke !== null}
+        title="Revoke this share link?"
+        message="Anyone holding the link loses access immediately. This cannot be undone — you can create a new link, but it will have a different URL."
+        confirmLabel="Revoke"
+        danger
+        onConfirm={revoke}
+        onClose={() => setPendingRevoke(null)}
+      />
     </section>
   );
 }

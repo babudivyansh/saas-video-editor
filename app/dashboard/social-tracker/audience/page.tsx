@@ -68,8 +68,9 @@ export default async function AudiencePage({
                 ? `Times shown in ${account.timezone}`
                 : // Saying "UTC local time" reads as though it were the user's
                   // own timezone. It is the fallback, and the difference
-                  // decides whether "post at 8pm" means anything.
-                  "Times shown in UTC — this account has no timezone set"
+                  // decides whether "post at 8pm" means anything. Until PR2
+                  // there was also nowhere to fix it; now there is, so say where.
+                  "Times shown in UTC — set this account's timezone in Settings"
             }
             cells={bestTimes.cells.map((c) => ({
               row: c.day,

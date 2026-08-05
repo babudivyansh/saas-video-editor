@@ -6,7 +6,7 @@
 // cascade every post, snapshot, audience row and AI insight — on a single
 // unguarded click, with no undo. The primitive existed and was unused.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/app/components/ui/Button";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
@@ -20,6 +20,8 @@ export interface ConnectableAccount {
   followers: number | null;
   status: string;
   lastSyncedAt: string | null;
+  /** IANA zone. Null until set — every time-of-day view falls back to UTC. */
+  timezone: string | null;
 }
 
 const PLATFORM: Record<string, { name: string; color: string; bg: string }> = {
@@ -88,6 +90,25 @@ export function AccountSettingsList({
             : "Sync failed. The platform may be rate-limiting us.",
           (err as SocialApiError).status === 429 ? "info" : "error",
         );
+      } finally {
+        setBusy(null);
+      }
+    },
+    [api, router, showToast],
+  );
+
+  const setTimezone = useCallback(
+    async (account: ConnectableAccount, timezone: string) => {
+      setBusy(account.id);
+      try {
+        await api(`/api/social/accounts/${account.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ timezone }),
+        });
+        showToast(`${account.label} now reports times in ${timezone}`, "success");
+        router.refresh();
+      } catch {
+        showToast("Couldn't save the timezone.", "error");
       } finally {
         setBusy(null);
       }
@@ -181,28 +202,36 @@ export function AccountSettingsList({
             {accounts.map((a) => (
               <li
                 key={a.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] border border-card-border bg-white p-4 shadow-card"
+                className="space-y-3 rounded-[var(--radius-card)] border border-card-border bg-white p-4 shadow-card"
               >
-                <div className="min-w-0">
-                  <p className="truncate font-semibold text-ink">{a.label}</p>
-                  <p className="text-xs text-ink-soft">
-                    {PLATFORM[a.provider]?.name ?? a.provider}
-                    {a.status === "needs_reauth" && " · needs reconnecting"}
-                  </p>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-ink">{a.label}</p>
+                    <p className="text-xs text-ink-soft">
+                      {PLATFORM[a.provider]?.name ?? a.provider}
+                      {a.status === "needs_reauth" && " · needs reconnecting"}
+                    </p>
+                  </div>
+                  <div className="flex flex-shrink-0 items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => void resync(a)}
+                      disabled={busy === a.id}
+                    >
+                      {busy === a.id ? "Syncing…" : "Re-sync"}
+                    </Button>
+                    <Button variant="danger" size="sm" onClick={() => setPendingDisconnect(a)}>
+                      Disconnect
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex flex-shrink-0 items-center gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => void resync(a)}
-                    disabled={busy === a.id}
-                  >
-                    {busy === a.id ? "Syncing…" : "Re-sync"}
-                  </Button>
-                  <Button variant="danger" size="sm" onClick={() => setPendingDisconnect(a)}>
-                    Disconnect
-                  </Button>
-                </div>
+
+                <TimezoneField
+                  account={a}
+                  disabled={busy === a.id}
+                  onChange={(tz) => void setTimezone(a, tz)}
+                />
               </li>
             ))}
           </ul>
@@ -220,6 +249,77 @@ export function AccountSettingsList({
         onConfirm={disconnect}
         onClose={() => setPendingDisconnect(null)}
       />
+    </div>
+  );
+}
+
+/**
+ * Which timezone this account's time-of-day views are reported in.
+ *
+ * Offered as a plain select over the runtime's own IANA list rather than a
+ * guess: we cannot infer a channel's audience zone from the browser, and the
+ * creator is the one who knows. The browser zone is surfaced as a one-click
+ * default because it is right most of the time.
+ */
+function TimezoneField({
+  account,
+  disabled,
+  onChange,
+}: {
+  account: ConnectableAccount;
+  disabled: boolean;
+  onChange: (timezone: string) => void;
+}) {
+  const zones = useMemo(() => {
+    // supportedValuesOf is Node 18+/modern browsers. If it is missing we still
+    // want the field to work, so fall back to the zones we can name.
+    const supported =
+      typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [];
+    const browser = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const set = new Set<string>(["UTC", browser, ...supported]);
+    if (account.timezone) set.add(account.timezone);
+    return [...set].filter(Boolean);
+  }, [account.timezone]);
+
+  const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const selectId = `tz-${account.id}`;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-t border-card-border pt-3">
+      <label htmlFor={selectId} className="text-xs font-semibold text-ink-soft">
+        Report times in
+      </label>
+      <select
+        id={selectId}
+        value={account.timezone ?? "UTC"}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded-full border border-card-border bg-white px-3 py-1 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+      >
+        {zones.map((z) => (
+          <option key={z} value={z}>
+            {z}
+          </option>
+        ))}
+      </select>
+
+      {!account.timezone && (
+        <>
+          <span className="text-xs text-ink-soft">
+            Not set — best-time-to-post is being shown in UTC.
+          </span>
+          {browserZone && browserZone !== "UTC" && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={disabled}
+              onClick={() => onChange(browserZone)}
+            >
+              Use {browserZone}
+            </Button>
+          )}
+        </>
+      )}
     </div>
   );
 }
