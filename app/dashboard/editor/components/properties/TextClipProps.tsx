@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import dynamic from "next/dynamic";
 import { useEditorStore } from "../../store/editorStore";
 import type { FontFamily, TextClip, TextEntrancePreset, TextLoopPreset, TextExitPreset } from "@/lib/editor/types";
 import { FONT_WHITELIST, TEXT_ENTRANCE_PRESETS, TEXT_LOOP_PRESETS, TEXT_EXIT_PRESETS } from "@/lib/editor/types";
@@ -17,7 +18,13 @@ import {
   Switch,
   Tooltip,
 } from "../ui";
-import LexicalTextEditor from "./text/LexicalTextEditor";
+// Pulls in the full Lexical library, which loaded into the editor's initial
+// bundle for every selection — text clip or not — since this was a static
+// import. Only actually renders when a text clip's properties are shown.
+const LexicalTextEditor = dynamic(() => import("./text/LexicalTextEditor"), {
+  ssr: false,
+  loading: () => <div className="h-24 animate-pulse rounded-editor-md bg-editor-card" />,
+});
 
 const AI_STUBS = ["Rewrite this text", "Fix grammar", "Translate", "Shorten", "Expand"];
 

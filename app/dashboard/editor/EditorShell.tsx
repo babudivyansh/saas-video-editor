@@ -7,6 +7,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { ChevronLeft, Command, Bell, Sparkles, User as UserIcon, LogOut } from "lucide-react";
 import type { Aspect } from "@/lib/editor/types";
@@ -18,7 +19,10 @@ import SidebarTabs from "./components/SidebarTabs";
 import PreviewStage from "./components/PreviewStage";
 import PropertiesPanel from "./components/PropertiesPanel";
 import Timeline from "./components/timeline/Timeline";
-import ExportModal from "./components/ExportModal";
+// Conditionally rendered ({exportOpen && ...} below), but a static import
+// still bundles it into the initial editor chunk regardless — React just
+// doesn't mount it early. Dynamic import defers the actual code fetch too.
+const ExportModal = dynamic(() => import("./components/ExportModal"), { ssr: false });
 import { Button, IconButton } from "./components/ui";
 
 const ASPECTS: Aspect[] = ["9:16", "1:1", "16:9"];

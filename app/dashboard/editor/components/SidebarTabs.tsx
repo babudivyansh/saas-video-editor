@@ -5,6 +5,7 @@
 
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import dynamic from "next/dynamic";
 import {
   Clapperboard,
   Image as ImageIcon,
@@ -21,17 +22,22 @@ import {
 } from "lucide-react";
 import { useEditorStore, type PanelKind } from "../store/editorStore";
 import { useIsCompactEditor } from "../hooks/useIsCompactEditor";
-import MediaPanel from "./panels/MediaPanel";
-import StockImagePanel from "./panels/StockImagePanel";
-import StockAudioPanel from "./panels/StockAudioPanel";
-import StockVideoPanel from "./panels/StockVideoPanel";
-import TextPanel from "./panels/TextPanel";
-import CaptionPanel from "./panels/CaptionPanel";
-import StickerPanel from "./panels/StickerPanel";
-import EffectPanel from "./panels/EffectPanel";
-import FilterPanel from "./panels/FilterPanel";
-import TransitionPanel from "./panels/TransitionPanel";
-import KeyboardPanel from "./panels/KeyboardPanel";
+
+// Only one of these ever renders at a time (the active tab), so all 11 were
+// loading into the editor's initial bundle for the 10 the user isn't looking
+// at. ssr:false is safe — this whole shell is itself a "use client" component
+// already client-only rendered inside the editor route.
+const MediaPanel = dynamic(() => import("./panels/MediaPanel"), { ssr: false });
+const StockImagePanel = dynamic(() => import("./panels/StockImagePanel"), { ssr: false });
+const StockAudioPanel = dynamic(() => import("./panels/StockAudioPanel"), { ssr: false });
+const StockVideoPanel = dynamic(() => import("./panels/StockVideoPanel"), { ssr: false });
+const TextPanel = dynamic(() => import("./panels/TextPanel"), { ssr: false });
+const CaptionPanel = dynamic(() => import("./panels/CaptionPanel"), { ssr: false });
+const StickerPanel = dynamic(() => import("./panels/StickerPanel"), { ssr: false });
+const EffectPanel = dynamic(() => import("./panels/EffectPanel"), { ssr: false });
+const FilterPanel = dynamic(() => import("./panels/FilterPanel"), { ssr: false });
+const TransitionPanel = dynamic(() => import("./panels/TransitionPanel"), { ssr: false });
+const KeyboardPanel = dynamic(() => import("./panels/KeyboardPanel"), { ssr: false });
 
 const TABS: { id: PanelKind; label: string; icon: React.ReactNode }[] = [
   { id: "media", label: "Media", icon: <Clapperboard className="h-5 w-5" /> },
