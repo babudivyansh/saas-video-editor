@@ -103,9 +103,22 @@ interface ClipItem {
   brollQuery: string | null;
   subtitleStyleOverride: Record<string, unknown> | null;
   silenceSettings: Record<string, unknown> | null;
-  transcriptJson: unknown | null;
+  rerenderCount: number;
 }
-interface ProjectMeta { status: string; warnings: string[] | null; captionStyleIndex: number | null; uploadedVideoUrl: string | null }
+
+// Every "Apply" in the Studio drawer re-renders the clip. The first re-render
+// of each clip is free; after that it costs a credit. Saying so next to the
+// button is the difference between a fair policy and a surprise charge.
+function RerenderCostNote({ clip }: { clip: ClipItem }) {
+  return (
+    <p className="text-[11px] text-ink-soft text-center">
+      {clip.rerenderCount === 0
+        ? "Your first re-render of this clip is free."
+        : "Applying changes re-renders this clip (1 credit)."}
+    </p>
+  );
+}
+interface ProjectMeta { status: string; warnings: string[] | null; failureReason: string | null; captionStyleIndex: number | null; uploadedVideoUrl: string | null }
 
 function fmtTime(sec: number): string {
   const s = Math.max(0, Math.round(sec));
@@ -687,7 +700,7 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
   onReset: () => void;
 }) {
   const [clips, setClips] = useState<ClipItem[]>([]);
-  const [project, setProject] = useState<ProjectMeta>({ status: "rendering", warnings: null, captionStyleIndex: null, uploadedVideoUrl: null });
+  const [project, setProject] = useState<ProjectMeta>({ status: "rendering", warnings: null, failureReason: null, captionStyleIndex: null, uploadedVideoUrl: null });
   const [selectedClip, setSelectedClip] = useState<ClipItem | null>(null);
   const fireReviewPrompt = useReviewPromptTrigger();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -698,7 +711,7 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
     try {
       const d = await apiFetch<{ project: ProjectMeta; clips: ClipItem[] }>(`/api/projects/${projectId}/clips`);
       setClips(d.clips ?? []);
-      setProject(d.project ?? { status: "rendering", warnings: null, captionStyleIndex: null, uploadedVideoUrl: null });
+      setProject(d.project ?? { status: "rendering", warnings: null, failureReason: null, captionStyleIndex: null, uploadedVideoUrl: null });
       if ((d.project.status === "completed" || d.project.status === "failed") && pollRef.current) {
         clearInterval(pollRef.current);
       }
@@ -758,7 +771,12 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
           </div>
         )}
         {failedHard && (
-          <p className="text-sm text-gray-500 mt-2">{error ?? "We couldn't generate clips from this video. Please try again."}</p>
+          // The pipeline writes a reason a creator can act on ("Video is
+          // 95 min — your plan supports Auto Clips up to 30 min…"). Prefer it
+          // over the generic client-side message, which can't know any of that.
+          <p className="text-sm text-gray-500 mt-2">
+            {project.failureReason ?? error ?? "We couldn't generate clips from this video. Please try again."}
+          </p>
         )}
         <div className="mt-3"><WarningsBanner warnings={project.warnings} /></div>
       </div>
@@ -1367,14 +1385,27 @@ function ClipEditorDrawer({
 
   interface WordTimingInfo { word: string; start: number; end: number }
 
-  // Transcript state
+  // Transcript state. The clips list endpoint deliberately omits transcriptJson
+  // (it's polled every 2.5s for the whole grid), so the drawer fetches the one
+  // clip's transcript on open. Previously this read clip.transcriptJson, which
+  // the API never sent — the editor always rendered an empty word list.
   const [localWords, setLocalWords] = useState<WordTimingInfo[]>([]);
+  const [transcriptLoading, setTranscriptLoading] = useState(true);
 
   useEffect(() => {
-    if (clip.transcriptJson) {
-      setLocalWords(JSON.parse(JSON.stringify(clip.transcriptJson)) as WordTimingInfo[]);
-    }
-  }, [clip.transcriptJson]);
+    let cancelled = false;
+    setTranscriptLoading(true);
+    apiFetch<{ detail?: { transcriptJson: WordTimingInfo[] | null } }>(
+      `/api/projects/${projectId}/clips?clipId=${encodeURIComponent(clip.id)}`,
+    )
+      .then((d) => {
+        if (cancelled) return;
+        setLocalWords(d.detail?.transcriptJson ?? []);
+      })
+      .catch(() => { if (!cancelled) setLocalWords([]); })
+      .finally(() => { if (!cancelled) setTranscriptLoading(false); });
+    return () => { cancelled = true; };
+  }, [projectId, clip.id]);
 
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
@@ -1735,6 +1766,7 @@ function ClipEditorDrawer({
               <Button onClick={handleSaveStyleOrCuts} disabled={saving} className="w-full">
                 {saving ? "Saving & Rendering..." : "Apply Subtitle Styles"}
               </Button>
+              <RerenderCostNote clip={clip} />
             </div>
           )}
 
@@ -1746,6 +1778,12 @@ function ClipEditorDrawer({
               </div>
 
               <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-xl border border-gray-150 max-h-60 overflow-y-auto">
+                {transcriptLoading && <p className="text-xs text-gray-400">Loading transcript…</p>}
+                {!transcriptLoading && localWords.length === 0 && (
+                  <p className="text-xs text-gray-400">
+                    No transcript for this clip — captions were off, or transcription didn&apos;t succeed for this video.
+                  </p>
+                )}
                 {localWords.map((w, idx) => (
                   <div key={idx} className="flex items-center gap-1 bg-white px-2 py-1 rounded-md border border-gray-200 shadow-sm text-xs">
                     <input
@@ -1765,9 +1803,10 @@ function ClipEditorDrawer({
 
               {saveErr && <p className="text-xs text-red-600">{saveErr}</p>}
 
-              <Button onClick={handleSaveTranscript} disabled={saving} className="w-full">
+              <Button onClick={handleSaveTranscript} disabled={saving || transcriptLoading || localWords.length === 0} className="w-full">
                 {saving ? "Saving & Rendering..." : "Save Transcript Changes"}
               </Button>
+              <RerenderCostNote clip={clip} />
             </div>
           )}
 
@@ -1795,6 +1834,7 @@ function ClipEditorDrawer({
               <Button onClick={handleSaveStyleOrCuts} disabled={saving} className="w-full" size="md">
                 {saving ? "Saving & Rendering..." : "Apply Camera & Trimming Options"}
               </Button>
+              <RerenderCostNote clip={clip} />
             </div>
           )}
         </div>

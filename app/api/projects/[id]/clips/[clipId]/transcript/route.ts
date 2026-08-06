@@ -1,47 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
+import { z } from "zod";
 import { getAuthUser } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { createRenderQueue } from "@/lib/render-queue";
-import { rerenderJob, type RerenderPayload } from "@/lib/autoclip-pipeline";
-import type { WordTiming } from "@/utils/elevenlabs";
+import { withRateLimit } from "@/lib/with-rate-limit";
+import { requestRerender, transcriptSchema } from "@/lib/autoclip-rerender";
 
-const rerenderQueue = createRenderQueue<RerenderPayload>("auto-clip-rerender", rerenderJob);
+// PUT /api/projects/[id]/clips/[clipId]/transcript
+// Saves user corrections to a clip's word-level transcript and re-renders so
+// the burned-in captions pick them up.
+//
+// Like the style route, this previously rendered for free with an unbounded,
+// unvalidated payload — the words go straight into an ASS Dialogue line, where
+// `{`, `\` and newlines are markup. requestRerender sanitises and bills it.
+const bodySchema = z.object({ transcript: transcriptSchema }).strict();
 
-export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string; clipId: string }> }) {
+async function handlePUT(req: NextRequest, { params }: { params: Promise<{ id: string; clipId: string }> }) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id: projectId, clipId } = await params;
 
-  const project = await prisma.project.findFirst({ where: { id: projectId, userId: auth.userId } });
-  if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
-
-  const clip = await prisma.clip.findFirst({ where: { id: clipId, projectId } });
-  if (!clip) return NextResponse.json({ error: "Clip not found" }, { status: 404 });
-
-  const body = await req.json().catch(() => ({})) as { transcript: WordTiming[] };
-  if (!Array.isArray(body.transcript)) {
-    return NextResponse.json({ error: "Invalid transcript array" }, { status: 400 });
+  const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid transcript" }, { status: 400 });
   }
 
-  const claimed = await prisma.clip.updateMany({
-    where: { id: clipId, projectId, status: { notIn: ["rendering", "queued"] } },
-    data: { status: "queued" },
+  const result = await requestRerender({
+    userId: auth.userId,
+    projectId,
+    clipId,
+    patch: { transcript: parsed.data.transcript },
+    reason: "transcript",
   });
-  if (claimed.count === 0) {
-    return NextResponse.json({ error: "This clip is already rendering or queued" }, { status: 409 });
-  }
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
 
-  await prisma.clip.update({
-    where: { id: clipId },
-    data: {
-      transcriptJson: body.transcript as unknown as Prisma.InputJsonValue,
-      status: "queued",
-      progress: 0,
-    },
+  return NextResponse.json({
+    status: "queued",
+    creditsCharged: result.creditsCharged,
+    creditsRemaining: result.creditsRemaining,
   });
-
-  rerenderQueue.enqueue(`${clipId}-${Date.now()}`, { projectId, clipId });
-
-  return NextResponse.json({ status: "queued" });
 }
+
+export const PUT = withRateLimit(handlePUT, {
+  limit: 20, windowSec: 60, keyBy: "user", name: "auto-clip:transcript",
+});

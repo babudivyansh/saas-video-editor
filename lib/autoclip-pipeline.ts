@@ -25,6 +25,7 @@ import { type WordTiming } from "@/utils/elevenlabs";
 import { transcribe } from "@/lib/transcription";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { withRetry } from "@/lib/with-retry";
+import { NonRetryableError } from "@/lib/render-queue";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { FILTER_PRESETS, type FilterPreset } from "@/lib/editor/types";
@@ -109,6 +110,18 @@ export function computeAnalysisCost(sourceDurationSec: number, pricing: AutoClip
 }
 
 export const analysisRefId = (projectId: string) => `auto-clip-analysis:${projectId}`;
+
+// What to persist on Project.failureReason for the UI to render.
+//
+// NonRetryableError messages are written for a creator ("Video is too short…",
+// "…upgrade for longer uploads") and are safe and useful to show verbatim.
+// Anything else is an internal fault — a Gemini timeout, an S3 error, an
+// ffmpeg stderr dump — which would be noise at best and leak infrastructure
+// detail at worst, so it collapses to a generic line.
+export function userFacingFailure(err: unknown): string {
+  if (err instanceof NonRetryableError) return err.message;
+  return "We couldn't generate clips from this video. Please try again — you haven't been charged.";
+}
 
 /** Credits already paid (net of refunds) for this project's analysis step. */
 export async function getAnalysisCreditsPaid(userId: string, projectId: string): Promise<number> {
@@ -395,7 +408,9 @@ export async function pickJob(payload: PickPayload): Promise<void> {
     await downloadFile(project.uploadedVideoUrl, videoPath);
     const durationSec = await getMediaDurationSec(videoPath);
     if (durationSec < minDuration) {
-      throw new Error(`Video is too short (${durationSec.toFixed(1)}s) for the requested clip duration (min ${minDuration}s)`);
+      // Non-retryable: the video will still be too short on attempt 2 and 3,
+      // and each retry re-downloads the whole source to find that out.
+      throw new NonRetryableError(`Video is too short (${durationSec.toFixed(1)}s) for the requested clip duration (min ${minDuration}s)`);
     }
     // Tiered source-length cap (cost ceiling per job + upgrade trigger).
     {
@@ -404,7 +419,7 @@ export async function pickJob(payload: PickPayload): Promise<void> {
       const tier = await getUserTier(project.userId);
       const cap = TIER_MAX_AUTOCLIP_SOURCE_SECONDS[tier];
       if (durationSec > cap) {
-        throw new Error(
+        throw new NonRetryableError(
           `Video is ${(durationSec / 60).toFixed(0)} min — your plan supports Auto Clips up to ${Math.round(cap / 60)} min per video. Upgrade for longer uploads.`,
         );
       }
@@ -423,7 +438,7 @@ export async function pickJob(payload: PickPayload): Promise<void> {
           refId: analysisRefId(projectId),
         });
         if (!spend.ok) {
-          throw new Error(
+          throw new NonRetryableError(
             `Analyzing this video costs ${analysisCost} credit${analysisCost === 1 ? "" : "s"} (credited back when you confirm clips) — you don't have enough credits.`,
           );
         }
@@ -561,6 +576,8 @@ export async function pickJob(payload: PickPayload): Promise<void> {
           status: "pending_review",
           autoClipCaptionStyle: captionStyleIndex,
           warnings: (warnings.length ? warnings : Prisma.JsonNull) as Prisma.InputJsonValue,
+          // A retry that succeeds must not keep showing the previous attempt's error.
+          failureReason: null,
         },
       })
     ]);
@@ -578,7 +595,10 @@ export async function pickJob(payload: PickPayload): Promise<void> {
     // Clean up any clips from a prior attempt on this project so a retry
     // doesn't accumulate duplicates alongside the ones about to be re-picked.
     await prisma.clip.deleteMany({ where: { projectId, status: "pending_review" } }).catch(() => {});
-    await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } }).catch(() => {});
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { status: "failed", failureReason: userFacingFailure(err) },
+    }).catch(() => {});
     // Rethrow (after the cleanup above already ran) so createRenderQueue's
     // wrapper sees a real failure and BullMQ's attempts:3/backoff actually
     // retries transient errors (a flaky Gemini/S3 call) instead of stopping
@@ -1045,7 +1065,10 @@ export async function renderJob(payload: RenderPayload): Promise<void> {
     }
   } catch (err) {
     logger.error("auto-clip", `render failed for ${projectId}`, err);
-    await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } }).catch(() => {});
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { status: "failed", failureReason: userFacingFailure(err) },
+    }).catch(() => {});
     // See pickJob's matching comment — rethrow so BullMQ's attempts:3/backoff
     // actually retries transient failures instead of stopping after one try.
     throw err;
@@ -1065,6 +1088,11 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   const clip = await prisma.clip.findUnique({ where: { id: clipId } });
   if (!project?.uploadedVideoUrl || !clip) throw new Error(`Missing project/clip for rerender ${clipId}`);
+
+  // Imported lazily to avoid a module-scope cycle: lib/autoclip-rerender.ts
+  // registers its queue with this file's rerenderJob at import time. Same
+  // pattern as the getUserTier imports elsewhere in this module.
+  const { refundFailedRerender } = await import("@/lib/autoclip-rerender");
 
   const tmp = os.tmpdir();
   const videoPath = path.join(tmp, `${projectId}-src-rerender-${clipId}.mp4`);
@@ -1109,7 +1137,19 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
 
     const { getUserTier } = await import("@/lib/auth");
     const watermark = (await getUserTier(project.userId)) === "free";
-    await renderOneClip(projectId, updatedClip, videoPath, watermark);
+    const { ok } = await renderOneClip(projectId, updatedClip, videoPath, watermark);
+    // renderOneClip swallows its own error and marks the clip failed, so a
+    // failed re-render used to leave the user charged for a clip they never
+    // received — the batch path refunds, this one never did.
+    if (!ok) await refundFailedRerender(clipId);
+  } catch (err) {
+    // Anything thrown before/around renderOneClip (a failed source download,
+    // for instance) would otherwise leave the clip stuck on "queued" forever
+    // with the charge still standing.
+    logger.error("auto-clip", `rerender failed for clip ${clipId}`, err);
+    await prisma.clip.update({ where: { id: clipId }, data: { status: "failed" } }).catch(() => {});
+    await refundFailedRerender(clipId);
+    throw err;
   } finally {
     try { if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath); } catch {}
   }

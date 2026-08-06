@@ -601,16 +601,113 @@ export function computeMultiSpeakerKeyframes(
   return { a, b };
 }
 
-function lerpExpr(varName: "in_w" | "in_h", keyframes: CropKeyframe[], axis: "x" | "y" | "w" | "h"): string {
-  const pts = keyframes.map((k) => ({ t: k.tSec, v: k[axis] }));
-  let expr = `(${pts[pts.length - 1].v}*${varName})`;
-  for (let i = pts.length - 2; i >= 0; i--) {
-    const { t: t0, v: v0 } = pts[i];
-    const { t: t1, v: v1 } = pts[i + 1];
-    const seg = `(${v0}*${varName}+(${v1}-${v0})*${varName}*(t-${t0})/${(t1 - t0).toFixed(4)})`;
-    expr = `if(lt(t,${t1}),${seg},${expr})`;
+// Piecewise-linear interpolation over keyframes, emitted as a nested-if FFmpeg
+// expression. `timeVar` is whatever expression yields seconds in the filter
+// being targeted (`t` for crop, `(on/FPS)` for zoompan, which counts output
+// frames rather than exposing a clock). `scaleVar` multiplies each value by a
+// dimension constant (in_w/in_h/iw/ih) for expressions in pixels; omit it for
+// unitless values such as a zoom factor.
+function piecewiseExpr(
+  pts: { t: number; v: number }[],
+  timeVar: string,
+  scaleVar?: string,
+): string {
+  const val = (v: number) => (scaleVar ? `(${v}*${scaleVar})` : `(${v})`);
+
+  // Collapse runs of identical values: a point whose value matches BOTH
+  // neighbours sits in the middle of a flat span and contributes an if-branch
+  // that can never change the result. This matters — each surviving point is
+  // one level of nesting in the emitted expression, re-evaluated per frame per
+  // axis, and a centred zoom envelope otherwise repeats the same constant crop
+  // origin for every keyframe. Ramp endpoints are preserved, so the
+  // interpolated path is unchanged.
+  const EPS = 1e-9;
+  const kept = pts.filter((p, i) => {
+    if (i === 0 || i === pts.length - 1) return true;
+    return !(Math.abs(p.v - pts[i - 1].v) < EPS && Math.abs(p.v - pts[i + 1].v) < EPS);
+  });
+  if (kept.length === 1) return val(kept[0].v);
+  if (kept.length === 2 && Math.abs(kept[0].v - kept[1].v) < EPS) return val(kept[0].v);
+
+  let expr = val(kept[kept.length - 1].v);
+  for (let i = kept.length - 2; i >= 0; i--) {
+    const { t: t0, v: v0 } = kept[i];
+    const { t: t1, v: v1 } = kept[i + 1];
+    const dt = t1 - t0;
+    // Zero-length spans would divide by zero; snap straight to the later value.
+    const seg = dt <= 0
+      ? val(v1)
+      : scaleVar
+        ? `(${v0}*${scaleVar}+(${v1}-${v0})*${scaleVar}*(${timeVar}-${t0})/${dt.toFixed(4)})`
+        : `(${v0}+(${v1}-${v0})*(${timeVar}-${t0})/${dt.toFixed(4)})`;
+    expr = `if(lt(${timeVar},${t1}),${seg},${expr})`;
   }
-  return `if(lt(t,${pts[0].t}),(${pts[0].v}*${varName}),${expr})`;
+  return `if(lt(${timeVar},${kept[0].t}),${val(kept[0].v)},${expr})`;
+}
+
+function lerpExpr(varName: "in_w" | "in_h", keyframes: CropKeyframe[], axis: "x" | "y" | "w" | "h"): string {
+  return piecewiseExpr(keyframes.map((k) => ({ t: k.tSec, v: k[axis] })), "t", varName);
+}
+
+// zoompan counts output frames (`on`) rather than exposing a wall clock, so a
+// time-based keyframe path has to be converted using a known output rate. The
+// chain pins that rate with an explicit `fps` filter so `on/ZOOM_FPS` is exact
+// regardless of the source's frame rate.
+export const ZOOM_FPS = 30;
+
+// Builds the pan+zoom chain for a keyframe path whose window SIZE varies.
+//
+// This cannot be done with `crop` alone. crop's w/h expressions are evaluated
+// exactly once, when the filter is configured — `t` isn't even defined there —
+// so a time-varying w/h either errors out ("Error when evaluating the
+// expression") or, for the nested-if form this module emits, silently collapses
+// to whichever branch the config-time evaluation happens to take and stays
+// frozen for the whole clip. Verified against ffmpeg 6.1.1; there is no `eval`
+// option on crop to change it (unlike overlay/scale).
+//
+// So the work is split: crop does the panning at a CONSTANT window size (its
+// x/y expressions genuinely are re-evaluated per frame), and zoompan — which
+// does re-evaluate z/x/y per output frame — does the zooming inside that
+// window. The crop window is the largest the path ever needs, so the zoomed
+// window is always contained within it and no pixels are invented.
+function buildPanZoomChain(keyframes: CropKeyframe[], outW: number, outH: number): string {
+  const wMax = Math.min(1, Math.max(...keyframes.map((k) => k.w)));
+  const hMax = Math.min(1, Math.max(...keyframes.map((k) => k.h)));
+  const maxX = Math.max(0, 1 - wMax);
+  const maxY = Math.max(0, 1 - hMax);
+
+  // Crop origin: centre the constant window on each keyframe's own centre,
+  // clamped into frame. Because the keyframe window is centred on that same
+  // point and is never larger than wMax/hMax, it stays fully inside this crop
+  // even where the clamp bites at a frame edge.
+  const origins = keyframes.map((k) => ({
+    t: k.tSec,
+    X: Math.min(maxX, Math.max(0, k.x + k.w / 2 - wMax / 2)),
+    Y: Math.min(maxY, Math.max(0, k.y + k.h / 2 - hMax / 2)),
+  }));
+
+  const cropX = piecewiseExpr(origins.map((o) => ({ t: o.t, v: o.X })), "t", "in_w");
+  const cropY = piecewiseExpr(origins.map((o) => ({ t: o.t, v: o.Y })), "t", "in_h");
+
+  // Inside zoompan, iw/ih are the CROPPED frame's dimensions, so the keyframe
+  // window is re-expressed as a fraction of the crop window rather than of the
+  // source frame.
+  const time = `(on/${ZOOM_FPS})`;
+  const zoom = piecewiseExpr(keyframes.map((k) => ({ t: k.tSec, v: k.w > 0 ? wMax / k.w : 1 })), time);
+  const panX = piecewiseExpr(keyframes.map((k, i) => ({ t: k.tSec, v: (k.x - origins[i].X) / wMax })), time);
+  const panY = piecewiseExpr(keyframes.map((k, i) => ({ t: k.tSec, v: (k.y - origins[i].Y) / hMax })), time);
+
+  // z is clamped at 1 (zoompan cannot zoom out past the frame) and x/y at the
+  // window edges, so float drift can never ask for pixels outside the input.
+  const zExpr = `max(1,${zoom})`;
+  const xExpr = `max(0,min(iw-iw/zoom,(${panX})*iw))`;
+  const yExpr = `max(0,min(ih-ih/zoom,(${panY})*ih))`;
+
+  return (
+    `fps=${ZOOM_FPS},` +
+    `crop=w='${wMax.toFixed(6)}*in_w':h='${hMax.toFixed(6)}*in_h':x='${cropX}':y='${cropY}',` +
+    `zoompan=z='${zExpr}':x='${xExpr}':y='${yExpr}':d=1:s=${outW}x${outH}:fps=${ZOOM_FPS}`
+  );
 }
 
 export const TARGET_RES: Record<"9:16" | "16:9" | "1:1", { w: number; h: number }> = {
@@ -624,21 +721,20 @@ export const TARGET_RES: Record<"9:16" | "16:9" | "1:1", { w: number; h: number 
 // always be scaled back up to a constant output size.
 export function buildDynamicCropFilter(keyframes: CropKeyframe[], aspect: "9:16" | "16:9" | "1:1"): string {
   const varyingSize = keyframes.some((k) => k.w !== keyframes[0].w || k.h !== keyframes[0].h);
-  const xExpr = lerpExpr("in_w", keyframes, "x");
-  const yExpr = lerpExpr("in_h", keyframes, "y");
 
-  // No `eval` option exists on the crop filter (unlike e.g. overlay) — its
-  // x/y/w/h expressions are already re-evaluated every frame by default when
-  // they reference `t`, so nothing extra is needed to get per-frame panning.
+  // Pan-only: crop's x/y ARE re-evaluated per frame (no `eval` option exists on
+  // crop, and none is needed for x/y), so a constant-size window can pan on its
+  // own. This is the cheap path — no zoompan, no frame-rate normalisation.
   if (!varyingSize) {
     const w = aspect === "16:9" ? "in_w" : `(in_h*9/16)`;
     const h = aspect === "9:16" ? "in_h" : aspect === "16:9" ? `(in_w*9/16)` : "in_h";
-    return `crop=w='${w}':h='${h}':x='${xExpr}':y='${yExpr}'`;
+    return `crop=w='${w}':h='${h}':x='${lerpExpr("in_w", keyframes, "x")}':y='${lerpExpr("in_h", keyframes, "y")}'`;
   }
-  const wExpr = lerpExpr("in_w", keyframes, "w");
-  const hExpr = lerpExpr("in_h", keyframes, "h");
+
+  // Size varies (smart zoom / hook punch-in / cinematic ramp / mood envelope) —
+  // crop cannot express that at all, see buildPanZoomChain.
   const target = TARGET_RES[aspect];
-  return `crop=w='${wExpr}':h='${hExpr}':x='${xExpr}':y='${yExpr}',scale=${target.w}:${target.h}`;
+  return buildPanZoomChain(keyframes, target.w, target.h);
 }
 
 const ZOOM_PEAK = 0.92; // crop window shrinks to 92% of normal at the envelope's peak (~8.7% visual zoom-in)
@@ -677,11 +773,12 @@ export function buildSplitScreenFilterComplex(
   const half = { w: 1080, h: 960 };
   const cropAndScale = (kf: CropKeyframe[]) => {
     const varying = kf.some((k) => k.w !== kf[0].w || k.h !== kf[0].h);
+    // Same crop-can't-zoom constraint as buildDynamicCropFilter: a varying
+    // window has to go through zoompan, which also pins the half's output size.
+    if (varying) return buildPanZoomChain(kf, half.w, half.h);
     const xExpr = lerpExpr("in_w", kf, "x");
     const yExpr = lerpExpr("in_h", kf, "y");
-    const wExpr = varying ? lerpExpr("in_w", kf, "w") : `(${kf[0].w}*in_w)`;
-    const hExpr = varying ? lerpExpr("in_h", kf, "h") : `(${kf[0].h}*in_h)`;
-    return `crop=w='${wExpr}':h='${hExpr}':x='${xExpr}':y='${yExpr}',scale=${half.w}:${half.h}`;
+    return `crop=w='(${kf[0].w}*in_w)':h='(${kf[0].h}*in_h)':x='${xExpr}':y='${yExpr}',scale=${half.w}:${half.h}`;
   };
   const top = `${videoSrc}${cropAndScale(a)}[top]`;
   const bot = `${videoSrc}${cropAndScale(b)}[bot]`;

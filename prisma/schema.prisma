@@ -388,6 +388,11 @@ model Project {
   // Auto Clip: non-fatal problems surfaced to the user as a banner instead of
   // silently degrading (e.g. ["transcription_failed"]).
   warnings             Json?
+  // Auto Clip: user-facing reason the run failed ("Video is too short…",
+  // "…your plan supports Auto Clips up to 30 min"). The pipeline already
+  // throws these as sentences written for a creator, but they used to die in
+  // the queue and the UI could only say "something went wrong".
+  failureReason        String?
   faceTimeline         Json?
   createdAt            DateTime @default(now())
   clips                Clip[]
