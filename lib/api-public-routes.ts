@@ -28,6 +28,17 @@ const PUBLIC_API_PREFIXES = [
   "/api/auth/2fa/verify-login",
   "/api/account/reactivate",
   "/api/webhooks/razorpay",
+  // Resend's bounce/complaint feedback. Authenticated by its Svix signature,
+  // not by a session — Resend has no account here. Without this entry proxy.ts
+  // 401s it before the handler runs, so hard bounces are never recorded and
+  // dead addresses keep getting mailed, which is the exact failure the webhook
+  // exists to prevent.
+  "/api/webhooks/resend",
+  // Per-category unsubscribe. Must work from a mail client, where there is by
+  // definition no session — the signed token IS the authorisation. This also
+  // has to stay reachable for the RFC 8058 one-click POST that Gmail and Yahoo
+  // require, which they send with no credentials at all.
+  "/api/email/unsubscribe",
   "/api/health",
   "/api/cron/",
   "/api/plans",
