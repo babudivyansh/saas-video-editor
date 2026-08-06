@@ -18,6 +18,18 @@ describe("isPublicApiRoute", () => {
     expect(isPublicApiRoute("/api/newsletter/unsubscribe")).toBe(true);
   });
 
+  // Both shipped missing from the allowlist and 401'd in production. Neither
+  // can ever carry a session: the unsubscribe link is clicked from a mail
+  // client, and Resend has no account here — each authenticates itself, one by
+  // a signed token in the URL and the other by a Svix signature.
+  it("un-gates per-category unsubscribe, which is clicked from a mail client", () => {
+    expect(isPublicApiRoute("/api/email/unsubscribe")).toBe(true);
+  });
+
+  it("un-gates the Resend bounce webhook", () => {
+    expect(isPublicApiRoute("/api/webhooks/resend")).toBe(true);
+  });
+
   it("still gates authenticated routes", () => {
     expect(isPublicApiRoute("/api/projects")).toBe(false);
     expect(isPublicApiRoute("/api/billing/subscription")).toBe(false);
@@ -29,5 +41,9 @@ describe("isPublicApiRoute", () => {
   it("does not un-gate lookalike paths outside the registered prefixes", () => {
     expect(isPublicApiRoute("/api/marketingsecrets")).toBe(false);
     expect(isPublicApiRoute("/api/newslettersecrets")).toBe(false);
+    // "/api/email/unsubscribe" is an exact entry, not a prefix — the rest of
+    // the /api/email namespace must stay gated if anything is added there.
+    expect(isPublicApiRoute("/api/email/send")).toBe(false);
+    expect(isPublicApiRoute("/api/webhooks/stripe")).toBe(false);
   });
 });
