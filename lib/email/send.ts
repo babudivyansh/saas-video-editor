@@ -63,6 +63,34 @@ function fromAddress(): string {
   return env.EMAIL_FROM || "onboarding@resend.dev";
 }
 
+/**
+ * Boot-time check for the misconfiguration that caused two real outages.
+ *
+ * `onboarding@resend.dev` is Resend's own shared sandbox address. It is
+ * ALWAYS restricted to the account owner's inbox — regardless of any other
+ * domain being verified on the account — so falling back to it in a
+ * deployment with real recipients means every non-owner send comes back a
+ * 403. Both incidents took a production log paste plus a round trip through
+ * the Resend MCP to diagnose, because the only visible symptom was the 403
+ * itself; nothing said WHY the wrong address was in use.
+ *
+ * Runs once per process, at import time, specifically so it appears in the
+ * deploy's boot log — before any user has to trigger a send and hit the
+ * failure — rather than only being discoverable by reading a stack trace
+ * after the fact. It is a loud diagnostic, not a guard: EMAIL_FROM being
+ * unset is legitimate in local dev, so this never blocks a send.
+ */
+if (env.RESEND_API_KEY && !env.EMAIL_FROM) {
+  logger.error(
+    "email:config",
+    "RESEND_API_KEY is set but EMAIL_FROM is not. Every send will use the " +
+      "onboarding@resend.dev fallback, which Resend restricts to the " +
+      "account owner's own address no matter which domains are verified — " +
+      "every other recipient will get a 403. Set EMAIL_FROM in this " +
+      "deployment's environment (e.g. noreply@clipiro.com) and restart.",
+  );
+}
+
 interface Payload {
   to: string;
   subject: string;
