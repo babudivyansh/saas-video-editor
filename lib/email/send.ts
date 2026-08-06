@@ -79,8 +79,10 @@ interface Payload {
  * timeout — the entire reason it exists — would be inert. A direct POST gives
  * real cancellation and hands back the provider message id.
  */
+type ResendOutcome = { ok: true; id: string } | { ok: false; status: number; body: string };
+
 async function viaResend(p: Payload): Promise<{ id: string }> {
-  return withRetry(
+  const outcome = await withRetry<ResendOutcome>(
     async (signal) => {
       const res = await fetch(RESEND_ENDPOINT, {
         method: "POST",
@@ -100,27 +102,36 @@ async function viaResend(p: Payload): Promise<{ id: string }> {
         }),
       });
 
-      // 4xx is a bad request — a malformed address, a rejected domain. Retrying
-      // it just burns the timeout budget three times over, so it is returned as
-      // a rejection that withRetry will surface after the FIRST attempt only if
-      // we throw a non-retryable marker. Simpler: throw, but never for 4xx.
+      // A 4xx is RETURNED, never thrown. withRetry retries every throw, so the
+      // previous "NonRetryableError" was retried three times despite its name —
+      // production logs showed a 403 for an unverified domain going round the
+      // loop and only then falling through to SMTP, delaying every message by
+      // the full backoff for an answer that could not change.
       if (res.status >= 400 && res.status < 500) {
-        const body = await res.text().catch(() => "");
-        throw new NonRetryableError(`Resend rejected the message (${res.status}): ${body.slice(0, 200)}`);
+        return { ok: false, status: res.status, body: (await res.text().catch(() => "")).slice(0, 300) };
       }
+      // 5xx and network faults are genuinely transient, so these DO throw and
+      // are retried.
       if (!res.ok) throw new Error(`Resend responded ${res.status}`);
 
-      return (await res.json()) as { id: string };
+      const { id } = (await res.json()) as { id: string };
+      return { ok: true, id };
     },
     { maxAttempts: 3, timeoutMs: TIMEOUT_MS, baseDelayMs: 500 },
   );
+
+  if (!outcome.ok) throw new ResendRejectedError(outcome.status, outcome.body);
+  return { id: outcome.id };
 }
 
-/** Thrown for provider responses that will fail identically on every retry. */
-class NonRetryableError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "NonRetryableError";
+/** A provider refusal that will fail identically however often it is retried. */
+export class ResendRejectedError extends Error {
+  constructor(
+    readonly status: number,
+    readonly body: string,
+  ) {
+    super(`Resend rejected the message (${status}): ${body}`);
+    this.name = "ResendRejectedError";
   }
 }
 
@@ -223,6 +234,13 @@ export async function sendTemplate<P>(
       replyTo: opts.replyTo ?? LEGAL.supportEmail,
     };
 
+    // Remembered so a provider REFUSAL is never reported as "no provider
+    // configured". Without this, a Resend 403 with no SMTP fallback returned
+    // "dev-logged" — the one status that means "nothing was configured to send
+    // with" — which is the same silent-success failure SendResult exists to
+    // eliminate, just one level down.
+    let providerError: string | undefined;
+
     if (env.RESEND_API_KEY) {
       try {
         const { id: messageId } = await viaResend(payload);
@@ -233,6 +251,7 @@ export async function sendTemplate<P>(
       } catch (err) {
         // Fall through to SMTP — but say so, because a silent provider failure
         // is exactly what made the old transport untrustworthy.
+        providerError = err instanceof Error ? err.message : String(err);
         logger.error("email:resend", `${id} -> ${to} failed`, err);
       }
     }
@@ -254,8 +273,17 @@ export async function sendTemplate<P>(
       return { status: "sent", channel: "smtp", messageId: info.messageId ?? null };
     }
 
-    // No provider configured. Reported as its own status rather than as success,
-    // so a misconfigured deploy is visible instead of looking like it worked.
+    // A provider was configured and refused. That is a failure, not a
+    // dev-console send, and the provider's own words are carried through so the
+    // reason is visible in EmailLog rather than only in a server log.
+    if (providerError) {
+      await logEmail({ recipient: to, templateId: id, status: "failed", error: providerError, userId });
+      return { status: "failed", channel: null, messageId: null, error: providerError };
+    }
+
+    // Genuinely nothing configured. Reported as its own status rather than as
+    // success, so a misconfigured deploy is visible instead of looking like it
+    // worked.
     logger.info("email:dev", `${id} -> ${to} :: ${payload.subject}`);
     await logEmail({ recipient: to, templateId: id, status: "dev-logged", channel: "dev-console", userId });
     return { status: "dev-logged", channel: "dev-console", messageId: null };
