@@ -443,6 +443,10 @@ model Clip {
   createdAt             DateTime      @default(now())
   subtitleStyleOverride Json?
   silenceSettings       Json?
+  // Per-clip speech signal track (loudness/pitch/energy envelopes, shot
+  // boundaries, pauses) — drives energy-reactive zoom and caption animation.
+  // See lib/signal-track.ts.
+  signalTrack           Json?
   dubs                  ClipDub[]
   publishes             ClipPublish[]
 

@@ -38,10 +38,16 @@ import {
   buildDynamicCropFilter,
   buildSplitScreenFilterComplex,
   buildZoomEnvelope,
+  cropSizeFrac,
   type FaceBox,
   type StoredCrop,
   type ReframeOptions,
 } from "@/lib/reframe";
+import {
+  classifyScene, buildCutKeyframes, buildGroupKeyframes, buildDriftKeyframes,
+} from "@/lib/scene-layout";
+import { buildSignalTrack, sampleAt, EMPTY_SIGNAL_TRACK, type SignalTrack } from "@/lib/signal-track";
+import { buildCameraZoom, applyZoomToKeyframes, ZOOM_STRENGTH_MAX } from "@/lib/camera-motion";
 import { getFaceTimeline } from "@/lib/asd";
 import { loadFaceTimeline, saveFaceTimeline } from "@/lib/face-timeline-store";
 import { calibrateScore, getViralityWeights, type SubScores } from "@/lib/virality-score";
@@ -205,6 +211,33 @@ interface GeminiSegment {
   suggestedPostingTime: string;
   hashtags: string[];
   suggestedCaption: string;
+  /**
+   * Words the speaker leans on, as indexes into the clip's own word list.
+   * Loudness alone can't find these — a calmly delivered key term carries the
+   * point without carrying volume — so the model tags them and they feed both
+   * the camera's energy envelope and caption emphasis.
+   */
+  emphasisWordIndexes: number[];
+  /** Raw words as returned by the model, before index resolution. */
+  emphasisWords: string[];
+}
+
+/**
+ * Map the model's emphasis WORDS onto positions in a clip's word list.
+ * Matching by normalised text rather than trusting model-supplied indexes,
+ * which are unreliable — and taking the first unused occurrence so a repeated
+ * word doesn't collapse onto one position.
+ */
+export function resolveEmphasisIndexes(words: WordTiming[], emphasisWords: string[]): number[] {
+  if (emphasisWords.length === 0 || words.length === 0) return [];
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9']/g, "");
+  const used = new Set<number>();
+  const out: number[] = [];
+  for (const target of emphasisWords.map(norm).filter(Boolean)) {
+    const idx = words.findIndex((w, i) => !used.has(i) && norm(w.word) === target);
+    if (idx >= 0) { used.add(idx); out.push(idx); }
+  }
+  return out.sort((a, b) => a - b);
 }
 
 // ── Transcript formatting for the LLM ───────────────────────────────────────
@@ -296,6 +329,7 @@ For each clip include:
 - "suggestedPostingTime": time window suggestion for maximum exposure
 - "hashtags": array of 3-4 trending hashtags
 - "suggestedCaption": engaging, ready-to-use social caption
+- "emphasisWords": array of up to 6 short strings — the exact words IN THIS CLIP the speaker leans on or that carry the point. Copy them verbatim from the transcript, lowercase, no punctuation.
 
 Rules:
 - Return exactly ${clipCount} clip(s)
@@ -343,6 +377,7 @@ ${sharedRules}`;
     suggestedPostingTime?: string;
     hashtags?: string[];
     suggestedCaption?: string;
+    emphasisWords?: string[];
   }>;
   const clampSub = (n: unknown) => Math.max(0, Math.min(99, Math.round(typeof n === "number" ? n : 50)));
 
@@ -369,6 +404,11 @@ ${sharedRules}`;
       suggestedPostingTime: (typeof c.suggestedPostingTime === "string" && c.suggestedPostingTime.trim()) ? c.suggestedPostingTime.trim() : "5:00 PM local time",
       hashtags: Array.isArray(c.hashtags) ? c.hashtags.map(String) : ["#highlight", "#viral"],
       suggestedCaption: (typeof c.suggestedCaption === "string" && c.suggestedCaption.trim()) ? c.suggestedCaption.trim() : "Check out this amazing moment!",
+      // Resolved to word indexes later, once the clip's word slice is known —
+      // the model returns words, not positions, because asking an LLM for
+      // array indexes into a transcript it only saw as text is unreliable.
+      emphasisWords: Array.isArray(c.emphasisWords) ? c.emphasisWords.map(String).slice(0, 6) : [],
+      emphasisWordIndexes: [],
       };
     });
 
@@ -470,6 +510,35 @@ function computeStoredCrop(
   options: ReframeOptions = {}
 ): StoredCrop | null {
   if (srcW <= 0 || srcH <= 0) return null;
+
+  // Scene type decides the layout, once per clip. Previously every clip got
+  // either a single-face pan or a two-person stack, so a four-person panel or
+  // a faceless stretch was framed by accident.
+  const scene = classifyScene(allFaces, seg.start, seg.end);
+  const duration = seg.end - seg.start;
+  const inWindow = allFaces
+    .filter((f) => f.tSec >= seg.start && f.tSec <= seg.end && f.confidence >= 60)
+    .map((f) => ({ ...f, tSec: f.tSec - seg.start }));
+  const { w: sceneCropW, h: sceneCropH } = cropSizeFrac(aspectRatio, srcW, srcH);
+  const speakerMode0 = options.speakerMode ?? "auto";
+
+  if (speakerMode0 === "auto") {
+    if (scene.type === "dialogue" && aspectRatio === "9:16") {
+      // Alternating conversation reads better as cuts than as a permanent
+      // split: a split screen makes the viewer work out who is speaking.
+      const cuts = buildCutKeyframes(inWindow, duration, sceneCropW, sceneCropH);
+      if (cuts.length > 1) return { mode: "single", keyframes: cuts };
+    }
+    if (scene.type === "group") {
+      const group = buildGroupKeyframes(inWindow, duration, sceneCropW, sceneCropH);
+      if (group.length > 1) return { mode: "single", keyframes: group };
+    }
+    if (scene.type === "none") {
+      // Nothing to track: a slow drift beats a dead-static crop, and beats
+      // inventing motion that implies a subject.
+      return { mode: "single", keyframes: buildDriftKeyframes(duration, sceneCropW, sceneCropH) };
+    }
+  }
 
   // `preset` is not read here — the two keyframe builders below each pull it
   // off the `options` object they're handed.
@@ -619,6 +688,17 @@ export async function pickJob(payload: PickPayload): Promise<void> {
       return broll ? { ...window, url: broll.downloadUrl, query: seg.brollQuery } : null;
     }));
 
+    // Speech signal tracks (P2.1) — loudness/pitch/energy envelopes, shot
+    // boundaries and pauses per clip. Computed here, while the source video is
+    // already on local disk, so the render never has to decode it again.
+    // Best-effort: a clip without one simply renders non-reactively.
+    const signalTracks = await Promise.all(segments.map(async (seg) => {
+      const words = sliceWordsForClip(wordTimings, seg.start, seg.end);
+      if (words.length === 0) return EMPTY_SIGNAL_TRACK;
+      seg.emphasisWordIndexes = resolveEmphasisIndexes(words, seg.emphasisWords);
+      return buildSignalTrack(videoPath, seg.start, seg.end, words, seg.emphasisWordIndexes);
+    }));
+
     // Clip creation and the final status flip must succeed or fail together —
     // splitting them (as an earlier version did) let a late, unrelated
     // failure (e.g. a transient error right after Gemini) leave real
@@ -629,11 +709,12 @@ export async function pickJob(payload: PickPayload): Promise<void> {
         const words = sliceWordsForClip(wordTimings, seg.start, seg.end);
         const hasCaptions = captionStyleIndex >= 0 && words.length > 0;
         const broll = brollPicks[i];
-        // A B-roll splice always uses a static crop for its main-footage
-        // segments (see renderOneClip) — combining it with a dynamic pan
-        // path is more risk than the marginal polish is worth, so skip
-        // computing/storing pan keyframes for clips that got B-roll.
-        const cropKeyframes = broll ? null : computeStoredCrop(allFaces, seg, aspectRatio, srcW, srcH, {
+        // B-roll used to disable reframing for the WHOLE clip, so a 2.5s stock
+        // insert cost the other ~30 seconds their speaker tracking. The
+        // B-roll segments are ordinary crops in the same graph and can carry
+        // the same dynamic expressions, so the pan path is computed either way
+        // (buildBrollFilterComplex applies it to the main-footage segments).
+        const cropKeyframes = computeStoredCrop(allFaces, seg, aspectRatio, srcW, srcH, {
           preset: reframingPreset,
           smartAutoReframe,
           zoomStrength,
@@ -670,6 +751,7 @@ export async function pickJob(payload: PickPayload): Promise<void> {
               suggestedCaption: seg.suggestedCaption,
             } as unknown as Prisma.InputJsonValue,
             mood: seg.mood,
+            signalTrack: signalTracks[i] as unknown as Prisma.InputJsonValue,
             status: "pending_review",
             transcriptJson: words as unknown as Prisma.InputJsonValue,
             captionStyleIndex: hasCaptions ? captionStyleIndex : null,
@@ -750,21 +832,31 @@ export function buildBrollFilterComplex(
   aspect: Aspect,
   moodFilter: string | null,
   captionsFilter: string | null,
-  videoSrc = "[0:v]"
+  videoSrc = "[0:v]",
+  mainCropFilter?: string | null,
 ): string {
   const brollDur = brollEndSec - brollStartSec;
-  const staticCrop = aspectRatioFilter(aspect);
   const target = TARGET_RES[aspect];
   const scaleToTarget = `scale=${target.w}:${target.h},setsar=1`;
 
-  const segA = `${videoSrc}trim=start=0:end=${brollStartSec},setpts=PTS-STARTPTS,${staticCrop},${scaleToTarget}[va]`;
+  // The crop is applied to the WHOLE clip before it is split, not to each
+  // segment after trimming. `trim` + `setpts=PTS-STARTPTS` rebases `t` to zero
+  // for each segment, so a time-varying crop applied afterwards would replay
+  // the start of the pan path during segment C instead of continuing it. Doing
+  // the crop first keeps `t` clip-relative, which is the basis every crop
+  // keyframe is expressed in.
+  const cropChain = `${mainCropFilter ?? aspectRatioFilter(aspect)},${scaleToTarget}`;
+  const prepared = `${videoSrc}${cropChain}[mainraw];[mainraw]split=2[m1][m2]`;
+
+  const segA = `[m1]trim=start=0:end=${brollStartSec},setpts=PTS-STARTPTS[va]`;
   const segB = `[1:v]scale=${target.w}:${target.h}:force_original_aspect_ratio=increase,crop=${target.w}:${target.h},setsar=1,trim=0:${brollDur},setpts=PTS-STARTPTS[vb]`;
-  const segC = `${videoSrc}trim=start=${brollEndSec}:end=${clipDurationSec},setpts=PTS-STARTPTS,${staticCrop},${scaleToTarget}[vc]`;
+  const segC = `[m2]trim=start=${brollEndSec}:end=${clipDurationSec},setpts=PTS-STARTPTS[vc]`;
+
   const postConcat = [moodFilter, captionsFilter].filter((f): f is string => !!f);
   const concatChain = postConcat.length > 0
     ? `[va][vb][vc]concat=n=3:v=1:a=0[vconcatraw];[vconcatraw]${postConcat.join(",")}[video]`
     : `[va][vb][vc]concat=n=3:v=1:a=0[video]`;
-  return `${segA};${segB};${segC};${concatChain}`;
+  return `${prepared};${segA};${segB};${segC};${concatChain}`;
 }
 
 interface CutSegment { startMs: number; endMs: number }
@@ -863,6 +955,53 @@ export function computeKeeps(
   }
 
   return { keeps: validKeeps, cuts: mergedCuts };
+}
+
+/**
+ * Map a time on the TRIMMED timeline back to the original one.
+ * The inverse of shiftTime: walk the kept spans, consuming output time until
+ * the target lands inside one.
+ */
+export function unshiftTime(outMs: number, keeps: KeepSegment[]): number {
+  let consumed = 0;
+  for (const k of keeps) {
+    const span = k.endMs - k.startMs;
+    if (outMs <= consumed + span) return k.startMs + (outMs - consumed);
+    consumed += span;
+  }
+  return keeps.length > 0 ? keeps[keeps.length - 1].endMs : outMs;
+}
+
+/**
+ * Re-index a signal track onto the trimmed timeline so the cinematic layer
+ * reacts to the audio that is actually in the rendered clip.
+ */
+export function remapSignalTrack(signal: SignalTrack, keeps: KeepSegment[], newDurationSec: number): SignalTrack {
+  const hz = signal.hz || 20;
+  const n = Math.max(1, Math.round(newDurationSec * hz));
+  const resample = (values: number[]): number[] => {
+    if (values.length === 0) return [];
+    return Array.from({ length: n }, (_, i) => {
+      const originalSec = unshiftTime((i / hz) * 1000, keeps) / 1000;
+      const idx = Math.round(originalSec * hz);
+      return values[Math.max(0, Math.min(values.length - 1, idx))];
+    });
+  };
+
+  return {
+    ...signal,
+    rms: resample(signal.rms),
+    pitch: resample(signal.pitch),
+    energy: resample(signal.energy),
+    // Shot boundaries and pauses that fell inside a removed span no longer
+    // exist; the rest move forward.
+    scenes: signal.scenes
+      .filter((s) => keeps.some((k) => s * 1000 >= k.startMs && s * 1000 <= k.endMs))
+      .map((s) => shiftTime(s * 1000, keeps) / 1000),
+    pauses: signal.pauses
+      .filter((p) => keeps.some((k) => p.start * 1000 >= k.startMs && p.start * 1000 <= k.endMs))
+      .map((p) => ({ start: shiftTime(p.start * 1000, keeps) / 1000, end: shiftTime(p.end * 1000, keeps) / 1000 })),
+  };
 }
 
 function shiftTime(tMs: number, keeps: KeepSegment[]): number {
@@ -985,6 +1124,30 @@ async function renderOneClip(
       }
     }
 
+    let signal = (clip.signalTrack as unknown as SignalTrack | null) ?? null;
+
+    // The signal track is indexed on the clip's ORIGINAL timeline. Silence and
+    // filler removal shorten that timeline, so without remapping, the camera
+    // and captions would react to moments that have been cut out — drifting
+    // further out of sync the more was removed. Same problem the word timings
+    // and crop keyframes above already solve, so it uses the same keeps.
+    if (signal && isTrimmed && keeps.length > 0) {
+      signal = remapSignalTrack(signal, keeps, finalDurationSec);
+    }
+
+    // Energy-reactive camera (P2.2). The zoom curve is layered onto whatever
+    // crop path the layout produced, so it composes with speaker tracking
+    // rather than replacing it — the camera keeps following the subject and
+    // tightens around them when the delivery intensifies.
+    if (signal && signal.energy?.length > 0 && stored?.mode === "single" && stored.keyframes.length > 0) {
+      const zoomStrength = (silenceOpts.zoomStrength as "low" | "medium" | "high") ?? "medium";
+      const smartOn = silenceOpts.smartAutoReframe !== false;
+      if (smartOn) {
+        const curve = buildCameraZoom(signal, finalDurationSec, { maxZoom: ZOOM_STRENGTH_MAX[zoomStrength] });
+        stored = { mode: "single", keyframes: applyZoomToKeyframes(stored.keyframes, curve) };
+      }
+    }
+
     let assEscaped: string | null = null;
     if (clip.hasCaptions && words && words.length > 0) {
       // Resolve custom subtitle style overrides if they exist
@@ -992,6 +1155,19 @@ async function renderOneClip(
       const customStyle = clip.subtitleStyleOverride as unknown as SubtitleStyle | null;
       if (customStyle) {
         style = { ...style, ...customStyle };
+      }
+      // Caption animation reads the SAME energy envelope the camera does, so
+      // the two agree about where the emphasis is instead of each reacting on
+      // its own — that disagreement is what makes auto-captions look amateur.
+      if (signal && signal.energy?.length > 0) {
+        style = {
+          ...style,
+          motion: {
+            energy: words.map((w) => sampleAt(signal.energy, w.start / 1000, signal.hz)),
+            emphasis: signal.emphasis ?? [],
+            wordsPerSec: signal.wordsPerSec,
+          },
+        };
       }
       generateASS(words, style, assPath);
       assEscaped = assPath.replace(/\\/g, "/").replace(/:/g, "\\:");
@@ -1034,7 +1210,12 @@ async function renderOneClip(
       const brollStartSecShifted = isTrimmed ? shiftTime(clip.brollStartSec * 1000, keeps) / 1000 : clip.brollStartSec;
       const brollEndSecShifted = isTrimmed ? shiftTime(clip.brollEndSec * 1000, keeps) / 1000 : clip.brollEndSec;
 
-      const complex = prepends + buildBrollFilterComplex(finalDurationSec, brollStartSecShifted, brollEndSecShifted, aspect, moodFilter, captionsFilter, videoSrc) + wmComplex;
+      // Speaker tracking now survives a B-roll splice (P2.6).
+      const brollKeyframes = stored?.mode === "single" && stored.keyframes.length > 1 ? stored.keyframes : null;
+      const complex = prepends + buildBrollFilterComplex(
+        finalDurationSec, brollStartSecShifted, brollEndSecShifted, aspect, moodFilter, captionsFilter, videoSrc,
+        brollKeyframes ? buildDynamicCropFilter(brollKeyframes, aspect) : null,
+      ) + wmComplex;
       ffmpegArgs = [
         ...baseArgs, "-stream_loop", "-1", "-i", brollPath,
         "-filter_complex", complex, "-map", videoMap, "-map", audioSrc,
@@ -1285,7 +1466,11 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
         mood: (clip.mood as MoodTag) ?? "neutral",
         brollQuery: clip.brollQuery,
         brollOffsetSec: null,
-        reasoning: "", hookExplanation: "", retentionPrediction: "", audience: "", platform: "", suggestedPostingTime: "", hashtags: [], suggestedCaption: ""
+        reasoning: "", hookExplanation: "", retentionPrediction: "", audience: "", platform: "", suggestedPostingTime: "", hashtags: [], suggestedCaption: "",
+        // Re-render reuses the clip's persisted signal track, so the emphasis
+        // the model originally found is already baked into it — nothing to
+        // re-derive here.
+        emphasisWords: [], emphasisWordIndexes: [],
       };
 
       const cropKeyframes = clip.brollUrl ? null : computeStoredCrop(allFaces, dummySeg, clip.aspectRatio as Aspect, srcW, srcH, {

@@ -23,6 +23,7 @@ import {
   buildDynamicCropFilter, buildZoomEnvelope, computeCropKeyframesForClip,
   TARGET_RES, type CropKeyframe, type FaceBox,
 } from "./reframe";
+import { buildBrollFilterComplex } from "./autoclip-pipeline";
 
 function ffmpegBin(): string | null {
   const bin = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
@@ -171,6 +172,28 @@ d("production keyframe path — executed through ffmpeg", () => {
 
   // A busy, continuously-moving subject is the worst case for path length —
   // the budget must hold there too, not just on a smooth drift.
+  // The B-roll graph was restructured to crop once before splitting the stream
+  // (so a time-varying crop survives the per-segment setpts rebase). That is a
+  // real filtergraph change — split, three trims, a concat — and worth
+  // executing rather than pattern-matching.
+  it("renders the B-roll splice graph, with a dynamic pan path, through ffmpeg", () => {
+    const kf: CropKeyframe[] = [
+      { tSec: 0, x: 0.0, y: 0, w: 0.4, h: 1 },
+      { tSec: 1, x: 0.5, y: 0, w: 0.4, h: 1 },
+    ];
+    const complex = buildBrollFilterComplex(
+      1, 0.3, 0.6, "9:16", null, null, "[0:v]", buildDynamicCropFilter(kf, "9:16"),
+    );
+    const { code, stderr } = run([
+      "-hide_banner",
+      "-f", "lavfi", "-i", STATIC_GRADIENT,
+      // Stand-in for the B-roll input.
+      "-f", "lavfi", "-i", "testsrc=s=320x180:r=30:d=1",
+      "-filter_complex", complex, "-map", "[video]", "-frames:v", "20", "-f", "null", "-",
+    ]);
+    expect(code, stderr.slice(-2500)).toBe(0);
+  });
+
   it("bounds the path even for an erratically-moving subject", () => {
     const busy: FaceBox[] = Array.from({ length: 300 }, (_, i) => ({
       tSec: i * 0.2,

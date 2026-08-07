@@ -40,12 +40,35 @@ export interface FaceBox {
   // Stable per-person identity from the ASD tracker. When present, multi-
   // speaker clustering uses it instead of guessing from horizontal position.
   trackId?: string;
+  // Head yaw in degrees: negative = facing frame-left, positive = frame-right.
+  // Rekognition returns this under FaceAttributes "ALL" (which we already
+  // request) and it was simply discarded. It's what makes "look-room"
+  // possible — framing a subject so they look INTO the frame rather than out
+  // of it is most of the difference between "cropped" and "composed".
+  yaw?: number;
 }
 
 // A speaking-score gap narrower than this is a tie: below it the two faces are
 // close enough that the model isn't really distinguishing them, and switching
 // the crop on that basis produces visible flip-flopping.
 const SPEAKING_MARGIN = 0.15;
+
+// How long the "other" person must stay the better candidate before the camera
+// commits to them. This was 0.25s, which is shorter than a conversational
+// interjection — the crop visibly ping-ponged during back-and-forth dialogue.
+// 0.8s is about the point where a switch reads as a decision rather than a
+// twitch, and it matches how a human operator waits to be sure.
+const SPEAKER_DWELL_SEC = 0.8;
+
+// Target movements smaller than this are ignored outright. Sub-2%-of-frame
+// corrections are invisible as framing but very visible as motion, because
+// they never settle.
+const MOTION_DEAD_ZONE = 0.02;
+
+// How far the frame leads a turned head, as a fraction of the crop width.
+// Applied against yaw, so a subject looking frame-left gets space on the left.
+const LOOK_ROOM_FRAC = 0.12;
+const LOOK_ROOM_FULL_YAW = 30; // degrees at which look-room is fully applied
 
 // Crop keyframe: top-left + size of the crop window, all as fractions of the
 // source frame so they're resolution-independent. w/h are constant across a
@@ -115,6 +138,7 @@ export async function detectFaceTimeline(videoUrl: string): Promise<FaceBox[]> {
           // must treat undefined as "no signal" and fall back to area-based
           // comparison, not as "mouth closed".
           mouthOpen: f.Face?.MouthOpen?.Value,
+          yaw: f.Face?.Pose?.Yaw ?? undefined,
         });
       }
       if (!res.NextToken) break;
@@ -131,7 +155,7 @@ export async function detectFaceTimeline(videoUrl: string): Promise<FaceBox[]> {
 // the dead-center formulas in this route's static fallback. Only one axis
 // needs to pan for each aspect (the other stays full-frame), which is what
 // makes single-face tracking well-defined without needing zoom.
-function cropSizeFrac(aspect: "9:16" | "16:9" | "1:1", srcW: number, srcH: number): { w: number; h: number } {
+export function cropSizeFrac(aspect: "9:16" | "16:9" | "1:1", srcW: number, srcH: number): { w: number; h: number } {
   if (aspect === "9:16") return { w: Math.min(1, (srcH * 9) / 16 / srcW), h: 1 };
   if (aspect === "16:9") return { w: 1, h: Math.min(1, (srcW * 9) / 16 / srcH) };
   // 1:1 — full height, width-of-height window (only meaningful when srcW > srcH)
@@ -316,7 +340,8 @@ function computeAdvancedCrop(
 
   let activeSpeakerId: "left" | "right" | "single" = "single";
   let activeSpeakerTimer = 0;
-  
+
+
   const centers = faces.map((f) => f.x + f.w / 2).sort((a, b) => a - b);
   let threshold = 0.5;
   let hasTwoSpeakers = false;
@@ -382,7 +407,7 @@ function computeAdvancedCrop(
         }
         if (candidateId !== activeSpeakerId) {
           activeSpeakerTimer += 0.1;
-          if (activeSpeakerTimer >= 0.25) {
+          if (activeSpeakerTimer >= SPEAKER_DWELL_SEC) {
             activeSpeakerId = candidateId;
             activeSpeakerTimer = 0;
           }
@@ -412,7 +437,15 @@ function computeAdvancedCrop(
       });
     }
 
-    targetCxs[s] = chosenFace.x + chosenFace.w / 2;
+    // Look-room: bias the frame in the direction the subject is facing, so
+    // they look INTO the frame. Shifting the crop centre AGAINST the yaw puts
+    // the empty space in front of them.
+    const yaw = chosenFace.yaw;
+    const lookShift = typeof yaw === "number"
+      ? -Math.max(-1, Math.min(1, yaw / LOOK_ROOM_FULL_YAW)) * LOOK_ROOM_FRAC * cropW
+      : 0;
+
+    targetCxs[s] = chosenFace.x + chosenFace.w / 2 + lookShift;
     targetCys[s] = chosenFace.y + chosenFace.h / 2;
     faceWidths[s] = chosenFace.w;
     faceHeights[s] = chosenFace.h;
@@ -450,8 +483,13 @@ function computeAdvancedCrop(
   for (let s = 0; s < stepsCount; s++) {
     const t = s * 0.1;
 
-    currentCx = currentCx + emaAlpha * (smoothCxs[s] - currentCx);
-    currentCy = currentCy + emaAlpha * (smoothCys[s] - currentCy);
+    // Dead zone: ignore corrections too small to read as reframing. Without
+    // this the crop never settles — it chases sub-pixel detector noise, which
+    // is the "constantly drifting" look rather than a locked-off shot.
+    const dx = smoothCxs[s] - currentCx;
+    const dy = smoothCys[s] - currentCy;
+    if (Math.abs(dx) > MOTION_DEAD_ZONE) currentCx += emaAlpha * dx;
+    if (Math.abs(dy) > MOTION_DEAD_ZONE) currentCy += emaAlpha * dy;
     currentScale = currentScale + emaAlpha * (smoothScales[s] - currentScale);
 
     if (s > 0) {

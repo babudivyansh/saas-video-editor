@@ -107,6 +107,103 @@ export interface SubtitleStyle {
   borderStyle?: number;    // 1 = outline + shadow, 3 = box background
   alignment?: number;      // ASS alignment (5=center, 2=bottom, etc.)
   animated?: boolean;
+  /** Speech-reactive animation inputs; omitted = neutral animation. */
+  motion?: CaptionMotion;
+}
+
+// ── Animated captions ───────────────────────────────────────────────────────
+// The previous "animated" mode set the active word to a flat 118% and swapped
+// its colour. That is a step change with no easing and no relationship to what
+// is being said — the same animation on a whispered aside and a shouted
+// punchline.
+//
+// These knobs drive an eased, speech-reactive treatment. All of it is plain
+// libass override tags, so there is no new dependency and no change to how the
+// subtitle file is burned in.
+
+export interface CaptionMotion {
+  /** Per-word intensity 0..1, aligned to `words` (from the clip's signal track). */
+  energy?: number[];
+  /** Indices of words the LLM marked as emphatic. */
+  emphasis?: number[];
+  /** Words per second, used to pick transition speed and line length. */
+  wordsPerSec?: number;
+}
+
+// Readability constraints. These are limits, not preferences: past ~1.25x a
+// word visibly reflows its neighbours, and animating the outline width makes
+// thin fonts strobe.
+const MAX_WORD_SCALE = 1.25;
+const BASE_WORD_SCALE = 1.10;
+const POP_IN_MS = 90;
+const POP_OUT_MS = 90;
+
+function scaleTag(scale: number): string {
+  const pct = Math.round(scale * 100);
+  return `\\fscx${pct}\\fscy${pct}`;
+}
+
+/**
+ * Builds the Dialogue events for the animated caption mode.
+ *
+ * One event per (line, active word) as before, but the active word now eases
+ * in and back out, and how far it scales — plus whether it glows — depends on
+ * the speech energy at that moment and whether the LLM flagged it.
+ */
+export function buildAnimatedEvents(
+  words: WordTiming[],
+  colors: { highlight: string; base: string },
+  motion?: CaptionMotion,
+): string {
+  const wps = motion?.wordsPerSec ?? 0;
+  // Fast speech needs shorter lines and quicker transitions, or the viewer is
+  // reading the previous line while hearing the next.
+  const wordsPerLine = wps > 3.5 ? 3 : 4;
+  const transitionMs = wps > 3.5 ? 60 : wps > 0 && wps < 2 ? 200 : POP_IN_MS;
+  const emphasisSet = new Set(motion?.emphasis ?? []);
+
+  let events = "";
+  for (let i = 0; i < words.length; i += wordsPerLine) {
+    const group = words.slice(i, i + wordsPerLine);
+    const groupStart = group[0].start;
+    const groupEnd = group[group.length - 1].end;
+
+    for (let k = 0; k < group.length; k++) {
+      const activeIndex = i + k;
+      const activeWord = group[k];
+      const wordStart = k === 0 ? groupStart : activeWord.start;
+      const wordEnd = k < group.length - 1 ? group[k + 1].start : groupEnd;
+      if (wordStart >= wordEnd) continue;
+
+      const energy = motion?.energy?.[activeIndex] ?? 0.5;
+      const isEmphasis = emphasisSet.has(activeIndex);
+      // Louder / flagged words scale further, quiet ones barely move.
+      const peak = Math.min(
+        MAX_WORD_SCALE,
+        BASE_WORD_SCALE + energy * 0.10 + (isEmphasis ? 0.05 : 0),
+      );
+      const holdMs = Math.max(0, wordEnd - wordStart - transitionMs - POP_OUT_MS);
+
+      // \t(t1,t2,tags) interpolates, which is what turns a step into a pop:
+      // scale up over the transition, hold, then settle back.
+      const animate =
+        `{${scaleTag(1.0)}\\t(0,${transitionMs},${scaleTag(peak)})` +
+        `\\t(${transitionMs + holdMs},${transitionMs + holdMs + POP_OUT_MS},${scaleTag(BASE_WORD_SCALE)})` +
+        // Glow only on genuinely high-energy words; used everywhere it reads
+        // as a blurry font rather than emphasis.
+        (energy > 0.7 || isEmphasis ? `\\blur2` : ``) +
+        `\\1c${colors.highlight}}`;
+
+      let lineText = "";
+      for (let j = 0; j < group.length; j++) {
+        lineText += j === k
+          ? `${animate}${group[j].word} `
+          : `{${scaleTag(1.0)}\\1c${colors.base}}${group[j].word} `;
+      }
+      events += `Dialogue: 0,${toASSTime(wordStart)},${toASSTime(wordEnd)},Default,,0,0,0,,${lineText.trim()}\n`;
+    }
+  }
+  return events;
 }
 
 export function toASSTime(ms: number): string {
@@ -147,41 +244,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
 
   if (style.animated) {
-    const WORDS_PER_LINE = 4;
-    let events = "";
-    for (let i = 0; i < words.length; i += WORDS_PER_LINE) {
-      const group = words.slice(i, i + WORDS_PER_LINE);
-      const groupStart = group[0].start;
-      const groupEnd = group[group.length - 1].end;
-
-      for (let k = 0; k < group.length; k++) {
-        const activeWord = group[k];
-        const wordStart = k === 0 ? groupStart : activeWord.start;
-        let wordEnd = activeWord.end;
-        if (k < group.length - 1) {
-          wordEnd = group[k + 1].start;
-        } else {
-          wordEnd = groupEnd;
-        }
-
-        if (wordStart >= wordEnd) continue;
-
-        const startStr = toASSTime(wordStart);
-        const endStr = toASSTime(wordEnd);
-
-        let lineText = "";
-        for (let j = 0; j < group.length; j++) {
-          const w = group[j];
-          if (j === k) {
-            lineText += `{\\1c${highlight}\\fscx118\\fscy118}${w.word} `;
-          } else {
-            lineText += `{\\1c${base}\\fscx100\\fscy100}${w.word} `;
-          }
-        }
-        events += `Dialogue: 0,${startStr},${endStr},Default,,0,0,0,,${lineText.trim()}\n`;
-      }
-    }
-    fs.writeFileSync(assPath, header + events, "utf8");
+    fs.writeFileSync(assPath, header + buildAnimatedEvents(words, { highlight, base }, style.motion), "utf8");
     return;
   }
 
