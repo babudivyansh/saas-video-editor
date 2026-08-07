@@ -13,7 +13,21 @@ const nextConfig: NextConfig = {
   //   ENOENT … node_modules/pdfkit/js/data/Helvetica.afm
   // Only the standalone build shows this — in dev the files resolve from the
   // source tree, so it looked fine locally while PDF was broken in production.
-  serverExternalPackages: ["ffmpeg-static", "@napi-rs/canvas", "pdfkit"],
+  serverExternalPackages: ["ffmpeg-static", "@napi-rs/canvas", "pdfkit", "youtube-dl-exec"],
+  // youtube-dl-exec spawns a plain `yt-dlp` executable that lives in the
+  // package's bin/ — it is not a JS `require`, so Next's standalone tracer never
+  // followed it and the binary was left out of the deploy. At runtime all three
+  // yt-dlp callers resolve it as `${cwd}/node_modules/youtube-dl-exec/bin/yt-dlp`
+  // and got spawn ENOENT, which is why the YouTube + Instagram downloaders AND
+  // AutoClip's URL import all failed in production while working in dev (where the
+  // binary resolves from the source tree). Force the binary into the trace for
+  // exactly the routes that spawn it. bin/** covers yt-dlp (Linux) and
+  // yt-dlp.exe (Windows) without hardcoding a platform.
+  outputFileTracingIncludes: {
+    "/api/tools/youtube-downloader": ["./node_modules/youtube-dl-exec/bin/**"],
+    "/api/tools/instagram-downloader": ["./node_modules/youtube-dl-exec/bin/**"],
+    "/api/projects/[id]/import-url": ["./node_modules/youtube-dl-exec/bin/**"],
+  },
   turbopack: {
     // Pin the workspace root to this project. Without this, Next can infer the
     // wrong root if an ancestor directory (e.g. the home dir) contains a stray
