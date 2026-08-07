@@ -611,6 +611,40 @@ export async function pickJob(payload: PickPayload): Promise<void> {
   const audioPath = path.join(tmp, `${projectId}-audio.mp3`);
   let analysisCharged = 0;
 
+  // Every individual step in this job is time-bounded, but a NEW unbounded
+  // step (or an external service that hangs below its own timeout) could still
+  // strand the project on "analyzing" forever — which is exactly what
+  // happened in production. This watchdog is the backstop: if the whole job
+  // outruns its budget, fail the project (so the UI unsticks and the analysis
+  // charge is refunded) rather than leaving it spinning indefinitely. The
+  // `aborted` flag is checked before the final write so a late-completing body
+  // can't resurrect a job the watchdog already failed.
+  const WATCHDOG_MS = 30 * 60 * 1000;
+  let aborted = false;
+  let refundDone = false;
+  const refundAnalysis = async (reason: string) => {
+    if (refundDone || analysisCharged <= 0) return;
+    refundDone = true;
+    await restoreSpend({ userId: project.userId, refId: analysisRefId(projectId), amount: analysisCharged, reason })
+      .catch(() => {});
+  };
+  const watchdog = setTimeout(() => {
+    aborted = true;
+    void (async () => {
+      logger.error("auto-clip", `pick watchdog fired for ${projectId} after ${WATCHDOG_MS}ms — failing the job`);
+      await refundAnalysis("refund:auto-clip-analysis-timeout");
+      await prisma.clip.deleteMany({ where: { projectId, status: "pending_review" } }).catch(() => {});
+      await prisma.project.update({
+        where: { id: projectId },
+        data: {
+          status: "failed",
+          failureReason: "Analysis took too long and was stopped. Try a shorter video, or one in a standard format (MP4/MOV).",
+        },
+      }).catch(() => {});
+    })();
+  }, WATCHDOG_MS);
+  watchdog.unref?.();
+
   try {
     await timeStage("download", () => downloadFile(project.uploadedVideoUrl!, videoPath));
     const probe = await probeMediaDuration(videoPath);
@@ -762,6 +796,11 @@ export async function pickJob(payload: PickPayload): Promise<void> {
     // failure (e.g. a transient error right after Gemini) leave real
     // pending_review Clip rows attached to a Project stuck on "failed",
     // silently discarding a pick that had actually completed.
+    // The watchdog already failed and cleaned up this job; do not write clips
+    // or flip the status back, which would resurrect a job the user has been
+    // told failed (and refunded for).
+    if (aborted) return;
+
     await prisma.$transaction([
       ...segments.map((seg, i) => {
         const words = sliceWordsForClip(wordTimings, seg.start, seg.end);
@@ -850,16 +889,12 @@ export async function pickJob(payload: PickPayload): Promise<void> {
       })
     ]);
   } catch (err) {
+    // If the watchdog already fired, it has done the cleanup — don't repeat it
+    // (and don't double-refund; refundAnalysis is single-shot regardless).
+    if (aborted) throw err;
     logger.error("auto-clip", `pick failed for ${projectId}`, err);
     // A failed analysis is never billed.
-    if (analysisCharged > 0) {
-      await restoreSpend({
-        userId: project.userId,
-        refId: analysisRefId(projectId),
-        amount: analysisCharged,
-        reason: "refund:auto-clip-analysis-failed",
-      }).catch(() => {});
-    }
+    await refundAnalysis("refund:auto-clip-analysis-failed");
     // Clean up any clips from a prior attempt on this project so a retry
     // doesn't accumulate duplicates alongside the ones about to be re-picked.
     await prisma.clip.deleteMany({ where: { projectId, status: "pending_review" } }).catch(() => {});
@@ -874,6 +909,7 @@ export async function pickJob(payload: PickPayload): Promise<void> {
     // never catching its own errors.
     throw err;
   } finally {
+    clearTimeout(watchdog);
     for (const f of [videoPath, audioPath]) {
       try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch {}
     }

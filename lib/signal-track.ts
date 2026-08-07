@@ -52,7 +52,15 @@ export const EMPTY_SIGNAL_TRACK: SignalTrack = {
  * Decode a window of audio to mono 16kHz signed 16-bit PCM, in memory.
  * An omitted (or non-finite) `endSec` decodes to the end of the file.
  */
-function decodePcm(mediaPath: string, startSec = 0, endSec?: number): Promise<Int16Array> {
+// A generous ceiling on one decode. This must never be missing: without it a
+// wedged ffmpeg (an odd container, a stream that never signals EOF) leaves the
+// promise unresolved forever, and because buildSignalTrack is awaited inside
+// pickJob's Promise.all before the clips are created, that hung the ENTIRE
+// pick job — the project sat on "analyzing" indefinitely. Every other ffmpeg
+// spawn in the codebase carries a watchdog; this one didn't.
+const DECODE_TIMEOUT_MS = 3 * 60 * 1000;
+
+function decodePcm(mediaPath: string, startSec = 0, endSec?: number, timeoutMs = DECODE_TIMEOUT_MS): Promise<Int16Array> {
   return new Promise((resolve) => {
     const proc = spawn(
       process.platform === "win32"
@@ -67,9 +75,25 @@ function decodePcm(mediaPath: string, startSec = 0, endSec?: number): Promise<In
       ],
       { stdio: ["ignore", "pipe", "ignore"] },
     );
+
+    let settled = false;
     const chunks: Buffer[] = [];
     proc.stdout.on("data", (c: Buffer) => chunks.push(c));
-    const done = () => {
+
+    // Kill a decode that outruns its budget and resolve with whatever arrived
+    // (or nothing). The signal track is best-effort, so an empty/partial
+    // result degrades the cinematic layer rather than failing the pick.
+    const timer = setTimeout(() => {
+      if (settled) return;
+      logger.warn("signal-track", `pcm decode exceeded ${timeoutMs}ms, killing ffmpeg`);
+      try { proc.kill("SIGKILL"); } catch { /* already gone */ }
+      finish();
+    }, timeoutMs);
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
       const buf = Buffer.concat(chunks);
       // Buffer may not be 2-byte aligned if ffmpeg was cut off mid-sample.
       const usable = buf.length - (buf.length % 2);
@@ -77,8 +101,14 @@ function decodePcm(mediaPath: string, startSec = 0, endSec?: number): Promise<In
       for (let i = 0; i < out.length; i++) out[i] = buf.readInt16LE(i * 2);
       resolve(out);
     };
-    proc.on("close", done);
-    proc.on("error", () => resolve(new Int16Array(0)));
+
+    proc.on("close", finish);
+    proc.on("error", () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(new Int16Array(0));
+    });
   });
 }
 
