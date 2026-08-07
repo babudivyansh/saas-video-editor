@@ -75,7 +75,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const account = await prisma.socialAccount.findFirst({ where: { id: body.socialAccountId, userId: auth.userId } });
   if (!account) return NextResponse.json({ error: "Social account not found" }, { status: 404 });
 
-  const autoPublish = AUTO_PUBLISH_PROVIDERS.has(account.provider) && !body.permalink;
+  // A future scheduledFor means "not now": the row is created pending and the
+  // clip-publish cron picks it up when its time comes. Without this check a
+  // scheduled upload would fire immediately and the schedule would be
+  // decorative — which is what the field was before anything read it.
+  const scheduledAt = body.scheduledFor ? new Date(body.scheduledFor) : null;
+  const isFutureSchedule = scheduledAt !== null && !Number.isNaN(scheduledAt.getTime()) && scheduledAt.getTime() > Date.now();
+
+  const autoPublish = AUTO_PUBLISH_PROVIDERS.has(account.provider) && !body.permalink && !isFutureSchedule;
 
   if (autoPublish) {
     if (clip.status !== "ready" || !clip.videoUrl) {
@@ -126,7 +133,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       providerPostId,
       status: body.permalink ? "linked" : "pending",
       publishedAt: body.permalink ? new Date() : null,
-      scheduledFor: body.scheduledFor ? new Date(body.scheduledFor) : null,
+      scheduledFor: isFutureSchedule ? scheduledAt : null,
     },
   });
 

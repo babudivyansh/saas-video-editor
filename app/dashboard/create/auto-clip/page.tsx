@@ -4,6 +4,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import SubtitleStylePicker from "@/app/components/SubtitleStylePicker";
 import { ReframeAndCutsControls } from "@/app/components/auto-clip/ReframeAndCutsControls";
 import { LiteEditTab, type LiteEdits } from "@/app/components/auto-clip/LiteEditTab";
+import { CaptionTemplatePicker, TranslateCaptions } from "@/app/components/auto-clip/CaptionTemplatePicker";
+import { CAPTION_TEMPLATES } from "@/lib/caption-templates";
+import { UrlImportField } from "@/app/components/auto-clip/UrlImportField";
+import { ScorePerformanceBanner } from "@/app/components/auto-clip/ScorePerformanceBanner";
 import { Card } from "@/app/components/ui/Card";
 import { FieldLabel, Input } from "@/app/components/ui/Field";
 import { Switch } from "@/app/components/ui/Switch";
@@ -549,6 +553,10 @@ function PublishPanel({ projectId, clip }: { projectId: string; clip: ClipItem }
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [needsReauth, setNeedsReauth] = useState(false);
+  const [scheduledFor, setScheduledFor] = useState("");
+  // Computed once, lazily: calling Date.now() during render is impure and
+  // produces a value that shifts on every re-render.
+  const [minSchedule] = useState(() => new Date(Date.now() + 5 * 60_000).toISOString().slice(0, 16));
 
   useEffect(() => {
     if (!open) return;
@@ -561,7 +569,7 @@ function PublishPanel({ projectId, clip }: { projectId: string; clip: ClipItem }
   const selectedAccount = accounts.find((a) => a.id === accountId);
   const isYoutube = selectedAccount?.provider === "youtube";
 
-  async function submit(body: { permalink?: string }) {
+  async function submit(body: { permalink?: string; scheduledFor?: string }) {
     if (!accountId) return;
     setBusy(true); setErr(null); setNeedsReauth(false);
     try {
@@ -595,8 +603,26 @@ function PublishPanel({ projectId, clip }: { projectId: string; clip: ClipItem }
           {isYoutube ? (
             <>
               <p className="text-[10px] text-gray-400">Uploads this clip directly to YouTube as Unlisted — change visibility on YouTube afterward if you want it Public.</p>
+              {/* Scheduling: ClipPublish.scheduledFor is read by the
+                  clip-publish cron, so a time set here actually fires. */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-gray-500 block">Schedule for later (optional)</label>
+                <input
+                  type="datetime-local"
+                  value={scheduledFor}
+                  min={minSchedule}
+                  onChange={(e) => setScheduledFor(e.target.value)}
+                  className="w-full rounded border border-gray-200 px-1.5 py-1 text-xs"
+                />
+              </div>
               {err && <p className="text-[11px] text-red-600">{err} {needsReauth && <a href="/dashboard/social-tracker" className="underline font-semibold">Reconnect →</a>}</p>}
-              <button onClick={() => submit({})} disabled={busy} className="w-full text-xs font-semibold py-1.5 rounded-lg grad-brand text-white shadow-glow disabled:opacity-50">{busy ? "Uploading…" : "Publish to YouTube"}</button>
+              <button
+                onClick={() => submit(scheduledFor ? { scheduledFor: new Date(scheduledFor).toISOString() } : {})}
+                disabled={busy}
+                className="w-full text-xs font-semibold py-1.5 rounded-lg grad-brand text-white shadow-glow disabled:opacity-50"
+              >
+                {busy ? "Working…" : scheduledFor ? "Schedule upload" : "Publish to YouTube"}
+              </button>
             </>
           ) : (
             <>
@@ -899,6 +925,7 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
         <ReviewPanel projectId={projectId} clips={clips} uploadedVideoUrl={project.uploadedVideoUrl} onConfirmed={tick} />
       ) : (
         <>
+          {allDone && <ScorePerformanceBanner />}
           {readyClips.length > 1 && (
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -1003,8 +1030,11 @@ function StepperBar({
 }
 
 // ── Step 1: Upload Video ────────────────────────────────────────────────────
-function Step1Upload({ file, videoPreviewUrl, onFile, onClearFile }: {
+function Step1Upload({ file, videoPreviewUrl, onFile, onClearFile, importedUrl, importedTitle, onImported, onClearImport }: {
   file: File | null; videoPreviewUrl: string | null; onFile: (f: File) => void; onClearFile: () => void;
+  importedUrl: string | null; importedTitle: string | null;
+  onImported: (info: { url: string; title: string; durationSec: number }) => void;
+  onClearImport: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -1023,6 +1053,17 @@ function Step1Upload({ file, videoPreviewUrl, onFile, onClearFile }: {
                   <IcX />
                 </button>
               </div>
+            </div>
+          ) : importedUrl ? (
+            <div className="flex flex-col items-center gap-3 text-center">
+              <div className="text-blue-500"><IcCloud /></div>
+              <p className="text-sm font-medium text-ink">{importedTitle}</p>
+              <p className="text-xs text-ink-soft">
+                Downloaded from your link when you start the analysis.
+              </p>
+              <button onClick={onClearImport} className="text-xs text-gray-400 hover:text-gray-600 underline">
+                Use a different source
+              </button>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-3 text-gray-400">
@@ -1055,6 +1096,8 @@ function Step1Upload({ file, videoPreviewUrl, onFile, onClearFile }: {
               Upload Video
             </button>
           </div>
+
+          {!file && <UrlImportField onImported={onImported} />}
 
           <div className="rounded-xl border border-gray-200 bg-white p-4">
             <p className="text-sm font-semibold text-gray-700 mb-3">Tips for best results:</p>
@@ -1276,6 +1319,12 @@ function AutoClipFlow() {
 
   const [file, setFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+  // A source picked by link rather than upload. Held until Analyze, so the
+  // (potentially multi-minute) download happens once the user has committed
+  // to their settings rather than on the first screen.
+  const [importedUrl, setImportedUrl] = useState<string | null>(null);
+  const [importedTitle, setImportedTitle] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const [minDuration, setMinDuration] = useState(15);
   const [maxDuration, setMaxDuration] = useState(60);
@@ -1297,7 +1346,7 @@ function AutoClipFlow() {
   const [trackingSpeed, setTrackingSpeed] = useState(50);
   const [animatedCaptions, setAnimatedCaptions] = useState(true);
 
-  const { status: genStatus, error: genError, projectId: genProjectId, generateAutoClip, reset } = useVideoGenerate();
+  const { status: genStatus, error: genError, projectId: genProjectId, generateAutoClip, generateAutoClipForProject, reset } = useVideoGenerate();
 
   useEffect(() => {
     return () => { if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl); };
@@ -1326,9 +1375,36 @@ function AutoClipFlow() {
   }, [videoPreviewUrl]);
 
   const handleGenerate = useCallback(async () => {
-    if (!file) return;
     const token = getStoredToken();
     if (!token) return;
+
+    // Link-sourced projects: create the project, pull the video into it, then
+    // hand off to the same analysis path an upload uses.
+    if (!file && importedUrl) {
+      setImportError(null);
+      try {
+        const created = await apiFetch<{ project: { id: string } }>("/api/projects", {
+          method: "POST",
+          body: JSON.stringify({ title: importedTitle ?? "Imported video", productType: "auto-clip" }),
+        });
+        const projectId = created.project.id;
+        await apiFetch(`/api/projects/${projectId}/import-url`, {
+          method: "POST",
+          body: JSON.stringify({ url: importedUrl }),
+        });
+        await generateAutoClipForProject({
+          projectId, token, minDuration, maxDuration, clipCount, aspectRatio, instructions,
+          captionStyleIndex: captionsOn ? captionStyleIndex : -1,
+          reframingPreset, removeSilence, silenceThresholdMs, removeFillers,
+          smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions,
+        });
+      } catch (e) {
+        setImportError(e instanceof Error ? e.message : "Import failed");
+      }
+      return;
+    }
+
+    if (!file) return;
     await generateAutoClip({
       file, minDuration, maxDuration, clipCount, aspectRatio, instructions,
       captionStyleIndex: captionsOn ? captionStyleIndex : -1,
@@ -1349,6 +1425,7 @@ function AutoClipFlow() {
   const handleReset = useCallback(() => {
     reset();
     handleClearFile();
+    setImportedUrl(null); setImportedTitle(null); setImportError(null);
     setMinDuration(15); setMaxDuration(60); setClipCount(5); setAspectRatio("9:16");
     setInstructions(""); setCaptionsOn(true); setCaptionStyleIndex(0);
     setReframingPreset("balanced"); setRemoveSilence(false); setSilenceThresholdMs(400); setRemoveFillers(false);
@@ -1356,7 +1433,7 @@ function AutoClipFlow() {
     router.push("/dashboard/create/auto-clip?step=upload-video");
   }, [reset, handleClearFile, router]);
 
-  const canNext = stepIndex === 0 ? !!file : true;
+  const canNext = stepIndex === 0 ? (!!file || !!importedUrl) : true;
   const showOverlay = !!resumeProjectId || genStatus !== "idle";
   const activeProjectId = resumeProjectId ?? genProjectId;
 
@@ -1367,8 +1444,20 @@ function AutoClipFlow() {
         ) : (
           <>
             <StepperBar stepIndex={stepIndex} onBack={() => goTo(stepIndex - 1)} onNext={() => goTo(stepIndex + 1)} onGenerate={handleGenerate} canNext={canNext} isLastStep={stepIndex === STEPS.length - 1} />
+            {importError && (
+              <p className="mx-4 mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                {importError}
+              </p>
+            )}
 
-            {stepIndex === 0 && <Step1Upload file={file} videoPreviewUrl={videoPreviewUrl} onFile={handleFile} onClearFile={handleClearFile} />}
+            {stepIndex === 0 && (
+              <Step1Upload
+                file={file} videoPreviewUrl={videoPreviewUrl} onFile={handleFile} onClearFile={handleClearFile}
+                importedUrl={importedUrl} importedTitle={importedTitle}
+                onImported={(info) => { setImportedUrl(info.url); setImportedTitle(info.title); }}
+                onClearImport={() => { setImportedUrl(null); setImportedTitle(null); }}
+              />
+            )}
 
             {stepIndex === 1 && (
               <Step2Instructions
@@ -1470,6 +1559,7 @@ function ClipEditorDrawer({
   const [borderStyle, setBorderStyle] = useState((override.borderStyle as number) ?? 1);
   const [alignment, setAlignment] = useState((override.alignment as number) ?? 5);
   const [animatedCaptions, setAnimatedCaptions] = useState((override.animated as boolean) ?? true);
+  const [templateId, setTemplateId] = useState<string | null>((override.templateId as string) ?? null);
 
   function applyBrandKit(kit: BrandKit) {
     if (kit.fontName != null) setFontName(kit.fontName);
@@ -1558,6 +1648,7 @@ function ClipEditorDrawer({
         method: "PUT",
         body: JSON.stringify({
           subtitleStyleOverride: {
+            ...(templateId ? { templateId } : {}),
             fontName,
             fontSize,
             baseColor: hexToASS(baseColor),
@@ -1795,6 +1886,36 @@ function ClipEditorDrawer({
                 <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-3">Subtitle Styling Studio</h4>
                 <p className="text-xs text-gray-400 -mt-1.5 mb-4">Customize the font, colors, border outlines, shadows and alignments.</p>
               </div>
+
+              <CaptionTemplatePicker
+                value={templateId}
+                onChange={(id) => {
+                  setTemplateId(id);
+                  // Applying a template replaces the individual fields below,
+                  // so the controls reflect what will actually render rather
+                  // than showing stale values the template has overridden.
+                  const t = CAPTION_TEMPLATES.find((x) => x.id === id);
+                  if (!t) return;
+                  if (t.style.fontName) setFontName(t.style.fontName);
+                  if (t.style.fontSize) setFontSize(t.style.fontSize);
+                  if (t.style.baseColor) setBaseColor(assToHex(t.style.baseColor));
+                  if (t.style.highlightColor) setHighlightColor(assToHex(t.style.highlightColor));
+                  if (t.style.outlineColor) setOutlineColor(assToHex(t.style.outlineColor));
+                  if (t.style.outlineWidth != null) setOutlineWidth(t.style.outlineWidth);
+                  if (t.style.shadowDepth != null) setShadowDepth(t.style.shadowDepth);
+                  if (t.style.borderStyle != null) setBorderStyle(t.style.borderStyle);
+                  if (t.style.alignment != null) setAlignment(t.style.alignment);
+                  if (t.style.animated != null) setAnimatedCaptions(t.style.animated);
+                }}
+                disabled={saving}
+              />
+
+              <TranslateCaptions
+                projectId={projectId}
+                clipId={clip.id}
+                disabled={saving}
+                onQueued={onChanged}
+              />
 
               {brandKits.length > 0 && (
                 <div className="space-y-1">

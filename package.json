@@ -15,7 +15,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "test": "vitest run",
     "test:ffmpeg": "tsx utils/test-ffmpeg.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "check:gpu": "node scripts/check-gpu-service.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
