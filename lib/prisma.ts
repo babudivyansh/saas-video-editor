@@ -1,4 +1,8 @@
 import "dotenv/config";
+// MUST run before @prisma/client and @prisma/adapter-pg are evaluated: it strips
+// prisma debug namespaces out of process.env.DEBUG in production, and the `debug`
+// package captures DEBUG when each namespace is first created at their module-eval.
+import "./prisma-debug-guard";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
