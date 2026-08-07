@@ -79,7 +79,14 @@ async function handlePOST(req: NextRequest) {
   });
   if (existing) {
     const readUrl = await getAssetReadUrl(existing.s3Key);
-    return NextResponse.json({ duplicate: true, asset: { ...existing, url: readUrl } });
+    // Mirror the success response's top-level `url`/`key`, not just `asset.url`.
+    // The video-generate flows (useVideoGenerate.uploadVideo -> AutoClip,
+    // split-screen, streamer-video) read `data.url` from this response and pass
+    // it straight into createProject as `uploadedVideoUrl`. On a duplicate this
+    // used to be undefined, so JSON.stringify dropped it, the project was created
+    // with a null source, and analysis died with "Project has no uploaded video"
+    // — i.e. re-using any video you'd uploaded before broke AutoClip entirely.
+    return NextResponse.json({ duplicate: true, url: readUrl, key: existing.s3Key, asset: { ...existing, url: readUrl } });
   }
 
   // Server-side cumulative storage quota — replaces the previously cosmetic
