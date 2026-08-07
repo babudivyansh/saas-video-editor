@@ -16,14 +16,18 @@ import { logger } from "@/lib/logger";
 //   */10 * * * *  curl -H "Authorization: Bearer $CRON_SECRET" \
 //                   https://app.example.com/api/cron/clip-publish
 export async function GET(req: NextRequest) {
+  // Fails CLOSED, matching every other app/api/cron/* route: an unset secret
+  // must make this endpoint unusable, not unauthenticated. The original
+  // `if (secret) { ...check... }` skipped the check entirely when CRON_SECRET
+  // was absent, which on a deploy that hadn't set it would have left a public
+  // endpoint able to publish users' clips to their connected accounts.
   const secret = env.CRON_SECRET;
-  if (secret) {
-    const header = req.headers.get("authorization");
-    const query = new URL(req.url).searchParams.get("secret");
-    const provided = header?.startsWith("Bearer ") ? header.slice(7) : query;
-    if (provided !== secret) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  const provided =
+    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
+    new URL(req.url).searchParams.get("secret") ||
+    "";
+  if (!secret || provided !== secret) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
