@@ -159,10 +159,31 @@ d("production keyframe path — executed through ffmpeg", () => {
 
   // Guards the argv-length ceiling: every keyframe becomes one nesting level in
   // each of four expressions, and the whole graph is passed as a single command
-  // line argument. Windows caps that at ~32k. If this trips, the fix is
-  // keyframe simplification (see plan §1.8), not a bigger number here.
-  it("keeps the generated filtergraph within a safe command-line length", () => {
+  // line argument (Windows caps that around 32k). simplifyKeyframes bounds the
+  // path at MAX_CROP_KEYFRAMES, which took this case from ~16.5k characters to
+  // ~4.7k. If this trips, the fix is in the simplification, not a bigger
+  // number here.
+  it("keeps the generated filtergraph small enough to stay in argv", () => {
     const kf = computeCropKeyframesForClip(faces, 0, 60, "9:16", 1920, 1080, { smartAutoReframe: true });
-    expect(buildDynamicCropFilter(kf!, "9:16").length).toBeLessThan(30_000);
+    expect(kf!.length).toBeLessThanOrEqual(40);
+    expect(buildDynamicCropFilter(kf!, "9:16").length).toBeLessThan(10_000);
+  });
+
+  // A busy, continuously-moving subject is the worst case for path length —
+  // the budget must hold there too, not just on a smooth drift.
+  it("bounds the path even for an erratically-moving subject", () => {
+    const busy: FaceBox[] = Array.from({ length: 300 }, (_, i) => ({
+      tSec: i * 0.2,
+      x: 0.15 + Math.sin(i / 3) * 0.25,
+      y: 0.2 + Math.cos(i / 5) * 0.08,
+      w: 0.14, h: 0.3, confidence: 95,
+    }));
+    const kf = computeCropKeyframesForClip(busy, 0, 60, "9:16", 1920, 1080, { smartAutoReframe: true });
+    expect(kf!.length).toBeLessThanOrEqual(40);
+    const { code, stderr } = run([
+      "-hide_banner", "-f", "lavfi", "-i", STATIC_GRADIENT,
+      "-vf", buildDynamicCropFilter(kf!, "9:16"), "-f", "null", "-",
+    ]);
+    expect(code, stderr.slice(-2000)).toBe(0);
   });
 });

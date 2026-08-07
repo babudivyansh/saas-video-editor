@@ -18,7 +18,10 @@ import {
   analyzeAudio,
   generateASS,
   styleIndexToSubtitleStyle,
+  encodeArgs,
+  maybeUseFilterScript,
   type SubtitleStyle,
+  type RenderTarget,
 } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { type WordTiming } from "@/utils/elevenlabs";
@@ -30,7 +33,6 @@ import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { FILTER_PRESETS, type FilterPreset } from "@/lib/editor/types";
 import {
-  detectFaceTimeline,
   computeCropKeyframesForClip,
   computeMultiSpeakerKeyframes,
   buildDynamicCropFilter,
@@ -40,6 +42,8 @@ import {
   type StoredCrop,
   type ReframeOptions,
 } from "@/lib/reframe";
+import { getFaceTimeline } from "@/lib/asd";
+import { loadFaceTimeline, saveFaceTimeline } from "@/lib/face-timeline-store";
 import { calibrateScore, getViralityWeights, type SubScores } from "@/lib/virality-score";
 import { computeBrollWindow, pickBroll } from "@/lib/broll";
 import { TARGET_RES } from "@/lib/reframe";
@@ -203,6 +207,63 @@ interface GeminiSegment {
   suggestedCaption: string;
 }
 
+// ── Transcript formatting for the LLM ───────────────────────────────────────
+// The prompt used to carry one `[12.34] word` timestamp PER WORD. On a 6-hour
+// source — which the Studio tier sells — that's ~60k words and well over 200k
+// tokens of mostly punctuation, in a single call with a 30s timeout. It
+// truncates or fails.
+//
+// Grouping into short phrases with one timestamp each cuts that by an order of
+// magnitude while keeping every timestamp the model actually needs: it picks
+// clip boundaries in seconds, and a boundary is only ever placed at a phrase
+// edge anyway.
+
+const PHRASE_GAP_MS = 700;   // a pause this long ends a phrase
+const PHRASE_MAX_WORDS = 12;
+
+export function formatTranscriptForPrompt(words: WordTiming[]): string {
+  if (words.length === 0) return "";
+  const lines: string[] = [];
+  let start = words[0].start;
+  let buf: string[] = [];
+
+  const flush = () => {
+    if (buf.length === 0) return;
+    lines.push(`[${(start / 1000).toFixed(1)}] ${buf.join(" ")}`);
+    buf = [];
+  };
+
+  for (let i = 0; i < words.length; i++) {
+    if (buf.length === 0) start = words[i].start;
+    buf.push(words[i].word);
+    const gapToNext = i + 1 < words.length ? words[i + 1].start - words[i].end : Infinity;
+    if (buf.length >= PHRASE_MAX_WORDS || gapToNext > PHRASE_GAP_MS) flush();
+  }
+  flush();
+  return lines.join("\n");
+}
+
+// Above this source length, one prompt can't hold the transcript at usable
+// fidelity, so it's scored in windows and the winners ranked globally.
+const MAP_REDUCE_THRESHOLD_SEC = 45 * 60;
+const MAP_WINDOW_SEC = 20 * 60;
+
+/** Split words into overlapping-free windows for the map phase. */
+export function splitIntoWindows(
+  words: WordTiming[],
+  durationSec: number,
+  windowSec: number,
+): { startSec: number; endSec: number; words: WordTiming[] }[] {
+  const windows: { startSec: number; endSec: number; words: WordTiming[] }[] = [];
+  for (let start = 0; start < durationSec; start += windowSec) {
+    const end = Math.min(durationSec, start + windowSec);
+    const inWindow = words.filter((w) => w.start >= start * 1000 && w.start < end * 1000);
+    // A window with no speech has nothing to select from.
+    if (inWindow.length > 0 || words.length === 0) windows.push({ startSec: start, endSec: end, words: inWindow });
+  }
+  return windows;
+}
+
 async function getClipsFromGemini(
   transcriptText: string,
   durationSec: number,
@@ -252,7 +313,7 @@ ${instructions ? `User instructions: ${instructions}` : "Focus on the most engag
 
 Video duration: ${durationSec.toFixed(1)} seconds
 
-Transcript (format: [seconds] word):
+Transcript (each line is "[start seconds] phrase"):
 ${transcriptText}
 
 ${sharedRules}`
@@ -312,6 +373,67 @@ ${sharedRules}`;
     });
 
   return enforceNonOverlapping(mapped, minDuration).slice(0, clipCount);
+}
+
+/**
+ * Clip selection that scales to long sources.
+ *
+ * Short videos take the single-call path unchanged. Past
+ * MAP_REDUCE_THRESHOLD_SEC the transcript can't fit one prompt at usable
+ * fidelity, so each window is scored independently (asking for a generous
+ * share of clips so good windows aren't starved), then the pooled candidates
+ * are ranked globally by their own sub-scores and the best kept. Ranking on
+ * scores the model already returns avoids a second LLM round-trip.
+ */
+async function selectClips(
+  words: WordTiming[],
+  durationSec: number,
+  clipCount: number,
+  minDuration: number,
+  maxDuration: number,
+  instructions: string,
+): Promise<GeminiSegment[]> {
+  if (durationSec <= MAP_REDUCE_THRESHOLD_SEC || words.length === 0) {
+    return getClipsFromGemini(formatTranscriptForPrompt(words), durationSec, clipCount, minDuration, maxDuration, instructions);
+  }
+
+  const windows = splitIntoWindows(words, durationSec, MAP_WINDOW_SEC);
+  logger.info("auto-clip", `long source (${(durationSec / 60).toFixed(0)} min) — scoring ${windows.length} windows`);
+
+  // Ask each window for a few candidates; the reduce step picks the winners.
+  const perWindow = Math.max(2, Math.ceil((clipCount * 2) / windows.length));
+
+  const results = await Promise.all(windows.map(async (win) => {
+    try {
+      // Each window is prompted in its OWN 0-based time frame, then shifted
+      // back — otherwise the model has to reason about absolute offsets it
+      // can't see, and reliably returns out-of-range values.
+      const local = win.words.map((w) => ({
+        word: w.word,
+        start: w.start - win.startSec * 1000,
+        end: w.end - win.startSec * 1000,
+      }));
+      const segs = await getClipsFromGemini(
+        formatTranscriptForPrompt(local),
+        win.endSec - win.startSec,
+        perWindow, minDuration, maxDuration, instructions,
+      );
+      return segs.map((s) => ({ ...s, start: s.start + win.startSec, end: s.end + win.startSec }));
+    } catch (err) {
+      // One bad window must not lose the whole video.
+      logger.warn("auto-clip", `window ${win.startSec}-${win.endSec}s failed, skipping`, err);
+      return [];
+    }
+  }));
+
+  const pooled = results.flat();
+  if (pooled.length === 0) return [];
+
+  const rank = (s: GeminiSegment) => s.hook * 0.4 + s.payoff * 0.25 + s.engagement * 0.25 + s.pacing * 0.1;
+  const best = [...pooled].sort((a, b) => rank(b) - rank(a)).slice(0, clipCount * 2);
+  // enforceNonOverlapping expects ascending order and resolves collisions
+  // between windows that both claimed a boundary region.
+  return enforceNonOverlapping(best.sort((a, b) => a.start - b.start), minDuration).slice(0, clipCount);
 }
 
 // The "clips must not overlap / sort by start ascending" rules above are only
@@ -451,9 +573,15 @@ export async function pickJob(payload: PickPayload): Promise<void> {
     // neither the transcript nor Gemini's output — kick it off now and run it
     // concurrently with STT + Gemini below instead of waiting on it after
     // they've already finished.
-    const faceTimelinePromise: Promise<FaceBox[]> = project.faceTimeline
-      ? Promise.resolve(project.faceTimeline as unknown as FaceBox[])
-      : detectFaceTimeline(project.uploadedVideoUrl);
+    // Prefers the GPU active-speaker model and falls back to Rekognition, then
+    // to nothing (static centre crop) — see lib/asd.ts. Timelines are cached
+    // via loadFaceTimeline/saveFaceTimeline, which keeps the samples in an S3
+    // sidecar rather than a Postgres JSON column: a multi-hour source produces
+    // six figures of samples, which is not a column value.
+    const cached = await loadFaceTimeline(project);
+    const faceTimelinePromise: Promise<FaceBox[]> = cached
+      ? Promise.resolve(cached)
+      : getFaceTimeline(project.userId, project.uploadedVideoUrl);
 
     let wordTimings: WordTiming[] = [];
     let sttFailed = false;
@@ -465,19 +593,15 @@ export async function pickJob(payload: PickPayload): Promise<void> {
       logger.warn("auto-clip", "transcription failed, Gemini will work without transcript", err);
     }
 
-    const transcriptText = wordTimings.map((w) => `[${(w.start / 1000).toFixed(2)}] ${w.word}`).join(" ");
-    const segments = await getClipsFromGemini(transcriptText, durationSec, clipCount, minDuration, maxDuration, instructions);
+    const segments = await selectClips(wordTimings, durationSec, clipCount, minDuration, maxDuration, instructions);
     if (segments.length === 0) throw new Error("Gemini returned no valid clip segments");
 
     // Faces are only needed from here on (computeStoredCrop below) — by now
     // the Rekognition call has had the entire STT+Gemini duration to finish
     // in the background instead of blocking in front of it.
     const allFaces = await faceTimelinePromise;
-    if (!project.faceTimeline && allFaces.length > 0) {
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { faceTimeline: allFaces as unknown as Prisma.InputJsonValue },
-      }).catch(() => {});
+    if (!cached && allFaces.length > 0) {
+      await saveFaceTimeline(projectId, allFaces);
     }
     const { w: srcW, h: srcH } = await getMediaDimensions(videoPath);
 
@@ -770,12 +894,19 @@ function watermarkFilterChain(): string {
   );
 }
 
-async function renderOneClip(projectId: string, clip: Clip, videoPath: string, watermark = false): Promise<{ ok: boolean }> {
+async function renderOneClip(
+  projectId: string,
+  clip: Clip,
+  videoPath: string,
+  watermark = false,
+  target: RenderTarget = "cpu",
+): Promise<{ ok: boolean }> {
   const tmp = os.tmpdir();
   const clipPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}.mp4`);
   const thumbPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}.jpg`);
   const assPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}.ass`);
   const brollPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}-broll.mp4`);
+  const scriptPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}.filter`);
 
   try {
     await prisma.clip.update({ where: { id: clip.id }, data: { status: "rendering", progress: 5 } });
@@ -868,7 +999,7 @@ async function renderOneClip(projectId: string, clip: Clip, videoPath: string, w
     const captionsFilter = assEscaped ? `subtitles='${assEscaped}'` : null;
 
     const baseArgs = ["-y", "-ss", String(clip.startSec), "-to", String(clip.endSec), "-i", videoPath];
-    const encodeArgs = ["-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-c:a", "aac"];
+    const outputArgs = encodeArgs(target);
 
     let selectFilter: string | null = null;
     let aselectFilter: string | null = null;
@@ -907,12 +1038,12 @@ async function renderOneClip(projectId: string, clip: Clip, videoPath: string, w
       ffmpegArgs = [
         ...baseArgs, "-stream_loop", "-1", "-i", brollPath,
         "-filter_complex", complex, "-map", videoMap, "-map", audioSrc,
-        ...encodeArgs, "-shortest", clipPath,
+        ...outputArgs, "-shortest", clipPath,
       ];
     } else if (stored?.mode === "split" && stored.a.length > 1 && stored.b.length > 1) {
       // Two-speaker split-screen: two independent dynamic crops, vstacked.
       const complex = prepends + buildSplitScreenFilterComplex(stored.a, stored.b, moodFilter, captionsFilter, videoSrc) + wmComplex;
-      ffmpegArgs = [...baseArgs, "-filter_complex", complex, "-map", videoMap, "-map", audioSrc, ...encodeArgs, "-shortest", clipPath];
+      ffmpegArgs = [...baseArgs, "-filter_complex", complex, "-map", videoMap, "-map", audioSrc, ...outputArgs, "-shortest", clipPath];
     } else {
       const keyframes = stored?.mode === "single" ? stored.keyframes : null;
       const cropExpr = keyframes && keyframes.length > 1
@@ -923,8 +1054,12 @@ async function renderOneClip(projectId: string, clip: Clip, videoPath: string, w
         filters.unshift(selectFilter);
       }
       if (watermark) filters.push(watermarkFilterChain());
-      ffmpegArgs = [...baseArgs, "-vf", filters.join(","), ...(isTrimmed && aselectFilter ? ["-af", aselectFilter] : []), ...encodeArgs, clipPath];
+      ffmpegArgs = [...baseArgs, "-vf", filters.join(","), ...(isTrimmed && aselectFilter ? ["-af", aselectFilter] : []), ...outputArgs, clipPath];
     }
+
+    // The pan/zoom expressions can push the filtergraph past the command-line
+    // length limit on long clips; spill it to a file when that happens.
+    ffmpegArgs = maybeUseFilterScript(ffmpegArgs, scriptPath);
 
     await runFFmpegWithProgress(
       ffmpegArgs,
@@ -976,7 +1111,7 @@ async function renderOneClip(projectId: string, clip: Clip, videoPath: string, w
     await prisma.clip.update({ where: { id: clip.id }, data: { status: "failed" } }).catch(() => {});
     return { ok: false };
   } finally {
-    for (const f of [clipPath, thumbPath, assPath, brollPath]) {
+    for (const f of [clipPath, thumbPath, assPath, brollPath, scriptPath]) {
       try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch {}
     }
   }
@@ -1015,11 +1150,45 @@ export async function renderJob(payload: RenderPayload): Promise<void> {
     // jobs queued across an upgrade.
     const { getUserTier } = await import("@/lib/auth");
     const watermark = (await getUserTier(project.userId)) === "free";
-    for (const clip of clips) {
-      const { ok } = await renderOneClip(projectId, clip, videoPath, watermark);
-      if (ok) {
+
+    // Where each clip encodes. Resolved once per run rather than per clip: it
+    // depends on the user's tier and the source dimensions, neither of which
+    // varies within a run, and it costs a Config read plus a Redis check.
+    const { w: srcW, h: srcH } = await getMediaDimensions(videoPath);
+    const { resolveRenderTarget } = await import("@/lib/render-target");
+    const longestClipSec = clips.reduce((m, c) => Math.max(m, c.durationSec), 0);
+    const target = await resolveRenderTarget(project.userId, {
+      sourceW: srcW, sourceH: srcH, clipDurationSec: longestClipSec,
+    });
+
+    // Clips were rendered strictly one after another, so a 20-clip project
+    // took 20x one clip's wall time on a machine with idle cores. They're
+    // independent — same read-only source file, separate temp paths, separate
+    // DB rows — so a bounded pool is safe and is the single biggest
+    // improvement to the time a user actually experiences.
+    //
+    // The bound matters: each render is itself multi-threaded ffmpeg, so
+    // unbounded parallelism would thrash. RENDER_CLIP_CONCURRENCY tunes it per
+    // deployment; 3 is a reasonable default for a small VPS.
+    const poolSize = Math.max(1, Math.min(
+      parseInt(env.RENDER_CLIP_CONCURRENCY || "3", 10) || 3,
+      clips.length,
+    ));
+
+    const queue = [...clips];
+    const runWorker = async () => {
+      for (;;) {
+        const clip = queue.shift();
+        if (!clip) return;
+        const { ok } = await renderOneClip(projectId, clip, videoPath, watermark, target);
+        if (!ok) continue;
+        const updated = await prisma.clip.findUnique({
+          where: { id: clip.id },
+          select: { videoUrl: true, score: true, durationSec: true },
+        });
+        // Mutating shared counters is safe here: Node is single-threaded, and
+        // there is no await between reading and writing them.
         readyCount++;
-        const updated = await prisma.clip.findUnique({ where: { id: clip.id }, select: { videoUrl: true, score: true, durationSec: true } });
         if (updated?.videoUrl && (updated.score ?? 0) > bestScore) {
           bestScore = updated.score ?? 0;
           bestUrl = updated.videoUrl;
@@ -1030,7 +1199,8 @@ export async function renderJob(payload: RenderPayload): Promise<void> {
         preTrimTotalSec += clip.durationSec;
         postTrimTotalSec += updated?.durationSec ?? clip.durationSec;
       }
-    }
+    };
+    await Promise.all(Array.from({ length: poolSize }, runWorker));
 
     // Partial-failure refund (P0.5) — proportional to what actually failed,
     // instead of only refunding when every single clip failed.
@@ -1100,8 +1270,8 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
     await downloadFile(project.uploadedVideoUrl, videoPath);
 
     let updatedClip = clip;
-    if (project.faceTimeline) {
-      const allFaces = project.faceTimeline as unknown as FaceBox[];
+    const allFaces = await loadFaceTimeline(project);
+    if (allFaces && allFaces.length > 0) {
       const { w: srcW, h: srcH } = await getMediaDimensions(videoPath);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const silenceOpts = (clip.silenceSettings as any) ?? {};

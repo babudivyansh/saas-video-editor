@@ -32,6 +32,69 @@ function killAfterTimeout(proc: ReturnType<typeof spawn>, timeoutMs: number, onT
   return () => clearTimeout(timer);
 }
 
+// ── Output encoding ─────────────────────────────────────────────────────────
+
+export type RenderTarget = "cpu" | "gpu";
+
+/**
+ * Output encoder arguments. Every render used to hardcode
+ * `-c:v libx264 -preset superfast -crf 23 -c:a aac` in four separate places;
+ * this is the single place to change them, and the seam the GPU worker pool
+ * routes through (see lib/render-target.ts).
+ *
+ * Two flags apply to BOTH targets and were missing everywhere before:
+ *  - `-pix_fmt yuv420p`: some sources decode to a pixel format Safari and
+ *    most social platforms refuse to play.
+ *  - `-movflags +faststart`: moves the moov atom to the front so playback can
+ *    begin before the whole file has downloaded. Without it every clip
+ *    preview stalls until fully buffered.
+ */
+export function encodeArgs(target: RenderTarget = "cpu"): string[] {
+  const common = ["-pix_fmt", "yuv420p", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k"];
+  if (target === "gpu") {
+    // NVENC has no -crf; the analogous quality-targeting control is -cq under
+    // -rc vbr, and -b:v 0 is REQUIRED or -cq is silently ignored and you get a
+    // default bitrate instead. p5 sits near x264 superfast for speed while
+    // landing close to crf 23 perceptually; p7 is closer in quality but gives
+    // back most of the speed advantage.
+    return [
+      "-c:v", "h264_nvenc", "-preset", "p5", "-tune", "hq",
+      "-rc", "vbr", "-cq", "21", "-b:v", "0",
+      "-maxrate", "12M", "-bufsize", "24M", "-profile:v", "high",
+      ...common,
+    ];
+  }
+  return ["-c:v", "libx264", "-preset", "superfast", "-crf", "23", ...common];
+}
+
+/**
+ * Moves an oversized filtergraph out of argv and into a file.
+ *
+ * The pan/zoom expressions are piecewise-linear chains — one nesting level per
+ * keyframe, across four expressions — so a long clip with a moving subject
+ * produces tens of KB of filtergraph. Windows caps a command line at ~32k and
+ * fails opaquely past it. ffmpeg accepts the graph from a file instead, which
+ * removes the ceiling entirely.
+ *
+ * Mirrors lib/editor/filtergraph.ts's maybeUseFilterScript, which solves the
+ * same problem for the editor's renderer, but takes plain args so the AutoClip
+ * pipeline (which builds its graph differently) can share the behaviour.
+ */
+export function maybeUseFilterScript(args: string[], scriptPath: string, threshold = 6000): string[] {
+  const complexIdx = args.indexOf("-filter_complex");
+  const vfIdx = args.indexOf("-vf");
+  const idx = complexIdx >= 0 ? complexIdx : vfIdx;
+  if (idx < 0) return args;
+
+  const graph = args[idx + 1];
+  if (typeof graph !== "string" || graph.length < threshold) return args;
+
+  fs.writeFileSync(scriptPath, graph, "utf8");
+  const out = [...args];
+  out.splice(idx, 2, complexIdx >= 0 ? "-filter_complex_script" : "-filter_script:v", scriptPath);
+  return out;
+}
+
 export interface SubtitleStyle {
   fontName?: string;
   fontSize?: number;
@@ -167,10 +230,7 @@ export function runFFmpeg(opts: RenderOptions, timeoutMs = DEFAULT_FFMPEG_TIMEOU
         `[2:a]volume=0.12[bgm];[1:a][bgm]amix=inputs=2:duration=first[audio];[0:v]crop=in_h*9/16:in_h,subtitles='${assEscaped}'[video]`,
         "-map", "[video]",
         "-map", "[audio]",
-        "-c:v", "libx264",
-        "-preset", "superfast",
-        "-crf", "23",
-        "-c:a", "aac",
+        ...encodeArgs(),
         "-shortest",
         outputPath,
       ];
@@ -183,10 +243,7 @@ export function runFFmpeg(opts: RenderOptions, timeoutMs = DEFAULT_FFMPEG_TIMEOU
         `[0:v]crop=in_h*9/16:in_h,subtitles='${assEscaped}'[video]`,
         "-map", "[video]",
         "-map", "1:a",
-        "-c:v", "libx264",
-        "-preset", "superfast",
-        "-crf", "23",
-        "-c:a", "aac",
+        ...encodeArgs(),
         "-shortest",
         outputPath,
       ];
@@ -387,8 +444,7 @@ export function runSplitScreenFFmpeg(opts: SplitScreenOptions): Promise<void> {
     `[0:a]aformat=sample_rates=44100:channel_layouts=stereo[audio]`,
     "-map", "[video]",
     "-map", "[audio]",
-    "-c:v", "libx264", "-preset", "superfast", "-crf", "23",
-    "-c:a", "aac", "-shortest",
+    ...encodeArgs(), "-shortest",
     outputPath,
   ]);
 }
@@ -430,8 +486,7 @@ export function runStreamerFFmpeg(opts: StreamerVideoOptions): Promise<void> {
   return runFFmpegArgs([
     "-y", "-i", userVideoPath,
     "-vf", `crop=in_h*9/16:in_h,${drawFilter}`,
-    "-c:v", "libx264", "-preset", "superfast", "-crf", "23",
-    "-c:a", "aac",
+    ...encodeArgs(),
     outputPath,
   ]);
 }

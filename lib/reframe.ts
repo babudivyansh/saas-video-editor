@@ -33,7 +33,19 @@ export interface FaceBox {
   // for timelines cached before this field was added, or if Rekognition
   // didn't report it — treat undefined as "no signal", not "closed".
   mouthOpen?: boolean;
+  // Active-speaker probability 0..1 from the GPU ASD model (lib/asd.ts).
+  // Undefined on any Rekognition-sourced or pre-ASD cached timeline — same
+  // rule as mouthOpen: undefined means "no signal", not "silent".
+  speaking?: number;
+  // Stable per-person identity from the ASD tracker. When present, multi-
+  // speaker clustering uses it instead of guessing from horizontal position.
+  trackId?: string;
 }
+
+// A speaking-score gap narrower than this is a tie: below it the two faces are
+// close enough that the model isn't really distinguishing them, and switching
+// the crop on that basis produces visible flip-flopping.
+const SPEAKING_MARGIN = 0.15;
 
 // Crop keyframe: top-left + size of the crop window, all as fractions of the
 // source frame so they're resolution-independent. w/h are constant across a
@@ -349,13 +361,17 @@ function computeAdvancedCrop(
         const leftBest = leftFaces.reduce((a, c) => (c.confidence > a.confidence ? c : a));
         const rightBest = rightFaces.reduce((a, c) => (c.confidence > a.confidence ? c : a));
 
-        // Prefer an actual "who's talking" signal (Rekognition's MouthOpen)
-        // when exactly one side has it — only fall back to bounding-box area
-        // (a size proxy, not a speaking proxy) when the mouth signal is
-        // absent (cached pre-MouthOpen timeline) or doesn't disambiguate
-        // (both/neither mouth open).
+        // Three-level degradation, best signal first:
+        //  1. ASD speaking probability — an actual model of who is talking.
+        //  2. Rekognition MouthOpen — fires on any open mouth, so it's a weak
+        //     proxy, but better than nothing.
+        //  3. Bounding-box area — a size proxy, not a speaking proxy at all;
+        //     the last resort for timelines cached before either existed.
         let candidateId: "left" | "right";
-        if (leftBest.mouthOpen === true && rightBest.mouthOpen !== true) {
+        const lSpeak = leftBest.speaking, rSpeak = rightBest.speaking;
+        if (typeof lSpeak === "number" && typeof rSpeak === "number" && Math.abs(lSpeak - rSpeak) > SPEAKING_MARGIN) {
+          candidateId = lSpeak > rSpeak ? "left" : "right";
+        } else if (leftBest.mouthOpen === true && rightBest.mouthOpen !== true) {
           candidateId = "left";
         } else if (rightBest.mouthOpen === true && leftBest.mouthOpen !== true) {
           candidateId = "right";
@@ -488,7 +504,84 @@ function computeAdvancedCrop(
     merged.push({ ...last, tSec: duration });
   }
 
-  return merged;
+  // The MERGE_EPS pass above only drops points that barely moved; this drops
+  // points that lie on a straight line between their neighbours, which is what
+  // actually bounds the generated expression on a continuously-moving subject.
+  return simplifyKeyframes(merged);
+}
+
+// ── Keyframe simplification ────────────────────────────────────────────────
+// computeAdvancedCrop emits a keyframe every 0.1s, and each surviving one adds
+// a nesting level to four separate ffmpeg expressions that are re-evaluated
+// per frame. A 60s clip of a moving subject measured ~16.5k characters of
+// filtergraph before this — under the argv ceiling, but ~3x the point where
+// the editor's renderer switches to a filter script, and all of it real
+// per-frame expression evaluation.
+//
+// Douglas-Peucker keeps the points that define the SHAPE of the path and drops
+// the ones that sit on a line between their neighbours, so the motion is
+// visually identical with a fraction of the points.
+
+const MAX_CROP_KEYFRAMES = 40;
+const RDP_EPSILON = 0.004; // fraction of frame — below this a deviation is invisible
+
+/** Perpendicular distance from p to the line ab, in (t, v) space. */
+function perpDistance(p: { t: number; v: number }, a: { t: number; v: number }, b: { t: number; v: number }): number {
+  const dt = b.t - a.t;
+  const dv = b.v - a.v;
+  if (dt === 0 && dv === 0) return Math.abs(p.v - a.v);
+  return Math.abs(dv * (p.t - a.t) - dt * (p.v - a.v)) / Math.hypot(dt, dv);
+}
+
+function rdpKeep(pts: { t: number; v: number }[], eps: number, first: number, last: number, keep: Set<number>): void {
+  if (last <= first + 1) return;
+  let maxDist = -1;
+  let idx = first;
+  for (let i = first + 1; i < last; i++) {
+    const dist = perpDistance(pts[i], pts[first], pts[last]);
+    if (dist > maxDist) { maxDist = dist; idx = i; }
+  }
+  if (maxDist <= eps) return;
+  keep.add(idx);
+  rdpKeep(pts, eps, first, idx, keep);
+  rdpKeep(pts, eps, idx, last, keep);
+}
+
+/**
+ * Simplify a crop path, preserving its visual shape. Each axis is simplified
+ * independently and the kept indices unioned, so a point that matters on ANY
+ * axis survives. Epsilon escalates until the point budget is met, which bounds
+ * the generated expression regardless of how busy the source is.
+ */
+export function simplifyKeyframes(
+  keyframes: CropKeyframe[],
+  eps = RDP_EPSILON,
+  maxPoints = MAX_CROP_KEYFRAMES,
+): CropKeyframe[] {
+  if (keyframes.length <= 2) return keyframes;
+
+  const axes: (keyof Pick<CropKeyframe, "x" | "y" | "w">)[] = ["x", "y", "w"];
+  let epsilon = eps;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const keep = new Set<number>([0, keyframes.length - 1]);
+    for (const axis of axes) {
+      const pts = keyframes.map((k) => ({ t: k.tSec, v: k[axis] }));
+      rdpKeep(pts, epsilon, 0, keyframes.length - 1, keep);
+    }
+    if (keep.size <= maxPoints) {
+      return [...keep].sort((a, b) => a - b).map((i) => keyframes[i]);
+    }
+    epsilon *= 2;
+  }
+  // Pathological input: fall back to uniform decimation so the budget still
+  // holds. The stride leaves room for the final keyframe appended below —
+  // dividing by maxPoints exactly would produce maxPoints strided points and
+  // then overflow by one when the endpoint is added back.
+  const stride = Math.max(1, Math.ceil(keyframes.length / Math.max(1, maxPoints - 1)));
+  const decimated = keyframes.filter((_, i) => i % stride === 0);
+  const last = keyframes[keyframes.length - 1];
+  if (decimated[decimated.length - 1] !== last) decimated.push(last);
+  return decimated;
 }
 
 export function computeCropKeyframesForClip(
@@ -566,21 +659,43 @@ export function computeMultiSpeakerKeyframes(
     .sort((a, b) => a.tSec - b.tSec);
   if (inWindow.length < 4) return null; // too sparse to trust a 2-cluster split
 
-  // Cheap 1-D k=2 clustering on horizontal center — good enough for "left
-  // person" vs "right person" without pulling in a clustering dependency.
-  // Split at the largest gap in the sorted centers rather than a fixed-rank
-  // median: a median index is unstable whenever many samples tie at/near the
-  // boundary (e.g. two evenly-sampled speakers), which can empty one side.
-  const centers = inWindow.map((f) => f.x + f.w / 2).sort((a, b) => a - b);
-  let splitIdx = Math.floor(centers.length / 2);
-  let maxGap = -1;
-  for (let i = 1; i < centers.length; i++) {
-    const gap = centers[i] - centers[i - 1];
-    if (gap > maxGap) { maxGap = gap; splitIdx = i; }
+  // Preferred: real identities from the ASD tracker. Position-based clustering
+  // is a guess that a person stays on their side of the frame — it misfires on
+  // one person who walks across, and on two people who cross over. Track ids
+  // are the actual answer, so use them when the timeline has them and take the
+  // two most consistently-present people.
+  let left: FaceBox[];
+  let right: FaceBox[];
+  const byTrack = new Map<string, FaceBox[]>();
+  for (const f of inWindow) {
+    if (!f.trackId) { byTrack.clear(); break; }
+    const arr = byTrack.get(f.trackId);
+    if (arr) arr.push(f); else byTrack.set(f.trackId, [f]);
   }
-  const threshold = (centers[splitIdx - 1] + centers[splitIdx]) / 2;
-  const left = inWindow.filter((f) => f.x + f.w / 2 < threshold);
-  const right = inWindow.filter((f) => f.x + f.w / 2 >= threshold);
+
+  if (byTrack.size >= 2) {
+    const [a, b] = [...byTrack.values()].sort((p, q) => q.length - p.length).slice(0, 2);
+    // Keep a stable left/right assignment so the stacked halves don't swap.
+    const meanX = (g: FaceBox[]) => g.reduce((s, f) => s + f.x + f.w / 2, 0) / g.length;
+    [left, right] = meanX(a) <= meanX(b) ? [a, b] : [b, a];
+    if (meanX(right) - meanX(left) < MIN_SEPARATION_FRAC) return null;
+  } else {
+    // Cheap 1-D k=2 clustering on horizontal center — good enough for "left
+    // person" vs "right person" without pulling in a clustering dependency.
+    // Split at the largest gap in the sorted centers rather than a fixed-rank
+    // median: a median index is unstable whenever many samples tie at/near the
+    // boundary (e.g. two evenly-sampled speakers), which can empty one side.
+    const centers = inWindow.map((f) => f.x + f.w / 2).sort((a, b) => a - b);
+    let splitIdx = Math.floor(centers.length / 2);
+    let maxGap = -1;
+    for (let i = 1; i < centers.length; i++) {
+      const gap = centers[i] - centers[i - 1];
+      if (gap > maxGap) { maxGap = gap; splitIdx = i; }
+    }
+    const threshold = (centers[splitIdx - 1] + centers[splitIdx]) / 2;
+    left = inWindow.filter((f) => f.x + f.w / 2 < threshold);
+    right = inWindow.filter((f) => f.x + f.w / 2 >= threshold);
+  }
   if (left.length === 0 || right.length === 0) return null;
 
   const leftAvg = left.reduce((s, f) => s + f.x + f.w / 2, 0) / left.length;
