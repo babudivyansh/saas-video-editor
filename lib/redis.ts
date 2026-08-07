@@ -73,17 +73,57 @@ const client =
 
 if (process.env.NODE_ENV !== "production") globalForRedis.redis = client;
 
+// Resolves once the initial handshake has settled, either way.
+//
+// `client.connect()` was previously fire-and-forget, so despite the comment
+// below claiming the race was closed, ANY command issued between module
+// evaluation and the completed handshake still failed instantly with
+// "Stream isn't writeable and enableOfflineQueue options is false" and dropped
+// to the in-memory fallback. On a cold start that is every early request —
+// including the maintenance-mode check the proxy runs on every single one.
+// Awaiting this before the first command closes the race for real.
+let connectSettled: Promise<void> = Promise.resolve();
+
+// Connection-state visibility. `client.on("error", () => {})` silenced every
+// Redis error, so a real outage — wrong URL, TLS mismatch, quota lockout,
+// connection limit — was indistinguishable from a working cache, and the only
+// symptom was the throttled per-command log with no underlying cause. These
+// log each transition once so the next incident says what actually happened.
+let lastState = "";
+function logState(state: string, detail?: unknown) {
+  if (state === lastState) return;
+  lastState = state;
+  if (state === "ready") logger.info("redis", "connected");
+  else logger.error("redis", `connection ${state}`, detail);
+}
+
 if (isNewClient) {
-  // Silence "unhandled error" events when Redis is offline in dev.
-  client.on("error", () => {});
-  // Eagerly open the connection at startup. With lazyConnect + a disabled
-  // offline queue, the first command issued before the handshake completes
-  // would fail straight into the in-memory fallback while later reads hit the
-  // now-connected real Redis — so a session written at boot would "vanish".
-  // Connecting up front (localhost is ~ms, far faster than route compile)
-  // closes that race; if Redis is genuinely down, this rejects and commands
-  // still fall back to the in-memory map as before.
-  client.connect().catch(() => {});
+  // Still swallow the event itself (an unhandled 'error' would crash the
+  // process), but no longer silently.
+  client.on("error", (err) => logState("error", err));
+  client.on("close", () => logState("closed"));
+  client.on("reconnecting", () => logState("reconnecting"));
+  client.on("ready", () => logState("ready"));
+
+  // Eagerly open the connection at startup. If Redis is genuinely down this
+  // rejects and commands fall back to the in-memory map as before.
+  connectSettled = client.connect().then(() => {}, () => {});
+}
+
+/**
+ * Await the initial handshake before issuing a command.
+ *
+ * Bounded: a Redis that never comes up must not hold requests open. After the
+ * first settle this is an already-resolved promise, so the cost is one
+ * microtask.
+ */
+async function ready(): Promise<void> {
+  try {
+    await Promise.race([
+      connectSettled,
+      new Promise<void>((resolve) => setTimeout(resolve, 2000).unref?.()),
+    ]);
+  } catch { /* fall through to the command, which will use the fallback */ }
 }
 
 // The fallback is per-process, so a write that lands there is invisible to a
@@ -106,6 +146,7 @@ function logFallback(op: string, err: unknown) {
 export const redis = {
   async get(key: string): Promise<string | null> {
     try {
+      await ready();
       return await client.get(key);
     } catch (err) {
       logFallback("GET", err);
@@ -114,6 +155,7 @@ export const redis = {
   },
   async set(key: string, value: string, ex?: "EX", ttl?: number): Promise<void> {
     try {
+      await ready();
       if (ex === "EX" && ttl) await client.set(key, value, "EX", ttl);
       else await client.set(key, value);
     } catch (err) {
@@ -123,6 +165,7 @@ export const redis = {
   },
   async del(key: string): Promise<void> {
     try {
+      await ready();
       await client.del(key);
     } catch (err) {
       logFallback("DEL", err);
@@ -137,6 +180,7 @@ export const redis = {
    */
   async incrWithExpire(key: string, ttlSeconds: number): Promise<number> {
     try {
+      await ready();
       const count = await client.incr(key);
       if (count === 1) await client.expire(key, ttlSeconds);
       return count;
@@ -151,6 +195,7 @@ export const redis = {
   // degrades metrics rather than breaking the pipeline that emits them.
   async lpush(key: string, value: string): Promise<void> {
     try {
+      await ready();
       await client.lpush(key, value);
     } catch (err) {
       logFallback("LPUSH", err);
@@ -159,8 +204,31 @@ export const redis = {
       listFallback.set(key, list);
     }
   },
+  /**
+   * Push onto a capped ring buffer in ONE round trip.
+   *
+   * LPUSH + LTRIM + EXPIRE as three separate awaits costs three round trips
+   * and three commands per sample, which on a metered/remote Redis is three
+   * times the load for no benefit — they always occur together.
+   */
+  async pipelineRingPush(key: string, value: string, maxLen: number, ttlSeconds: number): Promise<void> {
+    try {
+      await ready();
+      await client.pipeline()
+        .lpush(key, value)
+        .ltrim(key, 0, maxLen - 1)
+        .expire(key, ttlSeconds)
+        .exec();
+    } catch (err) {
+      logFallback("PIPELINE", err);
+      const list = listFallback.get(key) ?? [];
+      list.unshift(value);
+      listFallback.set(key, list.slice(0, maxLen));
+    }
+  },
   async ltrim(key: string, start: number, stop: number): Promise<void> {
     try {
+      await ready();
       await client.ltrim(key, start, stop);
     } catch (err) {
       logFallback("LTRIM", err);
@@ -170,6 +238,7 @@ export const redis = {
   },
   async lrange(key: string, start: number, stop: number): Promise<string[]> {
     try {
+      await ready();
       return await client.lrange(key, start, stop);
     } catch (err) {
       logFallback("LRANGE", err);
@@ -178,6 +247,7 @@ export const redis = {
   },
   async expire(key: string, ttlSeconds: number): Promise<void> {
     try {
+      await ready();
       await client.expire(key, ttlSeconds);
     } catch (err) {
       logFallback("EXPIRE", err);
