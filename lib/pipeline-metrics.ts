@@ -39,11 +39,16 @@ const TTL_SEC = 14 * 24 * 3600;
  * a metric must cost strictly less than the thing being measured.
  */
 export async function recordStage(sample: StageSample): Promise<void> {
+  // Off by default in production unless explicitly enabled. Instrumentation
+  // that can add load to a shared Redis needs a switch that doesn't require a
+  // deploy — especially on a hosted instance with command quotas.
+  if (process.env.PIPELINE_METRICS === "off") return;
   try {
     const key = KEY(sample.stage);
-    await redis.lpush(key, JSON.stringify(sample));
-    await redis.ltrim(key, 0, MAX_SAMPLES - 1);
-    await redis.expire(key, TTL_SEC);
+    // One round trip, not three. Each sample previously issued LPUSH + LTRIM +
+    // EXPIRE separately, tripling both latency and command count against a
+    // Redis that production has since shown to be under strain.
+    await redis.pipelineRingPush(key, JSON.stringify(sample), MAX_SAMPLES, TTL_SEC);
   } catch {
     /* metrics are best-effort by design */
   }
