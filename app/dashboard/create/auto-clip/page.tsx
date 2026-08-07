@@ -74,6 +74,8 @@ const STEPS = [
   { id: "review", label: "Review" },
 ];
 
+type SortKey = "score" | "order" | "duration";
+
 const WARNING_COPY: Record<string, string> = {
   transcription_failed: "Transcription failed for this video — clip selection, titles, and captions may be lower quality than usual.",
   reframe_unavailable: "Automatic speaker tracking isn't available for this video — clips use a centered crop instead of following the speaker.",
@@ -122,6 +124,11 @@ function RerenderCostNote({ clip }: { clip: ClipItem }) {
   );
 }
 interface ProjectMeta { status: string; warnings: string[] | null; failureReason: string | null; captionStyleIndex: number | null; uploadedVideoUrl: string | null }
+interface CostEstimate {
+  clipCount: number; totalDurationSec: number;
+  gross: number; analysisCredit: number; total: number;
+  balance: number; sufficient: boolean;
+}
 
 function fmtTime(sec: number): string {
   const s = Math.max(0, Math.round(sec));
@@ -308,6 +315,25 @@ function ReviewPanel({ projectId, clips, uploadedVideoUrl, onConfirmed }: { proj
 
   const keptCount = Object.values(edits).filter((e) => e.keep).length;
 
+  // Live cost, recomputed as clips are toggled and trimmed. Debounced because
+  // dragging a duration field would otherwise fire a request per keystroke.
+  const [estimate, setEstimate] = useState<CostEstimate | null>(null);
+  useEffect(() => {
+    if (clips.length === 0 || Object.keys(edits).length === 0) return;
+    const payload = clips.filter((c) => edits[c.id]).map((c) => ({ id: c.id, ...edits[c.id] }));
+    if (payload.length === 0) return;
+
+    const timer = setTimeout(() => {
+      apiFetch<CostEstimate>(`/api/projects/${projectId}/clips/estimate`, {
+        method: "POST",
+        body: JSON.stringify({ clips: payload }),
+      })
+        .then(setEstimate)
+        .catch(() => { /* the estimate is informational; Confirm remains authoritative */ });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [clips, edits, projectId]);
+
   async function handleConfirm() {
     setSubmitting(true);
     setError(null);
@@ -339,12 +365,41 @@ function ReviewPanel({ projectId, clips, uploadedVideoUrl, onConfirmed }: { proj
         ) : null)}
       </div>
       {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+
+      {/* The price, before committing to it. */}
+      {estimate && keptCount > 0 && (
+        <div className="mb-4 rounded-xl border border-card-border bg-white p-4 max-w-sm">
+          <div className="flex justify-between text-sm">
+            <span className="text-ink-soft">{estimate.clipCount} clip{estimate.clipCount === 1 ? "" : "s"} · {fmtTime(estimate.totalDurationSec)}</span>
+            <span className="text-ink font-medium">{estimate.gross} credit{estimate.gross === 1 ? "" : "s"}</span>
+          </div>
+          {estimate.analysisCredit > 0 && (
+            <div className="flex justify-between text-sm mt-1.5">
+              <span className="text-ink-soft">Analysis already paid</span>
+              <span className="text-green-700 font-medium">−{estimate.analysisCredit}</span>
+            </div>
+          )}
+          <div className="h-px bg-card-border my-2.5" />
+          <div className="flex justify-between text-sm font-semibold">
+            <span className="text-ink">You&apos;ll be charged</span>
+            <span className="text-ink">{estimate.total} credit{estimate.total === 1 ? "" : "s"}</span>
+          </div>
+          <p className={`text-xs mt-1.5 ${estimate.sufficient ? "text-ink-soft" : "text-red-600"}`}>
+            {estimate.sufficient
+              ? `Balance after: ${estimate.balance - estimate.total}`
+              : `You have ${estimate.balance} — ${estimate.total - estimate.balance} more needed.`}
+          </p>
+        </div>
+      )}
+
       <button
         onClick={handleConfirm}
         disabled={submitting || keptCount === 0}
         className="inline-flex items-center gap-2 grad-brand shadow-glow hover:shadow-glow-hover hover:brightness-105 text-white text-sm font-semibold px-6 py-3 rounded-xl transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        <IcSparkle /> {submitting ? "Starting render…" : `Confirm & Render ${keptCount} clip${keptCount === 1 ? "" : "s"}`}
+        <IcSparkle /> {submitting
+          ? "Starting render…"
+          : `Confirm & Render ${keptCount} clip${keptCount === 1 ? "" : "s"}${estimate ? ` · ${estimate.total} credit${estimate.total === 1 ? "" : "s"}` : ""}`}
       </button>
     </div>
   );
@@ -728,6 +783,25 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [projectId, tick]);
 
+  // The API already orders by score; this lets the user override that without
+  // a refetch. Scoring only pays off if the ranking is visible and adjustable.
+  const [sort, setSort] = useState<SortKey>("score");
+
+  // Elapsed time on this results screen, for the analysis stage list.
+  const [elapsedSec, setElapsedSec] = useState(0);
+  useEffect(() => {
+    const started = Date.now();
+    const t = setInterval(() => setElapsedSec(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const readyClips = clips.filter((c) => c.status === "ready" && c.videoUrl);
+  const sortedClips = [...clips].sort((a, b) => {
+    if (sort === "order") return a.index - b.index;
+    if (sort === "duration") return b.durationSec - a.durationSec;
+    return (b.score ?? -1) - (a.score ?? -1);
+  });
+
   const projectStatus = project.status;
   const ready = clips.filter((c) => c.status === "ready").length;
   const total = clips.length || expectedCount;
@@ -752,6 +826,16 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
   else if (pendingReview) heading = "Review your clips";
   else if (allDone) heading = "Your clips are ready 🎉";
   else heading = "Generating your clips";
+
+  // A long analysis behind a single spinner reads as broken. The pipeline
+  // genuinely has these stages, so showing them (with elapsed time) turns a
+  // silent wait into visible progress.
+  const ANALYSIS_STAGES = [
+    "Transcribing the audio",
+    "Finding the strongest moments",
+    "Tracking who's speaking",
+    "Measuring pace and emphasis",
+  ];
 
   return (
     <div className="px-4 md:px-8 py-6 max-w-6xl w-full mx-auto">
@@ -781,17 +865,70 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
             {project.failureReason ?? error ?? "We couldn't generate clips from this video. Please try again."}
           </p>
         )}
+        {analyzing && !failedHard && (
+          <div className="mt-4 rounded-xl border border-card-border bg-white p-4 max-w-md">
+            <ul className="space-y-2">
+              {ANALYSIS_STAGES.map((label, i) => {
+                // Elapsed time is the only honest signal available here — the
+                // worker doesn't report which stage it's on — so stages are
+                // paced rather than claimed as precise.
+                const reached = elapsedSec > i * 25;
+                const current = reached && elapsedSec <= (i + 1) * 25;
+                return (
+                  <li key={label} className="flex items-center gap-2.5 text-sm">
+                    <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] shrink-0 ${
+                      current ? "bg-brand text-white" : reached ? "bg-green-500 text-white" : "bg-gray-200"
+                    }`}>
+                      {reached && !current ? "✓" : ""}
+                    </span>
+                    <span className={reached ? "text-ink font-medium" : "text-ink-soft"}>{label}</span>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="text-xs text-ink-soft mt-3">
+              {elapsedSec < 60 ? `${elapsedSec}s elapsed` : `${Math.floor(elapsedSec / 60)}m ${elapsedSec % 60}s elapsed`}
+              {" · longer videos take longer — you can leave this page and come back."}
+            </p>
+          </div>
+        )}
         <div className="mt-3"><WarningsBanner warnings={project.warnings} /></div>
       </div>
 
       {pendingReview && projectId ? (
         <ReviewPanel projectId={projectId} clips={clips} uploadedVideoUrl={project.uploadedVideoUrl} onConfirmed={tick} />
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {clips.length > 0
-            ? clips.map((c) => <ClipCard key={c.id} projectId={projectId!} clip={c} onChanged={tick} onSelect={setSelectedClip} />)
-            : !failedHard && Array.from({ length: Math.max(1, expectedCount) }).map((_, i) => <SkeletonCard key={i} />)}
-        </div>
+        <>
+          {readyClips.length > 1 && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <label htmlFor="clip-sort" className="text-xs font-semibold text-ink-soft">Sort</label>
+                <select
+                  id="clip-sort"
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value as SortKey)}
+                  className="rounded-lg border border-card-border bg-white px-2.5 py-1.5 text-xs font-medium text-ink"
+                >
+                  <option value="score">Highest score</option>
+                  <option value="order">Order in video</option>
+                  <option value="duration">Longest first</option>
+                </select>
+              </div>
+              {/* Downloading 20 clips one at a time was the actual workflow before this. */}
+              <a
+                href={`/api/projects/${projectId}/clips/download-all`}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors"
+              >
+                Download all ({readyClips.length})
+              </a>
+            </div>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {sortedClips.length > 0
+              ? sortedClips.map((c) => <ClipCard key={c.id} projectId={projectId!} clip={c} onChanged={tick} onSelect={setSelectedClip} />)
+              : !failedHard && Array.from({ length: Math.max(1, expectedCount) }).map((_, i) => <SkeletonCard key={i} />)}
+          </div>
+        </>
       )}
 
       {selectedClip && (

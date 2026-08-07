@@ -30,6 +30,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { withRetry } from "@/lib/with-retry";
 import { NonRetryableError } from "@/lib/render-queue";
 import { logger } from "@/lib/logger";
+import { timeStage } from "@/lib/pipeline-metrics";
 import { env } from "@/lib/env";
 import { FILTER_PRESETS, type FilterPreset } from "@/lib/editor/types";
 import {
@@ -611,7 +612,7 @@ export async function pickJob(payload: PickPayload): Promise<void> {
   let analysisCharged = 0;
 
   try {
-    await downloadFile(project.uploadedVideoUrl, videoPath);
+    await timeStage("download", () => downloadFile(project.uploadedVideoUrl!, videoPath));
     const durationSec = await getMediaDurationSec(videoPath);
     if (durationSec < minDuration) {
       // Non-retryable: the video will still be too short on attempt 2 and 3,
@@ -671,13 +672,22 @@ export async function pickJob(payload: PickPayload): Promise<void> {
     let sttFailed = false;
     try {
       await extractAudio(videoPath, audioPath);
-      wordTimings = await transcribe(fs.readFileSync(audioPath)); // retries internally + falls back to Whisper, see lib/transcription.ts
+      // retries internally + falls back to Whisper, see lib/transcription.ts
+      wordTimings = await timeStage(
+        "transcribe",
+        () => transcribe(fs.readFileSync(audioPath)),
+        { meta: { sourceMin: Math.round(durationSec / 60) } },
+      );
     } catch (err) {
       sttFailed = true;
       logger.warn("auto-clip", "transcription failed, Gemini will work without transcript", err);
     }
 
-    const segments = await selectClips(wordTimings, durationSec, clipCount, minDuration, maxDuration, instructions);
+    const segments = await timeStage(
+      "select",
+      () => selectClips(wordTimings, durationSec, clipCount, minDuration, maxDuration, instructions),
+      { meta: { sourceMin: Math.round(durationSec / 60), clipCount } },
+    );
     if (segments.length === 0) throw new Error("Gemini returned no valid clip segments");
 
     // Faces are only needed from here on (computeStoredCrop below) — by now
@@ -1201,7 +1211,13 @@ async function renderOneClip(
   watermark = false,
   target: RenderTarget = "cpu",
 ): Promise<{ ok: boolean }> {
-  const tmp = os.tmpdir();
+  // Each render gets its own directory rather than sharing os.tmpdir(). Two
+  // reasons: concurrent clips (the pool added in P1.4) can no longer collide
+  // on a filename, and a worker killed mid-render leaks one directory that is
+  // trivially identifiable and sweepable — previously it leaked loose
+  // multi-gigabyte files into the shared temp root with no way to tell them
+  // apart from anything else's.
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), `autoclip-${clip.id}-`));
   const clipPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}.mp4`);
   const thumbPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}.jpg`);
   const assPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}.ass`);
@@ -1209,8 +1225,6 @@ async function renderOneClip(
   const scriptPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}.filter`);
   const litePath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}-lite.mp4`);
   const musicPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}-music.mp3`);
-  // Extra B-roll files beyond the first, tracked so cleanup covers them.
-  const brollExtraPaths: string[] = [];
 
   try {
     await prisma.clip.update({ where: { id: clip.id }, data: { status: "rendering", progress: 5 } });
@@ -1382,7 +1396,6 @@ async function renderOneClip(
       try {
         await downloadFile(w.url, dest);
         readyWindows.push({ startSec: w.startSec, endSec: w.endSec, path: dest });
-        brollExtraPaths.push(dest);
       } catch (err) {
         logger.warn("auto-clip", `B-roll window ${i} failed for clip ${clip.index}, skipping it`, err);
       }
@@ -1444,11 +1457,17 @@ async function renderOneClip(
     // length limit on long clips; spill it to a file when that happens.
     ffmpegArgs = maybeUseFilterScript(ffmpegArgs, scriptPath);
 
-    await runFFmpegWithProgress(
-      ffmpegArgs,
-      (pct) => {
-        void prisma.clip.update({ where: { id: clip.id }, data: { progress: Math.round(5 + pct * 0.75) } }).catch(() => {});
-      },
+    await timeStage(
+      "render",
+      () => runFFmpegWithProgress(
+        ffmpegArgs,
+        (pct) => {
+          void prisma.clip.update({ where: { id: clip.id }, data: { progress: Math.round(5 + pct * 0.75) } }).catch(() => {});
+        },
+      ),
+      // `target` is what makes the CPU-vs-GPU comparison measurable rather
+      // than assumed — see gpu-service/README.md's ROI note.
+      { target, meta: { durationSec: Math.round(finalDurationSec), aspect, broll: brollReady } },
     );
 
     // Lite-editor pass: speed / fades / music bed over the finished clip.
@@ -1509,9 +1528,9 @@ async function renderOneClip(
     await prisma.clip.update({ where: { id: clip.id }, data: { status: "failed" } }).catch(() => {});
     return { ok: false };
   } finally {
-    for (const f of [clipPath, thumbPath, assPath, brollPath, scriptPath, litePath, musicPath, ...brollExtraPaths]) {
-      try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch {}
-    }
+    // One directory to remove, rather than a list of files to keep in sync
+    // with every new intermediate the renderer learns to produce.
+    try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
   }
 }
 
