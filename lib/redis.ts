@@ -69,6 +69,15 @@ const client =
     lazyConnect: true,
     enableOfflineQueue: false,
     connectTimeout: 5000,
+    // Force IPv4 DNS resolution. ioredis defaults to `family: 0`, which lets the
+    // resolver hand back an AAAA (IPv6) address for a dual-stack Upstash endpoint
+    // — and this Hostinger host has no working IPv6 egress, so that connection
+    // hangs until connectTimeout fires. That is a different failure from the
+    // cold-start handshake race the ready() gate below closes: here the socket
+    // never connects at all, so gating on the handshake can't help — every
+    // command still times out into the in-memory fallback. Same IPv6 dead-end
+    // that forces lib/prisma.ts onto the IPv4 Supabase pooler on this host.
+    family: 4,
   });
 
 if (process.env.NODE_ENV !== "production") globalForRedis.redis = client;
