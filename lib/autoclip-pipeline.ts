@@ -51,11 +51,12 @@ import {
   parseLiteEdits, planLitePass, speechRangesFromWords, type LiteEdits,
 } from "@/lib/autoclip-lite";
 import { computeDuckEnvelope, duckVolumeExpr } from "@/lib/audio-ducking";
+import { getCaptionTemplate, planEmoji } from "@/lib/caption-templates";
 import { buildCameraZoom, applyZoomToKeyframes, ZOOM_STRENGTH_MAX } from "@/lib/camera-motion";
 import { getFaceTimeline } from "@/lib/asd";
 import { loadFaceTimeline, saveFaceTimeline } from "@/lib/face-timeline-store";
 import { calibrateScore, getViralityWeights, type SubScores } from "@/lib/virality-score";
-import { computeBrollWindow, pickBroll } from "@/lib/broll";
+import { computeBrollWindow, pickBroll, planBrollWindows, type BrollCue } from "@/lib/broll";
 import { TARGET_RES } from "@/lib/reframe";
 import os from "os";
 import path from "path";
@@ -224,6 +225,8 @@ interface GeminiSegment {
   emphasisWordIndexes: number[];
   /** Raw words as returned by the model, before index resolution. */
   emphasisWords: string[];
+  /** Keyword-anchored B-roll suggestions, resolved to windows in pickJob. */
+  brollCues: BrollCue[];
 }
 
 /**
@@ -334,6 +337,7 @@ For each clip include:
 - "hashtags": array of 3-4 trending hashtags
 - "suggestedCaption": engaging, ready-to-use social caption
 - "emphasisWords": array of up to 6 short strings — the exact words IN THIS CLIP the speaker leans on or that carry the point. Copy them verbatim from the transcript, lowercase, no punctuation.
+- "brollCues": array of up to 3 objects [{"word":"city","query":"city skyline at night"}] — a concrete NOUN the speaker says that a stock shot could illustrate, paired with a 2-4 word search term. Copy "word" verbatim from the transcript. Return [] if the clip is better served by staying on the speaker.
 
 Rules:
 - Return exactly ${clipCount} clip(s)
@@ -382,6 +386,7 @@ ${sharedRules}`;
     hashtags?: string[];
     suggestedCaption?: string;
     emphasisWords?: string[];
+    brollCues?: { word?: string; query?: string }[];
   }>;
   const clampSub = (n: unknown) => Math.max(0, Math.min(99, Math.round(typeof n === "number" ? n : 50)));
 
@@ -413,6 +418,12 @@ ${sharedRules}`;
       // array indexes into a transcript it only saw as text is unreliable.
       emphasisWords: Array.isArray(c.emphasisWords) ? c.emphasisWords.map(String).slice(0, 6) : [],
       emphasisWordIndexes: [],
+      brollCues: Array.isArray(c.brollCues)
+        ? c.brollCues
+            .filter((q) => typeof q?.word === "string" && typeof q?.query === "string")
+            .map((q) => ({ word: String(q.word).slice(0, 40), query: String(q.query).slice(0, 60) }))
+            .slice(0, 3)
+        : [],
       };
     });
 
@@ -684,12 +695,30 @@ export async function pickJob(payload: PickPayload): Promise<void> {
 
     // Best-effort B-roll lookup (P2.3) — resolved up front (outside the
     // transaction) since it's a network call; never blocks or fails the pick.
+    // B-roll placement. Keyword cues are preferred: an insert that lands on
+    // the noun the speaker says reads as illustration, while one dropped at an
+    // arbitrary offset reads as the video losing its place. The old
+    // single-offset path remains as the fallback for when the model returns no
+    // usable cues.
     const brollPicks = await Promise.all(segments.map(async (seg) => {
+      const clipDuration = seg.end - seg.start;
+      const words = sliceWordsForClip(wordTimings, seg.start, seg.end);
+
+      const planned = planBrollWindows(seg.brollCues, words, clipDuration);
+      if (planned.length > 0) {
+        const resolved = await Promise.all(planned.map(async (p) => {
+          const found = await pickBroll(p.query);
+          return found ? { startSec: p.startSec, endSec: p.endSec, url: found.downloadUrl, query: p.query } : null;
+        }));
+        const usable = resolved.filter((w): w is NonNullable<typeof w> => w !== null);
+        if (usable.length > 0) return usable;
+      }
+
       if (!seg.brollQuery) return null;
-      const window = computeBrollWindow(seg.end - seg.start, seg.brollOffsetSec);
+      const window = computeBrollWindow(clipDuration, seg.brollOffsetSec);
       if (!window) return null;
       const broll = await pickBroll(seg.brollQuery);
-      return broll ? { ...window, url: broll.downloadUrl, query: seg.brollQuery } : null;
+      return broll ? [{ ...window, url: broll.downloadUrl, query: seg.brollQuery }] : null;
     }));
 
     // Speech signal tracks (P2.1) — loudness/pitch/energy envelopes, shot
@@ -773,9 +802,13 @@ export async function pickJob(payload: PickPayload): Promise<void> {
               trackingSpeed,
             } as unknown as Prisma.InputJsonValue,
             ...(cropKeyframes ? { cropKeyframes: cropKeyframes as unknown as Prisma.InputJsonValue } : {}),
-            ...(broll ? {
-              brollQuery: broll.query, brollUrl: broll.url,
-              brollStartSec: broll.startSec, brollEndSec: broll.endSec,
+            ...(broll && broll.length > 0 ? {
+              brollWindows: broll as unknown as Prisma.InputJsonValue,
+              // The single-window columns stay populated with the first insert
+              // so anything still reading them (older code paths, the results
+              // grid's "B-roll" badge) keeps working.
+              brollQuery: broll[0].query, brollUrl: broll[0].url,
+              brollStartSec: broll[0].startSec, brollEndSec: broll[0].endSec,
             } : {}),
           },
         });
@@ -829,6 +862,86 @@ export async function pickJob(payload: PickPayload): Promise<void> {
 // three are concatenated back into one continuous stream, so the clip's
 // overall duration and audio track are completely unaffected — captions
 // (burned in after the concat) need no re-slicing.
+export interface BrollWindow { startSec: number; endSec: number }
+
+/**
+ * Splice one or more B-roll windows into a clip.
+ *
+ * The crop is applied to the WHOLE clip before it is split, not to each
+ * segment after trimming. `trim` + `setpts=PTS-STARTPTS` rebases `t` to zero
+ * for each segment, so a time-varying crop applied afterwards would replay the
+ * start of the pan path in every later segment instead of continuing it. Doing
+ * the crop first keeps `t` clip-relative, which is the basis every crop
+ * keyframe is expressed in.
+ *
+ * Windows must be sorted and non-overlapping; the caller (lib/broll.ts's
+ * planBrollWindows) guarantees both.
+ */
+export function buildMultiBrollFilterComplex(
+  clipDurationSec: number,
+  windows: BrollWindow[],
+  aspect: Aspect,
+  moodFilter: string | null,
+  captionsFilter: string | null,
+  videoSrc = "[0:v]",
+  mainCropFilter?: string | null,
+): string {
+  const target = TARGET_RES[aspect];
+  const scaleToTarget = `scale=${target.w}:${target.h},setsar=1`;
+  const cropChain = `${mainCropFilter ?? aspectRatioFilter(aspect)},${scaleToTarget}`;
+
+  // Main-footage segments sit between the windows: one before the first, one
+  // after the last, and one in each gap.
+  const mainSpans: { start: number; end: number }[] = [];
+  let cursor = 0;
+  for (const w of windows) {
+    mainSpans.push({ start: cursor, end: w.startSec });
+    cursor = w.endSec;
+  }
+  mainSpans.push({ start: cursor, end: clipDurationSec });
+
+  // A zero-length span would produce an empty segment that breaks concat.
+  const usableMain = mainSpans.filter((s) => s.end - s.start > 0.04);
+
+  const parts: string[] = [];
+  parts.push(`${videoSrc}${cropChain}[mainraw]`);
+  parts.push(`[mainraw]split=${usableMain.length}${usableMain.map((_, i) => `[m${i}]`).join("")}`);
+
+  const order: string[] = [];
+  let mainIdx = 0;
+  const emitMain = (span: { start: number; end: number }) => {
+    const label = `[vm${mainIdx}]`;
+    parts.push(`[m${mainIdx}]trim=start=${span.start}:end=${span.end},setpts=PTS-STARTPTS${label}`);
+    order.push(label);
+    mainIdx++;
+  };
+
+  let spanCursor = 0;
+  for (const [i, w] of windows.entries()) {
+    const before = mainSpans[i];
+    if (before.end - before.start > 0.04) emitMain(usableMain[spanCursor++] ?? before);
+    const label = `[vb${i}]`;
+    const dur = w.endSec - w.startSec;
+    // Each B-roll clip is its own input, cover-scaled to the target frame.
+    parts.push(
+      `[${i + 1}:v]scale=${target.w}:${target.h}:force_original_aspect_ratio=increase,` +
+      `crop=${target.w}:${target.h},setsar=1,trim=0:${dur},setpts=PTS-STARTPTS${label}`,
+    );
+    order.push(label);
+  }
+  const tail = mainSpans[mainSpans.length - 1];
+  if (tail.end - tail.start > 0.04) emitMain(usableMain[spanCursor++] ?? tail);
+
+  const postConcat = [moodFilter, captionsFilter].filter((f): f is string => !!f);
+  const concat = `${order.join("")}concat=n=${order.length}:v=1:a=0`;
+  parts.push(postConcat.length > 0
+    ? `${concat}[vconcatraw];[vconcatraw]${postConcat.join(",")}[video]`
+    : `${concat}[video]`);
+
+  return parts.join(";");
+}
+
+/** Single-window convenience wrapper, kept for the common case. */
 export function buildBrollFilterComplex(
   clipDurationSec: number,
   brollStartSec: number,
@@ -839,28 +952,11 @@ export function buildBrollFilterComplex(
   videoSrc = "[0:v]",
   mainCropFilter?: string | null,
 ): string {
-  const brollDur = brollEndSec - brollStartSec;
-  const target = TARGET_RES[aspect];
-  const scaleToTarget = `scale=${target.w}:${target.h},setsar=1`;
-
-  // The crop is applied to the WHOLE clip before it is split, not to each
-  // segment after trimming. `trim` + `setpts=PTS-STARTPTS` rebases `t` to zero
-  // for each segment, so a time-varying crop applied afterwards would replay
-  // the start of the pan path during segment C instead of continuing it. Doing
-  // the crop first keeps `t` clip-relative, which is the basis every crop
-  // keyframe is expressed in.
-  const cropChain = `${mainCropFilter ?? aspectRatioFilter(aspect)},${scaleToTarget}`;
-  const prepared = `${videoSrc}${cropChain}[mainraw];[mainraw]split=2[m1][m2]`;
-
-  const segA = `[m1]trim=start=0:end=${brollStartSec},setpts=PTS-STARTPTS[va]`;
-  const segB = `[1:v]scale=${target.w}:${target.h}:force_original_aspect_ratio=increase,crop=${target.w}:${target.h},setsar=1,trim=0:${brollDur},setpts=PTS-STARTPTS[vb]`;
-  const segC = `[m2]trim=start=${brollEndSec}:end=${clipDurationSec},setpts=PTS-STARTPTS[vc]`;
-
-  const postConcat = [moodFilter, captionsFilter].filter((f): f is string => !!f);
-  const concatChain = postConcat.length > 0
-    ? `[va][vb][vc]concat=n=3:v=1:a=0[vconcatraw];[vconcatraw]${postConcat.join(",")}[video]`
-    : `[va][vb][vc]concat=n=3:v=1:a=0[video]`;
-  return `${prepared};${segA};${segB};${segC};${concatChain}`;
+  return buildMultiBrollFilterComplex(
+    clipDurationSec,
+    [{ startSec: brollStartSec, endSec: brollEndSec }],
+    aspect, moodFilter, captionsFilter, videoSrc, mainCropFilter,
+  );
 }
 
 interface CutSegment { startMs: number; endMs: number }
@@ -1113,6 +1209,8 @@ async function renderOneClip(
   const scriptPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}.filter`);
   const litePath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}-lite.mp4`);
   const musicPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}-music.mp3`);
+  // Extra B-roll files beyond the first, tracked so cleanup covers them.
+  const brollExtraPaths: string[] = [];
 
   try {
     await prisma.clip.update({ where: { id: clip.id }, data: { status: "rendering", progress: 5 } });
@@ -1235,6 +1333,12 @@ async function renderOneClip(
       // Caption animation reads the SAME energy envelope the camera does, so
       // the two agree about where the emphasis is instead of each reacting on
       // its own — that disagreement is what makes auto-captions look amateur.
+      // A caption template, if one is chosen, supplies the look AND whether
+      // emoji/keyword colouring apply — one named decision instead of a dozen
+      // colour pickers.
+      const template = getCaptionTemplate((clip.subtitleStyleOverride as Record<string, unknown> | null)?.templateId as string | undefined);
+      if (template) style = { ...template.style, ...customStyle };
+
       if (signal && signal.energy?.length > 0) {
         style = {
           ...style,
@@ -1242,6 +1346,8 @@ async function renderOneClip(
             energy: words.map((w) => sampleAt(signal.energy, w.start / 1000, signal.hz)),
             emphasis: signal.emphasis ?? [],
             wordsPerSec: signal.wordsPerSec,
+            emoji: planEmoji(words, template?.emoji ?? false),
+            keywordColor: template?.keywordColor,
           },
         };
       }
@@ -1261,17 +1367,27 @@ async function renderOneClip(
       aselectFilter = `aselect='${parts.join("+")}',asetpts=PTS-STARTPTS`;
     }
 
-    // B-roll download is best-effort — a transient failure here falls
-    // through to the normal crop path below rather than failing the clip.
-    let brollReady = false;
-    if (clip.brollUrl && clip.brollStartSec != null && clip.brollEndSec != null) {
+    // B-roll downloads are best-effort: any window that fails is dropped and
+    // the clip renders with whatever succeeded (or none at all), rather than
+    // failing over a stock clip.
+    const plannedWindows: { startSec: number; endSec: number; url: string }[] =
+      (clip.brollWindows as unknown as { startSec: number; endSec: number; url: string }[] | null)
+      ?? (clip.brollUrl && clip.brollStartSec != null && clip.brollEndSec != null
+        ? [{ startSec: clip.brollStartSec, endSec: clip.brollEndSec, url: clip.brollUrl }]
+        : []);
+
+    const readyWindows: { startSec: number; endSec: number; path: string }[] = [];
+    for (const [i, w] of plannedWindows.entries()) {
+      const dest = i === 0 ? brollPath : `${brollPath}-${i}.mp4`;
       try {
-        await downloadFile(clip.brollUrl, brollPath);
-        brollReady = true;
+        await downloadFile(w.url, dest);
+        readyWindows.push({ startSec: w.startSec, endSec: w.endSec, path: dest });
+        brollExtraPaths.push(dest);
       } catch (err) {
-        logger.warn("auto-clip", `B-roll download failed for clip ${clip.index}, rendering without it`, err);
+        logger.warn("auto-clip", `B-roll window ${i} failed for clip ${clip.index}, skipping it`, err);
       }
     }
+    const brollReady = readyWindows.length > 0;
 
     let ffmpegArgs: string[];
     const videoSrc = isTrimmed ? "[trimmedv]" : "[0:v]";
@@ -1282,18 +1398,28 @@ async function renderOneClip(
     const wmComplex = watermark ? `;[video]${watermarkFilterChain()}[videowm]` : "";
     const videoMap = watermark ? "[videowm]" : "[video]";
 
-    if (brollReady && clip.brollStartSec != null && clip.brollEndSec != null) {
-      const brollStartSecShifted = isTrimmed ? shiftTime(clip.brollStartSec * 1000, keeps) / 1000 : clip.brollStartSec;
-      const brollEndSecShifted = isTrimmed ? shiftTime(clip.brollEndSec * 1000, keeps) / 1000 : clip.brollEndSec;
+    if (brollReady) {
+      // Silence removal shifts the clip's timeline, so the windows move with it.
+      const shifted = readyWindows
+        .map((w) => ({
+          ...w,
+          startSec: isTrimmed ? shiftTime(w.startSec * 1000, keeps) / 1000 : w.startSec,
+          endSec: isTrimmed ? shiftTime(w.endSec * 1000, keeps) / 1000 : w.endSec,
+        }))
+        .filter((w) => w.endSec > w.startSec && w.startSec < finalDurationSec)
+        .sort((a, b) => a.startSec - b.startSec);
 
       // Speaker tracking now survives a B-roll splice (P2.6).
       const brollKeyframes = stored?.mode === "single" && stored.keyframes.length > 1 ? stored.keyframes : null;
-      const complex = prepends + buildBrollFilterComplex(
-        finalDurationSec, brollStartSecShifted, brollEndSecShifted, aspect, moodFilter, captionsFilter, videoSrc,
+      const complex = prepends + buildMultiBrollFilterComplex(
+        finalDurationSec, shifted, aspect, moodFilter, captionsFilter, videoSrc,
         brollKeyframes ? buildDynamicCropFilter(brollKeyframes, aspect) : null,
       ) + wmComplex;
       ffmpegArgs = [
-        ...baseArgs, "-stream_loop", "-1", "-i", brollPath,
+        ...baseArgs,
+        // Each window is its own input, looped so a short stock clip still
+        // covers its window.
+        ...shifted.flatMap((w) => ["-stream_loop", "-1", "-i", w.path]),
         "-filter_complex", complex, "-map", videoMap, "-map", audioSrc,
         ...outputArgs, "-shortest", clipPath,
       ];
@@ -1383,7 +1509,7 @@ async function renderOneClip(
     await prisma.clip.update({ where: { id: clip.id }, data: { status: "failed" } }).catch(() => {});
     return { ok: false };
   } finally {
-    for (const f of [clipPath, thumbPath, assPath, brollPath, scriptPath, litePath, musicPath]) {
+    for (const f of [clipPath, thumbPath, assPath, brollPath, scriptPath, litePath, musicPath, ...brollExtraPaths]) {
       try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch {}
     }
   }
@@ -1561,7 +1687,7 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
         // Re-render reuses the clip's persisted signal track, so the emphasis
         // the model originally found is already baked into it — nothing to
         // re-derive here.
-        emphasisWords: [], emphasisWordIndexes: [],
+        emphasisWords: [], emphasisWordIndexes: [], brollCues: [],
       };
 
       const cropKeyframes = clip.brollUrl ? null : computeStoredCrop(allFaces, dummySeg, clip.aspectRatio as Aspect, srcW, srcH, {

@@ -121,9 +121,9 @@ describe("getAutoClipPricing", () => {
 describe("buildBrollFilterComplex", () => {
   it("builds three labeled segments (main, broll, main) plus a concat", () => {
     const fc = buildBrollFilterComplex(10, 3, 5.5, "9:16", null, null);
-    expect(fc).toContain("[va]");
-    expect(fc).toContain("[vb]");
-    expect(fc).toContain("[vc]");
+    expect(fc).toContain("[vm0]"); // main before the insert
+    expect(fc).toContain("[vb0]"); // the B-roll itself
+    expect(fc).toContain("[vm1]"); // main after it
     expect(fc).toContain("concat=n=3:v=1:a=0");
     expect(fc).toContain("[video]");
   });
@@ -158,10 +158,10 @@ describe("buildBrollFilterComplex", () => {
   it("crops once up front and splits, rather than cropping each main segment", () => {
     const fc = buildBrollFilterComplex(10, 3, 5.5, "16:9", null, null);
     expect((fc.match(/crop=in_w:in_w\*9\/16/g) ?? []).length).toBe(1);
-    expect(fc).toContain("split=2[m1][m2]");
+    expect(fc).toContain("split=2[m0][m1]");
     // Both main segments are trimmed from the already-cropped stream.
-    expect(fc).toContain("[m1]trim=start=0");
-    expect(fc).toContain("[m2]trim=start=5.5");
+    expect(fc).toContain("[m0]trim=start=0");
+    expect(fc).toContain("[m1]trim=start=5.5");
   });
 
   // Regression for P2.6: a 2.5s stock insert used to cost the whole clip its

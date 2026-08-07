@@ -8,10 +8,8 @@ import { downloadFile } from "@/utils/download";
 import { runFFmpegArgs, styleIndexToSubtitleStyle, generateASS } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { startDubbing, getDubbingStatus, getDubbedAudio } from "@/utils/elevenlabs";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { withRetry } from "@/lib/with-retry";
+import { translateTranscript } from "@/lib/caption-translate";
 import { logger } from "@/lib/logger";
-import { env } from "@/lib/env";
 import type { WordTiming } from "@/utils/elevenlabs";
 import type { SubtitleStyle } from "@/utils/ffmpeg-render";
 import os from "os";
@@ -25,37 +23,10 @@ export const DUB_CREDIT_COST = 1;
 const MAX_POLL_MS = 10 * 60 * 1000;
 const POLL_INTERVAL_MS = 5000;
 
-const LANG_MAP: Record<string, string> = {
-  bg: "Bulgarian", zh: "Chinese", hr: "Croatian", cs: "Czech", da: "Danish",
-  nl: "Dutch", en: "English", fi: "Finnish", fr: "French", de: "German",
-  el: "Greek", hi: "Hindi", hu: "Hungarian", id: "Indonesian", it: "Italian",
-  ja: "Japanese", ko: "Korean", ms: "Malay", pl: "Polish", pt: "Portuguese",
-  ro: "Romanian", ru: "Russian", sk: "Slovak", es: "Spanish", sv: "Swedish",
-  tr: "Turkish", uk: "Ukrainian", vi: "Vietnamese"
-};
-
-async function translateTranscript(words: WordTiming[], targetLang: string): Promise<WordTiming[]> {
-  if (words.length === 0) return [];
-  const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY!);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-  const targetLangName = LANG_MAP[targetLang] ?? targetLang;
-  const inputData = words.map((w) => ({ word: w.word, start: w.start, end: w.end }));
-  const prompt = `You are a professional video translator. Translate this list of words with timestamps into ${targetLangName}.
-You MUST preserve the timeline structure. Maintain the timing constraints so the translated words align correctly with the audio.
-Return ONLY a valid JSON array of objects with the exact same keys: [{"word": "translated_word", "start": start_ms, "end": end_ms}].
-Do not include any explanation or markdown block wrappers.
-
-Input JSON:
-${JSON.stringify(inputData)}`;
-
-  const result = await withRetry((signal) => model.generateContent(prompt, { signal }), { timeoutMs: 30_000 });
-  const text = result.response.text().trim();
-  const jsonMatch = text.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) throw new Error("Gemini returned no JSON array for translation");
-  const translated = JSON.parse(jsonMatch[0]) as WordTiming[];
-  return translated;
-}
+// Transcript translation lives in lib/caption-translate.ts. It used to be
+// private to this file, which meant subtitles in another language could only
+// be had by also paying for a dubbed voice track — and gave the codebase a
+// third, unreconciled language list.
 
 export async function dubJob(payload: DubPayload): Promise<void> {
   const { clipDubId } = payload;

@@ -440,6 +440,10 @@ model Clip {
   brollUrl              String?
   brollStartSec         Float?
   brollEndSec           Float?
+  // Keyword-driven B-roll: up to a few inserts per clip, each landing on the
+  // word the speaker actually says. [{startSec, endSec, url, query}]. The
+  // single brollUrl fields above remain for clips picked before this existed.
+  brollWindows          Json?
   createdAt             DateTime      @default(now())
   subtitleStyleOverride Json?
   silenceSettings       Json?

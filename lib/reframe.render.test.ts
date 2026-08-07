@@ -23,7 +23,7 @@ import {
   buildDynamicCropFilter, buildZoomEnvelope, computeCropKeyframesForClip,
   TARGET_RES, type CropKeyframe, type FaceBox,
 } from "./reframe";
-import { buildBrollFilterComplex } from "./autoclip-pipeline";
+import { buildBrollFilterComplex, buildMultiBrollFilterComplex } from "./autoclip-pipeline";
 
 function ffmpegBin(): string | null {
   const bin = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
@@ -188,6 +188,37 @@ d("production keyframe path — executed through ffmpeg", () => {
       "-hide_banner",
       "-f", "lavfi", "-i", STATIC_GRADIENT,
       // Stand-in for the B-roll input.
+      "-f", "lavfi", "-i", "testsrc=s=320x180:r=30:d=1",
+      "-filter_complex", complex, "-map", "[video]", "-frames:v", "20", "-f", "null", "-",
+    ]);
+    expect(code, stderr.slice(-2500)).toBe(0);
+  });
+
+  // Multi-window B-roll: N inserts means 2N+1 concat segments and an N+1-way
+  // split. Off-by-one errors there produce an ffmpeg error, not a wrong
+  // picture, so executing it is the only assertion worth making.
+  it("renders two B-roll windows in one clip", () => {
+    const complex = buildMultiBrollFilterComplex(
+      2,
+      [{ startSec: 0.4, endSec: 0.7 }, { startSec: 1.2, endSec: 1.5 }],
+      "9:16", null, null,
+    );
+    const { code, stderr } = run([
+      "-hide_banner",
+      "-f", "lavfi", "-i", "nullsrc=s=640x360:r=30:d=2,format=gray,geq=lum='X/W*255'",
+      "-f", "lavfi", "-i", "testsrc=s=320x180:r=30:d=1",
+      "-f", "lavfi", "-i", "testsrc2=s=320x180:r=30:d=1",
+      "-filter_complex", complex, "-map", "[video]", "-frames:v", "30", "-f", "null", "-",
+    ]);
+    expect(code, stderr.slice(-2500)).toBe(0);
+  });
+
+  it("renders a B-roll window that starts at the very beginning of a clip", () => {
+    // No leading main segment — the split must be sized accordingly.
+    const complex = buildMultiBrollFilterComplex(2, [{ startSec: 0, endSec: 0.5 }], "9:16", null, null);
+    const { code, stderr } = run([
+      "-hide_banner",
+      "-f", "lavfi", "-i", "nullsrc=s=640x360:r=30:d=2,format=gray,geq=lum='X/W*255'",
       "-f", "lavfi", "-i", "testsrc=s=320x180:r=30:d=1",
       "-filter_complex", complex, "-map", "[video]", "-frames:v", "20", "-f", "null", "-",
     ]);

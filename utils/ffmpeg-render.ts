@@ -128,6 +128,10 @@ export interface CaptionMotion {
   emphasis?: number[];
   /** Words per second, used to pick transition speed and line length. */
   wordsPerSec?: number;
+  /** Word index → emoji, from the caption template (lib/caption-templates.ts). */
+  emoji?: Record<number, string>;
+  /** ASS colour applied to emphasis words, when the template highlights them. */
+  keywordColor?: string;
 }
 
 // Readability constraints. These are limits, not preferences: past ~1.25x a
@@ -186,19 +190,28 @@ export function buildAnimatedEvents(
 
       // \t(t1,t2,tags) interpolates, which is what turns a step into a pop:
       // scale up over the transition, hold, then settle back.
+      // Emphasis words take the template's keyword colour when it defines one,
+      // so the thing the model identified as the point is also the thing that
+      // reads as the point.
+      const activeColor = isEmphasis && motion?.keywordColor ? motion.keywordColor : colors.highlight;
+
       const animate =
         `{${scaleTag(1.0)}\\t(0,${transitionMs},${scaleTag(peak)})` +
         `\\t(${transitionMs + holdMs},${transitionMs + holdMs + POP_OUT_MS},${scaleTag(BASE_WORD_SCALE)})` +
         // Glow only on genuinely high-energy words; used everywhere it reads
         // as a blurry font rather than emphasis.
         (energy > 0.7 || isEmphasis ? `\\blur2` : ``) +
-        `\\1c${colors.highlight}}`;
+        `\\1c${activeColor}}`;
 
       let lineText = "";
       for (let j = 0; j < group.length; j++) {
+        const wordIndex = i + j;
+        // Emoji ride along with their word so they inherit its animation and
+        // can never end up on a line of their own.
+        const suffix = motion?.emoji?.[wordIndex] ? ` ${motion.emoji[wordIndex]}` : "";
         lineText += j === k
-          ? `${animate}${group[j].word} `
-          : `{${scaleTag(1.0)}\\1c${colors.base}}${group[j].word} `;
+          ? `${animate}${group[j].word}${suffix} `
+          : `{${scaleTag(1.0)}\\1c${colors.base}}${group[j].word}${suffix} `;
       }
       events += `Dialogue: 0,${toASSTime(wordStart)},${toASSTime(wordEnd)},Default,,0,0,0,,${lineText.trim()}\n`;
     }

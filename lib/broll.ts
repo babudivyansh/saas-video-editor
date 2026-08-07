@@ -33,6 +33,74 @@ export function computeBrollWindow(clipDurationSec: number, brollOffsetSec?: num
   return { startSec: start, endSec: end };
 }
 
+// ── Keyword-driven placement ───────────────────────────────────────────────
+//
+// One LLM-guessed offset per clip was the old model. What "B-roll keywords"
+// actually means in this category is that the insert lands on the NOUN the
+// speaker says — the shot of a city appears as they say "city", not eight
+// seconds later. The model now returns visual cues tied to words, and this
+// resolves them to windows.
+
+export interface BrollCue {
+  /** The word that triggers the insert, verbatim from the transcript. */
+  word: string;
+  /** Stock search term for the visual. */
+  query: string;
+}
+
+export interface BrollPlacement {
+  startSec: number;
+  endSec: number;
+  query: string;
+}
+
+/** Minimum gap between inserts, so a clip doesn't become a slideshow. */
+const MIN_SPACING_SEC = 6;
+export const MAX_BROLL_WINDOWS = 3;
+
+/**
+ * Resolve keyword cues to non-overlapping windows on the clip's timeline.
+ *
+ * Placement rules exist because cutting away at the wrong moment is worse
+ * than not cutting away at all: never over the hook or the payoff, never
+ * back-to-back, and never so many that the speaker disappears from their own
+ * clip.
+ */
+export function planBrollWindows(
+  cues: BrollCue[],
+  words: { word: string; start: number; end: number }[],
+  clipDurationSec: number,
+  maxWindows = MAX_BROLL_WINDOWS,
+): BrollPlacement[] {
+  if (clipDurationSec < MIN_CLIP_FOR_BROLL_SEC || cues.length === 0 || words.length === 0) return [];
+
+  const margin = clipDurationSec * EDGE_MARGIN_FRAC;
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9']/g, "");
+  const used = new Set<number>();
+  const placements: BrollPlacement[] = [];
+
+  for (const cue of cues) {
+    if (placements.length >= maxWindows) break;
+    const target = norm(cue.word);
+    if (!target || !cue.query?.trim()) continue;
+
+    const idx = words.findIndex((w, i) => !used.has(i) && norm(w.word) === target);
+    if (idx < 0) continue;
+
+    // Start just after the word is spoken — cutting away ON the word hides
+    // the moment of recognition that makes the cut land.
+    const start = words[idx].end / 1000 + 0.15;
+    const end = start + BROLL_DURATION_SEC;
+    if (start < margin || end > clipDurationSec - margin) continue;
+    if (placements.some((p) => Math.abs(p.startSec - start) < MIN_SPACING_SEC)) continue;
+
+    used.add(idx);
+    placements.push({ startSec: start, endSec: end, query: cue.query.trim().slice(0, 60) });
+  }
+
+  return placements.sort((a, b) => a.startSec - b.startSec);
+}
+
 export async function pickBroll(query: string): Promise<{ downloadUrl: string } | null> {
   try {
     const results = await searchStockVideos(query, 1);

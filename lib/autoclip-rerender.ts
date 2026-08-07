@@ -54,6 +54,8 @@ export const rerenderRefId = (clipId: string, attempt: number) => `auto-clip-rer
 const assColor = z.string().regex(/^&H[0-9A-Fa-f]{2,8}$/, "expected an ASS colour like &H00FFFFFF");
 
 export const subtitleStyleOverrideSchema = z.object({
+  /** Named caption template (lib/caption-templates.ts); individual fields below still win. */
+  templateId: z.string().min(1).max(40).optional(),
   fontName: z.string().min(1).max(64).optional(),
   fontSize: z.number().int().min(8).max(300).optional(),
   highlightColor: assColor.optional(),
