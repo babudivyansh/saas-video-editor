@@ -4,76 +4,131 @@
 const fs = require('fs');
 const path = require('path');
 
-console.log('--- Running Custom Postbuild Asset Copy ---');
+// This script IS the static-asset deploy step on Hostinger (it copies the
+// freshly built chunks to the standalone server dir and to public_html, which
+// the hcdn CDN serves from). Its previous version wrapped every copy in a
+// try/catch that logged and CONTINUED — so a copy that failed or completed
+// partially (an OOM-killed build, a disk-quota stop, a locked file) still exited
+// 0 and shipped. The result seen in prod: the server's HTML referenced chunks
+// like `turbopack-*.js` that were never actually on disk, every one 404'd, the
+// client bundle never executed, and the whole dashboard sat frozen on skeletons.
+//
+// So the rule here is now: a static copy that is not provably complete FAILS the
+// build (exit 1). Better a red deploy than a live site that can't hydrate.
 
-// 1. Copy to standalone directory for Next.js server
-try {
-  const standalonePublic = '.next/standalone/public';
-  const standaloneStatic = '.next/standalone/.next/static';
-  
-  if (fs.existsSync('public')) {
-    fs.mkdirSync(standalonePublic, { recursive: true });
-    fs.cpSync('public', standalonePublic, { recursive: true, force: true });
-    console.log('✅ Copied public/ -> ' + standalonePublic);
-  }
-  
-  if (fs.existsSync('.next/static')) {
-    fs.mkdirSync(standaloneStatic, { recursive: true });
-    fs.cpSync('.next/static', standaloneStatic, { recursive: true, force: true });
-    console.log('✅ Copied .next/static/ -> ' + standaloneStatic);
-  }
-  
-  if (fs.existsSync('.env')) {
-    fs.copyFileSync('.env', '.next/standalone/.env');
-    console.log('✅ Copied .env -> .next/standalone/.env');
-  }
-} catch (err) {
-  console.error('⚠️ Error copying to standalone directory:', err.message);
-}
-
-// 2. Copy to public_html directory for Apache/Nginx direct serving
-const possiblePublicHtmlDirs = [
-  '/home/u154310472/domains/clipiro.com/public_html',
-  path.resolve(process.cwd(), '../public_html'),
-  path.resolve(process.cwd(), '../../public_html'),
-  path.resolve(process.cwd(), '../../../public_html'),
-  path.resolve(process.cwd(), '../public'), // sometimes mapped to '../public'
-];
-
-let copiedToPublicHtml = false;
-
-for (const p of possiblePublicHtmlDirs) {
-  try {
-    if (fs.existsSync(p)) {
-      // Avoid copying into our own local public folder
-      if (path.resolve(p) === path.resolve('public')) {
-        continue;
-      }
-      
-      console.log('🔍 Found target deployment folder at:', p);
-      
-      // Copy public/ content to public_html/
-      if (fs.existsSync('public')) {
-        fs.cpSync('public', p, { recursive: true, force: true });
-        console.log('✅ Copied public/ contents -> ' + p);
-      }
-      
-      // Copy .next/static/ to public_html/_next/static/
-      const nextStaticDst = path.join(p, '_next', 'static');
-      fs.mkdirSync(nextStaticDst, { recursive: true });
-      if (fs.existsSync('.next/static')) {
-        fs.cpSync('.next/static', nextStaticDst, { recursive: true, force: true });
-        console.log('✅ Copied .next/static/ -> ' + nextStaticDst);
-      }
-      copiedToPublicHtml = true;
+/** Recursively list every file under `dir` as { rel, size }. */
+function listFiles(dir) {
+  const out = [];
+  (function walk(current, base) {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const full = path.join(current, entry.name);
+      const rel = path.join(base, entry.name);
+      if (entry.isDirectory()) walk(full, rel);
+      else if (entry.isFile()) out.push({ rel, size: fs.statSync(full).size });
     }
-  } catch (err) {
-    console.error('⚠️ Error copying to ' + p + ':', err.message);
+  })(dir, '');
+  return out;
+}
+
+/**
+ * Assert every file under `srcDir` exists under `destDir` with an identical byte
+ * size. Throws (which aborts the build) on any missing or truncated file. Extra
+ * files already in destDir are fine — we only assert the source is fully
+ * represented. Returns the number of files verified.
+ */
+function verifyComplete(srcDir, destDir, label) {
+  const srcFiles = listFiles(srcDir);
+  const missing = [];
+  const truncated = [];
+  for (const f of srcFiles) {
+    const destPath = path.join(destDir, f.rel);
+    if (!fs.existsSync(destPath)) missing.push(f.rel);
+    else if (fs.statSync(destPath).size !== f.size) truncated.push(f.rel);
+  }
+
+  if (missing.length || truncated.length) {
+    console.error(
+      `❌ ${label}: copy INCOMPLETE — ${missing.length} missing, ${truncated.length} truncated of ${srcFiles.length} files.`,
+    );
+    for (const m of missing.slice(0, 15)) console.error('   missing:   ' + m);
+    for (const m of truncated.slice(0, 15)) console.error('   truncated: ' + m);
+    throw new Error(
+      `${label}: static asset copy is incomplete — refusing to ship a deploy whose chunks 404 at runtime.`,
+    );
+  }
+  return srcFiles.length;
+}
+
+/**
+ * Copy `srcDir` -> `destDir`, then verify the copy is complete. Throws if not.
+ */
+function copyAndVerify(srcDir, destDir, label) {
+  fs.mkdirSync(destDir, { recursive: true });
+  fs.cpSync(srcDir, destDir, { recursive: true, force: true });
+  const count = verifyComplete(srcDir, destDir, label);
+  console.log(`✅ ${label}: ${count} files copied and verified -> ${destDir}`);
+}
+
+function main() {
+  console.log('--- Running Custom Postbuild Asset Copy ---');
+
+  // 1. Standalone server dir — the Node process serves /_next/static from here,
+  //    so an incomplete copy here is fatal.
+  if (fs.existsSync('public')) copyAndVerify('public', '.next/standalone/public', 'standalone public/');
+  if (!fs.existsSync('.next/static')) {
+    throw new Error('.next/static is missing — did `next build` actually run?');
+  }
+  copyAndVerify('.next/static', '.next/standalone/.next/static', 'standalone .next/static/');
+
+  // .env is best-effort (secrets may be injected by the platform instead) — a
+  // missing .env is not a broken deploy, so this one stays non-fatal.
+  if (fs.existsSync('.env')) {
+    try {
+      fs.copyFileSync('.env', '.next/standalone/.env');
+      console.log('✅ Copied .env -> .next/standalone/.env');
+    } catch (err) {
+      console.warn('⚠️ Could not copy .env (continuing):', err.message);
+    }
+  }
+
+  // 2. public_html — where hcdn serves static assets from directly. If a real
+  //    public_html exists, its copy must also be complete (this is exactly the
+  //    path that shipped missing chunks before), so verification here is fatal too.
+  const possiblePublicHtmlDirs = [
+    '/home/u154310472/domains/clipiro.com/public_html',
+    path.resolve(process.cwd(), '../public_html'),
+    path.resolve(process.cwd(), '../../public_html'),
+    path.resolve(process.cwd(), '../../../public_html'),
+    path.resolve(process.cwd(), '../public'),
+  ];
+
+  let copiedToPublicHtml = false;
+  for (const p of possiblePublicHtmlDirs) {
+    if (!fs.existsSync(p)) continue;
+    // Never treat our own source public/ as a deploy target.
+    if (path.resolve(p) === path.resolve('public')) continue;
+
+    console.log('🔍 Found target deployment folder at:', p);
+    if (fs.existsSync('public')) copyAndVerify('public', p, `public_html public/ (${p})`);
+    copyAndVerify('.next/static', path.join(p, '_next', 'static'), `public_html _next/static/ (${p})`);
+    copiedToPublicHtml = true;
+  }
+
+  if (!copiedToPublicHtml) {
+    console.log('ℹ️ No public_html/ folder detected nearby. Standalone copy complete.');
+  } else {
+    console.log('🎉 Static assets copied and verified for direct web-server access.');
   }
 }
 
-if (!copiedToPublicHtml) {
-  console.log('ℹ️ No public_html/ folder detected nearby. Standard standalone copy complete.');
-} else {
-  console.log('🎉 Successfully copied assets for direct web server access!');
+// Guarded so the pure helpers can be unit-tested without running the copy.
+if (require.main === module) {
+  try {
+    main();
+  } catch (err) {
+    console.error('💥 Postbuild failed:', err.message);
+    process.exit(1);
+  }
 }
+
+module.exports = { listFiles, verifyComplete, copyAndVerify };
