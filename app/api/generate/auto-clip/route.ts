@@ -68,7 +68,8 @@ async function handlePOST(req: NextRequest) {
   // and creates duplicate Clip rows.
   const claimed = await prisma.project.updateMany({
     where: { id: body.projectId, userId: auth.userId, status: { in: ["draft", "failed"] } },
-    data: { status: "analyzing" },
+    // Clear any previous attempt's error so a retry doesn't show a stale banner.
+    data: { status: "analyzing", failureReason: null },
   });
   if (claimed.count === 0) {
     return NextResponse.json({ error: "Analysis already in progress or already run for this project" }, { status: 409 });

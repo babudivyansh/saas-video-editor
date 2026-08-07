@@ -121,9 +121,9 @@ describe("getAutoClipPricing", () => {
 describe("buildBrollFilterComplex", () => {
   it("builds three labeled segments (main, broll, main) plus a concat", () => {
     const fc = buildBrollFilterComplex(10, 3, 5.5, "9:16", null, null);
-    expect(fc).toContain("[va]");
-    expect(fc).toContain("[vb]");
-    expect(fc).toContain("[vc]");
+    expect(fc).toContain("[vm0]"); // main before the insert
+    expect(fc).toContain("[vb0]"); // the B-roll itself
+    expect(fc).toContain("[vm1]"); // main after it
     expect(fc).toContain("concat=n=3:v=1:a=0");
     expect(fc).toContain("[video]");
   });
@@ -149,10 +149,31 @@ describe("buildBrollFilterComplex", () => {
     expect(capIdx).toBeGreaterThan(moodIdx);
   });
 
-  it("uses the same static crop formula on both main segments for a given aspect", () => {
+  // The crop is applied ONCE, before the stream is split into the two main
+  // segments — not once per segment. `trim` + `setpts=PTS-STARTPTS` rebases t
+  // to zero for each segment, so a time-varying crop applied after the trim
+  // would replay the beginning of the pan path during segment C rather than
+  // continuing it. Cropping first keeps t clip-relative, which is the basis
+  // every crop keyframe is expressed in.
+  it("crops once up front and splits, rather than cropping each main segment", () => {
     const fc = buildBrollFilterComplex(10, 3, 5.5, "16:9", null, null);
-    const matches = fc.match(/crop=in_w:in_w\*9\/16/g) ?? [];
-    expect(matches.length).toBe(2); // segment A and segment C
+    expect((fc.match(/crop=in_w:in_w\*9\/16/g) ?? []).length).toBe(1);
+    expect(fc).toContain("split=2[m0][m1]");
+    // Both main segments are trimmed from the already-cropped stream.
+    expect(fc).toContain("[m0]trim=start=0");
+    expect(fc).toContain("[m1]trim=start=5.5");
+  });
+
+  // Regression for P2.6: a 2.5s stock insert used to cost the whole clip its
+  // speaker tracking, because cropKeyframes were simply not computed for any
+  // clip that got B-roll.
+  it("carries a dynamic pan path through to the main segments when given one", () => {
+    const dynamicCrop = "crop=w='(in_h*9/16)':h='in_h':x='if(lt(t,2),(0.1*in_w),(0.3*in_w))':y='0'";
+    const fc = buildBrollFilterComplex(10, 3, 5.5, "9:16", null, null, "[0:v]", dynamicCrop);
+    expect(fc).toContain(dynamicCrop);
+    // Still exactly one crop, still before the split.
+    expect(fc.indexOf(dynamicCrop)).toBeLessThan(fc.indexOf("split=2"));
+    expect(fc).not.toContain("crop=in_h*9/16:in_h"); // the static fallback is not used
   });
 });
 

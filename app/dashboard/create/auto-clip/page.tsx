@@ -3,6 +3,11 @@ import { Suspense, useRef, useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import SubtitleStylePicker from "@/app/components/SubtitleStylePicker";
 import { ReframeAndCutsControls } from "@/app/components/auto-clip/ReframeAndCutsControls";
+import { LiteEditTab, type LiteEdits } from "@/app/components/auto-clip/LiteEditTab";
+import { CaptionTemplatePicker, TranslateCaptions } from "@/app/components/auto-clip/CaptionTemplatePicker";
+import { CAPTION_TEMPLATES } from "@/lib/caption-templates";
+import { UrlImportField } from "@/app/components/auto-clip/UrlImportField";
+import { ScorePerformanceBanner } from "@/app/components/auto-clip/ScorePerformanceBanner";
 import { Card } from "@/app/components/ui/Card";
 import { FieldLabel, Input } from "@/app/components/ui/Field";
 import { Switch } from "@/app/components/ui/Switch";
@@ -73,6 +78,8 @@ const STEPS = [
   { id: "review", label: "Review" },
 ];
 
+type SortKey = "score" | "order" | "duration";
+
 const WARNING_COPY: Record<string, string> = {
   transcription_failed: "Transcription failed for this video — clip selection, titles, and captions may be lower quality than usual.",
   reframe_unavailable: "Automatic speaker tracking isn't available for this video — clips use a centered crop instead of following the speaker.",
@@ -103,9 +110,29 @@ interface ClipItem {
   brollQuery: string | null;
   subtitleStyleOverride: Record<string, unknown> | null;
   silenceSettings: Record<string, unknown> | null;
-  transcriptJson: unknown | null;
+  liteEdits: LiteEdits | null;
+  audioPeaks: number[] | null;
+  rerenderCount: number;
 }
-interface ProjectMeta { status: string; warnings: string[] | null; captionStyleIndex: number | null; uploadedVideoUrl: string | null }
+
+// Every "Apply" in the Studio drawer re-renders the clip. The first re-render
+// of each clip is free; after that it costs a credit. Saying so next to the
+// button is the difference between a fair policy and a surprise charge.
+function RerenderCostNote({ clip }: { clip: ClipItem }) {
+  return (
+    <p className="text-[11px] text-ink-soft text-center">
+      {clip.rerenderCount === 0
+        ? "Your first re-render of this clip is free."
+        : "Applying changes re-renders this clip (1 credit)."}
+    </p>
+  );
+}
+interface ProjectMeta { status: string; warnings: string[] | null; failureReason: string | null; captionStyleIndex: number | null; uploadedVideoUrl: string | null }
+interface CostEstimate {
+  clipCount: number; totalDurationSec: number;
+  gross: number; analysisCredit: number; total: number;
+  balance: number; sufficient: boolean;
+}
 
 function fmtTime(sec: number): string {
   const s = Math.max(0, Math.round(sec));
@@ -292,6 +319,25 @@ function ReviewPanel({ projectId, clips, uploadedVideoUrl, onConfirmed }: { proj
 
   const keptCount = Object.values(edits).filter((e) => e.keep).length;
 
+  // Live cost, recomputed as clips are toggled and trimmed. Debounced because
+  // dragging a duration field would otherwise fire a request per keystroke.
+  const [estimate, setEstimate] = useState<CostEstimate | null>(null);
+  useEffect(() => {
+    if (clips.length === 0 || Object.keys(edits).length === 0) return;
+    const payload = clips.filter((c) => edits[c.id]).map((c) => ({ id: c.id, ...edits[c.id] }));
+    if (payload.length === 0) return;
+
+    const timer = setTimeout(() => {
+      apiFetch<CostEstimate>(`/api/projects/${projectId}/clips/estimate`, {
+        method: "POST",
+        body: JSON.stringify({ clips: payload }),
+      })
+        .then(setEstimate)
+        .catch(() => { /* the estimate is informational; Confirm remains authoritative */ });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [clips, edits, projectId]);
+
   async function handleConfirm() {
     setSubmitting(true);
     setError(null);
@@ -323,12 +369,41 @@ function ReviewPanel({ projectId, clips, uploadedVideoUrl, onConfirmed }: { proj
         ) : null)}
       </div>
       {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+
+      {/* The price, before committing to it. */}
+      {estimate && keptCount > 0 && (
+        <div className="mb-4 rounded-xl border border-card-border bg-white p-4 max-w-sm">
+          <div className="flex justify-between text-sm">
+            <span className="text-ink-soft">{estimate.clipCount} clip{estimate.clipCount === 1 ? "" : "s"} · {fmtTime(estimate.totalDurationSec)}</span>
+            <span className="text-ink font-medium">{estimate.gross} credit{estimate.gross === 1 ? "" : "s"}</span>
+          </div>
+          {estimate.analysisCredit > 0 && (
+            <div className="flex justify-between text-sm mt-1.5">
+              <span className="text-ink-soft">Analysis already paid</span>
+              <span className="text-green-700 font-medium">−{estimate.analysisCredit}</span>
+            </div>
+          )}
+          <div className="h-px bg-card-border my-2.5" />
+          <div className="flex justify-between text-sm font-semibold">
+            <span className="text-ink">You&apos;ll be charged</span>
+            <span className="text-ink">{estimate.total} credit{estimate.total === 1 ? "" : "s"}</span>
+          </div>
+          <p className={`text-xs mt-1.5 ${estimate.sufficient ? "text-ink-soft" : "text-red-600"}`}>
+            {estimate.sufficient
+              ? `Balance after: ${estimate.balance - estimate.total}`
+              : `You have ${estimate.balance} — ${estimate.total - estimate.balance} more needed.`}
+          </p>
+        </div>
+      )}
+
       <button
         onClick={handleConfirm}
         disabled={submitting || keptCount === 0}
         className="inline-flex items-center gap-2 grad-brand shadow-glow hover:shadow-glow-hover hover:brightness-105 text-white text-sm font-semibold px-6 py-3 rounded-xl transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        <IcSparkle /> {submitting ? "Starting render…" : `Confirm & Render ${keptCount} clip${keptCount === 1 ? "" : "s"}`}
+        <IcSparkle /> {submitting
+          ? "Starting render…"
+          : `Confirm & Render ${keptCount} clip${keptCount === 1 ? "" : "s"}${estimate ? ` · ${estimate.total} credit${estimate.total === 1 ? "" : "s"}` : ""}`}
       </button>
     </div>
   );
@@ -478,6 +553,10 @@ function PublishPanel({ projectId, clip }: { projectId: string; clip: ClipItem }
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [needsReauth, setNeedsReauth] = useState(false);
+  const [scheduledFor, setScheduledFor] = useState("");
+  // Computed once, lazily: calling Date.now() during render is impure and
+  // produces a value that shifts on every re-render.
+  const [minSchedule] = useState(() => new Date(Date.now() + 5 * 60_000).toISOString().slice(0, 16));
 
   useEffect(() => {
     if (!open) return;
@@ -490,7 +569,7 @@ function PublishPanel({ projectId, clip }: { projectId: string; clip: ClipItem }
   const selectedAccount = accounts.find((a) => a.id === accountId);
   const isYoutube = selectedAccount?.provider === "youtube";
 
-  async function submit(body: { permalink?: string }) {
+  async function submit(body: { permalink?: string; scheduledFor?: string }) {
     if (!accountId) return;
     setBusy(true); setErr(null); setNeedsReauth(false);
     try {
@@ -524,8 +603,26 @@ function PublishPanel({ projectId, clip }: { projectId: string; clip: ClipItem }
           {isYoutube ? (
             <>
               <p className="text-[10px] text-gray-400">Uploads this clip directly to YouTube as Unlisted — change visibility on YouTube afterward if you want it Public.</p>
+              {/* Scheduling: ClipPublish.scheduledFor is read by the
+                  clip-publish cron, so a time set here actually fires. */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-gray-500 block">Schedule for later (optional)</label>
+                <input
+                  type="datetime-local"
+                  value={scheduledFor}
+                  min={minSchedule}
+                  onChange={(e) => setScheduledFor(e.target.value)}
+                  className="w-full rounded border border-gray-200 px-1.5 py-1 text-xs"
+                />
+              </div>
               {err && <p className="text-[11px] text-red-600">{err} {needsReauth && <a href="/dashboard/social-tracker" className="underline font-semibold">Reconnect →</a>}</p>}
-              <button onClick={() => submit({})} disabled={busy} className="w-full text-xs font-semibold py-1.5 rounded-lg grad-brand text-white shadow-glow disabled:opacity-50">{busy ? "Uploading…" : "Publish to YouTube"}</button>
+              <button
+                onClick={() => submit(scheduledFor ? { scheduledFor: new Date(scheduledFor).toISOString() } : {})}
+                disabled={busy}
+                className="w-full text-xs font-semibold py-1.5 rounded-lg grad-brand text-white shadow-glow disabled:opacity-50"
+              >
+                {busy ? "Working…" : scheduledFor ? "Schedule upload" : "Publish to YouTube"}
+              </button>
             </>
           ) : (
             <>
@@ -687,7 +784,7 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
   onReset: () => void;
 }) {
   const [clips, setClips] = useState<ClipItem[]>([]);
-  const [project, setProject] = useState<ProjectMeta>({ status: "rendering", warnings: null, captionStyleIndex: null, uploadedVideoUrl: null });
+  const [project, setProject] = useState<ProjectMeta>({ status: "rendering", warnings: null, failureReason: null, captionStyleIndex: null, uploadedVideoUrl: null });
   const [selectedClip, setSelectedClip] = useState<ClipItem | null>(null);
   const fireReviewPrompt = useReviewPromptTrigger();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -698,7 +795,7 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
     try {
       const d = await apiFetch<{ project: ProjectMeta; clips: ClipItem[] }>(`/api/projects/${projectId}/clips`);
       setClips(d.clips ?? []);
-      setProject(d.project ?? { status: "rendering", warnings: null, captionStyleIndex: null, uploadedVideoUrl: null });
+      setProject(d.project ?? { status: "rendering", warnings: null, failureReason: null, captionStyleIndex: null, uploadedVideoUrl: null });
       if ((d.project.status === "completed" || d.project.status === "failed") && pollRef.current) {
         clearInterval(pollRef.current);
       }
@@ -711,6 +808,25 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
     pollRef.current = setInterval(tick, 2500);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [projectId, tick]);
+
+  // The API already orders by score; this lets the user override that without
+  // a refetch. Scoring only pays off if the ranking is visible and adjustable.
+  const [sort, setSort] = useState<SortKey>("score");
+
+  // Elapsed time on this results screen, for the analysis stage list.
+  const [elapsedSec, setElapsedSec] = useState(0);
+  useEffect(() => {
+    const started = Date.now();
+    const t = setInterval(() => setElapsedSec(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const readyClips = clips.filter((c) => c.status === "ready" && c.videoUrl);
+  const sortedClips = [...clips].sort((a, b) => {
+    if (sort === "order") return a.index - b.index;
+    if (sort === "duration") return b.durationSec - a.durationSec;
+    return (b.score ?? -1) - (a.score ?? -1);
+  });
 
   const projectStatus = project.status;
   const ready = clips.filter((c) => c.status === "ready").length;
@@ -737,6 +853,16 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
   else if (allDone) heading = "Your clips are ready 🎉";
   else heading = "Generating your clips";
 
+  // A long analysis behind a single spinner reads as broken. The pipeline
+  // genuinely has these stages, so showing them (with elapsed time) turns a
+  // silent wait into visible progress.
+  const ANALYSIS_STAGES = [
+    "Transcribing the audio",
+    "Finding the strongest moments",
+    "Tracking who's speaking",
+    "Measuring pace and emphasis",
+  ];
+
   return (
     <div className="px-4 md:px-8 py-6 max-w-6xl w-full mx-auto">
       <div className="mb-6">
@@ -758,7 +884,39 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
           </div>
         )}
         {failedHard && (
-          <p className="text-sm text-gray-500 mt-2">{error ?? "We couldn't generate clips from this video. Please try again."}</p>
+          // The pipeline writes a reason a creator can act on ("Video is
+          // 95 min — your plan supports Auto Clips up to 30 min…"). Prefer it
+          // over the generic client-side message, which can't know any of that.
+          <p className="text-sm text-gray-500 mt-2">
+            {project.failureReason ?? error ?? "We couldn't generate clips from this video. Please try again."}
+          </p>
+        )}
+        {analyzing && !failedHard && (
+          <div className="mt-4 rounded-xl border border-card-border bg-white p-4 max-w-md">
+            <ul className="space-y-2">
+              {ANALYSIS_STAGES.map((label, i) => {
+                // Elapsed time is the only honest signal available here — the
+                // worker doesn't report which stage it's on — so stages are
+                // paced rather than claimed as precise.
+                const reached = elapsedSec > i * 25;
+                const current = reached && elapsedSec <= (i + 1) * 25;
+                return (
+                  <li key={label} className="flex items-center gap-2.5 text-sm">
+                    <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] shrink-0 ${
+                      current ? "bg-brand text-white" : reached ? "bg-green-500 text-white" : "bg-gray-200"
+                    }`}>
+                      {reached && !current ? "✓" : ""}
+                    </span>
+                    <span className={reached ? "text-ink font-medium" : "text-ink-soft"}>{label}</span>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="text-xs text-ink-soft mt-3">
+              {elapsedSec < 60 ? `${elapsedSec}s elapsed` : `${Math.floor(elapsedSec / 60)}m ${elapsedSec % 60}s elapsed`}
+              {" · longer videos take longer — you can leave this page and come back."}
+            </p>
+          </div>
         )}
         <div className="mt-3"><WarningsBanner warnings={project.warnings} /></div>
       </div>
@@ -766,11 +924,38 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
       {pendingReview && projectId ? (
         <ReviewPanel projectId={projectId} clips={clips} uploadedVideoUrl={project.uploadedVideoUrl} onConfirmed={tick} />
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {clips.length > 0
-            ? clips.map((c) => <ClipCard key={c.id} projectId={projectId!} clip={c} onChanged={tick} onSelect={setSelectedClip} />)
-            : !failedHard && Array.from({ length: Math.max(1, expectedCount) }).map((_, i) => <SkeletonCard key={i} />)}
-        </div>
+        <>
+          {allDone && <ScorePerformanceBanner />}
+          {readyClips.length > 1 && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <label htmlFor="clip-sort" className="text-xs font-semibold text-ink-soft">Sort</label>
+                <select
+                  id="clip-sort"
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value as SortKey)}
+                  className="rounded-lg border border-card-border bg-white px-2.5 py-1.5 text-xs font-medium text-ink"
+                >
+                  <option value="score">Highest score</option>
+                  <option value="order">Order in video</option>
+                  <option value="duration">Longest first</option>
+                </select>
+              </div>
+              {/* Downloading 20 clips one at a time was the actual workflow before this. */}
+              <a
+                href={`/api/projects/${projectId}/clips/download-all`}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors"
+              >
+                Download all ({readyClips.length})
+              </a>
+            </div>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {sortedClips.length > 0
+              ? sortedClips.map((c) => <ClipCard key={c.id} projectId={projectId!} clip={c} onChanged={tick} onSelect={setSelectedClip} />)
+              : !failedHard && Array.from({ length: Math.max(1, expectedCount) }).map((_, i) => <SkeletonCard key={i} />)}
+          </div>
+        </>
       )}
 
       {selectedClip && (
@@ -845,8 +1030,11 @@ function StepperBar({
 }
 
 // ── Step 1: Upload Video ────────────────────────────────────────────────────
-function Step1Upload({ file, videoPreviewUrl, onFile, onClearFile }: {
+function Step1Upload({ file, videoPreviewUrl, onFile, onClearFile, importedUrl, importedTitle, onImported, onClearImport }: {
   file: File | null; videoPreviewUrl: string | null; onFile: (f: File) => void; onClearFile: () => void;
+  importedUrl: string | null; importedTitle: string | null;
+  onImported: (info: { url: string; title: string; durationSec: number }) => void;
+  onClearImport: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -865,6 +1053,17 @@ function Step1Upload({ file, videoPreviewUrl, onFile, onClearFile }: {
                   <IcX />
                 </button>
               </div>
+            </div>
+          ) : importedUrl ? (
+            <div className="flex flex-col items-center gap-3 text-center">
+              <div className="text-blue-500"><IcCloud /></div>
+              <p className="text-sm font-medium text-ink">{importedTitle}</p>
+              <p className="text-xs text-ink-soft">
+                Downloaded from your link when you start the analysis.
+              </p>
+              <button onClick={onClearImport} className="text-xs text-gray-400 hover:text-gray-600 underline">
+                Use a different source
+              </button>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-3 text-gray-400">
@@ -897,6 +1096,8 @@ function Step1Upload({ file, videoPreviewUrl, onFile, onClearFile }: {
               Upload Video
             </button>
           </div>
+
+          {!file && <UrlImportField onImported={onImported} />}
 
           <div className="rounded-xl border border-gray-200 bg-white p-4">
             <p className="text-sm font-semibold text-gray-700 mb-3">Tips for best results:</p>
@@ -1118,6 +1319,12 @@ function AutoClipFlow() {
 
   const [file, setFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+  // A source picked by link rather than upload. Held until Analyze, so the
+  // (potentially multi-minute) download happens once the user has committed
+  // to their settings rather than on the first screen.
+  const [importedUrl, setImportedUrl] = useState<string | null>(null);
+  const [importedTitle, setImportedTitle] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const [minDuration, setMinDuration] = useState(15);
   const [maxDuration, setMaxDuration] = useState(60);
@@ -1139,7 +1346,7 @@ function AutoClipFlow() {
   const [trackingSpeed, setTrackingSpeed] = useState(50);
   const [animatedCaptions, setAnimatedCaptions] = useState(true);
 
-  const { status: genStatus, error: genError, projectId: genProjectId, generateAutoClip, reset } = useVideoGenerate();
+  const { status: genStatus, error: genError, projectId: genProjectId, generateAutoClip, generateAutoClipForProject, reset } = useVideoGenerate();
 
   useEffect(() => {
     return () => { if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl); };
@@ -1168,9 +1375,36 @@ function AutoClipFlow() {
   }, [videoPreviewUrl]);
 
   const handleGenerate = useCallback(async () => {
-    if (!file) return;
     const token = getStoredToken();
     if (!token) return;
+
+    // Link-sourced projects: create the project, pull the video into it, then
+    // hand off to the same analysis path an upload uses.
+    if (!file && importedUrl) {
+      setImportError(null);
+      try {
+        const created = await apiFetch<{ project: { id: string } }>("/api/projects", {
+          method: "POST",
+          body: JSON.stringify({ title: importedTitle ?? "Imported video", productType: "auto-clip" }),
+        });
+        const projectId = created.project.id;
+        await apiFetch(`/api/projects/${projectId}/import-url`, {
+          method: "POST",
+          body: JSON.stringify({ url: importedUrl }),
+        });
+        await generateAutoClipForProject({
+          projectId, token, minDuration, maxDuration, clipCount, aspectRatio, instructions,
+          captionStyleIndex: captionsOn ? captionStyleIndex : -1,
+          reframingPreset, removeSilence, silenceThresholdMs, removeFillers,
+          smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions,
+        });
+      } catch (e) {
+        setImportError(e instanceof Error ? e.message : "Import failed");
+      }
+      return;
+    }
+
+    if (!file) return;
     await generateAutoClip({
       file, minDuration, maxDuration, clipCount, aspectRatio, instructions,
       captionStyleIndex: captionsOn ? captionStyleIndex : -1,
@@ -1191,6 +1425,7 @@ function AutoClipFlow() {
   const handleReset = useCallback(() => {
     reset();
     handleClearFile();
+    setImportedUrl(null); setImportedTitle(null); setImportError(null);
     setMinDuration(15); setMaxDuration(60); setClipCount(5); setAspectRatio("9:16");
     setInstructions(""); setCaptionsOn(true); setCaptionStyleIndex(0);
     setReframingPreset("balanced"); setRemoveSilence(false); setSilenceThresholdMs(400); setRemoveFillers(false);
@@ -1198,7 +1433,7 @@ function AutoClipFlow() {
     router.push("/dashboard/create/auto-clip?step=upload-video");
   }, [reset, handleClearFile, router]);
 
-  const canNext = stepIndex === 0 ? !!file : true;
+  const canNext = stepIndex === 0 ? (!!file || !!importedUrl) : true;
   const showOverlay = !!resumeProjectId || genStatus !== "idle";
   const activeProjectId = resumeProjectId ?? genProjectId;
 
@@ -1209,8 +1444,20 @@ function AutoClipFlow() {
         ) : (
           <>
             <StepperBar stepIndex={stepIndex} onBack={() => goTo(stepIndex - 1)} onNext={() => goTo(stepIndex + 1)} onGenerate={handleGenerate} canNext={canNext} isLastStep={stepIndex === STEPS.length - 1} />
+            {importError && (
+              <p className="mx-4 mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                {importError}
+              </p>
+            )}
 
-            {stepIndex === 0 && <Step1Upload file={file} videoPreviewUrl={videoPreviewUrl} onFile={handleFile} onClearFile={handleClearFile} />}
+            {stepIndex === 0 && (
+              <Step1Upload
+                file={file} videoPreviewUrl={videoPreviewUrl} onFile={handleFile} onClearFile={handleClearFile}
+                importedUrl={importedUrl} importedTitle={importedTitle}
+                onImported={(info) => { setImportedUrl(info.url); setImportedTitle(info.title); }}
+                onClearImport={() => { setImportedUrl(null); setImportedTitle(null); }}
+              />
+            )}
 
             {stepIndex === 1 && (
               <Step2Instructions
@@ -1278,7 +1525,7 @@ function ClipEditorDrawer({
 }: {
   projectId: string; clip: ClipItem; onClose: () => void; onChanged: () => void;
 }) {
-  const [tab, setTab] = useState<"insights" | "style" | "transcript" | "cuts">("insights");
+  const [tab, setTab] = useState<"insights" | "edit" | "style" | "transcript" | "cuts">("insights");
   const [copied, setCopied] = useState(false);
 
   // Brand kits — reusable, account-level subtitle style templates (Style tab).
@@ -1312,6 +1559,7 @@ function ClipEditorDrawer({
   const [borderStyle, setBorderStyle] = useState((override.borderStyle as number) ?? 1);
   const [alignment, setAlignment] = useState((override.alignment as number) ?? 5);
   const [animatedCaptions, setAnimatedCaptions] = useState((override.animated as boolean) ?? true);
+  const [templateId, setTemplateId] = useState<string | null>((override.templateId as string) ?? null);
 
   function applyBrandKit(kit: BrandKit) {
     if (kit.fontName != null) setFontName(kit.fontName);
@@ -1367,14 +1615,27 @@ function ClipEditorDrawer({
 
   interface WordTimingInfo { word: string; start: number; end: number }
 
-  // Transcript state
+  // Transcript state. The clips list endpoint deliberately omits transcriptJson
+  // (it's polled every 2.5s for the whole grid), so the drawer fetches the one
+  // clip's transcript on open. Previously this read clip.transcriptJson, which
+  // the API never sent — the editor always rendered an empty word list.
   const [localWords, setLocalWords] = useState<WordTimingInfo[]>([]);
+  const [transcriptLoading, setTranscriptLoading] = useState(true);
 
   useEffect(() => {
-    if (clip.transcriptJson) {
-      setLocalWords(JSON.parse(JSON.stringify(clip.transcriptJson)) as WordTimingInfo[]);
-    }
-  }, [clip.transcriptJson]);
+    let cancelled = false;
+    setTranscriptLoading(true);
+    apiFetch<{ detail?: { transcriptJson: WordTimingInfo[] | null } }>(
+      `/api/projects/${projectId}/clips?clipId=${encodeURIComponent(clip.id)}`,
+    )
+      .then((d) => {
+        if (cancelled) return;
+        setLocalWords(d.detail?.transcriptJson ?? []);
+      })
+      .catch(() => { if (!cancelled) setLocalWords([]); })
+      .finally(() => { if (!cancelled) setTranscriptLoading(false); });
+    return () => { cancelled = true; };
+  }, [projectId, clip.id]);
 
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
@@ -1387,6 +1648,7 @@ function ClipEditorDrawer({
         method: "PUT",
         body: JSON.stringify({
           subtitleStyleOverride: {
+            ...(templateId ? { templateId } : {}),
             fontName,
             fontSize,
             baseColor: hexToASS(baseColor),
@@ -1411,6 +1673,27 @@ function ClipEditorDrawer({
             trackingSpeed,
           }
         })
+      });
+      onChanged();
+    } catch (e: unknown) {
+      setSaveErr(e instanceof Error ? e.message : "An error occurred");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Save lite edits (speed / music / fades / trim). Everything the Edit tab
+  // collected goes in ONE request, so one Apply is one render and one charge.
+  async function handleApplyLiteEdits(edits: LiteEdits, trim: { startSec: number; endSec: number } | null) {
+    setSaving(true); setSaveErr(null);
+    try {
+      await apiFetch(`/api/projects/${projectId}/clips/${clip.id}/lite`, {
+        method: "PUT",
+        body: JSON.stringify({
+          liteEdits: edits,
+          // Trim arrives clip-relative; the API works in source time.
+          ...(trim ? { startSec: clip.startSec + trim.startSec, endSec: clip.startSec + trim.endSec } : {}),
+        }),
       });
       onChanged();
     } catch (e: unknown) {
@@ -1491,13 +1774,14 @@ function ClipEditorDrawer({
         <div className="flex border-b border-gray-150 bg-gray-50/50 px-4 pt-2">
           {[
             { id: "insights", label: "Insights" },
+            { id: "edit", label: "Edit" },
             { id: "style", label: "Styles" },
             { id: "transcript", label: "Transcript" },
             { id: "cuts", label: "Audio Cuts" }
           ].map((t) => (
             <button
               key={t.id}
-              onClick={() => setTab(t.id as "insights" | "style" | "transcript" | "cuts")}
+              onClick={() => setTab(t.id as "insights" | "edit" | "style" | "transcript" | "cuts")}
               className={`px-4 py-2 text-xs font-bold border-b-2 transition-colors -mb-px ${
                 tab === t.id ? "border-brand text-brand" : "border-transparent text-gray-500 hover:text-gray-800"
               }`}
@@ -1583,12 +1867,55 @@ function ClipEditorDrawer({
             </div>
           )}
 
+          {tab === "edit" && (
+            <LiteEditTab
+              projectId={projectId}
+              clipId={clip.id}
+              durationSec={clip.durationSec}
+              peaks={clip.audioPeaks ?? []}
+              initial={clip.liteEdits}
+              busy={saving}
+              isFirstRerenderFree={clip.rerenderCount === 0}
+              onApply={handleApplyLiteEdits}
+            />
+          )}
+
           {tab === "style" && (
             <div className="space-y-5">
               <div>
                 <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-3">Subtitle Styling Studio</h4>
                 <p className="text-xs text-gray-400 -mt-1.5 mb-4">Customize the font, colors, border outlines, shadows and alignments.</p>
               </div>
+
+              <CaptionTemplatePicker
+                value={templateId}
+                onChange={(id) => {
+                  setTemplateId(id);
+                  // Applying a template replaces the individual fields below,
+                  // so the controls reflect what will actually render rather
+                  // than showing stale values the template has overridden.
+                  const t = CAPTION_TEMPLATES.find((x) => x.id === id);
+                  if (!t) return;
+                  if (t.style.fontName) setFontName(t.style.fontName);
+                  if (t.style.fontSize) setFontSize(t.style.fontSize);
+                  if (t.style.baseColor) setBaseColor(assToHex(t.style.baseColor));
+                  if (t.style.highlightColor) setHighlightColor(assToHex(t.style.highlightColor));
+                  if (t.style.outlineColor) setOutlineColor(assToHex(t.style.outlineColor));
+                  if (t.style.outlineWidth != null) setOutlineWidth(t.style.outlineWidth);
+                  if (t.style.shadowDepth != null) setShadowDepth(t.style.shadowDepth);
+                  if (t.style.borderStyle != null) setBorderStyle(t.style.borderStyle);
+                  if (t.style.alignment != null) setAlignment(t.style.alignment);
+                  if (t.style.animated != null) setAnimatedCaptions(t.style.animated);
+                }}
+                disabled={saving}
+              />
+
+              <TranslateCaptions
+                projectId={projectId}
+                clipId={clip.id}
+                disabled={saving}
+                onQueued={onChanged}
+              />
 
               {brandKits.length > 0 && (
                 <div className="space-y-1">
@@ -1735,6 +2062,7 @@ function ClipEditorDrawer({
               <Button onClick={handleSaveStyleOrCuts} disabled={saving} className="w-full">
                 {saving ? "Saving & Rendering..." : "Apply Subtitle Styles"}
               </Button>
+              <RerenderCostNote clip={clip} />
             </div>
           )}
 
@@ -1746,6 +2074,12 @@ function ClipEditorDrawer({
               </div>
 
               <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-xl border border-gray-150 max-h-60 overflow-y-auto">
+                {transcriptLoading && <p className="text-xs text-gray-400">Loading transcript…</p>}
+                {!transcriptLoading && localWords.length === 0 && (
+                  <p className="text-xs text-gray-400">
+                    No transcript for this clip — captions were off, or transcription didn&apos;t succeed for this video.
+                  </p>
+                )}
                 {localWords.map((w, idx) => (
                   <div key={idx} className="flex items-center gap-1 bg-white px-2 py-1 rounded-md border border-gray-200 shadow-sm text-xs">
                     <input
@@ -1765,9 +2099,10 @@ function ClipEditorDrawer({
 
               {saveErr && <p className="text-xs text-red-600">{saveErr}</p>}
 
-              <Button onClick={handleSaveTranscript} disabled={saving} className="w-full">
+              <Button onClick={handleSaveTranscript} disabled={saving || transcriptLoading || localWords.length === 0} className="w-full">
                 {saving ? "Saving & Rendering..." : "Save Transcript Changes"}
               </Button>
+              <RerenderCostNote clip={clip} />
             </div>
           )}
 
@@ -1795,6 +2130,7 @@ function ClipEditorDrawer({
               <Button onClick={handleSaveStyleOrCuts} disabled={saving} className="w-full" size="md">
                 {saving ? "Saving & Rendering..." : "Apply Camera & Trimming Options"}
               </Button>
+              <RerenderCostNote clip={clip} />
             </div>
           )}
         </div>

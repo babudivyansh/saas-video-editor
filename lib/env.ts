@@ -61,6 +61,18 @@ const schema = z.object({
   // Render queue driver — optional, defaults to in-process.
   RENDER_QUEUE_DRIVER: z.string().optional(),
 
+  // GPU media service (active-speaker detection + NVENC rendering). Optional
+  // by design, same as FAL_KEY: absent config means "GPU disabled", and every
+  // caller falls back to the CPU/Rekognition path rather than refusing to
+  // boot. See lib/gpu-service.ts.
+  // How many clips of one AutoClip batch render concurrently. Each render is
+  // itself multi-threaded ffmpeg, so this is a small number, not a big one.
+  RENDER_CLIP_CONCURRENCY: z.string().optional(),
+
+  GPU_SERVICE_URL: z.string().optional(),
+  GPU_SERVICE_TOKEN: z.string().optional(),
+  GPU_SERVICE_API_KEY: z.string().optional(),
+
   // Observability — optional, Sentry disables itself when unset.
   SENTRY_DSN: z.string().optional(),
   NEXT_PUBLIC_SENTRY_DSN: z.string().optional(),

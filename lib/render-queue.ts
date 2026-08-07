@@ -13,6 +13,22 @@ import { env } from "@/lib/env";
 
 export type RenderStage = "queued" | "downloading" | "rendering" | "uploading" | "completed" | "failed";
 
+/**
+ * A failure that retrying cannot fix: bad input, a plan limit, insufficient
+ * credits. Without this every such job burned all three BullMQ attempts —
+ * each one re-downloading the entire source video — to reach the same verdict,
+ * and the user waited through the backoff for an answer we already had.
+ *
+ * The message is user-facing: it is persisted to Project.failureReason and
+ * shown in the UI, so write it for a creator, not for a log.
+ */
+export class NonRetryableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NonRetryableError";
+  }
+}
+
 export interface RenderProgress {
   stage: RenderStage;
   percent: number; // 0–100
@@ -42,7 +58,13 @@ export interface EnqueueOpts {
 }
 
 export interface RenderQueue<T> {
-  enqueue: (id: string, payload: T, opts?: EnqueueOpts) => void;
+  /**
+   * Resolves once the job is durably accepted by the queue, and REJECTS if it
+   * isn't. Callers that have already charged credits must await this: the
+   * previous fire-and-forget `void queue.add(...)` meant a Redis outage left
+   * the user charged with nothing queued and no error surfaced anywhere.
+   */
+  enqueue: (id: string, payload: T, opts?: EnqueueOpts) => Promise<void>;
   driver: "in-process" | "bullmq";
 }
 
@@ -100,11 +122,11 @@ export function createRenderQueue<T extends { projectId: string }>(name: string,
     } catch (e) {
       logger.error("render-queue", "BullMQ init failed, falling back to in-process", e);
       const q = new InProcessQueue<T>(name, wrapped);
-      result = { enqueue: (id, payload) => q.enqueue(id, payload), driver: "in-process" };
+      result = { enqueue: async (id, payload) => { q.enqueue(id, payload); }, driver: "in-process" };
     }
   } else {
     const q = new InProcessQueue<T>(name, wrapped);
-    result = { enqueue: (id, payload) => q.enqueue(id, payload), driver: "in-process" };
+    result = { enqueue: async (id, payload) => { q.enqueue(id, payload); }, driver: "in-process" };
   }
 
   queueCache.set(name, result);
@@ -114,7 +136,7 @@ export function createRenderQueue<T extends { projectId: string }>(name: string,
 // BullMQ driver — lazily required so the in-process path has zero BullMQ overhead.
 function makeBullQueue<T extends { projectId: string }>(name: string, handler: Handler<T>): RenderQueue<T> {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { Queue, Worker } = require("bullmq") as typeof import("bullmq");
+  const { Queue, Worker, UnrecoverableError } = require("bullmq") as typeof import("bullmq");
   const connection = { url: env.REDIS_URL || "redis://127.0.0.1:6379" };
   const concurrency = parseInt(env.RENDER_CONCURRENCY || "2", 10);
 
@@ -122,7 +144,16 @@ function makeBullQueue<T extends { projectId: string }>(name: string, handler: H
   // One in-process worker per server; concurrency controls parallel renders.
   new Worker(
     name,
-    async (job: { data: T }) => { await handler(job.data); },
+    async (job: { data: T }) => {
+      try {
+        await handler(job.data);
+      } catch (err) {
+        // BullMQ stops retrying only for UnrecoverableError — translate ours
+        // so "video too short" fails once instead of three times.
+        if (err instanceof NonRetryableError) throw new UnrecoverableError(err.message);
+        throw err;
+      }
+    },
     { connection, concurrency },
   );
   // Liveness signal for the admin ops page.
@@ -130,8 +161,8 @@ function makeBullQueue<T extends { projectId: string }>(name: string, handler: H
 
   return {
     driver: "bullmq",
-    enqueue: (id, payload, opts) => {
-      void queue.add(name, payload, {
+    enqueue: async (id, payload, opts) => {
+      await queue.add(name, payload, {
         jobId: id,
         // BullMQ: lower priority number = dequeued first (real tier-based
         // priority rendering — Pro/Studio jobs jump the free-tier queue).

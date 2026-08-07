@@ -18,10 +18,19 @@ import { env } from "@/lib/env";
 //                            (refreshing a token never adds scope it wasn't
 //                            originally granted) — see uploadVideo's
 //                            needsReauth handling.
+//   drive.readonly         — import a source video the user already has in
+//                            Google Drive (P4.4). Read-only and, like
+//                            youtube.upload, a sensitive scope requiring
+//                            Google Cloud OAuth verification. It is listed
+//                            LAST deliberately: `include_granted_scopes` means
+//                            an existing connection keeps working without it,
+//                            and Drive import simply fails with a reconnect
+//                            prompt rather than the whole integration breaking.
 const SCOPES = [
   "https://www.googleapis.com/auth/youtube.readonly",
   "https://www.googleapis.com/auth/yt-analytics.readonly",
   "https://www.googleapis.com/auth/youtube.upload",
+  "https://www.googleapis.com/auth/drive.readonly",
 ];
 
 const AUTH = "https://accounts.google.com/o/oauth2/v2/auth";

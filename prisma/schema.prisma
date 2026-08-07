@@ -388,6 +388,11 @@ model Project {
   // Auto Clip: non-fatal problems surfaced to the user as a banner instead of
   // silently degrading (e.g. ["transcription_failed"]).
   warnings             Json?
+  // Auto Clip: user-facing reason the run failed ("Video is too short…",
+  // "…your plan supports Auto Clips up to 30 min"). The pipeline already
+  // throws these as sentences written for a creator, but they used to die in
+  // the queue and the UI could only say "something went wrong".
+  failureReason        String?
   faceTimeline         Json?
   createdAt            DateTime @default(now())
   clips                Clip[]
@@ -435,9 +440,29 @@ model Clip {
   brollUrl              String?
   brollStartSec         Float?
   brollEndSec           Float?
+  // Keyword-driven B-roll: up to a few inserts per clip, each landing on the
+  // word the speaker actually says. [{startSec, endSec, url, query}]. The
+  // single brollUrl fields above remain for clips picked before this existed.
+  brollWindows          Json?
   createdAt             DateTime      @default(now())
   subtitleStyleOverride Json?
   silenceSettings       Json?
+  // Per-clip speech signal track (loudness/pitch/energy envelopes, shot
+  // boundaries, pauses) — drives energy-reactive zoom and caption animation.
+  // See lib/signal-track.ts.
+  signalTrack           Json?
+  // Inline "lite editor" adjustments: speed, music bed, B-roll swap,
+  // transitions. Versioned + zod-validated on write (lib/autoclip-lite.ts).
+  // Trim deliberately stays in startSec/endSec rather than moving in here —
+  // rebaseClipWords and the cropKeyframes invalidation both key off those
+  // columns, and two sources of truth for the in/out points would be the
+  // worst possible field to duplicate.
+  liteEdits             Json?
+  // Downsampled waveform peaks for the editor scrubber, computed once during
+  // render so the browser never decodes a multi-hour source.
+  audioPeaks            Json?
+  // Which backend actually encoded this clip ("cpu" | "gpu"), for ops.
+  renderTarget          String?
   dubs                  ClipDub[]
   publishes             ClipPublish[]
 

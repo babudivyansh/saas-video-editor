@@ -33,7 +33,42 @@ export interface FaceBox {
   // for timelines cached before this field was added, or if Rekognition
   // didn't report it — treat undefined as "no signal", not "closed".
   mouthOpen?: boolean;
+  // Active-speaker probability 0..1 from the GPU ASD model (lib/asd.ts).
+  // Undefined on any Rekognition-sourced or pre-ASD cached timeline — same
+  // rule as mouthOpen: undefined means "no signal", not "silent".
+  speaking?: number;
+  // Stable per-person identity from the ASD tracker. When present, multi-
+  // speaker clustering uses it instead of guessing from horizontal position.
+  trackId?: string;
+  // Head yaw in degrees: negative = facing frame-left, positive = frame-right.
+  // Rekognition returns this under FaceAttributes "ALL" (which we already
+  // request) and it was simply discarded. It's what makes "look-room"
+  // possible — framing a subject so they look INTO the frame rather than out
+  // of it is most of the difference between "cropped" and "composed".
+  yaw?: number;
 }
+
+// A speaking-score gap narrower than this is a tie: below it the two faces are
+// close enough that the model isn't really distinguishing them, and switching
+// the crop on that basis produces visible flip-flopping.
+const SPEAKING_MARGIN = 0.15;
+
+// How long the "other" person must stay the better candidate before the camera
+// commits to them. This was 0.25s, which is shorter than a conversational
+// interjection — the crop visibly ping-ponged during back-and-forth dialogue.
+// 0.8s is about the point where a switch reads as a decision rather than a
+// twitch, and it matches how a human operator waits to be sure.
+const SPEAKER_DWELL_SEC = 0.8;
+
+// Target movements smaller than this are ignored outright. Sub-2%-of-frame
+// corrections are invisible as framing but very visible as motion, because
+// they never settle.
+const MOTION_DEAD_ZONE = 0.02;
+
+// How far the frame leads a turned head, as a fraction of the crop width.
+// Applied against yaw, so a subject looking frame-left gets space on the left.
+const LOOK_ROOM_FRAC = 0.12;
+const LOOK_ROOM_FULL_YAW = 30; // degrees at which look-room is fully applied
 
 // Crop keyframe: top-left + size of the crop window, all as fractions of the
 // source frame so they're resolution-independent. w/h are constant across a
@@ -103,6 +138,7 @@ export async function detectFaceTimeline(videoUrl: string): Promise<FaceBox[]> {
           // must treat undefined as "no signal" and fall back to area-based
           // comparison, not as "mouth closed".
           mouthOpen: f.Face?.MouthOpen?.Value,
+          yaw: f.Face?.Pose?.Yaw ?? undefined,
         });
       }
       if (!res.NextToken) break;
@@ -119,7 +155,7 @@ export async function detectFaceTimeline(videoUrl: string): Promise<FaceBox[]> {
 // the dead-center formulas in this route's static fallback. Only one axis
 // needs to pan for each aspect (the other stays full-frame), which is what
 // makes single-face tracking well-defined without needing zoom.
-function cropSizeFrac(aspect: "9:16" | "16:9" | "1:1", srcW: number, srcH: number): { w: number; h: number } {
+export function cropSizeFrac(aspect: "9:16" | "16:9" | "1:1", srcW: number, srcH: number): { w: number; h: number } {
   if (aspect === "9:16") return { w: Math.min(1, (srcH * 9) / 16 / srcW), h: 1 };
   if (aspect === "16:9") return { w: 1, h: Math.min(1, (srcW * 9) / 16 / srcH) };
   // 1:1 — full height, width-of-height window (only meaningful when srcW > srcH)
@@ -304,7 +340,8 @@ function computeAdvancedCrop(
 
   let activeSpeakerId: "left" | "right" | "single" = "single";
   let activeSpeakerTimer = 0;
-  
+
+
   const centers = faces.map((f) => f.x + f.w / 2).sort((a, b) => a - b);
   let threshold = 0.5;
   let hasTwoSpeakers = false;
@@ -349,13 +386,17 @@ function computeAdvancedCrop(
         const leftBest = leftFaces.reduce((a, c) => (c.confidence > a.confidence ? c : a));
         const rightBest = rightFaces.reduce((a, c) => (c.confidence > a.confidence ? c : a));
 
-        // Prefer an actual "who's talking" signal (Rekognition's MouthOpen)
-        // when exactly one side has it — only fall back to bounding-box area
-        // (a size proxy, not a speaking proxy) when the mouth signal is
-        // absent (cached pre-MouthOpen timeline) or doesn't disambiguate
-        // (both/neither mouth open).
+        // Three-level degradation, best signal first:
+        //  1. ASD speaking probability — an actual model of who is talking.
+        //  2. Rekognition MouthOpen — fires on any open mouth, so it's a weak
+        //     proxy, but better than nothing.
+        //  3. Bounding-box area — a size proxy, not a speaking proxy at all;
+        //     the last resort for timelines cached before either existed.
         let candidateId: "left" | "right";
-        if (leftBest.mouthOpen === true && rightBest.mouthOpen !== true) {
+        const lSpeak = leftBest.speaking, rSpeak = rightBest.speaking;
+        if (typeof lSpeak === "number" && typeof rSpeak === "number" && Math.abs(lSpeak - rSpeak) > SPEAKING_MARGIN) {
+          candidateId = lSpeak > rSpeak ? "left" : "right";
+        } else if (leftBest.mouthOpen === true && rightBest.mouthOpen !== true) {
           candidateId = "left";
         } else if (rightBest.mouthOpen === true && leftBest.mouthOpen !== true) {
           candidateId = "right";
@@ -366,7 +407,7 @@ function computeAdvancedCrop(
         }
         if (candidateId !== activeSpeakerId) {
           activeSpeakerTimer += 0.1;
-          if (activeSpeakerTimer >= 0.25) {
+          if (activeSpeakerTimer >= SPEAKER_DWELL_SEC) {
             activeSpeakerId = candidateId;
             activeSpeakerTimer = 0;
           }
@@ -396,7 +437,15 @@ function computeAdvancedCrop(
       });
     }
 
-    targetCxs[s] = chosenFace.x + chosenFace.w / 2;
+    // Look-room: bias the frame in the direction the subject is facing, so
+    // they look INTO the frame. Shifting the crop centre AGAINST the yaw puts
+    // the empty space in front of them.
+    const yaw = chosenFace.yaw;
+    const lookShift = typeof yaw === "number"
+      ? -Math.max(-1, Math.min(1, yaw / LOOK_ROOM_FULL_YAW)) * LOOK_ROOM_FRAC * cropW
+      : 0;
+
+    targetCxs[s] = chosenFace.x + chosenFace.w / 2 + lookShift;
     targetCys[s] = chosenFace.y + chosenFace.h / 2;
     faceWidths[s] = chosenFace.w;
     faceHeights[s] = chosenFace.h;
@@ -434,8 +483,13 @@ function computeAdvancedCrop(
   for (let s = 0; s < stepsCount; s++) {
     const t = s * 0.1;
 
-    currentCx = currentCx + emaAlpha * (smoothCxs[s] - currentCx);
-    currentCy = currentCy + emaAlpha * (smoothCys[s] - currentCy);
+    // Dead zone: ignore corrections too small to read as reframing. Without
+    // this the crop never settles — it chases sub-pixel detector noise, which
+    // is the "constantly drifting" look rather than a locked-off shot.
+    const dx = smoothCxs[s] - currentCx;
+    const dy = smoothCys[s] - currentCy;
+    if (Math.abs(dx) > MOTION_DEAD_ZONE) currentCx += emaAlpha * dx;
+    if (Math.abs(dy) > MOTION_DEAD_ZONE) currentCy += emaAlpha * dy;
     currentScale = currentScale + emaAlpha * (smoothScales[s] - currentScale);
 
     if (s > 0) {
@@ -488,7 +542,84 @@ function computeAdvancedCrop(
     merged.push({ ...last, tSec: duration });
   }
 
-  return merged;
+  // The MERGE_EPS pass above only drops points that barely moved; this drops
+  // points that lie on a straight line between their neighbours, which is what
+  // actually bounds the generated expression on a continuously-moving subject.
+  return simplifyKeyframes(merged);
+}
+
+// ── Keyframe simplification ────────────────────────────────────────────────
+// computeAdvancedCrop emits a keyframe every 0.1s, and each surviving one adds
+// a nesting level to four separate ffmpeg expressions that are re-evaluated
+// per frame. A 60s clip of a moving subject measured ~16.5k characters of
+// filtergraph before this — under the argv ceiling, but ~3x the point where
+// the editor's renderer switches to a filter script, and all of it real
+// per-frame expression evaluation.
+//
+// Douglas-Peucker keeps the points that define the SHAPE of the path and drops
+// the ones that sit on a line between their neighbours, so the motion is
+// visually identical with a fraction of the points.
+
+const MAX_CROP_KEYFRAMES = 40;
+const RDP_EPSILON = 0.004; // fraction of frame — below this a deviation is invisible
+
+/** Perpendicular distance from p to the line ab, in (t, v) space. */
+function perpDistance(p: { t: number; v: number }, a: { t: number; v: number }, b: { t: number; v: number }): number {
+  const dt = b.t - a.t;
+  const dv = b.v - a.v;
+  if (dt === 0 && dv === 0) return Math.abs(p.v - a.v);
+  return Math.abs(dv * (p.t - a.t) - dt * (p.v - a.v)) / Math.hypot(dt, dv);
+}
+
+function rdpKeep(pts: { t: number; v: number }[], eps: number, first: number, last: number, keep: Set<number>): void {
+  if (last <= first + 1) return;
+  let maxDist = -1;
+  let idx = first;
+  for (let i = first + 1; i < last; i++) {
+    const dist = perpDistance(pts[i], pts[first], pts[last]);
+    if (dist > maxDist) { maxDist = dist; idx = i; }
+  }
+  if (maxDist <= eps) return;
+  keep.add(idx);
+  rdpKeep(pts, eps, first, idx, keep);
+  rdpKeep(pts, eps, idx, last, keep);
+}
+
+/**
+ * Simplify a crop path, preserving its visual shape. Each axis is simplified
+ * independently and the kept indices unioned, so a point that matters on ANY
+ * axis survives. Epsilon escalates until the point budget is met, which bounds
+ * the generated expression regardless of how busy the source is.
+ */
+export function simplifyKeyframes(
+  keyframes: CropKeyframe[],
+  eps = RDP_EPSILON,
+  maxPoints = MAX_CROP_KEYFRAMES,
+): CropKeyframe[] {
+  if (keyframes.length <= 2) return keyframes;
+
+  const axes: (keyof Pick<CropKeyframe, "x" | "y" | "w">)[] = ["x", "y", "w"];
+  let epsilon = eps;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const keep = new Set<number>([0, keyframes.length - 1]);
+    for (const axis of axes) {
+      const pts = keyframes.map((k) => ({ t: k.tSec, v: k[axis] }));
+      rdpKeep(pts, epsilon, 0, keyframes.length - 1, keep);
+    }
+    if (keep.size <= maxPoints) {
+      return [...keep].sort((a, b) => a - b).map((i) => keyframes[i]);
+    }
+    epsilon *= 2;
+  }
+  // Pathological input: fall back to uniform decimation so the budget still
+  // holds. The stride leaves room for the final keyframe appended below —
+  // dividing by maxPoints exactly would produce maxPoints strided points and
+  // then overflow by one when the endpoint is added back.
+  const stride = Math.max(1, Math.ceil(keyframes.length / Math.max(1, maxPoints - 1)));
+  const decimated = keyframes.filter((_, i) => i % stride === 0);
+  const last = keyframes[keyframes.length - 1];
+  if (decimated[decimated.length - 1] !== last) decimated.push(last);
+  return decimated;
 }
 
 export function computeCropKeyframesForClip(
@@ -566,21 +697,43 @@ export function computeMultiSpeakerKeyframes(
     .sort((a, b) => a.tSec - b.tSec);
   if (inWindow.length < 4) return null; // too sparse to trust a 2-cluster split
 
-  // Cheap 1-D k=2 clustering on horizontal center — good enough for "left
-  // person" vs "right person" without pulling in a clustering dependency.
-  // Split at the largest gap in the sorted centers rather than a fixed-rank
-  // median: a median index is unstable whenever many samples tie at/near the
-  // boundary (e.g. two evenly-sampled speakers), which can empty one side.
-  const centers = inWindow.map((f) => f.x + f.w / 2).sort((a, b) => a - b);
-  let splitIdx = Math.floor(centers.length / 2);
-  let maxGap = -1;
-  for (let i = 1; i < centers.length; i++) {
-    const gap = centers[i] - centers[i - 1];
-    if (gap > maxGap) { maxGap = gap; splitIdx = i; }
+  // Preferred: real identities from the ASD tracker. Position-based clustering
+  // is a guess that a person stays on their side of the frame — it misfires on
+  // one person who walks across, and on two people who cross over. Track ids
+  // are the actual answer, so use them when the timeline has them and take the
+  // two most consistently-present people.
+  let left: FaceBox[];
+  let right: FaceBox[];
+  const byTrack = new Map<string, FaceBox[]>();
+  for (const f of inWindow) {
+    if (!f.trackId) { byTrack.clear(); break; }
+    const arr = byTrack.get(f.trackId);
+    if (arr) arr.push(f); else byTrack.set(f.trackId, [f]);
   }
-  const threshold = (centers[splitIdx - 1] + centers[splitIdx]) / 2;
-  const left = inWindow.filter((f) => f.x + f.w / 2 < threshold);
-  const right = inWindow.filter((f) => f.x + f.w / 2 >= threshold);
+
+  if (byTrack.size >= 2) {
+    const [a, b] = [...byTrack.values()].sort((p, q) => q.length - p.length).slice(0, 2);
+    // Keep a stable left/right assignment so the stacked halves don't swap.
+    const meanX = (g: FaceBox[]) => g.reduce((s, f) => s + f.x + f.w / 2, 0) / g.length;
+    [left, right] = meanX(a) <= meanX(b) ? [a, b] : [b, a];
+    if (meanX(right) - meanX(left) < MIN_SEPARATION_FRAC) return null;
+  } else {
+    // Cheap 1-D k=2 clustering on horizontal center — good enough for "left
+    // person" vs "right person" without pulling in a clustering dependency.
+    // Split at the largest gap in the sorted centers rather than a fixed-rank
+    // median: a median index is unstable whenever many samples tie at/near the
+    // boundary (e.g. two evenly-sampled speakers), which can empty one side.
+    const centers = inWindow.map((f) => f.x + f.w / 2).sort((a, b) => a - b);
+    let splitIdx = Math.floor(centers.length / 2);
+    let maxGap = -1;
+    for (let i = 1; i < centers.length; i++) {
+      const gap = centers[i] - centers[i - 1];
+      if (gap > maxGap) { maxGap = gap; splitIdx = i; }
+    }
+    const threshold = (centers[splitIdx - 1] + centers[splitIdx]) / 2;
+    left = inWindow.filter((f) => f.x + f.w / 2 < threshold);
+    right = inWindow.filter((f) => f.x + f.w / 2 >= threshold);
+  }
   if (left.length === 0 || right.length === 0) return null;
 
   const leftAvg = left.reduce((s, f) => s + f.x + f.w / 2, 0) / left.length;
@@ -601,16 +754,113 @@ export function computeMultiSpeakerKeyframes(
   return { a, b };
 }
 
-function lerpExpr(varName: "in_w" | "in_h", keyframes: CropKeyframe[], axis: "x" | "y" | "w" | "h"): string {
-  const pts = keyframes.map((k) => ({ t: k.tSec, v: k[axis] }));
-  let expr = `(${pts[pts.length - 1].v}*${varName})`;
-  for (let i = pts.length - 2; i >= 0; i--) {
-    const { t: t0, v: v0 } = pts[i];
-    const { t: t1, v: v1 } = pts[i + 1];
-    const seg = `(${v0}*${varName}+(${v1}-${v0})*${varName}*(t-${t0})/${(t1 - t0).toFixed(4)})`;
-    expr = `if(lt(t,${t1}),${seg},${expr})`;
+// Piecewise-linear interpolation over keyframes, emitted as a nested-if FFmpeg
+// expression. `timeVar` is whatever expression yields seconds in the filter
+// being targeted (`t` for crop, `(on/FPS)` for zoompan, which counts output
+// frames rather than exposing a clock). `scaleVar` multiplies each value by a
+// dimension constant (in_w/in_h/iw/ih) for expressions in pixels; omit it for
+// unitless values such as a zoom factor.
+function piecewiseExpr(
+  pts: { t: number; v: number }[],
+  timeVar: string,
+  scaleVar?: string,
+): string {
+  const val = (v: number) => (scaleVar ? `(${v}*${scaleVar})` : `(${v})`);
+
+  // Collapse runs of identical values: a point whose value matches BOTH
+  // neighbours sits in the middle of a flat span and contributes an if-branch
+  // that can never change the result. This matters — each surviving point is
+  // one level of nesting in the emitted expression, re-evaluated per frame per
+  // axis, and a centred zoom envelope otherwise repeats the same constant crop
+  // origin for every keyframe. Ramp endpoints are preserved, so the
+  // interpolated path is unchanged.
+  const EPS = 1e-9;
+  const kept = pts.filter((p, i) => {
+    if (i === 0 || i === pts.length - 1) return true;
+    return !(Math.abs(p.v - pts[i - 1].v) < EPS && Math.abs(p.v - pts[i + 1].v) < EPS);
+  });
+  if (kept.length === 1) return val(kept[0].v);
+  if (kept.length === 2 && Math.abs(kept[0].v - kept[1].v) < EPS) return val(kept[0].v);
+
+  let expr = val(kept[kept.length - 1].v);
+  for (let i = kept.length - 2; i >= 0; i--) {
+    const { t: t0, v: v0 } = kept[i];
+    const { t: t1, v: v1 } = kept[i + 1];
+    const dt = t1 - t0;
+    // Zero-length spans would divide by zero; snap straight to the later value.
+    const seg = dt <= 0
+      ? val(v1)
+      : scaleVar
+        ? `(${v0}*${scaleVar}+(${v1}-${v0})*${scaleVar}*(${timeVar}-${t0})/${dt.toFixed(4)})`
+        : `(${v0}+(${v1}-${v0})*(${timeVar}-${t0})/${dt.toFixed(4)})`;
+    expr = `if(lt(${timeVar},${t1}),${seg},${expr})`;
   }
-  return `if(lt(t,${pts[0].t}),(${pts[0].v}*${varName}),${expr})`;
+  return `if(lt(${timeVar},${kept[0].t}),${val(kept[0].v)},${expr})`;
+}
+
+function lerpExpr(varName: "in_w" | "in_h", keyframes: CropKeyframe[], axis: "x" | "y" | "w" | "h"): string {
+  return piecewiseExpr(keyframes.map((k) => ({ t: k.tSec, v: k[axis] })), "t", varName);
+}
+
+// zoompan counts output frames (`on`) rather than exposing a wall clock, so a
+// time-based keyframe path has to be converted using a known output rate. The
+// chain pins that rate with an explicit `fps` filter so `on/ZOOM_FPS` is exact
+// regardless of the source's frame rate.
+export const ZOOM_FPS = 30;
+
+// Builds the pan+zoom chain for a keyframe path whose window SIZE varies.
+//
+// This cannot be done with `crop` alone. crop's w/h expressions are evaluated
+// exactly once, when the filter is configured — `t` isn't even defined there —
+// so a time-varying w/h either errors out ("Error when evaluating the
+// expression") or, for the nested-if form this module emits, silently collapses
+// to whichever branch the config-time evaluation happens to take and stays
+// frozen for the whole clip. Verified against ffmpeg 6.1.1; there is no `eval`
+// option on crop to change it (unlike overlay/scale).
+//
+// So the work is split: crop does the panning at a CONSTANT window size (its
+// x/y expressions genuinely are re-evaluated per frame), and zoompan — which
+// does re-evaluate z/x/y per output frame — does the zooming inside that
+// window. The crop window is the largest the path ever needs, so the zoomed
+// window is always contained within it and no pixels are invented.
+function buildPanZoomChain(keyframes: CropKeyframe[], outW: number, outH: number): string {
+  const wMax = Math.min(1, Math.max(...keyframes.map((k) => k.w)));
+  const hMax = Math.min(1, Math.max(...keyframes.map((k) => k.h)));
+  const maxX = Math.max(0, 1 - wMax);
+  const maxY = Math.max(0, 1 - hMax);
+
+  // Crop origin: centre the constant window on each keyframe's own centre,
+  // clamped into frame. Because the keyframe window is centred on that same
+  // point and is never larger than wMax/hMax, it stays fully inside this crop
+  // even where the clamp bites at a frame edge.
+  const origins = keyframes.map((k) => ({
+    t: k.tSec,
+    X: Math.min(maxX, Math.max(0, k.x + k.w / 2 - wMax / 2)),
+    Y: Math.min(maxY, Math.max(0, k.y + k.h / 2 - hMax / 2)),
+  }));
+
+  const cropX = piecewiseExpr(origins.map((o) => ({ t: o.t, v: o.X })), "t", "in_w");
+  const cropY = piecewiseExpr(origins.map((o) => ({ t: o.t, v: o.Y })), "t", "in_h");
+
+  // Inside zoompan, iw/ih are the CROPPED frame's dimensions, so the keyframe
+  // window is re-expressed as a fraction of the crop window rather than of the
+  // source frame.
+  const time = `(on/${ZOOM_FPS})`;
+  const zoom = piecewiseExpr(keyframes.map((k) => ({ t: k.tSec, v: k.w > 0 ? wMax / k.w : 1 })), time);
+  const panX = piecewiseExpr(keyframes.map((k, i) => ({ t: k.tSec, v: (k.x - origins[i].X) / wMax })), time);
+  const panY = piecewiseExpr(keyframes.map((k, i) => ({ t: k.tSec, v: (k.y - origins[i].Y) / hMax })), time);
+
+  // z is clamped at 1 (zoompan cannot zoom out past the frame) and x/y at the
+  // window edges, so float drift can never ask for pixels outside the input.
+  const zExpr = `max(1,${zoom})`;
+  const xExpr = `max(0,min(iw-iw/zoom,(${panX})*iw))`;
+  const yExpr = `max(0,min(ih-ih/zoom,(${panY})*ih))`;
+
+  return (
+    `fps=${ZOOM_FPS},` +
+    `crop=w='${wMax.toFixed(6)}*in_w':h='${hMax.toFixed(6)}*in_h':x='${cropX}':y='${cropY}',` +
+    `zoompan=z='${zExpr}':x='${xExpr}':y='${yExpr}':d=1:s=${outW}x${outH}:fps=${ZOOM_FPS}`
+  );
 }
 
 export const TARGET_RES: Record<"9:16" | "16:9" | "1:1", { w: number; h: number }> = {
@@ -624,21 +874,20 @@ export const TARGET_RES: Record<"9:16" | "16:9" | "1:1", { w: number; h: number 
 // always be scaled back up to a constant output size.
 export function buildDynamicCropFilter(keyframes: CropKeyframe[], aspect: "9:16" | "16:9" | "1:1"): string {
   const varyingSize = keyframes.some((k) => k.w !== keyframes[0].w || k.h !== keyframes[0].h);
-  const xExpr = lerpExpr("in_w", keyframes, "x");
-  const yExpr = lerpExpr("in_h", keyframes, "y");
 
-  // No `eval` option exists on the crop filter (unlike e.g. overlay) — its
-  // x/y/w/h expressions are already re-evaluated every frame by default when
-  // they reference `t`, so nothing extra is needed to get per-frame panning.
+  // Pan-only: crop's x/y ARE re-evaluated per frame (no `eval` option exists on
+  // crop, and none is needed for x/y), so a constant-size window can pan on its
+  // own. This is the cheap path — no zoompan, no frame-rate normalisation.
   if (!varyingSize) {
     const w = aspect === "16:9" ? "in_w" : `(in_h*9/16)`;
     const h = aspect === "9:16" ? "in_h" : aspect === "16:9" ? `(in_w*9/16)` : "in_h";
-    return `crop=w='${w}':h='${h}':x='${xExpr}':y='${yExpr}'`;
+    return `crop=w='${w}':h='${h}':x='${lerpExpr("in_w", keyframes, "x")}':y='${lerpExpr("in_h", keyframes, "y")}'`;
   }
-  const wExpr = lerpExpr("in_w", keyframes, "w");
-  const hExpr = lerpExpr("in_h", keyframes, "h");
+
+  // Size varies (smart zoom / hook punch-in / cinematic ramp / mood envelope) —
+  // crop cannot express that at all, see buildPanZoomChain.
   const target = TARGET_RES[aspect];
-  return `crop=w='${wExpr}':h='${hExpr}':x='${xExpr}':y='${yExpr}',scale=${target.w}:${target.h}`;
+  return buildPanZoomChain(keyframes, target.w, target.h);
 }
 
 const ZOOM_PEAK = 0.92; // crop window shrinks to 92% of normal at the envelope's peak (~8.7% visual zoom-in)
@@ -677,11 +926,12 @@ export function buildSplitScreenFilterComplex(
   const half = { w: 1080, h: 960 };
   const cropAndScale = (kf: CropKeyframe[]) => {
     const varying = kf.some((k) => k.w !== kf[0].w || k.h !== kf[0].h);
+    // Same crop-can't-zoom constraint as buildDynamicCropFilter: a varying
+    // window has to go through zoompan, which also pins the half's output size.
+    if (varying) return buildPanZoomChain(kf, half.w, half.h);
     const xExpr = lerpExpr("in_w", kf, "x");
     const yExpr = lerpExpr("in_h", kf, "y");
-    const wExpr = varying ? lerpExpr("in_w", kf, "w") : `(${kf[0].w}*in_w)`;
-    const hExpr = varying ? lerpExpr("in_h", kf, "h") : `(${kf[0].h}*in_h)`;
-    return `crop=w='${wExpr}':h='${hExpr}':x='${xExpr}':y='${yExpr}',scale=${half.w}:${half.h}`;
+    return `crop=w='(${kf[0].w}*in_w)':h='(${kf[0].h}*in_h)':x='${xExpr}':y='${yExpr}',scale=${half.w}:${half.h}`;
   };
   const top = `${videoSrc}${cropAndScale(a)}[top]`;
   const bot = `${videoSrc}${cropAndScale(b)}[bot]`;

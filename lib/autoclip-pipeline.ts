@@ -18,29 +18,46 @@ import {
   analyzeAudio,
   generateASS,
   styleIndexToSubtitleStyle,
+  encodeArgs,
+  maybeUseFilterScript,
   type SubtitleStyle,
+  type RenderTarget,
 } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { type WordTiming } from "@/utils/elevenlabs";
 import { transcribe } from "@/lib/transcription";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { withRetry } from "@/lib/with-retry";
+import { NonRetryableError } from "@/lib/render-queue";
 import { logger } from "@/lib/logger";
+import { timeStage } from "@/lib/pipeline-metrics";
 import { env } from "@/lib/env";
 import { FILTER_PRESETS, type FilterPreset } from "@/lib/editor/types";
 import {
-  detectFaceTimeline,
   computeCropKeyframesForClip,
   computeMultiSpeakerKeyframes,
   buildDynamicCropFilter,
   buildSplitScreenFilterComplex,
   buildZoomEnvelope,
+  cropSizeFrac,
   type FaceBox,
   type StoredCrop,
   type ReframeOptions,
 } from "@/lib/reframe";
+import {
+  classifyScene, buildCutKeyframes, buildGroupKeyframes, buildDriftKeyframes,
+} from "@/lib/scene-layout";
+import { buildSignalTrack, sampleAt, computeAudioPeaks, EMPTY_SIGNAL_TRACK, type SignalTrack } from "@/lib/signal-track";
+import {
+  parseLiteEdits, planLitePass, speechRangesFromWords, type LiteEdits,
+} from "@/lib/autoclip-lite";
+import { computeDuckEnvelope, duckVolumeExpr } from "@/lib/audio-ducking";
+import { getCaptionTemplate, planEmoji } from "@/lib/caption-templates";
+import { buildCameraZoom, applyZoomToKeyframes, ZOOM_STRENGTH_MAX } from "@/lib/camera-motion";
+import { getFaceTimeline } from "@/lib/asd";
+import { loadFaceTimeline, saveFaceTimeline } from "@/lib/face-timeline-store";
 import { calibrateScore, getViralityWeights, type SubScores } from "@/lib/virality-score";
-import { computeBrollWindow, pickBroll } from "@/lib/broll";
+import { computeBrollWindow, pickBroll, planBrollWindows, type BrollCue } from "@/lib/broll";
 import { TARGET_RES } from "@/lib/reframe";
 import os from "os";
 import path from "path";
@@ -109,6 +126,18 @@ export function computeAnalysisCost(sourceDurationSec: number, pricing: AutoClip
 }
 
 export const analysisRefId = (projectId: string) => `auto-clip-analysis:${projectId}`;
+
+// What to persist on Project.failureReason for the UI to render.
+//
+// NonRetryableError messages are written for a creator ("Video is too short…",
+// "…upgrade for longer uploads") and are safe and useful to show verbatim.
+// Anything else is an internal fault — a Gemini timeout, an S3 error, an
+// ffmpeg stderr dump — which would be noise at best and leak infrastructure
+// detail at worst, so it collapses to a generic line.
+export function userFacingFailure(err: unknown): string {
+  if (err instanceof NonRetryableError) return err.message;
+  return "We couldn't generate clips from this video. Please try again — you haven't been charged.";
+}
 
 /** Credits already paid (net of refunds) for this project's analysis step. */
 export async function getAnalysisCreditsPaid(userId: string, projectId: string): Promise<number> {
@@ -188,6 +217,92 @@ interface GeminiSegment {
   suggestedPostingTime: string;
   hashtags: string[];
   suggestedCaption: string;
+  /**
+   * Words the speaker leans on, as indexes into the clip's own word list.
+   * Loudness alone can't find these — a calmly delivered key term carries the
+   * point without carrying volume — so the model tags them and they feed both
+   * the camera's energy envelope and caption emphasis.
+   */
+  emphasisWordIndexes: number[];
+  /** Raw words as returned by the model, before index resolution. */
+  emphasisWords: string[];
+  /** Keyword-anchored B-roll suggestions, resolved to windows in pickJob. */
+  brollCues: BrollCue[];
+}
+
+/**
+ * Map the model's emphasis WORDS onto positions in a clip's word list.
+ * Matching by normalised text rather than trusting model-supplied indexes,
+ * which are unreliable — and taking the first unused occurrence so a repeated
+ * word doesn't collapse onto one position.
+ */
+export function resolveEmphasisIndexes(words: WordTiming[], emphasisWords: string[]): number[] {
+  if (emphasisWords.length === 0 || words.length === 0) return [];
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9']/g, "");
+  const used = new Set<number>();
+  const out: number[] = [];
+  for (const target of emphasisWords.map(norm).filter(Boolean)) {
+    const idx = words.findIndex((w, i) => !used.has(i) && norm(w.word) === target);
+    if (idx >= 0) { used.add(idx); out.push(idx); }
+  }
+  return out.sort((a, b) => a - b);
+}
+
+// ── Transcript formatting for the LLM ───────────────────────────────────────
+// The prompt used to carry one `[12.34] word` timestamp PER WORD. On a 6-hour
+// source — which the Studio tier sells — that's ~60k words and well over 200k
+// tokens of mostly punctuation, in a single call with a 30s timeout. It
+// truncates or fails.
+//
+// Grouping into short phrases with one timestamp each cuts that by an order of
+// magnitude while keeping every timestamp the model actually needs: it picks
+// clip boundaries in seconds, and a boundary is only ever placed at a phrase
+// edge anyway.
+
+const PHRASE_GAP_MS = 700;   // a pause this long ends a phrase
+const PHRASE_MAX_WORDS = 12;
+
+export function formatTranscriptForPrompt(words: WordTiming[]): string {
+  if (words.length === 0) return "";
+  const lines: string[] = [];
+  let start = words[0].start;
+  let buf: string[] = [];
+
+  const flush = () => {
+    if (buf.length === 0) return;
+    lines.push(`[${(start / 1000).toFixed(1)}] ${buf.join(" ")}`);
+    buf = [];
+  };
+
+  for (let i = 0; i < words.length; i++) {
+    if (buf.length === 0) start = words[i].start;
+    buf.push(words[i].word);
+    const gapToNext = i + 1 < words.length ? words[i + 1].start - words[i].end : Infinity;
+    if (buf.length >= PHRASE_MAX_WORDS || gapToNext > PHRASE_GAP_MS) flush();
+  }
+  flush();
+  return lines.join("\n");
+}
+
+// Above this source length, one prompt can't hold the transcript at usable
+// fidelity, so it's scored in windows and the winners ranked globally.
+const MAP_REDUCE_THRESHOLD_SEC = 45 * 60;
+const MAP_WINDOW_SEC = 20 * 60;
+
+/** Split words into overlapping-free windows for the map phase. */
+export function splitIntoWindows(
+  words: WordTiming[],
+  durationSec: number,
+  windowSec: number,
+): { startSec: number; endSec: number; words: WordTiming[] }[] {
+  const windows: { startSec: number; endSec: number; words: WordTiming[] }[] = [];
+  for (let start = 0; start < durationSec; start += windowSec) {
+    const end = Math.min(durationSec, start + windowSec);
+    const inWindow = words.filter((w) => w.start >= start * 1000 && w.start < end * 1000);
+    // A window with no speech has nothing to select from.
+    if (inWindow.length > 0 || words.length === 0) windows.push({ startSec: start, endSec: end, words: inWindow });
+  }
+  return windows;
 }
 
 async function getClipsFromGemini(
@@ -222,6 +337,8 @@ For each clip include:
 - "suggestedPostingTime": time window suggestion for maximum exposure
 - "hashtags": array of 3-4 trending hashtags
 - "suggestedCaption": engaging, ready-to-use social caption
+- "emphasisWords": array of up to 6 short strings — the exact words IN THIS CLIP the speaker leans on or that carry the point. Copy them verbatim from the transcript, lowercase, no punctuation.
+- "brollCues": array of up to 3 objects [{"word":"city","query":"city skyline at night"}] — a concrete NOUN the speaker says that a stock shot could illustrate, paired with a 2-4 word search term. Copy "word" verbatim from the transcript. Return [] if the clip is better served by staying on the speaker.
 
 Rules:
 - Return exactly ${clipCount} clip(s)
@@ -239,7 +356,7 @@ ${instructions ? `User instructions: ${instructions}` : "Focus on the most engag
 
 Video duration: ${durationSec.toFixed(1)} seconds
 
-Transcript (format: [seconds] word):
+Transcript (each line is "[start seconds] phrase"):
 ${transcriptText}
 
 ${sharedRules}`
@@ -269,6 +386,8 @@ ${sharedRules}`;
     suggestedPostingTime?: string;
     hashtags?: string[];
     suggestedCaption?: string;
+    emphasisWords?: string[];
+    brollCues?: { word?: string; query?: string }[];
   }>;
   const clampSub = (n: unknown) => Math.max(0, Math.min(99, Math.round(typeof n === "number" ? n : 50)));
 
@@ -295,10 +414,82 @@ ${sharedRules}`;
       suggestedPostingTime: (typeof c.suggestedPostingTime === "string" && c.suggestedPostingTime.trim()) ? c.suggestedPostingTime.trim() : "5:00 PM local time",
       hashtags: Array.isArray(c.hashtags) ? c.hashtags.map(String) : ["#highlight", "#viral"],
       suggestedCaption: (typeof c.suggestedCaption === "string" && c.suggestedCaption.trim()) ? c.suggestedCaption.trim() : "Check out this amazing moment!",
+      // Resolved to word indexes later, once the clip's word slice is known —
+      // the model returns words, not positions, because asking an LLM for
+      // array indexes into a transcript it only saw as text is unreliable.
+      emphasisWords: Array.isArray(c.emphasisWords) ? c.emphasisWords.map(String).slice(0, 6) : [],
+      emphasisWordIndexes: [],
+      brollCues: Array.isArray(c.brollCues)
+        ? c.brollCues
+            .filter((q) => typeof q?.word === "string" && typeof q?.query === "string")
+            .map((q) => ({ word: String(q.word).slice(0, 40), query: String(q.query).slice(0, 60) }))
+            .slice(0, 3)
+        : [],
       };
     });
 
   return enforceNonOverlapping(mapped, minDuration).slice(0, clipCount);
+}
+
+/**
+ * Clip selection that scales to long sources.
+ *
+ * Short videos take the single-call path unchanged. Past
+ * MAP_REDUCE_THRESHOLD_SEC the transcript can't fit one prompt at usable
+ * fidelity, so each window is scored independently (asking for a generous
+ * share of clips so good windows aren't starved), then the pooled candidates
+ * are ranked globally by their own sub-scores and the best kept. Ranking on
+ * scores the model already returns avoids a second LLM round-trip.
+ */
+async function selectClips(
+  words: WordTiming[],
+  durationSec: number,
+  clipCount: number,
+  minDuration: number,
+  maxDuration: number,
+  instructions: string,
+): Promise<GeminiSegment[]> {
+  if (durationSec <= MAP_REDUCE_THRESHOLD_SEC || words.length === 0) {
+    return getClipsFromGemini(formatTranscriptForPrompt(words), durationSec, clipCount, minDuration, maxDuration, instructions);
+  }
+
+  const windows = splitIntoWindows(words, durationSec, MAP_WINDOW_SEC);
+  logger.info("auto-clip", `long source (${(durationSec / 60).toFixed(0)} min) — scoring ${windows.length} windows`);
+
+  // Ask each window for a few candidates; the reduce step picks the winners.
+  const perWindow = Math.max(2, Math.ceil((clipCount * 2) / windows.length));
+
+  const results = await Promise.all(windows.map(async (win) => {
+    try {
+      // Each window is prompted in its OWN 0-based time frame, then shifted
+      // back — otherwise the model has to reason about absolute offsets it
+      // can't see, and reliably returns out-of-range values.
+      const local = win.words.map((w) => ({
+        word: w.word,
+        start: w.start - win.startSec * 1000,
+        end: w.end - win.startSec * 1000,
+      }));
+      const segs = await getClipsFromGemini(
+        formatTranscriptForPrompt(local),
+        win.endSec - win.startSec,
+        perWindow, minDuration, maxDuration, instructions,
+      );
+      return segs.map((s) => ({ ...s, start: s.start + win.startSec, end: s.end + win.startSec }));
+    } catch (err) {
+      // One bad window must not lose the whole video.
+      logger.warn("auto-clip", `window ${win.startSec}-${win.endSec}s failed, skipping`, err);
+      return [];
+    }
+  }));
+
+  const pooled = results.flat();
+  if (pooled.length === 0) return [];
+
+  const rank = (s: GeminiSegment) => s.hook * 0.4 + s.payoff * 0.25 + s.engagement * 0.25 + s.pacing * 0.1;
+  const best = [...pooled].sort((a, b) => rank(b) - rank(a)).slice(0, clipCount * 2);
+  // enforceNonOverlapping expects ascending order and resolves collisions
+  // between windows that both claimed a boundary region.
+  return enforceNonOverlapping(best.sort((a, b) => a.start - b.start), minDuration).slice(0, clipCount);
 }
 
 // The "clips must not overlap / sort by start ascending" rules above are only
@@ -335,6 +526,35 @@ function computeStoredCrop(
   options: ReframeOptions = {}
 ): StoredCrop | null {
   if (srcW <= 0 || srcH <= 0) return null;
+
+  // Scene type decides the layout, once per clip. Previously every clip got
+  // either a single-face pan or a two-person stack, so a four-person panel or
+  // a faceless stretch was framed by accident.
+  const scene = classifyScene(allFaces, seg.start, seg.end);
+  const duration = seg.end - seg.start;
+  const inWindow = allFaces
+    .filter((f) => f.tSec >= seg.start && f.tSec <= seg.end && f.confidence >= 60)
+    .map((f) => ({ ...f, tSec: f.tSec - seg.start }));
+  const { w: sceneCropW, h: sceneCropH } = cropSizeFrac(aspectRatio, srcW, srcH);
+  const speakerMode0 = options.speakerMode ?? "auto";
+
+  if (speakerMode0 === "auto") {
+    if (scene.type === "dialogue" && aspectRatio === "9:16") {
+      // Alternating conversation reads better as cuts than as a permanent
+      // split: a split screen makes the viewer work out who is speaking.
+      const cuts = buildCutKeyframes(inWindow, duration, sceneCropW, sceneCropH);
+      if (cuts.length > 1) return { mode: "single", keyframes: cuts };
+    }
+    if (scene.type === "group") {
+      const group = buildGroupKeyframes(inWindow, duration, sceneCropW, sceneCropH);
+      if (group.length > 1) return { mode: "single", keyframes: group };
+    }
+    if (scene.type === "none") {
+      // Nothing to track: a slow drift beats a dead-static crop, and beats
+      // inventing motion that implies a subject.
+      return { mode: "single", keyframes: buildDriftKeyframes(duration, sceneCropW, sceneCropH) };
+    }
+  }
 
   // `preset` is not read here — the two keyframe builders below each pull it
   // off the `options` object they're handed.
@@ -392,10 +612,12 @@ export async function pickJob(payload: PickPayload): Promise<void> {
   let analysisCharged = 0;
 
   try {
-    await downloadFile(project.uploadedVideoUrl, videoPath);
+    await timeStage("download", () => downloadFile(project.uploadedVideoUrl!, videoPath));
     const durationSec = await getMediaDurationSec(videoPath);
     if (durationSec < minDuration) {
-      throw new Error(`Video is too short (${durationSec.toFixed(1)}s) for the requested clip duration (min ${minDuration}s)`);
+      // Non-retryable: the video will still be too short on attempt 2 and 3,
+      // and each retry re-downloads the whole source to find that out.
+      throw new NonRetryableError(`Video is too short (${durationSec.toFixed(1)}s) for the requested clip duration (min ${minDuration}s)`);
     }
     // Tiered source-length cap (cost ceiling per job + upgrade trigger).
     {
@@ -404,7 +626,7 @@ export async function pickJob(payload: PickPayload): Promise<void> {
       const tier = await getUserTier(project.userId);
       const cap = TIER_MAX_AUTOCLIP_SOURCE_SECONDS[tier];
       if (durationSec > cap) {
-        throw new Error(
+        throw new NonRetryableError(
           `Video is ${(durationSec / 60).toFixed(0)} min — your plan supports Auto Clips up to ${Math.round(cap / 60)} min per video. Upgrade for longer uploads.`,
         );
       }
@@ -423,7 +645,7 @@ export async function pickJob(payload: PickPayload): Promise<void> {
           refId: analysisRefId(projectId),
         });
         if (!spend.ok) {
-          throw new Error(
+          throw new NonRetryableError(
             `Analyzing this video costs ${analysisCost} credit${analysisCost === 1 ? "" : "s"} (credited back when you confirm clips) — you don't have enough credits.`,
           );
         }
@@ -436,33 +658,44 @@ export async function pickJob(payload: PickPayload): Promise<void> {
     // neither the transcript nor Gemini's output — kick it off now and run it
     // concurrently with STT + Gemini below instead of waiting on it after
     // they've already finished.
-    const faceTimelinePromise: Promise<FaceBox[]> = project.faceTimeline
-      ? Promise.resolve(project.faceTimeline as unknown as FaceBox[])
-      : detectFaceTimeline(project.uploadedVideoUrl);
+    // Prefers the GPU active-speaker model and falls back to Rekognition, then
+    // to nothing (static centre crop) — see lib/asd.ts. Timelines are cached
+    // via loadFaceTimeline/saveFaceTimeline, which keeps the samples in an S3
+    // sidecar rather than a Postgres JSON column: a multi-hour source produces
+    // six figures of samples, which is not a column value.
+    const cached = await loadFaceTimeline(project);
+    const faceTimelinePromise: Promise<FaceBox[]> = cached
+      ? Promise.resolve(cached)
+      : getFaceTimeline(project.userId, project.uploadedVideoUrl);
 
     let wordTimings: WordTiming[] = [];
     let sttFailed = false;
     try {
       await extractAudio(videoPath, audioPath);
-      wordTimings = await transcribe(fs.readFileSync(audioPath)); // retries internally + falls back to Whisper, see lib/transcription.ts
+      // retries internally + falls back to Whisper, see lib/transcription.ts
+      wordTimings = await timeStage(
+        "transcribe",
+        () => transcribe(fs.readFileSync(audioPath)),
+        { meta: { sourceMin: Math.round(durationSec / 60) } },
+      );
     } catch (err) {
       sttFailed = true;
       logger.warn("auto-clip", "transcription failed, Gemini will work without transcript", err);
     }
 
-    const transcriptText = wordTimings.map((w) => `[${(w.start / 1000).toFixed(2)}] ${w.word}`).join(" ");
-    const segments = await getClipsFromGemini(transcriptText, durationSec, clipCount, minDuration, maxDuration, instructions);
+    const segments = await timeStage(
+      "select",
+      () => selectClips(wordTimings, durationSec, clipCount, minDuration, maxDuration, instructions),
+      { meta: { sourceMin: Math.round(durationSec / 60), clipCount } },
+    );
     if (segments.length === 0) throw new Error("Gemini returned no valid clip segments");
 
     // Faces are only needed from here on (computeStoredCrop below) — by now
     // the Rekognition call has had the entire STT+Gemini duration to finish
     // in the background instead of blocking in front of it.
     const allFaces = await faceTimelinePromise;
-    if (!project.faceTimeline && allFaces.length > 0) {
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { faceTimeline: allFaces as unknown as Prisma.InputJsonValue },
-      }).catch(() => {});
+    if (!cached && allFaces.length > 0) {
+      await saveFaceTimeline(projectId, allFaces);
     }
     const { w: srcW, h: srcH } = await getMediaDimensions(videoPath);
 
@@ -472,12 +705,41 @@ export async function pickJob(payload: PickPayload): Promise<void> {
 
     // Best-effort B-roll lookup (P2.3) — resolved up front (outside the
     // transaction) since it's a network call; never blocks or fails the pick.
+    // B-roll placement. Keyword cues are preferred: an insert that lands on
+    // the noun the speaker says reads as illustration, while one dropped at an
+    // arbitrary offset reads as the video losing its place. The old
+    // single-offset path remains as the fallback for when the model returns no
+    // usable cues.
     const brollPicks = await Promise.all(segments.map(async (seg) => {
+      const clipDuration = seg.end - seg.start;
+      const words = sliceWordsForClip(wordTimings, seg.start, seg.end);
+
+      const planned = planBrollWindows(seg.brollCues, words, clipDuration);
+      if (planned.length > 0) {
+        const resolved = await Promise.all(planned.map(async (p) => {
+          const found = await pickBroll(p.query);
+          return found ? { startSec: p.startSec, endSec: p.endSec, url: found.downloadUrl, query: p.query } : null;
+        }));
+        const usable = resolved.filter((w): w is NonNullable<typeof w> => w !== null);
+        if (usable.length > 0) return usable;
+      }
+
       if (!seg.brollQuery) return null;
-      const window = computeBrollWindow(seg.end - seg.start, seg.brollOffsetSec);
+      const window = computeBrollWindow(clipDuration, seg.brollOffsetSec);
       if (!window) return null;
       const broll = await pickBroll(seg.brollQuery);
-      return broll ? { ...window, url: broll.downloadUrl, query: seg.brollQuery } : null;
+      return broll ? [{ ...window, url: broll.downloadUrl, query: seg.brollQuery }] : null;
+    }));
+
+    // Speech signal tracks (P2.1) — loudness/pitch/energy envelopes, shot
+    // boundaries and pauses per clip. Computed here, while the source video is
+    // already on local disk, so the render never has to decode it again.
+    // Best-effort: a clip without one simply renders non-reactively.
+    const signalTracks = await Promise.all(segments.map(async (seg) => {
+      const words = sliceWordsForClip(wordTimings, seg.start, seg.end);
+      if (words.length === 0) return EMPTY_SIGNAL_TRACK;
+      seg.emphasisWordIndexes = resolveEmphasisIndexes(words, seg.emphasisWords);
+      return buildSignalTrack(videoPath, seg.start, seg.end, words, seg.emphasisWordIndexes);
     }));
 
     // Clip creation and the final status flip must succeed or fail together —
@@ -490,11 +752,12 @@ export async function pickJob(payload: PickPayload): Promise<void> {
         const words = sliceWordsForClip(wordTimings, seg.start, seg.end);
         const hasCaptions = captionStyleIndex >= 0 && words.length > 0;
         const broll = brollPicks[i];
-        // A B-roll splice always uses a static crop for its main-footage
-        // segments (see renderOneClip) — combining it with a dynamic pan
-        // path is more risk than the marginal polish is worth, so skip
-        // computing/storing pan keyframes for clips that got B-roll.
-        const cropKeyframes = broll ? null : computeStoredCrop(allFaces, seg, aspectRatio, srcW, srcH, {
+        // B-roll used to disable reframing for the WHOLE clip, so a 2.5s stock
+        // insert cost the other ~30 seconds their speaker tracking. The
+        // B-roll segments are ordinary crops in the same graph and can carry
+        // the same dynamic expressions, so the pan path is computed either way
+        // (buildBrollFilterComplex applies it to the main-footage segments).
+        const cropKeyframes = computeStoredCrop(allFaces, seg, aspectRatio, srcW, srcH, {
           preset: reframingPreset,
           smartAutoReframe,
           zoomStrength,
@@ -531,6 +794,7 @@ export async function pickJob(payload: PickPayload): Promise<void> {
               suggestedCaption: seg.suggestedCaption,
             } as unknown as Prisma.InputJsonValue,
             mood: seg.mood,
+            signalTrack: signalTracks[i] as unknown as Prisma.InputJsonValue,
             status: "pending_review",
             transcriptJson: words as unknown as Prisma.InputJsonValue,
             captionStyleIndex: hasCaptions ? captionStyleIndex : null,
@@ -548,9 +812,13 @@ export async function pickJob(payload: PickPayload): Promise<void> {
               trackingSpeed,
             } as unknown as Prisma.InputJsonValue,
             ...(cropKeyframes ? { cropKeyframes: cropKeyframes as unknown as Prisma.InputJsonValue } : {}),
-            ...(broll ? {
-              brollQuery: broll.query, brollUrl: broll.url,
-              brollStartSec: broll.startSec, brollEndSec: broll.endSec,
+            ...(broll && broll.length > 0 ? {
+              brollWindows: broll as unknown as Prisma.InputJsonValue,
+              // The single-window columns stay populated with the first insert
+              // so anything still reading them (older code paths, the results
+              // grid's "B-roll" badge) keeps working.
+              brollQuery: broll[0].query, brollUrl: broll[0].url,
+              brollStartSec: broll[0].startSec, brollEndSec: broll[0].endSec,
             } : {}),
           },
         });
@@ -561,6 +829,8 @@ export async function pickJob(payload: PickPayload): Promise<void> {
           status: "pending_review",
           autoClipCaptionStyle: captionStyleIndex,
           warnings: (warnings.length ? warnings : Prisma.JsonNull) as Prisma.InputJsonValue,
+          // A retry that succeeds must not keep showing the previous attempt's error.
+          failureReason: null,
         },
       })
     ]);
@@ -578,7 +848,10 @@ export async function pickJob(payload: PickPayload): Promise<void> {
     // Clean up any clips from a prior attempt on this project so a retry
     // doesn't accumulate duplicates alongside the ones about to be re-picked.
     await prisma.clip.deleteMany({ where: { projectId, status: "pending_review" } }).catch(() => {});
-    await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } }).catch(() => {});
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { status: "failed", failureReason: userFacingFailure(err) },
+    }).catch(() => {});
     // Rethrow (after the cleanup above already ran) so createRenderQueue's
     // wrapper sees a real failure and BullMQ's attempts:3/backoff actually
     // retries transient errors (a flaky Gemini/S3 call) instead of stopping
@@ -599,6 +872,86 @@ export async function pickJob(payload: PickPayload): Promise<void> {
 // three are concatenated back into one continuous stream, so the clip's
 // overall duration and audio track are completely unaffected — captions
 // (burned in after the concat) need no re-slicing.
+export interface BrollWindow { startSec: number; endSec: number }
+
+/**
+ * Splice one or more B-roll windows into a clip.
+ *
+ * The crop is applied to the WHOLE clip before it is split, not to each
+ * segment after trimming. `trim` + `setpts=PTS-STARTPTS` rebases `t` to zero
+ * for each segment, so a time-varying crop applied afterwards would replay the
+ * start of the pan path in every later segment instead of continuing it. Doing
+ * the crop first keeps `t` clip-relative, which is the basis every crop
+ * keyframe is expressed in.
+ *
+ * Windows must be sorted and non-overlapping; the caller (lib/broll.ts's
+ * planBrollWindows) guarantees both.
+ */
+export function buildMultiBrollFilterComplex(
+  clipDurationSec: number,
+  windows: BrollWindow[],
+  aspect: Aspect,
+  moodFilter: string | null,
+  captionsFilter: string | null,
+  videoSrc = "[0:v]",
+  mainCropFilter?: string | null,
+): string {
+  const target = TARGET_RES[aspect];
+  const scaleToTarget = `scale=${target.w}:${target.h},setsar=1`;
+  const cropChain = `${mainCropFilter ?? aspectRatioFilter(aspect)},${scaleToTarget}`;
+
+  // Main-footage segments sit between the windows: one before the first, one
+  // after the last, and one in each gap.
+  const mainSpans: { start: number; end: number }[] = [];
+  let cursor = 0;
+  for (const w of windows) {
+    mainSpans.push({ start: cursor, end: w.startSec });
+    cursor = w.endSec;
+  }
+  mainSpans.push({ start: cursor, end: clipDurationSec });
+
+  // A zero-length span would produce an empty segment that breaks concat.
+  const usableMain = mainSpans.filter((s) => s.end - s.start > 0.04);
+
+  const parts: string[] = [];
+  parts.push(`${videoSrc}${cropChain}[mainraw]`);
+  parts.push(`[mainraw]split=${usableMain.length}${usableMain.map((_, i) => `[m${i}]`).join("")}`);
+
+  const order: string[] = [];
+  let mainIdx = 0;
+  const emitMain = (span: { start: number; end: number }) => {
+    const label = `[vm${mainIdx}]`;
+    parts.push(`[m${mainIdx}]trim=start=${span.start}:end=${span.end},setpts=PTS-STARTPTS${label}`);
+    order.push(label);
+    mainIdx++;
+  };
+
+  let spanCursor = 0;
+  for (const [i, w] of windows.entries()) {
+    const before = mainSpans[i];
+    if (before.end - before.start > 0.04) emitMain(usableMain[spanCursor++] ?? before);
+    const label = `[vb${i}]`;
+    const dur = w.endSec - w.startSec;
+    // Each B-roll clip is its own input, cover-scaled to the target frame.
+    parts.push(
+      `[${i + 1}:v]scale=${target.w}:${target.h}:force_original_aspect_ratio=increase,` +
+      `crop=${target.w}:${target.h},setsar=1,trim=0:${dur},setpts=PTS-STARTPTS${label}`,
+    );
+    order.push(label);
+  }
+  const tail = mainSpans[mainSpans.length - 1];
+  if (tail.end - tail.start > 0.04) emitMain(usableMain[spanCursor++] ?? tail);
+
+  const postConcat = [moodFilter, captionsFilter].filter((f): f is string => !!f);
+  const concat = `${order.join("")}concat=n=${order.length}:v=1:a=0`;
+  parts.push(postConcat.length > 0
+    ? `${concat}[vconcatraw];[vconcatraw]${postConcat.join(",")}[video]`
+    : `${concat}[video]`);
+
+  return parts.join(";");
+}
+
+/** Single-window convenience wrapper, kept for the common case. */
 export function buildBrollFilterComplex(
   clipDurationSec: number,
   brollStartSec: number,
@@ -606,21 +959,14 @@ export function buildBrollFilterComplex(
   aspect: Aspect,
   moodFilter: string | null,
   captionsFilter: string | null,
-  videoSrc = "[0:v]"
+  videoSrc = "[0:v]",
+  mainCropFilter?: string | null,
 ): string {
-  const brollDur = brollEndSec - brollStartSec;
-  const staticCrop = aspectRatioFilter(aspect);
-  const target = TARGET_RES[aspect];
-  const scaleToTarget = `scale=${target.w}:${target.h},setsar=1`;
-
-  const segA = `${videoSrc}trim=start=0:end=${brollStartSec},setpts=PTS-STARTPTS,${staticCrop},${scaleToTarget}[va]`;
-  const segB = `[1:v]scale=${target.w}:${target.h}:force_original_aspect_ratio=increase,crop=${target.w}:${target.h},setsar=1,trim=0:${brollDur},setpts=PTS-STARTPTS[vb]`;
-  const segC = `${videoSrc}trim=start=${brollEndSec}:end=${clipDurationSec},setpts=PTS-STARTPTS,${staticCrop},${scaleToTarget}[vc]`;
-  const postConcat = [moodFilter, captionsFilter].filter((f): f is string => !!f);
-  const concatChain = postConcat.length > 0
-    ? `[va][vb][vc]concat=n=3:v=1:a=0[vconcatraw];[vconcatraw]${postConcat.join(",")}[video]`
-    : `[va][vb][vc]concat=n=3:v=1:a=0[video]`;
-  return `${segA};${segB};${segC};${concatChain}`;
+  return buildMultiBrollFilterComplex(
+    clipDurationSec,
+    [{ startSec: brollStartSec, endSec: brollEndSec }],
+    aspect, moodFilter, captionsFilter, videoSrc, mainCropFilter,
+  );
 }
 
 interface CutSegment { startMs: number; endMs: number }
@@ -721,6 +1067,53 @@ export function computeKeeps(
   return { keeps: validKeeps, cuts: mergedCuts };
 }
 
+/**
+ * Map a time on the TRIMMED timeline back to the original one.
+ * The inverse of shiftTime: walk the kept spans, consuming output time until
+ * the target lands inside one.
+ */
+export function unshiftTime(outMs: number, keeps: KeepSegment[]): number {
+  let consumed = 0;
+  for (const k of keeps) {
+    const span = k.endMs - k.startMs;
+    if (outMs <= consumed + span) return k.startMs + (outMs - consumed);
+    consumed += span;
+  }
+  return keeps.length > 0 ? keeps[keeps.length - 1].endMs : outMs;
+}
+
+/**
+ * Re-index a signal track onto the trimmed timeline so the cinematic layer
+ * reacts to the audio that is actually in the rendered clip.
+ */
+export function remapSignalTrack(signal: SignalTrack, keeps: KeepSegment[], newDurationSec: number): SignalTrack {
+  const hz = signal.hz || 20;
+  const n = Math.max(1, Math.round(newDurationSec * hz));
+  const resample = (values: number[]): number[] => {
+    if (values.length === 0) return [];
+    return Array.from({ length: n }, (_, i) => {
+      const originalSec = unshiftTime((i / hz) * 1000, keeps) / 1000;
+      const idx = Math.round(originalSec * hz);
+      return values[Math.max(0, Math.min(values.length - 1, idx))];
+    });
+  };
+
+  return {
+    ...signal,
+    rms: resample(signal.rms),
+    pitch: resample(signal.pitch),
+    energy: resample(signal.energy),
+    // Shot boundaries and pauses that fell inside a removed span no longer
+    // exist; the rest move forward.
+    scenes: signal.scenes
+      .filter((s) => keeps.some((k) => s * 1000 >= k.startMs && s * 1000 <= k.endMs))
+      .map((s) => shiftTime(s * 1000, keeps) / 1000),
+    pauses: signal.pauses
+      .filter((p) => keeps.some((k) => p.start * 1000 >= k.startMs && p.start * 1000 <= k.endMs))
+      .map((p) => ({ start: shiftTime(p.start * 1000, keeps) / 1000, end: shiftTime(p.end * 1000, keeps) / 1000 })),
+  };
+}
+
 function shiftTime(tMs: number, keeps: KeepSegment[]): number {
   let prevKeptDuration = 0;
   for (let i = 0; i < keeps.length; i++) {
@@ -738,6 +1131,67 @@ function shiftTime(tMs: number, keeps: KeepSegment[]): number {
 
 // ── Per-clip render (shared by the batch render job and single-clip re-render) ─
 
+/**
+ * Applies the lite-editor pass to a finished clip, in place.
+ *
+ * Runs as its own encode over `clipPath` and swaps the result back, so the
+ * main render is untouched by any of it. Returns the (possibly changed)
+ * duration. Best-effort: if the pass fails the original render stands rather
+ * than the whole clip failing over a music bed.
+ */
+async function applyLiteEditsPass(args: {
+  lite: LiteEdits;
+  clipPath: string;
+  litePath: string;
+  musicPath: string;
+  durationSec: number;
+  words: WordTiming[] | null;
+  target: RenderTarget;
+}): Promise<number> {
+  const { lite, clipPath, litePath, musicPath, durationSec, words, target } = args;
+
+  let downloadedMusic: string | null = null;
+  if (lite.music?.url) {
+    try {
+      await downloadFile(lite.music.url, musicPath);
+      downloadedMusic = musicPath;
+    } catch (err) {
+      logger.warn("auto-clip", "music bed download failed, rendering without it", err);
+    }
+  }
+
+  // Duck the bed under speech using the already-written, previously-unused
+  // envelope builder in lib/audio-ducking.ts.
+  let duckExpr: string | null = null;
+  if (downloadedMusic && lite.music?.duck && words && words.length > 0) {
+    const speech = speechRangesFromWords(words);
+    const segments = computeDuckEnvelope(speech, durationSec, {
+      duckGain: lite.music.volume * 0.25,
+      fullGain: lite.music.volume,
+    });
+    duckExpr = duckVolumeExpr(segments, lite.music.volume);
+  }
+
+  const plan = planLitePass(lite, durationSec, { musicPath: downloadedMusic, duckExpr });
+  if (!plan.needed) return durationSec;
+
+  try {
+    await runFFmpegArgs([
+      "-y", "-i", clipPath,
+      ...plan.extraInputs.flatMap((p) => ["-i", p]),
+      "-filter_complex", plan.filterComplex,
+      "-map", plan.videoMap, "-map", plan.audioMap,
+      ...encodeArgs(target),
+      litePath,
+    ]);
+    fs.renameSync(litePath, clipPath);
+    return plan.durationSec;
+  } catch (err) {
+    logger.warn("auto-clip", "lite-edit pass failed, keeping the base render", err);
+    return durationSec;
+  }
+}
+
 // Free-tier output treatment: cap the short edge at 720p and burn a corner
 // "Clipiro" watermark. Chained after every other filter so it applies over
 // captions/B-roll and can't be cropped away.
@@ -750,12 +1204,27 @@ function watermarkFilterChain(): string {
   );
 }
 
-async function renderOneClip(projectId: string, clip: Clip, videoPath: string, watermark = false): Promise<{ ok: boolean }> {
-  const tmp = os.tmpdir();
+async function renderOneClip(
+  projectId: string,
+  clip: Clip,
+  videoPath: string,
+  watermark = false,
+  target: RenderTarget = "cpu",
+): Promise<{ ok: boolean }> {
+  // Each render gets its own directory rather than sharing os.tmpdir(). Two
+  // reasons: concurrent clips (the pool added in P1.4) can no longer collide
+  // on a filename, and a worker killed mid-render leaks one directory that is
+  // trivially identifiable and sweepable — previously it leaked loose
+  // multi-gigabyte files into the shared temp root with no way to tell them
+  // apart from anything else's.
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), `autoclip-${clip.id}-`));
   const clipPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}.mp4`);
   const thumbPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}.jpg`);
   const assPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}.ass`);
   const brollPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}-broll.mp4`);
+  const scriptPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}.filter`);
+  const litePath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}-lite.mp4`);
+  const musicPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}-music.mp3`);
 
   try {
     await prisma.clip.update({ where: { id: clip.id }, data: { status: "rendering", progress: 5 } });
@@ -834,6 +1303,39 @@ async function renderOneClip(projectId: string, clip: Clip, videoPath: string, w
       }
     }
 
+    let signal = (clip.signalTrack as unknown as SignalTrack | null) ?? null;
+
+    // The signal track is indexed on the clip's ORIGINAL timeline. Silence and
+    // filler removal shorten that timeline, so without remapping, the camera
+    // and captions would react to moments that have been cut out — drifting
+    // further out of sync the more was removed. Same problem the word timings
+    // and crop keyframes above already solve, so it uses the same keeps.
+    if (signal && isTrimmed && keeps.length > 0) {
+      signal = remapSignalTrack(signal, keeps, finalDurationSec);
+    }
+
+    // Lite-editor adjustments (speed, music bed, fades) are applied as a
+    // separate pass AFTER this render — see applyLiteEditsPass. Doing them
+    // here would mean rescaling every time-indexed artifact the clip owns
+    // (words, crop keyframes, B-roll window, signal track) and threading three
+    // filtergraph branches; doing them afterwards means captions and the zoom
+    // path are already pixels and scale with the video for free, which cannot
+    // desync. The cost is one extra encode on clips that use the lite editor.
+    const lite = parseLiteEdits(clip.liteEdits);
+
+    // Energy-reactive camera (P2.2). The zoom curve is layered onto whatever
+    // crop path the layout produced, so it composes with speaker tracking
+    // rather than replacing it — the camera keeps following the subject and
+    // tightens around them when the delivery intensifies.
+    if (signal && signal.energy?.length > 0 && stored?.mode === "single" && stored.keyframes.length > 0) {
+      const zoomStrength = (silenceOpts.zoomStrength as "low" | "medium" | "high") ?? "medium";
+      const smartOn = silenceOpts.smartAutoReframe !== false;
+      if (smartOn) {
+        const curve = buildCameraZoom(signal, finalDurationSec, { maxZoom: ZOOM_STRENGTH_MAX[zoomStrength] });
+        stored = { mode: "single", keyframes: applyZoomToKeyframes(stored.keyframes, curve) };
+      }
+    }
+
     let assEscaped: string | null = null;
     if (clip.hasCaptions && words && words.length > 0) {
       // Resolve custom subtitle style overrides if they exist
@@ -842,13 +1344,34 @@ async function renderOneClip(projectId: string, clip: Clip, videoPath: string, w
       if (customStyle) {
         style = { ...style, ...customStyle };
       }
+      // Caption animation reads the SAME energy envelope the camera does, so
+      // the two agree about where the emphasis is instead of each reacting on
+      // its own — that disagreement is what makes auto-captions look amateur.
+      // A caption template, if one is chosen, supplies the look AND whether
+      // emoji/keyword colouring apply — one named decision instead of a dozen
+      // colour pickers.
+      const template = getCaptionTemplate((clip.subtitleStyleOverride as Record<string, unknown> | null)?.templateId as string | undefined);
+      if (template) style = { ...template.style, ...customStyle };
+
+      if (signal && signal.energy?.length > 0) {
+        style = {
+          ...style,
+          motion: {
+            energy: words.map((w) => sampleAt(signal.energy, w.start / 1000, signal.hz)),
+            emphasis: signal.emphasis ?? [],
+            wordsPerSec: signal.wordsPerSec,
+            emoji: planEmoji(words, template?.emoji ?? false),
+            keywordColor: template?.keywordColor,
+          },
+        };
+      }
       generateASS(words, style, assPath);
       assEscaped = assPath.replace(/\\/g, "/").replace(/:/g, "\\:");
     }
     const captionsFilter = assEscaped ? `subtitles='${assEscaped}'` : null;
 
     const baseArgs = ["-y", "-ss", String(clip.startSec), "-to", String(clip.endSec), "-i", videoPath];
-    const encodeArgs = ["-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-c:a", "aac"];
+    const outputArgs = encodeArgs(target);
 
     let selectFilter: string | null = null;
     let aselectFilter: string | null = null;
@@ -858,17 +1381,26 @@ async function renderOneClip(projectId: string, clip: Clip, videoPath: string, w
       aselectFilter = `aselect='${parts.join("+")}',asetpts=PTS-STARTPTS`;
     }
 
-    // B-roll download is best-effort — a transient failure here falls
-    // through to the normal crop path below rather than failing the clip.
-    let brollReady = false;
-    if (clip.brollUrl && clip.brollStartSec != null && clip.brollEndSec != null) {
+    // B-roll downloads are best-effort: any window that fails is dropped and
+    // the clip renders with whatever succeeded (or none at all), rather than
+    // failing over a stock clip.
+    const plannedWindows: { startSec: number; endSec: number; url: string }[] =
+      (clip.brollWindows as unknown as { startSec: number; endSec: number; url: string }[] | null)
+      ?? (clip.brollUrl && clip.brollStartSec != null && clip.brollEndSec != null
+        ? [{ startSec: clip.brollStartSec, endSec: clip.brollEndSec, url: clip.brollUrl }]
+        : []);
+
+    const readyWindows: { startSec: number; endSec: number; path: string }[] = [];
+    for (const [i, w] of plannedWindows.entries()) {
+      const dest = i === 0 ? brollPath : `${brollPath}-${i}.mp4`;
       try {
-        await downloadFile(clip.brollUrl, brollPath);
-        brollReady = true;
+        await downloadFile(w.url, dest);
+        readyWindows.push({ startSec: w.startSec, endSec: w.endSec, path: dest });
       } catch (err) {
-        logger.warn("auto-clip", `B-roll download failed for clip ${clip.index}, rendering without it`, err);
+        logger.warn("auto-clip", `B-roll window ${i} failed for clip ${clip.index}, skipping it`, err);
       }
     }
+    const brollReady = readyWindows.length > 0;
 
     let ffmpegArgs: string[];
     const videoSrc = isTrimmed ? "[trimmedv]" : "[0:v]";
@@ -879,20 +1411,35 @@ async function renderOneClip(projectId: string, clip: Clip, videoPath: string, w
     const wmComplex = watermark ? `;[video]${watermarkFilterChain()}[videowm]` : "";
     const videoMap = watermark ? "[videowm]" : "[video]";
 
-    if (brollReady && clip.brollStartSec != null && clip.brollEndSec != null) {
-      const brollStartSecShifted = isTrimmed ? shiftTime(clip.brollStartSec * 1000, keeps) / 1000 : clip.brollStartSec;
-      const brollEndSecShifted = isTrimmed ? shiftTime(clip.brollEndSec * 1000, keeps) / 1000 : clip.brollEndSec;
+    if (brollReady) {
+      // Silence removal shifts the clip's timeline, so the windows move with it.
+      const shifted = readyWindows
+        .map((w) => ({
+          ...w,
+          startSec: isTrimmed ? shiftTime(w.startSec * 1000, keeps) / 1000 : w.startSec,
+          endSec: isTrimmed ? shiftTime(w.endSec * 1000, keeps) / 1000 : w.endSec,
+        }))
+        .filter((w) => w.endSec > w.startSec && w.startSec < finalDurationSec)
+        .sort((a, b) => a.startSec - b.startSec);
 
-      const complex = prepends + buildBrollFilterComplex(finalDurationSec, brollStartSecShifted, brollEndSecShifted, aspect, moodFilter, captionsFilter, videoSrc) + wmComplex;
+      // Speaker tracking now survives a B-roll splice (P2.6).
+      const brollKeyframes = stored?.mode === "single" && stored.keyframes.length > 1 ? stored.keyframes : null;
+      const complex = prepends + buildMultiBrollFilterComplex(
+        finalDurationSec, shifted, aspect, moodFilter, captionsFilter, videoSrc,
+        brollKeyframes ? buildDynamicCropFilter(brollKeyframes, aspect) : null,
+      ) + wmComplex;
       ffmpegArgs = [
-        ...baseArgs, "-stream_loop", "-1", "-i", brollPath,
+        ...baseArgs,
+        // Each window is its own input, looped so a short stock clip still
+        // covers its window.
+        ...shifted.flatMap((w) => ["-stream_loop", "-1", "-i", w.path]),
         "-filter_complex", complex, "-map", videoMap, "-map", audioSrc,
-        ...encodeArgs, "-shortest", clipPath,
+        ...outputArgs, "-shortest", clipPath,
       ];
     } else if (stored?.mode === "split" && stored.a.length > 1 && stored.b.length > 1) {
       // Two-speaker split-screen: two independent dynamic crops, vstacked.
       const complex = prepends + buildSplitScreenFilterComplex(stored.a, stored.b, moodFilter, captionsFilter, videoSrc) + wmComplex;
-      ffmpegArgs = [...baseArgs, "-filter_complex", complex, "-map", videoMap, "-map", audioSrc, ...encodeArgs, "-shortest", clipPath];
+      ffmpegArgs = [...baseArgs, "-filter_complex", complex, "-map", videoMap, "-map", audioSrc, ...outputArgs, "-shortest", clipPath];
     } else {
       const keyframes = stored?.mode === "single" ? stored.keyframes : null;
       const cropExpr = keyframes && keyframes.length > 1
@@ -903,15 +1450,32 @@ async function renderOneClip(projectId: string, clip: Clip, videoPath: string, w
         filters.unshift(selectFilter);
       }
       if (watermark) filters.push(watermarkFilterChain());
-      ffmpegArgs = [...baseArgs, "-vf", filters.join(","), ...(isTrimmed && aselectFilter ? ["-af", aselectFilter] : []), ...encodeArgs, clipPath];
+      ffmpegArgs = [...baseArgs, "-vf", filters.join(","), ...(isTrimmed && aselectFilter ? ["-af", aselectFilter] : []), ...outputArgs, clipPath];
     }
 
-    await runFFmpegWithProgress(
-      ffmpegArgs,
-      (pct) => {
-        void prisma.clip.update({ where: { id: clip.id }, data: { progress: Math.round(5 + pct * 0.75) } }).catch(() => {});
-      },
+    // The pan/zoom expressions can push the filtergraph past the command-line
+    // length limit on long clips; spill it to a file when that happens.
+    ffmpegArgs = maybeUseFilterScript(ffmpegArgs, scriptPath);
+
+    await timeStage(
+      "render",
+      () => runFFmpegWithProgress(
+        ffmpegArgs,
+        (pct) => {
+          void prisma.clip.update({ where: { id: clip.id }, data: { progress: Math.round(5 + pct * 0.75) } }).catch(() => {});
+        },
+      ),
+      // `target` is what makes the CPU-vs-GPU comparison measurable rather
+      // than assumed — see gpu-service/README.md's ROI note.
+      { target, meta: { durationSec: Math.round(finalDurationSec), aspect, broll: brollReady } },
     );
+
+    // Lite-editor pass: speed / fades / music bed over the finished clip.
+    if (lite) {
+      finalDurationSec = await applyLiteEditsPass({
+        lite, clipPath, litePath, musicPath, durationSec: finalDurationSec, words, target,
+      });
+    }
 
     await prisma.clip.update({ where: { id: clip.id }, data: { progress: 82 } });
     await runFFmpegArgs([
@@ -939,10 +1503,18 @@ async function renderOneClip(projectId: string, clip: Clip, videoPath: string, w
       ? await uploadFileToS3(thumbPath, `renders/${projectId}/clip-${clip.index}.jpg`, "image/jpeg").catch(() => null)
       : null;
 
+    // Waveform peaks for the editor scrubber, computed here from the finished
+    // clip so the browser never has to decode audio (a multi-hour source would
+    // hang the tab) and so they match exactly what the user is looking at.
+    const audioPeaks = await computeAudioPeaks(clipPath);
+
     await prisma.clip.update({
       where: { id: clip.id },
       data: {
         status: "ready", progress: 100, videoUrl, thumbnailUrl,
+        durationSec: finalDurationSec,
+        renderTarget: target,
+        ...(audioPeaks.length > 0 ? { audioPeaks: audioPeaks as unknown as Prisma.InputJsonValue } : {}),
         score: breakdown.composite,
         scoreBreakdown: {
           ...fullBreakdown,
@@ -956,9 +1528,9 @@ async function renderOneClip(projectId: string, clip: Clip, videoPath: string, w
     await prisma.clip.update({ where: { id: clip.id }, data: { status: "failed" } }).catch(() => {});
     return { ok: false };
   } finally {
-    for (const f of [clipPath, thumbPath, assPath, brollPath]) {
-      try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch {}
-    }
+    // One directory to remove, rather than a list of files to keep in sync
+    // with every new intermediate the renderer learns to produce.
+    try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
   }
 }
 
@@ -995,11 +1567,45 @@ export async function renderJob(payload: RenderPayload): Promise<void> {
     // jobs queued across an upgrade.
     const { getUserTier } = await import("@/lib/auth");
     const watermark = (await getUserTier(project.userId)) === "free";
-    for (const clip of clips) {
-      const { ok } = await renderOneClip(projectId, clip, videoPath, watermark);
-      if (ok) {
+
+    // Where each clip encodes. Resolved once per run rather than per clip: it
+    // depends on the user's tier and the source dimensions, neither of which
+    // varies within a run, and it costs a Config read plus a Redis check.
+    const { w: srcW, h: srcH } = await getMediaDimensions(videoPath);
+    const { resolveRenderTarget } = await import("@/lib/render-target");
+    const longestClipSec = clips.reduce((m, c) => Math.max(m, c.durationSec), 0);
+    const target = await resolveRenderTarget(project.userId, {
+      sourceW: srcW, sourceH: srcH, clipDurationSec: longestClipSec,
+    });
+
+    // Clips were rendered strictly one after another, so a 20-clip project
+    // took 20x one clip's wall time on a machine with idle cores. They're
+    // independent — same read-only source file, separate temp paths, separate
+    // DB rows — so a bounded pool is safe and is the single biggest
+    // improvement to the time a user actually experiences.
+    //
+    // The bound matters: each render is itself multi-threaded ffmpeg, so
+    // unbounded parallelism would thrash. RENDER_CLIP_CONCURRENCY tunes it per
+    // deployment; 3 is a reasonable default for a small VPS.
+    const poolSize = Math.max(1, Math.min(
+      parseInt(env.RENDER_CLIP_CONCURRENCY || "3", 10) || 3,
+      clips.length,
+    ));
+
+    const queue = [...clips];
+    const runWorker = async () => {
+      for (;;) {
+        const clip = queue.shift();
+        if (!clip) return;
+        const { ok } = await renderOneClip(projectId, clip, videoPath, watermark, target);
+        if (!ok) continue;
+        const updated = await prisma.clip.findUnique({
+          where: { id: clip.id },
+          select: { videoUrl: true, score: true, durationSec: true },
+        });
+        // Mutating shared counters is safe here: Node is single-threaded, and
+        // there is no await between reading and writing them.
         readyCount++;
-        const updated = await prisma.clip.findUnique({ where: { id: clip.id }, select: { videoUrl: true, score: true, durationSec: true } });
         if (updated?.videoUrl && (updated.score ?? 0) > bestScore) {
           bestScore = updated.score ?? 0;
           bestUrl = updated.videoUrl;
@@ -1010,7 +1616,8 @@ export async function renderJob(payload: RenderPayload): Promise<void> {
         preTrimTotalSec += clip.durationSec;
         postTrimTotalSec += updated?.durationSec ?? clip.durationSec;
       }
-    }
+    };
+    await Promise.all(Array.from({ length: poolSize }, runWorker));
 
     // Partial-failure refund (P0.5) — proportional to what actually failed,
     // instead of only refunding when every single clip failed.
@@ -1045,7 +1652,10 @@ export async function renderJob(payload: RenderPayload): Promise<void> {
     }
   } catch (err) {
     logger.error("auto-clip", `render failed for ${projectId}`, err);
-    await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } }).catch(() => {});
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { status: "failed", failureReason: userFacingFailure(err) },
+    }).catch(() => {});
     // See pickJob's matching comment — rethrow so BullMQ's attempts:3/backoff
     // actually retries transient failures instead of stopping after one try.
     throw err;
@@ -1066,14 +1676,19 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
   const clip = await prisma.clip.findUnique({ where: { id: clipId } });
   if (!project?.uploadedVideoUrl || !clip) throw new Error(`Missing project/clip for rerender ${clipId}`);
 
+  // Imported lazily to avoid a module-scope cycle: lib/autoclip-rerender.ts
+  // registers its queue with this file's rerenderJob at import time. Same
+  // pattern as the getUserTier imports elsewhere in this module.
+  const { refundFailedRerender } = await import("@/lib/autoclip-rerender");
+
   const tmp = os.tmpdir();
   const videoPath = path.join(tmp, `${projectId}-src-rerender-${clipId}.mp4`);
   try {
     await downloadFile(project.uploadedVideoUrl, videoPath);
 
     let updatedClip = clip;
-    if (project.faceTimeline) {
-      const allFaces = project.faceTimeline as unknown as FaceBox[];
+    const allFaces = await loadFaceTimeline(project);
+    if (allFaces && allFaces.length > 0) {
       const { w: srcW, h: srcH } = await getMediaDimensions(videoPath);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const silenceOpts = (clip.silenceSettings as any) ?? {};
@@ -1087,7 +1702,11 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
         mood: (clip.mood as MoodTag) ?? "neutral",
         brollQuery: clip.brollQuery,
         brollOffsetSec: null,
-        reasoning: "", hookExplanation: "", retentionPrediction: "", audience: "", platform: "", suggestedPostingTime: "", hashtags: [], suggestedCaption: ""
+        reasoning: "", hookExplanation: "", retentionPrediction: "", audience: "", platform: "", suggestedPostingTime: "", hashtags: [], suggestedCaption: "",
+        // Re-render reuses the clip's persisted signal track, so the emphasis
+        // the model originally found is already baked into it — nothing to
+        // re-derive here.
+        emphasisWords: [], emphasisWordIndexes: [], brollCues: [],
       };
 
       const cropKeyframes = clip.brollUrl ? null : computeStoredCrop(allFaces, dummySeg, clip.aspectRatio as Aspect, srcW, srcH, {
@@ -1109,7 +1728,19 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
 
     const { getUserTier } = await import("@/lib/auth");
     const watermark = (await getUserTier(project.userId)) === "free";
-    await renderOneClip(projectId, updatedClip, videoPath, watermark);
+    const { ok } = await renderOneClip(projectId, updatedClip, videoPath, watermark);
+    // renderOneClip swallows its own error and marks the clip failed, so a
+    // failed re-render used to leave the user charged for a clip they never
+    // received — the batch path refunds, this one never did.
+    if (!ok) await refundFailedRerender(clipId);
+  } catch (err) {
+    // Anything thrown before/around renderOneClip (a failed source download,
+    // for instance) would otherwise leave the clip stuck on "queued" forever
+    // with the charge still standing.
+    logger.error("auto-clip", `rerender failed for clip ${clipId}`, err);
+    await prisma.clip.update({ where: { id: clipId }, data: { status: "failed" } }).catch(() => {});
+    await refundFailedRerender(clipId);
+    throw err;
   } finally {
     try { if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath); } catch {}
   }

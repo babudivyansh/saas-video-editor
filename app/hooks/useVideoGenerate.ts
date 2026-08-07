@@ -362,6 +362,47 @@ export function useVideoGenerate() {
     }
   }, []);
 
+  /**
+   * Kick off analysis for a project whose source video is ALREADY in place —
+   * the URL-import path, where the video was pulled server-side rather than
+   * uploaded from the browser. Everything after this point is identical to the
+   * upload flow, so it shares the same status/polling state.
+   */
+  const generateAutoClipForProject = useCallback(async (params: {
+    projectId: string;
+    token: string;
+    minDuration: number;
+    maxDuration: number;
+    clipCount: number;
+    aspectRatio: string;
+    instructions: string;
+    captionStyleIndex: number;
+    reframingPreset?: string;
+    removeSilence?: boolean;
+    silenceThresholdMs?: number;
+    removeFillers?: boolean;
+    smartAutoReframe?: boolean;
+    zoomStrength?: "low" | "medium" | "high";
+    speakerMode?: "auto" | "single" | "split" | "active";
+    smoothness?: number;
+    trackingSpeed?: number;
+    animatedCaptions?: boolean;
+  }) => {
+    const { projectId, token, ...rest } = params;
+    setStatus("creating");
+    setError(null);
+    setVideoUrl(null);
+    setProjectId(projectId);
+    try {
+      await callGenerate("/api/generate/auto-clip", token, { projectId, ...rest });
+      setStatus("rendering");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+      setStatus("failed");
+      throw err;
+    }
+  }, []);
+
   const reset = useCallback(() => {
     if (pollRef.current) clearInterval(pollRef.current);
     setStatus("idle");
@@ -371,5 +412,5 @@ export function useVideoGenerate() {
     setProgress(0);
   }, []);
 
-  return { status, videoUrl, error, projectId, progress, generateSplitScreen, generateStreamerVideo, generateRedditVideo, generateTextVideo, generateAutoClip, reset };
+  return { status, videoUrl, error, projectId, progress, generateSplitScreen, generateStreamerVideo, generateRedditVideo, generateTextVideo, generateAutoClip, generateAutoClipForProject, reset };
 }

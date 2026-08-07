@@ -15,3 +15,24 @@ export const DUB_LANGUAGES: { code: string; label: string }[] = [
   { code: "nl", label: "Dutch" }, { code: "tr", label: "Turkish" }, { code: "pl", label: "Polish" },
   { code: "en", label: "English" },
 ];
+
+// Caption translation is text-only, so it isn't limited to the languages a
+// voice model can speak — it's a strict superset of DUB_LANGUAGES.
+//
+// This replaces a private LANG_MAP that lived inside lib/autoclip-dub.ts and
+// had drifted into a third, unreconciled language list (alongside this file's
+// DUB_LANGUAGES and lib/i18n-locales.ts's UI locales). One list, one place.
+export const CAPTION_LANGUAGES: { code: string; label: string }[] = [
+  ...DUB_LANGUAGES,
+  { code: "bg", label: "Bulgarian" }, { code: "hr", label: "Croatian" }, { code: "cs", label: "Czech" },
+  { code: "da", label: "Danish" }, { code: "fi", label: "Finnish" }, { code: "el", label: "Greek" },
+  { code: "hu", label: "Hungarian" }, { code: "ms", label: "Malay" }, { code: "ro", label: "Romanian" },
+  { code: "sk", label: "Slovak" }, { code: "sv", label: "Swedish" }, { code: "uk", label: "Ukrainian" },
+  { code: "vi", label: "Vietnamese" }, { code: "bn", label: "Bengali" }, { code: "ta", label: "Tamil" },
+  { code: "te", label: "Telugu" }, { code: "mr", label: "Marathi" },
+].sort((a, b) => a.label.localeCompare(b.label));
+
+/** English name for a language code, for prompting. Falls back to the code. */
+export function captionLanguageName(code: string): string {
+  return CAPTION_LANGUAGES.find((l) => l.code === code)?.label ?? code;
+}

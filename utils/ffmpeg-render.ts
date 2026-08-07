@@ -32,6 +32,69 @@ function killAfterTimeout(proc: ReturnType<typeof spawn>, timeoutMs: number, onT
   return () => clearTimeout(timer);
 }
 
+// ── Output encoding ─────────────────────────────────────────────────────────
+
+export type RenderTarget = "cpu" | "gpu";
+
+/**
+ * Output encoder arguments. Every render used to hardcode
+ * `-c:v libx264 -preset superfast -crf 23 -c:a aac` in four separate places;
+ * this is the single place to change them, and the seam the GPU worker pool
+ * routes through (see lib/render-target.ts).
+ *
+ * Two flags apply to BOTH targets and were missing everywhere before:
+ *  - `-pix_fmt yuv420p`: some sources decode to a pixel format Safari and
+ *    most social platforms refuse to play.
+ *  - `-movflags +faststart`: moves the moov atom to the front so playback can
+ *    begin before the whole file has downloaded. Without it every clip
+ *    preview stalls until fully buffered.
+ */
+export function encodeArgs(target: RenderTarget = "cpu"): string[] {
+  const common = ["-pix_fmt", "yuv420p", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k"];
+  if (target === "gpu") {
+    // NVENC has no -crf; the analogous quality-targeting control is -cq under
+    // -rc vbr, and -b:v 0 is REQUIRED or -cq is silently ignored and you get a
+    // default bitrate instead. p5 sits near x264 superfast for speed while
+    // landing close to crf 23 perceptually; p7 is closer in quality but gives
+    // back most of the speed advantage.
+    return [
+      "-c:v", "h264_nvenc", "-preset", "p5", "-tune", "hq",
+      "-rc", "vbr", "-cq", "21", "-b:v", "0",
+      "-maxrate", "12M", "-bufsize", "24M", "-profile:v", "high",
+      ...common,
+    ];
+  }
+  return ["-c:v", "libx264", "-preset", "superfast", "-crf", "23", ...common];
+}
+
+/**
+ * Moves an oversized filtergraph out of argv and into a file.
+ *
+ * The pan/zoom expressions are piecewise-linear chains — one nesting level per
+ * keyframe, across four expressions — so a long clip with a moving subject
+ * produces tens of KB of filtergraph. Windows caps a command line at ~32k and
+ * fails opaquely past it. ffmpeg accepts the graph from a file instead, which
+ * removes the ceiling entirely.
+ *
+ * Mirrors lib/editor/filtergraph.ts's maybeUseFilterScript, which solves the
+ * same problem for the editor's renderer, but takes plain args so the AutoClip
+ * pipeline (which builds its graph differently) can share the behaviour.
+ */
+export function maybeUseFilterScript(args: string[], scriptPath: string, threshold = 6000): string[] {
+  const complexIdx = args.indexOf("-filter_complex");
+  const vfIdx = args.indexOf("-vf");
+  const idx = complexIdx >= 0 ? complexIdx : vfIdx;
+  if (idx < 0) return args;
+
+  const graph = args[idx + 1];
+  if (typeof graph !== "string" || graph.length < threshold) return args;
+
+  fs.writeFileSync(scriptPath, graph, "utf8");
+  const out = [...args];
+  out.splice(idx, 2, complexIdx >= 0 ? "-filter_complex_script" : "-filter_script:v", scriptPath);
+  return out;
+}
+
 export interface SubtitleStyle {
   fontName?: string;
   fontSize?: number;
@@ -44,6 +107,116 @@ export interface SubtitleStyle {
   borderStyle?: number;    // 1 = outline + shadow, 3 = box background
   alignment?: number;      // ASS alignment (5=center, 2=bottom, etc.)
   animated?: boolean;
+  /** Speech-reactive animation inputs; omitted = neutral animation. */
+  motion?: CaptionMotion;
+}
+
+// ── Animated captions ───────────────────────────────────────────────────────
+// The previous "animated" mode set the active word to a flat 118% and swapped
+// its colour. That is a step change with no easing and no relationship to what
+// is being said — the same animation on a whispered aside and a shouted
+// punchline.
+//
+// These knobs drive an eased, speech-reactive treatment. All of it is plain
+// libass override tags, so there is no new dependency and no change to how the
+// subtitle file is burned in.
+
+export interface CaptionMotion {
+  /** Per-word intensity 0..1, aligned to `words` (from the clip's signal track). */
+  energy?: number[];
+  /** Indices of words the LLM marked as emphatic. */
+  emphasis?: number[];
+  /** Words per second, used to pick transition speed and line length. */
+  wordsPerSec?: number;
+  /** Word index → emoji, from the caption template (lib/caption-templates.ts). */
+  emoji?: Record<number, string>;
+  /** ASS colour applied to emphasis words, when the template highlights them. */
+  keywordColor?: string;
+}
+
+// Readability constraints. These are limits, not preferences: past ~1.25x a
+// word visibly reflows its neighbours, and animating the outline width makes
+// thin fonts strobe.
+const MAX_WORD_SCALE = 1.25;
+const BASE_WORD_SCALE = 1.10;
+const POP_IN_MS = 90;
+const POP_OUT_MS = 90;
+
+function scaleTag(scale: number): string {
+  const pct = Math.round(scale * 100);
+  return `\\fscx${pct}\\fscy${pct}`;
+}
+
+/**
+ * Builds the Dialogue events for the animated caption mode.
+ *
+ * One event per (line, active word) as before, but the active word now eases
+ * in and back out, and how far it scales — plus whether it glows — depends on
+ * the speech energy at that moment and whether the LLM flagged it.
+ */
+export function buildAnimatedEvents(
+  words: WordTiming[],
+  colors: { highlight: string; base: string },
+  motion?: CaptionMotion,
+): string {
+  const wps = motion?.wordsPerSec ?? 0;
+  // Fast speech needs shorter lines and quicker transitions, or the viewer is
+  // reading the previous line while hearing the next.
+  const wordsPerLine = wps > 3.5 ? 3 : 4;
+  const transitionMs = wps > 3.5 ? 60 : wps > 0 && wps < 2 ? 200 : POP_IN_MS;
+  const emphasisSet = new Set(motion?.emphasis ?? []);
+
+  let events = "";
+  for (let i = 0; i < words.length; i += wordsPerLine) {
+    const group = words.slice(i, i + wordsPerLine);
+    const groupStart = group[0].start;
+    const groupEnd = group[group.length - 1].end;
+
+    for (let k = 0; k < group.length; k++) {
+      const activeIndex = i + k;
+      const activeWord = group[k];
+      const wordStart = k === 0 ? groupStart : activeWord.start;
+      const wordEnd = k < group.length - 1 ? group[k + 1].start : groupEnd;
+      if (wordStart >= wordEnd) continue;
+
+      const energy = motion?.energy?.[activeIndex] ?? 0.5;
+      const isEmphasis = emphasisSet.has(activeIndex);
+      // Louder / flagged words scale further, quiet ones barely move.
+      const peak = Math.min(
+        MAX_WORD_SCALE,
+        BASE_WORD_SCALE + energy * 0.10 + (isEmphasis ? 0.05 : 0),
+      );
+      const holdMs = Math.max(0, wordEnd - wordStart - transitionMs - POP_OUT_MS);
+
+      // \t(t1,t2,tags) interpolates, which is what turns a step into a pop:
+      // scale up over the transition, hold, then settle back.
+      // Emphasis words take the template's keyword colour when it defines one,
+      // so the thing the model identified as the point is also the thing that
+      // reads as the point.
+      const activeColor = isEmphasis && motion?.keywordColor ? motion.keywordColor : colors.highlight;
+
+      const animate =
+        `{${scaleTag(1.0)}\\t(0,${transitionMs},${scaleTag(peak)})` +
+        `\\t(${transitionMs + holdMs},${transitionMs + holdMs + POP_OUT_MS},${scaleTag(BASE_WORD_SCALE)})` +
+        // Glow only on genuinely high-energy words; used everywhere it reads
+        // as a blurry font rather than emphasis.
+        (energy > 0.7 || isEmphasis ? `\\blur2` : ``) +
+        `\\1c${activeColor}}`;
+
+      let lineText = "";
+      for (let j = 0; j < group.length; j++) {
+        const wordIndex = i + j;
+        // Emoji ride along with their word so they inherit its animation and
+        // can never end up on a line of their own.
+        const suffix = motion?.emoji?.[wordIndex] ? ` ${motion.emoji[wordIndex]}` : "";
+        lineText += j === k
+          ? `${animate}${group[j].word}${suffix} `
+          : `{${scaleTag(1.0)}\\1c${colors.base}}${group[j].word}${suffix} `;
+      }
+      events += `Dialogue: 0,${toASSTime(wordStart)},${toASSTime(wordEnd)},Default,,0,0,0,,${lineText.trim()}\n`;
+    }
+  }
+  return events;
 }
 
 export function toASSTime(ms: number): string {
@@ -84,41 +257,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
 
   if (style.animated) {
-    const WORDS_PER_LINE = 4;
-    let events = "";
-    for (let i = 0; i < words.length; i += WORDS_PER_LINE) {
-      const group = words.slice(i, i + WORDS_PER_LINE);
-      const groupStart = group[0].start;
-      const groupEnd = group[group.length - 1].end;
-
-      for (let k = 0; k < group.length; k++) {
-        const activeWord = group[k];
-        const wordStart = k === 0 ? groupStart : activeWord.start;
-        let wordEnd = activeWord.end;
-        if (k < group.length - 1) {
-          wordEnd = group[k + 1].start;
-        } else {
-          wordEnd = groupEnd;
-        }
-
-        if (wordStart >= wordEnd) continue;
-
-        const startStr = toASSTime(wordStart);
-        const endStr = toASSTime(wordEnd);
-
-        let lineText = "";
-        for (let j = 0; j < group.length; j++) {
-          const w = group[j];
-          if (j === k) {
-            lineText += `{\\1c${highlight}\\fscx118\\fscy118}${w.word} `;
-          } else {
-            lineText += `{\\1c${base}\\fscx100\\fscy100}${w.word} `;
-          }
-        }
-        events += `Dialogue: 0,${startStr},${endStr},Default,,0,0,0,,${lineText.trim()}\n`;
-      }
-    }
-    fs.writeFileSync(assPath, header + events, "utf8");
+    fs.writeFileSync(assPath, header + buildAnimatedEvents(words, { highlight, base }, style.motion), "utf8");
     return;
   }
 
@@ -167,10 +306,7 @@ export function runFFmpeg(opts: RenderOptions, timeoutMs = DEFAULT_FFMPEG_TIMEOU
         `[2:a]volume=0.12[bgm];[1:a][bgm]amix=inputs=2:duration=first[audio];[0:v]crop=in_h*9/16:in_h,subtitles='${assEscaped}'[video]`,
         "-map", "[video]",
         "-map", "[audio]",
-        "-c:v", "libx264",
-        "-preset", "superfast",
-        "-crf", "23",
-        "-c:a", "aac",
+        ...encodeArgs(),
         "-shortest",
         outputPath,
       ];
@@ -183,10 +319,7 @@ export function runFFmpeg(opts: RenderOptions, timeoutMs = DEFAULT_FFMPEG_TIMEOU
         `[0:v]crop=in_h*9/16:in_h,subtitles='${assEscaped}'[video]`,
         "-map", "[video]",
         "-map", "1:a",
-        "-c:v", "libx264",
-        "-preset", "superfast",
-        "-crf", "23",
-        "-c:a", "aac",
+        ...encodeArgs(),
         "-shortest",
         outputPath,
       ];
@@ -387,8 +520,7 @@ export function runSplitScreenFFmpeg(opts: SplitScreenOptions): Promise<void> {
     `[0:a]aformat=sample_rates=44100:channel_layouts=stereo[audio]`,
     "-map", "[video]",
     "-map", "[audio]",
-    "-c:v", "libx264", "-preset", "superfast", "-crf", "23",
-    "-c:a", "aac", "-shortest",
+    ...encodeArgs(), "-shortest",
     outputPath,
   ]);
 }
@@ -430,8 +562,7 @@ export function runStreamerFFmpeg(opts: StreamerVideoOptions): Promise<void> {
   return runFFmpegArgs([
     "-y", "-i", userVideoPath,
     "-vf", `crop=in_h*9/16:in_h,${drawFilter}`,
-    "-c:v", "libx264", "-preset", "superfast", "-crf", "23",
-    "-c:a", "aac",
+    ...encodeArgs(),
     outputPath,
   ]);
 }

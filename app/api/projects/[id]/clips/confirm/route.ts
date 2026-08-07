@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { getAuthUser, getUserTier } from "@/lib/auth";
 import { tierPriority } from "@/lib/plans/tiers";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { createRenderQueue } from "@/lib/render-queue";
-import { spendCredits } from "@/lib/credits";
+import { logger } from "@/lib/logger";
+import { spendCredits, restoreSpend } from "@/lib/credits";
 import { renderJob, computeCreditCost, getAutoClipPricing, getAnalysisCreditsPaid, type RenderPayload, type Aspect } from "@/lib/autoclip-pipeline";
 
 const renderQueue = createRenderQueue<RenderPayload>("auto-clip-render", renderJob);
@@ -123,21 +125,58 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   await prisma.$transaction([
     ...toKeep.map((e) => {
       const clip = byId.get(e.id)!;
+      const startSec = e.startSec ?? clip.startSec;
+      const endSec = e.endSec ?? clip.endSec;
+      const aspectRatio = e.aspectRatio ?? clip.aspectRatio;
+      // Crop keyframes were computed at pick time against the ORIGINAL aspect's
+      // crop window (and the original in/out points). Reviewing can change
+      // either. Reusing a 9:16 pan path under a 16:9 window mis-frames the
+      // subject and can push the crop window past the edge of the source, which
+      // ffmpeg rejects outright — failing a clip the user has already paid for.
+      // Dropping them falls back to the static centre crop, which is always
+      // valid; rerenderJob recomputes a fresh path from the cached
+      // Project.faceTimeline anyway.
+      const framingChanged =
+        aspectRatio !== clip.aspectRatio || startSec !== clip.startSec || endSec !== clip.endSec;
       return prisma.clip.update({
         where: { id: e.id },
         data: {
-          startSec: e.startSec ?? clip.startSec,
-          endSec: e.endSec ?? clip.endSec,
-          durationSec: (e.endSec ?? clip.endSec) - (e.startSec ?? clip.startSec),
-          aspectRatio: e.aspectRatio ?? clip.aspectRatio,
+          startSec,
+          endSec,
+          durationSec: endSec - startSec,
+          aspectRatio,
           status: "queued",
+          ...(framingChanged ? { cropKeyframes: Prisma.JsonNull } : {}),
         },
       });
     }),
     prisma.clip.deleteMany({ where: { id: { in: [...toDrop, ...unmentionedDrop] } } }),
   ]);
 
-  renderQueue.enqueue(projectId, { projectId }, { priority: tierPriority(await getUserTier(auth.userId)) });
+  // Credits are already spent at this point, so a failed enqueue must not be
+  // silent: previously this was fire-and-forget, and a Redis outage left the
+  // user charged with nothing rendering and no error anywhere.
+  try {
+    await renderQueue.enqueue(projectId, { projectId }, { priority: tierPriority(await getUserTier(auth.userId)) });
+  } catch (err) {
+    logger.error("auto-clip", `failed to enqueue render for ${projectId}, refunding`, err);
+    if (creditCost > 0) {
+      await restoreSpend({
+        userId: auth.userId,
+        refId: `auto-clip:${projectId}`,
+        amount: creditCost,
+        reason: "refund:auto-clip-enqueue-failed",
+      }).catch(() => {});
+    }
+    await prisma.$transaction([
+      prisma.clip.updateMany({ where: { projectId, status: "queued" }, data: { status: "pending_review" } }),
+      prisma.project.update({ where: { id: projectId }, data: { status: "pending_review" } }),
+    ]).catch(() => {});
+    return NextResponse.json(
+      { error: "Could not start the render — your credits have not been charged. Please try again." },
+      { status: 503 },
+    );
+  }
 
   return NextResponse.json({ status: "rendering", creditsCharged: creditCost, creditsRemaining: spend.balances.total });
 }

@@ -19,6 +19,13 @@ const globalForCounters = globalThis as unknown as {
 };
 const counterFallback =
   globalForCounters.redisCounterFallback ?? new Map<string, { count: number; expiresAt: number }>();
+
+// Fallback store for list ops (metrics ring buffers), kept separate from the
+// string and counter maps for the same reason those are separate from each
+// other: different value shapes, different lifetimes.
+const globalForLists = globalThis as unknown as { redisListFallback: Map<string, string[]> };
+const listFallback = globalForLists.redisListFallback ?? new Map<string, string[]>();
+globalForLists.redisListFallback = listFallback;
 if (process.env.NODE_ENV !== "production") globalForCounters.redisCounterFallback = counterFallback;
 
 function fallbackIncr(key: string, ttlSeconds: number): number {
@@ -138,6 +145,46 @@ export const redis = {
       return fallbackIncr(key, ttlSeconds);
     }
   },
+  // ── List ops ──────────────────────────────────────────────────────────
+  // Used by lib/pipeline-metrics.ts for bounded ring buffers of stage
+  // samples. The in-memory fallback keeps the same shape so a Redis outage
+  // degrades metrics rather than breaking the pipeline that emits them.
+  async lpush(key: string, value: string): Promise<void> {
+    try {
+      await client.lpush(key, value);
+    } catch (err) {
+      logFallback("LPUSH", err);
+      const list = listFallback.get(key) ?? [];
+      list.unshift(value);
+      listFallback.set(key, list);
+    }
+  },
+  async ltrim(key: string, start: number, stop: number): Promise<void> {
+    try {
+      await client.ltrim(key, start, stop);
+    } catch (err) {
+      logFallback("LTRIM", err);
+      const list = listFallback.get(key);
+      if (list) listFallback.set(key, list.slice(start, stop + 1));
+    }
+  },
+  async lrange(key: string, start: number, stop: number): Promise<string[]> {
+    try {
+      return await client.lrange(key, start, stop);
+    } catch (err) {
+      logFallback("LRANGE", err);
+      return (listFallback.get(key) ?? []).slice(start, stop + 1);
+    }
+  },
+  async expire(key: string, ttlSeconds: number): Promise<void> {
+    try {
+      await client.expire(key, ttlSeconds);
+    } catch (err) {
+      logFallback("EXPIRE", err);
+      // The fallback map is process-local and short-lived anyway.
+    }
+  },
+
   /**
    * Real connectivity check with no in-memory fallback — used by the health
    * endpoint. Every other method above intentionally swallows a down Redis

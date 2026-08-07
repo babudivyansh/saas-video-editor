@@ -156,13 +156,27 @@ describe("buildDynamicCropFilter", () => {
     expect(filter).not.toContain("scale=");
   });
 
-  it("appends a fixed-resolution scale when keyframe size varies (zoom), so output frame size stays constant", () => {
+  // Zoom used to be attempted with a time-varying crop w/h plus a trailing
+  // `scale=`. That silently did nothing: crop evaluates w/h once at config
+  // time. Zoom now goes through zoompan, which pins the output size itself via
+  // `s=` — see lib/reframe.render.test.ts, which proves the motion is real by
+  // running ffmpeg rather than inspecting the string.
+  it("pins a fixed output resolution when keyframe size varies (zoom), so output frame size stays constant", () => {
     const kf = buildZoomEnvelope(10, "9:16", 1920, 1080);
     const filter = buildDynamicCropFilter(kf, "9:16");
-    expect(filter).toContain("scale=1080:1920");
+    expect(filter).toContain("zoompan=");
+    expect(filter).toContain("s=1080x1920");
   });
 
-  it("does not emit an eval= option (crop has no such option — ffmpeg rejects the filtergraph if present; x/y/w/h are already re-evaluated every frame when they reference t)", () => {
+  it("keeps the time-varying zoom out of crop's w/h, which ffmpeg evaluates only once", () => {
+    const filter = buildDynamicCropFilter(buildZoomEnvelope(10, "9:16", 1920, 1080), "9:16");
+    const cropArgs = /crop=w='([^']*)':h='([^']*)'/.exec(filter);
+    expect(cropArgs).not.toBeNull();
+    expect(cropArgs![1]).not.toMatch(/\bt\b/);
+    expect(cropArgs![2]).not.toMatch(/\bt\b/);
+  });
+
+  it("does not emit an eval= option (crop has no such option — ffmpeg rejects the filtergraph if present; x/y are already re-evaluated every frame when they reference t)", () => {
     const kf = [{ tSec: 0, x: 0.1, y: 0, w: 0.5, h: 1 }, { tSec: 5, x: 0.3, y: 0, w: 0.5, h: 1 }];
     expect(buildDynamicCropFilter(kf, "9:16")).not.toContain("eval=");
   });
