@@ -447,6 +447,18 @@ model Clip {
   // boundaries, pauses) — drives energy-reactive zoom and caption animation.
   // See lib/signal-track.ts.
   signalTrack           Json?
+  // Inline "lite editor" adjustments: speed, music bed, B-roll swap,
+  // transitions. Versioned + zod-validated on write (lib/autoclip-lite.ts).
+  // Trim deliberately stays in startSec/endSec rather than moving in here —
+  // rebaseClipWords and the cropKeyframes invalidation both key off those
+  // columns, and two sources of truth for the in/out points would be the
+  // worst possible field to duplicate.
+  liteEdits             Json?
+  // Downsampled waveform peaks for the editor scrubber, computed once during
+  // render so the browser never decodes a multi-hour source.
+  audioPeaks            Json?
+  // Which backend actually encoded this clip ("cpu" | "gpu"), for ops.
+  renderTarget          String?
   dubs                  ClipDub[]
   publishes             ClipPublish[]
 

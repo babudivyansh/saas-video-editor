@@ -48,8 +48,11 @@ export const EMPTY_SIGNAL_TRACK: SignalTrack = {
 
 // ── Audio decode ────────────────────────────────────────────────────────────
 
-/** Decode a window of audio to mono 16kHz signed 16-bit PCM, in memory. */
-function decodePcm(mediaPath: string, startSec: number, endSec: number): Promise<Int16Array> {
+/**
+ * Decode a window of audio to mono 16kHz signed 16-bit PCM, in memory.
+ * An omitted (or non-finite) `endSec` decodes to the end of the file.
+ */
+function decodePcm(mediaPath: string, startSec = 0, endSec?: number): Promise<Int16Array> {
   return new Promise((resolve) => {
     const proc = spawn(
       process.platform === "win32"
@@ -57,7 +60,9 @@ function decodePcm(mediaPath: string, startSec: number, endSec: number): Promise
         : path.join(process.cwd(), "node_modules", "ffmpeg-static", "ffmpeg"),
       [
         "-v", "error",
-        "-ss", String(startSec), "-to", String(endSec), "-i", mediaPath,
+        "-ss", String(startSec),
+        ...(Number.isFinite(endSec) ? ["-to", String(endSec)] : []),
+        "-i", mediaPath,
         "-vn", "-ac", "1", "-ar", String(PCM_RATE), "-f", "s16le", "-",
       ],
       { stdio: ["ignore", "pipe", "ignore"] },
@@ -293,6 +298,33 @@ export async function buildSignalTrack(
 
 function round3(values: number[]): number[] {
   return values.map((v) => Math.round(v * 1000) / 1000);
+}
+
+/**
+ * Downsampled waveform peaks for the editor scrubber.
+ *
+ * Generated server-side, once, during render — the alternative is decoding
+ * audio in the browser, and a multi-hour source would hang the tab. ~300
+ * buckets is enough to draw a recognisable waveform at any drawer width.
+ */
+export async function computeAudioPeaks(mediaPath: string, buckets = 300): Promise<number[]> {
+  try {
+    const pcm = await decodePcm(mediaPath);
+    if (pcm.length === 0) return [];
+    const per = Math.max(1, Math.floor(pcm.length / buckets));
+    const peaks: number[] = [];
+    for (let i = 0; i + per <= pcm.length && peaks.length < buckets; i += per) {
+      let peak = 0;
+      for (let j = i; j < i + per; j++) {
+        const v = Math.abs(pcm[j]);
+        if (v > peak) peak = v;
+      }
+      peaks.push(Math.round((peak / 32768) * 1000) / 1000);
+    }
+    return peaks;
+  } catch {
+    return [];
+  }
 }
 
 /** Sample an envelope at a time in seconds, with linear interpolation. */

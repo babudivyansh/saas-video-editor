@@ -34,6 +34,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       // Small settings blobs the drawer needs to show the clip's CURRENT style
       // and camera options rather than silently falling back to defaults.
       subtitleStyleOverride: true, silenceSettings: true, rerenderCount: true,
+      // Lite-editor state and the waveform the scrubber draws. Peaks are ~300
+      // small numbers per clip — an order of magnitude smaller than the
+      // transcript, which stays behind the ?clipId= detail fetch.
+      liteEdits: true, audioPeaks: true,
     },
   });
 

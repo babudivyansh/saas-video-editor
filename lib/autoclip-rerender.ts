@@ -31,6 +31,7 @@ import {
   type RerenderPayload, type Aspect,
 } from "@/lib/autoclip-pipeline";
 import { REFRAME_PRESETS, ZOOM_STRENGTHS, SPEAKER_MODES } from "@/lib/reframe";
+import { liteEditsSchema } from "@/lib/autoclip-lite";
 import type { WordTiming } from "@/utils/elevenlabs";
 
 const rerenderQueue = createRenderQueue<RerenderPayload>("auto-clip-rerender", rerenderJob);
@@ -103,6 +104,7 @@ export const rerenderPatchSchema = z.object({
   subtitleStyleOverride: subtitleStyleOverrideSchema.optional(),
   silenceSettings: silenceSettingsSchema.optional(),
   transcript: transcriptSchema.optional(),
+  liteEdits: liteEditsSchema.optional(),
 }).strict();
 
 export type RerenderPatch = z.infer<typeof rerenderPatchSchema>;
@@ -262,6 +264,12 @@ async function applyPatch(clip: Clip, patch: RerenderPatch, attempt: number): Pr
       ...((clip.silenceSettings as Record<string, unknown>) ?? {}),
       ...patch.silenceSettings,
     } as Prisma.InputJsonValue;
+  }
+  // Lite edits REPLACE rather than merge: the drawer sends the whole state on
+  // every Apply, and merging would make removing a music bed impossible —
+  // an absent key would read as "unchanged" instead of "cleared".
+  if (patch.liteEdits) {
+    data.liteEdits = patch.liteEdits as unknown as Prisma.InputJsonValue;
   }
 
   await prisma.clip.update({ where: { id: clip.id }, data });

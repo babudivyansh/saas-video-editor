@@ -46,7 +46,11 @@ import {
 import {
   classifyScene, buildCutKeyframes, buildGroupKeyframes, buildDriftKeyframes,
 } from "@/lib/scene-layout";
-import { buildSignalTrack, sampleAt, EMPTY_SIGNAL_TRACK, type SignalTrack } from "@/lib/signal-track";
+import { buildSignalTrack, sampleAt, computeAudioPeaks, EMPTY_SIGNAL_TRACK, type SignalTrack } from "@/lib/signal-track";
+import {
+  parseLiteEdits, planLitePass, speechRangesFromWords, type LiteEdits,
+} from "@/lib/autoclip-lite";
+import { computeDuckEnvelope, duckVolumeExpr } from "@/lib/audio-ducking";
 import { buildCameraZoom, applyZoomToKeyframes, ZOOM_STRENGTH_MAX } from "@/lib/camera-motion";
 import { getFaceTimeline } from "@/lib/asd";
 import { loadFaceTimeline, saveFaceTimeline } from "@/lib/face-timeline-store";
@@ -1021,6 +1025,67 @@ function shiftTime(tMs: number, keeps: KeepSegment[]): number {
 
 // ── Per-clip render (shared by the batch render job and single-clip re-render) ─
 
+/**
+ * Applies the lite-editor pass to a finished clip, in place.
+ *
+ * Runs as its own encode over `clipPath` and swaps the result back, so the
+ * main render is untouched by any of it. Returns the (possibly changed)
+ * duration. Best-effort: if the pass fails the original render stands rather
+ * than the whole clip failing over a music bed.
+ */
+async function applyLiteEditsPass(args: {
+  lite: LiteEdits;
+  clipPath: string;
+  litePath: string;
+  musicPath: string;
+  durationSec: number;
+  words: WordTiming[] | null;
+  target: RenderTarget;
+}): Promise<number> {
+  const { lite, clipPath, litePath, musicPath, durationSec, words, target } = args;
+
+  let downloadedMusic: string | null = null;
+  if (lite.music?.url) {
+    try {
+      await downloadFile(lite.music.url, musicPath);
+      downloadedMusic = musicPath;
+    } catch (err) {
+      logger.warn("auto-clip", "music bed download failed, rendering without it", err);
+    }
+  }
+
+  // Duck the bed under speech using the already-written, previously-unused
+  // envelope builder in lib/audio-ducking.ts.
+  let duckExpr: string | null = null;
+  if (downloadedMusic && lite.music?.duck && words && words.length > 0) {
+    const speech = speechRangesFromWords(words);
+    const segments = computeDuckEnvelope(speech, durationSec, {
+      duckGain: lite.music.volume * 0.25,
+      fullGain: lite.music.volume,
+    });
+    duckExpr = duckVolumeExpr(segments, lite.music.volume);
+  }
+
+  const plan = planLitePass(lite, durationSec, { musicPath: downloadedMusic, duckExpr });
+  if (!plan.needed) return durationSec;
+
+  try {
+    await runFFmpegArgs([
+      "-y", "-i", clipPath,
+      ...plan.extraInputs.flatMap((p) => ["-i", p]),
+      "-filter_complex", plan.filterComplex,
+      "-map", plan.videoMap, "-map", plan.audioMap,
+      ...encodeArgs(target),
+      litePath,
+    ]);
+    fs.renameSync(litePath, clipPath);
+    return plan.durationSec;
+  } catch (err) {
+    logger.warn("auto-clip", "lite-edit pass failed, keeping the base render", err);
+    return durationSec;
+  }
+}
+
 // Free-tier output treatment: cap the short edge at 720p and burn a corner
 // "Clipiro" watermark. Chained after every other filter so it applies over
 // captions/B-roll and can't be cropped away.
@@ -1046,6 +1111,8 @@ async function renderOneClip(
   const assPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}.ass`);
   const brollPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}-broll.mp4`);
   const scriptPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}.filter`);
+  const litePath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}-lite.mp4`);
+  const musicPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}-music.mp3`);
 
   try {
     await prisma.clip.update({ where: { id: clip.id }, data: { status: "rendering", progress: 5 } });
@@ -1134,6 +1201,15 @@ async function renderOneClip(
     if (signal && isTrimmed && keeps.length > 0) {
       signal = remapSignalTrack(signal, keeps, finalDurationSec);
     }
+
+    // Lite-editor adjustments (speed, music bed, fades) are applied as a
+    // separate pass AFTER this render — see applyLiteEditsPass. Doing them
+    // here would mean rescaling every time-indexed artifact the clip owns
+    // (words, crop keyframes, B-roll window, signal track) and threading three
+    // filtergraph branches; doing them afterwards means captions and the zoom
+    // path are already pixels and scale with the video for free, which cannot
+    // desync. The cost is one extra encode on clips that use the lite editor.
+    const lite = parseLiteEdits(clip.liteEdits);
 
     // Energy-reactive camera (P2.2). The zoom curve is layered onto whatever
     // crop path the layout produced, so it composes with speaker tracking
@@ -1249,6 +1325,13 @@ async function renderOneClip(
       },
     );
 
+    // Lite-editor pass: speed / fades / music bed over the finished clip.
+    if (lite) {
+      finalDurationSec = await applyLiteEditsPass({
+        lite, clipPath, litePath, musicPath, durationSec: finalDurationSec, words, target,
+      });
+    }
+
     await prisma.clip.update({ where: { id: clip.id }, data: { progress: 82 } });
     await runFFmpegArgs([
       "-y", "-ss", String(finalDurationSec / 2), "-i", clipPath,
@@ -1275,10 +1358,18 @@ async function renderOneClip(
       ? await uploadFileToS3(thumbPath, `renders/${projectId}/clip-${clip.index}.jpg`, "image/jpeg").catch(() => null)
       : null;
 
+    // Waveform peaks for the editor scrubber, computed here from the finished
+    // clip so the browser never has to decode audio (a multi-hour source would
+    // hang the tab) and so they match exactly what the user is looking at.
+    const audioPeaks = await computeAudioPeaks(clipPath);
+
     await prisma.clip.update({
       where: { id: clip.id },
       data: {
         status: "ready", progress: 100, videoUrl, thumbnailUrl,
+        durationSec: finalDurationSec,
+        renderTarget: target,
+        ...(audioPeaks.length > 0 ? { audioPeaks: audioPeaks as unknown as Prisma.InputJsonValue } : {}),
         score: breakdown.composite,
         scoreBreakdown: {
           ...fullBreakdown,
@@ -1292,7 +1383,7 @@ async function renderOneClip(
     await prisma.clip.update({ where: { id: clip.id }, data: { status: "failed" } }).catch(() => {});
     return { ok: false };
   } finally {
-    for (const f of [clipPath, thumbPath, assPath, brollPath, scriptPath]) {
+    for (const f of [clipPath, thumbPath, assPath, brollPath, scriptPath, litePath, musicPath]) {
       try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch {}
     }
   }

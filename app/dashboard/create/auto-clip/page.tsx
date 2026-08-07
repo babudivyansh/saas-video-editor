@@ -3,6 +3,7 @@ import { Suspense, useRef, useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import SubtitleStylePicker from "@/app/components/SubtitleStylePicker";
 import { ReframeAndCutsControls } from "@/app/components/auto-clip/ReframeAndCutsControls";
+import { LiteEditTab, type LiteEdits } from "@/app/components/auto-clip/LiteEditTab";
 import { Card } from "@/app/components/ui/Card";
 import { FieldLabel, Input } from "@/app/components/ui/Field";
 import { Switch } from "@/app/components/ui/Switch";
@@ -103,6 +104,8 @@ interface ClipItem {
   brollQuery: string | null;
   subtitleStyleOverride: Record<string, unknown> | null;
   silenceSettings: Record<string, unknown> | null;
+  liteEdits: LiteEdits | null;
+  audioPeaks: number[] | null;
   rerenderCount: number;
 }
 
@@ -1296,7 +1299,7 @@ function ClipEditorDrawer({
 }: {
   projectId: string; clip: ClipItem; onClose: () => void; onChanged: () => void;
 }) {
-  const [tab, setTab] = useState<"insights" | "style" | "transcript" | "cuts">("insights");
+  const [tab, setTab] = useState<"insights" | "edit" | "style" | "transcript" | "cuts">("insights");
   const [copied, setCopied] = useState(false);
 
   // Brand kits — reusable, account-level subtitle style templates (Style tab).
@@ -1451,6 +1454,27 @@ function ClipEditorDrawer({
     }
   }
 
+  // Save lite edits (speed / music / fades / trim). Everything the Edit tab
+  // collected goes in ONE request, so one Apply is one render and one charge.
+  async function handleApplyLiteEdits(edits: LiteEdits, trim: { startSec: number; endSec: number } | null) {
+    setSaving(true); setSaveErr(null);
+    try {
+      await apiFetch(`/api/projects/${projectId}/clips/${clip.id}/lite`, {
+        method: "PUT",
+        body: JSON.stringify({
+          liteEdits: edits,
+          // Trim arrives clip-relative; the API works in source time.
+          ...(trim ? { startSec: clip.startSec + trim.startSec, endSec: clip.startSec + trim.endSec } : {}),
+        }),
+      });
+      onChanged();
+    } catch (e: unknown) {
+      setSaveErr(e instanceof Error ? e.message : "An error occurred");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   // Save Transcript
   async function handleSaveTranscript() {
     setSaving(true); setSaveErr(null);
@@ -1522,13 +1546,14 @@ function ClipEditorDrawer({
         <div className="flex border-b border-gray-150 bg-gray-50/50 px-4 pt-2">
           {[
             { id: "insights", label: "Insights" },
+            { id: "edit", label: "Edit" },
             { id: "style", label: "Styles" },
             { id: "transcript", label: "Transcript" },
             { id: "cuts", label: "Audio Cuts" }
           ].map((t) => (
             <button
               key={t.id}
-              onClick={() => setTab(t.id as "insights" | "style" | "transcript" | "cuts")}
+              onClick={() => setTab(t.id as "insights" | "edit" | "style" | "transcript" | "cuts")}
               className={`px-4 py-2 text-xs font-bold border-b-2 transition-colors -mb-px ${
                 tab === t.id ? "border-brand text-brand" : "border-transparent text-gray-500 hover:text-gray-800"
               }`}
@@ -1612,6 +1637,19 @@ function ClipEditorDrawer({
                 </div>
               </div>
             </div>
+          )}
+
+          {tab === "edit" && (
+            <LiteEditTab
+              projectId={projectId}
+              clipId={clip.id}
+              durationSec={clip.durationSec}
+              peaks={clip.audioPeaks ?? []}
+              initial={clip.liteEdits}
+              busy={saving}
+              isFirstRerenderFree={clip.rerenderCount === 0}
+              onApply={handleApplyLiteEdits}
+            />
           )}
 
           {tab === "style" && (
