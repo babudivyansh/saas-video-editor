@@ -10,18 +10,14 @@ const store = new Map<string, string[]>();
 
 vi.mock("@/lib/redis", () => ({
   redis: {
-    lpush: vi.fn(async (key: string, value: string) => {
+    // Mirrors the real capped-ring semantics: push, then trim to maxLen.
+    pipelineRingPush: vi.fn(async (key: string, value: string, maxLen: number) => {
       const list = store.get(key) ?? [];
       list.unshift(value);
-      store.set(key, list);
-    }),
-    ltrim: vi.fn(async (key: string, start: number, stop: number) => {
-      const list = store.get(key);
-      if (list) store.set(key, list.slice(start, stop + 1));
+      store.set(key, list.slice(0, maxLen));
     }),
     lrange: vi.fn(async (key: string, start: number, stop: number) =>
       (store.get(key) ?? []).slice(start, stop + 1)),
-    expire: vi.fn(async () => {}),
   },
 }));
 
@@ -63,7 +59,7 @@ describe("timeStage", () => {
   // Metrics must cost strictly less than the thing they measure.
   it("does not break the pipeline when Redis is unavailable", async () => {
     const { redis } = await import("@/lib/redis");
-    vi.mocked(redis.lpush).mockRejectedValueOnce(new Error("redis down"));
+    vi.mocked(redis.pipelineRingPush).mockRejectedValueOnce(new Error("redis down"));
     await expect(timeStage("render", async () => "ok")).resolves.toBe("ok");
   });
 });
