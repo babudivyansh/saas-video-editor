@@ -13,7 +13,7 @@ import {
   extractAudio,
   runFFmpegArgs,
   runFFmpegWithProgress,
-  getMediaDurationSec,
+  probeMediaDuration,
   getMediaDimensions,
   analyzeAudio,
   generateASS,
@@ -613,9 +613,24 @@ export async function pickJob(payload: PickPayload): Promise<void> {
 
   try {
     await timeStage("download", () => downloadFile(project.uploadedVideoUrl!, videoPath));
-    const durationSec = await getMediaDurationSec(videoPath);
+    const probe = await probeMediaDuration(videoPath);
+    if (probe.durationSec === null) {
+      // A failed probe is NOT a short video. Reporting it as one blamed the
+      // user's file for what was actually our side — a truncated download, an
+      // unreadable container, or a missing ffmpeg binary — and, because that
+      // was thrown as non-retryable, failed the job permanently with a message
+      // nobody could act on. This is retryable and says what actually happened.
+      logger.error("auto-clip", `duration probe failed for ${projectId}: ${probe.reason}`, {
+        fileBytes: probe.fileBytes,
+        sourceUrl: project.uploadedVideoUrl,
+        stderrTail: probe.stderrTail,
+      });
+      throw new Error(`Could not read the uploaded video (${probe.reason}, ${probe.fileBytes} bytes)`);
+    }
+
+    const durationSec = probe.durationSec;
     if (durationSec < minDuration) {
-      // Non-retryable: the video will still be too short on attempt 2 and 3,
+      // Genuinely too short: the video will still be so on attempt 2 and 3,
       // and each retry re-downloads the whole source to find that out.
       throw new NonRetryableError(`Video is too short (${durationSec.toFixed(1)}s) for the requested clip duration (min ${minDuration}s)`);
     }

@@ -8,6 +8,25 @@
 
 import { logger } from "@/lib/logger";
 
+/**
+ * A failure that retrying cannot fix: bad input, a plan limit, insufficient
+ * credits. Defined HERE rather than in lib/render-queue.ts so both queue
+ * drivers can honour it — render-queue imports this module, so the reverse
+ * direction would be a cycle.
+ *
+ * This lived only in the BullMQ path at first, which meant the in-process
+ * driver (what production actually runs) kept retrying unretryable jobs three
+ * times, each attempt re-downloading the whole source video to reach the same
+ * verdict. The message is user-facing: it is persisted to
+ * Project.failureReason and shown in the UI.
+ */
+export class NonRetryableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NonRetryableError";
+  }
+}
+
 type JobHandler<T> = (payload: T) => Promise<void>;
 
 interface Job<T> {
@@ -39,7 +58,12 @@ export class InProcessQueue<T> {
         await this.handler(job.payload);
       } catch (err) {
         logger.error(this.name, `Job ${job.id} failed`, err);
-        if (job.retries < this.MAX_RETRIES) {
+        // A video that is too short (or a plan limit, or missing credits) will
+        // still be so on attempt two. Retrying costs a full source re-download
+        // per attempt and reaches the identical verdict.
+        if (err instanceof NonRetryableError) {
+          logger.info(this.name, `Job ${job.id} failed permanently, not retrying: ${err.message}`);
+        } else if (job.retries < this.MAX_RETRIES) {
           job.retries++;
           this.queue.push(job); // re-enqueue at end
           logger.info(this.name, `Retrying job ${job.id} (attempt ${job.retries})`);
