@@ -6,28 +6,17 @@
 // mechanically. Progress is published to Redis (`render:{id}`) for the status
 // endpoint regardless of driver.
 
-import { InProcessQueue } from "@/lib/job-queue";
+import { InProcessQueue, NonRetryableError } from "@/lib/job-queue";
 import { redis } from "@/lib/redis";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 
 export type RenderStage = "queued" | "downloading" | "rendering" | "uploading" | "completed" | "failed";
 
-/**
- * A failure that retrying cannot fix: bad input, a plan limit, insufficient
- * credits. Without this every such job burned all three BullMQ attempts —
- * each one re-downloading the entire source video — to reach the same verdict,
- * and the user waited through the backoff for an answer we already had.
- *
- * The message is user-facing: it is persisted to Project.failureReason and
- * shown in the UI, so write it for a creator, not for a log.
- */
-export class NonRetryableError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "NonRetryableError";
-  }
-}
+// Defined in lib/job-queue.ts so BOTH drivers can honour it (this module
+// imports that one, so it can't live here). Re-exported to keep the existing
+// `from "@/lib/render-queue"` import sites working.
+export { NonRetryableError } from "@/lib/job-queue";
 
 export interface RenderProgress {
   stage: RenderStage;

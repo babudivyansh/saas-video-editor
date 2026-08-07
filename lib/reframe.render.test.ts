@@ -78,6 +78,70 @@ function outputDimensions(filter: string): { w: number; h: number } {
   }
 }
 
+// Regression for a production incident: a pick failed permanently with
+// "Video is too short (0.0s)" when the real cause was that the duration probe
+// could not read the file at all. getMediaDurationSec collapses every failure
+// to 0, and the caller read that 0 as a real duration — blaming the user's
+// upload for our own problem, and marking it non-retryable.
+d("probeMediaDuration — tells 'unreadable' apart from 'short'", () => {
+  function tmpFile(name: string, contents: Buffer | string): string {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "probe-"));
+    const p = path.join(dir, name);
+    fs.writeFileSync(p, contents);
+    return p;
+  }
+
+  it("reports a real duration for a readable file", async () => {
+    const { probeMediaDuration } = await import("@/utils/ffmpeg-render");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "probe-ok-"));
+    const out = path.join(dir, "ok.mp4");
+    try {
+      const res = run(["-hide_banner", "-y", "-f", "lavfi", "-i", "testsrc=s=160x120:r=15:d=2", out]);
+      expect(res.code, res.stderr.slice(-800)).toBe(0);
+      const probe = await probeMediaDuration(out);
+      expect(probe.durationSec).toBeGreaterThan(1.5);
+      expect(probe.reason).toBe("");
+      expect(probe.fileBytes).toBeGreaterThan(0);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns null — not 0 — for a file it cannot decode", async () => {
+    const { probeMediaDuration } = await import("@/utils/ffmpeg-render");
+    const p = tmpFile("garbage.mp4", "this is definitely not a video");
+    const probe = await probeMediaDuration(p);
+    // The whole point: null means "couldn't read", which a caller must not
+    // compare against a minimum duration.
+    expect(probe.durationSec).toBeNull();
+    expect(probe.reason).toMatch(/could not read|no duration/i);
+    expect(probe.fileBytes).toBeGreaterThan(0);
+    fs.rmSync(path.dirname(p), { recursive: true, force: true });
+  });
+
+  it("distinguishes an empty file, which is what a truncated download leaves", async () => {
+    const { probeMediaDuration } = await import("@/utils/ffmpeg-render");
+    const p = tmpFile("empty.mp4", "");
+    const probe = await probeMediaDuration(p);
+    expect(probe.durationSec).toBeNull();
+    expect(probe.reason).toContain("empty");
+    expect(probe.fileBytes).toBe(0);
+    fs.rmSync(path.dirname(p), { recursive: true, force: true });
+  });
+
+  it("distinguishes a missing file", async () => {
+    const { probeMediaDuration } = await import("@/utils/ffmpeg-render");
+    const probe = await probeMediaDuration(path.join(os.tmpdir(), "does-not-exist-12345.mp4"));
+    expect(probe.durationSec).toBeNull();
+    expect(probe.reason).toContain("does not exist");
+  });
+
+  it("getMediaDurationSec still returns 0 for its existing callers", async () => {
+    const { getMediaDurationSec } = await import("@/utils/ffmpeg-render");
+    expect(await getMediaDurationSec(path.join(os.tmpdir(), "nope-98765.mp4"))).toBe(0);
+  });
+});
+
 d("buildDynamicCropFilter — executed through ffmpeg", () => {
   it("renders a zoom path without erroring", () => {
     const filter = buildDynamicCropFilter(buildZoomEnvelope(1, "9:16", 640, 360), "9:16");

@@ -19,6 +19,17 @@ export async function register() {
   });
 
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  // Say once, at boot, where ffmpeg came from. Without this a missing binary
+  // is invisible until it surfaces as an unreadable-video error attributed to
+  // the user's upload — which is exactly how it surfaced in production.
+  try {
+    const { ffmpegBinaryInfo } = await import("./utils/ffmpeg-render");
+    const { logger } = await import("./lib/logger");
+    const info = ffmpegBinaryInfo();
+    if (info.bundled) logger.info("ffmpeg", `using bundled binary at ${info.path}`);
+    else logger.error("ffmpeg", `bundled binary NOT found — falling back to "${info.path}" on PATH. Video probing and rendering will fail if it is absent.`);
+  } catch { /* never block boot on a diagnostic */ }
+
   const { startSocialRefreshWorker } = await import("./lib/social/refresh-queue");
   startSocialRefreshWorker();
 

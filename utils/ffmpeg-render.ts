@@ -18,6 +18,18 @@ function resolveFfmpegBin(): string {
 
 const ffmpegBin = resolveFfmpegBin();
 
+/**
+ * Where ffmpeg was resolved from, and whether that path exists on disk.
+ *
+ * `resolveFfmpegBin` silently falls back to bare "ffmpeg" on PATH, which may
+ * not exist in a standalone deploy — and when it doesn't, every probe and
+ * render fails in a way that looks like bad user media rather than a missing
+ * binary. Exposed so startup can say so once, out loud.
+ */
+export function ffmpegBinaryInfo(): { path: string; bundled: boolean } {
+  return { path: ffmpegBin, bundled: ffmpegBin !== "ffmpeg" && fs.existsSync(ffmpegBin) };
+}
+
 // Renders run one at a time per queue with no other watchdog (see lib/job-queue.ts)
 // — a single wedged ffmpeg process (corrupt input, a codec that hangs) would
 // otherwise block every subsequent job in that queue forever. Kill anything
@@ -367,24 +379,89 @@ export function runFFmpegArgs(args: string[], timeoutMs = DEFAULT_FFMPEG_TIMEOUT
   });
 }
 
-// Probe a media file's duration in seconds by reading FFmpeg's "Duration:" line.
-// Runs `ffmpeg -i <file>` (no output), which exits non-zero — that's expected;
-// we parse stderr regardless. Returns 0 if the duration can't be determined.
-export function getMediaDurationSec(filePath: string, timeoutMs = 30_000): Promise<number> {
+export interface DurationProbe {
+  /** Seconds, or null when the probe itself failed (NOT "a zero-length video"). */
+  durationSec: number | null;
+  /** Why it failed, for diagnostics. Empty on success. */
+  reason: string;
+  /** Tail of ffmpeg's stderr, for the log. */
+  stderrTail: string;
+  fileBytes: number;
+}
+
+/**
+ * Probe a media file's duration, distinguishing "couldn't read it" from
+ * "it's short".
+ *
+ * That distinction matters: `getMediaDurationSec` collapses every failure to
+ * 0, and a caller comparing 0 against a minimum concludes "this video is too
+ * short" — telling the user their file is the problem when the real cause was
+ * a missing ffmpeg binary, a truncated download, or an unreadable container.
+ * That misdiagnosis reached production.
+ */
+export function probeMediaDuration(filePath: string, timeoutMs = 30_000): Promise<DurationProbe> {
   return new Promise((resolve) => {
+    let fileBytes = 0;
+    try { fileBytes = fs.existsSync(filePath) ? fs.statSync(filePath).size : 0; } catch { /* reported below */ }
+
+    if (fileBytes === 0) {
+      resolve({
+        durationSec: null,
+        reason: fs.existsSync(filePath) ? "file is empty (0 bytes)" : "file does not exist",
+        stderrTail: "",
+        fileBytes,
+      });
+      return;
+    }
+
     const proc = spawn(ffmpegBin!, ["-i", filePath], { stdio: ["ignore", "ignore", "pipe"] });
-    const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => resolve(0));
+    const clearWatchdog = killAfterTimeout(proc, timeoutMs, () =>
+      resolve({ durationSec: null, reason: `probe timed out after ${timeoutMs}ms`, stderrTail: "", fileBytes }));
+
     let stderrBuf = "";
     proc.stderr.on("data", (chunk: Buffer) => { stderrBuf += chunk.toString(); });
-    const finish = () => {
+
+    proc.on("close", () => {
       clearWatchdog();
+      const tail = stderrBuf.slice(-1200);
       const d = /Duration:\s*(\d+):(\d+):(\d+\.\d+)/.exec(stderrBuf);
-      if (!d) return resolve(0);
-      resolve(parseInt(d[1]) * 3600 + parseInt(d[2]) * 60 + parseFloat(d[3]));
-    };
-    proc.on("close", finish);
-    proc.on("error", () => { clearWatchdog(); resolve(0); });
+      if (!d) {
+        // "N/A" is ffmpeg's own answer for a container it opened but whose
+        // duration it cannot determine — worth distinguishing from a file it
+        // could not decode at all.
+        const reason = /Duration:\s*N\/A/.test(stderrBuf)
+          ? "ffmpeg opened the file but reported no duration"
+          : "ffmpeg could not read the file";
+        resolve({ durationSec: null, reason, stderrTail: tail, fileBytes });
+        return;
+      }
+      resolve({
+        durationSec: parseInt(d[1]) * 3600 + parseInt(d[2]) * 60 + parseFloat(d[3]),
+        reason: "",
+        stderrTail: "",
+        fileBytes,
+      });
+    });
+
+    proc.on("error", (err) => {
+      clearWatchdog();
+      // Almost always a missing binary: resolveFfmpegBin falls back to bare
+      // "ffmpeg" on PATH, which may not exist in a standalone deploy.
+      resolve({
+        durationSec: null,
+        reason: `could not run ffmpeg (${ffmpegBin}): ${err.message}`,
+        stderrTail: "",
+        fileBytes,
+      });
+    });
   });
+}
+
+// Probe a media file's duration in seconds by reading FFmpeg's "Duration:" line.
+// Returns 0 if the duration can't be determined — callers that need to tell a
+// failed probe apart from a genuinely short file must use probeMediaDuration.
+export async function getMediaDurationSec(filePath: string, timeoutMs = 30_000): Promise<number> {
+  return (await probeMediaDuration(filePath, timeoutMs)).durationSec ?? 0;
 }
 
 // Probe a video's pixel dimensions from FFmpeg's "Video: ... WxH" stderr line.
