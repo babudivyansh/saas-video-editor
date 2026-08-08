@@ -181,6 +181,11 @@ const schema = z.object({
   NEXT_PUBLIC_BACKGROUNDS_BASE: z.string().optional(),
   NEXT_PUBLIC_MUSIC_BASE: z.string().optional(),
   NEXT_PUBLIC_DISCORD_INVITE_URL: z.string().optional(),
+  NEXT_PUBLIC_INSTAGRAM_URL: z.string().optional(),
+  NEXT_PUBLIC_FACEBOOK_URL: z.string().optional(),
+  NEXT_PUBLIC_LINKEDIN_URL: z.string().optional(),
+  NEXT_PUBLIC_X_URL: z.string().optional(),
+  NEXT_PUBLIC_YOUTUBE_URL: z.string().optional(),
 });
 
 export function validateEnv(): void {
