@@ -1,9 +1,10 @@
 import Link from "next/link";
 import {
-  LinkedInIcon, XIcon, YoutubeIcon, GitHubIcon, DiscordIcon,
+  LinkedInIcon, XIcon, InstagramIcon, FacebookIcon, YoutubeIcon, DiscordIcon,
 } from "@/app/components/landing/icons";
 import { FREE_FEATURES, VIDEO_TOOLS, AI_TOOLS, type FeatureLink } from "@/app/components/featureLinks";
 import ClipiroLogo from "@/app/components/ClipiroLogo";
+import { env } from "@/lib/env";
 
 // Map the shared feature lists (title/desc/href) to footer link rows (label/href).
 const asLinks = (items: FeatureLink[]) => items.map((i) => ({ label: i.title, href: i.href }));
@@ -47,11 +48,15 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   },
 ];
 
+// Social handles are env-driven so they can be updated in production without a
+// code change; the hardcoded fallback is the current official handle. Discord
+// routes through /discord, which applies its own env override + fallback.
 const SOCIALS = [
-  { icon: <LinkedInIcon className="h-4 w-4" />, label: "LinkedIn", href: "#" },
-  { icon: <XIcon className="h-4 w-4" />, label: "X (Twitter)", href: "#" },
-  { icon: <YoutubeIcon className="h-4 w-4" />, label: "YouTube", href: "#" },
-  { icon: <GitHubIcon className="h-4 w-4" />, label: "GitHub", href: "#" },
+  { icon: <InstagramIcon className="h-4 w-4" />, label: "Instagram", href: env.NEXT_PUBLIC_INSTAGRAM_URL || "https://www.instagram.com/clipiroapp/" },
+  { icon: <FacebookIcon className="h-4 w-4" />, label: "Facebook", href: env.NEXT_PUBLIC_FACEBOOK_URL || "https://www.facebook.com/profile.php?id=61593101997903" },
+  { icon: <LinkedInIcon className="h-4 w-4" />, label: "LinkedIn", href: env.NEXT_PUBLIC_LINKEDIN_URL || "https://www.linkedin.com/company/109881774" },
+  { icon: <XIcon className="h-4 w-4" />, label: "X (Twitter)", href: env.NEXT_PUBLIC_X_URL || "https://x.com/ClipiroOfficial" },
+  { icon: <YoutubeIcon className="h-4 w-4" />, label: "YouTube", href: env.NEXT_PUBLIC_YOUTUBE_URL || "https://youtube.com/@clipiroofficial" },
   { icon: <DiscordIcon className="h-4 w-4" />, label: "Discord", href: "/discord" },
 ];
 
@@ -69,16 +74,20 @@ export default function SiteFooter() {
               Turn long videos into viral short-form content with AI clipping, captions, and one-click export.
             </p>
             <div className="mt-5 flex items-center gap-2">
-              {SOCIALS.map((s) => (
-                <a
-                  key={s.label}
-                  href={s.href}
-                  aria-label={s.label}
-                  className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-brand hover:text-brand-deep"
-                >
-                  {s.icon}
-                </a>
-              ))}
+              {SOCIALS.map((s) => {
+                const external = s.href.startsWith("http");
+                return (
+                  <a
+                    key={s.label}
+                    href={s.href}
+                    aria-label={s.label}
+                    {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-brand hover:text-brand-deep"
+                  >
+                    {s.icon}
+                  </a>
+                );
+              })}
             </div>
           </div>
 

@@ -53,6 +53,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
+    site: "@ClipiroOfficial",
+    creator: "@ClipiroOfficial",
     title: "Clipiro — Create Viral Shorts From Long Videos in Seconds",
     description:
       "Transform long videos into engaging short-form content with AI clipping, captions, and social media optimization.",
