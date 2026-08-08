@@ -17,7 +17,7 @@
 
 import { runAsd, GpuServiceError } from "@/lib/gpu-service";
 import { shouldUseAsd } from "@/lib/render-target";
-import { detectFaceTimeline, parseS3Url, type FaceBox } from "@/lib/reframe";
+import { detectFaceTimeline, parseS3Url, type FaceBox, type FaceTimelineResult } from "@/lib/reframe";
 import { getAssetReadUrl } from "@/utils/s3-upload";
 import { logger } from "@/lib/logger";
 
@@ -57,7 +57,7 @@ export function asdTracksToFaceBoxes(result: {
  * renderer uses a static centre crop, which is a visual downgrade, never an
  * error.
  */
-export async function getFaceTimeline(userId: string, videoUrl: string): Promise<FaceBox[]> {
+export async function getFaceTimeline(userId: string, videoUrl: string): Promise<FaceTimelineResult> {
   if (await shouldUseAsd(userId)) {
     try {
       // The GPU service holds no AWS credentials, so it gets a short-lived
@@ -68,7 +68,7 @@ export async function getFaceTimeline(userId: string, videoUrl: string): Promise
       const boxes = asdTracksToFaceBoxes(result);
       if (boxes.length > 0) {
         logger.info("asd", `ASD produced ${boxes.length} samples across ${result.tracks.length} track(s)`);
-        return boxes;
+        return { boxes };
       }
       logger.warn("asd", "ASD returned no tracks, falling back to Rekognition");
     } catch (err) {

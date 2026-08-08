@@ -41,6 +41,7 @@ import {
   buildZoomEnvelope,
   cropSizeFrac,
   type FaceBox,
+  type FaceTimelineResult,
   type StoredCrop,
   type ReframeOptions,
 } from "@/lib/reframe";
@@ -726,8 +727,8 @@ export async function pickJob(payload: PickPayload): Promise<void> {
     // sidecar rather than a Postgres JSON column: a multi-hour source produces
     // six figures of samples, which is not a column value.
     const cached = await loadFaceTimeline(project);
-    const faceTimelinePromise: Promise<FaceBox[]> = cached
-      ? Promise.resolve(cached)
+    const faceTimelinePromise: Promise<FaceTimelineResult> = cached
+      ? Promise.resolve({ boxes: cached })
       : getFaceTimeline(project.userId, project.uploadedVideoUrl);
 
     let wordTimings: WordTiming[] = [];
@@ -755,7 +756,8 @@ export async function pickJob(payload: PickPayload): Promise<void> {
     // Faces are only needed from here on (computeStoredCrop below) — by now
     // the Rekognition call has had the entire STT+Gemini duration to finish
     // in the background instead of blocking in front of it.
-    const allFaces = await faceTimelinePromise;
+    const faceResult = await faceTimelinePromise;
+    const allFaces = faceResult.boxes;
     if (!cached && allFaces.length > 0) {
       await saveFaceTimeline(projectId, allFaces);
     }
@@ -763,7 +765,12 @@ export async function pickJob(payload: PickPayload): Promise<void> {
 
     const warnings: string[] = [];
     if (sttFailed || wordTimings.length === 0) warnings.push("transcription_failed");
-    if (allFaces.length === 0) warnings.push("reframe_unavailable");
+    if (allFaces.length === 0) {
+      // "we couldn't run face detection" is a different message from "this
+      // footage has no faces to track" — the first is ours to fix and applies
+      // to every video on the deployment, the second is a fact about the file.
+      warnings.push(faceResult.failure ? "reframe_failed" : "reframe_unavailable");
+    }
 
     // Best-effort B-roll lookup (P2.3) — resolved up front (outside the
     // transaction) since it's a network call; never blocks or fails the pick.

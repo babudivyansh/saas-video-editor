@@ -81,8 +81,15 @@ const STEPS = [
 type SortKey = "score" | "order" | "duration";
 
 const WARNING_COPY: Record<string, string> = {
-  transcription_failed: "Transcription failed for this video — clip selection, titles, and captions may be lower quality than usual.",
-  reframe_unavailable: "Automatic speaker tracking isn't available for this video — clips use a centered crop instead of following the speaker.",
+  // "may be lower quality" undersold this badly. With no transcript the model
+  // never sees a word of the video, so the moments are spaced rather than
+  // chosen and the titles, captions and insights are invented — they read as
+  // confident analysis of content nothing actually looked at. Say so.
+  transcription_failed: "We couldn't transcribe this video, so the AI never read its content — clip moments are spaced out rather than chosen, and the titles, captions and insights are generic placeholders you should replace. There are no burned-in subtitles.",
+  reframe_unavailable: "No faces were detected in this video, so clips use a centered crop instead of following a speaker.",
+  // Distinct from the above on purpose: this one is our problem, not the
+  // user's file, and no amount of re-uploading will change it.
+  reframe_failed: "Speaker tracking couldn't run on our side, so clips use a centered crop. This affects every video until it's fixed — please report it if it persists.",
 };
 
 // ── Shared types ─────────────────────────────────────────────────────────────
@@ -1194,6 +1201,27 @@ function Step2Instructions({
   trackingSpeed: number; setTrackingSpeed: (v: number) => void;
   animatedCaptions: boolean; setAnimatedCaptions: (v: boolean) => void;
 }) {
+  // Number fields are edited as TEXT while focused and only clamped on blur.
+  //
+  // Clamping on every keystroke corrupts what the user types, because a
+  // controlled input feeds the clamped value straight back into the box: typing
+  // "20" into Min sent "2", which clamped to the floor of 5, so the next
+  // keystroke appended to that and the field ended up on 50. Typing "45" into
+  // Max became 165 the same way. The user is then silently running a job they
+  // never configured — here, 50-165s clips instead of 20-45s.
+  // A field is only in `draft` while it is being edited, so the committed value
+  // shows through the rest of the time and an external change (Reset) needs no
+  // syncing effect.
+  const [draft, setDraft] = useState<{ min?: string; max?: string; count?: string }>({});
+  const edit = (key: "min" | "max" | "count", v: string) => setDraft((d) => ({ ...d, [key]: v }));
+  const done = (key: "min" | "max" | "count") => setDraft((d) => ({ ...d, [key]: undefined }));
+
+  const clamp = (raw: string | undefined, lo: number, hi: number, fallback: number) => {
+    const n = Number(raw);
+    if (raw === undefined || raw.trim() === "" || !Number.isFinite(n)) return fallback;
+    return Math.max(lo, Math.min(Math.round(n), hi));
+  };
+
   return (
     <div className="flex-1 flex items-start justify-center p-4 md:p-8">
       <div className="w-full max-w-4xl flex flex-col gap-4 md:flex-row md:gap-6">
@@ -1208,22 +1236,38 @@ function Step2Instructions({
             <div className="flex items-center gap-3">
               <div className="flex-1">
                 <label className="text-xs text-ink-soft mb-1 block">Min</label>
-                <Input type="number" min={5} max={300} value={minDuration}
-                  onChange={(e) => setMinDuration(Math.max(5, Math.min(Number(e.target.value), maxDuration - 1)))} />
+                <Input type="number" min={5} max={300} value={draft.min ?? String(minDuration)}
+                  onChange={(e) => edit("min", e.target.value)}
+                  onBlur={() => {
+                    const next = clamp(draft.min, 5, 299, minDuration);
+                    setMinDuration(next);
+                    if (maxDuration <= next) setMaxDuration(Math.min(300, next + 1));
+                    done("min");
+                  }} />
               </div>
               <span className="text-ink-soft/40 mt-5">—</span>
               <div className="flex-1">
                 <label className="text-xs text-ink-soft mb-1 block">Max</label>
-                <Input type="number" min={5} max={300} value={maxDuration}
-                  onChange={(e) => setMaxDuration(Math.max(minDuration + 1, Math.min(Number(e.target.value), 300)))} />
+                <Input type="number" min={5} max={300} value={draft.max ?? String(maxDuration)}
+                  onChange={(e) => edit("max", e.target.value)}
+                  onBlur={() => {
+                    const next = clamp(draft.max, 6, 300, maxDuration);
+                    setMaxDuration(next);
+                    if (minDuration >= next) setMinDuration(Math.max(5, next - 1));
+                    done("max");
+                  }} />
               </div>
             </div>
           </div>
 
           <div className="space-y-2">
             <FieldLabel>Number of Clips</FieldLabel>
-            <Input type="number" min={1} max={20} value={clipCount}
-              onChange={(e) => setClipCount(Math.max(1, Math.min(Number(e.target.value), 20)))} />
+            <Input type="number" min={1} max={20} value={draft.count ?? String(clipCount)}
+              onChange={(e) => edit("count", e.target.value)}
+              onBlur={() => {
+                setClipCount(clamp(draft.count, 1, 20, clipCount));
+                done("count");
+              }} />
             <p className="text-xs text-ink-soft/70">Generate between 1 and 20 clips</p>
           </div>
 
