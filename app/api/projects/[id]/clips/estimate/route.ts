@@ -47,6 +47,21 @@ async function handlePOST(req: NextRequest, { params }: { params: Promise<{ id: 
   const byId = new Map(existing.map((c) => [c.id, c]));
 
   const kept = parsed.data.clips.filter((e) => e.keep && byId.has(e.id));
+
+  // Confirm rejects end <= start; this route did not, so an inverted window
+  // contributed a NEGATIVE duration to the total and could quote a price lower
+  // than the real one (even 0), for a selection confirm would then refuse. The
+  // two must agree — that's the whole point of this endpoint — so it applies
+  // the same rule.
+  for (const e of kept) {
+    const clip = byId.get(e.id)!;
+    const start = e.startSec ?? clip.startSec;
+    const end = e.endSec ?? clip.endSec;
+    if (end <= start) {
+      return NextResponse.json({ error: `Invalid start/end for clip ${e.id}` }, { status: 400 });
+    }
+  }
+
   const totalDurationSec = kept.reduce((sum, e) => {
     const clip = byId.get(e.id)!;
     return sum + ((e.endSec ?? clip.endSec) - (e.startSec ?? clip.startSec));

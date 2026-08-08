@@ -163,13 +163,26 @@ export async function refundCredits(projectId: string, amount: number): Promise<
     });
     if (restored < amount) {
       // Legacy project charged before the bucket split (no ledger rows).
-      await grantCredits({
-        userId: proj.userId,
-        bucket: "purchased",
-        amount: amount - restored,
-        reason: "refund:auto-clip-legacy",
-        refId: `auto-clip:${projectId}`,
+      //
+      // This used to fire on ANY shortfall, which quietly turned "we tried to
+      // refund more than was ever spent" into freshly granted credits: a run
+      // can refund twice (partial-failure, then the trimmed-duration delta),
+      // and the amounts are computed from gross pricing while the confirm
+      // charge is net of the analysis credit — so the sum can exceed the
+      // spend. Restricting it to refIds with no ledger history at all keeps
+      // the legacy path working and makes over-refund impossible.
+      const spendRows = await prisma.creditTransaction.count({
+        where: { userId: proj.userId, refId: `auto-clip:${projectId}` },
       });
+      if (spendRows === 0) {
+        await grantCredits({
+          userId: proj.userId,
+          bucket: "purchased",
+          amount: amount - restored,
+          reason: "refund:auto-clip-legacy",
+          refId: `auto-clip:${projectId}`,
+        });
+      }
     }
   } catch (e) {
     logger.error("auto-clip", `failed to refund ${amount} credits for project ${projectId}`, e);

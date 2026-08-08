@@ -226,6 +226,20 @@ function TrimmedPreviewPlayer({ sourceVideoUrl, startSec, endSec, aspectRatio }:
   );
 }
 
+// The confirm route rejects end <= start and anything over 300s, and the
+// estimate route prices only valid windows. Catching it on the card means the
+// user sees which field is wrong while they're editing it, instead of a single
+// server error string after pressing Confirm.
+const MAX_CLIP_SECONDS = 300;
+function trimError(edit: ReviewEdit): string | null {
+  if (!edit.keep) return null;
+  if (!Number.isFinite(edit.startSec) || !Number.isFinite(edit.endSec)) return "Enter a start and end time.";
+  if (edit.startSec < 0) return "Start can't be negative.";
+  if (edit.endSec <= edit.startSec) return "End must come after start.";
+  if (edit.endSec - edit.startSec > MAX_CLIP_SECONDS) return `Clips can't be longer than ${MAX_CLIP_SECONDS / 60} minutes.`;
+  return null;
+}
+
 function ReviewCard({ clip, edit, sourceVideoUrl, onChange }: {
   clip: ClipItem;
   edit: ReviewEdit;
@@ -233,6 +247,7 @@ function ReviewCard({ clip, edit, sourceVideoUrl, onChange }: {
   onChange: (patch: Partial<ReviewEdit>) => void;
 }) {
   const sc = scoreColor(clip.score);
+  const invalid = trimError(edit);
   return (
     <div className={`rounded-2xl border bg-white overflow-hidden flex flex-col shadow-sm transition-opacity ${edit.keep ? "border-card-border" : "border-card-border opacity-50"}`}>
       <TrimmedPreviewPlayer sourceVideoUrl={sourceVideoUrl} startSec={edit.startSec} endSec={edit.endSec} aspectRatio={edit.aspectRatio} />
@@ -276,11 +291,13 @@ function ReviewCard({ clip, edit, sourceVideoUrl, onChange }: {
               type="number" min={0} step={0.5} value={edit.endSec}
               onChange={(e) => onChange({ endSec: Number(e.target.value) })}
               disabled={!edit.keep}
-              className="w-full rounded-lg border border-card-border px-2 py-1.5 text-xs text-ink disabled:bg-surface"
+              className={`w-full rounded-lg border px-2 py-1.5 text-xs text-ink disabled:bg-surface ${invalid ? "border-red-300" : "border-card-border"}`}
             />
           </div>
         </div>
-        <p className="text-[11px] text-ink-soft">{fmtTime(Math.max(0, edit.endSec - edit.startSec))} duration</p>
+        {invalid
+          ? <p className="text-[11px] font-medium text-red-600">{invalid}</p>
+          : <p className="text-[11px] text-ink-soft">{fmtTime(Math.max(0, edit.endSec - edit.startSec))} duration</p>}
         <div className="grid grid-cols-3 gap-1.5">
           {ASPECTS.map((a) => (
             <button
@@ -318,12 +335,17 @@ function ReviewPanel({ projectId, clips, uploadedVideoUrl, onConfirmed }: { proj
   }, [clips]);
 
   const keptCount = Object.values(edits).filter((e) => e.keep).length;
+  const firstTrimError = Object.values(edits).map(trimError).find(Boolean) ?? null;
 
   // Live cost, recomputed as clips are toggled and trimmed. Debounced because
   // dragging a duration field would otherwise fire a request per keystroke.
   const [estimate, setEstimate] = useState<CostEstimate | null>(null);
   useEffect(() => {
     if (clips.length === 0 || Object.keys(edits).length === 0) return;
+    // An invalid window would be rejected by the estimate route anyway (it
+    // mirrors confirm's validation); skipping the request keeps the last good
+    // price on screen instead of blanking it out mid-edit.
+    if (Object.values(edits).some((e) => trimError(e))) return;
     const payload = clips.filter((c) => edits[c.id]).map((c) => ({ id: c.id, ...edits[c.id] }));
     if (payload.length === 0) return;
 
@@ -342,7 +364,18 @@ function ReviewPanel({ projectId, clips, uploadedVideoUrl, onConfirmed }: { proj
     setSubmitting(true);
     setError(null);
     try {
-      const payload = clips.map((c) => ({ id: c.id, ...edits[c.id] }));
+      // A clip with no edit entry yet must default to KEEP — spreading an
+      // undefined entry left `keep` unset, which the confirm route reads as
+      // "dropped" and deletes the clip the user never chose to discard.
+      const payload = clips.map((c) => ({
+        id: c.id,
+        ...(edits[c.id] ?? {
+          keep: true,
+          startSec: c.startSec,
+          endSec: c.endSec,
+          aspectRatio: (c.aspectRatio as ReviewEdit["aspectRatio"]) || "9:16",
+        }),
+      }));
       await apiFetch(`/api/projects/${projectId}/clips/confirm`, {
         method: "POST",
         body: JSON.stringify({ clips: payload }),
@@ -396,9 +429,11 @@ function ReviewPanel({ projectId, clips, uploadedVideoUrl, onConfirmed }: { proj
         </div>
       )}
 
+      {firstTrimError && <p className="text-sm text-red-600 mb-3">Fix the highlighted in/out points before rendering — {firstTrimError.toLowerCase()}</p>}
+
       <button
         onClick={handleConfirm}
-        disabled={submitting || keptCount === 0}
+        disabled={submitting || keptCount === 0 || !!firstTrimError}
         className="inline-flex items-center gap-2 grad-brand shadow-glow hover:shadow-glow-hover hover:brightness-105 text-white text-sm font-semibold px-6 py-3 rounded-xl transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
       >
         <IcSparkle /> {submitting
@@ -787,7 +822,6 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
   const [project, setProject] = useState<ProjectMeta>({ status: "rendering", warnings: null, failureReason: null, captionStyleIndex: null, uploadedVideoUrl: null });
   const [selectedClip, setSelectedClip] = useState<ClipItem | null>(null);
   const fireReviewPrompt = useReviewPromptTrigger();
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reviewPromptFiredRef = useRef(false);
 
   const tick = useCallback(async () => {
@@ -796,17 +830,12 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
       const d = await apiFetch<{ project: ProjectMeta; clips: ClipItem[] }>(`/api/projects/${projectId}/clips`);
       setClips(d.clips ?? []);
       setProject(d.project ?? { status: "rendering", warnings: null, failureReason: null, captionStyleIndex: null, uploadedVideoUrl: null });
-      if ((d.project.status === "completed" || d.project.status === "failed") && pollRef.current) {
-        clearInterval(pollRef.current);
-      }
     } catch { /* keep polling */ }
   }, [projectId]);
 
   useEffect(() => {
     if (!projectId) return;
     tick();
-    pollRef.current = setInterval(tick, 2500);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [projectId, tick]);
 
   // The API already orders by score; this lets the user override that without
@@ -829,6 +858,25 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
   });
 
   const projectStatus = project.status;
+
+  // Poll while anything is still moving, and — critically — start again when it
+  // starts moving anew. Polling used to be a single interval that cleared
+  // itself the moment the project reached completed/failed and was never
+  // restarted, so every later re-render (Studio "Apply", Re-render, Retry on a
+  // failed clip) left the card spinning on "Queued" and the drawer stuck on
+  // "Applying changes…" until the page was reloaded — the render itself had
+  // finished minutes earlier. Deriving "is anything in flight" from the data
+  // means the loop resumes on its own whenever a clip goes back to work.
+  const projectSettled = projectStatus === "completed" || projectStatus === "failed";
+  const clipInFlight = clips.some((c) => c.status === "queued" || c.status === "rendering");
+  const shouldPoll = !projectSettled || clipInFlight;
+
+  useEffect(() => {
+    if (!projectId || !shouldPoll) return;
+    const id = setInterval(tick, 2500);
+    return () => clearInterval(id);
+  }, [projectId, shouldPoll, tick]);
+
   const ready = clips.filter((c) => c.status === "ready").length;
   const total = clips.length || expectedCount;
   const failedHard = status === "failed" || (projectStatus === "failed" && clips.length > 0 && clips.every((c) => c.status === "failed")) || (projectStatus === "failed" && clips.length === 0);

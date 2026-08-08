@@ -53,10 +53,25 @@ vi.mock("@/lib/prisma", () => ({
       // Mirrors real Prisma: only matching rows are affected, so this IS the
       // atomic double-submit guard — a second concurrent call sees "queued"
       // and matches nothing.
-      updateMany: vi.fn(async (args: { where: { status?: { notIn: string[] } }; data: Record<string, unknown> }) => {
+      updateMany: vi.fn(async (args: {
+        where: { status?: { notIn: string[] }; rerenderCount?: { gt: number } };
+        data: Record<string, unknown>;
+      }) => {
         const notIn = args.where.status?.notIn ?? [];
         if (notIn.includes(clip.status)) return { count: 0 };
-        Object.assign(clip, args.data);
+        // The refund path guards its decrement on `rerenderCount > 0`, so the
+        // mock has to honour that predicate or the counter-floor behaviour is
+        // untested.
+        if (args.where.rerenderCount && clip.rerenderCount <= args.where.rerenderCount.gt) return { count: 0 };
+        const decrement = (args.data.rerenderCount as { decrement?: number } | undefined)?.decrement;
+        if (decrement) {
+          clip.rerenderCount -= decrement;
+          const { rerenderCount: _skip, ...rest } = args.data;
+          void _skip;
+          Object.assign(clip, rest);
+        } else {
+          Object.assign(clip, args.data);
+        }
         return { count: 1 };
       }),
       update: vi.fn(async (args: { data: Record<string, unknown> }) => {
@@ -217,6 +232,17 @@ describe("refundFailedRerender", () => {
       expect.objectContaining({ refId: "auto-clip-rerender:clip-1:1" }),
     );
     expect(clip.rerenderCount).toBe(1);
+  });
+
+  it("never drives rerenderCount below zero", async () => {
+    // The queue retries a throwing rerenderJob (attempts:3) and every attempt
+    // refunds, so an unguarded decrement went negative — after which `attempt`
+    // (rerenderCount - 1) no longer named the refId the charge was under.
+    const { refundFailedRerender } = await import("./autoclip-rerender");
+    clip.rerenderCount = 0;
+    await refundFailedRerender("clip-1");
+    await refundFailedRerender("clip-1");
+    expect(clip.rerenderCount).toBe(0);
   });
 
   it("uses a refId the worker can reconstruct (not a timestamp)", async () => {
