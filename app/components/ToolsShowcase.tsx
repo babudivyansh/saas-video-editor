@@ -32,7 +32,7 @@ const QUICK_TOOLS = [
   { icon: <IcFace />, label: "AI Face Swap", href: "/dashboard/tools" },
   { icon: <IcMic />, label: "Voiceover Generator", href: "/dashboard/tools/voiceover" },
   { icon: <IcEraser />, label: "Background Remover", href: "/dashboard/tools" },
-  { icon: <IcVideo />, label: "VEO3 Generator", href: "/dashboard/tools" },
+  { icon: <IcVideo />, label: "Video Generator", href: "/dashboard/tools" },
   { icon: <IcYoutube />, label: "YouTube Downloader", href: "/dashboard/tools" },
 ];
 

@@ -33,8 +33,8 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     category: "image",
     integration: "fal",
     falEndpoint: "bytedance/seedream/v5/lite/text-to-image",
-    costUsd: 0.03,
-    creditCost: 2, // kept current — formula would cut to 1, no reason to
+    costUsd: 0.035, // fal Seedream 5.0 Lite (2026-08 audit): $0.035/image
+    creditCost: 2, // ~5.7x at real cost — healthy
     allowedTiers: ["creator", "pro", "studio"],
     supportedParameters: ["prompt", "negativePrompt", "aspectRatio", "seed"],
     defaultValues: { aspectRatio: "1:1" },
@@ -50,11 +50,13 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     category: "image",
     integration: "fal",
     falEndpoint: "openai/gpt-image-2",
-    costUsd: 0.02, // medium quality
-    creditCost: 6, // kept current — premium brand pricing, formula would cut to 1
+    // fal defaults gpt-image-2 to `high` ($0.211/image); we pin `medium` ($0.053)
+    // to keep the 6-credit price comfortably profitable (~11x) instead of ~2.8x.
+    costUsd: 0.053, // medium quality (explicitly requested below)
+    creditCost: 6, // kept — premium brand pricing at medium quality
     allowedTiers: ["pro", "studio"],
-    supportedParameters: ["prompt", "aspectRatio"],
-    defaultValues: { aspectRatio: "1:1" },
+    supportedParameters: ["prompt", "aspectRatio", "quality"],
+    defaultValues: { aspectRatio: "1:1", quality: "medium" },
     inputMap: { aspectRatio: "aspect_ratio" },
     resultPath: ["images.0.url", "image.url"],
     imageInput: "none",
@@ -153,8 +155,8 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     category: "image",
     integration: "fal",
     falEndpoint: "fal-ai/qwen-image-2/text-to-image",
-    costUsd: 0.0275,
-    creditCost: 1, // matches formula
+    costUsd: 0.035, // fal Qwen Image 2.0 (2026-08 audit): $0.035/image
+    creditCost: 2, // raised from 1: at $0.035 real, 1 credit was only 2.8x
     allowedTiers: ["free", "creator", "pro", "studio"],
     supportedParameters: ["prompt", "negativePrompt", "aspectRatio", "seed", "guidanceScale"],
     defaultValues: { aspectRatio: "1:1" },

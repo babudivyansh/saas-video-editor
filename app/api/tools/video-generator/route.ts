@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser, getUserTier } from "@/lib/auth";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { env } from "@/lib/env";
-import { getVideoModel } from "@/lib/models/videoModels";
+import { getVideoModel, videoCreditsPerSecond } from "@/lib/models/videoModels";
 import { falSubmit, falPollUntilDone, extractResultUrl } from "@/lib/fal";
 import { chargeCredits, refundCredits, markGenerationStatus, checkModelAccess, updateGenerationProgress } from "@/lib/credits";
 import { maxDurationForTier } from "@/lib/plans/tiers";
@@ -52,6 +52,7 @@ async function handlePOST(req: NextRequest) {
     resolution?: string;
     fps?: number;
     motion?: string;
+    audio?: boolean;
     seed?: number;
     referenceImageUrl?: string;
     idempotencyKey?: string;
@@ -111,7 +112,18 @@ async function handlePOST(req: NextRequest) {
     Math.max(requestedDuration, modelEntry.minDurationSeconds),
     Math.min(modelEntry.maxDurationSeconds, tierCap),
   );
-  const CREDIT_COST = Math.ceil((override?.creditCost ?? modelEntry.creditsPerSecond) * duration);
+
+  // Credits/second depends on the selected resolution and (for Veo 3) the audio
+  // flag — resolved via the shared helper so the charged amount always matches
+  // what the UI showed. The admin runtime override, when set, wins over all.
+  const resolution = body.resolution ?? (modelEntry.defaultValues.resolution as string | undefined);
+  const audio = body.audio ?? modelEntry.defaultValues.audio === "on";
+  const creditsPerSecond = videoCreditsPerSecond(modelEntry, {
+    resolution,
+    audio,
+    overrideCreditsPerSecond: override?.creditCost,
+  });
+  const CREDIT_COST = Math.ceil(creditsPerSecond * duration);
 
   const falModelId = modelEntry.falEndpoint;
   const aspectRatio = body.aspectRatio ?? "16:9";
@@ -159,8 +171,9 @@ async function handlePOST(req: NextRequest) {
       let falInput: Record<string, unknown>;
       let resultPath: string[];
       if (isVeo3) {
-        // Exactly today's Veo3 input shape/result extraction — unchanged.
-        falInput = { prompt, duration, aspect_ratio: aspectRatio };
+        // Veo3 input shape + result extraction, now with the audio toggle wired
+        // through to fal's generate_audio (defaults on, matching prior behavior).
+        falInput = { prompt, duration, aspect_ratio: aspectRatio, generate_audio: audio };
         if (referenceImageUrl) falInput.image_url = referenceImageUrl;
         resultPath = ["video.url"];
       } else {

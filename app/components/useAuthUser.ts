@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import type { TierId } from "@/lib/plans/tiers";
 
 export interface UserPlan {
   id: string;
@@ -8,6 +9,7 @@ export interface UserPlan {
   name: string;
   credits: number;
   priceInPaise: number;
+  tier: TierId | null;
 }
 
 export interface AuthUser {
@@ -50,6 +52,8 @@ export interface AuthUser {
   lastLoginAt: string | null;
   preferredLanguage: string;
   plan: UserPlan | null;
+  /** Effective plan tier resolved server-side (free for no/expired sub). */
+  tier: TierId;
 }
 
 export async function fetchAuthUser(token: string): Promise<AuthUser | null> {

@@ -4,16 +4,61 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { useJobPolling } from "./useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
-import { VIDEO_MODELS, DEFAULT_VIDEO_MODEL_ID, getVideoModel } from "@/lib/models/videoModels";
-import type { VideoParam } from "@/lib/models/types";
+import { VIDEO_MODELS, DEFAULT_VIDEO_MODEL_ID, getVideoModel, videoCreditsPerSecond } from "@/lib/models/videoModels";
+import type { VideoModelEntry, VideoParam } from "@/lib/models/types";
+import { maxDurationForTier } from "@/lib/plans/tiers";
+import { Switch } from "@/app/components/ui/Switch";
 
 // ── Options ────────────────────────────────────────────────────────────────────
-const DURATIONS = ["5s", "8s"];
 const RATIOS    = ["16:9", "9:16", "1:1"];
 const RESOLUTIONS = ["480p", "720p", "1080p"];
 const FPS_OPTIONS = ["16", "24", "30"];
 
+// Length shown to logged-out visitors (highest tier's cap) — they can't be
+// billed until they sign in, so show each model's full capability.
+const ANON_DURATION_CAP = 15;
+
+// Curated duration choices in seconds, clamped to [min, max]. Both endpoints are
+// always included so every model exposes its real maximum length.
+function durationChoices(min: number, max: number): number[] {
+  const base = [2, 3, 4, 5, 6, 8, 10, 12, 15];
+  const set = new Set<number>([min, max]);
+  for (const s of base) if (s >= min && s <= max) set.add(s);
+  return [...set].filter(s => s >= min && s <= max).sort((a, b) => a - b);
+}
+
+// Billed seconds for a model given a requested length and the plan-tier cap —
+// mirrors the route's clamp: max(modelMin, min(requested, min(modelMax, tierCap))).
+function billedSeconds(model: VideoModelEntry, requested: number, tierCap: number): number {
+  const effMax = Math.min(model.maxDurationSeconds, tierCap);
+  return Math.min(Math.max(requested, model.minDurationSeconds), effMax);
+}
+
+// Credits = ceil(effectiveCreditsPerSecond * billedSeconds), exactly as the route
+// charges. Resolution + audio feed the same shared helper the route uses.
+function creditsFor(
+  model: VideoModelEntry,
+  requested: number,
+  tierCap: number,
+  opts?: { resolution?: string; audio?: boolean },
+): number {
+  return Math.ceil(videoCreditsPerSecond(model, opts) * billedSeconds(model, requested, tierCap));
+}
+
 type PromptEntry = { id: string; category: string; label: string; text: string; gradient: string };
+
+// Prompt ids that have a matching sample clip in public/prompt-library/<id>.mp4.
+// Everything except i4 ("News desk") ships a clip; ids not listed fall back to
+// their gradient placeholder.
+const PROMPTS_WITH_VIDEO = new Set([
+  "a1","a2","a3","a4","a5",
+  "c1","c2","c3","c4","c5",
+  "i1","i2","i3","i5",
+  "v1","v2","v3","v4","v5",
+  "o1","o2","o3","o4","o5",
+]);
+const promptVideoSrc = (id: string): string | null =>
+  PROMPTS_WITH_VIDEO.has(id) ? `/prompt-library/${id}.mp4` : null;
 
 const LIBRARY_PROMPTS: PromptEntry[] = [
   // ASMR
@@ -278,24 +323,39 @@ function PromptLibraryModal({ onSelect, onClose }: { onSelect: (text: string) =>
 
           {/* Col 1: thumbnail list */}
           <div className="w-full md:w-44 md:flex-shrink-0 max-h-40 md:max-h-none overflow-y-auto border-b md:border-b-0 md:border-r border-gray-100 py-2">
-            {filtered.map(p => (
-              <button
-                key={p.id}
-                onClick={() => setSelectedId(p.id)}
-                className={`w-full p-1.5 transition-colors ${selectedId === p.id ? "bg-blue-50" : "hover:bg-gray-50"}`}
-              >
-                <div
-                  className={`relative w-full rounded-lg overflow-hidden border-2 transition-colors ${
-                    selectedId === p.id ? "border-blue-500" : "border-transparent"
-                  }`}
-                  style={{ aspectRatio: "16/9", background: p.gradient }}
+            {filtered.map(p => {
+              const src = promptVideoSrc(p.id);
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setSelectedId(p.id)}
+                  className={`w-full p-1.5 transition-colors ${selectedId === p.id ? "bg-blue-50" : "hover:bg-gray-50"}`}
                 >
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <IcPlay />
+                  <div
+                    className={`relative w-full rounded-lg overflow-hidden border-2 transition-colors ${
+                      selectedId === p.id ? "border-blue-500" : "border-transparent"
+                    }`}
+                    style={{ aspectRatio: "16/9", background: p.gradient }}
+                  >
+                    {src ? (
+                      <video
+                        src={src}
+                        muted
+                        loop
+                        autoPlay
+                        playsInline
+                        preload="metadata"
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <IcPlay />
+                      </div>
+                    )}
                   </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
 
           {selected && (
@@ -306,19 +366,35 @@ function PromptLibraryModal({ onSelect, onClose }: { onSelect: (text: string) =>
                   className="w-full rounded-xl overflow-hidden relative flex items-center justify-center"
                   style={{ aspectRatio: "16/9", background: selected.gradient }}
                 >
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-12 h-12 rounded-full bg-black/30 flex items-center justify-center">
-                      <IcPlay />
-                    </div>
-                  </div>
-                  <div className="absolute bottom-0 left-0 right-0 bg-black/40 px-3 py-1.5 flex items-center gap-2">
-                    <svg viewBox="0 0 24 24" fill="white" className="w-3 h-3 flex-shrink-0"><path d="M8 5v14l11-7z"/></svg>
-                    <span className="text-white text-[10px] font-mono">0:00 / 0:08</span>
-                    <div className="flex-1 h-0.5 bg-white/30 rounded mx-1"><div className="h-full w-0 bg-white rounded"/></div>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-3 h-3 flex-shrink-0"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 010 14.14"/></svg>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-3 h-3 flex-shrink-0"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-3 h-3 flex-shrink-0"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
-                  </div>
+                  {promptVideoSrc(selected.id) ? (
+                    <video
+                      key={selected.id}
+                      src={promptVideoSrc(selected.id)!}
+                      controls
+                      muted
+                      loop
+                      autoPlay
+                      playsInline
+                      preload="metadata"
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                  ) : (
+                    <>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-12 h-12 rounded-full bg-black/30 flex items-center justify-center">
+                          <IcPlay />
+                        </div>
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/40 px-3 py-1.5 flex items-center gap-2">
+                        <svg viewBox="0 0 24 24" fill="white" className="w-3 h-3 flex-shrink-0"><path d="M8 5v14l11-7z"/></svg>
+                        <span className="text-white text-[10px] font-mono">0:00 / 0:08</span>
+                        <div className="flex-1 h-0.5 bg-white/30 rounded mx-1"><div className="h-full w-0 bg-white rounded"/></div>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-3 h-3 flex-shrink-0"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 010 14.14"/></svg>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-3 h-3 flex-shrink-0"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-3 h-3 flex-shrink-0"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -380,6 +456,7 @@ export default function VideoGeneratorTool() {
   const [duration,    setDuration]    = useState("8s");
   const [ratio,       setRatio]       = useState("16:9");
   const [resolution,  setResolution]  = useState("720p");
+  const [audio,       setAudio]       = useState(true);
   const [fps,         setFps]         = useState("24");
   const [seed,        setSeed]        = useState("");
   const [prompt,      setPrompt]      = useState("");
@@ -397,6 +474,29 @@ export default function VideoGeneratorTool() {
   const modelEntry = getVideoModel(model);
   const supports = (p: VideoParam) => modelEntry.supportedParameters.includes(p);
   const needsImage = modelEntry.imageInput === "required" && !refImage;
+
+  // Max clip length is the smaller of the model's provider ceiling and the
+  // user's plan-tier cap (Creator 5s / Pro 10s / Studio 15s). The seconds shown
+  // are exactly what the route bills, so the credit figures never surprise the user.
+  const durationCap = user ? maxDurationForTier(user.tier) : ANON_DURATION_CAP;
+  const requestedSeconds = parseInt(duration) || modelEntry.maxDurationSeconds;
+  const effectiveSeconds = billedSeconds(modelEntry, requestedSeconds, durationCap);
+  // Pricing inputs that vary the per-second rate: resolution (tiered models) and
+  // audio (Veo 3). Passed to creditsFor so badge + button always match the route.
+  const priceOpts = {
+    resolution: supports("resolution") ? resolution : undefined,
+    audio: modelEntry.supportsAudio ? audio : undefined,
+  };
+  const currentCredits = creditsFor(modelEntry, requestedSeconds, durationCap, priceOpts);
+  const currentRate = videoCreditsPerSecond(modelEntry, priceOpts);
+  const durationSecondsList = durationChoices(
+    modelEntry.minDurationSeconds,
+    Math.min(modelEntry.maxDurationSeconds, durationCap),
+  );
+  // The dropdown is driven by the clamped value (not the raw pick) so switching
+  // to a shorter-max model, or a Creator landing on a Studio-only length, snaps
+  // the displayed selection into range without a state-syncing effect.
+  const durationValue = `${effectiveSeconds}s`;
 
   const handleGenerate = useCallback(async () => {
     if (!user || !token) { openAuthModal("login", "AI Video Generator"); return; }
@@ -431,9 +531,10 @@ export default function VideoGeneratorTool() {
         const body: Record<string, unknown> = {
           prompt: prompt.trim(),
           model,
-          duration: parseInt(duration),
+          duration: effectiveSeconds,
           aspectRatio: ratio,
           resolution: supports("resolution") ? resolution : undefined,
+          audio: modelEntry.supportsAudio ? audio : undefined,
           fps: supports("fps") ? Number(fps) : undefined,
           seed: supports("seed") && seed.trim() ? Number(seed) : undefined,
           referenceImageUrl,
@@ -455,7 +556,7 @@ export default function VideoGeneratorTool() {
       submittingRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, token, openAuthModal, prompt, needsImage, videoUrl, refImage, model, duration, ratio, resolution, fps, seed, job]);
+  }, [user, token, openAuthModal, prompt, needsImage, videoUrl, refImage, model, duration, ratio, resolution, audio, fps, seed, job]);
 
   // Once the job is done, fetch the result and trigger a download.
   useEffect(() => {
@@ -512,7 +613,7 @@ export default function VideoGeneratorTool() {
     if (videoUrl) { URL.revokeObjectURL(videoUrl); setVideoUrl(null); }
   };
 
-  const durationOptions   = DURATIONS.map(d => ({ slug: d, name: d }));
+  const durationOptions   = durationSecondsList.map(s => ({ slug: `${s}s`, name: `${s}s` }));
   const ratioOptions      = RATIOS.map(r => ({ slug: r, name: r }));
   const resolutionOptions = RESOLUTIONS.map(r => ({ slug: r, name: r }));
   const fpsOptions        = FPS_OPTIONS.map(f => ({ slug: f, name: `${f} fps` }));
@@ -522,7 +623,7 @@ export default function VideoGeneratorTool() {
       <div className="max-w-3xl mx-auto">
         {/* Title */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">VEO3 Generator</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Video Generator</h1>
           <p className="text-sm text-gray-500 mt-1">Generate stunning videos from text with AI</p>
         </div>
 
@@ -537,7 +638,7 @@ export default function VideoGeneratorTool() {
                 options={VIDEO_MODELS}
                 getSlug={o => o.id}
                 getLabel={o => o.displayName}
-                getBadge={o => o.badge}
+                getBadge={o => `${creditsFor(o, requestedSeconds, durationCap, { resolution: o.resolutionCredits ? resolution : undefined, audio: o.supportsAudio ? audio : undefined })} credits`}
                 getSubtext={o => o.provider}
                 searchable
                 onChange={setModel}
@@ -545,7 +646,7 @@ export default function VideoGeneratorTool() {
               {supports("duration") && (
                 <Dropdown
                   label="Duration"
-                  value={duration}
+                  value={durationValue}
                   options={durationOptions}
                   getSlug={o => o.slug}
                   getLabel={o => o.name}
@@ -583,6 +684,17 @@ export default function VideoGeneratorTool() {
                 />
               )}
             </div>
+            {modelEntry.supportsAudio && (
+              <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-3.5 py-2.5">
+                <div>
+                  <p className="text-[13px] font-semibold text-gray-900">Audio</p>
+                  <p className="text-[11px] text-gray-400">
+                    {audio ? "Generated with sound" : "Silent video (cheaper)"} · {currentRate} credits/sec
+                  </p>
+                </div>
+                <Switch checked={audio} onChange={setAudio} label="Generate audio" />
+              </div>
+            )}
             {supports("seed") && (
               <div className="w-32">
                 <p className="text-xs font-semibold text-gray-500 mb-1.5">Seed</p>
@@ -738,9 +850,17 @@ export default function VideoGeneratorTool() {
                 ) : needsImage ? (
                   <>Upload a reference image to continue</>
                 ) : (
-                  <>Generate Video <kbd className="text-[10px] text-white/60 font-normal bg-white/10 px-1.5 py-0.5 rounded">⌘+Enter</kbd></>
+                  <>Generate Video · {currentCredits} {currentCredits === 1 ? "credit" : "credits"} <kbd className="text-[10px] text-white/60 font-normal bg-white/10 px-1.5 py-0.5 rounded">⌘+Enter</kbd></>
                 )}
               </button>
+            )}
+            {job.status !== "done" && !needsImage && (
+              <p className="text-[11px] text-gray-400 text-center -mt-2">
+                {modelEntry.displayName}
+                {supports("resolution") ? ` · ${resolution}` : ""}
+                {modelEntry.supportsAudio ? ` · audio ${audio ? "on" : "off"}` : ""}
+                {" · "}{effectiveSeconds}s · {currentRate} credits/sec
+              </p>
             )}
           </div>
         </div>

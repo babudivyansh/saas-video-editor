@@ -52,14 +52,21 @@ export async function GET(req: NextRequest) {
       passwordChangedAt: true,
       lastLoginAt: true,
       preferredLanguage: true,
-      plan: { select: { id: true, slug: true, name: true, credits: true, priceInPaise: true } },
+      plan: { select: { id: true, slug: true, name: true, credits: true, priceInPaise: true, tier: true } },
     },
   });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
+  // Effective plan tier, resolved with the same rule as getUserTier() so the
+  // client can size things like the video-duration cap (TIER_MAX_DURATION_SECONDS)
+  // to exactly what the server will bill. "free" for no/expired subscription.
+  const subActive = !!user.subscriptionEndsAt && user.subscriptionEndsAt > new Date();
+  const tier = subActive && user.plan?.tier ? user.plan.tier : "free";
+
   return NextResponse.json({
     user: {
       ...user,
+      tier,
       creditBalances: {
         bonus: user.bonusCredits,
         subscription: user.subscriptionCredits,

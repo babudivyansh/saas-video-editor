@@ -39,8 +39,8 @@ export const TIER_LABEL: Record<Exclude<TierId, "free">, string> = {
 // ceiling as Creator — it should never actually reach a video model, since
 // every video model's allowedTiers excludes "free".
 export const TIER_MAX_DURATION_SECONDS: Record<Exclude<TierId, "free">, number> = {
-  creator: 5,
-  pro: 10,
+  creator: 8,
+  pro: 12,
   studio: 15,
 };
 
