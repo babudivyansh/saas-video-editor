@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { env } from "@/lib/env";
 import { getSyncStats } from "@/lib/social/service";
+import { KNOWN_RENDER_QUEUE_NAMES } from "@/lib/render-queue";
 
 export type MetricsSection =
   | "kpis" | "revenue" | "ai" | "social" | "infra" | "growth"
@@ -347,7 +348,7 @@ export async function infraSection() {
   };
 }
 
-export async function renderQueueCounts(): Promise<Record<string, number> | null> {
+export async function renderQueueCounts(): Promise<Record<string, Record<string, number>> | null> {
   // Probe first: when Redis is down (common in dev), don't let BullMQ open a
   // connection that retries forever and floods the console with
   // ECONNREFUSED AggregateErrors.
@@ -355,16 +356,23 @@ export async function renderQueueCounts(): Promise<Record<string, number> | null
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { Queue } = require("bullmq") as typeof import("bullmq");
-    const queue = new Queue("editor-render", {
-      connection: {
-        url: env.REDIS_URL || "redis://127.0.0.1:6379",
-        retryStrategy: () => null, // one-shot read: fail fast, never reconnect-loop
-        maxRetriesPerRequest: 1,
-      },
-    });
-    const counts = await queue.getJobCounts("wait", "active", "completed", "failed", "delayed");
-    await queue.close();
-    return counts;
+    const connection = {
+      url: env.REDIS_URL || "redis://127.0.0.1:6379",
+      retryStrategy: () => null, // one-shot read: fail fast, never reconnect-loop
+      maxRetriesPerRequest: 1,
+    };
+    // Previously hardcoded to editor-render only — a dead/never-started
+    // worker for any of the other 8 queues (e.g. auto-clip-rerender, behind
+    // the Studio & Insights "stuck at Queued" bug) was invisible here.
+    const entries = await Promise.all(KNOWN_RENDER_QUEUE_NAMES.map(async (name) => {
+      const queue = new Queue(name, { connection });
+      try {
+        return [name, await queue.getJobCounts("wait", "active", "completed", "failed", "delayed")] as const;
+      } finally {
+        await queue.close();
+      }
+    }));
+    return Object.fromEntries(entries);
   } catch {
     return null; // queue not created yet / in-process driver — not an error
   }

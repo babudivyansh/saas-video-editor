@@ -8,7 +8,7 @@ import AdminShell from "../AdminShell";
 import { useAuth } from "@/app/components/AuthContext";
 
 interface OpsData {
-  queueCounts: Record<string, number> | null;
+  queueCounts: Record<string, Record<string, number>> | null;
   failedJobs: Array<{ queueName: string; id: string; projectId?: string; failedReason?: string; attemptsMade: number; timestamp: number }>;
   heartbeats: Record<string, string | null>;
   flags: Record<string, boolean>;
@@ -174,11 +174,18 @@ export default function AdminOpsPage() {
             ))}
           </div>
           {d.queueCounts && (
-            <div className="grid grid-cols-5 gap-2 text-center mt-4 pt-3 border-t border-gray-50">
-              {Object.entries(d.queueCounts).map(([k, v]) => (
-                <div key={k}>
-                  <p className={`text-base font-bold ${k === "failed" && v > 0 ? "text-red-600" : "text-gray-900"}`}>{v}</p>
-                  <p className="text-[10px] text-gray-400 capitalize">{k}</p>
+            <div className="mt-4 pt-3 border-t border-gray-50 space-y-3">
+              {Object.entries(d.queueCounts).map(([queueName, counts]) => (
+                <div key={queueName}>
+                  <p className="text-[11px] font-semibold text-gray-600 font-mono mb-1">{queueName}</p>
+                  <div className="grid grid-cols-5 gap-2 text-center">
+                    {Object.entries(counts).map(([k, v]) => (
+                      <div key={k}>
+                        <p className={`text-sm font-bold ${k === "failed" && v > 0 ? "text-red-600" : "text-gray-900"}`}>{v}</p>
+                        <p className="text-[10px] text-gray-400 capitalize">{k}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>

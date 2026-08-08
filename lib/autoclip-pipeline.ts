@@ -1807,7 +1807,10 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
   } catch (err) {
     // Anything thrown before/around renderOneClip (a failed source download,
     // for instance) would otherwise leave the clip stuck on "queued" forever
-    // with the charge still standing.
+    // with the charge still standing. (This is the same "stuck forever" bug the
+    // studio-insights branch fixed by rethrowing for a BullMQ retry — the newer
+    // refund-and-fail path here supersedes it: the user is made whole rather
+    // than retried against an already-expired source.)
     logger.error("auto-clip", `rerender failed for clip ${clipId}`, err);
     await prisma.clip.update({ where: { id: clipId }, data: { status: "failed" } }).catch(() => {});
     await refundFailedRerender(clipId);

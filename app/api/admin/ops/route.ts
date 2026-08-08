@@ -16,7 +16,7 @@ export const GET = withAdmin(async () => {
   const [queueCounts, failedJobs, heartbeats, flags, maintenance, tableSizes] = await Promise.all([
     renderQueueCounts(),
     getFailedRenderJobs(),
-    getHeartbeats(["editor-render", "social-refresh"]),
+    getHeartbeats([...KNOWN_RENDER_QUEUE_NAMES, "social-refresh"]),
     getFeatureFlags(),
     getMaintenanceMode(),
     prisma.$queryRaw<Array<{ table: string; size: string; bytes: bigint }>>`
