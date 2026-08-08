@@ -300,9 +300,12 @@ export async function refundFailedRerender(clipId: string): Promise<void> {
     });
 
     // Give back the consumed iteration so a failed FREE re-render doesn't burn
-    // the user's one free attempt.
-    await prisma.clip.update({
-      where: { id: clipId },
+    // the user's one free attempt. Guarded on `gt: 0` because the queue retries
+    // a throwing rerenderJob (attempts:3) and each attempt refunds — an
+    // unguarded decrement drove the counter negative, after which `attempt`
+    // no longer matched the refId the charge was recorded under.
+    await prisma.clip.updateMany({
+      where: { id: clipId, rerenderCount: { gt: 0 } },
       data: { rerenderCount: { decrement: 1 } },
     }).catch(() => {});
 
