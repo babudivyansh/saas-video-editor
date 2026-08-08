@@ -445,6 +445,7 @@ model Clip {
   // single brollUrl fields above remain for clips picked before this existed.
   brollWindows          Json?
   createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt // stale-clip sweep reads this — see lib/cron/stale-clip-sweep.ts
   subtitleStyleOverride Json?
   silenceSettings       Json?
   // Per-clip speech signal track (loudness/pitch/energy envelopes, shot

@@ -83,14 +83,15 @@ The app is deployed live at clipiro.com via cPanel's **Setup Node.js App**
 
 ## 7. Cron Jobs (cPanel)
 
-Eleven routes expect an external scheduler and are fail-closed (401) unless
+Twelve routes expect an external scheduler and are fail-closed (401) unless
 `CRON_SECRET` / `SOCIAL_REFRESH_SECRET` / `ASSET_CLEANUP_SECRET` are set in
 `.env` — set them, then add matching entries under cPanel → **Cron Jobs**.
 As of a 2026-08 launch-readiness audit, only the first three below (`refill-
 credits`, the three `social-refresh` jobs, `commission-payout`) were actually
 wired into the production crontab — the rest existed as working routes with
 no schedule, so lifecycle emails, cleanup, and re-engagement were silently
-never firing. This list is now the complete set of 11.
+never firing. This list is now the complete set of 12 (incl. the stale
+Auto Clip sweep).
 
 ```
 # Monthly credit refill + subscription expiry — daily is enough, the route
@@ -136,6 +137,13 @@ never firing. This list is now the complete set of 11.
 
 # Subscription expiry warnings (7d/3d/1d before) + expired notice
 0 6 * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/subscription-reminder
+
+# Stale Auto Clip sweep — reconciles clips stranded at queued/rendering by a
+# process crash mid-render (rerenderJob/renderJob already handle a caught
+# exception themselves; this only catches the crash case). Every 15 min is
+# enough given the 18-minute staleness window. Also reachable on demand via
+# POST /api/admin/ops/run-stale-clip-sweep (admin-authenticated).
+*/15 * * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/stale-clip-sweep
 ```
 
 Use cPanel's Cron Jobs UI to enter the schedule and command — it writes to the

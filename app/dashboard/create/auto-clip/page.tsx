@@ -81,8 +81,15 @@ const STEPS = [
 type SortKey = "score" | "order" | "duration";
 
 const WARNING_COPY: Record<string, string> = {
-  transcription_failed: "Transcription failed for this video — clip selection, titles, and captions may be lower quality than usual.",
-  reframe_unavailable: "Automatic speaker tracking isn't available for this video — clips use a centered crop instead of following the speaker.",
+  // "may be lower quality" undersold this badly. With no transcript the model
+  // never sees a word of the video, so the moments are spaced rather than
+  // chosen and the titles, captions and insights are invented — they read as
+  // confident analysis of content nothing actually looked at. Say so.
+  transcription_failed: "We couldn't transcribe this video, so the AI never read its content — clip moments are spaced out rather than chosen, and the titles, captions and insights are generic placeholders you should replace. There are no burned-in subtitles.",
+  reframe_unavailable: "No faces were detected in this video, so clips use a centered crop instead of following a speaker.",
+  // Distinct from the above on purpose: this one is our problem, not the
+  // user's file, and no amount of re-uploading will change it.
+  reframe_failed: "Speaker tracking couldn't run on our side, so clips use a centered crop. This affects every video until it's fixed — please report it if it persists.",
 };
 
 // ── Shared types ─────────────────────────────────────────────────────────────
@@ -226,6 +233,20 @@ function TrimmedPreviewPlayer({ sourceVideoUrl, startSec, endSec, aspectRatio }:
   );
 }
 
+// The confirm route rejects end <= start and anything over 300s, and the
+// estimate route prices only valid windows. Catching it on the card means the
+// user sees which field is wrong while they're editing it, instead of a single
+// server error string after pressing Confirm.
+const MAX_CLIP_SECONDS = 300;
+function trimError(edit: ReviewEdit): string | null {
+  if (!edit.keep) return null;
+  if (!Number.isFinite(edit.startSec) || !Number.isFinite(edit.endSec)) return "Enter a start and end time.";
+  if (edit.startSec < 0) return "Start can't be negative.";
+  if (edit.endSec <= edit.startSec) return "End must come after start.";
+  if (edit.endSec - edit.startSec > MAX_CLIP_SECONDS) return `Clips can't be longer than ${MAX_CLIP_SECONDS / 60} minutes.`;
+  return null;
+}
+
 function ReviewCard({ clip, edit, sourceVideoUrl, onChange }: {
   clip: ClipItem;
   edit: ReviewEdit;
@@ -233,6 +254,7 @@ function ReviewCard({ clip, edit, sourceVideoUrl, onChange }: {
   onChange: (patch: Partial<ReviewEdit>) => void;
 }) {
   const sc = scoreColor(clip.score);
+  const invalid = trimError(edit);
   return (
     <div className={`rounded-2xl border bg-white overflow-hidden flex flex-col shadow-sm transition-opacity ${edit.keep ? "border-card-border" : "border-card-border opacity-50"}`}>
       <TrimmedPreviewPlayer sourceVideoUrl={sourceVideoUrl} startSec={edit.startSec} endSec={edit.endSec} aspectRatio={edit.aspectRatio} />
@@ -276,11 +298,13 @@ function ReviewCard({ clip, edit, sourceVideoUrl, onChange }: {
               type="number" min={0} step={0.5} value={edit.endSec}
               onChange={(e) => onChange({ endSec: Number(e.target.value) })}
               disabled={!edit.keep}
-              className="w-full rounded-lg border border-card-border px-2 py-1.5 text-xs text-ink disabled:bg-surface"
+              className={`w-full rounded-lg border px-2 py-1.5 text-xs text-ink disabled:bg-surface ${invalid ? "border-red-300" : "border-card-border"}`}
             />
           </div>
         </div>
-        <p className="text-[11px] text-ink-soft">{fmtTime(Math.max(0, edit.endSec - edit.startSec))} duration</p>
+        {invalid
+          ? <p className="text-[11px] font-medium text-red-600">{invalid}</p>
+          : <p className="text-[11px] text-ink-soft">{fmtTime(Math.max(0, edit.endSec - edit.startSec))} duration</p>}
         <div className="grid grid-cols-3 gap-1.5">
           {ASPECTS.map((a) => (
             <button
@@ -318,12 +342,17 @@ function ReviewPanel({ projectId, clips, uploadedVideoUrl, onConfirmed }: { proj
   }, [clips]);
 
   const keptCount = Object.values(edits).filter((e) => e.keep).length;
+  const firstTrimError = Object.values(edits).map(trimError).find(Boolean) ?? null;
 
   // Live cost, recomputed as clips are toggled and trimmed. Debounced because
   // dragging a duration field would otherwise fire a request per keystroke.
   const [estimate, setEstimate] = useState<CostEstimate | null>(null);
   useEffect(() => {
     if (clips.length === 0 || Object.keys(edits).length === 0) return;
+    // An invalid window would be rejected by the estimate route anyway (it
+    // mirrors confirm's validation); skipping the request keeps the last good
+    // price on screen instead of blanking it out mid-edit.
+    if (Object.values(edits).some((e) => trimError(e))) return;
     const payload = clips.filter((c) => edits[c.id]).map((c) => ({ id: c.id, ...edits[c.id] }));
     if (payload.length === 0) return;
 
@@ -342,7 +371,18 @@ function ReviewPanel({ projectId, clips, uploadedVideoUrl, onConfirmed }: { proj
     setSubmitting(true);
     setError(null);
     try {
-      const payload = clips.map((c) => ({ id: c.id, ...edits[c.id] }));
+      // A clip with no edit entry yet must default to KEEP — spreading an
+      // undefined entry left `keep` unset, which the confirm route reads as
+      // "dropped" and deletes the clip the user never chose to discard.
+      const payload = clips.map((c) => ({
+        id: c.id,
+        ...(edits[c.id] ?? {
+          keep: true,
+          startSec: c.startSec,
+          endSec: c.endSec,
+          aspectRatio: (c.aspectRatio as ReviewEdit["aspectRatio"]) || "9:16",
+        }),
+      }));
       await apiFetch(`/api/projects/${projectId}/clips/confirm`, {
         method: "POST",
         body: JSON.stringify({ clips: payload }),
@@ -396,9 +436,11 @@ function ReviewPanel({ projectId, clips, uploadedVideoUrl, onConfirmed }: { proj
         </div>
       )}
 
+      {firstTrimError && <p className="text-sm text-red-600 mb-3">Fix the highlighted in/out points before rendering — {firstTrimError.toLowerCase()}</p>}
+
       <button
         onClick={handleConfirm}
-        disabled={submitting || keptCount === 0}
+        disabled={submitting || keptCount === 0 || !!firstTrimError}
         className="inline-flex items-center gap-2 grad-brand shadow-glow hover:shadow-glow-hover hover:brightness-105 text-white text-sm font-semibold px-6 py-3 rounded-xl transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
       >
         <IcSparkle /> {submitting
@@ -787,7 +829,6 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
   const [project, setProject] = useState<ProjectMeta>({ status: "rendering", warnings: null, failureReason: null, captionStyleIndex: null, uploadedVideoUrl: null });
   const [selectedClip, setSelectedClip] = useState<ClipItem | null>(null);
   const fireReviewPrompt = useReviewPromptTrigger();
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reviewPromptFiredRef = useRef(false);
 
   const tick = useCallback(async () => {
@@ -796,17 +837,12 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
       const d = await apiFetch<{ project: ProjectMeta; clips: ClipItem[] }>(`/api/projects/${projectId}/clips`);
       setClips(d.clips ?? []);
       setProject(d.project ?? { status: "rendering", warnings: null, failureReason: null, captionStyleIndex: null, uploadedVideoUrl: null });
-      if ((d.project.status === "completed" || d.project.status === "failed") && pollRef.current) {
-        clearInterval(pollRef.current);
-      }
     } catch { /* keep polling */ }
   }, [projectId]);
 
   useEffect(() => {
     if (!projectId) return;
     tick();
-    pollRef.current = setInterval(tick, 2500);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [projectId, tick]);
 
   // The API already orders by score; this lets the user override that without
@@ -829,6 +865,25 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
   });
 
   const projectStatus = project.status;
+
+  // Poll while anything is still moving, and — critically — start again when it
+  // starts moving anew. Polling used to be a single interval that cleared
+  // itself the moment the project reached completed/failed and was never
+  // restarted, so every later re-render (Studio "Apply", Re-render, Retry on a
+  // failed clip) left the card spinning on "Queued" and the drawer stuck on
+  // "Applying changes…" until the page was reloaded — the render itself had
+  // finished minutes earlier. Deriving "is anything in flight" from the data
+  // means the loop resumes on its own whenever a clip goes back to work.
+  const projectSettled = projectStatus === "completed" || projectStatus === "failed";
+  const clipInFlight = clips.some((c) => c.status === "queued" || c.status === "rendering");
+  const shouldPoll = !projectSettled || clipInFlight;
+
+  useEffect(() => {
+    if (!projectId || !shouldPoll) return;
+    const id = setInterval(tick, 2500);
+    return () => clearInterval(id);
+  }, [projectId, shouldPoll, tick]);
+
   const ready = clips.filter((c) => c.status === "ready").length;
   const total = clips.length || expectedCount;
   const failedHard = status === "failed" || (projectStatus === "failed" && clips.length > 0 && clips.every((c) => c.status === "failed")) || (projectStatus === "failed" && clips.length === 0);
@@ -1146,6 +1201,27 @@ function Step2Instructions({
   trackingSpeed: number; setTrackingSpeed: (v: number) => void;
   animatedCaptions: boolean; setAnimatedCaptions: (v: boolean) => void;
 }) {
+  // Number fields are edited as TEXT while focused and only clamped on blur.
+  //
+  // Clamping on every keystroke corrupts what the user types, because a
+  // controlled input feeds the clamped value straight back into the box: typing
+  // "20" into Min sent "2", which clamped to the floor of 5, so the next
+  // keystroke appended to that and the field ended up on 50. Typing "45" into
+  // Max became 165 the same way. The user is then silently running a job they
+  // never configured — here, 50-165s clips instead of 20-45s.
+  // A field is only in `draft` while it is being edited, so the committed value
+  // shows through the rest of the time and an external change (Reset) needs no
+  // syncing effect.
+  const [draft, setDraft] = useState<{ min?: string; max?: string; count?: string }>({});
+  const edit = (key: "min" | "max" | "count", v: string) => setDraft((d) => ({ ...d, [key]: v }));
+  const done = (key: "min" | "max" | "count") => setDraft((d) => ({ ...d, [key]: undefined }));
+
+  const clamp = (raw: string | undefined, lo: number, hi: number, fallback: number) => {
+    const n = Number(raw);
+    if (raw === undefined || raw.trim() === "" || !Number.isFinite(n)) return fallback;
+    return Math.max(lo, Math.min(Math.round(n), hi));
+  };
+
   return (
     <div className="flex-1 flex items-start justify-center p-4 md:p-8">
       <div className="w-full max-w-4xl flex flex-col gap-4 md:flex-row md:gap-6">
@@ -1160,22 +1236,38 @@ function Step2Instructions({
             <div className="flex items-center gap-3">
               <div className="flex-1">
                 <label className="text-xs text-ink-soft mb-1 block">Min</label>
-                <Input type="number" min={5} max={300} value={minDuration}
-                  onChange={(e) => setMinDuration(Math.max(5, Math.min(Number(e.target.value), maxDuration - 1)))} />
+                <Input type="number" min={5} max={300} value={draft.min ?? String(minDuration)}
+                  onChange={(e) => edit("min", e.target.value)}
+                  onBlur={() => {
+                    const next = clamp(draft.min, 5, 299, minDuration);
+                    setMinDuration(next);
+                    if (maxDuration <= next) setMaxDuration(Math.min(300, next + 1));
+                    done("min");
+                  }} />
               </div>
               <span className="text-ink-soft/40 mt-5">—</span>
               <div className="flex-1">
                 <label className="text-xs text-ink-soft mb-1 block">Max</label>
-                <Input type="number" min={5} max={300} value={maxDuration}
-                  onChange={(e) => setMaxDuration(Math.max(minDuration + 1, Math.min(Number(e.target.value), 300)))} />
+                <Input type="number" min={5} max={300} value={draft.max ?? String(maxDuration)}
+                  onChange={(e) => edit("max", e.target.value)}
+                  onBlur={() => {
+                    const next = clamp(draft.max, 6, 300, maxDuration);
+                    setMaxDuration(next);
+                    if (minDuration >= next) setMinDuration(Math.max(5, next - 1));
+                    done("max");
+                  }} />
               </div>
             </div>
           </div>
 
           <div className="space-y-2">
             <FieldLabel>Number of Clips</FieldLabel>
-            <Input type="number" min={1} max={20} value={clipCount}
-              onChange={(e) => setClipCount(Math.max(1, Math.min(Number(e.target.value), 20)))} />
+            <Input type="number" min={1} max={20} value={draft.count ?? String(clipCount)}
+              onChange={(e) => edit("count", e.target.value)}
+              onBlur={() => {
+                setClipCount(clamp(draft.count, 1, 20, clipCount));
+                done("count");
+              }} />
             <p className="text-xs text-ink-soft/70">Generate between 1 and 20 clips</p>
           </div>
 

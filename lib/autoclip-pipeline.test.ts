@@ -9,9 +9,15 @@ vi.mock("@/lib/env", () => ({
 }));
 
 let configRow: { key: string; value: string } | null = null;
+let clipUpdates: Array<{ where: { id: string }; data: unknown }> = [];
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     config: { findUnique: vi.fn(async () => configRow) },
+    project: { findUnique: vi.fn(async () => ({ id: "project-1", userId: "user-1", uploadedVideoUrl: "https://x/vid.mp4", faceTimeline: null })) },
+    clip: {
+      findUnique: vi.fn(async () => ({ id: "clip-1", projectId: "project-1", status: "queued", startSec: 0, endSec: 10 })),
+      update: vi.fn(async (args: { where: { id: string }; data: unknown }) => { clipUpdates.push(args); return args; }),
+    },
   },
 }));
 
@@ -19,9 +25,13 @@ vi.mock("@/lib/redis", () => ({
   redis: { get: vi.fn(async () => null), set: vi.fn(async () => {}), del: vi.fn(async () => {}) },
 }));
 
+vi.mock("@/utils/download", () => ({
+  downloadFile: vi.fn(async () => { throw new Error("source unreachable"); }),
+}));
+
 const {
   sliceWordsForClip, rebaseClipWords, computeCreditCost, getAutoClipPricing, AUTOCLIP_PRICING_DEFAULTS,
-  buildBrollFilterComplex, computeKeeps, enforceNonOverlapping,
+  buildBrollFilterComplex, computeKeeps, enforceNonOverlapping, rerenderJob,
 } = await import("./autoclip-pipeline");
 
 describe("sliceWordsForClip", () => {
@@ -233,5 +243,21 @@ describe("enforceNonOverlapping", () => {
     const segs = [{ start: 0, end: 10 }, { start: 8, end: 12 }]; // clamped to [10,12) = 2s
     const result = enforceNonOverlapping(segs, 5); // min 5s
     expect(result).toEqual([{ start: 0, end: 10 }]);
+  });
+});
+
+// Regression guard for the Studio & Insights "stuck at Queued forever" bug:
+// rerenderJob previously had no catch at all, so any failure (most commonly
+// downloadFile, mocked to throw here) left the Clip's status frozen at
+// "queued" with nothing to ever move it. It must now flip to "failed" (so the
+// atomic claim guard in style/rerender/transcript routes can re-claim it) and
+// rethrow (so createRenderQueue's attempts:3/backoff still sees a real failure).
+describe("rerenderJob error handling", () => {
+  it("flips the clip to failed and rethrows when downloadFile fails", async () => {
+    clipUpdates = [];
+    await expect(rerenderJob({ projectId: "project-1", clipId: "clip-1" })).rejects.toThrow("source unreachable");
+    expect(clipUpdates).toContainEqual(
+      expect.objectContaining({ where: { id: "clip-1" }, data: { status: "failed" } }),
+    );
   });
 });

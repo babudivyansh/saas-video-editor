@@ -90,11 +90,28 @@ export function parseS3Url(url: string): { bucket: string; key: string } | null 
 // configured for S3 (env.AWS_*) to also have rekognition:StartFaceDetection /
 // rekognition:GetFaceDetection — if they don't, this logs a warning and
 // returns [] rather than throwing.
-export async function detectFaceTimeline(videoUrl: string): Promise<FaceBox[]> {
+/**
+ * Why a detection run produced no faces.
+ *
+ * "no faces in this video" and "we could not run face detection at all" used to
+ * be the same empty array, so the UI blamed the user's video for what was
+ * often a server-side fault — an expired credential or, as seen in practice, an
+ * IAM policy with no `rekognition:StartFaceDetection` permission, which
+ * silently disables speaker tracking for EVERY video on the deployment while
+ * telling each user their particular file is the problem.
+ */
+export type FaceDetectFailure = "unconfigured" | "error" | "timeout";
+export interface FaceTimelineResult {
+  boxes: FaceBox[];
+  /** Absent when detection ran fine — including when it genuinely found no faces. */
+  failure?: FaceDetectFailure;
+}
+
+export async function detectFaceTimeline(videoUrl: string): Promise<FaceTimelineResult> {
   const loc = parseS3Url(videoUrl);
   if (!loc) {
     logger.warn("reframe", "could not parse S3 url for Rekognition", { videoUrl });
-    return [];
+    return { boxes: [], failure: "unconfigured" };
   }
 
   try {
@@ -106,7 +123,7 @@ export async function detectFaceTimeline(videoUrl: string): Promise<FaceBox[]> {
       // instead of guessing from bounding-box area alone.
       FaceAttributes: "ALL",
     }));
-    if (!start.JobId) return [];
+    if (!start.JobId) return { boxes: [], failure: "error" };
 
     const boxes: FaceBox[] = [];
     let nextToken: string | undefined;
@@ -116,12 +133,12 @@ export async function detectFaceTimeline(videoUrl: string): Promise<FaceBox[]> {
       const res = await rekognition.send(new GetFaceDetectionCommand({ JobId: start.JobId, NextToken: nextToken }));
       if (res.JobStatus === "FAILED") {
         logger.warn("reframe", "Rekognition job failed", res.StatusMessage);
-        return [];
+        return { boxes: [], failure: "error" };
       }
       if (res.JobStatus === "IN_PROGRESS") {
         if (Date.now() > deadline) {
           logger.warn("reframe", "Rekognition job timed out, skipping reframe");
-          return [];
+          return { boxes: [], failure: "timeout" };
         }
         await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
         continue;
@@ -144,10 +161,15 @@ export async function detectFaceTimeline(videoUrl: string): Promise<FaceBox[]> {
       if (!res.NextToken) break;
       nextToken = res.NextToken;
     }
-    return boxes;
+    // Reaching here means detection genuinely ran; an empty list is a real
+    // "no faces in this footage" answer, not a fault.
+    return { boxes };
   } catch (err) {
+    // AccessDenied lands here, and it is a deployment fault rather than
+    // anything about this video — flag it as such so the copy can say so.
+    const name = (err as { name?: string })?.name;
     logger.warn("reframe", "Rekognition face detection unavailable, falling back to center crop", err);
-    return [];
+    return { boxes: [], failure: name === "AccessDeniedException" || name === "UnrecognizedClientException" ? "unconfigured" : "error" };
   }
 }
 
