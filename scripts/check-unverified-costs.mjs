@@ -25,13 +25,13 @@ const SCAN = [
 // acceptable to ship. Shrink these counts as costs get verified; never grow
 // them — add a verified cost instead.
 const ALLOWLIST = {
-  // gemini-flash-2.0 tier-slug ambiguity — cheap either way (< $0.02/image).
+  // ideogram-4 tier-slug ambiguity (`/fast` vs `/instant`) — cheap either way.
   "lib/models/imageModels.ts": 1,
-  // seedance (priced at the HIGHER candidate rate), gemini-omni, grok,
-  // happyhorse (priced at 720p; 1080p unconfirmed), ltx (endpoint), pixverse
-  // (weak cost data) — all pro+/creator+ with >=3x margin at the assumed cost.
-  // Kling 3.0 was removed from the registry entirely.
-  "lib/models/videoModels.ts": 6,
+  // pixverse (v5.6) — weak cost/slug data (~$0.01/s reported); priced at a
+  // conservative 3 cr/s (>=3x either way) and creator+ gated. The other video
+  // models had their fal costs confirmed in the 2026-08 audit (per-resolution
+  // rates now in resolutionCredits), so their markers were removed.
+  "lib/models/videoModels.ts": 1,
   // subtitle-remover: costUsd unknown → route-gated pro+ (face-swap is also
   // costUsd:null + gated, but carries no marker).
   "lib/tool-costs.ts": 1,

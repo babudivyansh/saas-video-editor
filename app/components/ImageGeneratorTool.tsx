@@ -56,6 +56,11 @@ function Spinner({ className = "w-4 h-4" }: { className?: string }) {
   return <svg className={`animate-spin ${className}`} viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>;
 }
 
+// Flat per-generation credit cost shown next to each image model.
+function creditLabel(cost: number): string {
+  return `${cost} ${cost === 1 ? "credit" : "credits"}`;
+}
+
 // ── Custom dropdown ──────────────────────────────────────────────────────────
 function ModelDropdown({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -81,9 +86,7 @@ function ModelDropdown({ value, onChange }: { value: string; onChange: (v: strin
         className="flex items-center gap-2 w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[13.5px] font-medium text-gray-900 hover:border-gray-300 transition-colors cursor-pointer"
       >
         <span className="flex-1 text-left">{selected.displayName}</span>
-        {selected.badge && (
-          <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 rounded-md px-1.5 py-0.5">{selected.badge}</span>
-        )}
+        <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 rounded-md px-1.5 py-0.5 whitespace-nowrap">{creditLabel(selected.creditCost)}</span>
         <IcChevron />
       </button>
       {open && (
@@ -107,9 +110,7 @@ function ModelDropdown({ value, onChange }: { value: string; onChange: (v: strin
               >
                 {value === m.id ? <span className="text-blue-600"><IcCheck /></span> : <span className="w-3.5 h-3.5" />}
                 <span className="flex-1 font-medium text-gray-900">{m.displayName}</span>
-                {m.badge && (
-                  <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 rounded-md px-1.5 py-0.5 whitespace-nowrap">{m.badge}</span>
-                )}
+                <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 rounded-md px-1.5 py-0.5 whitespace-nowrap">{creditLabel(m.creditCost)}</span>
               </button>
             ))}
             {filtered.length === 0 && (

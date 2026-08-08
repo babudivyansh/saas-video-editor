@@ -12,7 +12,8 @@ export type ImageParam =
   | "height"
   | "seed"
   | "guidanceScale"
-  | "steps";
+  | "steps"
+  | "quality";
 
 export type VideoParam =
   | "prompt"
@@ -22,6 +23,7 @@ export type VideoParam =
   | "fps"
   | "motion"
   | "imageUpload"
+  | "audio"
   | "seed";
 
 interface BaseModelEntry<TParam extends string> {
@@ -64,8 +66,25 @@ export type ImageModelEntry =
     });
 
 interface VideoBaseEntry extends BaseModelEntry<VideoParam> {
-  /** Credits charged = ceil(creditsPerSecond * clampedDurationSeconds). */
+  /**
+   * Credits charged per second = ceil(creditsPerSecond * clampedDurationSeconds).
+   * This is the base/default-resolution rate; `resolutionCredits` overrides it
+   * for a specific selected resolution, and `audioCreditsPerSecond` replaces it
+   * when audio is on. Always resolve via videoCreditsPerSecond() so the UI and
+   * the billing route stay in lockstep.
+   */
   creditsPerSecond: number;
+  /**
+   * Per-resolution credits/second, keyed by the resolution slug ("480p" |
+   * "720p" | "1080p"). fal charges ~2x more at 1080p on tiered models, so the
+   * flat rate alone would go underwater there. Falls back to creditsPerSecond
+   * for any resolution not listed (or when the model has no resolution param).
+   */
+  resolutionCredits?: Partial<Record<string, number>>;
+  /** Model can generate audio (Veo 3). Gates the with/without-audio toggle. */
+  supportsAudio?: boolean;
+  /** credits/second billed when audio is on — fal charges more for audio. */
+  audioCreditsPerSecond?: number;
   /** Provider-supported floor, typically 2-5. */
   minDurationSeconds: number;
   /** Provider-supported ceiling — the actual billed duration is also clamped
