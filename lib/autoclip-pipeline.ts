@@ -1473,7 +1473,6 @@ async function renderOneClip(
     }
     const brollReady = readyWindows.length > 0;
 
-    let ffmpegArgs: string[];
     const videoSrc = isTrimmed ? "[trimmedv]" : "[0:v]";
     const audioSrc = isTrimmed ? "[trimmeda]" : "0:a";
     const prepends = isTrimmed && selectFilter && aselectFilter ? `[0:v]${selectFilter}[trimmedv];[0:a]${aselectFilter}[trimmeda];` : "";
@@ -1482,36 +1481,46 @@ async function renderOneClip(
     const wmComplex = watermark ? `;[video]${watermarkFilterChain()}[videowm]` : "";
     const videoMap = watermark ? "[videowm]" : "[video]";
 
-    if (brollReady) {
-      // Silence removal shifts the clip's timeline, so the windows move with it.
-      const shifted = readyWindows
-        .map((w) => ({
-          ...w,
-          startSec: isTrimmed ? shiftTime(w.startSec * 1000, keeps) / 1000 : w.startSec,
-          endSec: isTrimmed ? shiftTime(w.endSec * 1000, keeps) / 1000 : w.endSec,
-        }))
-        .filter((w) => w.endSec > w.startSec && w.startSec < finalDurationSec)
-        .sort((a, b) => a.startSec - b.startSec);
+    // `useBroll` is a parameter rather than just reading `brollReady`, so the
+    // render can be retried with B-roll forced off (see below). The B-roll
+    // splice uses a much heavier -filter_complex + concat graph with one looped
+    // input per window; on some hosts/inputs that graph fails where the plain
+    // -vf path renders fine — a mid-stream filter reinit the concat path can't
+    // survive, or the extra filter/encoder threads tripping a constrained
+    // host's resource limit (the -11 EAGAIN "Could not open encoder" seen in
+    // prod logs). Building args in one place keeps the retry identical bar B-roll.
+    const buildRenderArgs = (useBroll: boolean): string[] => {
+      if (useBroll && brollReady) {
+        // Silence removal shifts the clip's timeline, so the windows move with it.
+        const shifted = readyWindows
+          .map((w) => ({
+            ...w,
+            startSec: isTrimmed ? shiftTime(w.startSec * 1000, keeps) / 1000 : w.startSec,
+            endSec: isTrimmed ? shiftTime(w.endSec * 1000, keeps) / 1000 : w.endSec,
+          }))
+          .filter((w) => w.endSec > w.startSec && w.startSec < finalDurationSec)
+          .sort((a, b) => a.startSec - b.startSec);
 
-      // Speaker tracking now survives a B-roll splice (P2.6).
-      const brollKeyframes = stored?.mode === "single" && stored.keyframes.length > 1 ? stored.keyframes : null;
-      const complex = prepends + buildMultiBrollFilterComplex(
-        finalDurationSec, shifted, aspect, moodFilter, captionsFilter, videoSrc,
-        brollKeyframes ? buildDynamicCropFilter(brollKeyframes, aspect) : null,
-      ) + wmComplex;
-      ffmpegArgs = [
-        ...baseArgs,
-        // Each window is its own input, looped so a short stock clip still
-        // covers its window.
-        ...shifted.flatMap((w) => ["-stream_loop", "-1", "-i", w.path]),
-        "-filter_complex", complex, "-map", videoMap, "-map", audioSrc,
-        ...outputArgs, "-shortest", clipPath,
-      ];
-    } else if (stored?.mode === "split" && stored.a.length > 1 && stored.b.length > 1) {
-      // Two-speaker split-screen: two independent dynamic crops, vstacked.
-      const complex = prepends + buildSplitScreenFilterComplex(stored.a, stored.b, moodFilter, captionsFilter, videoSrc) + wmComplex;
-      ffmpegArgs = [...baseArgs, "-filter_complex", complex, "-map", videoMap, "-map", audioSrc, ...outputArgs, "-shortest", clipPath];
-    } else {
+        // Speaker tracking now survives a B-roll splice (P2.6).
+        const brollKeyframes = stored?.mode === "single" && stored.keyframes.length > 1 ? stored.keyframes : null;
+        const complex = prepends + buildMultiBrollFilterComplex(
+          finalDurationSec, shifted, aspect, moodFilter, captionsFilter, videoSrc,
+          brollKeyframes ? buildDynamicCropFilter(brollKeyframes, aspect) : null,
+        ) + wmComplex;
+        return [
+          ...baseArgs,
+          // Each window is its own input, looped so a short stock clip still
+          // covers its window.
+          ...shifted.flatMap((w) => ["-stream_loop", "-1", "-i", w.path]),
+          "-filter_complex", complex, "-map", videoMap, "-map", audioSrc,
+          ...outputArgs, "-shortest", clipPath,
+        ];
+      }
+      if (stored?.mode === "split" && stored.a.length > 1 && stored.b.length > 1) {
+        // Two-speaker split-screen: two independent dynamic crops, vstacked.
+        const complex = prepends + buildSplitScreenFilterComplex(stored.a, stored.b, moodFilter, captionsFilter, videoSrc) + wmComplex;
+        return [...baseArgs, "-filter_complex", complex, "-map", videoMap, "-map", audioSrc, ...outputArgs, "-shortest", clipPath];
+      }
       const keyframes = stored?.mode === "single" ? stored.keyframes : null;
       const cropExpr = keyframes && keyframes.length > 1
         ? buildDynamicCropFilter(keyframes, aspect)
@@ -1521,25 +1530,33 @@ async function renderOneClip(
         filters.unshift(selectFilter);
       }
       if (watermark) filters.push(watermarkFilterChain());
-      ffmpegArgs = [...baseArgs, "-vf", filters.join(","), ...(isTrimmed && aselectFilter ? ["-af", aselectFilter] : []), ...outputArgs, clipPath];
-    }
+      return [...baseArgs, "-vf", filters.join(","), ...(isTrimmed && aselectFilter ? ["-af", aselectFilter] : []), ...outputArgs, clipPath];
+    };
 
+    const onRenderProgress = (pct: number) => {
+      void prisma.clip.update({ where: { id: clip.id }, data: { progress: Math.round(5 + pct * 0.75) } }).catch(() => {});
+    };
     // The pan/zoom expressions can push the filtergraph past the command-line
     // length limit on long clips; spill it to a file when that happens.
-    ffmpegArgs = maybeUseFilterScript(ffmpegArgs, scriptPath);
-
-    await timeStage(
+    const renderOnce = (useBroll: boolean) => timeStage(
       "render",
-      () => runFFmpegWithProgress(
-        ffmpegArgs,
-        (pct) => {
-          void prisma.clip.update({ where: { id: clip.id }, data: { progress: Math.round(5 + pct * 0.75) } }).catch(() => {});
-        },
-      ),
+      () => runFFmpegWithProgress(maybeUseFilterScript(buildRenderArgs(useBroll), scriptPath), onRenderProgress),
       // `target` is what makes the CPU-vs-GPU comparison measurable rather
       // than assumed — see gpu-service/README.md's ROI note.
-      { target, meta: { durationSec: Math.round(finalDurationSec), aspect, broll: brollReady } },
+      { target, meta: { durationSec: Math.round(finalDurationSec), aspect, broll: useBroll && brollReady } },
     );
+
+    try {
+      await renderOnce(brollReady);
+    } catch (err) {
+      if (!brollReady) throw err;
+      // B-roll is a best-effort enhancement (already best-effort at the download
+      // step) — a splice that ffmpeg can't render must not cost the user the
+      // whole clip. Retry without it: the exact path a B-roll-less clip takes,
+      // so the clip still renders (just without the stock cutaways).
+      logger.warn("auto-clip", `B-roll render failed for clip ${clip.index}, retrying without B-roll`, err);
+      await renderOnce(false);
+    }
 
     // Lite-editor pass: speed / fades / music bed over the finished clip.
     if (lite) {
