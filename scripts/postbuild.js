@@ -69,8 +69,34 @@ function copyAndVerify(srcDir, destDir, label) {
   console.log(`✅ ${label}: ${count} files copied and verified -> ${destDir}`);
 }
 
+/**
+ * Restore the execute bit on bundled binaries in the standalone output.
+ *
+ * ffmpeg-static and youtube-dl-exec ship their binaries +x, but Next's
+ * output-file tracing (and the subsequent copy) does not reliably preserve the
+ * mode — clipiro.com's deploy landed the ffmpeg binary non-executable, so every
+ * spawn failed with EACCES and took down all rendering. lib/ensure-executable
+ * also fixes this at runtime, but setting it here means the shipped artifact is
+ * already correct. Best-effort: skipped on Windows and never fatal.
+ */
+function ensureBinariesExecutable() {
+  if (process.platform === 'win32') return;
+  const bins = [
+    '.next/standalone/node_modules/ffmpeg-static/ffmpeg',
+    '.next/standalone/node_modules/youtube-dl-exec/bin/yt-dlp',
+  ];
+  for (const b of bins) {
+    try {
+      if (fs.existsSync(b)) { fs.chmodSync(b, 0o755); console.log('✅ chmod +x ' + b); }
+    } catch (err) {
+      console.warn('⚠️ Could not chmod ' + b + ' (runtime will retry):', err.message);
+    }
+  }
+}
+
 function main() {
   console.log('--- Running Custom Postbuild Asset Copy ---');
+  ensureBinariesExecutable();
 
   // 1. Standalone server dir — the Node process serves /_next/static from here,
   //    so an incomplete copy here is fatal.
@@ -131,4 +157,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { listFiles, verifyComplete, copyAndVerify };
+module.exports = { listFiles, verifyComplete, copyAndVerify, ensureBinariesExecutable };

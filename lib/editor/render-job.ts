@@ -9,7 +9,7 @@ import { spawn } from "child_process";
 import { prisma } from "@/lib/prisma";
 import { setRenderProgress } from "@/lib/render-queue";
 import { restoreSpend } from "@/lib/credits";
-import { runFFmpegWithProgress } from "@/utils/ffmpeg-render";
+import { runFFmpegWithProgress, ffmpegBin } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { downloadFile } from "@/utils/download";
 import { logger } from "@/lib/logger";
@@ -30,12 +30,11 @@ export interface EditorRenderPayload {
 // Probe whether a media file has an audio stream by parsing ffmpeg -i stderr.
 function hasAudioStream(filePath: string): Promise<boolean> {
   return new Promise((resolve) => {
-    // Reuse the same binary resolution as ffmpeg-render by spawning through PATH
-    // fallback: utils/ffmpeg-render resolves the binary internally for its own
-    // helpers; here a plain probe with ffmpeg-static's path keeps it simple.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const ffmpegPath: string = require("ffmpeg-static") ?? "ffmpeg";
-    const proc = spawn(ffmpegPath, ["-i", filePath], { windowsHide: true });
+    // Use the one resolved, exec-bit-restored binary from ffmpeg-render. The
+    // previous `require("ffmpeg-static")` returned Next's rewritten "\ROOT\…"
+    // path on the standalone build and skipped the chmod that keeps a deploy
+    // from failing every spawn with EACCES.
+    const proc = spawn(ffmpegBin, ["-i", filePath], { windowsHide: true });
     let stderr = "";
     let settled = false;
     // A probe should be near-instant; if it hangs, kill it rather than let it

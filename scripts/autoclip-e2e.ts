@@ -389,6 +389,32 @@ async function main() {
     check("archive is non-trivial", buf.length > 50_000, `${buf.length} bytes`);
   }
 
+  step("11b. Per-clip download (same-origin proxy, Content-Disposition)");
+  const dlClip = rendered[0];
+  if (dlClip) {
+    const dl = await fetch(`${BASE}/api/projects/${projectId}/clips/${dlClip.id}/download`, { headers: authHeaders() });
+    check("clip download (200)", dl.status === 200, `status=${dl.status}`);
+    const cd = dl.headers.get("content-disposition") ?? "";
+    check("download sets an attachment filename", /attachment; filename=".+\.mp4"/.test(cd), cd);
+    const dlBuf = Buffer.from(await dl.arrayBuffer());
+    check("downloaded clip is non-trivial", dlBuf.length > 50_000, `${dlBuf.length} bytes`);
+
+    // Cookie only, no Bearer header — exactly what a browser <a download> click
+    // sends. This is the path getServerAuthUser was added for; before the fix
+    // it 401'd, so "Download" navigated instead of saving.
+    const dlCookieOnly = await fetch(`${BASE}/api/projects/${projectId}/clips/${dlClip.id}/download`, {
+      headers: cookie ? { Cookie: cookie } : {},
+    });
+    check("clip download works with cookie only (browser nav)", dlCookieOnly.status === 200, `status=${dlCookieOnly.status}`);
+    dlCookieOnly.body?.cancel?.();
+
+    const dlAllCookieOnly = await fetch(`${BASE}/api/projects/${projectId}/clips/download-all`, {
+      headers: cookie ? { Cookie: cookie } : {},
+    });
+    check("download-all works with cookie only (browser nav)", dlAllCookieOnly.status === 200, `status=${dlAllCookieOnly.status}`);
+    dlAllCookieOnly.body?.cancel?.();
+  }
+
   step("12. Ownership isolation");
   const mine = token;
   const myCookie = cookie;
@@ -403,6 +429,8 @@ async function main() {
   const stolenRerender = await api("POST", `/api/projects/${projectId}/clips/${rendered[0]?.id}/rerender`, { startSec: 0, endSec: 5 });
   check("other user cannot re-render (404)", stolenRerender.status === 404 || stolenRerender.status === 400,
     `status=${stolenRerender.status}`);
+  const stolenDownload = await api("GET", `/api/projects/${projectId}/clips/${rendered[0]?.id}/download`);
+  check("other user cannot download a clip (404)", stolenDownload.status === 404, `status=${stolenDownload.status}`);
   token = mine;
   cookie = myCookie;
 

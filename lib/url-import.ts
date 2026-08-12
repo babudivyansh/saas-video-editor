@@ -15,6 +15,7 @@ import { create as createYoutubeDl } from "youtube-dl-exec";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { TIER_MAX_AUTOCLIP_SOURCE_SECONDS } from "@/lib/plans/tiers";
 import { logger } from "@/lib/logger";
+import { ensureExecutable } from "@/lib/ensure-executable";
 import type { TierId } from "@/lib/plans/tiers";
 import ffmpegStatic from "ffmpeg-static";
 import { randomUUID } from "crypto";
@@ -29,6 +30,7 @@ const ytdlBinary = path.join(
   "bin",
   process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp",
 );
+if (fs.existsSync(ytdlBinary)) ensureExecutable(ytdlBinary); // same EACCES risk as ffmpeg on standalone deploys
 const youtubeDl = createYoutubeDl(fs.existsSync(ytdlBinary) ? ytdlBinary : "yt-dlp");
 
 function ffmpegDir(): string | undefined {

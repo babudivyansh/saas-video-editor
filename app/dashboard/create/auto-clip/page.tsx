@@ -800,7 +800,7 @@ function ClipCard({ projectId, clip, onChanged, onSelect }: { projectId: string;
         {ready && clip.videoUrl && (
           <div className="flex flex-col gap-2 mt-auto pt-1">
             <div className="flex gap-2">
-              <a href={clip.videoUrl} download className="flex-1 text-center text-xs font-semibold py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">Download</a>
+              <a href={`/api/projects/${projectId}/clips/${clip.id}/download`} download className="flex-1 text-center text-xs font-semibold py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">Download</a>
               <EditInEditorButton projectId={projectId} clip={clip} />
             </div>
             <div className="flex gap-2">
@@ -1017,6 +1017,7 @@ function ClipsResults({ projectId, status, error, expectedCount, onReset }: {
         <ClipEditorDrawer
           projectId={projectId!}
           clip={selectedClip}
+          transcriptionFailed={project.warnings?.includes("transcription_failed") ?? false}
           onClose={() => setSelectedClip(null)}
           onChanged={() => {
             tick();
@@ -1613,9 +1614,9 @@ function assToHex(ass: string): string {
 
 // ── Clip Editor Drawer (Studio & Insights) ──────────────────────────────────
 function ClipEditorDrawer({
-  projectId, clip, onClose, onChanged
+  projectId, clip, transcriptionFailed, onClose, onChanged
 }: {
-  projectId: string; clip: ClipItem; onClose: () => void; onChanged: () => void;
+  projectId: string; clip: ClipItem; transcriptionFailed: boolean; onClose: () => void; onChanged: () => void;
 }) {
   const [tab, setTab] = useState<"insights" | "edit" | "style" | "transcript" | "cuts">("insights");
   const [copied, setCopied] = useState(false);
@@ -1652,6 +1653,10 @@ function ClipEditorDrawer({
   const [alignment, setAlignment] = useState((override.alignment as number) ?? 5);
   const [animatedCaptions, setAnimatedCaptions] = useState((override.animated as boolean) ?? true);
   const [templateId, setTemplateId] = useState<string | null>((override.templateId as string) ?? null);
+  // Whether subtitles are burned into this clip. A clip picked with captions off
+  // could only be fixed by re-running the whole analysis before this — now the
+  // Studio drawer can turn them back on (or off) on a single-clip re-render.
+  const [captionsOn, setCaptionsOn] = useState(clip.hasCaptions);
 
   function applyBrandKit(kit: BrandKit) {
     if (kit.fontName != null) setFontName(kit.fontName);
@@ -1739,6 +1744,11 @@ function ClipEditorDrawer({
       await apiFetch(`/api/projects/${projectId}/clips/${clip.id}/style`, {
         method: "PUT",
         body: JSON.stringify({
+          // -1 turns captions off; a >=0 index turns them on. Reuse the clip's
+          // existing style index when re-enabling, else default to 0.
+          captionStyleIndex: captionsOn
+            ? (clip.captionStyleIndex != null && clip.captionStyleIndex >= 0 ? clip.captionStyleIndex : 0)
+            : -1,
           subtitleStyleOverride: {
             ...(templateId ? { templateId } : {}),
             fontName,
@@ -1885,7 +1895,18 @@ function ClipEditorDrawer({
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {tab === "insights" && (
+          {tab === "insights" && transcriptionFailed && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider mb-1.5">Insights unavailable</h4>
+              <p className="text-sm text-amber-800 leading-relaxed">
+                This video couldn&apos;t be transcribed, so the AI never read its content.
+                Virality scores, target-audience analysis and suggested captions would just
+                be guesses, so they&apos;re hidden rather than shown as if they were real.
+                Add a working transcription key and re-run the analysis to get genuine insights.
+              </p>
+            </div>
+          )}
+          {tab === "insights" && !transcriptionFailed && (
             <div className="space-y-6">
               {/* Virality breakdown */}
               <div className="rounded-xl border border-gray-150 bg-gray-50/50 p-4">
@@ -2001,6 +2022,16 @@ function ClipEditorDrawer({
                 }}
                 disabled={saving}
               />
+
+              <div className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2.5">
+                <div className="pr-3">
+                  <p className="text-xs font-semibold text-gray-700">Burn in captions</p>
+                  <p className="text-[11px] text-gray-400">
+                    {captionsOn ? "Subtitles are baked into this clip." : "This clip renders without subtitles."}
+                  </p>
+                </div>
+                <Switch checked={captionsOn} onChange={setCaptionsOn} label="Burn in captions" disabled={saving} />
+              </div>
 
               <TranslateCaptions
                 projectId={projectId}

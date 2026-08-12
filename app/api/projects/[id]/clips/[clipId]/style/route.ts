@@ -16,6 +16,10 @@ import {
 // is free and subsequent ones are billed. Both payload halves are validated:
 // they end up in an ASS subtitle header and an ffmpeg filtergraph respectively.
 const bodySchema = z.object({
+  // -1 disables burned-in captions; a >=0 index selects a caption style. Lets
+  // the Studio drawer re-enable captions on a clip that was picked with them
+  // off, instead of forcing a full re-analysis (applyPatch derives hasCaptions).
+  captionStyleIndex: z.number().int().min(-1).max(64).optional(),
   subtitleStyleOverride: subtitleStyleOverrideSchema.optional(),
   silenceSettings: silenceSettingsSchema.optional(),
 }).strict();

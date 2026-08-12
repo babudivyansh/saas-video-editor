@@ -3,20 +3,29 @@ import path from "path";
 import { spawn } from "child_process";
 import { WordTiming } from "./elevenlabs";
 import ffmpegStatic from "ffmpeg-static";
+import { ensureExecutable } from "@/lib/ensure-executable";
 
 // Next.js bundles ffmpeg-static and rewrites its internal __dirname to a literal
 // "\ROOT\...", which makes the exported path point at a file that doesn't exist.
 // Resolve the real binary ourselves: trust the export only if it exists on disk,
 // otherwise fall back to node_modules under the project cwd, then system PATH.
 function resolveFfmpegBin(): string {
-  if (ffmpegStatic && fs.existsSync(ffmpegStatic)) return ffmpegStatic;
-  const binName = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
-  const cwdPath = path.join(process.cwd(), "node_modules", "ffmpeg-static", binName);
-  if (fs.existsSync(cwdPath)) return cwdPath;
+  const candidate = (ffmpegStatic && fs.existsSync(ffmpegStatic))
+    ? ffmpegStatic
+    : path.join(process.cwd(), "node_modules", "ffmpeg-static", process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg");
+  if (fs.existsSync(candidate)) {
+    // The standalone build ships this binary but the deploy can strip its
+    // execute bit — restore it here, in-process, after every copy/extract,
+    // or every spawn dies with EACCES (which is exactly what took prod down).
+    ensureExecutable(candidate);
+    return candidate;
+  }
   return "ffmpeg";
 }
 
-const ffmpegBin = resolveFfmpegBin();
+// Exported so other modules that spawn ffmpeg directly (e.g. lib/signal-track)
+// share this one resolved, exec-bit-restored path instead of recomputing it.
+export const ffmpegBin = resolveFfmpegBin();
 
 /**
  * Where ffmpeg was resolved from, and whether that path exists on disk.
