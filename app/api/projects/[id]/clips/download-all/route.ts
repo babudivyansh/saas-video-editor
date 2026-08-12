@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, getServerAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { ZipWriter } from "@/lib/zip-writer";
@@ -24,7 +24,11 @@ function safeName(title: string | null, index: number): string {
 }
 
 async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await getAuthUser(req);
+  // Opened via a plain <a> navigation (the "Download all" button), which sends
+  // the session cookie but no Authorization header — fall back to the cookie so
+  // the click doesn't 401. (The E2E harness sends a Bearer token and hit the
+  // first branch, which is why this gap didn't show up there.)
+  const auth = (await getAuthUser(req)) ?? (await getServerAuthUser());
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id: projectId } = await params;
 
