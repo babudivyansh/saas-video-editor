@@ -13,7 +13,7 @@
 // signal is expressed relative to that clip's own distribution.
 
 import { spawn } from "child_process";
-import { runFFmpegArgs } from "@/utils/ffmpeg-render";
+import { runFFmpegArgs, ffmpegBin } from "@/utils/ffmpeg-render";
 import { logger } from "@/lib/logger";
 import type { WordTiming } from "@/utils/elevenlabs";
 import os from "os";
@@ -62,10 +62,10 @@ const DECODE_TIMEOUT_MS = 3 * 60 * 1000;
 
 function decodePcm(mediaPath: string, startSec = 0, endSec?: number, timeoutMs = DECODE_TIMEOUT_MS): Promise<Int16Array> {
   return new Promise((resolve) => {
+    // Shares the one resolved, exec-bit-restored binary from ffmpeg-render
+    // rather than recomputing the path (which also skipped the chmod fix).
     const proc = spawn(
-      process.platform === "win32"
-        ? path.join(process.cwd(), "node_modules", "ffmpeg-static", "ffmpeg.exe")
-        : path.join(process.cwd(), "node_modules", "ffmpeg-static", "ffmpeg"),
+      ffmpegBin,
       [
         "-v", "error",
         "-ss", String(startSec),

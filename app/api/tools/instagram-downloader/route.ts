@@ -5,6 +5,7 @@ import { spendCredits, restoreSpend } from "@/lib/credits";
 import { redis } from "@/lib/redis";
 import { create as createYoutubeDl } from "youtube-dl-exec";
 import { withRateLimit } from "@/lib/with-rate-limit";
+import { ensureExecutable } from "@/lib/ensure-executable";
 import { logger } from "@/lib/logger";
 import ffmpegStatic from "ffmpeg-static";
 import fs from "fs";
@@ -38,14 +39,19 @@ const YT_DLP_BIN = path.join(
   "bin",
   process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp"
 );
+// Standalone deploys can strip the binary's execute bit → spawn EACCES.
+ensureExecutable(YT_DLP_BIN);
 const ytDlp = createYoutubeDl(YT_DLP_BIN);
 
 // ── ffmpeg binary for merging/audio extraction ────────────────────────────────
 function resolveFfmpegDir(): string | undefined {
-  if (ffmpegStatic && fs.existsSync(ffmpegStatic)) return path.dirname(ffmpegStatic);
-  const bin = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
-  const cwdPath = path.join(process.cwd(), "node_modules", "ffmpeg-static", bin);
-  if (fs.existsSync(cwdPath)) return path.dirname(cwdPath);
+  const candidate = (ffmpegStatic && fs.existsSync(ffmpegStatic))
+    ? ffmpegStatic
+    : path.join(process.cwd(), "node_modules", "ffmpeg-static", process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg");
+  if (fs.existsSync(candidate)) {
+    ensureExecutable(candidate);
+    return path.dirname(candidate);
+  }
   return undefined;
 }
 const FFMPEG_DIR = resolveFfmpegDir();

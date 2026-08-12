@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/auth";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
 import { create as createYoutubeDl } from "youtube-dl-exec";
 import { withRateLimit } from "@/lib/with-rate-limit";
+import { ensureExecutable } from "@/lib/ensure-executable";
 import { checkFreeToolDailyCap, freeToolCapResponseBody } from "@/lib/free-tool-caps";
 import { logger } from "@/lib/logger";
 import ffmpegStatic from "ffmpeg-static";
@@ -29,6 +30,8 @@ const YT_DLP_BIN = path.join(
   "bin",
   process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp"
 );
+// Standalone deploys can strip the binary's execute bit → spawn EACCES.
+ensureExecutable(YT_DLP_BIN);
 const ytDlp = createYoutubeDl(YT_DLP_BIN);
 
 // ── ffmpeg binary for merging/audio extraction ────────────────────────────────
