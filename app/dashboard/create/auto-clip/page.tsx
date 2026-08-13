@@ -1374,7 +1374,7 @@ function ClipsResults({ projectId, status, error, expectedCount, fileName, onRes
       {/* Header */}
       <div className="flex items-end justify-between gap-6 flex-wrap mb-6">
         <div>
-          <h1 className="text-[28px] font-extrabold tracking-tight text-ink mb-1.5">{pendingReview ? "Review your clips" : allDone ? "Your clips are ready" : "Generating your clips"}</h1>
+          <h1 className="text-[28px] font-extrabold tracking-tight text-ink mb-1.5">{pendingReview ? "Review your clips" : allDone ? "Your clips are ready 🎉" : "Generating your clips"}</h1>
           <p className="text-sm text-ink-soft">
             {pendingReview
               ? `${clips.length} moment${clips.length === 1 ? "" : "s"} pre-selected by score — keep what you want, then render.`
