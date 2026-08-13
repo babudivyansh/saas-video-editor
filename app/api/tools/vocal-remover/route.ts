@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
+import { markQuestComplete } from "@/lib/quests";
 import { getMediaDurationSec } from "@/utils/ffmpeg-render";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { withRetry } from "@/lib/with-retry";
@@ -256,6 +257,7 @@ async function handlePOST(req: NextRequest) {
     }
   })();
 
+  void markQuestComplete(auth.userId, "explore-toolbox");
   return NextResponse.json({ jobId }, { status: 202 });
 }
 

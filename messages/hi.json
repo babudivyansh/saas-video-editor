@@ -77,7 +77,8 @@
     "questsToGo": "{count, plural, one {# क्वेस्ट बाकी है} other {# क्वेस्ट बाकी हैं}}",
     "xpTotal": "/ {total} XP",
     "xpSuffix": "+{xp} XP",
-    "allQuestsCompleteBanner": "सभी क्वेस्ट पूरे हुए! आपके अकाउंट में +5 क्रेडिट जोड़े गए हैं।",
+    "rankReward": "{level} — इस रैंक तक पहुँचें और +{credits} बोनस क्रेडिट पाएं।",
+    "allQuestsCompleteBanner": "सभी क्वेस्ट पूरे हुए! आपने Clipiro Master हासिल किया — आपके अकाउंट में बोनस क्रेडिट जोड़े गए हैं।",
     "quests": {
       "joinCommunity": { "title": "कम्युनिटी से जुड़ें", "desc": "अपना Discord कनेक्ट करें और Clipiro सर्वर से जुड़ें।" },
       "firstClip": { "title": "अपनी पहली क्लिप बनाएं", "desc": "सिंपल एडिटर में जाकर अपनी पहली क्लिप बनाएं।" },
@@ -85,7 +86,11 @@
       "pictureThis": { "title": "यह देखें", "desc": "अपनी पहली AI इमेज जनरेट करें।" },
       "firstVideo": { "title": "अपना पहला वीडियो जनरेट करें", "desc": "AI वीडियो जनरेटर से एक वीडियो बनाएं।" },
       "firstExport": { "title": "प्रोजेक्ट एक्सपोर्ट करें", "desc": "एडिटर से एक पूरा प्रोजेक्ट एक्सपोर्ट करें।" },
-      "upgradedPlan": { "title": "अपना प्लान अपग्रेड करें", "desc": "किसी पेड प्लान की सदस्यता लें।" }
+      "upgradedPlan": { "title": "अपना प्लान अपग्रेड करें", "desc": "किसी पेड प्लान की सदस्यता लें।" },
+      "exploreToolbox": { "title": "टूलबॉक्स एक्सप्लोर करें", "desc": "कोई भी AI टूल आज़माएं — Face Swap, Background Remover, Voice Changer या Vocal Remover।" },
+      "completeProfile": { "title": "अपनी प्रोफ़ाइल पूरी करें", "desc": "अपना नाम, अवतार और आप क्या बनाते हैं, जोड़ें।" },
+      "trackAccount": { "title": "अपना पहला अकाउंट ट्रैक करें", "desc": "Social Tracker में एक सोशल अकाउंट कनेक्ट करें।" },
+      "referFriend": { "title": "किसी मित्र को रेफर करें", "desc": "अपने रेफ़रल लिंक से सब्सक्राइब करने वाले मित्र को आमंत्रित करें।" }
     },
     "freeToolsCard": { "title": "हमारे <em>फ्री</em> टूल्स आज़माएं", "desc": "ऑडियो बैलेंसर, वीडियो कंप्रेसर, और अधिक" },
     "editorCard": { "title": "<em>एडिटर</em> खोलें", "desc": "आपके ब्राउज़र में मल्टी-ट्रैक टाइमलाइन एडिटर" },

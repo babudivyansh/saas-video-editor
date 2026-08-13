@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
-import { QUEST_DEFINITIONS, TOTAL_XP, xpToLevel } from "@/lib/quest-config";
+import { QUEST_DEFINITIONS, TOTAL_XP, xpToLevel, earnedXpFor } from "@/lib/quest-config";
 
 export async function GET(req: NextRequest) {
   const auth = await getAuthUser(req);
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     completedAt: completedMap.get(def.id) ?? null,
   }));
 
-  const earnedXp = quests.reduce((sum, q) => sum + (q.completedAt ? q.xp : 0), 0);
+  const earnedXp = earnedXpFor(completedMap.keys());
   const remaining = quests.filter(q => !q.completedAt).length;
   const allComplete = remaining === 0;
 

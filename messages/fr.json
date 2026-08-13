@@ -77,7 +77,8 @@
     "questsToGo": "{count, plural, one {encore # quête} other {encore # quêtes}}",
     "xpTotal": "/ {total} XP",
     "xpSuffix": "+{xp} XP",
-    "allQuestsCompleteBanner": "Toutes les quêtes sont terminées ! +5 crédits ont été ajoutés à votre compte.",
+    "rankReward": "{level} — atteignez ce rang pour gagner +{credits} crédits bonus.",
+    "allQuestsCompleteBanner": "Toutes les quêtes sont terminées ! Vous avez atteint Clipiro Master — des crédits bonus ont été ajoutés à votre compte.",
     "quests": {
       "joinCommunity": { "title": "Rejoignez la communauté", "desc": "Connectez votre Discord et rejoignez le serveur Clipiro." },
       "firstClip": { "title": "Créez votre premier clip", "desc": "Utilisez l'éditeur simple pour créer votre premier clip." },
@@ -85,7 +86,11 @@
       "pictureThis": { "title": "Regardez ça", "desc": "Générez votre première image IA." },
       "firstVideo": { "title": "Générez votre première vidéo", "desc": "Créez une vidéo avec le générateur vidéo IA." },
       "firstExport": { "title": "Exportez un projet", "desc": "Exportez un projet terminé depuis l'éditeur." },
-      "upgradedPlan": { "title": "Améliorez votre forfait", "desc": "Abonnez-vous à un forfait payant." }
+      "upgradedPlan": { "title": "Améliorez votre forfait", "desc": "Abonnez-vous à un forfait payant." },
+      "exploreToolbox": { "title": "Explorez les outils", "desc": "Essayez un outil d'IA — Face Swap, Background Remover, Voice Changer ou Vocal Remover." },
+      "completeProfile": { "title": "Complétez votre profil", "desc": "Ajoutez votre nom, votre avatar et ce que vous créez." },
+      "trackAccount": { "title": "Suivez votre premier compte", "desc": "Connectez un compte social dans le Social Tracker." },
+      "referFriend": { "title": "Parrainez un ami", "desc": "Invitez un ami qui s'abonne via votre lien de parrainage." }
     },
     "freeToolsCard": { "title": "Essayez nos outils <em>GRATUITS</em>", "desc": "Égaliseur audio, compresseur vidéo, et plus" },
     "editorCard": { "title": "Ouvrir l'<em>éditeur</em>", "desc": "Éditeur de chronologie multipiste dans votre navigateur" },

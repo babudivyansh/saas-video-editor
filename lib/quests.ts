@@ -2,7 +2,7 @@ import { prisma } from "./prisma";
 import { redis } from "./redis";
 import { logger } from "./logger";
 import { trackOnboardingEvent } from "./onboarding-analytics";
-import { QUEST_DEFINITIONS, QUEST_COMPLETION_CREDITS } from "./quest-config";
+import { RANK_REWARDS, earnedXpFor } from "./quest-config";
 import { grantCredits } from "./credits";
 
 export async function markQuestComplete(userId: string, questId: string) {
@@ -15,29 +15,44 @@ export async function markQuestComplete(userId: string, questId: string) {
     await redis.del(`quests:${userId}`);
     trackOnboardingEvent(userId, "quest_completed", { questId });
 
-    // Award bonus credits if all quests are now complete (once only)
-    const completed = await prisma.userQuest.count({ where: { userId } });
-    if (completed >= QUEST_DEFINITIONS.length) {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { questRewardClaimed: true },
+    // Grant a one-time bonus-credit reward for each rank the user has newly
+    // crossed. earnedXp is derived from the quests completed so far, and each
+    // rank is paid at most once (tracked in User.claimedRankRewards).
+    const completed = await prisma.userQuest.findMany({
+      where: { userId },
+      select: { questId: true },
+    });
+    const earnedXp = earnedXpFor(completed.map(q => q.questId));
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { claimedRankRewards: true },
+    });
+    if (!user) return;
+
+    const claimed = new Set(user.claimedRankRewards);
+    const newlyEarned = RANK_REWARDS.filter(r => earnedXp >= r.minXp && !claimed.has(r.level));
+    if (newlyEarned.length === 0) return;
+
+    for (const rank of newlyEarned) {
+      // Quest rewards are bonus credits: 30-day expiry, spent first.
+      await grantCredits({
+        userId,
+        bucket: "bonus",
+        amount: rank.reward,
+        reason: `grant:quest-rank-${rank.level}`,
+        bonusExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       });
-      if (user && !user.questRewardClaimed) {
-        await prisma.user.update({ where: { id: userId }, data: { questRewardClaimed: true } });
-        // Quest rewards are bonus credits: 30-day expiry, spent first.
-        await grantCredits({
-          userId,
-          bucket: "bonus",
-          amount: QUEST_COMPLETION_CREDITS,
-          reason: "grant:quest-reward",
-          bonusExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        });
-      }
+      claimed.add(rank.level);
     }
+    await prisma.user.update({
+      where: { id: userId },
+      data: { claimedRankRewards: Array.from(claimed) },
+    });
   } catch (err) {
     // Never block the caller, but this must not fail silently — a failed
-    // quest completion (and its one-time credit reward) was previously
-    // invisible with zero trace in logs or Sentry.
+    // quest completion (and its rank credit reward) was previously invisible
+    // with zero trace in logs or Sentry.
     logger.error("quests", "markQuestComplete failed", { userId, questId, err });
   }
 }
