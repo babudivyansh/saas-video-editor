@@ -77,7 +77,8 @@
     "questsToGo": "{count, plural, other {تبقّى # مهمة}}",
     "xpTotal": "/ {total} نقطة خبرة",
     "xpSuffix": "+{xp} نقطة خبرة",
-    "allQuestsCompleteBanner": "تم إكمال جميع المهام! تمت إضافة 5+ أرصدة إلى حسابك.",
+    "rankReward": "{level} — اصل إلى هذه الرتبة لتحصل على +{credits} رصيدًا إضافيًا.",
+    "allQuestsCompleteBanner": "تم إكمال جميع المهام! لقد وصلت إلى Clipiro Master — تمت إضافة أرصدة إضافية إلى حسابك.",
     "quests": {
       "joinCommunity": { "title": "انضم إلى المجتمع", "desc": "اربط حساب Discord الخاص بك وانضم إلى سيرفر Clipiro." },
       "firstClip": { "title": "أنشئ أول مقطع لك", "desc": "استخدم المحرر البسيط لإنشاء أول مقطع لك." },
@@ -85,7 +86,11 @@
       "pictureThis": { "title": "شاهد هذا", "desc": "أنشئ أول صورة لك بالذكاء الاصطناعي." },
       "firstVideo": { "title": "أنشئ أول فيديو لك", "desc": "أنشئ فيديو باستخدام مولد الفيديو بالذكاء الاصطناعي." },
       "firstExport": { "title": "صدّر مشروعًا", "desc": "صدّر مشروعًا مكتملًا من المحرر." },
-      "upgradedPlan": { "title": "قم بترقية خطتك", "desc": "اشترك في خطة مدفوعة." }
+      "upgradedPlan": { "title": "قم بترقية خطتك", "desc": "اشترك في خطة مدفوعة." },
+      "exploreToolbox": { "title": "استكشف الأدوات", "desc": "جرّب أي أداة ذكاء اصطناعي — Face Swap أو Background Remover أو Voice Changer أو Vocal Remover." },
+      "completeProfile": { "title": "أكمل ملفك الشخصي", "desc": "أضف اسمك وصورتك الرمزية وما تنشئه." },
+      "trackAccount": { "title": "تتبّع حسابك الأول", "desc": "اربط حسابًا اجتماعيًا في Social Tracker." },
+      "referFriend": { "title": "أحل صديقًا", "desc": "ادعُ صديقًا يشترك عبر رابط الإحالة الخاص بك." }
     },
     "freeToolsCard": { "title": "جرّب أدواتنا <em>المجانية</em>", "desc": "موازن الصوت، ضاغط الفيديو، والمزيد" },
     "editorCard": { "title": "افتح <em>المحرر</em>", "desc": "محرر جدول زمني متعدد المسارات في متصفحك" },

@@ -4,6 +4,7 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hardDeleteUserAccount } from "@/lib/account-deletion";
 import { LOCALE_COOKIE, isSupportedLocale } from "@/lib/i18n-locales";
+import { markQuestComplete } from "@/lib/quests";
 
 const PHONE_RE = /^\+?[0-9]{7,15}$/;
 const GENDERS = ["male", "female", "unspecified"] as const;
@@ -80,6 +81,12 @@ export async function PATCH(req: NextRequest) {
     data,
     select: { id: true, email: true, phone: true, name: true, avatarUrl: true, gender: true, intendedUse: true, preferredLanguage: true },
   });
+
+  // A profile counts as "complete" once the user has a display name, an avatar,
+  // and their intended use (niche) set — the fields that personalize the app.
+  if (user.name && user.avatarUrl && user.intendedUse) {
+    void markQuestComplete(auth.userId, "complete-profile");
+  }
 
   const res = NextResponse.json({ user });
   // Mirrors the DB value into the cookie i18n/request.ts reads, so the new

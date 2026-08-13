@@ -19,7 +19,7 @@ const ProductTour = dynamic(
   { ssr: false },
 );
 import { Tooltip } from "@/app/components/ui/Tooltip";
-import { xpToLevel, levelColor, TOTAL_XP } from "@/lib/quest-config";
+import { xpToLevel, levelColor, TOTAL_XP, RANK_REWARDS } from "@/lib/quest-config";
 import { PRIMARY_GOALS, GOAL_TO_QUEST } from "@/lib/onboarding-config";
 import { ProjectStatusBadge } from "@/app/components/dashboard/ProjectStatusBadge";
 import { AutoClipPreview, CutCropPreview, VoiceChangerPreview, SubtitleRemoverPreview, AICreatorPreview } from "@/app/components/dashboard/toolPreviews";
@@ -104,6 +104,12 @@ function IcDownload() {
 function IcCrown() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M2 20h20M4 17l-2-9 6 4 4-7 4 7 6-4-2 9H4z"/></svg>;
 }
+function IcChart() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M3 3v18h18"/><path d="M7 15l3-4 3 3 4-6"/></svg>;
+}
+function IcGift() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>;
+}
 
 // ── Data ───────────────────────────────────────────────────────────────────────
 // Quest ids/xp/color/href are structural, joined by `id` (not title text)
@@ -121,6 +127,10 @@ function useQuests() {
       { id: "first-video", icon: <IcVideo />, title: t("firstVideo.title"), xp: 200, desc: t("firstVideo.desc"), color: "#10b981", href: "/dashboard/tools/video-generator" },
       { id: "first-export", icon: <IcDownload />, title: t("firstExport.title"), xp: 200, desc: t("firstExport.desc"), color: "#f59e0b", href: "/dashboard/editor" },
       { id: "upgraded-plan", icon: <IcCrown />, title: t("upgradedPlan.title"), xp: 300, desc: t("upgradedPlan.desc"), color: "#d97706", href: "/dashboard?billing=1" },
+      { id: "explore-toolbox", icon: <IcEraser />, title: t("exploreToolbox.title"), xp: 150, desc: t("exploreToolbox.desc"), color: "#06b6d4", href: "/dashboard/tools" },
+      { id: "complete-profile", icon: <IcUser />, title: t("completeProfile.title"), xp: 100, desc: t("completeProfile.desc"), color: "#ec4899", href: "/dashboard/settings" },
+      { id: "track-account", icon: <IcChart />, title: t("trackAccount.title"), xp: 250, desc: t("trackAccount.desc"), color: "#0ea5e9", href: "/dashboard/social-tracker" },
+      { id: "refer-friend", icon: <IcGift />, title: t("referFriend.title"), xp: 400, desc: t("referFriend.desc"), color: "#f43f5e", href: "/dashboard/referral" },
     ],
     [t]
   );
@@ -396,6 +406,31 @@ export default function DashboardPage() {
                     <div className="mt-2 h-1 bg-gray-100 rounded-full w-64 overflow-hidden">
                       <div className="h-full grad-brand rounded-full transition-all duration-500"
                         style={{ width: `${progressPct}%` }} />
+                    </div>
+                    {/* Rank ladder: earned ranks light up in their color, locked
+                        ranks stay greyed. Each badge tooltips its credit reward. */}
+                    <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                      {RANK_REWARDS.map(rank => {
+                        const earned = earnedXp >= rank.minXp;
+                        return (
+                          <Tooltip
+                            key={rank.level}
+                            content={t("rankReward", { level: rank.level, credits: rank.reward })}
+                            position="bottom"
+                          >
+                            <span
+                              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border transition-colors"
+                              style={
+                                earned
+                                  ? { background: rank.color + "18", color: rank.color, borderColor: rank.color + "33" }
+                                  : { background: "#f3f4f6", color: "#9ca3af", borderColor: "#e5e7eb" }
+                              }
+                            >
+                              {earned ? rank.level : `🔒 ${rank.level}`}
+                            </span>
+                          </Tooltip>
+                        );
+                      })}
                     </div>
                   </div>
                   <div className="text-right">

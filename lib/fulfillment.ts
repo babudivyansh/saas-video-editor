@@ -369,6 +369,9 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
         }),
       ]);
 
+      // A referral just converted — credit the referrer's "Refer a friend" quest.
+      void markQuestComplete(referral.affiliate.userId, "refer-friend");
+
       // ── Notify affiliate of commission (non-fatal) ─────────────────
       try {
         const affiliateUser = await prisma.user.findUnique({

@@ -77,7 +77,8 @@
     "questsToGo": "{count, plural, one {falta # missão} other {faltam # missões}}",
     "xpTotal": "/ {total} XP",
     "xpSuffix": "+{xp} XP",
-    "allQuestsCompleteBanner": "Todas as missões concluídas! +5 créditos foram adicionados à sua conta.",
+    "rankReward": "{level} — alcance este nível para ganhar +{credits} créditos bônus.",
+    "allQuestsCompleteBanner": "Todas as missões concluídas! Você alcançou Clipiro Master — créditos bônus foram adicionados à sua conta.",
     "quests": {
       "joinCommunity": { "title": "Junte-se à comunidade", "desc": "Conecte seu Discord e junte-se ao servidor do Clipiro." },
       "firstClip": { "title": "Crie seu primeiro clipe", "desc": "Use o editor simples para criar seu primeiro clipe." },
@@ -85,7 +86,11 @@
       "pictureThis": { "title": "Veja isto", "desc": "Gere sua primeira imagem com IA." },
       "firstVideo": { "title": "Gere seu primeiro vídeo", "desc": "Crie um vídeo com o gerador de vídeo com IA." },
       "firstExport": { "title": "Exporte um projeto", "desc": "Exporte um projeto concluído do editor." },
-      "upgradedPlan": { "title": "Faça upgrade do seu plano", "desc": "Assine um plano pago." }
+      "upgradedPlan": { "title": "Faça upgrade do seu plano", "desc": "Assine um plano pago." },
+      "exploreToolbox": { "title": "Explore as ferramentas", "desc": "Experimente qualquer ferramenta de IA — Face Swap, Background Remover, Voice Changer ou Vocal Remover." },
+      "completeProfile": { "title": "Complete seu perfil", "desc": "Adicione seu nome, avatar e o que você cria." },
+      "trackAccount": { "title": "Acompanhe sua primeira conta", "desc": "Conecte uma conta social no Social Tracker." },
+      "referFriend": { "title": "Indique um amigo", "desc": "Convide um amigo que assine com seu link de indicação." }
     },
     "freeToolsCard": { "title": "Experimente nossas ferramentas <em>GRATUITAS</em>", "desc": "Equalizador de áudio, compressor de vídeo e mais" },
     "editorCard": { "title": "Abrir o <em>editor</em>", "desc": "Editor de linha do tempo multipista no seu navegador" },

@@ -77,7 +77,8 @@
     "questsToGo": "{count, plural, other {あと#件のクエスト}}",
     "xpTotal": "/ {total} XP",
     "xpSuffix": "+{xp} XP",
-    "allQuestsCompleteBanner": "すべてのクエストが完了しました！アカウントに5クレジットが追加されました。",
+    "rankReward": "{level} — このランクに到達すると+{credits}ボーナスクレジットを獲得できます。",
+    "allQuestsCompleteBanner": "すべてのクエストが完了しました！Clipiro Master に到達しました — アカウントにボーナスクレジットが追加されました。",
     "quests": {
       "joinCommunity": { "title": "コミュニティに参加", "desc": "Discordを接続してClipiroサーバーに参加しましょう。" },
       "firstClip": { "title": "最初のクリップを作成", "desc": "シンプルエディターで最初のクリップを作成しましょう。" },
@@ -85,7 +86,11 @@
       "pictureThis": { "title": "画像を生成してみよう", "desc": "最初のAI画像を生成しましょう。" },
       "firstVideo": { "title": "最初の動画を生成", "desc": "AI動画ジェネレーターで動画を作成しましょう。" },
       "firstExport": { "title": "プロジェクトをエクスポート", "desc": "エディターから完成したプロジェクトをエクスポートしましょう。" },
-      "upgradedPlan": { "title": "プランをアップグレード", "desc": "有料プランに登録しましょう。" }
+      "upgradedPlan": { "title": "プランをアップグレード", "desc": "有料プランに登録しましょう。" },
+      "exploreToolbox": { "title": "ツールを探索", "desc": "AIツールを試そう — Face Swap、Background Remover、Voice Changer、Vocal Remover。" },
+      "completeProfile": { "title": "プロフィールを完成させる", "desc": "名前、アバター、作成するコンテンツを追加しましょう。" },
+      "trackAccount": { "title": "最初のアカウントを追跡", "desc": "Social Tracker でソーシャルアカウントを接続しましょう。" },
+      "referFriend": { "title": "友達を紹介", "desc": "紹介リンクから登録する友達を招待しましょう。" }
     },
     "freeToolsCard": { "title": "<em>無料</em>ツールを試す", "desc": "オーディオバランサー、動画圧縮ツールなど" },
     "editorCard": { "title": "<em>エディター</em>を開く", "desc": "ブラウザで使えるマルチトラックタイムラインエディター" },

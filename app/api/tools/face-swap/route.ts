@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
+import { markQuestComplete } from "@/lib/quests";
 import { randomUUID } from "crypto";
 import os from "os";
 import path from "path";
@@ -235,6 +236,7 @@ async function handlePOST(req: NextRequest) {
     }
   })();
 
+  void markQuestComplete(auth.userId, "explore-toolbox");
   return NextResponse.json({ jobId });
 }
 

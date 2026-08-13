@@ -77,7 +77,8 @@
     "questsToGo": "{count, plural, one {noch # Quest} other {noch # Quests}}",
     "xpTotal": "/ {total} XP",
     "xpSuffix": "+{xp} XP",
-    "allQuestsCompleteBanner": "Alle Quests abgeschlossen! Ihrem Konto wurden +5 Credits gutgeschrieben.",
+    "rankReward": "{level} – erreiche diesen Rang, um +{credits} Bonus-Credits zu erhalten.",
+    "allQuestsCompleteBanner": "Alle Quests abgeschlossen! Du hast Clipiro Master erreicht – Bonus-Credits wurden deinem Konto gutgeschrieben.",
     "quests": {
       "joinCommunity": { "title": "Der Community beitreten", "desc": "Verbinden Sie Ihren Discord und treten Sie dem Clipiro-Server bei." },
       "firstClip": { "title": "Erstellen Sie Ihren ersten Clip", "desc": "Erstellen Sie mit dem einfachen Editor Ihren ersten Clip." },
@@ -85,7 +86,11 @@
       "pictureThis": { "title": "Sehen Sie sich das an", "desc": "Erstellen Sie Ihr erstes KI-Bild." },
       "firstVideo": { "title": "Erstellen Sie Ihr erstes Video", "desc": "Erstellen Sie ein Video mit dem KI-Videogenerator." },
       "firstExport": { "title": "Exportieren Sie ein Projekt", "desc": "Exportieren Sie ein fertiges Projekt aus dem Editor." },
-      "upgradedPlan": { "title": "Upgraden Sie Ihren Plan", "desc": "Abonnieren Sie einen kostenpflichtigen Plan." }
+      "upgradedPlan": { "title": "Upgraden Sie Ihren Plan", "desc": "Abonnieren Sie einen kostenpflichtigen Plan." },
+      "exploreToolbox": { "title": "Entdecke die Tools", "desc": "Probiere ein KI-Tool aus — Face Swap, Background Remover, Voice Changer oder Vocal Remover." },
+      "completeProfile": { "title": "Vervollständige dein Profil", "desc": "Füge deinen Namen, Avatar und deine Inhalte hinzu." },
+      "trackAccount": { "title": "Verfolge dein erstes Konto", "desc": "Verbinde ein Social-Konto im Social Tracker." },
+      "referFriend": { "title": "Freund werben", "desc": "Lade einen Freund ein, der über deinen Empfehlungslink abonniert." }
     },
     "freeToolsCard": { "title": "Probieren Sie unsere <em>KOSTENLOSEN</em> Tools", "desc": "Audio-Balancer, Video-Kompressor und mehr" },
     "editorCard": { "title": "<em>Editor</em> öffnen", "desc": "Multi-Track-Timeline-Editor in Ihrem Browser" },

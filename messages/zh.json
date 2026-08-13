@@ -77,7 +77,8 @@
     "questsToGo": "{count, plural, other {还剩 # 个任务}}",
     "xpTotal": "/ {total} 经验值",
     "xpSuffix": "+{xp} 经验值",
-    "allQuestsCompleteBanner": "所有任务已完成！您的账户已增加5点积分。",
+    "rankReward": "{level} — 达到此等级即可获得 +{credits} 奖励积分。",
+    "allQuestsCompleteBanner": "所有任务已完成！您已达到 Clipiro Master — 奖励积分已添加到您的账户。",
     "quests": {
       "joinCommunity": { "title": "加入社区", "desc": "连接您的Discord并加入Clipiro服务器。" },
       "firstClip": { "title": "创建您的第一个片段", "desc": "使用简易编辑器创建您的第一个片段。" },
@@ -85,7 +86,11 @@
       "pictureThis": { "title": "看看这个", "desc": "生成您的第一张AI图片。" },
       "firstVideo": { "title": "生成您的第一个视频", "desc": "使用AI视频生成器制作一个视频。" },
       "firstExport": { "title": "导出一个项目", "desc": "从编辑器导出一个已完成的项目。" },
-      "upgradedPlan": { "title": "升级您的套餐", "desc": "订阅付费套餐。" }
+      "upgradedPlan": { "title": "升级您的套餐", "desc": "订阅付费套餐。" },
+      "exploreToolbox": { "title": "探索工具箱", "desc": "试用任意 AI 工具 — Face Swap、Background Remover、Voice Changer 或 Vocal Remover。" },
+      "completeProfile": { "title": "完善您的资料", "desc": "添加您的姓名、头像以及您创作的内容。" },
+      "trackAccount": { "title": "追踪您的第一个账户", "desc": "在 Social Tracker 中连接一个社交账户。" },
+      "referFriend": { "title": "推荐好友", "desc": "邀请通过您的推荐链接订阅的好友。" }
     },
     "freeToolsCard": { "title": "试用我们的<em>免费</em>工具", "desc": "音频均衡器、视频压缩器等" },
     "editorCard": { "title": "打开<em>编辑器</em>", "desc": "在浏览器中使用多轨时间线编辑器" },

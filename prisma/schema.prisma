@@ -139,6 +139,7 @@ model User {
   creditTransactions  CreditTransaction[]
   quests              UserQuest[]
   questRewardClaimed  Boolean              @default(false)
+  claimedRankRewards  String[]             @default([])
   affiliate           Affiliate?
   referral            Referral?            @relation("ReferredByAffiliate")
   socialAccounts      SocialAccount[]

@@ -77,7 +77,8 @@
     "questsToGo": "{count, plural, one {# quest to go} other {# quests to go}}",
     "xpTotal": "/ {total} XP",
     "xpSuffix": "+{xp} XP",
-    "allQuestsCompleteBanner": "All quests complete! +5 credits have been added to your account.",
+    "rankReward": "{level} — reach this rank to earn +{credits} bonus credits.",
+    "allQuestsCompleteBanner": "All quests complete! You've reached Clipiro Master — bonus credits have been added to your account.",
     "quests": {
       "joinCommunity": { "title": "Join the community", "desc": "Connect your Discord and join the Clipiro server." },
       "firstClip": { "title": "Create your first clip", "desc": "Walk through the Simple Editor and make your first clip." },
@@ -85,7 +86,11 @@
       "pictureThis": { "title": "Picture this", "desc": "Generate your first AI image." },
       "firstVideo": { "title": "Generate your first video", "desc": "Create a video with the AI Video Generator." },
       "firstExport": { "title": "Export a project", "desc": "Export a finished project from the Editor." },
-      "upgradedPlan": { "title": "Upgrade your plan", "desc": "Subscribe to a paid plan." }
+      "upgradedPlan": { "title": "Upgrade your plan", "desc": "Subscribe to a paid plan." },
+      "exploreToolbox": { "title": "Explore the toolbox", "desc": "Try any AI tool — Face Swap, Background Remover, Voice Changer, or Vocal Remover." },
+      "completeProfile": { "title": "Complete your profile", "desc": "Add your name, avatar, and what you create." },
+      "trackAccount": { "title": "Track your first account", "desc": "Connect a social account in the Social Tracker." },
+      "referFriend": { "title": "Refer a friend", "desc": "Invite a friend who subscribes with your referral link." }
     },
     "freeToolsCard": { "title": "Try our <em>FREE</em> Tools", "desc": "Audio balancer, video compressor, and more" },
     "editorCard": { "title": "Open the <em>Editor</em>", "desc": "Multi-track timeline editor in your browser" },

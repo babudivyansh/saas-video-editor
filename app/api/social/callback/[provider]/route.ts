@@ -3,6 +3,7 @@ import { appUrl, consumeState } from "@/lib/social/oauth";
 import { handleCallback, oauthProviderFor } from "@/lib/social/service";
 import type { OAuthProvider, ProviderId } from "@/lib/social/types";
 import { logger } from "@/lib/logger";
+import { markQuestComplete } from "@/lib/quests";
 
 // OAuth redirect target. This is a top-level browser navigation (no Authorization
 // header), so the caller's identity comes from the signed `state` we minted at
@@ -40,6 +41,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
 
   try {
     const connected = await handleCallback(provider as OAuthProvider, consumed.userId, code, consumed.verifier);
+    void markQuestComplete(consumed.userId, "track-account");
     return NextResponse.redirect(dest({ connected: connected.join(",") }));
   } catch (e) {
     logger.error("social-callback", "request failed", e);
