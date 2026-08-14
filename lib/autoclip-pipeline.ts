@@ -30,6 +30,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { withRetry } from "@/lib/with-retry";
 import { NonRetryableError } from "@/lib/render-queue";
 import { logger } from "@/lib/logger";
+import { notify } from "@/lib/notify";
 import { timeStage } from "@/lib/pipeline-metrics";
 import { env } from "@/lib/env";
 import { FILTER_PRESETS, type FilterPreset } from "@/lib/editor/types";
@@ -187,6 +188,42 @@ export async function refundCredits(projectId: string, amount: number): Promise<
     }
   } catch (e) {
     logger.error("auto-clip", `failed to refund ${amount} credits for project ${projectId}`, e);
+  }
+}
+
+/**
+ * In-app bell notification for a render's FINAL outcome — "your clips are
+ * ready" or "render didn't finish" — linking back to the results grid. Renders
+ * take minutes and the user previously had to sit on the page polling with no
+ * signal. Reused by the stale-clip sweep's crash reconciliation. `notify`
+ * swallows its own errors, so this never throws. Deliberately NOT called from
+ * the retrying catch path (a transient failure about to be retried must not
+ * send a false "failed").
+ */
+export async function notifyRenderOutcome(
+  projectId: string,
+  userId: string,
+  outcome: "completed" | "failed",
+  opts?: { readyCount?: number; reason?: string },
+): Promise<void> {
+  const href = `/dashboard/create/auto-clip?project=${projectId}`;
+  if (outcome === "completed") {
+    const n = opts?.readyCount ?? 0;
+    await notify({
+      userId,
+      type: "autoclip_render_complete",
+      title: "Your clips are ready 🎉",
+      body: n > 0 ? `${n} clip${n === 1 ? "" : "s"} finished rendering.` : "Your Auto Clips finished rendering.",
+      href,
+    });
+  } else {
+    await notify({
+      userId,
+      type: "autoclip_render_failed",
+      title: "Auto Clip render didn't finish",
+      body: opts?.reason ?? "Something went wrong while rendering your clips. Please try again — you've been refunded for anything that didn't render.",
+      href,
+    });
   }
 }
 
@@ -1634,6 +1671,7 @@ export async function renderJob(payload: RenderPayload): Promise<void> {
   const clips = await prisma.clip.findMany({ where: { projectId, status: "queued" }, orderBy: { index: "asc" } });
   if (clips.length === 0) {
     await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } });
+    await notifyRenderOutcome(projectId, project.userId, "failed");
     return;
   }
 
@@ -1735,8 +1773,10 @@ export async function renderJob(payload: RenderPayload): Promise<void> {
 
     if (readyCount === 0) {
       await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } });
+      await notifyRenderOutcome(projectId, project.userId, "failed");
     } else {
       await prisma.project.update({ where: { id: projectId }, data: { status: "completed", videoUrl: bestUrl } });
+      await notifyRenderOutcome(projectId, project.userId, "completed", { readyCount });
     }
   } catch (err) {
     logger.error("auto-clip", `render failed for ${projectId}`, err);
@@ -1744,6 +1784,12 @@ export async function renderJob(payload: RenderPayload): Promise<void> {
       where: { id: projectId },
       data: { status: "failed", failureReason: userFacingFailure(err) },
     }).catch(() => {});
+    // Notify only on a FINAL failure. A retryable error is about to be retried
+    // by BullMQ (attempts:3), so notifying here would send a false "failed"
+    // before a later attempt succeeds; a NonRetryableError won't be retried.
+    if (err instanceof NonRetryableError) {
+      await notifyRenderOutcome(projectId, project.userId, "failed", { reason: userFacingFailure(err) });
+    }
     // See pickJob's matching comment — rethrow so BullMQ's attempts:3/backoff
     // actually retries transient failures instead of stopping after one try.
     throw err;

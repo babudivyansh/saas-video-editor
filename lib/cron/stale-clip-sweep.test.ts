@@ -3,10 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 let clipUpdateManyArgs: { where: unknown; data: unknown } | null = null;
 let clipUpdateManyCount = 0;
 let projectFindManyArgs: unknown = null;
-let strandedProjects: Array<{ id: string }> = [];
+let strandedProjects: Array<{ id: string; userId: string }> = [];
 let clipsByProject: Record<string, Array<{ status: string; videoUrl: string | null; score: number | null; durationSec: number }>> = {};
 const projectUpdates: Array<{ where: { id: string }; data: Record<string, unknown> }> = [];
 const refundCalls: Array<{ projectId: string; amount: number }> = [];
+const notifyCalls: Array<{ projectId: string; userId: string; outcome: string }> = [];
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -39,6 +40,9 @@ vi.mock("@/lib/autoclip-pipeline", () => ({
   refundCredits: vi.fn(async (projectId: string, amount: number) => {
     refundCalls.push({ projectId, amount });
   }),
+  notifyRenderOutcome: vi.fn(async (projectId: string, userId: string, outcome: string) => {
+    notifyCalls.push({ projectId, userId, outcome });
+  }),
 }));
 
 const { runStaleClipSweep, STALE_CLIP_TIMEOUT_MINUTES, RECONCILE_FAILURE_REASON } = await import("./stale-clip-sweep");
@@ -51,6 +55,7 @@ beforeEach(() => {
   clipsByProject = {};
   projectUpdates.length = 0;
   refundCalls.length = 0;
+  notifyCalls.length = 0;
   vi.clearAllMocks();
 });
 
@@ -91,7 +96,7 @@ describe("runStaleClipSweep — stranded project reconciliation", () => {
   });
 
   it("fails a stranded project with nothing rendered and refunds the whole charge", async () => {
-    strandedProjects = [{ id: "p1" }];
+    strandedProjects = [{ id: "p1", userId: "u1" }];
     clipsByProject["p1"] = [
       { status: "failed", videoUrl: null, score: null, durationSec: 30 },
       { status: "failed", videoUrl: null, score: null, durationSec: 40 },
@@ -104,10 +109,11 @@ describe("runStaleClipSweep — stranded project reconciliation", () => {
       { where: { id: "p1" }, data: { status: "failed", failureReason: RECONCILE_FAILURE_REASON } },
     ]);
     expect(refundCalls).toEqual([{ projectId: "p1", amount: 100 }]);
+    expect(notifyCalls).toEqual([{ projectId: "p1", userId: "u1", outcome: "failed" }]);
   });
 
   it("completes a partially-rendered project, picks the best clip, and refunds proportionally", async () => {
-    strandedProjects = [{ id: "p2" }];
+    strandedProjects = [{ id: "p2", userId: "u2" }];
     clipsByProject["p2"] = [
       { status: "ready", videoUrl: "https://s3/best.mp4", score: 50, durationSec: 30 },
       { status: "ready", videoUrl: "https://s3/ok.mp4", score: 10, durationSec: 30 },
@@ -123,10 +129,11 @@ describe("runStaleClipSweep — stranded project reconciliation", () => {
     ]);
     // 2 of 4 clips failed → refund round(100 * 2/4) = 50.
     expect(refundCalls).toEqual([{ projectId: "p2", amount: 50 }]);
+    expect(notifyCalls).toEqual([{ projectId: "p2", userId: "u2", outcome: "completed" }]);
   });
 
   it("completes a fully-rendered stranded project without any refund", async () => {
-    strandedProjects = [{ id: "p3" }];
+    strandedProjects = [{ id: "p3", userId: "u3" }];
     clipsByProject["p3"] = [
       { status: "ready", videoUrl: "https://s3/a.mp4", score: 20, durationSec: 30 },
       { status: "ready", videoUrl: "https://s3/b.mp4", score: 80, durationSec: 30 },
@@ -139,5 +146,6 @@ describe("runStaleClipSweep — stranded project reconciliation", () => {
       { where: { id: "p3" }, data: { status: "completed", videoUrl: "https://s3/b.mp4" } },
     ]);
     expect(refundCalls).toEqual([]);
+    expect(notifyCalls).toEqual([{ projectId: "p3", userId: "u3", outcome: "completed" }]);
   });
 });

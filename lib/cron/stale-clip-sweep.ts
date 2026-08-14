@@ -75,7 +75,7 @@ async function reconcileStrandedProjects(): Promise<number> {
       // At least one clip, and none of them still queued/rendering.
       clips: { some: {}, none: { status: { in: ["queued", "rendering"] } } },
     },
-    select: { id: true },
+    select: { id: true, userId: true },
   });
   if (stranded.length === 0) return 0;
 
@@ -83,10 +83,10 @@ async function reconcileStrandedProjects(): Promise<number> {
   // and only the (rare) stranded-project path needs its pricing/refund helpers.
   // Also sidesteps any import cycle with that module. Same pattern the pipeline
   // itself uses for getUserTier etc.
-  const { getAutoClipPricing, computeCreditCost, refundCredits } = await import("@/lib/autoclip-pipeline");
+  const { getAutoClipPricing, computeCreditCost, refundCredits, notifyRenderOutcome } = await import("@/lib/autoclip-pipeline");
 
   let reconciled = 0;
-  for (const { id: projectId } of stranded) {
+  for (const { id: projectId, userId } of stranded) {
     try {
       const clips = await prisma.clip.findMany({
         where: { projectId },
@@ -111,6 +111,7 @@ async function reconcileStrandedProjects(): Promise<number> {
         if (failedCount > 0) {
           await refundCredits(projectId, Math.round(charged * (failedCount / clips.length)));
         }
+        await notifyRenderOutcome(projectId, userId, "completed", { readyCount: ready.length });
       } else {
         await prisma.project.update({
           where: { id: projectId },
@@ -119,6 +120,7 @@ async function reconcileStrandedProjects(): Promise<number> {
         // Nothing rendered — refund the whole confirm charge (restoreSpend caps
         // at net-spent, so this is safe even if a partial refund already ran).
         await refundCredits(projectId, charged);
+        await notifyRenderOutcome(projectId, userId, "failed", { reason: RECONCILE_FAILURE_REASON });
       }
       reconciled++;
     } catch (e) {

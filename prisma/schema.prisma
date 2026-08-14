@@ -1378,7 +1378,7 @@ model Notification {
   id        String    @id @default(uuid())
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      String // "review_published" | "review_rejected" | "review_hidden" | "review_reply" | "review_helpful_milestone" | "admin_review_new" | "admin_review_reported" | "admin_review_spam_detected" | "review_prompt"
+  type      String // see NotificationType in lib/notify.ts — review_*, admin_review_*, billing_*, autoclip_render_complete|failed
   title     String
   body      String?
   href      String?
