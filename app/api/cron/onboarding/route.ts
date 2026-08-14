@@ -21,6 +21,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("onboarding")).catch(() => {});
+
   const now = new Date();
   const results = { day1: 0, day3: 0, day7: 0, errors: 0 };
 

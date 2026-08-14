@@ -76,6 +76,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("asset-cleanup")).catch(() => {});
+
   const job = req.nextUrl.searchParams.get("job") ?? "orphans";
   if (job === "retention") {
     const result = await purgeExpiredArchives();

@@ -5,6 +5,7 @@ import { auditAdminAction, auditIp } from "@/lib/admin/audit";
 import { opsFlagsSchema } from "@/lib/admin/schemas";
 import { renderQueueCounts } from "@/lib/admin/metrics";
 import { getHeartbeats } from "@/lib/worker-heartbeat";
+import { getCronRunStatuses } from "@/lib/cron-tracking";
 import { getFeatureFlags, getMaintenanceMode, setFeatureFlag, setMaintenanceMode } from "@/lib/flags";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
@@ -13,12 +14,13 @@ import { KNOWN_RENDER_QUEUE_NAMES } from "@/lib/render-queue";
 // GET — one ops snapshot: queue counts + failed jobs, worker heartbeats,
 // feature flags, maintenance mode, and largest tables (storage report).
 export const GET = withAdmin(async () => {
-  const [queueCounts, failedJobs, heartbeats, flags, maintenance, tableSizes] = await Promise.all([
+  const [queueCounts, failedJobs, heartbeats, flags, maintenance, cronRuns, tableSizes] = await Promise.all([
     renderQueueCounts(),
     getFailedRenderJobs(),
     getHeartbeats([...KNOWN_RENDER_QUEUE_NAMES, "social-refresh"]),
     getFeatureFlags(),
     getMaintenanceMode(),
+    getCronRunStatuses(),
     prisma.$queryRaw<Array<{ table: string; size: string; bytes: bigint }>>`
       SELECT relname AS "table",
              pg_size_pretty(pg_total_relation_size(c.oid)) AS size,
@@ -35,6 +37,7 @@ export const GET = withAdmin(async () => {
     heartbeats,
     flags,
     maintenance,
+    cronRuns,
     tableSizes: tableSizes.map((t) => ({ table: t.table, size: t.size })),
   });
 });

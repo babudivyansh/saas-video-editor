@@ -30,6 +30,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("review-drip")).catch(() => {});
+
   const now = new Date();
   const settings = await getReviewSettings();
 

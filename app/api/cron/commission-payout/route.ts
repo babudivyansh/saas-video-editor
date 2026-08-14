@@ -18,6 +18,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("commission-payout")).catch(() => {});
+
   const result = await runCommissionPayoutSweep();
   return NextResponse.json(result);
 }
