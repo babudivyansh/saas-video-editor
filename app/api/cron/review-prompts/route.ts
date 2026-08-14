@@ -25,6 +25,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("review-prompts")).catch(() => {});
+
   const now = new Date();
   const accountAgeCutoff = new Date(now.getTime() - MIN_ACCOUNT_AGE_DAYS * 86400_000);
   const recentLoginCutoff = new Date(now.getTime() - RECENT_LOGIN_DAYS * 86400_000);

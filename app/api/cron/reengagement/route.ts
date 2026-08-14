@@ -21,6 +21,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("reengagement")).catch(() => {});
+
   const now = new Date();
   const results = { reengaged7d: 0, reengaged30d: 0, unusedCredits: 0, errors: 0 };
 

@@ -1378,7 +1378,7 @@ model Notification {
   id        String    @id @default(uuid())
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      String // "review_published" | "review_rejected" | "review_hidden" | "review_reply" | "review_helpful_milestone" | "admin_review_new" | "admin_review_reported" | "admin_review_spam_detected" | "review_prompt"
+  type      String // see NotificationType in lib/notify.ts — review_*, admin_review_*, billing_*, autoclip_render_complete|failed
   title     String
   body      String?
   href      String?
@@ -1419,6 +1419,20 @@ model MarketingEventDaily {
   @@unique([date, event, path, placement, utmSource, utmMedium, utmCampaign], map: "MarketingEventDaily_dimensions_key")
   @@index([date, event])
   @@index([utmCampaign, date])
+}
+
+// Aggregate per-day onboarding funnel counters — the durable sink for
+// lib/onboarding-analytics.ts, which was log-only, so the activation funnel
+// (welcome_shown -> goal_selected -> tour_completed -> ...) was not queryable.
+// One row per (event, UTC day); mirrors MarketingEventDaily's counter shape.
+model OnboardingEventDaily {
+  id        String   @id @default(uuid())
+  date      String // "YYYY-MM-DD" UTC
+  event     String // OnboardingEvent — see lib/onboarding-analytics.ts
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([date, event])
 }
 
 // Double opt-in newsletter list. Separate from NotificationPreference.newsletter,

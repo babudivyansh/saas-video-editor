@@ -11,6 +11,7 @@ interface OpsData {
   queueCounts: Record<string, Record<string, number>> | null;
   failedJobs: Array<{ queueName: string; id: string; projectId?: string; failedReason?: string; attemptsMade: number; timestamp: number }>;
   heartbeats: Record<string, string | null>;
+  cronRuns: Array<{ name: string; lastRunAt: string | null; ageSeconds: number | null }>;
   flags: Record<string, boolean>;
   maintenance: { on: boolean; message?: string };
   tableSizes: Array<{ table: string; size: string }>;
@@ -169,6 +170,21 @@ export default function AdminOpsPage() {
                 <span className="text-gray-700 font-mono text-xs">{name}</span>
                 <span className="text-xs text-gray-400 ml-auto">
                   {beat ? `beat ${new Date(beat).toLocaleTimeString()}` : "no heartbeat (not running or older build)"}
+                </span>
+              </div>
+            ))}
+          </div>
+          {/* Cron jobs — a cron that has NEVER run is almost certainly not
+              wired into the scheduler's crontab (SETUP.md §7). Amber = never;
+              the timestamp lets you judge staleness for the ones that have. */}
+          <div className="mt-4 pt-3 border-t border-gray-50 space-y-2 text-sm">
+            <p className="text-[11px] font-semibold text-gray-600 mb-1">Cron jobs</p>
+            {d.cronRuns.map((c) => (
+              <div key={c.name} className="flex items-center gap-2">
+                <span className={`w-2.5 h-2.5 rounded-full ${c.lastRunAt ? "bg-emerald-500" : "bg-amber-400"}`} aria-hidden />
+                <span className="text-gray-700 font-mono text-xs">{c.name}</span>
+                <span className="text-xs text-gray-400 ml-auto">
+                  {c.lastRunAt ? `ran ${new Date(c.lastRunAt).toLocaleString()}` : "never — not scheduled?"}
                 </span>
               </div>
             ))}

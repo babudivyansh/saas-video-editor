@@ -20,6 +20,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("admin-digest")).catch(() => {});
+
   const weekAgo = new Date(Date.now() - 7 * 86400_000);
   const [kpis, gen7d, genFailed7d, syncStats, admins, newReviews7d, pendingReviews, reportedReviews] = await Promise.all([
     kpisSection(7),

@@ -46,15 +46,17 @@ export function firePostCreditSpendEmails(userId: string, newBalance: number): v
       const displayName = user.firstName ?? user.name ?? "";
       const now = new Date();
 
-      // ── 1. First-video success upsell ──────────────────────────────────
-      // Fires exactly once, 1 hour after the first successful render.
+      // ── 1. First-video success upsell (fires exactly once) ─────────────
+      // firstVideoAt is the once-only guard. Previously the send was deferred
+      // an hour via setTimeout — an in-process timer that was silently dropped
+      // on any server restart within that hour, so the email often never went.
+      // Send it now instead (still fire-and-forget, so the caller's response
+      // isn't held up); a durable 1h delay would need a scheduled job, not a
+      // timer tied to this process's lifetime.
       if (!user.firstVideoAt) {
         await prisma.user.update({ where: { id: userId }, data: { firstVideoAt: now } });
-        // Schedule via setTimeout so the response goes out first
-        setTimeout(() => {
-          sendFirstVideoSuccessEmail(user.email, displayName)
-            .catch((e) => logger.error("credit-events", "first-video email error", e));
-        }, 60 * 60 * 1000); // 1 hour
+        sendFirstVideoSuccessEmail(user.email, displayName)
+          .catch((e) => logger.error("credit-events", "first-video email error", e));
       }
 
       // ── 2. Low-credits warning (≤20% of monthly allocation) ────────────

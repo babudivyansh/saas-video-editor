@@ -52,6 +52,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("refill-credits")).catch(() => {});
+
   const now = new Date();
   let refilled = 0;
   let expired = 0;

@@ -88,6 +88,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Email not provided by Google account" }, { status: 400 });
     }
 
+    // Account-linking by email is takeover-adjacent: a Google account whose
+    // email is unverified could otherwise link into (or create) an account on
+    // an address its owner never proved control of. Google's v3 userinfo
+    // returns email_verified for the email scope; reject an explicit false.
+    if (profile.email_verified === false) {
+      return NextResponse.json({ error: "Your Google email address is not verified." }, { status: 400 });
+    }
+
     // 3. Find or create user
     let user = await prisma.user.findUnique({
       where: { email },

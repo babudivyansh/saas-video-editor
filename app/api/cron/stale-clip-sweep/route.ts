@@ -16,6 +16,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("stale-clip-sweep")).catch(() => {});
+
   const result = await runStaleClipSweep();
   return NextResponse.json(result);
 }

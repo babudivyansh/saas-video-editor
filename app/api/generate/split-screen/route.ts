@@ -140,6 +140,18 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "Project has no uploaded video" }, { status: 400 });
   }
 
+  // Atomic double-submit guard (H6, mirrors app/api/generate/compile/route.ts):
+  // the findFirst above is a stale snapshot, so two concurrent submits could
+  // both pass it and both charge + enqueue. Claiming the status transition is
+  // the only race-safe check.
+  const claimed = await prisma.project.updateMany({
+    where: { id: body.projectId, userId: auth.userId, status: { not: "rendering" } },
+    data: { status: "rendering" },
+  });
+  if (claimed.count === 0) {
+    return NextResponse.json({ error: "A render is already in progress for this project." }, { status: 409 });
+  }
+
   const spend = await spendCredits({
     userId: auth.userId,
     amount: CREDIT_COST,
@@ -147,11 +159,12 @@ async function handlePOST(req: NextRequest) {
     refId: `split-screen:${body.projectId}`,
   });
   if (!spend.ok) {
+    // Release the claim so the user can retry once they top up.
+    await prisma.project.update({ where: { id: body.projectId }, data: { status: project.status } }).catch(() => {});
     fireZeroCreditsEmail(auth.userId);
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
   firePostCreditSpendEmails(auth.userId, spend.balances.total);
-  await prisma.project.update({ where: { id: body.projectId }, data: { status: "rendering" } });
 
   getQueue().enqueue(body.projectId, {
     projectId: body.projectId,

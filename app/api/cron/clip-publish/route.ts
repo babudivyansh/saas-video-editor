@@ -30,6 +30,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("clip-publish")).catch(() => {});
+
   try {
     const result = await publishDueClips();
     logger.info("clip-scheduler", `published ${result.published}, reminded ${result.reminded}, failed ${result.failed}, skipped ${result.skipped}`);

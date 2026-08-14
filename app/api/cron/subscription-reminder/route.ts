@@ -25,6 +25,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("subscription-reminder")).catch(() => {});
+
   const now = new Date();
   const results = { warned7d: 0, warned3d: 0, warned1d: 0, expired: 0, trialEnding: 0, errors: 0 };
 
