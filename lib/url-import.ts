@@ -134,9 +134,16 @@ export async function importSourceFromUrl(args: {
       mergeOutputFormat: "mp4",
       noPlaylist: true,
       noWarnings: true,
+      // Abort the download itself once it would exceed MAX_BYTES, instead of
+      // only checking st.size AFTER the full file has already landed on disk —
+      // a high-bitrate source within the duration cap could otherwise fill the
+      // VPS disk before the post-download guard below ever runs. Enforces the
+      // same 2GB ceiling, just earlier. (bare integer = bytes to yt-dlp.)
+      maxFilesize: String(MAX_BYTES),
       ...(ffmpegDir() ? { ffmpegLocation: ffmpegDir()! } : {}),
     });
 
+    // Backstop for the streaming/unknown-size case yt-dlp can't pre-check.
     if (!fs.existsSync(tmpPath)) throw new UrlImportError("The download finished but produced no file.");
     const bytes = fs.statSync(tmpPath).size;
     if (bytes > MAX_BYTES) throw new UrlImportError("That video is too large to import.");
