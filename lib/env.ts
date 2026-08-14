@@ -43,6 +43,12 @@ const schema = z.object({
     }, "REDIS_URL must be a redis:// or rediss:// connection URL (e.g. rediss://default:TOKEN@host:6379), not a redis-cli command")
     .optional(),
 
+  // Number of trusted reverse-proxy hops in front of the app, used to pick the
+  // real client IP out of X-Forwarded-For (proxies append, so the rightmost N
+  // entries are trusted). Default 1 (a single proxy, e.g. Hostinger LiteSpeed);
+  // raise it if an additional CDN/proxy layer sits in front. See lib/rate-limit.
+  TRUSTED_PROXY_COUNT: z.string().optional(),
+
   // Cron auth — optional at the schema level (missing means the routes stay
   // fail-closed 401, not open; see app/api/cron/*).
   CRON_SECRET: z.string().optional(),
@@ -193,6 +199,13 @@ export function validateEnv(): void {
   if (!result.success) {
     const issues = result.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n");
     throw new Error(`Invalid environment configuration:\n${issues}`);
+  }
+  // Non-fatal entropy floor: surface a weak signing secret without refusing to
+  // boot. A hard length requirement in the schema above would take down any
+  // live deploy whose secret predates this check; a warning flags it so it can
+  // be rotated to a 256-bit (>=32 char) random value on the next deploy.
+  if ((process.env.JWT_SECRET ?? "").length < 32) {
+    console.warn("[env] JWT_SECRET is shorter than 32 characters — rotate it to a 256-bit random value.");
   }
 }
 
