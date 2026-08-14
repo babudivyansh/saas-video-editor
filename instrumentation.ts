@@ -65,6 +65,17 @@ export async function register() {
   // as the first lazy hit does today.
   await import("@/app/api/tools/video-compressor/route");
   // Keep this list in sync with KNOWN_RENDER_QUEUE_NAMES in lib/render-queue.ts.
+
+  // Refund + fail tool/generator jobs orphaned by the restart we just booted
+  // from. Their in-process job map doesn't survive a restart, so the Generation
+  // row is left "pending" with the credits unrefunded and nothing to finalize
+  // it. Best-effort — never block boot (e.g. DB not yet reachable).
+  try {
+    const { reconcileOrphanedToolJobs } = await import("./lib/reconcile-tool-jobs");
+    const { logger } = await import("./lib/logger");
+    const n = await reconcileOrphanedToolJobs();
+    if (n > 0) logger.warn("boot", `reconciled ${n} tool job(s) orphaned by a restart`);
+  } catch { /* never block boot on reconciliation */ }
 }
 
 export const onRequestError: Instrumentation.onRequestError = Sentry.captureRequestError;
