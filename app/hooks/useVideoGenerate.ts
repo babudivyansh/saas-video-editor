@@ -110,21 +110,27 @@ export function useVideoGenerate() {
   }, []);
 
   const generateSplitScreen = useCallback(async (params: {
-    file: File;
+    /** A freshly picked file to upload. Mutually exclusive with videoUrl. */
+    file?: File;
+    /** A video already hosted on our S3 (e.g. reused from the Asset Library)
+     *  — skips the upload step entirely. Pass `fileName` alongside it for the
+     *  project title, since there's no File to read `.name` from. */
+    videoUrl?: string;
+    fileName?: string;
     bgVideoUrl: string;
     subtitleStyleIndex: number;
     mode: "oneword" | "lines";
     token: string;
   }) => {
-    const { file, bgVideoUrl, subtitleStyleIndex, mode, token } = params;
+    const { file, videoUrl, fileName, bgVideoUrl, subtitleStyleIndex, mode, token } = params;
     setStatus("uploading");
     setError(null);
     setVideoUrl(null);
     try {
-      const uploadedVideoUrl = await uploadVideo(file, token);
+      const uploadedVideoUrl = videoUrl ?? await uploadVideo(file!, token);
       setStatus("creating");
       const projectId = await createProject(token, {
-        title: file.name,
+        title: fileName ?? file?.name ?? "Video",
         backgroundUrl: bgVideoUrl,
         subtitlesStyle: { styleIndex: subtitleStyleIndex, mode },
         uploadedVideoUrl,
@@ -145,20 +151,25 @@ export function useVideoGenerate() {
   }, [startPolling]);
 
   const generateStreamerVideo = useCallback(async (params: {
-    file: File;
+    /** A freshly picked file to upload. Mutually exclusive with videoUrl. */
+    file?: File;
+    /** A video already hosted on our S3 (e.g. reused from the Asset Library)
+     *  — skips the upload step entirely. */
+    videoUrl?: string;
+    fileName?: string;
     titleText: string;
     subtitleStyleIndex: number;
     token: string;
   }) => {
-    const { file, titleText, subtitleStyleIndex, token } = params;
+    const { file, videoUrl, fileName, titleText, subtitleStyleIndex, token } = params;
     setStatus("uploading");
     setError(null);
     setVideoUrl(null);
     try {
-      const uploadedVideoUrl = await uploadVideo(file, token);
+      const uploadedVideoUrl = videoUrl ?? await uploadVideo(file!, token);
       setStatus("creating");
       const projectId = await createProject(token, {
-        title: titleText || file.name,
+        title: titleText || fileName || file?.name || "Video",
         subtitlesStyle: { styleIndex: subtitleStyleIndex },
         uploadedVideoUrl,
         productType: "streamer-video",
@@ -255,10 +266,13 @@ export function useVideoGenerate() {
     voiceSettings?: { stability?: number; style?: number; similarityBoost?: number };
     language?: string;
     avatarBase64?: string;
+    /** An avatar already hosted on our S3 (reused from the Asset Library) —
+     *  mutually exclusive with avatarBase64; skips the base64 round-trip. */
+    avatarUrl?: string;
     token: string;
   }) => {
     const { contactName, messages, theme, bgVideoUrl, receiverVoiceId, narratorVoiceId,
-            bgMusicUrl, voiceSettings, language, avatarBase64, token } = params;
+            bgMusicUrl, voiceSettings, language, avatarBase64, avatarUrl, token } = params;
     setStatus("creating");
     setError(null);
     setVideoUrl(null);
@@ -285,6 +299,7 @@ export function useVideoGenerate() {
         voiceSettings,
         language,
         avatarBase64,
+        avatarUrl,
         idempotencyKey: crypto.randomUUID(),
       });
       setStatus("rendering");

@@ -17,6 +17,7 @@ import { renderChatFrame, type CanvasTheme, type CanvasMessage } from "@/utils/c
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
+import { adoptUploadedBytes, sniffImageMimeType } from "@/lib/asset-service";
 
 // This route's maxDuration used to be unset (unlike every other route in this
 // app) — 300s matches its sibling reddit-video/route.ts and the real cost of
@@ -70,6 +71,10 @@ interface TextVideoPayload {
   voiceSettings?: { stability?: number; style?: number; similarityBoost?: number };
   language?: string;
   avatarBase64?: string;
+  /** An avatar already hosted on our own S3 (reused from the Asset Library) —
+   *  mutually exclusive with avatarBase64. Downloaded server-side instead of
+   *  round-tripping the image through the client as base64. */
+  avatarUrl?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -212,9 +217,19 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
     const canvasTheme: CanvasTheme = { ...theme };
     const canvasMessages: CanvasMessage[] = messages.map(m => ({ type: m.type, text: m.text }));
 
-    // Decode avatar if provided
+    // Resolve avatar if provided — either a reused Asset (download) or a
+    // freshly-uploaded base64 payload (decode). Mutually exclusive; avatarUrl
+    // takes precedence since the UI only ever sets one of the two.
     let avatarBuffer: Buffer | undefined;
-    if (payload.avatarBase64) {
+    if (payload.avatarUrl) {
+      try {
+        const avatarSrcPath = path.join(tmpDir, "avatar-src");
+        await downloadFile(payload.avatarUrl, avatarSrcPath);
+        avatarBuffer = fs.readFileSync(avatarSrcPath);
+      } catch (e) {
+        logger.warn("text-video", "avatar asset download failed, continuing without it", e);
+      }
+    } else if (payload.avatarBase64) {
       try { avatarBuffer = Buffer.from(payload.avatarBase64, "base64"); } catch { /* ignore */ }
     }
 
@@ -408,14 +423,21 @@ async function handlePOST(req: NextRequest) {
   // render job (loadImage() on a bad buffer), wasting a full TTS+FFmpeg
   // pass and a charge/refund cycle on something checkable up front.
   const MAX_AVATAR_BYTES = 10 * 1024 * 1024;
-  if (body.avatarBase64) {
-    let decodedLength: number;
+  let avatarBuffer: Buffer | undefined;
+  // avatarUrl (an asset reused from the library) is downloaded server-side
+  // inside the render job, not here — but it must be constrained to our own
+  // storage host, same as the bgMusicUrl check below, since it's otherwise a
+  // client-controlled URL the server would fetch (SSRF).
+  if (body.avatarUrl && !body.avatarUrl.includes(S3_HOST)) {
+    return NextResponse.json({ error: "Invalid avatar source" }, { status: 400 });
+  }
+  if (!body.avatarUrl && body.avatarBase64) {
     try {
-      decodedLength = Buffer.from(body.avatarBase64, "base64").length;
+      avatarBuffer = Buffer.from(body.avatarBase64, "base64");
     } catch {
       return NextResponse.json({ error: "Invalid avatar image data" }, { status: 400 });
     }
-    if (decodedLength === 0 || decodedLength > MAX_AVATAR_BYTES) {
+    if (avatarBuffer.length === 0 || avatarBuffer.length > MAX_AVATAR_BYTES) {
       return NextResponse.json({ error: "Avatar image must be under 10 MB" }, { status: 413 });
     }
   }
@@ -424,6 +446,27 @@ async function handlePOST(req: NextRequest) {
     where: { id: body.projectId, userId: auth.userId },
   });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+
+  // Global Asset Library: the avatar is a genuine user input, previously only
+  // ever kept in memory for the render. Persist it (best-effort, fire-and-
+  // forget — never blocks or fails video generation) so it shows up in Assets
+  // and can be reused. The base64 payload carries no Content-Type, so this
+  // sniffs the format from magic bytes rather than guessing.
+  if (avatarBuffer) {
+    const mimeType = sniffImageMimeType(avatarBuffer);
+    if (mimeType) {
+      adoptUploadedBytes({
+        userId: auth.userId,
+        bytes: avatarBuffer,
+        mimeType,
+        name: "avatar",
+        sourceFeature: "text-video",
+        sourceProjectId: body.projectId,
+      }).catch((e) => {
+        logger.warn("text-video", "best-effort avatar asset adoption failed", { reason: (e as Error).message });
+      });
+    }
+  }
 
   const charge = await chargeCredits({
     userId: auth.userId,
@@ -470,7 +513,8 @@ async function handlePOST(req: NextRequest) {
     bgMusicUrl: body.bgMusicUrl || "",
     voiceSettings: body.voiceSettings,
     language: body.language,
-    avatarBase64: body.avatarBase64,
+    avatarBase64: body.avatarUrl ? undefined : body.avatarBase64,
+    avatarUrl: body.avatarUrl,
   });
   void markQuestComplete(auth.userId, "first-clip");
 

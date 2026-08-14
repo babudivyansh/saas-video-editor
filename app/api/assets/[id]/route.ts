@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { deleteS3Object, getAssetReadUrl } from "@/utils/s3-upload";
 import { auditAssetAction } from "@/lib/asset-audit";
+import { trackOnboardingEvent } from "@/lib/onboarding-analytics";
 
 async function getOwnedAsset(id: string, userId: string) {
   const asset = await prisma.asset.findUnique({ where: { id } });
@@ -65,7 +66,10 @@ async function handlePATCH(req: NextRequest, { params }: { params: Promise<{ id:
     : asset;
 
   if (body.restore) await auditAssetAction(auth.userId, "restore", id);
-  else if (body.name !== undefined) await auditAssetAction(auth.userId, "rename", id, { name: data.name });
+  else if (body.name !== undefined) {
+    await auditAssetAction(auth.userId, "rename", id, { name: data.name });
+    trackOnboardingEvent(auth.userId, "asset_renamed", { assetId: id });
+  }
 
   const readUrl = await getAssetReadUrl(updated.s3Key);
   return NextResponse.json({ asset: { ...updated, url: readUrl } });
@@ -92,6 +96,7 @@ async function handleDELETE(req: NextRequest, { params }: { params: Promise<{ id
   if (asset.thumbnailS3Key) await deleteS3Object(asset.thumbnailS3Key).catch(() => {});
   await prisma.asset.delete({ where: { id } });
   await auditAssetAction(auth.userId, "delete", id, { name: asset.name, size: asset.size });
+  trackOnboardingEvent(auth.userId, "asset_deleted", { assetId: id, sourceFeature: asset.sourceFeature });
 
   return NextResponse.json({ status: "deleted" });
 }

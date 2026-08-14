@@ -4,6 +4,7 @@ import { getAuthUser, getUserTier } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { importSourceFromUrl, UrlImportError, probeSourceUrl, isAllowedSourceUrl } from "@/lib/url-import";
+import { adoptExistingS3Object } from "@/lib/asset-service";
 import { logger } from "@/lib/logger";
 
 // POST /api/projects/[id]/import-url  { url }
@@ -64,6 +65,24 @@ async function handlePOST(req: NextRequest, { params }: { params: Promise<{ id: 
     await prisma.project.update({
       where: { id: projectId },
       data: { uploadedVideoUrl: result.url, title: result.title },
+    });
+
+    // Global Asset Library: a URL-imported source is a genuine user input,
+    // same as an uploaded file — it should show up in Assets and be reusable
+    // elsewhere. Best-effort: the project already has its source video from
+    // the update above, so a library-adoption failure must never fail the
+    // import the user is waiting on.
+    adoptExistingS3Object({
+      userId: auth.userId,
+      s3Key: result.key,
+      mimeType: "video/mp4",
+      name: result.title,
+      size: result.bytes,
+      duration: result.durationSec,
+      sourceFeature: "url-import",
+      sourceProjectId: projectId,
+    }).catch((e) => {
+      logger.warn("url-import", "best-effort asset adoption failed", { reason: (e as Error).message, projectId });
     });
 
     return NextResponse.json({

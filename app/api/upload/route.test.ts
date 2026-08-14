@@ -41,10 +41,18 @@ vi.mock("@/utils/s3-upload", () => ({
   sanitizeS3Key: (k: string) => k,
   extensionForMime: () => "mp4",
   deleteS3Object: vi.fn(),
+  s3KeyToPublicUrl: (k: string) => `https://bucket.example/${k}`,
+  getS3ObjectSize: vi.fn(async () => 123),
 }));
 vi.mock("@/lib/asset-moderation", () => ({ enqueueAssetModeration: vi.fn() }));
 vi.mock("@/lib/asset-audit", () => ({ auditAssetAction: vi.fn() }));
-vi.mock("@/lib/plans/tiers", () => ({ storageLimitBytesForTier: () => 10 ** 12 }));
+vi.mock("@/lib/plans/tiers", () => ({
+  storageLimitBytesForTier: () => 10 ** 12,
+  maxUploadBytesForTier: () => 10 ** 12,
+  ALLOWED_UPLOAD_MIME: /^(video|audio|image)\/(mp4|mpeg|quicktime|webm|x-matroska|mp3|wav|ogg|png|jpeg|jpg|webp|gif)$/,
+  formatBytes: (n: number) => `${n} bytes`,
+  TIER_LABEL: { creator: "Creator", pro: "Pro", studio: "Studio" },
+}));
 // Pass the handler through untouched so the test hits it directly.
 vi.mock("@/lib/with-rate-limit", () => ({ withRateLimit: (h: unknown) => h }));
 

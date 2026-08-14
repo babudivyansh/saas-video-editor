@@ -7,6 +7,8 @@ import { useAuth } from "@/app/components/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
 import { Card } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
+import { AssetField } from "@/app/components/assets/AssetField";
+import type { PickerAsset } from "@/app/components/assets/assetPickerData";
 
 function IcCamera() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>; }
 function IcCopy() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>; }
@@ -134,6 +136,27 @@ export default function ProfileSettingsPage() {
     }
   }
 
+  async function handleAvatarAssetSelected(asset: PickerAsset) {
+    setUploadingAvatar(true);
+    try {
+      // The server resolves this to the asset's permanent public URL and
+      // verifies ownership — never trust/store the picker's short-lived
+      // signed read URL as a persistent avatarUrl.
+      const res = await fetch("/api/auth/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ avatarAssetId: asset.id }),
+      });
+      if (!res.ok) throw new Error(t("toasts.avatarSaveFailed"));
+      await refreshUser();
+      showToast(t("toasts.avatarUpdated"));
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : t("toasts.avatarUploadFailed"), "error");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
@@ -165,6 +188,9 @@ export default function ProfileSettingsPage() {
         <div>
           <p className="text-sm font-bold text-ink">{user?.name || t("profilePhotoFallback")}</p>
           <p className="text-xs text-ink-soft mt-0.5">{t("avatarHelp")}</p>
+          <div className="mt-2">
+            <AssetField accept={["image"]} label="Choose from Assets" onSelect={handleAvatarAssetSelected} />
+          </div>
         </div>
       </Card>
 

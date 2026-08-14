@@ -4,6 +4,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useVideoGenerate, getStoredToken } from "@/app/hooks/useVideoGenerate";
 import { useAuth } from "@/app/components/AuthContext";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
+import { AssetField } from "@/app/components/assets/AssetField";
+import type { PickerAsset } from "@/app/components/assets/assetPickerData";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 function IcChevron() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M9 18l6-6-6-6"/></svg>; }
@@ -637,6 +639,10 @@ function TextVideoFlow() {
 
   // Script state
   const [profilePic, setProfilePic] = useState<string | null>(null);
+  // Set only when profilePic came from the Asset Library (an https URL we
+  // already host) rather than a freshly-picked local file (a blob: URL) — lets
+  // handleGenerate send avatarUrl and skip the base64 round-trip entirely.
+  const [pickedAvatarAssetUrl, setPickedAvatarAssetUrl] = useState<string | null>(null);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [messagesError, setMessagesError] = useState<string | null>(null);
   const [name, setName]             = useState("my bae <3");
@@ -680,9 +686,11 @@ function TextVideoFlow() {
       : "";
     const t = THEMES[selectedTheme];
 
-    // Convert avatar blob URL → base64 for sending to backend
+    // A reused library asset is already hosted — send its URL directly and
+    // skip the base64 round-trip; only a fresh local pick needs converting.
     let avatarBase64: string | undefined;
-    if (profilePic && profilePic.startsWith("blob:")) {
+    const avatarUrl = pickedAvatarAssetUrl ?? undefined;
+    if (!avatarUrl && profilePic && profilePic.startsWith("blob:")) {
       try {
         const resp = await fetch(profilePic);
         const buf = await resp.arrayBuffer();
@@ -706,6 +714,7 @@ function TextVideoFlow() {
       },
       language: language !== "auto" ? language : undefined,
       avatarBase64,
+      avatarUrl,
       token,
     });
   }
@@ -762,6 +771,13 @@ function TextVideoFlow() {
     }
     const url = URL.createObjectURL(f);
     setProfilePic(url);
+    setPickedAvatarAssetUrl(null);
+  }
+
+  function onAvatarAssetPicked(asset: PickerAsset) {
+    setAvatarError(null);
+    setProfilePic(asset.url);
+    setPickedAvatarAssetUrl(asset.url);
   }
 
   const theme = THEMES[selectedTheme];
@@ -905,6 +921,7 @@ function TextVideoFlow() {
                       className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors flex-shrink-0">
                       <IcUpload /> Upload
                     </button>
+                    <AssetField accept={["image"]} label="From Assets" size="sm" variant="secondary" onSelect={onAvatarAssetPicked} className="flex-shrink-0" />
                     <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onFileChange} />
                   </div>
                   {avatarError && <p className="text-xs text-red-600 font-medium">{avatarError}</p>}

@@ -64,6 +64,40 @@ export function storageLimitBytesForTier(tier: TierId): number {
   return STORAGE_LIMIT_GB[tier] * 1024 ** 3;
 }
 
+// Per-tier maximum for a SINGLE uploaded/imported file (distinct from the
+// cumulative STORAGE_LIMIT_GB quota above). This is the one source of truth for
+// the "max individual file size" cap — every upload path (the Assets library,
+// AutoClip source, URL import, the generate flows, avatars) enforces this same
+// map server-side via maxUploadBytesForTier, so a cap can never drift per-route
+// again. Numbers are business policy and freely tunable.
+export const MAX_UPLOAD_BYTES_BY_TIER: Record<TierId, number> = {
+  free: 250 * 1024 ** 2, // 250 MB
+  creator: 1 * 1024 ** 3, // 1 GB
+  pro: 2 * 1024 ** 3, // 2 GB
+  studio: 5 * 1024 ** 3, // 5 GB
+};
+
+export function maxUploadBytesForTier(tier: TierId): number {
+  return MAX_UPLOAD_BYTES_BY_TIER[tier];
+}
+
+// Shared upload MIME allow-list — the single regex every upload path validates
+// against. Unrestricted MIME (e.g. text/html) would be a stored-XSS vector on
+// the S3 origin, since objects are served back with their stored Content-Type
+// and no forced download. Kept here (not per-route) so the allowed set stays
+// identical across the Assets library, the generate flows and avatars.
+export const ALLOWED_UPLOAD_MIME =
+  /^(video|audio|image)\/(mp4|mpeg|quicktime|webm|x-matroska|mp3|wav|ogg|png|jpeg|jpg|webp|gif)$/;
+
+// Human-readable byte size for user-facing limit errors, e.g. "850 MB", "1 GB".
+export function formatBytes(bytes: number): string {
+  if (bytes >= 1024 ** 3) {
+    const gb = bytes / 1024 ** 3;
+    return `${Number.isInteger(gb) ? gb : gb.toFixed(1)} GB`;
+  }
+  return `${Math.round(bytes / 1024 ** 2)} MB`;
+}
+
 // ── Credit-economy policy (2026-07 pricing audit) ───────────────────────────
 
 // Subscription credits roll over month to month, capped at this multiple of

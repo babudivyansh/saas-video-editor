@@ -14,6 +14,8 @@ const EVENTS: OnboardingEvent[] = [
   "hint_dismissed",
   "quest_completed",
   "onboarding_restarted",
+  "asset_selected",
+  "asset_picker_opened",
 ];
 
 // Thin endpoint for client-only touchpoints (a hint being shown/dismissed, a

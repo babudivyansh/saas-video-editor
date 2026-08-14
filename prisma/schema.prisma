@@ -610,6 +610,19 @@ model Asset {
   moderationStatus String @default("pending") // "pending" | "clean" | "flagged" | "skipped" | "not_configured"
   moderationLabels Json?
 
+  // Source tracking (Global Asset Library) — every asset now records which
+  // feature funneled it into the library, so the library and the picker can
+  // show provenance without restricting where the asset may be reused. All
+  // uploads created before this existed default to "upload".
+  sourceFeature   String  @default("upload") // upload | autoclip | url-import | editor | ai-creator | video-generator | text-video | avatar | stock
+  sourceProjectId String? // Project.id when the media entered via a project flow
+  sourceJobId     String? // Generation.id / render job id when applicable
+  // Processing lifecycle, orthogonal to moderationStatus (which stays a
+  // best-effort async side task and never gates usability). Only a long
+  // server-side import (URL import sizing/probing) sets "processing"; almost
+  // everything is "ready" the instant its row is created.
+  status          String  @default("ready") // processing | ready | failed
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -619,6 +632,7 @@ model Asset {
   @@index([userId, createdAt])
   @@index([userId, kind])
   @@index([userId, archivedAt])
+  @@index([userId, sourceProjectId])
   @@index([folderId])
 }
 

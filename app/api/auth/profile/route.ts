@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { hardDeleteUserAccount } from "@/lib/account-deletion";
 import { LOCALE_COOKIE, isSupportedLocale } from "@/lib/i18n-locales";
 import { markQuestComplete } from "@/lib/quests";
+import { s3KeyToPublicUrl } from "@/utils/s3-upload";
 
 const PHONE_RE = /^\+?[0-9]{7,15}$/;
 const GENDERS = ["male", "female", "unspecified"] as const;
@@ -47,7 +48,18 @@ export async function PATCH(req: NextRequest) {
     }
     data.phone = phone || null;
   }
-  if ("avatarUrl" in body) {
+  if (typeof body.avatarAssetId === "string" && body.avatarAssetId) {
+    // Choosing an existing library asset as the avatar — resolve to the
+    // asset's PERMANENT public URL server-side (never the picker's
+    // short-lived signed read URL, which would leave the avatar broken a few
+    // hours later) and verify the asset actually belongs to this user.
+    const asset = await prisma.asset.findFirst({
+      where: { id: body.avatarAssetId, userId: auth.userId, kind: "image" },
+      select: { s3Key: true },
+    });
+    if (!asset) return NextResponse.json({ error: "Asset not found" }, { status: 404 });
+    data.avatarUrl = s3KeyToPublicUrl(asset.s3Key);
+  } else if ("avatarUrl" in body) {
     data.avatarUrl = typeof body.avatarUrl === "string" && body.avatarUrl ? body.avatarUrl : null;
   }
   if ("gender" in body) {

@@ -4,6 +4,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useVideoGenerate, type GenerateStatus } from "@/app/hooks/useVideoGenerate";
 import { useAuth } from "@/app/components/AuthContext";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
+import { AssetField } from "@/app/components/assets/AssetField";
+import type { PickerAsset } from "@/app/components/assets/assetPickerData";
 
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -220,11 +222,13 @@ function Header({
 // ── Step 1: Upload ────────────────────────────────────────────────────────────
 function UploadStep({
   onFile,
+  onAsset,
   onLinkGate,
   fileName,
   onClearFile,
 }: {
   onFile: (f: File) => void;
+  onAsset: (asset: PickerAsset) => void;
   onLinkGate: () => void;
   fileName: string | null;
   onClearFile: () => void;
@@ -293,6 +297,12 @@ function UploadStep({
             >
               Browse File
             </button>
+          </div>
+        )}
+
+        {!fileName && (
+          <div className="px-4 flex justify-center">
+            <AssetField accept={["video"]} label="Choose from Assets" onSelect={onAsset} />
           </div>
         )}
 
@@ -419,6 +429,9 @@ function StreamerVideoFlow() {
 
   const fileName = params.get("file") || null;
   const fileRef = useRef<File | null>(null);
+  // A video reused from the Global Asset Library — already on our S3, so
+  // generateStreamerVideo skips the upload step entirely for it.
+  const assetUrlRef = useRef<string | null>(null);
 
   const [titleText, setTitleText] = useState("");
   const [subtitleMode, setSubtitleMode] = useState<"oneword" | "lines">("oneword");
@@ -440,19 +453,36 @@ function StreamerVideoFlow() {
       return;
     }
     fileRef.current = f;
+    assetUrlRef.current = null;
     goTo(1, f.name);
+  }
+
+  function handleAsset(asset: PickerAsset) {
+    if (!user) {
+      openAuthModal("login", "AI Video Creator");
+      return;
+    }
+    fileRef.current = null;
+    assetUrlRef.current = asset.url;
+    goTo(1, asset.name);
   }
 
   function handleClearFile() {
     fileRef.current = null;
+    assetUrlRef.current = null;
     const url = new URL(window.location.href);
     url.searchParams.delete("file");
     router.replace(url.pathname + url.search);
   }
 
   async function doGenerate(token: string) {
-    if (!fileRef.current) return;
-    await generateStreamerVideo({ file: fileRef.current, titleText, subtitleStyleIndex: subtitleSel, token });
+    if (!fileRef.current && !assetUrlRef.current) return;
+    await generateStreamerVideo({
+      file: fileRef.current ?? undefined,
+      videoUrl: fileRef.current ? undefined : (assetUrlRef.current ?? undefined),
+      fileName: fileRef.current ? undefined : (fileName ?? undefined),
+      titleText, subtitleStyleIndex: subtitleSel, token,
+    });
   }
 
   const canNext = stepIndex === 0 ? !!fileName : true;
@@ -485,6 +515,7 @@ function StreamerVideoFlow() {
             {stepIndex === 0 && (
               <UploadStep
                 onFile={handleFile}
+                onAsset={handleAsset}
                 onLinkGate={() => openAuthModal("login", "AI Video Creator")}
                 fileName={fileName}
                 onClearFile={handleClearFile}
