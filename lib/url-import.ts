@@ -13,7 +13,7 @@
 
 import { create as createYoutubeDl } from "youtube-dl-exec";
 import { uploadFileToS3 } from "@/utils/s3-upload";
-import { TIER_MAX_AUTOCLIP_SOURCE_SECONDS } from "@/lib/plans/tiers";
+import { TIER_MAX_AUTOCLIP_SOURCE_SECONDS, maxUploadBytesForTier, formatBytes } from "@/lib/plans/tiers";
 import { logger } from "@/lib/logger";
 import { ensureExecutable } from "@/lib/ensure-executable";
 import type { TierId } from "@/lib/plans/tiers";
@@ -39,13 +39,13 @@ function ffmpegDir(): string | undefined {
   return fs.existsSync(local) ? local : undefined;
 }
 
-/** 2GB — well past any realistic talk recording, and a guard against a bad URL. */
-const MAX_BYTES = 2 * 1024 * 1024 * 1024;
-
 export class UrlImportError extends Error {}
 
 export interface UrlImportResult {
   url: string;
+  /** S3 key the video was stored under — lets the caller adopt it as an
+   *  Asset (Global Asset Library) without re-uploading or re-downloading. */
+  key: string;
   title: string;
   durationSec: number;
   bytes: number;
@@ -126,6 +126,10 @@ export async function importSourceFromUrl(args: {
     );
   }
 
+  // Single source of truth for "max individual file size" — lib/plans/tiers.ts
+  // MAX_UPLOAD_BYTES_BY_TIER, the same cap every other upload path enforces.
+  const maxBytes = maxUploadBytesForTier(tier);
+
   const tmpPath = path.join(os.tmpdir(), `import-${projectId}-${randomUUID()}.mp4`);
   try {
     await youtubeDl(url, {
@@ -134,24 +138,28 @@ export async function importSourceFromUrl(args: {
       mergeOutputFormat: "mp4",
       noPlaylist: true,
       noWarnings: true,
-      // Abort the download itself once it would exceed MAX_BYTES, instead of
-      // only checking st.size AFTER the full file has already landed on disk —
-      // a high-bitrate source within the duration cap could otherwise fill the
-      // VPS disk before the post-download guard below ever runs. Enforces the
-      // same 2GB ceiling, just earlier. (bare integer = bytes to yt-dlp.)
-      maxFilesize: String(MAX_BYTES),
+      // Abort the download itself once it would exceed the tier's cap,
+      // instead of only checking st.size AFTER the full file has already
+      // landed on disk — a high-bitrate source within the duration cap could
+      // otherwise fill the VPS disk before the post-download guard below ever
+      // runs. (bare integer = bytes to yt-dlp.)
+      maxFilesize: String(maxBytes),
       ...(ffmpegDir() ? { ffmpegLocation: ffmpegDir()! } : {}),
     });
 
     // Backstop for the streaming/unknown-size case yt-dlp can't pre-check.
     if (!fs.existsSync(tmpPath)) throw new UrlImportError("The download finished but produced no file.");
     const bytes = fs.statSync(tmpPath).size;
-    if (bytes > MAX_BYTES) throw new UrlImportError("That video is too large to import.");
+    if (bytes > maxBytes) {
+      throw new UrlImportError(
+        `That video is ${formatBytes(bytes)} — your plan supports imports up to ${formatBytes(maxBytes)}. Upgrade to import larger sources.`,
+      );
+    }
 
     const key = `uploads/${userId}/${projectId}-${randomUUID()}.mp4`;
     const stored = await uploadFileToS3(tmpPath, key, "video/mp4");
 
-    return { url: stored, title: probe.title, durationSec: probe.durationSec, bytes };
+    return { url: stored, key, title: probe.title, durationSec: probe.durationSec, bytes };
   } catch (err) {
     if (err instanceof UrlImportError) throw err;
     logger.error("url-import", `download failed for ${url}`, err);

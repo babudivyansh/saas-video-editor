@@ -10,6 +10,8 @@ import { UrlImportField } from "@/app/components/auto-clip/UrlImportField";
 import { ScorePerformanceBanner } from "@/app/components/auto-clip/ScorePerformanceBanner";
 import { Switch } from "@/app/components/ui/Switch";
 import { Button } from "@/app/components/ui/Button";
+import { AssetField } from "@/app/components/assets/AssetField";
+import type { PickerAsset } from "@/app/components/assets/assetPickerData";
 import { useVideoGenerate, getStoredToken, type GenerateStatus } from "@/app/hooks/useVideoGenerate";
 import { registerAsset, type AssetRow } from "@/app/dashboard/editor/components/panels/shared/assetData";
 import { useInsufficientCredits } from "@/app/components/billing/CreditModalContext";
@@ -1579,6 +1581,10 @@ function AutoClipFlow() {
   const [importedUrl, setImportedUrl] = useState<string | null>(null);
   const [importedTitle, setImportedTitle] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  // A video reused from the Global Asset Library — already hosted on our S3,
+  // so unlike importedUrl (a third-party link the URL-import route still has
+  // to download) this only needs a project created with its URL, no import step.
+  const [pickedAsset, setPickedAsset] = useState<PickerAsset | null>(null);
 
   const [minDuration, setMinDuration] = useState(15);
   const [maxDuration, setMaxDuration] = useState(60);
@@ -1624,6 +1630,21 @@ function AutoClipFlow() {
   const handleGenerate = useCallback(async () => {
     const token = getStoredToken();
     if (!token) return;
+    if (!file && pickedAsset) {
+      setImportError(null);
+      try {
+        const created = await apiFetch<{ project: { id: string } }>("/api/projects", { method: "POST", body: JSON.stringify({ title: pickedAsset.name, uploadedVideoUrl: pickedAsset.url, productType: "auto-clip" }) });
+        await generateAutoClipForProject({
+          projectId: created.project.id, token, minDuration, maxDuration, clipCount, aspectRatio, instructions,
+          captionStyleIndex: captionsOn ? captionStyleIndex : -1,
+          reframingPreset, removeSilence, silenceThresholdMs, removeFillers,
+          smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions,
+        });
+      } catch (e) {
+        setImportError(e instanceof Error ? e.message : "Couldn't start from that asset");
+      }
+      return;
+    }
     if (!file && importedUrl) {
       setImportError(null);
       try {
@@ -1648,12 +1669,12 @@ function AutoClipFlow() {
       token, reframingPreset, removeSilence, silenceThresholdMs, removeFillers,
       smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions,
     });
-  }, [file, importedUrl, importedTitle, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionsOn, captionStyleIndex, reframingPreset, removeSilence, silenceThresholdMs, removeFillers, smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions, generateAutoClip, generateAutoClipForProject]);
+  }, [file, pickedAsset, importedUrl, importedTitle, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionsOn, captionStyleIndex, reframingPreset, removeSilence, silenceThresholdMs, removeFillers, smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions, generateAutoClip, generateAutoClipForProject]);
 
   const handleReset = useCallback(() => {
     reset();
     handleClearFile();
-    setImportedUrl(null); setImportedTitle(null); setImportError(null);
+    setImportedUrl(null); setImportedTitle(null); setImportError(null); setPickedAsset(null);
     setMinDuration(15); setMaxDuration(60); setClipCount(8); setAspectRatio("9:16");
     setInstructions(""); setCaptionsOn(true); setCaptionStyleIndex(0);
     setReframingPreset("balanced"); setRemoveSilence(false); setSilenceThresholdMs(400); setRemoveFillers(false);
@@ -1664,12 +1685,12 @@ function AutoClipFlow() {
 
   const showOverlay = !!resumeProjectId || genStatus !== "idle";
   const activeProjectId = resumeProjectId ?? genProjectId;
-  const canGenerate = !!file || !!importedUrl;
+  const canGenerate = !!file || !!importedUrl || !!pickedAsset;
 
   if (showOverlay) {
     return (
       <div className="h-full overflow-y-auto" style={{ background: "var(--surface)" }}>
-        <ClipsResults projectId={activeProjectId} status={resumeProjectId ? "rendering" : genStatus} error={genError} expectedCount={clipCount} fileName={file?.name ?? importedTitle ?? null} onReset={handleReset} />
+        <ClipsResults projectId={activeProjectId} status={resumeProjectId ? "rendering" : genStatus} error={genError} expectedCount={clipCount} fileName={file?.name ?? importedTitle ?? pickedAsset?.name ?? null} onReset={handleReset} />
       </div>
     );
   }
@@ -1694,6 +1715,12 @@ function AutoClipFlow() {
             <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-ink truncate">{importedTitle}</p><p className="text-xs text-ink-soft mt-0.5">Downloaded from your link when analysis starts.</p></div>
             <button onClick={() => { setImportedUrl(null); setImportedTitle(null); }} aria-label="Use a different source" className="w-9 h-9 rounded-lg border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors flex items-center justify-center"><IcX /></button>
           </div>
+        ) : pickedAsset ? (
+          <div className="rounded-[20px] border border-card-border bg-white p-4 flex items-center gap-4">
+            <video src={pickedAsset.url} className="w-28 rounded-xl object-cover bg-black" style={{ aspectRatio: "16/9" }} />
+            <div className="flex-1 min-w-0"><div className="flex items-center gap-2 text-sm font-semibold text-ink"><IcFile /><span className="truncate">{pickedAsset.name}</span></div><p className="text-xs text-ink-soft mt-0.5">From your Assets library</p></div>
+            <button onClick={() => setPickedAsset(null)} aria-label="Use a different source" className="w-9 h-9 rounded-lg border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors flex items-center justify-center"><IcX /></button>
+          </div>
         ) : (
           <>
             <div
@@ -1707,6 +1734,9 @@ function AutoClipFlow() {
               <span className="w-12 h-12 rounded-2xl bg-tint-blue text-brand flex items-center justify-center"><IcCloud /></span>
               <p className="text-base font-semibold text-ink">Drop a video here, or choose a file</p>
               <p className="text-[13px] text-ink-soft">MP4, MOV or WebM · up to 500 MB · 1 min to 1 h 30 m</p>
+            </div>
+            <div className="flex items-center justify-center gap-2.5 mt-4">
+              <AssetField accept={["video"]} label="Choose from Assets" onSelect={(asset) => { handleClearFile(); setImportedUrl(null); setImportedTitle(null); setPickedAsset(asset); }} />
             </div>
             <div className="flex items-center gap-3 my-5">
               <div className="flex-1 h-px bg-card-border" />

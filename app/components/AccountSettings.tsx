@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useAuth } from "@/app/components/AuthContext";
+import { AssetField } from "@/app/components/assets/AssetField";
+import type { PickerAsset } from "@/app/components/assets/assetPickerData";
 
 // Self-contained account settings (avatar, profile, password, sign-out). Single
 // source of truth used by both the sidebar Settings modal and the Profile page's
@@ -77,6 +79,28 @@ export default function AccountSettings() {
     }
   }
 
+  async function handleAvatarAssetSelected(asset: PickerAsset) {
+    setUploadingAvatar(true);
+    setNameMsg(null);
+    try {
+      // The server resolves this to the asset's permanent public URL and
+      // verifies ownership — never trust/store the picker's short-lived
+      // signed read URL as a persistent avatarUrl.
+      const res = await fetch("/api/auth/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ avatarAssetId: asset.id }),
+      });
+      if (!res.ok) throw new Error("Failed to save avatar");
+      setNameMsg({ type: "success", text: "Avatar updated." });
+      await refreshUser();
+    } catch (err) {
+      setNameMsg({ type: "error", text: err instanceof Error ? err.message : "Avatar upload failed." });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
   async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault();
     if (newPw !== confirmPw) { setPwMsg({ type: "error", text: "New passwords do not match." }); return; }
@@ -127,6 +151,9 @@ export default function AccountSettings() {
         <div className="min-w-0">
           <p className="text-base font-bold text-gray-900 truncate">{user?.name || user?.email || "—"}</p>
           <p className="text-sm text-gray-400 truncate">{user?.email}</p>
+          <div className="mt-1.5">
+            <AssetField accept={["image"]} label="Choose from Assets" onSelect={handleAvatarAssetSelected} />
+          </div>
         </div>
       </div>
 

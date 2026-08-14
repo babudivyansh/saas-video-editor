@@ -8,6 +8,8 @@ import { VIDEO_MODELS, DEFAULT_VIDEO_MODEL_ID, getVideoModel, videoCreditsPerSec
 import type { VideoModelEntry, VideoParam } from "@/lib/models/types";
 import { maxDurationForTier } from "@/lib/plans/tiers";
 import { Switch } from "@/app/components/ui/Switch";
+import { AssetPicker } from "@/app/components/assets/AssetPicker";
+import type { PickerAsset } from "@/app/components/assets/assetPickerData";
 
 // ── Options ────────────────────────────────────────────────────────────────────
 const RATIOS    = ["16:9", "9:16", "1:1"];
@@ -465,6 +467,11 @@ export default function VideoGeneratorTool() {
   const [showLibrary, setShowLibrary] = useState(false);
   const [showDocs,    setShowDocs]    = useState(false);
   const [refImage,    setRefImage]    = useState<File | null>(null);
+  // A reference image reused from the Asset Library — already hosted, so
+  // generation uses its URL directly instead of uploading refImage first.
+  // Mutually exclusive with refImage.
+  const [refImageAsset, setRefImageAsset] = useState<PickerAsset | null>(null);
+  const [refPickerOpen, setRefPickerOpen] = useState(false);
   const [uploadingRef,setUploadingRef]= useState(false);
   const [pickError,   setPickError]   = useState<string | null>(null);
 
@@ -473,7 +480,7 @@ export default function VideoGeneratorTool() {
 
   const modelEntry = getVideoModel(model);
   const supports = (p: VideoParam) => modelEntry.supportedParameters.includes(p);
-  const needsImage = modelEntry.imageInput === "required" && !refImage;
+  const needsImage = modelEntry.imageInput === "required" && !refImage && !refImageAsset;
 
   // Max clip length is the smaller of the model's provider ceiling and the
   // user's plan-tier cap (Creator 5s / Pro 10s / Studio 15s). The seconds shown
@@ -510,7 +517,9 @@ export default function VideoGeneratorTool() {
     try {
       await job.start(async () => {
         let referenceImageUrl: string | undefined;
-        if (refImage) {
+        if (refImageAsset) {
+          referenceImageUrl = refImageAsset.url;
+        } else if (refImage) {
           setUploadingRef(true);
           try {
             const fd = new FormData();
@@ -556,7 +565,7 @@ export default function VideoGeneratorTool() {
       submittingRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, token, openAuthModal, prompt, needsImage, videoUrl, refImage, model, duration, ratio, resolution, audio, fps, seed, job]);
+  }, [user, token, openAuthModal, prompt, needsImage, videoUrl, refImage, refImageAsset, model, duration, ratio, resolution, audio, fps, seed, job]);
 
   // Once the job is done, fetch the result and trigger a download.
   useEffect(() => {
@@ -741,25 +750,41 @@ export default function VideoGeneratorTool() {
                   return;
                 }
                 setRefImage(f);
+                setRefImageAsset(null);
               }} />
-              {!refImage ? (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-                    modelEntry.imageInput === "required"
-                      ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                      : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  <IcImage /> {modelEntry.imageInput === "required" ? "Reference image required" : "Add reference image"}
-                </button>
+              {!refImage && !refImageAsset ? (
+                <>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                      modelEntry.imageInput === "required"
+                        ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    <IcImage /> {modelEntry.imageInput === "required" ? "Reference image required" : "Add reference image"}
+                  </button>
+                  <button
+                    onClick={() => setRefPickerOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    Choose from Assets
+                  </button>
+                </>
               ) : (
                 <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-xs font-medium text-blue-700">
                   <IcImage />
-                  <span className="max-w-[120px] truncate">{refImage.name}</span>
-                  <button onClick={() => setRefImage(null)} className="text-blue-400 hover:text-blue-700 transition-colors ml-0.5"><IcX /></button>
+                  <span className="max-w-[120px] truncate">{refImage ? refImage.name : refImageAsset!.name}</span>
+                  <button onClick={() => { setRefImage(null); setRefImageAsset(null); }} className="text-blue-400 hover:text-blue-700 transition-colors ml-0.5"><IcX /></button>
                 </div>
               )}
+              <AssetPicker
+                open={refPickerOpen}
+                onClose={() => setRefPickerOpen(false)}
+                accept={["image"]}
+                title="Choose a reference image"
+                onSelect={(asset) => { setRefImageAsset(asset); setRefImage(null); setRefPickerOpen(false); }}
+              />
             </div>
 
             {pickError && <p className="text-sm text-red-500">{pickError}</p>}

@@ -10,6 +10,7 @@ import { TOOL_COSTS } from "@/lib/tool-costs";
 import { chargeCredits, refundCredits, markGenerationStatus, checkModelAccess, updateGenerationProgress } from "@/lib/credits";
 import { maxDurationForTier } from "@/lib/plans/tiers";
 import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
+import { adoptUploadedBytes } from "@/lib/asset-service";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -175,7 +176,22 @@ async function handlePOST(req: NextRequest) {
   const downloadName = `ai-creator-${Date.now()}.mp4`;
   const tempFiles: string[] = [inputVideoPath, outputPath];
 
-  fs.writeFileSync(inputVideoPath, Buffer.from(await videoFile.arrayBuffer()));
+  const videoBuffer = Buffer.from(await videoFile.arrayBuffer());
+  fs.writeFileSync(inputVideoPath, videoBuffer);
+
+  // Global Asset Library: the driving video is a genuine user input that was
+  // previously only ever used locally (for audio extraction) and never
+  // persisted. Adopt it now, best-effort — never blocks or fails the job.
+  adoptUploadedBytes({
+    userId: auth.userId,
+    bytes: videoBuffer,
+    mimeType: videoFile.type || "video/mp4",
+    name: videoFile.name || "ai-creator-source",
+    sourceFeature: "ai-creator",
+    sourceJobId: jobId,
+  }).catch((e) => {
+    logger.warn("ai-creator", "best-effort source-video asset adoption failed", { reason: (e as Error).message });
+  });
 
   // Output duration matches the driven audio's duration, which (in the normal
   // case) is extracted from the uploaded video — so the video's own duration
@@ -216,8 +232,22 @@ async function handlePOST(req: NextRequest) {
   if (avatarType === "upload" && avatarImageFile) {
     const imgExt = (avatarImageFile.name.split(".").pop() ?? "jpg").toLowerCase();
     avatarImagePath = path.join(os.tmpdir(), `${jobId}-avatar.${imgExt}`);
-    fs.writeFileSync(avatarImagePath, Buffer.from(await avatarImageFile.arrayBuffer()));
+    const avatarBuffer = Buffer.from(await avatarImageFile.arrayBuffer());
+    fs.writeFileSync(avatarImagePath, avatarBuffer);
     tempFiles.push(avatarImagePath);
+
+    // Same rationale as the driving video above — the face photo is a real
+    // user input, persisted best-effort so it's reusable from the library.
+    adoptUploadedBytes({
+      userId: auth.userId,
+      bytes: avatarBuffer,
+      mimeType: avatarImageFile.type || "image/jpeg",
+      name: avatarImageFile.name || "avatar",
+      sourceFeature: "ai-creator",
+      sourceJobId: jobId,
+    }).catch((e) => {
+      logger.warn("ai-creator", "best-effort avatar asset adoption failed", { reason: (e as Error).message });
+    });
   }
 
   const job: Job = {

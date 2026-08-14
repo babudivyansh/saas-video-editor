@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { getAuthUser, getUserTier } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
-import { storageLimitBytesForTier } from "@/lib/plans/tiers";
+import { ALLOWED_UPLOAD_MIME } from "@/lib/plans/tiers";
 import { createMultipartUpload, sanitizeS3Key, extensionForMime } from "@/utils/s3-upload";
-
-const MAX_BYTES = 500 * 1024 * 1024;
-const ALLOWED_MIME = /^(video|audio|image)\/(mp4|mpeg|quicktime|webm|x-matroska|mp3|wav|ogg|png|jpeg|jpg|webp|gif)$/;
+import { assertUploadAllowed, AssetLimitError, assetLimitStatus } from "@/lib/asset-service";
 
 // POST /api/upload/multipart/create { name, mimeType, size }
 // Step 1 of the large-file (>25MB, see useUploadQueue.ts) upload path — a
@@ -21,18 +19,18 @@ async function handlePOST(req: NextRequest) {
   if (!name || !mimeType || typeof size !== "number" || size <= 0) {
     return NextResponse.json({ error: "name, mimeType, and size are required" }, { status: 400 });
   }
-  if (size > MAX_BYTES) return NextResponse.json({ error: "File too large (max 500 MB)" }, { status: 413 });
-  if (!ALLOWED_MIME.test(mimeType)) return NextResponse.json({ error: "Unsupported file type" }, { status: 415 });
+  if (!ALLOWED_UPLOAD_MIME.test(mimeType)) return NextResponse.json({ error: "Unsupported file type" }, { status: 415 });
 
-  const tier = await getUserTier(auth.userId);
-  const limitBytes = storageLimitBytesForTier(tier);
-  const usage = await prisma.asset.aggregate({ where: { userId: auth.userId, archivedAt: null }, _sum: { size: true } });
-  const usedBytes = usage._sum.size ?? 0;
-  if (usedBytes + size > limitBytes) {
-    return NextResponse.json(
-      { error: `Storage limit reached (${(limitBytes / 1024 ** 3).toFixed(1)}GB on your plan). Delete files or upgrade to upload more.`, usedBytes, limitBytes },
-      { status: 402 },
-    );
+  try {
+    await assertUploadAllowed(auth.userId, size);
+  } catch (e) {
+    if (e instanceof AssetLimitError) {
+      return NextResponse.json(
+        { error: e.message, limitBytes: e.limitBytes, usedBytes: e.usedBytes },
+        { status: assetLimitStatus(e.kind) },
+      );
+    }
+    throw e;
   }
 
   const ext = extensionForMime(mimeType);

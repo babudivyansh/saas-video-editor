@@ -3,6 +3,8 @@ import { randomUUID } from "crypto";
 import { getAuthUser } from "@/lib/auth";
 import { uploadBufferToS3 } from "@/utils/s3-upload";
 import { withRateLimit } from "@/lib/with-rate-limit";
+import { adoptExistingS3Object } from "@/lib/asset-service";
+import { logger } from "@/lib/logger";
 
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
 const MAX_SIZE = 10 * 1024 * 1024;
@@ -34,6 +36,22 @@ async function handlePOST(req: NextRequest) {
   const buffer = Buffer.from(await file.arrayBuffer());
   const key = `reference-images/${auth.userId}/${randomUUID()}.${ext}`;
   const url = await uploadBufferToS3(buffer, key, file.type);
+
+  // Global Asset Library: this reference image is a real user input — adopt
+  // the object we just wrote as an Asset (no re-upload, same key) so it shows
+  // up in the library and can be reused elsewhere. Best-effort: the caller
+  // already has the permanent URL it needs for video-generator, so a failure
+  // here must never fail the reference-image upload itself.
+  adoptExistingS3Object({
+    userId: auth.userId,
+    s3Key: key,
+    mimeType: file.type,
+    name: file.name || "reference-image",
+    size: buffer.length,
+    sourceFeature: "video-generator",
+  }).catch((e) => {
+    logger.warn("upload-reference-image", "best-effort asset adoption failed", { reason: (e as Error).message });
+  });
 
   return NextResponse.json({ url });
 }

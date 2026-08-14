@@ -15,7 +15,15 @@ export type OnboardingEvent =
   | "tour_skipped"
   | "hint_dismissed"
   | "quest_completed"
-  | "onboarding_restarted";
+  | "onboarding_restarted"
+  // Global Asset Library
+  | "asset_uploaded"
+  | "asset_upload_failed"
+  | "asset_upload_limit_reached"
+  | "asset_selected"
+  | "asset_picker_opened"
+  | "asset_deleted"
+  | "asset_renamed";
 
 export type OnboardingEventProps = Record<string, string | number | boolean | null | undefined>;
 

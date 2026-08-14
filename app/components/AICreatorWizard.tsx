@@ -6,6 +6,8 @@ import { useAuth } from "./AuthContext";
 import { useJobPolling } from "./useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { EmptyState } from "@/app/components/ui/EmptyState";
+import { AssetPicker } from "@/app/components/assets/AssetPicker";
+import type { PickerAsset } from "@/app/components/assets/assetPickerData";
 
 // ── Voice catalogue (same as VoiceChangerTool) ───────────────────────────────
 interface Voice {
@@ -324,6 +326,9 @@ export default function AICreatorWizard() {
   const [showVoicePicker, setShowVoicePicker] = useState(false);
   const avatarFileInputRef = useRef<HTMLInputElement>(null);
   const videoFileInputRef = useRef<HTMLInputElement>(null);
+  const [videoPickerOpen, setVideoPickerOpen] = useState(false);
+  const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
+  const [assetLoading, setAssetLoading] = useState(false);
 
   // Generation state
   const [resultUrl, setResultUrl] = useState<string | null>(null);
@@ -374,6 +379,31 @@ export default function AICreatorWizard() {
     if (avatarChoice?.type === "upload") URL.revokeObjectURL(avatarChoice.previewUrl);
     setAvatarChoice({ type: "upload", file: f, previewUrl: URL.createObjectURL(f) });
   }, [avatarChoice]);
+
+  // ── Asset Library reuse ───────────────────────────────────────────────────
+  // The ai-creator route only accepts real multipart Files, so a picked asset
+  // is re-fetched from its own (already-hosted) URL into a File client-side.
+  // The server-side checksum dedup means this never creates a second copy in
+  // storage — it just re-references the same asset the user already owns.
+  async function assetToFile(asset: PickerAsset): Promise<File> {
+    const res = await fetch(asset.url);
+    const blob = await res.blob();
+    return new File([blob], asset.name, { type: asset.mimeType });
+  }
+
+  const onVideoAssetPicked = useCallback(async (asset: PickerAsset) => {
+    setVideoPickerOpen(false);
+    setAssetLoading(true);
+    try { onVideoFile(await assetToFile(asset)); } catch { /* leave current selection untouched */ }
+    finally { setAssetLoading(false); }
+  }, [onVideoFile]);
+
+  const onAvatarAssetPicked = useCallback(async (asset: PickerAsset) => {
+    setAvatarPickerOpen(false);
+    setAssetLoading(true);
+    try { onAvatarImageFile(await assetToFile(asset)); } catch { /* leave current selection untouched */ }
+    finally { setAssetLoading(false); }
+  }, [onAvatarImageFile]);
 
   // ── Generation ────────────────────────────────────────────────────────────
   const handleGenerate = useCallback(async () => {
@@ -593,6 +623,14 @@ export default function AICreatorWizard() {
                   <IcUploadArrow />
                   Upload Video
                 </button>
+                <button
+                  onClick={() => setVideoPickerOpen(true)}
+                  disabled={assetLoading}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-semibold text-gray-700 transition-colors shadow-sm disabled:opacity-50"
+                >
+                  {assetLoading ? "Loading…" : "Choose from Assets"}
+                </button>
+                <AssetPicker open={videoPickerOpen} onClose={() => setVideoPickerOpen(false)} accept={["video"]} onSelect={onVideoAssetPicked} title="Choose a video" />
 
                 <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 mt-2">
                   <p className="text-xs font-semibold text-gray-600 mb-2">Tips for best results:</p>
@@ -639,6 +677,14 @@ export default function AICreatorWizard() {
                     </button>
                   );
                 })}
+                <button
+                  onClick={() => setAvatarPickerOpen(true)}
+                  disabled={assetLoading}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-semibold text-gray-700 transition-all shadow-sm disabled:opacity-50"
+                >
+                  {assetLoading ? "Loading…" : "Choose from Assets"}
+                </button>
+                <AssetPicker open={avatarPickerOpen} onClose={() => setAvatarPickerOpen(false)} accept={["image"]} onSelect={onAvatarAssetPicked} title="Choose a face image" />
               </>
             )}
 

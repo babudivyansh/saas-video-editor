@@ -54,6 +54,11 @@ async function handleGET(req: NextRequest) {
   const tag = searchParams.get("tag") ?? undefined;
   const favorite = searchParams.get("favorite") === "true";
   const archived = searchParams.get("archived") === "true";
+  // Optional, opt-in — omitted by the main Assets library page (which shows
+  // everything, including any not-yet-usable row) but sent as "ready" by the
+  // shared AssetPicker so a feature can never select an asset still mid
+  // processing.
+  const status = searchParams.get("status") ?? undefined;
 
   const orderBy =
     sort === "name" ? { name: "asc" as const } :
@@ -70,6 +75,7 @@ async function handleGET(req: NextRequest) {
       ...(favorite ? { isFavorite: true } : {}),
       ...(folderId === "none" ? { folderId: null } : folderId ? { folderId } : {}),
       ...(tag ? { tags: { some: { tag: { name: tag } } } } : {}),
+      ...(status ? { status } : {}),
     },
     include: {
       folder: { select: { id: true, name: true, color: true } },

@@ -4,6 +4,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useVideoGenerate, getStoredToken, type GenerateStatus } from "@/app/hooks/useVideoGenerate";
 import { useAuth } from "@/app/components/AuthContext";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
+import { AssetField } from "@/app/components/assets/AssetField";
+import type { PickerAsset } from "@/app/components/assets/assetPickerData";
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 function IcFilm() {
@@ -262,11 +264,13 @@ function Header({
 // ── Step 1: Upload ────────────────────────────────────────────────────────────
 function UploadStep({
   onFile,
+  onAsset,
   onLinkGate,
   fileName,
   onClearFile,
 }: {
   onFile: (f: File) => void;
+  onAsset: (asset: PickerAsset) => void;
   onLinkGate: () => void;
   fileName: string | null;
   onClearFile: () => void;
@@ -335,6 +339,12 @@ function UploadStep({
             >
               Browse File
             </button>
+          </div>
+        )}
+
+        {!fileName && (
+          <div className="px-4 flex justify-center">
+            <AssetField accept={["video"]} label="Choose from Assets" onSelect={onAsset} />
           </div>
         )}
 
@@ -520,6 +530,9 @@ function ViralSplitScreenFlow() {
 
   const fileName = params.get("file") || null;
   const fileRef = useRef<File | null>(null);
+  // A video reused from the Global Asset Library — already on our S3, so
+  // generateSplitScreen skips the upload step entirely for it.
+  const assetUrlRef = useRef<string | null>(null);
 
   const [bg, setBg] = useState(0);
   const [subSel, setSubSel] = useState(0);
@@ -536,20 +549,33 @@ function ViralSplitScreenFlow() {
 
   function handleFile(f: File) {
     fileRef.current = f;
+    assetUrlRef.current = null;
     goTo(1, f.name);
+  }
+
+  function handleAsset(asset: PickerAsset) {
+    fileRef.current = null;
+    assetUrlRef.current = asset.url;
+    goTo(1, asset.name);
   }
 
   function handleClearFile() {
     fileRef.current = null;
+    assetUrlRef.current = null;
     const url = new URL(window.location.href);
     url.searchParams.delete("file");
     router.replace(url.pathname + url.search);
   }
 
   async function doGenerate(token: string) {
-    if (!fileRef.current) return;
+    if (!fileRef.current && !assetUrlRef.current) return;
     const bgVideoUrl = backgroundUrlFor(BACKGROUNDS[bg].title);
-    await generateSplitScreen({ file: fileRef.current, bgVideoUrl, subtitleStyleIndex: subSel, mode: subMode, token });
+    await generateSplitScreen({
+      file: fileRef.current ?? undefined,
+      videoUrl: fileRef.current ? undefined : (assetUrlRef.current ?? undefined),
+      fileName: fileRef.current ? undefined : (fileName ?? undefined),
+      bgVideoUrl, subtitleStyleIndex: subSel, mode: subMode, token,
+    });
   }
 
   const isLast = stepIndex === STEPS.length - 1;
@@ -578,7 +604,7 @@ function ViralSplitScreenFlow() {
         ) : (
           <div className="mt-4 mx-8 mb-8 rounded-[28px] bg-gray-50 border border-gray-100" style={{ minHeight: "calc(100vh - 200px)" }}>
             {stepIndex === 0 && (
-              <UploadStep onFile={handleFile} onLinkGate={() => openAuthModal("login", "Vertical Split Screen")} fileName={fileName} onClearFile={handleClearFile} />
+              <UploadStep onFile={handleFile} onAsset={handleAsset} onLinkGate={() => openAuthModal("login", "Vertical Split Screen")} fileName={fileName} onClearFile={handleClearFile} />
             )}
             {stepIndex === 1 && <BackgroundStep selected={bg} onSelect={setBg} />}
             {stepIndex === 2 && <SubtitleStep selected={subSel} onSelect={setSubSel} mode={subMode} onModeChange={setSubMode} />}
