@@ -1,4 +1,5 @@
 import { logger } from "./logger";
+import { prisma } from "./prisma";
 
 // Every distinct onboarding touchpoint across Phases 1-8 — kept as one
 // closed union so a new step always has to be added here, not invented
@@ -20,12 +21,28 @@ export type OnboardingEventProps = Record<string, string | number | boolean | nu
 
 type AnalyticsSink = (userId: string, event: OnboardingEvent, props?: OnboardingEventProps) => void;
 
-// Default sink is a structured log line — no analytics provider (PostHog,
-// Segment, Mixpanel, ...) is installed in this codebase yet. Swapping in a
-// real one later is a one-line change here, not a rewrite of every call site
-// below.
+function todayKey(): string {
+  return new Date().toISOString().slice(0, 10); // "YYYY-MM-DD" UTC
+}
+
+// Default sink writes a durable per-day counter into OnboardingEventDaily, so
+// the activation funnel is actually queryable — previously this was log-only
+// (logger.info), so welcome_shown/tour_*/hint_dismissed never landed anywhere
+// a dashboard could read. Mirrors lib/marketing-analytics.ts's default sink.
+// Aggregate (one row per event per UTC day), matching this codebase's
+// no-per-visitor-row stance; swapping in PostHog/Segment later is still a
+// one-line setOnboardingAnalyticsSink call. Fire-and-forget so trackOnboarding-
+// Event stays synchronous and non-blocking for its callers.
 let sink: AnalyticsSink = (userId, event, props) => {
-  logger.info("onboarding-analytics", event, { userId, ...props });
+  void props;
+  const date = todayKey();
+  void prisma.onboardingEventDaily
+    .upsert({
+      where: { date_event: { date, event } },
+      create: { date, event, count: 1 },
+      update: { count: { increment: 1 } },
+    })
+    .catch((err) => logger.error("onboarding-analytics", `persist failed for ${event}`, err));
 };
 
 export function setOnboardingAnalyticsSink(fn: AnalyticsSink): void {

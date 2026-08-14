@@ -1421,6 +1421,20 @@ model MarketingEventDaily {
   @@index([utmCampaign, date])
 }
 
+// Aggregate per-day onboarding funnel counters — the durable sink for
+// lib/onboarding-analytics.ts, which was log-only, so the activation funnel
+// (welcome_shown -> goal_selected -> tour_completed -> ...) was not queryable.
+// One row per (event, UTC day); mirrors MarketingEventDaily's counter shape.
+model OnboardingEventDaily {
+  id        String   @id @default(uuid())
+  date      String // "YYYY-MM-DD" UTC
+  event     String // OnboardingEvent — see lib/onboarding-analytics.ts
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([date, event])
+}
+
 // Double opt-in newsletter list. Separate from NotificationPreference.newsletter,
 // which governs the *logged-in* channel for an existing User — one person can
 // legitimately appear in both, so dedupe at send time once a sender exists.
