@@ -161,6 +161,9 @@ export async function POST(req: NextRequest) {
         eventName: event.event,
         // Lets fulfilment recover if the local subscription link was lost.
         notesUserId: subEntity.notes?.userId,
+        // Lets the first charge grant credits even if it arrives before
+        // subscription.activated has written the plan onto the user.
+        notesPlanId: subEntity.notes?.planId,
       });
       if (result.fulfilled) await maybePromptAfterBillingSuccess(subEntity.notes?.userId);
     }

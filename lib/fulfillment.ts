@@ -57,6 +57,13 @@ export interface SubscriptionChargeArgs {
    * re-link path in fulfillSubscriptionCharge.
    */
   notesUserId?: string;
+  /**
+   * `notes.planId` (plan slug) from the subscription entity. Used to resolve
+   * the monthly grant when `subscription.charged` arrives BEFORE
+   * `subscription.activated` has written planId/monthlyCredits onto the user —
+   * otherwise the first charge grants 0 credits (the user row has no plan yet).
+   */
+  notesPlanId?: string;
 }
 
 /**
@@ -66,7 +73,7 @@ export interface SubscriptionChargeArgs {
  * recorded. Idempotent via the same RazorpayEvent claim as one-time payments.
  */
 export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): Promise<FulfillResult> {
-  const { subscriptionId, paymentId, amountInPaise, notesUserId } = args;
+  const { subscriptionId, paymentId, amountInPaise, notesUserId, notesPlanId } = args;
   if (!subscriptionId || !paymentId) return { fulfilled: false, alreadyProcessed: false };
 
   const SELECT = {
@@ -108,7 +115,20 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
     return { fulfilled: false, alreadyProcessed: false };
   }
 
-  const monthlyCredits = user.plan?.monthlyCredits ?? user.monthlyCredits ?? 0;
+  let monthlyCredits = user.plan?.monthlyCredits ?? user.monthlyCredits ?? 0;
+  // A `subscription.charged` that lands before `subscription.activated` finds
+  // the user row with no plan yet (planId/monthlyCredits unset), which used to
+  // make the first month grant exactly 0 credits — paid, nothing delivered.
+  // The subscription carries its plan slug in notes.planId, so resolve the
+  // grant (and the plan link) from it when the row itself can't supply one.
+  let resolvedPlanId: string | null = user.plan?.id ?? user.planId ?? null;
+  if (monthlyCredits <= 0 && notesPlanId) {
+    const plan = await prisma.plan.findUnique({ where: { slug: notesPlanId } });
+    if (plan) {
+      monthlyCredits = plan.monthlyCredits ?? plan.credits;
+      resolvedPlanId = plan.id;
+    }
+  }
 
   const result = await prisma.$transaction(async (tx) => {
     try {
@@ -142,6 +162,9 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
       data: {
         subscriptionEndsAt: endsAt,
         monthlyCredits,
+        // Persist the plan link if this charge resolved it from notes before
+        // activated ran, so tier gating and later renewals see it immediately.
+        ...(resolvedPlanId && !user.planId ? { planId: resolvedPlanId } : {}),
         lowCreditEmailSentAt: null,
         // Recurring subs never cron-refill; renewal IS the refill.
         nextRefillAt: null,
@@ -153,7 +176,7 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
       },
     });
     await tx.purchase.create({
-      data: { id: paymentId, userId: user.id, planId: user.plan?.id ?? user.planId, amountInPaise, credits: applied, status: "captured" },
+      data: { id: paymentId, userId: user.id, planId: resolvedPlanId, amountInPaise, credits: applied, status: "captured" },
     });
     return { alreadyProcessed: false, applied, endsAt };
   });

@@ -24,7 +24,7 @@ vi.mock("@/lib/logger", () => ({
 interface UserRow {
   id: string;
   razorpaySubscriptionId: string;
-  planId: string;
+  planId: string | null;
   monthlyCredits: number;
   bonusCredits: number;
   subscriptionCredits: number;
@@ -53,7 +53,9 @@ vi.mock("@/lib/prisma", () => {
           bonusCredits: user.bonusCredits,
           subscriptionCredits: user.subscriptionCredits,
           purchasedCredits: user.purchasedCredits,
-          plan: { id: user.planId, monthlyCredits: user.monthlyCredits, credits: user.monthlyCredits },
+          // No plan yet models the pre-activation window (charged before
+          // activated wrote planId/monthlyCredits).
+          plan: user.planId ? { id: user.planId, monthlyCredits: user.monthlyCredits, credits: user.monthlyCredits } : null,
         };
       }),
       update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
@@ -64,10 +66,17 @@ vi.mock("@/lib/prisma", () => {
             if (op.increment) user[k] += op.increment;
           }
         }
-        for (const k of ["subscriptionEndsAt", "monthlyCredits", "lowCreditEmailSentAt", "nextRefillAt", "trialEndsAt", "razorpaySubscriptionId"] as const) {
+        for (const k of ["subscriptionEndsAt", "monthlyCredits", "planId", "lowCreditEmailSentAt", "nextRefillAt", "trialEndsAt", "razorpaySubscriptionId"] as const) {
           if (k in data) (user as Record<string, unknown>)[k] = data[k];
         }
         return { ...user };
+      }),
+    },
+    plan: {
+      findUnique: vi.fn(async ({ where }: { where: { slug: string } }) => {
+        // notes.planId slug resolves to the same 160-credit Pro plan.
+        if (where.slug === "plan-pro-slug") return { id: "plan-pro", monthlyCredits: 160, credits: 160 };
+        return null;
       }),
     },
     creditTransaction: {
@@ -164,6 +173,26 @@ describe("fulfillSubscriptionCharge", () => {
     expect(user.razorpaySubscriptionId).toBe("sub_1");
     expect(user.subscriptionCredits).toBe(160);
     expect(purchases.has("pay_recover")).toBe(true);
+  });
+
+  // Regression: if subscription.charged is delivered before
+  // subscription.activated, the user row has no plan yet, so the grant used to
+  // resolve to 0 credits — the customer paid for nothing that first month.
+  // notes.planId identifies the plan, so resolve the grant (and the plan link)
+  // from it.
+  it("resolves the plan from notes.planId when charged arrives before activated", async () => {
+    user.planId = null; // activated hasn't written it yet
+    user.monthlyCredits = 0;
+    const res = await fulfillSubscriptionCharge({
+      subscriptionId: "sub_1",
+      paymentId: "pay_early",
+      amountInPaise: 219900,
+      notesPlanId: "plan-pro-slug",
+    });
+    expect(res).toEqual({ fulfilled: true, alreadyProcessed: false });
+    expect(user.subscriptionCredits).toBe(160); // not 0
+    expect(user.planId).toBe("plan-pro"); // plan link persisted for tier gating
+    expect(purchases.get("pay_early")).toMatchObject({ planId: "plan-pro", credits: 160 });
   });
 
   it("never steals a subscription from a user already on a different one", async () => {
