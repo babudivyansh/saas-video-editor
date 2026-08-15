@@ -142,6 +142,21 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
   };
   const closeMobile = () => setMenuOpen(false);
 
+  // Lock background scroll while the mobile drawer is open — without this,
+  // a touch/wheel scroll that reaches the top or bottom of the drawer's own
+  // overflow-y-auto chains through to the page behind it (the drawer is
+  // `fixed`, so it visually stays put, but the page underneath silently
+  // scrolls and you land at a random position once you close the menu).
+  // Same technique as app/components/ui/Modal.tsx.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [menuOpen]);
+
   return (
     <header className="sticky top-0 z-50 font-sans">
       <div
@@ -251,9 +266,18 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
         </div>
       </div>
 
-      {/* Mobile menu */}
+      {/* Mobile menu — fixed and independently scrollable, mirroring
+          DashboardHeader.tsx's mobile drawer. Previously this was an
+          in-flow block inside the `sticky top-0` header, so expanding
+          Features (15+ items) made the header itself ~1500px tall while
+          the viewport was ~800px: the sticky top stayed pinned at 0, the
+          box had no overflow-y-auto of its own, and page scroll only moved
+          content behind the stuck header — most of the menu (and all of
+          Resources/Pricing/Blog/About/Sign-in below it) was unreachable,
+          and any scrolling while it was open just scrolled the background
+          page instead, landing you at a random scroll position once closed. */}
       {menuOpen && (
-        <div className="md:hidden relative border-t border-gray-100 bg-white px-4 py-4 space-y-1">
+        <div className="md:hidden fixed inset-x-0 top-[80px] z-50 max-h-[calc(100vh-80px)] overflow-y-auto overscroll-contain border-t border-gray-100 bg-white px-4 py-4 space-y-1">
           {/* Features */}
           <button onClick={() => setMobileSection(mobileSection === "features" ? null : "features")} className="flex items-center justify-between w-full text-sm font-semibold text-gray-700 py-2">
             Features

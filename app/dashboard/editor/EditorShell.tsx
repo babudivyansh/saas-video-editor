@@ -120,21 +120,6 @@ export default function EditorShell() {
       </div>
 
       {exportOpen && <ExportModal />}
-
-      {/* Mobile gate — the editor needs pointer + horizontal space */}
-      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-editor-bg p-8 text-center md:hidden">
-        <div>
-          <p className="text-lg font-bold text-editor-text">The editor needs a bigger screen</p>
-          <p className="mt-2 text-sm text-editor-text-muted">Open Clipiro on a desktop or laptop to edit your videos.</p>
-          <Link
-            href="/dashboard"
-            className="mt-5 inline-block rounded-editor-full px-5 py-2.5 text-sm font-bold text-white"
-            style={{ backgroundImage: "linear-gradient(135deg, var(--editor-accent), var(--editor-accent-hover))" }}
-          >
-            Back to dashboard
-          </Link>
-        </div>
-      </div>
     </div>
   );
 }

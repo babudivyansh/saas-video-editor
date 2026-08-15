@@ -188,6 +188,7 @@ export default function AdminCouponsPage() {
                   ) : redemptions.length === 0 ? (
                     <p className="text-xs text-gray-400">No redemptions recorded.</p>
                   ) : (
+                    <div className="overflow-x-auto">
                     <table className="w-full text-xs">
                       <tbody>
                         {redemptions.map(r => (
@@ -200,6 +201,7 @@ export default function AdminCouponsPage() {
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   )}
                 </div>
               )}

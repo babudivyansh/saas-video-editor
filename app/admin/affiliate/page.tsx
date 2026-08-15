@@ -240,6 +240,7 @@ function AffiliateContent() {
             ))}
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -311,6 +312,7 @@ function AffiliateContent() {
               )}
             </tbody>
           </table>
+          </div>
           {affiliates.length < affiliateTotal && (
             <button
               onClick={() => loadAffiliates(Math.floor(affiliates.length / PAGE_LIMIT) + 1, true, affiliateStatusFilter, affiliateSearch)}
@@ -335,6 +337,7 @@ function AffiliateContent() {
             ))}
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -391,6 +394,7 @@ function AffiliateContent() {
                 )}
               </tbody>
             </table>
+            </div>
             {commissions.length < commissionTotal && (
               <button
                 onClick={() => loadCommissions(Math.floor(commissions.length / PAGE_LIMIT) + 1, true)}

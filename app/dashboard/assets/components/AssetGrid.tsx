@@ -98,7 +98,7 @@ export function AssetGrid({
   }
 
   return (
-    <div ref={parentRef} className="h-[calc(100vh-340px)] min-h-[400px] overflow-y-auto">
+    <div ref={parentRef} className="h-[calc(100dvh-340px)] min-h-[400px] overflow-y-auto">
       <div style={{ height: rowVirtualizer.getTotalSize(), position: "relative", width: "100%" }}>
         {virtualItems.map((virtualRow) => (
           <div

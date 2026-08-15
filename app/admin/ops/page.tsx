@@ -215,6 +215,7 @@ export default function AdminOpsPage() {
         {d.failedJobs.length === 0 ? (
           <p className="text-sm text-gray-400">None — the dead-letter set is empty.</p>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-[11px] uppercase tracking-wide text-gray-400 text-left">
@@ -242,6 +243,7 @@ export default function AdminOpsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -276,6 +278,7 @@ export default function AdminOpsPage() {
         {/* Storage */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <h2 className="text-sm font-bold text-gray-800 mb-3">Storage — largest tables</h2>
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <tbody>
               {d.tableSizes.map((t) => (
@@ -286,6 +289,7 @@ export default function AdminOpsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 
@@ -303,6 +307,7 @@ export default function AdminOpsPage() {
             {assetsD.topUsers.length === 0 ? (
               <p className="text-sm text-gray-400">No assets uploaded yet.</p>
             ) : (
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <tbody>
                   {assetsD.topUsers.map((u) => (
@@ -314,6 +319,7 @@ export default function AdminOpsPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
 
@@ -323,6 +329,7 @@ export default function AdminOpsPage() {
             {assetsD.flaggedAssets.length === 0 ? (
               <p className="text-sm text-gray-400">Nothing flagged.</p>
             ) : (
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <tbody>
                   {assetsD.flaggedAssets.map((a) => (
@@ -334,6 +341,7 @@ export default function AdminOpsPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         </div>
