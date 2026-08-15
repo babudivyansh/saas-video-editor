@@ -69,6 +69,7 @@ export default function AdminAnalyticsPage() {
           </button>
         </div>
         <p className="text-xs text-gray-400 mb-4">Activation = made ≥1 generation (lifetime). Paid = made ≥1 purchase (lifetime).</p>
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-[11px] uppercase tracking-wide text-gray-400 text-left">
@@ -94,6 +95,7 @@ export default function AdminAnalyticsPage() {
             {g.cohorts.length === 0 && <tr><td colSpan={6} className="py-6 text-center text-gray-400 text-sm">No signups in the window.</td></tr>}
           </tbody>
         </table>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">

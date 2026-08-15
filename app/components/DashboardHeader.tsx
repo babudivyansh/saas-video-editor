@@ -427,15 +427,25 @@ export default function DashboardHeader() {
 
             <NotificationBell className="hidden xl:flex" />
 
-            {/* Monetization CTA: upgrade when free, top up when subscribed */}
-            <Button
-              variant={hasActivePlan ? "secondary" : "primary"}
-              size="sm"
-              onClick={() => openBilling({ tab: hasActivePlan ? "topup" : "overview" })}
-              className="hidden xl:inline-flex"
-            >
-              {hasActivePlan ? t("topUp") : t("upgrade")}
-            </Button>
+            {/* Monetization CTA: upgrade when free, top up when subscribed.
+                Visibility lives on this wrapper, not Button's own className —
+                Button.tsx bakes in an unconditional `inline-flex` base class,
+                and Tailwind's generated stylesheet happened to define that
+                rule after `.hidden`, so a bare `hidden xl:inline-flex` on the
+                Button itself silently never applied below `xl`: the button
+                (and everything after it in this flex row, including the
+                account avatar) stayed visible and overflowed off-screen on
+                mobile. A wrapper with no competing unconditional display
+                class sidesteps that ordering dependency entirely. */}
+            <div className="hidden xl:inline-flex">
+              <Button
+                variant={hasActivePlan ? "secondary" : "primary"}
+                size="sm"
+                onClick={() => openBilling({ tab: hasActivePlan ? "topup" : "overview" })}
+              >
+                {hasActivePlan ? t("topUp") : t("upgrade")}
+              </Button>
+            </div>
 
             <div data-tour="account-menu" className="flex items-center">
               <SidebarAccount />

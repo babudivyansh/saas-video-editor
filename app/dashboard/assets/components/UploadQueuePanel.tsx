@@ -33,7 +33,7 @@ export function UploadQueuePanel({ items, onPause, onResume, onRetry, onCancel, 
   const activeCount = items.filter((it) => it.status === "uploading" || it.status === "processing").length;
 
   return (
-    <div className="fixed bottom-6 right-6 z-40 w-80 bg-white rounded-[var(--radius-card)] border border-card-border shadow-xl overflow-hidden">
+    <div className="fixed bottom-6 right-6 z-40 w-80 max-w-[95vw] bg-white rounded-[var(--radius-card)] border border-card-border shadow-xl overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-card-border bg-tint-violet/40">
         <span className="text-xs font-bold text-ink">
           {activeCount > 0 ? `Uploading ${activeCount} file${activeCount === 1 ? "" : "s"}…` : "Uploads"}

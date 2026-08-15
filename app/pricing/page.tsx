@@ -520,8 +520,8 @@ export default function PricingPage() {
         </div>
 
         {plansLoading ? (
-          <div className="grid md:grid-cols-3 gap-6 items-start">
-            {[0, 1, 2].map(i => (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
+            {[0, 1, 2, 3].map(i => (
               <div key={i} className="rounded-2xl p-8 border-2 border-gray-100 bg-white h-96 animate-pulse">
                 <div className="h-3 w-16 rounded bg-gray-100" />
                 <div className="h-9 w-28 rounded bg-gray-200 mt-3" />

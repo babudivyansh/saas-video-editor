@@ -1526,7 +1526,7 @@ function ReviewWorkspace({ clip, edit, sourceVideoUrl, expandOrigin, index, tota
               <button aria-label="Next clip" onClick={onNext} disabled={total <= 1} className="w-9 h-9 rounded-lg border border-white/15 bg-white/[.08] text-white flex items-center justify-center disabled:opacity-30 hover:bg-white/15 transition-colors"><IcChevronRight /></button>
             </div>
           </div>
-          <aside className="ac-layer-in absolute top-0 right-0 bottom-0 w-[400px] max-w-full bg-white flex flex-col" style={{ boxShadow: "-24px 0 60px rgba(0,0,0,.28)" }}>
+          <aside className="ac-tools-panel bg-white flex flex-col">
             <div className="px-5 py-3 border-b border-card-border"><p className="text-sm font-bold text-ink">Trim &amp; frame</p></div>
             <div className="flex-1 overflow-y-auto p-5 space-y-5">
               <div className="flex items-center justify-between rounded-xl border border-card-border p-3">

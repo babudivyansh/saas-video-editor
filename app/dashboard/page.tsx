@@ -384,7 +384,7 @@ export default function DashboardPage() {
               {/* Onboarding */}
               <Card className="bg-white lg:flex-[3] min-w-0">
                 <div className="px-5 py-4 flex items-center justify-between gap-4">
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-0.5">
                       <p className="text-[10px] font-bold text-ink-soft uppercase tracking-widest">{t("onboarding")}</p>
                       {level && (
@@ -403,7 +403,7 @@ export default function DashboardPage() {
                         {remaining === 0 ? t("allQuestsComplete") : t("questsToGo", { count: remaining })}
                       </p>
                     )}
-                    <div className="mt-2 h-1 bg-gray-100 rounded-full w-64 overflow-hidden">
+                    <div className="mt-2 h-1 bg-gray-100 rounded-full w-full max-w-64 overflow-hidden">
                       <div className="h-full grad-brand rounded-full transition-all duration-500"
                         style={{ width: `${progressPct}%` }} />
                     </div>
@@ -433,7 +433,7 @@ export default function DashboardPage() {
                       })}
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right flex-shrink-0">
                     {questData === null && user ? (
                       <div className="h-7 w-24 bg-gray-100 rounded animate-pulse ml-auto" />
                     ) : (
@@ -445,14 +445,14 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 border-t border-gray-100">
+                <div className="grid grid-cols-1 sm:grid-cols-2 border-t border-gray-100">
                   {quests.map((q, i) => {
                     const liveQuest = questData?.quests?.find(lq => lq.id === q.id);
                     const done = !!liveQuest?.completedAt;
                     const isDiscord = q.id === "join-community";
                     const cls = `flex items-start gap-3 px-4 py-3.5 text-left transition-colors group
-                      ${i % 2 === 0 ? "border-r border-gray-100" : ""}
-                      ${i >= 2 ? "border-t border-gray-100" : ""}
+                      ${i % 2 === 0 ? "sm:border-r border-gray-100" : ""}
+                      ${i >= 1 ? "border-t border-gray-100" : ""} ${i === 1 ? "sm:border-t-0" : ""}
                       ${done ? "bg-tint-emerald cursor-default" : "hover:bg-tint-blue"}`;
                     const inner = (
                       <>
