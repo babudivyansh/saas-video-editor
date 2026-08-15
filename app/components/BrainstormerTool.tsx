@@ -255,7 +255,7 @@ export default function BrainstormerTool() {
                   <div key={i} className="h-2 rounded-full bg-gray-100" style={{ width: `${w * 100}%` }} />
                 ))}
                 <p className="text-xs text-gray-400 mt-4 leading-relaxed">
-                  Lorem ipsum is simply dummy text of the printing and typesetting industry. Ideas will appear here once you generate.
+                  Describe your niche and audience, then generate — five ideas with hooks will appear here.
                 </p>
               </div>
             )}
