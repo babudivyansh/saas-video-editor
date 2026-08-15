@@ -41,6 +41,7 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
       { label: "Refund policy", href: "/refund" },
       { label: "Terms of service", href: "/terms" },
       { label: "Privacy policy", href: "/privacy" },
+      { label: "Cookies", href: "/cookies" },
       { label: "Affiliate TOS", href: "/affiliate-tos" },
     ],
   },
@@ -71,22 +72,6 @@ export default function SiteFooter() {
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-gray-500">
               Turn long videos into viral short-form content with AI clipping, captions, and one-click export.
             </p>
-            <div className="mt-5 flex items-center gap-2">
-              {SOCIALS.map((s) => {
-                const external = s.href.startsWith("http");
-                return (
-                  <a
-                    key={s.label}
-                    href={s.href}
-                    aria-label={s.label}
-                    {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                    className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-brand hover:text-brand-deep"
-                  >
-                    {s.icon}
-                  </a>
-                );
-              })}
-            </div>
           </div>
 
           {/* Link columns */}
@@ -109,10 +94,21 @@ export default function SiteFooter() {
         {/* Bottom bar */}
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-gray-100 pt-8 sm:flex-row">
           <p className="text-sm text-gray-400">© 2026 Clipiro. All rights reserved.</p>
-          <div className="flex items-center gap-6 text-sm text-gray-400">
-            <Link href="/privacy" className="hover:text-gray-700">Privacy Policy</Link>
-            <Link href="/terms" className="hover:text-gray-700">Terms</Link>
-            <Link href="/cookies" className="hover:text-gray-700">Cookies</Link>
+          <div className="flex items-center gap-2">
+            {SOCIALS.map((s) => {
+              const external = s.href.startsWith("http");
+              return (
+                <a
+                  key={s.label}
+                  href={s.href}
+                  aria-label={s.label}
+                  {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-brand hover:text-brand-deep"
+                >
+                  {s.icon}
+                </a>
+              );
+            })}
           </div>
         </div>
       </div>
