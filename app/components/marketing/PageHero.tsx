@@ -16,6 +16,7 @@ export default function PageHero({
   lede,
   above,
   children,
+  media,
   as: Tag = "section",
 }: {
   eyebrow?: ReactNode;
@@ -26,6 +27,11 @@ export default function PageHero({
   above?: ReactNode;
   /** Rendered inside the text stack, below the lede. */
   children?: ReactNode;
+  /**
+   * Full container width, below the text stack — a product shot or other
+   * visual. Deliberately outside the 820px measure that caps the copy.
+   */
+  media?: ReactNode;
   as?: "section" | "header";
 }) {
   return (
@@ -47,6 +53,7 @@ export default function PageHero({
           )}
           {children}
         </div>
+        {media && <div className="mt-12 md:mt-14">{media}</div>}
       </div>
     </Tag>
   );

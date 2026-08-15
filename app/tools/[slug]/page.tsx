@@ -18,7 +18,8 @@ import {
   getToolBySlug,
   toolPath,
 } from "@/app/components/featureLinks";
-import { getToolContent } from "../content";
+import ToolShot from "@/app/components/marketing/ToolShot";
+import { getToolContent, getToolShots } from "../content";
 
 const SITE_URL = "https://clipiro.com";
 
@@ -59,6 +60,7 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
   const categoryLabel = CATEGORY_LABELS[tool.category];
   const related = TOOLS_BY_CATEGORY[tool.category].filter((t) => t.slug !== tool.slug).slice(0, 3);
   const isFree = tool.category === "free";
+  const shots = getToolShots(slug);
 
   const schema = [
     {
@@ -70,6 +72,11 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
       description: content.metaDescription,
       url: `${SITE_URL}/tools/${slug}`,
       publisher: { "@type": "Organization", name: "Clipiro", url: SITE_URL },
+      // Absolute URLs — schema.org image requires them, same as
+      // buildBlogPostingSchema does for post heroes.
+      ...(shots.ready && {
+        image: [shots.ready, shots.result].filter(Boolean).map((s) => `${SITE_URL}${s!.src}`),
+      }),
       ...(isFree && {
         offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
       }),
@@ -90,6 +97,13 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
         eyebrow={categoryLabel}
         title={content.h1}
         lede={content.lede}
+        media={
+          shots.ready && (
+            <div className="mx-auto max-w-[1100px]">
+              <ToolShot {...shots.ready} priority />
+            </div>
+          )
+        }
         above={
           <nav aria-label="Breadcrumb" className="mb-6">
             <ol className="flex flex-wrap items-center gap-1.5 text-[12px] text-ink-soft">
@@ -161,6 +175,12 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
             </li>
           ))}
         </ul>
+
+        {shots.result && (
+          <div className="mx-auto mt-12 max-w-[1100px] md:mt-14">
+            <ToolShot {...shots.result} caption={shots.result.alt} />
+          </div>
+        )}
       </Section>
 
       {related.length > 0 && (

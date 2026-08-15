@@ -1,3 +1,5 @@
+import { TOOL_SHOT_FILES } from "./shots";
+
 // Marketing copy for the public tool pages at /tools/<slug>.
 //
 // Kept separate from featureLinks.ts on purpose: that file is the link graph
@@ -32,6 +34,12 @@ export interface ToolContent {
   steps: [ToolStep, ToolStep, ToolStep];
   benefits: ToolBenefit[];
   faqs: ToolFaq[];
+  /**
+   * Alt text for the two product screenshots in app/tools/shots.ts. Kept here
+   * with the rest of the prose so re-capturing the images never overwrites it.
+   * Omit for tools that have no shots yet — the page renders without them.
+   */
+  shotAlt?: { ready: string; result?: string };
 }
 
 const CREDITS_FAQ: ToolFaq = {
@@ -251,6 +259,10 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
       COMMERCIAL_FAQ,
       CREDITS_FAQ,
     ],
+    shotAlt: {
+      ready: "The Clipiro image generator with the model, aspect ratio and prompt controls ready for a first generation.",
+      result: "The same screen with a prompt written and a grid of previously generated images in the panel alongside.",
+    },
   },
 
   "ai-voiceover": {
@@ -275,6 +287,10 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
       COMMERCIAL_FAQ,
       CREDITS_FAQ,
     ],
+    shotAlt: {
+      ready: "The Clipiro voiceover generator with a narrator selected and an empty script box ready for text.",
+      result: "The same screen with a script written and two finished voiceovers listed, each with a play button and duration.",
+    },
   },
 
   "ai-video-generator": {
@@ -467,6 +483,10 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
       CREDITS_FAQ,
       CANCEL_FAQ,
     ],
+    shotAlt: {
+      ready: "The Clipiro brainstormer with topic, tone, audience and video-type fields waiting to be filled in.",
+      result: "The same screen after generating, listing five numbered video ideas each with a one-line angle.",
+    },
   },
 
   // ----------------------------------------------------------------- free --
@@ -540,6 +560,11 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
       { question: "Is there a watermark?", answer: "No. Free tools export clean." },
       CANCEL_FAQ,
     ],
+    // One shot only: conversion runs locally through FFmpeg on a file the
+    // capture cannot supply, so there is no second state to photograph.
+    shotAlt: {
+      ready: "The Clipiro MP3 converter with its drop zone ready to accept a video or audio file.",
+    },
   },
 
   "youtube-downloader": {
@@ -593,4 +618,29 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
 
 export function getToolContent(slug: string): ToolContent | undefined {
   return TOOL_CONTENT[slug];
+}
+
+export interface ResolvedShot {
+  src: string;
+  alt: string;
+  width: number;
+  height: number;
+  blurDataURL: string;
+}
+
+/**
+ * Joins the generated file data in shots.ts to the hand-written alt text here.
+ * A shot only counts as usable when both halves exist — a screenshot with no
+ * alt text is not something to ship, so it is dropped rather than rendered
+ * with a placeholder.
+ */
+export function getToolShots(slug: string): { ready?: ResolvedShot; result?: ResolvedShot } {
+  const files = TOOL_SHOT_FILES[slug];
+  const alt = TOOL_CONTENT[slug]?.shotAlt;
+  if (!files || !alt) return {};
+
+  return {
+    ready: files.ready && alt.ready ? { ...files.ready, alt: alt.ready } : undefined,
+    result: files.result && alt.result ? { ...files.result, alt: alt.result } : undefined,
+  };
 }
