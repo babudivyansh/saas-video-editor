@@ -128,14 +128,16 @@
    applies it for every page built on it) rather than by changing `grad-brand`
    itself, so /dashboard, /admin and the editor cannot shift by accident.
 
-   `grad-text` and `grad-hero` are deliberately NOT overridden: gradient stat
-   numbers and the soft hero washes stay as accents. */
+   `grad-text` is deliberately NOT overridden — gradient stat numbers stay as
+   an accent. `grad-hero` IS flattened: as a full-bleed CTA panel its violet
+   and fuchsia stops dominated the section rather than accenting it. */
 .flat-brand {
   /* The default hover glow is violet-tinted, which reads as a colour shift
      under a flat blue button. */
   --shadow-glow-hover: 0 10px 36px rgba(51, 92, 255, 0.32);
 }
-.flat-brand .grad-brand {
+.flat-brand .grad-brand,
+.flat-brand .grad-hero {
   background-image: none;
   background-color: var(--brand);
 }

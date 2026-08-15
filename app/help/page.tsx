@@ -63,14 +63,17 @@ export default function HelpPage() {
 
       <section className="border-t border-card-border">
         <div className={`${CONTAINER} py-16 md:py-20`}>
+          {/* White on the filled panel — see the matching CTA on the tool
+              pages for why ink/ink-soft and a brand-blue button don't work
+              here. */}
           <div className="grad-hero flex flex-col items-start gap-5 rounded-[var(--radius-card)] p-8 md:p-12">
-            <h2 className="text-[26px] font-semibold leading-[1.15] tracking-tight text-ink sm:text-[32px]">
+            <h2 className="text-[26px] font-semibold leading-[1.15] tracking-tight text-white sm:text-[32px]">
               Still stuck?
             </h2>
-            <p className="max-w-[480px] text-[15px] leading-[1.6] text-ink-soft">
+            <p className="max-w-[480px] text-[15px] leading-[1.6] text-white">
               We answer every message — usually within a day.
             </p>
-            <Button href="/contact" size="lg">
+            <Button href="/contact" variant="inverse" size="lg">
               Contact support
             </Button>
           </div>

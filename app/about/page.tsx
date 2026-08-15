@@ -130,14 +130,16 @@ export default function AboutPage() {
               <h2 className="text-[26px] font-semibold leading-[1.15] tracking-tight text-white sm:text-[32px]">
                 Ready to turn long content into viral clips?
               </h2>
-              <p className="mt-4 text-[15px] leading-[1.6] text-white/80 sm:text-[16px]">
+              <p className="mt-4 text-[15px] leading-[1.6] text-white sm:text-[16px]">
                 Start generating vertical short videos now — no credit card required.
               </p>
               <div className="mt-8 flex flex-wrap justify-center gap-3">
                 <Button href="/register" variant="inverse" size="lg">
                   Get started free
                 </Button>
-                <Button href="/pricing" variant="ghost" size="lg">
+                {/* See the tool-page CTA: transparent rather than ghost's
+                    bg-white/15, which drops the white label below AA. */}
+                <Button href="/pricing" variant="ghost" size="lg" className="!bg-transparent hover:!border-white">
                   See pricing
                 </Button>
               </div>

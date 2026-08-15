@@ -192,18 +192,25 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
 
       <section className="border-t border-card-border">
         <div className={`${CONTAINER} py-16 md:py-20`}>
+          {/* Text is white on the filled panel: ink/ink-soft on a saturated
+              brand fill left the lede almost unreadable. The primary action
+              inverts to white for the same reason — a brand-blue button on a
+              brand-blue panel disappears. */}
           <div className="grad-hero flex flex-col items-start gap-5 rounded-[var(--radius-card)] p-8 md:p-12">
-            <h2 className="max-w-[560px] text-[26px] font-semibold leading-[1.15] tracking-tight text-ink sm:text-[32px]">
+            <h2 className="max-w-[560px] text-[26px] font-semibold leading-[1.15] tracking-tight text-white sm:text-[32px]">
               Start with {tool.title} — the other {ALL_TOOLS.length - 1} tools come with it.
             </h2>
-            <p className="max-w-[520px] text-[15px] leading-[1.6] text-ink-soft">
+            <p className="max-w-[520px] text-[15px] leading-[1.6] text-white">
               One plan, one credit balance, every tool in the workspace. Start free, no card required.
             </p>
             <div className="flex flex-wrap items-center gap-3">
-              <Button href={tool.href} size="lg">
+              <Button href={tool.href} variant="inverse" size="lg">
                 Get started free
               </Button>
-              <Button href="/tools" variant="secondary" size="lg">
+              {/* Ghost's default bg-white/15 lightens the fill enough to drop
+                  its white label to 3.95:1. Transparent keeps it on the raw
+                  brand blue at 5.1:1; hover brightens the border instead. */}
+              <Button href="/tools" variant="ghost" size="lg" className="!bg-transparent hover:!border-white">
                 Browse all tools
               </Button>
             </div>
