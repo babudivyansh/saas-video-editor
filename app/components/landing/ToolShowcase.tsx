@@ -9,7 +9,7 @@ import {
   VideoCameraIcon, ImageIcon, FaceIcon, LayersIcon, ChatBubbleIcon, GameControllerIcon,
   LightbulbIcon, MusicNoteIcon, CompressIcon, CropIcon, PersonIcon,
 } from "@/app/components/landing/icons";
-import { VIDEO_TOOLS, AI_TOOLS, FREE_FEATURES, type FeatureLink } from "@/app/components/featureLinks";
+import { VIDEO_TOOLS, AI_TOOLS, FREE_FEATURES, toolPath, type FeatureLink } from "@/app/components/featureLinks";
 
 // The catalogue reads in two tiers. Tier 1 spotlights the three tools the
 // funnel actually cares about; tier 2 is a tabbed, compact directory of
@@ -172,7 +172,7 @@ const CATEGORIES: Category[] = [
 function FeaturedCard({ tool }: { tool: FeatureLink }) {
   return (
     <Link
-      href={tool.href}
+      href={toolPath(tool)}
       className="group flex h-full flex-col overflow-hidden rounded-[20px] border border-card-border bg-white shadow-card transition-all duration-200 hover:-translate-y-1 hover:border-brand/40 hover:shadow-card-hover"
     >
       <div className="grad-brand relative flex h-32 items-center justify-center overflow-hidden">
@@ -208,18 +208,13 @@ function CompactCard({ tool, chip }: { tool: FeatureLink; chip: string }) {
       </span>
     </>
   );
-  const className =
-    "group flex items-center gap-3 rounded-2xl border border-card-border bg-white p-3 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-card-hover";
-
-  if (tool.external) {
-    return (
-      <a href={tool.href} target="_blank" rel="noopener noreferrer" className={className}>
-        {inner}
-      </a>
-    );
-  }
+  // Every tool now has a public marketing page, so there is no external case
+  // left to handle here — that branch existed for the old /dashboard hrefs.
   return (
-    <Link href={tool.href} className={className}>
+    <Link
+      href={toolPath(tool)}
+      className="group flex items-center gap-3 rounded-2xl border border-card-border bg-white p-3 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-card-hover"
+    >
       {inner}
     </Link>
   );

@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE_NAME, verifyToken } from "@/lib/auth";
+import { publicPathForAppPath } from "@/app/components/featureLinks";
 import { isPublicApiRoute } from "@/lib/api-public-routes";
 import { ATTRIBUTION_COOKIE, buildAttributionCookie } from "@/lib/marketing-attribution";
 import { rateLimit } from "@/lib/rate-limit";
@@ -129,7 +130,11 @@ export async function proxy(request: NextRequest) {
 
   const isProtectedPage = PROTECTED_PAGE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   if (isProtectedPage && !auth) {
-    return withCsp(NextResponse.redirect(new URL("/login", request.url)), csp);
+    // If the path is a tool, send them to that tool's public page rather than a
+    // bare login form: they clicked "AI Voiceover" wanting to know what it is,
+    // and the marketing page answers that and then offers the sign-up.
+    const publicPage = publicPathForAppPath(pathname);
+    return withCsp(NextResponse.redirect(new URL(publicPage ?? "/login", request.url)), csp);
   }
 
   const isSignedOutOnlyPage = SIGNED_OUT_ONLY_PATHS.includes(pathname);

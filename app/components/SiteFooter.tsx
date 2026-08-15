@@ -2,12 +2,14 @@ import Link from "next/link";
 import {
   LinkedInIcon, XIcon, InstagramIcon, FacebookIcon, YoutubeIcon, DiscordIcon,
 } from "@/app/components/landing/icons";
-import { FREE_FEATURES, VIDEO_TOOLS, AI_TOOLS, type FeatureLink } from "@/app/components/featureLinks";
+import { FREE_FEATURES, VIDEO_TOOLS, AI_TOOLS, toolPath, type FeatureLink } from "@/app/components/featureLinks";
 import ClipiroLogo from "@/app/components/ClipiroLogo";
-// Map the shared feature lists (title/desc/href) to footer link rows (label/href).
-const asLinks = (items: FeatureLink[]) => items.map((i) => ({ label: i.title, href: i.href }));
+// Map the shared feature lists to footer rows. These point at the public
+// /tools/<slug> page, not the in-app href — a crawler or a logged-out visitor
+// following a /dashboard link gets a login redirect instead of the tool.
+const asLinks = (items: FeatureLink[]) => items.map((i) => ({ label: i.title, href: toolPath(i) }));
 
-// Every href resolves to a real route, an on-page anchor, or a mailto — no 404s.
+// Every href resolves to a real public route, an on-page anchor, or a mailto.
 // The Video / AI / Free Tools columns mirror the navbar (single source of truth).
 const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   {
