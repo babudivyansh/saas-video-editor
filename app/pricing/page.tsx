@@ -221,7 +221,7 @@ function FreeCard({ currency }: { currency: Currency }) {
       <ul className="space-y-3 mb-8 flex-1">
         {perks.map(p => (
           <li key={p} className="flex items-start gap-2.5 text-sm">
-            <CheckIcon className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-600" />
+            <CheckIcon className="w-4 h-4 flex-shrink-0 mt-0.5 text-brand" />
             <span className="text-ink-soft">{p}</span>
           </li>
         ))}
@@ -243,9 +243,9 @@ function CompareRow({ feature, creator, pro, studio, shaded }: {
   feature: string; creator: boolean; pro: boolean; studio: boolean; shaded: boolean;
 }) {
   const cell = (val: boolean, highlight: boolean) => (
-    <td className={`text-center py-4 px-4 ${highlight ? "bg-blue-50/50" : ""}`}>
+    <td className={`text-center py-4 px-4 ${highlight ? "bg-tint-blue/50" : ""}`}>
       {val
-        ? <CheckIcon className="w-5 h-5 text-blue-600 mx-auto" />
+        ? <CheckIcon className="w-5 h-5 text-brand mx-auto" />
         : <MinusIcon className="w-5 h-5 text-gray-300 mx-auto" />}
     </td>
   );
@@ -441,7 +441,7 @@ export default function PricingPage() {
     : totalDueMinor;
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="flat-brand min-h-screen bg-white">
       <SiteNavbar solid />
 
       {/* ── Success banner ── */}
@@ -488,7 +488,7 @@ export default function PricingPage() {
                 key={t.months}
                 onClick={() => setTerm(t.months)}
                 className={`relative px-5 sm:px-7 py-2 rounded-full text-sm font-semibold transition-all ${
-                  term === t.months ? "bg-blue-600 text-white shadow" : "text-ink-soft hover:text-ink"
+                  term === t.months ? "bg-brand text-white shadow" : "text-ink-soft hover:text-ink"
                 }`}
               >
                 {t.label}
@@ -510,7 +510,7 @@ export default function PricingPage() {
                 onClick={() => { setCurrency(c); clearCoupon(); }}
                 aria-pressed={currency === c}
                 className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
-                  currency === c ? "bg-blue-600 text-white shadow" : "text-ink-soft hover:text-ink"
+                  currency === c ? "bg-brand text-white shadow" : "text-ink-soft hover:text-ink"
                 }`}
               >
                 {c === "INR" ? "₹ INR" : "$ USD"}
@@ -576,14 +576,14 @@ export default function PricingPage() {
                           onClick={() => openCheckout(plan, true)}
                           className={`w-full font-semibold py-2.5 mt-2.5 rounded-full text-sm transition-all ${
                             idx === 1
-                              ? "bg-blue-500/40 text-white ring-1 ring-white/30 hover:bg-blue-500/60"
-                              : "bg-white text-blue-600 ring-1 ring-blue-200 hover:bg-blue-50"
+                              ? "bg-white/25 text-white ring-1 ring-white/30 hover:bg-white/40"
+                              : "bg-white text-brand ring-1 ring-brand-soft hover:bg-tint-blue"
                           }`}
                         >
                           Or start a 7-day free trial
                         </button>
                       )}
-                      <p className={`text-center text-[11px] mt-2 ${idx === 1 ? "text-blue-300/80" : "text-ink-soft"}`}>
+                      <p className={`text-center text-[11px] mt-2 ${idx === 1 ? "text-white/70" : "text-ink-soft"}`}>
                         ✓ 48-hour money-back guarantee
                       </p>
                     </>
@@ -599,7 +599,7 @@ export default function PricingPage() {
           return (
             <div className="mt-16">
               <div className="text-center mb-8">
-                <span className="inline-block bg-blue-100 text-blue-700 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
+                <span className="inline-block bg-tint-blue text-brand text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
                   {hasActivePlan ? "Top-up Credits" : "Optional Add-ons"}
                 </span>
                 <h3 className="text-2xl font-semibold text-ink">Need extra credits?</h3>
@@ -619,8 +619,8 @@ export default function PricingPage() {
                       key={pack.id}
                       className={`flex flex-col bg-white rounded-xl border-2 shadow-sm transition-all overflow-hidden ${
                         checked
-                          ? "border-blue-600 ring-1 ring-blue-600/20 bg-blue-50/20"
-                          : "border-card-border hover:border-blue-200"
+                          ? "border-brand ring-1 ring-brand/20 bg-tint-blue/20"
+                          : "border-card-border hover:border-brand-soft"
                       }`}
                     >
                       <label className="flex items-start gap-3 p-5 cursor-pointer flex-1">
@@ -628,7 +628,7 @@ export default function PricingPage() {
                           type="checkbox"
                           checked={checked}
                           onChange={() => toggleAddon(pack.slug)}
-                          className="mt-0.5 w-4 h-4 accent-blue-600 flex-shrink-0"
+                          className="mt-0.5 w-4 h-4 accent-[color:var(--brand)] flex-shrink-0"
                         />
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-ink text-sm leading-snug">{pack.name}</p>
@@ -640,7 +640,7 @@ export default function PricingPage() {
                         <button
                           onClick={() => handleBuyPack(pack)}
                           disabled={!!buyingPack}
-                          className="mx-4 mb-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
+                          className="mx-4 mb-4 py-2 rounded-lg bg-brand text-white text-sm font-bold hover:bg-brand-dark transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
                         >
                           {isLoading ? (
                             <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Buying...</>
@@ -657,7 +657,7 @@ export default function PricingPage() {
                   Click <strong>Buy Now</strong> to top-up instantly, or check a pack and click a plan above to bundle it.
                 </p>
               ) : selectedAddons.length > 0 ? (
-                <p className="text-center text-sm text-blue-700 font-semibold mt-5 bg-blue-50 border border-blue-100 rounded-lg py-3">
+                <p className="text-center text-sm text-brand font-semibold mt-5 bg-tint-blue border border-brand-soft rounded-lg py-3">
                   {selectedAddons.length} add-on pack{selectedAddons.length > 1 ? "s" : ""} selected —
                   click any plan above to bundle them at checkout.
                 </p>
@@ -681,7 +681,7 @@ export default function PricingPage() {
         return (
           <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16 border-t border-card-border">
             <div className="text-center mb-8">
-              <span className="inline-block bg-blue-100 text-blue-700 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
+              <span className="inline-block bg-tint-blue text-brand text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
                 Credit calculator
               </span>
               <h2 className="text-3xl font-semibold text-ink">Estimate your monthly usage</h2>
@@ -726,12 +726,12 @@ export default function PricingPage() {
                   </div>
                 );
               })}
-              <button onClick={addCalcRow} className="text-sm font-semibold text-blue-600 hover:text-blue-800">
+              <button onClick={addCalcRow} className="text-sm font-semibold text-brand hover:text-brand-dark">
                 + Add another model
               </button>
             </div>
 
-            <div className="mt-6 rounded-2xl border-2 border-blue-100 bg-blue-50/40 p-6 text-center">
+            <div className="mt-6 rounded-2xl border-2 border-brand-soft bg-tint-blue/40 p-6 text-center">
               <p className="text-sm text-ink-soft">Estimated monthly credits</p>
               <p className="text-4xl font-semibold text-ink mt-1">{result.totalCredits.toLocaleString("en-IN")}</p>
 
@@ -834,7 +834,7 @@ export default function PricingPage() {
                             key={pack.id}
                             className={`flex items-start gap-3 p-4 bg-white rounded-xl border-2 cursor-pointer transition-all ${
                               checked
-                                ? "border-blue-600 shadow-sm bg-blue-50/20"
+                                ? "border-brand shadow-sm bg-tint-blue/20"
                                 : "border-card-border hover:border-card-border"
                             }`}
                           >
@@ -842,7 +842,7 @@ export default function PricingPage() {
                               type="checkbox"
                               checked={checked}
                               onChange={() => toggleAddon(pack.slug)}
-                              className="mt-0.5 w-4 h-4 accent-blue-600 flex-shrink-0"
+                              className="mt-0.5 w-4 h-4 accent-[color:var(--brand)] flex-shrink-0"
                             />
                             <div className="flex-1 min-w-0">
                               <p className="font-semibold text-ink text-sm">{pack.name}</p>
@@ -923,7 +923,7 @@ export default function PricingPage() {
                             onChange={e => { setCouponInput(e.target.value.toUpperCase()); setCouponError(""); }}
                             onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); applyCoupon(); } }}
                             placeholder="Coupon code"
-                            className="flex-1 min-w-0 bg-surface border border-card-border rounded-lg px-3 py-2 text-sm font-semibold tracking-wide uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="flex-1 min-w-0 bg-surface border border-card-border rounded-lg px-3 py-2 text-sm font-semibold tracking-wide uppercase focus:outline-none focus:ring-2 focus:ring-brand/40"
                           />
                           <button
                             onClick={applyCoupon}
@@ -971,7 +971,7 @@ export default function PricingPage() {
                 <button
                   onClick={handlePay}
                   disabled={checkoutLoading}
-                  className="mt-6 w-full bg-blue-600 text-white font-bold py-3.5 rounded-full hover:bg-blue-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2 text-sm"
+                  className="mt-6 w-full bg-brand text-white font-bold py-3.5 rounded-full hover:bg-brand-dark transition-colors disabled:opacity-60 flex items-center justify-center gap-2 text-sm"
                 >
                   {checkoutLoading ? (
                     <>
@@ -1000,7 +1000,7 @@ export default function PricingPage() {
       {toolCosts.length > 0 && (
         <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16 border-t border-card-border">
           <div className="text-center mb-10">
-            <span className="inline-block bg-blue-100 text-blue-700 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
+            <span className="inline-block bg-tint-blue text-brand text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
               Credit costs
             </span>
             <h2 className="text-3xl font-semibold text-ink">What each feature costs</h2>
@@ -1017,7 +1017,7 @@ export default function PricingPage() {
                   {t.service && <p className="text-[11px] text-ink-soft truncate">{t.service}</p>}
                 </div>
                 <span className={`flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${
-                  t.creditCost === 0 ? "bg-green-100 text-green-700" : t.creditCost >= 20 ? "bg-purple-100 text-purple-700" : "bg-blue-50 text-blue-700"
+                  t.creditCost === 0 ? "bg-green-100 text-green-700" : t.creditCost >= 20 ? "bg-purple-100 text-purple-700" : "bg-tint-blue text-brand"
                 }`}>
                   {t.creditCostMin != null && t.creditCostMax != null && t.creditCostMax > t.creditCostMin
                     ? `${t.creditCostMin}–${t.creditCostMax} credits`
@@ -1030,7 +1030,7 @@ export default function PricingPage() {
             <div className="text-center mt-5">
               <button
                 onClick={() => setShowAllCosts(v => !v)}
-                className="text-sm font-semibold text-blue-600 hover:text-blue-800 underline underline-offset-2 transition-colors"
+                className="text-sm font-semibold text-brand hover:text-brand-dark underline underline-offset-2 transition-colors"
               >
                 {showAllCosts ? "Show less ↑" : `See all ${toolCosts.length} tool costs ↓`}
               </button>
@@ -1052,9 +1052,9 @@ export default function PricingPage() {
               <tr className="border-b border-card-border">
                 <th className="text-left py-5 px-6 text-sm font-semibold text-ink-soft w-1/2">Feature</th>
                 <th className="text-center py-5 px-4 text-sm font-bold text-ink">Creator</th>
-                <th className="text-center py-5 px-4 text-sm font-bold text-blue-600 bg-blue-50/50">
+                <th className="text-center py-5 px-4 text-sm font-bold text-brand bg-tint-blue/50">
                   Pro
-                  <span className="block text-xs font-normal text-blue-400">Most popular</span>
+                  <span className="block text-xs font-normal text-white/70">Most popular</span>
                 </th>
                 <th className="text-center py-5 px-4 text-sm font-bold text-ink">Studio</th>
               </tr>
@@ -1071,7 +1071,7 @@ export default function PricingPage() {
                 {PURCHASABLE_TIER_ORDER.map(t => (
                   <td
                     key={t}
-                    className={`text-center py-4 px-4 text-sm font-semibold ${t === "pro" ? "text-blue-600 bg-blue-50/50" : "text-ink"}`}
+                    className={`text-center py-4 px-4 text-sm font-semibold ${t === "pro" ? "text-brand bg-tint-blue/50" : "text-ink"}`}
                   >
                     {subs.find(p => p.tier === t && p.intervalMonths === term)?.monthlyCredits ?? "—"}
                   </td>
@@ -1080,13 +1080,13 @@ export default function PricingPage() {
               <tr className="bg-surface">
                 <td className="py-4 px-6 text-sm text-ink-soft">Priority rendering</td>
                 <td className="text-center py-4 px-4"><MinusIcon className="w-5 h-5 text-gray-300 mx-auto" /></td>
-                <td className="text-center py-4 px-4 bg-blue-50/50"><CheckIcon className="w-5 h-5 text-blue-600 mx-auto" /></td>
-                <td className="text-center py-4 px-4"><CheckIcon className="w-5 h-5 text-blue-600 mx-auto" /></td>
+                <td className="text-center py-4 px-4 bg-tint-blue/50"><CheckIcon className="w-5 h-5 text-brand mx-auto" /></td>
+                <td className="text-center py-4 px-4"><CheckIcon className="w-5 h-5 text-brand mx-auto" /></td>
               </tr>
               <tr className="bg-white">
                 <td className="py-4 px-6 text-sm text-ink-soft">Support</td>
                 <td className="text-center py-4 px-4 text-sm text-ink-soft">Email</td>
-                <td className="text-center py-4 px-4 text-sm text-blue-700 bg-blue-50/50 font-medium">Priority</td>
+                <td className="text-center py-4 px-4 text-sm text-brand bg-tint-blue/50 font-medium">Priority</td>
                 <td className="text-center py-4 px-4 text-sm text-ink-soft">Dedicated</td>
               </tr>
             </tbody>
@@ -1123,7 +1123,7 @@ export default function PricingPage() {
           {FAQS.map((faq, i) => (
             <div
               key={i}
-              className={`bg-white border rounded-xl overflow-hidden transition-all ${openFaq === i ? "border-blue-200 shadow-sm" : "border-card-border"}`}
+              className={`bg-white border rounded-xl overflow-hidden transition-all ${openFaq === i ? "border-brand-soft shadow-sm" : "border-card-border"}`}
             >
               <button
                 className="w-full flex items-center justify-between px-6 py-5 text-left"
@@ -1144,16 +1144,16 @@ export default function PricingPage() {
 
       {/* ── Bottom CTA ── */}
       <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
-        <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-3xl p-12 text-center text-white shadow-2xl">
+        <div className="bg-brand rounded-3xl p-12 text-center text-white shadow-2xl">
           <h2 className="text-3xl sm:text-4xl font-semibold mb-3">Still have questions?</h2>
-          <p className="text-blue-200 mb-8">
+          <p className="text-white/80 mb-8">
             Our support team is available 24/7. Or start free — no credit card needed.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             {user ? (
               <button
                 onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-                className="inline-flex items-center justify-center gap-2 bg-white text-blue-600 font-bold px-8 py-3.5 rounded-full hover:bg-blue-50 transition-colors shadow-lg"
+                className="inline-flex items-center justify-center gap-2 bg-white text-brand font-bold px-8 py-3.5 rounded-full hover:bg-tint-blue transition-colors shadow-lg"
               >
                 <ZapIcon className="w-4 h-4" />
                 Choose a Plan
@@ -1161,7 +1161,7 @@ export default function PricingPage() {
             ) : (
               <button
                 onClick={() => openAuthModal("register")}
-                className="inline-flex items-center justify-center gap-2 bg-white text-blue-600 font-bold px-8 py-3.5 rounded-full hover:bg-blue-50 transition-colors shadow-lg"
+                className="inline-flex items-center justify-center gap-2 bg-white text-brand font-bold px-8 py-3.5 rounded-full hover:bg-tint-blue transition-colors shadow-lg"
               >
                 <ZapIcon className="w-4 h-4" />
                 Start Free

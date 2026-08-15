@@ -52,7 +52,7 @@ export function PlanCard({
     <div
       className={`relative h-full rounded-2xl border-2 flex flex-col ${compact ? "p-6" : "p-8"} ${
         highlighted
-          ? "border-blue-600 bg-blue-600 text-white shadow-xl"
+          ? "border-brand bg-brand text-white shadow-xl"
           : "border-gray-100 bg-white text-gray-900 shadow-sm"
       }`}
     >
@@ -68,7 +68,7 @@ export function PlanCard({
 
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-1 flex-wrap">
-          <p className={`text-sm font-bold uppercase tracking-widest ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
+          <p className={`text-sm font-bold uppercase tracking-widest ${highlighted ? "text-white/70" : "text-gray-400"}`}>
             {baseTier}
           </p>
           {isCurrent && (
@@ -83,20 +83,20 @@ export function PlanCard({
         {/* The price, and nothing competing with it. The symbol is its own
             element so it reads as a symbol rather than another digit. */}
         <div className="flex items-start gap-0.5">
-          <span className={`text-xl font-bold mt-1.5 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
+          <span className={`text-xl font-bold mt-1.5 ${highlighted ? "text-white/70" : "text-gray-400"}`}>
             {currency === "USD" ? "$" : "₹"}
           </span>
           <span className={`${compact ? "text-4xl" : "text-5xl"} font-black leading-none tracking-tight`}>
             {formatMoney(perMonth, currency).replace(/^[₹$]/, "")}
           </span>
-          <span className={`text-sm font-medium self-end mb-1 ml-1 ${highlighted ? "text-blue-200" : "text-gray-400"}`}>
+          <span className={`text-sm font-medium self-end mb-1 ml-1 ${highlighted ? "text-white/70" : "text-gray-400"}`}>
             /month
           </span>
         </div>
 
         {/* One secondary line, only when yearly changes the story. */}
         {months > 1 && (
-          <p className={`text-xs mt-2 ${highlighted ? "text-blue-100" : "text-gray-500"}`}>
+          <p className={`text-xs mt-2 ${highlighted ? "text-white/85" : "text-gray-500"}`}>
             Billed {formatMoney(total, currency)} yearly
             {savePct && (
               <span className={`font-bold ${highlighted ? "text-green-300" : "text-green-600"}`}>
@@ -119,7 +119,7 @@ export function PlanCard({
           const images = Math.floor(plan.monthlyCredits / cheapestImageCost);
           return (
             <p
-              className={`text-xs mt-1 ${highlighted ? "text-blue-200" : "text-gray-400"}`}
+              className={`text-xs mt-1 ${highlighted ? "text-white/70" : "text-gray-400"}`}
               title="Based on the lowest-cost model available on this plan; premium models cost more credits."
             >
               ≈ {images} images or {perRender ? Math.floor(plan.monthlyCredits / perRender) : 0} videos
@@ -133,15 +133,15 @@ export function PlanCard({
         return (
           <>
             {inherits && (
-              <p className={`text-xs font-bold mb-3 ${highlighted ? "text-blue-200" : "text-gray-500"}`}>
+              <p className={`text-xs font-bold mb-3 ${highlighted ? "text-white/70" : "text-gray-500"}`}>
                 Everything in {inherits}, plus:
               </p>
             )}
             <ul className="space-y-3 mb-8 flex-1">
               {bullets.map((b) => (
                 <li key={b} className="flex items-start gap-2.5 text-sm">
-                  <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${highlighted ? "text-blue-200" : "text-blue-600"}`} />
-                  <span className={highlighted ? "text-blue-100" : "text-gray-700"}>{b}</span>
+                  <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${highlighted ? "text-white/70" : "text-brand"}`} />
+                  <span className={highlighted ? "text-white/85" : "text-gray-700"}>{b}</span>
                 </li>
               ))}
             </ul>
@@ -153,8 +153,8 @@ export function PlanCard({
         onClick={() => onSelect(plan)}
         className={`w-full mt-auto font-bold py-3 rounded-full transition-all ${
           highlighted
-            ? "bg-white text-blue-600 hover:bg-blue-50 shadow-lg"
-            : "bg-blue-600 text-white hover:bg-blue-700 ring-1 ring-blue-200"
+            ? "bg-white text-brand hover:bg-tint-blue shadow-lg"
+            : "bg-brand text-white hover:bg-brand-dark ring-1 ring-brand-soft"
         }`}
       >
         {ctaLabel ?? (isCurrent ? `Renew ${baseTier}` : `Get ${baseTier}`)}

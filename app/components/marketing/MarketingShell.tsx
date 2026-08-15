@@ -9,6 +9,9 @@ import SiteNavbar from "@/app/components/SiteNavbar";
  * The root <body> is `bg-zinc-950` for the editor/dashboard, so each marketing
  * page has to re-establish `bg-white` itself — doing it here means no page can
  * forget.
+ *
+ * `flat-brand` opts the subtree into the solid brand blue for filled surfaces
+ * (see globals.css); the dashboard keeps the gradient.
  */
 export default function MarketingShell({
   children,
@@ -19,7 +22,7 @@ export default function MarketingShell({
   as?: "main" | "article";
 }) {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="flat-brand min-h-screen bg-white">
       <SiteNavbar solid />
       <Tag>{children}</Tag>
       <SiteFooter />

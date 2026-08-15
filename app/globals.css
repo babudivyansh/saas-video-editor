@@ -119,6 +119,33 @@
     var(--gradient-brand);
 }
 
+/* ── Flat-brand marketing surfaces ─────────────────────────────────────────
+   The public site fills buttons, badges and chips with the solid brand blue —
+   matching the navbar's "Start Free" button — instead of the
+   blue → violet → fuchsia gradient, which stays the dashboard's identity.
+
+   Opt-in via a `flat-brand` class on each marketing page root (MarketingShell
+   applies it for every page built on it) rather than by changing `grad-brand`
+   itself, so /dashboard, /admin and the editor cannot shift by accident.
+
+   `grad-text` and `grad-hero` are deliberately NOT overridden: gradient stat
+   numbers and the soft hero washes stay as accents. */
+.flat-brand {
+  /* The default hover glow is violet-tinted, which reads as a colour shift
+     under a flat blue button. */
+  --shadow-glow-hover: 0 10px 36px rgba(51, 92, 255, 0.32);
+}
+.flat-brand .grad-brand {
+  background-image: none;
+  background-color: var(--brand);
+}
+.flat-brand .grad-brand:hover {
+  background-color: var(--brand-dark);
+  /* Cancels Button primary's `hover:brightness-105`, which would lighten the
+     fill and fight the darker hover the navbar button already establishes. */
+  filter: none;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

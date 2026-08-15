@@ -51,7 +51,7 @@ export default async function BlogCategoryPage({ params }: { params: Promise<{ s
   ]);
 
   return (
-    <div className="min-h-screen bg-white text-gray-900 font-sans">
+    <div className="flat-brand min-h-screen bg-white text-gray-900 font-sans">
       <JsonLd data={collectionSchema} />
       <JsonLd data={breadcrumbSchema} />
       <SiteNavbar solid />
