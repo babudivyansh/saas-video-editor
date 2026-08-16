@@ -18,8 +18,9 @@ import {
   getToolBySlug,
   toolPath,
 } from "@/app/components/featureLinks";
-import ToolShot from "@/app/components/marketing/ToolShot";
-import { getToolContent, getToolShots } from "../content";
+import ToolMock from "@/app/components/marketing/ToolMock";
+import { hasSecondaryMotif } from "@/app/components/marketing/toolMotifs";
+import { getToolContent } from "../content";
 
 const SITE_URL = "https://clipiro.com";
 
@@ -60,7 +61,6 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
   const categoryLabel = CATEGORY_LABELS[tool.category];
   const related = TOOLS_BY_CATEGORY[tool.category].filter((t) => t.slug !== tool.slug).slice(0, 3);
   const isFree = tool.category === "free";
-  const shots = getToolShots(slug);
 
   const schema = [
     {
@@ -72,11 +72,9 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
       description: content.metaDescription,
       url: `${SITE_URL}/tools/${slug}`,
       publisher: { "@type": "Organization", name: "Clipiro", url: SITE_URL },
-      // Absolute URLs — schema.org image requires them, same as
-      // buildBlogPostingSchema does for post heroes.
-      ...(shots.ready && {
-        image: [shots.ready, shots.result].filter(Boolean).map((s) => `${SITE_URL}${s!.src}`),
-      }),
+      // No `image` key: the page artwork is inline SVG, and schema.org needs an
+      // absolute URL to a raster file. A per-route opengraph-image would serve
+      // both this and social previews — worth doing, but separately.
       ...(isFree && {
         offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
       }),
@@ -94,15 +92,17 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
       <JsonLd data={schema} />
 
       <PageHero
+        // Both claims are already made on /pricing, so neither is a new
+        // assertion we would have to stand behind.
+        badge={isFree ? "Free — no card required" : "48-hour money-back guarantee"}
         eyebrow={categoryLabel}
         title={content.h1}
         lede={content.lede}
         media={
-          shots.ready && (
-            <div className="mx-auto max-w-[1100px]">
-              <ToolShot {...shots.ready} priority />
-            </div>
-          )
+          <div className="mx-auto flex max-w-[1100px] flex-col gap-5">
+            <ToolMock slug={slug} label={tool.title} />
+            {hasSecondaryMotif(slug) && <ToolMock slug={slug} variant="secondary" label={tool.title} />}
+          </div>
         }
         above={
           <nav aria-label="Breadcrumb" className="mb-6">
@@ -175,12 +175,6 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
             </li>
           ))}
         </ul>
-
-        {shots.result && (
-          <div className="mx-auto mt-12 max-w-[1100px] md:mt-14">
-            <ToolShot {...shots.result} caption={shots.result.alt} />
-          </div>
-        )}
       </Section>
 
       {related.length > 0 && (

@@ -65,5 +65,3 @@ next-env.d.ts
 # AutoClip E2E harness fixtures + downloaded renders (scripts/autoclip-e2e.ts)
 /.e2e-tmp/
 
-# Raw captures from scripts/capture-tool-shots.ts (processed into public/tools/)
-.tool-shots/

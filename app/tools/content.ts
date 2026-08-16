@@ -1,5 +1,3 @@
-import { TOOL_SHOT_FILES } from "./shots";
-
 // Marketing copy for the public tool pages at /tools/<slug>.
 //
 // Kept separate from featureLinks.ts on purpose: that file is the link graph
@@ -34,12 +32,6 @@ export interface ToolContent {
   steps: [ToolStep, ToolStep, ToolStep];
   benefits: ToolBenefit[];
   faqs: ToolFaq[];
-  /**
-   * Alt text for the two product screenshots in app/tools/shots.ts. Kept here
-   * with the rest of the prose so re-capturing the images never overwrites it.
-   * Omit for tools that have no shots yet — the page renders without them.
-   */
-  shotAlt?: { ready: string; result?: string };
 }
 
 const CREDITS_FAQ: ToolFaq = {
@@ -69,11 +61,11 @@ const FREE_TOOL_FAQ: ToolFaq = {
 export const TOOL_CONTENT: Record<string, ToolContent> = {
   // ---------------------------------------------------------------- video --
   "video-editor": {
-    h1: "Edit video in your browser, no install",
+    h1: "Edit video in the browser, nothing to install",
     metaTitle: "Online Video Editor — Multi-Track Timeline",
     metaDescription:
       "Edit video in your browser with a multi-track timeline. Trim, layer, caption, and export in full resolution. No download, no install.",
-    lede: "A real multi-track timeline that runs in a browser tab. Cut, layer audio, add captions, and export at full resolution without downloading anything.",
+    lede: "A real multi-track timeline in a browser tab. Cut, layer audio, caption, and export at full resolution without downloading a thing.",
     steps: [
       { title: "Open the editor", body: "Start a project and drop in video, audio, or images — or pull something you already made from your asset library." },
       { title: "Build your timeline", body: "Stack tracks, trim clips, add captions and overlays, and scrub the preview until it lands the way you want." },
@@ -93,11 +85,11 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   },
 
   "auto-clip": {
-    h1: "Turn long videos into viral clips, automatically",
+    h1: "Turn one long video into a week of clips",
     metaTitle: "AutoClip — Long Video to Short Clips with AI",
     metaDescription:
       "Drop in a podcast, stream, or interview and AutoClip finds the strongest moments, captions them, and cuts them to vertical. Unlimited runs on paid plans.",
-    lede: "Drop in a podcast, stream, or interview. AutoClip finds the moments worth posting, captions them, reframes them vertically, and hands you a set of ready-to-upload shorts.",
+    lede: "Drop in a podcast, stream, or interview. AutoClip finds the moments worth posting, captions them, reframes them vertical, and hands back a set of ready-to-upload shorts.",
     steps: [
       { title: "Add your video", body: "Upload a file or paste a link. Paid plans handle uploads from two hours up to six, depending on your plan." },
       { title: "AutoClip finds the moments", body: "It scans the transcript and the audio for self-contained, high-energy segments rather than slicing on a fixed timer." },
@@ -117,11 +109,11 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   },
 
   "cut-and-crop": {
-    h1: "Trim and crop clips ready to post",
+    h1: "Cut and reframe a clip in under a minute",
     metaTitle: "Cut & Crop — Trim and Reframe Video Online",
     metaDescription:
       "Trim video to the exact moment and crop it to vertical, square, or wide. A fast single-purpose tool for when you already know the cut you want.",
-    lede: "For when you already know which ten seconds you want. Set the in and out points, pick your aspect ratio, and export — no timeline to set up.",
+    lede: "For when you already know the ten seconds you want. Set the in and out points, pick an aspect ratio, export. No timeline to set up.",
     steps: [
       { title: "Upload your clip", body: "Drop in a file or reuse something from your asset library." },
       { title: "Set the cut and the frame", body: "Drag the in and out handles, then choose vertical, square, or widescreen and position the crop box." },
@@ -141,11 +133,11 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   },
 
   "ai-creator": {
-    h1: "Become an AI content creator in three steps",
+    h1: "Go from an idea to a finished video",
     metaTitle: "AI Creator — Generate Faceless Videos End to End",
     metaDescription:
       "Go from an idea to a finished faceless video: script, voiceover, visuals, and captions generated together in one guided flow.",
-    lede: "A guided flow that takes an idea and returns a finished video — script, voiceover, visuals, and captions generated together instead of tool by tool.",
+    lede: "Describe the video once. Clipiro writes the script, narrates it, generates the visuals, and times the captions — all in one pass.",
     steps: [
       { title: "Describe the video", body: "Give it a topic, a niche, or a rough idea. It writes a script shaped for short-form pacing." },
       { title: "Pick a voice and a look", body: "Choose a narrator from the voice library and a visual style, then let it generate the imagery and the voiceover." },
@@ -165,11 +157,11 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   },
 
   "reddit-story-videos": {
-    h1: "Turn Reddit posts into story videos",
+    h1: "Turn any Reddit thread into a story video",
     metaTitle: "Reddit Story Video Generator",
     metaDescription:
       "Paste a Reddit thread and get a narrated story video with synced captions and background footage — formatted for Shorts, Reels, and TikTok.",
-    lede: "Paste a thread and get a narrated story video back: post card, AI voiceover, synced captions, and background footage, sized for vertical feeds.",
+    lede: "Paste a thread and get back a narrated video: post card, AI voiceover, synced captions, and background footage, sized for vertical feeds.",
     steps: [
       { title: "Paste the post", body: "Drop in a Reddit URL or paste the text directly if you would rather write your own." },
       { title: "Choose voice and background", body: "Pick a narrator and the gameplay or ambient footage that runs underneath." },
@@ -189,11 +181,11 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   },
 
   "fake-texts-videos": {
-    h1: "Make fake text conversation videos",
+    h1: "Tell a story as a text conversation",
     metaTitle: "Fake Text Conversation Video Generator",
     metaDescription:
       "Write a chat, pick the participants, and render it as an animated text-message story video with typing indicators, sounds, and narration.",
-    lede: "Write the conversation, choose who is texting, and render it as an animated message thread — typing indicators, notification sounds, optional narration.",
+    lede: "Write the thread, choose who is texting, and render it as an animated message exchange — typing indicators, notification sounds, and pacing you control.",
     steps: [
       { title: "Write the thread", body: "Type the messages and assign each one to a sender. Set names and avatars to taste." },
       { title: "Set the pacing", body: "Control how fast messages land and where the pauses fall — the timing is what makes the story land." },
@@ -213,11 +205,11 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   },
 
   "viral-split-screen": {
-    h1: "Split-screen videos that hold attention",
+    h1: "Pair your clip with footage that holds the scroll",
     metaTitle: "Viral Split Screen Video Maker",
     metaDescription:
       "Pair your content with satisfying gameplay footage in a vertical split-screen layout — the format built to stop the scroll.",
-    lede: "Put your clip on top and satisfying background footage underneath. The layout that keeps people watching a talking-head video to the end.",
+    lede: "Your video on top, satisfying background footage underneath. The layout that keeps people watching a talking head all the way through.",
     steps: [
       { title: "Add your main clip", body: "Upload the podcast segment, talking head, or story you want to carry the video." },
       { title: "Pick the bottom half", body: "Choose gameplay or ambient footage from the library, or upload your own." },
@@ -238,11 +230,11 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
 
   // ------------------------------------------------------------------- ai --
   "ai-image-generator": {
-    h1: "Generate high-quality AI images in seconds",
+    h1: "Generate images without nine subscriptions",
     metaTitle: "AI Image Generator — Nine Models, One Balance",
     metaDescription:
       "Generate images with Flux 2, Seedream 5.0, GPT Image 2, Ideogram 4, Nano Banana Pro, and more — all from one credit balance, no separate subscriptions.",
-    lede: "Nine image models behind one prompt box and one credit balance — Flux 2, Seedream 5.0, GPT Image 2, Ideogram 4, Nano Banana Pro and more, without a separate subscription for each.",
+    lede: "Nine models behind one prompt box and one credit balance — Flux 2, Seedream 5.0, GPT Image 2, Ideogram 4 and more, with no separate plan for each.",
     steps: [
       { title: "Write your prompt", body: "Describe the image. The built-in prompt enhancer will expand a short idea into something more specific, free of charge." },
       { title: "Pick a model", body: "Different models suit different jobs — photoreal, illustration, text-in-image. Switch between them without leaving the page." },
@@ -259,18 +251,14 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
       COMMERCIAL_FAQ,
       CREDITS_FAQ,
     ],
-    shotAlt: {
-      ready: "The Clipiro image generator with the model, aspect ratio and prompt controls ready for a first generation.",
-      result: "The same screen with a prompt written and a grid of previously generated images in the panel alongside.",
-    },
   },
 
   "ai-voiceover": {
-    h1: "Generate lifelike AI voiceovers",
+    h1: "Narrate anything in a voice that sounds real",
     metaTitle: "AI Voiceover Generator — 50+ Narrators",
     metaDescription:
       "Turn a script into a natural-sounding voiceover with 50+ narrators across multiple languages. Captions sync automatically.",
-    lede: "Paste a script, pick from more than fifty narrators, and get a natural-sounding voiceover back in seconds — with captions already timed to it.",
+    lede: "Paste a script, pick from more than fifty narrators, and get natural-sounding audio back in seconds — with captions already timed to it.",
     steps: [
       { title: "Paste your script", body: "Type or paste the text. Punctuation shapes the delivery, so commas and full stops are worth getting right." },
       { title: "Choose a narrator", body: "Browse fifty-plus voices across accents and languages, and preview any of them before you spend a credit." },
@@ -287,18 +275,14 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
       COMMERCIAL_FAQ,
       CREDITS_FAQ,
     ],
-    shotAlt: {
-      ready: "The Clipiro voiceover generator with a narrator selected and an empty script box ready for text.",
-      result: "The same screen with a script written and two finished voiceovers listed, each with a play button and duration.",
-    },
   },
 
   "ai-video-generator": {
-    h1: "Generate AI video from a prompt",
+    h1: "Describe a shot and get the footage",
     metaTitle: "AI Video Generator — Veo 3, Seedance 2.0 and More",
     metaDescription:
       "Generate video from a text prompt or a still image with Veo 3, Seedance 2.0, Wan 2.7, LTX 2.3 and more — up to 15 seconds per clip.",
-    lede: "Describe a shot and get video back. Sixteen models including Google's Veo 3 and Seedance 2.0, generating clips up to fifteen seconds.",
+    lede: "Sixteen video models including Veo 3 and Seedance 2.0, generating clips up to fifteen seconds from a written prompt or a single still.",
     steps: [
       { title: "Describe the shot", body: "Write what should happen, or start from a still image and animate it." },
       { title: "Choose a model and length", body: "Creator generates up to 8 seconds, Pro up to 12, Studio up to 15 — pick the model that suits the look you want." },
@@ -318,11 +302,11 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   },
 
   "ai-face-swap": {
-    h1: "Swap faces in photos and videos",
+    h1: "Swap a face and keep it believable in motion",
     metaTitle: "AI Face Swap for Photos and Video",
     metaDescription:
       "Swap a face into a photo or a video clip with AI. Tracks across frames and matches lighting so the result holds up in motion.",
-    lede: "Put one face onto another in a photo or a video clip. The swap tracks across frames and matches lighting, so it holds together in motion rather than just in a single still.",
+    lede: "Put one face onto another in a photo or a clip. The swap tracks frame to frame and relights to the scene, so it holds up when the head turns.",
     steps: [
       { title: "Upload the target", body: "Add the photo or video clip you want to change." },
       { title: "Add the face", body: "Upload a clear, well-lit reference of the face to swap in. Front-facing works best." },
@@ -342,11 +326,11 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   },
 
   "background-remover": {
-    h1: "Remove backgrounds from images and video",
+    h1: "Cut out the background, video included",
     metaTitle: "AI Background Remover for Images and Video",
     metaDescription:
       "Cut the background out of a photo or a video clip automatically — clean edges around hair and motion, transparent output ready to composite.",
-    lede: "Cut the background out of a photo or a video clip in one pass, with edges clean enough to composite straight onto something else.",
+    lede: "Remove the background from a photo or a whole clip in one pass, with edges clean enough around hair and motion to composite straight onto something else.",
     steps: [
       { title: "Upload", body: "Add an image or a video clip — the same tool handles both." },
       { title: "Let it cut", body: "The subject is detected and separated automatically. No manual masking or green screen needed." },
@@ -366,11 +350,11 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   },
 
   "ai-voice-changer": {
-    h1: "Change any voice with AI",
+    h1: "Keep your delivery, change whose voice it is",
     metaTitle: "AI Voice Changer — Transform Recorded Audio",
     metaDescription:
       "Convert a recording into a different voice while keeping your original delivery, timing, and emotion intact.",
-    lede: "Record it in your own voice, then change whose voice it is. Your timing, emphasis, and delivery survive the conversion — only the voice changes.",
+    lede: "Record it yourself, then swap the voice. Your timing, pauses and emphasis survive the conversion — only the timbre changes.",
     steps: [
       { title: "Upload your recording", body: "Add audio or a video file. Clean input gives a cleaner conversion." },
       { title: "Pick the target voice", body: "Choose from the voice library and preview the result before committing credits." },
@@ -390,11 +374,11 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   },
 
   "ai-vocal-remover": {
-    h1: "Strip vocals from audio or video",
+    h1: "Split any track into vocals and instrumental",
     metaTitle: "AI Vocal Remover — Separate Vocals and Instrumental",
     metaDescription:
       "Split a track into clean vocal and instrumental stems with AI. Works on audio files and on the audio inside a video.",
-    lede: "Separate a track into vocals and instrumental. Take the backing track for a cover, or lift a clean acapella out of a finished mix.",
+    lede: "One pass gives you both stems: a clean backing track to build on, and an acapella lifted out of the finished mix.",
     steps: [
       { title: "Upload the track", body: "Add an audio file, or a video and it will work on the audio inside it." },
       { title: "Separate", body: "The model splits the mix into a vocal stem and an instrumental stem." },
@@ -414,11 +398,11 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   },
 
   "ai-speech-enhancer": {
-    h1: "Clean up and enhance any audio",
+    h1: "Make a bad room sound like a good one",
     metaTitle: "AI Speech Enhancer — Remove Noise, Improve Clarity",
     metaDescription:
       "Strip background noise, room echo, and hiss from a recording and bring the voice forward — rescue audio recorded in a bad room.",
-    lede: "Take a recording made in a bad room and make it sound deliberate. Background noise, echo, and hiss come out; the voice comes forward.",
+    lede: "Background noise, echo and hiss come out; the voice comes forward. One pass, no EQ curves or compressor settings to learn.",
     steps: [
       { title: "Upload the recording", body: "Audio or video — it will work on the speech either way." },
       { title: "Enhance", body: "Noise, room reflections, and hiss are reduced while the voice is brought up and evened out." },
@@ -438,11 +422,11 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   },
 
   "subtitle-remover": {
-    h1: "Remove burned-in subtitles from video",
+    h1: "Erase burned-in captions and start over",
     metaTitle: "AI Subtitle Remover — Erase Hardcoded Captions",
     metaDescription:
       "Erase hardcoded subtitles from a video with AI inpainting that reconstructs what was behind them, so you can recaption in your own style.",
-    lede: "Erase captions that were burned into the footage. The model reconstructs what was behind them, so you can recaption in your own style instead of stacking text on text.",
+    lede: "Remove hardcoded subtitles and rebuild what was behind them, so you can recaption in your own style instead of stacking text on text.",
     steps: [
       { title: "Upload the video", body: "Add the clip with the burned-in subtitles." },
       { title: "Mark the caption area", body: "Indicate where the text sits. Most videos keep captions in one consistent band." },
@@ -462,11 +446,11 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   },
 
   "ai-brainstormer": {
-    h1: "Get viral content ideas for your niche",
+    h1: "Never open a blank editor again",
     metaTitle: "AI Content Idea Generator for Creators",
     metaDescription:
       "Generate video ideas, hooks, and angles tailored to your niche and format — costs 1 credit per run.",
-    lede: "Describe your niche and get back ideas, hooks, and angles shaped for short-form — so the blank page is somebody else's problem.",
+    lede: "Describe your niche and get back ideas with hooks and angles written for short-form — not a list of topics you still have to figure out.",
     steps: [
       { title: "Describe your channel", body: "Your niche, your audience, the format you post in." },
       { title: "Generate ideas", body: "You get concepts with hooks and angles, not just single-line titles." },
@@ -483,19 +467,15 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
       CREDITS_FAQ,
       CANCEL_FAQ,
     ],
-    shotAlt: {
-      ready: "The Clipiro brainstormer with topic, tone, audience and video-type fields waiting to be filled in.",
-      result: "The same screen after generating, listing five numbered video ideas each with a one-line angle.",
-    },
   },
 
   // ----------------------------------------------------------------- free --
   "audio-balancer": {
-    h1: "Balance left and right audio channels",
+    h1: "Fix one-sided audio in seconds",
     metaTitle: "Free Audio Balancer — Fix Uneven Stereo",
     metaDescription:
       "Fix audio that plays louder in one ear or only on one side. Free, no credits, no watermark.",
-    lede: "Fix a recording that plays louder in one ear, or one that ended up entirely on a single channel. Free, and it costs no credits.",
+    lede: "Playing loud in one ear, or missing a channel entirely? Upload the file and get both channels back, even. Free, and it costs no credits.",
     steps: [
       { title: "Upload", body: "Add the audio or video file with the uneven channels." },
       { title: "Balance", body: "The channels are evened out, and a one-sided recording is centred across both." },
@@ -515,11 +495,11 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   },
 
   "video-compressor": {
-    h1: "Shrink video size without losing quality",
+    h1: "Get under the upload limit without looking like it",
     metaTitle: "Free Video Compressor — Reduce File Size Online",
     metaDescription:
       "Compress video to get under an upload limit while keeping it looking good. Free, no credits, no watermark.",
-    lede: "Get a file under an upload limit without it looking like it. Free, and it costs no credits.",
+    lede: "Large file slowing you down? Shrink it while keeping the picture crisp. Free, and it costs no credits.",
     steps: [
       { title: "Upload your video", body: "Drop in the file you need to make smaller." },
       { title: "Choose how hard to compress", body: "Trade size against quality, with a preview of the result before you commit." },
@@ -539,11 +519,11 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   },
 
   "mp3-converter": {
-    h1: "Convert any media file to MP3",
+    h1: "Pull clean audio out of any file",
     metaTitle: "Free MP3 Converter — Video and Audio to MP3",
     metaDescription:
       "Pull the audio out of a video or convert between audio formats. Free, no credits, no watermark.",
-    lede: "Pull the audio out of a video, or convert between audio formats. Free, and it costs no credits.",
+    lede: "Convert a video or any audio format to MP3 without losing quality. Free, and it costs no credits.",
     steps: [
       { title: "Upload", body: "Add a video or an audio file in any common format." },
       { title: "Convert", body: "The audio is extracted and encoded to MP3." },
@@ -560,19 +540,14 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
       { question: "Is there a watermark?", answer: "No. Free tools export clean." },
       CANCEL_FAQ,
     ],
-    // One shot only: conversion runs locally through FFmpeg on a file the
-    // capture cannot supply, so there is no second state to photograph.
-    shotAlt: {
-      ready: "The Clipiro MP3 converter with its drop zone ready to accept a video or audio file.",
-    },
   },
 
   "youtube-downloader": {
-    h1: "Download YouTube videos in a click",
+    h1: "Download a YouTube video, ready to clip",
     metaTitle: "Free YouTube Video Downloader",
     metaDescription:
       "Paste a YouTube URL and download the video, ready to clip or edit. Free, no credits, no watermark.",
-    lede: "Paste a URL and get the file — ready to run through AutoClip or drop onto the editor timeline. Free, and it costs no credits.",
+    lede: "Paste a link and get the file at the quality you choose — straight into AutoClip or onto the editor timeline. Free, and it costs no credits.",
     steps: [
       { title: "Paste the link", body: "Drop in the YouTube URL." },
       { title: "Pick a quality", body: "Choose the resolution you need." },
@@ -592,11 +567,11 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   },
 
   "instagram-downloader": {
-    h1: "Save Reels, posts, and IGTV",
+    h1: "Save Reels and posts at original quality",
     metaTitle: "Free Instagram Video Downloader — Reels and Posts",
     metaDescription:
       "Download Instagram Reels, posts, and IGTV videos in their original quality. Free, no credits, no watermark.",
-    lede: "Download Reels, posts, and IGTV in their original quality, ready to edit or repurpose. Free, and it costs no credits.",
+    lede: "Paste a link and download Reels, posts or IGTV as the source file rather than a re-encoded capture. Free, and it costs no credits.",
     steps: [
       { title: "Paste the link", body: "Drop in the Instagram URL for a Reel, post, or IGTV video." },
       { title: "Fetch", body: "The media is pulled at the best quality available." },
@@ -620,27 +595,3 @@ export function getToolContent(slug: string): ToolContent | undefined {
   return TOOL_CONTENT[slug];
 }
 
-export interface ResolvedShot {
-  src: string;
-  alt: string;
-  width: number;
-  height: number;
-  blurDataURL: string;
-}
-
-/**
- * Joins the generated file data in shots.ts to the hand-written alt text here.
- * A shot only counts as usable when both halves exist — a screenshot with no
- * alt text is not something to ship, so it is dropped rather than rendered
- * with a placeholder.
- */
-export function getToolShots(slug: string): { ready?: ResolvedShot; result?: ResolvedShot } {
-  const files = TOOL_SHOT_FILES[slug];
-  const alt = TOOL_CONTENT[slug]?.shotAlt;
-  if (!files || !alt) return {};
-
-  return {
-    ready: files.ready && alt.ready ? { ...files.ready, alt: alt.ready } : undefined,
-    result: files.result && alt.result ? { ...files.result, alt: alt.result } : undefined,
-  };
-}

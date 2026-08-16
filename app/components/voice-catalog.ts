@@ -16,9 +16,9 @@ export interface Voice {
 }
 
 export const VOICES: Voice[] = [
-  { slug: "william", name: "William", desc: "William is the default voice used in Crayo, recommended for most use cases. Great for stories, narration and Reddit.", gender: "Male", age: "Middle aged", language: "English", color: "#ec4899" },
+  { slug: "william", name: "William", desc: "The default narrator — clear and neutral. Suits stories, narration and Reddit threads.", gender: "Male", age: "Middle aged", language: "English", color: "#ec4899" },
   { slug: "adam", name: "Adam", desc: "Adam is one of the most recognizable voices used in many viral short-form videos.", gender: "Male", age: "Middle aged", language: "Multilingual", color: "#3b82f6" },
-  { slug: "dandan", name: "Dan Dan", desc: "The AI voice used in Kimberly Shorts (100k+ yt channel by crayo).", gender: "Male", age: "Middle aged", language: "Multilingual", color: "#6366f1" },
+  { slug: "dandan", name: "Dan Dan", desc: "Warm and conversational — suits story and commentary channels.", gender: "Male", age: "Middle aged", language: "Multilingual", color: "#6366f1" },
   { slug: "natasha", name: "Natasha", desc: "Natasha is the soft voice most notably used in viral short-form videos for storytelling and narration.", gender: "Female", age: "Young", language: "Multilingual", color: "#10b981" },
   { slug: "amir1", name: "Amir #1", desc: "The one and only built-different sir Uber driver.", gender: "Male", age: "Young", language: "Multilingual", color: "#f59e0b" },
   { slug: "amir2", name: "Amir #2 (Ameer)", desc: "Amir's brother who is rivaling on doordash.", gender: "Male", age: "Young", language: "Multilingual", color: "#22c55e" },

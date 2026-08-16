@@ -477,7 +477,7 @@ function SubtitleStep({
   onModeChange: (m: "oneword" | "lines") => void;
 }) {
   const styles = mode === "oneword" ? ONE_WORD_STYLES : LINE_STYLES;
-  const sample = mode === "oneword" ? "Crayo" : "The quick brown";
+  const sample = mode === "oneword" ? "Clipiro" : "The quick brown";
 
   return (
     <div className="px-8 pt-6 pb-10">

@@ -210,9 +210,9 @@ let currentPreviewAudio: HTMLAudioElement | null = null;
 interface Voice { id: string; name: string; gender: "Male" | "Female"; age: string; accent: string; desc: string; }
 
 const VOICES: Voice[] = [
-  { id: "william",  name: "William",       gender: "Male",   age: "Middle aged", accent: "English",      desc: "William is the default voice used in Crayo recommended for most use cases" },
+  { id: "william",  name: "William",       gender: "Male",   age: "Middle aged", accent: "English",      desc: "The default narrator — clear and neutral, a safe choice for most videos" },
   { id: "adam",     name: "Adam",          gender: "Male",   age: "Middle aged", accent: "Multilingual", desc: "Adam is one of the most recognizable voices used in many viral short-form videos" },
-  { id: "dandan",   name: "Dan Dan",       gender: "Male",   age: "Middle aged", accent: "Multilingual", desc: "The AI voice used in Kimberly Shorts (100k+ yt channel by crayo)" },
+  { id: "dandan",   name: "Dan Dan",       gender: "Male",   age: "Middle aged", accent: "Multilingual", desc: "Warm and conversational — suits story and commentary channels" },
   { id: "natasha",  name: "Natasha",       gender: "Female", age: "Young",       accent: "Multilingual", desc: "Natasha is the soft voice most notably used in viral short-form videos for female voices" },
   { id: "amir1",    name: "Amir #1",       gender: "Male",   age: "Young",       accent: "Multilingual", desc: "The one and only built-different sir Uber driver" },
   { id: "amir2",    name: "Amir #2 (Ameer)", gender: "Male", age: "Young",       accent: "Multilingual", desc: "Amir's brother who is rivaling on doordash" },

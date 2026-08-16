@@ -10,6 +10,7 @@ import { CONTAINER, HERO_Y } from "./styles";
  * one-off; the type does the work here instead.
  */
 export default function PageHero({
+  badge,
   eyebrow,
   eyebrowIcon,
   title,
@@ -19,6 +20,12 @@ export default function PageHero({
   media,
   as: Tag = "section",
 }: {
+  /**
+   * Small pill above the eyebrow. Reserve it for claims that are already
+   * substantiated elsewhere on the site — a money-back window, "no card
+   * required" — never a user count or any figure we would have to defend.
+   */
+  badge?: ReactNode;
   eyebrow?: ReactNode;
   eyebrowIcon?: ReactNode;
   title: ReactNode;
@@ -39,6 +46,18 @@ export default function PageHero({
       <div className={`${CONTAINER} ${HERO_Y}`}>
         {above}
         <div className="flex max-w-[820px] flex-col items-start gap-5">
+          {badge && (
+            <span className="inline-flex items-center gap-2 rounded-full border border-card-border bg-white px-3.5 py-1.5 text-[11.5px] font-semibold text-ink-soft">
+              <svg className="h-3.5 w-3.5 text-brand" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path
+                  fillRule="evenodd"
+                  d="M10 1.5 12.2 6l5 .7-3.6 3.5.85 4.95L10 12.8l-4.45 2.35.85-4.95L2.8 6.7l5-.7L10 1.5Z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              {badge}
+            </span>
+          )}
           {eyebrow && (
             <span className="inline-flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-brand">
               {eyebrowIcon}
