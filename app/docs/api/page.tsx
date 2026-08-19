@@ -1,39 +1,50 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import SiteNavbar from "@/app/components/SiteNavbar";
-import SiteFooter from "@/app/components/SiteFooter";
+import MarketingShell from "@/app/components/marketing/MarketingShell";
+import PageHero from "@/app/components/marketing/PageHero";
+import { CONTAINER, SECTION_Y } from "@/app/components/marketing/styles";
 
 export const metadata: Metadata = {
   title: "API Docs",
   description: "Create AutoClip jobs and poll clip status from your own code with the Clipiro public API.",
+  alternates: { canonical: "/docs/api" },
 };
+
+/** Section heading, at the doc scale rather than the marketing-page scale. */
+function H2({ children }: { children: React.ReactNode }) {
+  return <h2 className="text-[20px] font-semibold tracking-tight text-ink">{children}</h2>;
+}
 
 function Code({ children }: { children: string }) {
   return (
-    <pre className="mt-3 overflow-x-auto rounded-xl bg-gray-900 p-4 text-xs leading-relaxed text-gray-100">
+    <pre className="mt-3 overflow-x-auto rounded-xl bg-ink p-4 text-xs leading-relaxed text-gray-100">
       <code>{children}</code>
     </pre>
   );
 }
 
+function Inline({ children }: { children: React.ReactNode }) {
+  return <code className="rounded bg-surface px-1.5 py-0.5 text-xs">{children}</code>;
+}
+
 function Endpoint({ method, path, desc, request, response }: {
   method: string; path: string; desc: string; request?: string; response: string;
 }) {
-  const methodColor = method === "POST" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700";
+  const methodColor = method === "POST" ? "bg-tint-emerald text-emerald-700" : "bg-tint-blue text-brand";
   return (
-    <div className="rounded-2xl border border-gray-100 p-6">
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${methodColor}`}>{method}</span>
-        <code className="text-sm font-semibold text-gray-900">{path}</code>
+    <div className="rounded-2xl border border-card-border p-6">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${methodColor}`}>{method}</span>
+        <code className="text-sm font-semibold text-ink">{path}</code>
       </div>
-      <p className="mt-2 text-sm text-gray-600">{desc}</p>
+      <p className="mt-2 text-[14px] leading-[1.6] text-ink-soft">{desc}</p>
       {request && (
         <>
-          <p className="mt-4 text-xs font-bold uppercase tracking-widest text-gray-400">Request body</p>
+          <p className="mt-4 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-ink-soft">Request body</p>
           <Code>{request}</Code>
         </>
       )}
-      <p className="mt-4 text-xs font-bold uppercase tracking-widest text-gray-400">Response</p>
+      <p className="mt-4 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-ink-soft">Response</p>
       <Code>{response}</Code>
     </div>
   );
@@ -41,33 +52,47 @@ function Endpoint({ method, path, desc, request, response }: {
 
 export default function ApiDocsPage() {
   return (
-    <div className="min-h-screen bg-white text-gray-900 font-sans">
-      <SiteNavbar solid />
-      <main>
-        <section className="border-b border-gray-100 bg-gray-50/60">
-          <div className="mx-auto w-full max-w-4xl px-4 py-16 md:px-6">
-            <span className="text-xs font-bold uppercase tracking-widest text-[#335CFF]">API Docs</span>
-            <h1 className="mt-3 text-3xl font-extrabold leading-tight text-gray-900 md:text-4xl">Public API</h1>
-            <p className="mt-4 max-w-2xl text-lg text-gray-600">
-              Create AutoClip jobs and poll clip status from your own code. Manage your keys from{" "}
-              <Link href="/dashboard/settings/api-keys" className="text-[#335CFF] hover:underline">API keys</Link> in your dashboard.
-            </p>
-          </div>
-        </section>
+    <MarketingShell>
+      <PageHero
+        eyebrow="API Docs"
+        title="Public API"
+        lede={
+          <>
+            Create AutoClip jobs and poll clip status from your own code. Manage your keys from{" "}
+            <Link
+              href="/dashboard/settings/api-keys"
+              className="font-medium text-brand underline decoration-brand/30 underline-offset-[3px] hover:decoration-brand"
+            >
+              API keys
+            </Link>{" "}
+            in your dashboard.
+          </>
+        }
+      />
 
-        <section className="mx-auto w-full max-w-4xl px-4 py-12 md:px-6">
-          <h2 className="text-lg font-extrabold text-gray-900">Authentication</h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Send your API key as a bearer token on every request. Requests without a valid key return <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs">401</code>.
+      <section>
+        {/* Narrower than the standard container: this is reference material, and
+            code blocks stay scannable at a doc measure rather than full width. */}
+        <div className={`${CONTAINER} ${SECTION_Y} max-w-4xl`}>
+          <H2>Authentication</H2>
+          <p className="mt-2 text-[14px] leading-[1.6] text-ink-soft">
+            Send your API key as a bearer token on every request. Requests without a valid key return{" "}
+            <Inline>401</Inline>.
           </p>
           <Code>{`Authorization: Bearer sk_live_...`}</Code>
 
-          <h2 className="mt-12 text-lg font-extrabold text-gray-900">Rate limits</h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Limits are per key, not per account. Creating a clip job is limited to 10 requests/minute; status polling is limited to 60-120 requests/minute depending on the endpoint. A <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs">429</code> response includes a <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs">Retry-After</code> header.
+          <div className="mt-12">
+            <H2>Rate limits</H2>
+          </div>
+          <p className="mt-2 text-[14px] leading-[1.6] text-ink-soft">
+            Limits are per key, not per account. Creating a clip job is limited to 10 requests/minute; status polling
+            is limited to 60-120 requests/minute depending on the endpoint. A <Inline>429</Inline> response includes a{" "}
+            <Inline>Retry-After</Inline> header.
           </p>
 
-          <h2 className="mt-12 mb-4 text-lg font-extrabold text-gray-900">Endpoints</h2>
+          <div className="mb-4 mt-12">
+            <H2>Endpoints</H2>
+          </div>
           <div className="space-y-4">
             <Endpoint
               method="POST"
@@ -146,14 +171,15 @@ export default function ApiDocsPage() {
             />
           </div>
 
-          <h2 className="mt-12 text-lg font-extrabold text-gray-900">Example</h2>
+          <div className="mt-12">
+            <H2>Example</H2>
+          </div>
           <Code>{`curl -X POST https://clipiro.com/api/v1/clips \\
   -H "Authorization: Bearer sk_live_..." \\
   -H "Content-Type: application/json" \\
   -d '{"projectId": "proj_abc123", "clipCount": 5}'`}</Code>
-        </section>
-      </main>
-      <SiteFooter />
-    </div>
+        </div>
+      </section>
+    </MarketingShell>
   );
 }

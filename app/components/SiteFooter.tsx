@@ -2,12 +2,14 @@ import Link from "next/link";
 import {
   LinkedInIcon, XIcon, InstagramIcon, FacebookIcon, YoutubeIcon, DiscordIcon,
 } from "@/app/components/landing/icons";
-import { FREE_FEATURES, VIDEO_TOOLS, AI_TOOLS, type FeatureLink } from "@/app/components/featureLinks";
+import { FREE_FEATURES, VIDEO_TOOLS, AI_TOOLS, toolPath, type FeatureLink } from "@/app/components/featureLinks";
 import ClipiroLogo from "@/app/components/ClipiroLogo";
-// Map the shared feature lists (title/desc/href) to footer link rows (label/href).
-const asLinks = (items: FeatureLink[]) => items.map((i) => ({ label: i.title, href: i.href }));
+// Map the shared feature lists to footer rows. These point at the public
+// /tools/<slug> page, not the in-app href — a crawler or a logged-out visitor
+// following a /dashboard link gets a login redirect instead of the tool.
+const asLinks = (items: FeatureLink[]) => items.map((i) => ({ label: i.title, href: toolPath(i) }));
 
-// Every href resolves to a real route, an on-page anchor, or a mailto — no 404s.
+// Every href resolves to a real public route, an on-page anchor, or a mailto.
 // The Video / AI / Free Tools columns mirror the navbar (single source of truth).
 const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   {
@@ -41,6 +43,7 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
       { label: "Refund policy", href: "/refund" },
       { label: "Terms of service", href: "/terms" },
       { label: "Privacy policy", href: "/privacy" },
+      { label: "Cookies", href: "/cookies" },
       { label: "Affiliate TOS", href: "/affiliate-tos" },
     ],
   },
@@ -71,22 +74,6 @@ export default function SiteFooter() {
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-gray-500">
               Turn long videos into viral short-form content with AI clipping, captions, and one-click export.
             </p>
-            <div className="mt-5 flex items-center gap-2">
-              {SOCIALS.map((s) => {
-                const external = s.href.startsWith("http");
-                return (
-                  <a
-                    key={s.label}
-                    href={s.href}
-                    aria-label={s.label}
-                    {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                    className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-brand hover:text-brand-deep"
-                  >
-                    {s.icon}
-                  </a>
-                );
-              })}
-            </div>
           </div>
 
           {/* Link columns */}
@@ -109,10 +96,21 @@ export default function SiteFooter() {
         {/* Bottom bar */}
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-gray-100 pt-8 sm:flex-row">
           <p className="text-sm text-gray-400">© 2026 Clipiro. All rights reserved.</p>
-          <div className="flex items-center gap-6 text-sm text-gray-400">
-            <Link href="/privacy" className="hover:text-gray-700">Privacy Policy</Link>
-            <Link href="/terms" className="hover:text-gray-700">Terms</Link>
-            <Link href="/cookies" className="hover:text-gray-700">Cookies</Link>
+          <div className="flex items-center gap-2">
+            {SOCIALS.map((s) => {
+              const external = s.href.startsWith("http");
+              return (
+                <a
+                  key={s.label}
+                  href={s.href}
+                  aria-label={s.label}
+                  {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-brand hover:text-brand-deep"
+                >
+                  {s.icon}
+                </a>
+              );
+            })}
           </div>
         </div>
       </div>

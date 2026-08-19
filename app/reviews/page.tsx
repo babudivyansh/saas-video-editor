@@ -39,7 +39,7 @@ export default async function ReviewsPage() {
   ]);
 
   return (
-    <div className="min-h-screen bg-white text-gray-900 font-sans">
+    <div className="flat-brand min-h-screen bg-white text-gray-900 font-sans">
       <JsonLd data={softwareAppSchema} />
       <JsonLd data={faqSchema} />
       <JsonLd data={breadcrumbSchema} />

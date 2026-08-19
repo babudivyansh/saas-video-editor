@@ -47,7 +47,7 @@ export default async function BlogAuthorPage({ params }: { params: Promise<{ slu
   ]);
 
   return (
-    <div className="min-h-screen bg-white text-gray-900 font-sans">
+    <div className="flat-brand min-h-screen bg-white text-gray-900 font-sans">
       <JsonLd data={profileSchema} />
       <JsonLd data={breadcrumbSchema} />
       <SiteNavbar solid />

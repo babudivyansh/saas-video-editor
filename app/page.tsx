@@ -4,7 +4,6 @@ import SiteFooter from "@/app/components/SiteFooter";
 import Hero from "@/app/components/landing/Hero";
 import SocialProof from "@/app/components/landing/SocialProof";
 import Features from "@/app/components/landing/Features";
-import ToolShowcase from "@/app/components/landing/ToolShowcase";
 import HowItWorks from "@/app/components/landing/HowItWorks";
 import FounderSection from "@/app/components/landing/FounderSection";
 import FAQ from "@/app/components/landing/FAQ";
@@ -64,14 +63,13 @@ export default async function HomePage() {
   return (
     <>
       <JsonLd data={jsonLd} />
-      <div className="min-h-screen bg-white text-gray-900 font-sans">
+      <div className="flat-brand min-h-screen bg-white text-gray-900 font-sans">
         <SiteNavbar />
         <main>
           <Hero reviewSummary={reviewSummary} />
           <SocialProof />
           {testimonials.length > 0 && <TestimonialWall summary={reviewSummary} reviews={testimonials} />}
           <Features />
-          <ToolShowcase />
           <HowItWorks />
           <FounderSection />
           <FAQ />

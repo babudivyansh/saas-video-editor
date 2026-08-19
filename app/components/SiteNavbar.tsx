@@ -6,8 +6,8 @@ import { useAuth } from "@/app/components/AuthContext";
 import { ZapIcon, ChevronDownIcon } from "@/app/components/landing/icons";
 import ClipiroLogo from "@/app/components/ClipiroLogo";
 import {
-  FREE_FEATURES, VIDEO_TOOLS, AI_TOOLS, RESOURCES,
-  type FeatureLink as NavItem,
+  FREE_FEATURES, VIDEO_TOOLS, AI_TOOLS, RESOURCES, toNavLink, toolPath,
+  type NavLink as NavItem,
 } from "@/app/components/featureLinks";
 
 // Renders a dropdown row (title + description), handling internal vs external links.
@@ -182,7 +182,7 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
                   <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-brand-deep">Video Tools</p>
                   <div className="space-y-0.5">
                     {VIDEO_TOOLS.map((item) => (
-                      <DropdownItem key={item.title} item={item} onNavigate={() => { }} />
+                      <DropdownItem key={item.title} item={toNavLink(item)} onNavigate={() => { }} />
                     ))}
                   </div>
                 </div>
@@ -191,12 +191,12 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
                   <div className="grid grid-cols-2 gap-x-1">
                     <div className="space-y-0.5">
                       {AI_TOOLS.slice(0, Math.ceil(AI_TOOLS.length / 2)).map((item) => (
-                        <DropdownItem key={item.title} item={item} onNavigate={() => { }} />
+                        <DropdownItem key={item.title} item={toNavLink(item)} onNavigate={() => { }} />
                       ))}
                     </div>
                     <div className="space-y-0.5">
                       {AI_TOOLS.slice(Math.ceil(AI_TOOLS.length / 2)).map((item) => (
-                        <DropdownItem key={item.title} item={item} onNavigate={() => { }} />
+                        <DropdownItem key={item.title} item={toNavLink(item)} onNavigate={() => { }} />
                       ))}
                     </div>
                   </div>
@@ -205,7 +205,7 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
                   <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-gray-400">Free Tools</p>
                   <div className="space-y-0.5">
                     {FREE_FEATURES.map((item) => (
-                      <DropdownItem key={item.title} item={item} onNavigate={() => { }} />
+                      <DropdownItem key={item.title} item={toNavLink(item)} onNavigate={() => { }} />
                     ))}
                   </div>
                 </div>
@@ -289,7 +289,7 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
                 <div key={group}>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-brand-deep mt-2 mb-1">{group}</p>
                   {items.map((item) => (
-                    <Link key={item.title} href={item.href} onClick={closeMobile} className="block py-1.5">
+                    <Link key={item.title} href={toolPath(item)} onClick={closeMobile} className="block py-1.5">
                       <span className="block text-sm font-medium text-gray-700 hover:text-brand-deep">{item.title}</span>
                       <span className="block text-xs text-gray-400">{item.desc}</span>
                     </Link>

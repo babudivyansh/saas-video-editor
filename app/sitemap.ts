@@ -4,6 +4,7 @@ import { BLOG_POSTS } from "./blog/posts";
 import { getAuthorIndex, getPostsByAuthor, getPostsByCategory } from "./blog/utils";
 import { HELP_ARTICLES } from "./help/articles";
 import { LEGAL_DOCS } from "./legal/documents";
+import { ALL_TOOLS } from "./components/featureLinks";
 import { prisma } from "@/lib/prisma";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -66,6 +67,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.3,
   }));
 
+  // The tool pages are the site's main organic surface — one indexable page per
+  // tool, each targeting its own search intent. Priority sits just under
+  // /pricing and above the blog for that reason.
+  const toolEntries: MetadataRoute.Sitemap = ALL_TOOLS.map((tool) => ({
+    url: `${base}/tools/${tool.slug}`,
+    lastModified: new Date(),
+    changeFrequency: "monthly",
+    priority: 0.8,
+  }));
+
   const helpEntries: MetadataRoute.Sitemap = HELP_ARTICLES.map((a) => ({
     url: `${base}/help/${a.slug}`,
     lastModified: new Date(),
@@ -76,6 +87,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     { url: base, lastModified: new Date(), changeFrequency: "weekly", priority: 1 },
     { url: `${base}/pricing`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.9 },
+    { url: `${base}/tools`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.9 },
+    ...toolEntries,
     { url: `${base}/about`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.7 },
     { url: `${base}/blog`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.7 },
     ...categoryEntries,

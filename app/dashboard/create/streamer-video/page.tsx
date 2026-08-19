@@ -360,7 +360,7 @@ function TitleStep({
   onSubtitleSel: (i: number) => void;
 }) {
   const styles = subtitleMode === "oneword" ? ONE_WORD_STYLES : LINE_STYLES;
-  const sample = subtitleMode === "oneword" ? "Crayo" : "The quick brown";
+  const sample = subtitleMode === "oneword" ? "Clipiro" : "The quick brown";
 
   return (
     <div className="px-8 pt-6 pb-10 flex flex-col space-y-4 h-full">

@@ -233,7 +233,7 @@ function BrowseStep({ plansLoading, subs, packs, term, onTermChange, currency, o
               key={t.months}
               onClick={() => onTermChange(t.months)}
               className={`relative px-5 sm:px-7 py-2 rounded-full text-sm font-semibold transition-all ${
-                term === t.months ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:text-gray-900"
+                term === t.months ? "bg-brand text-white shadow" : "text-gray-600 hover:text-gray-900"
               }`}
             >
               {t.label}
@@ -300,14 +300,14 @@ function BrowseStep({ plansLoading, subs, packs, term, onTermChange, currency, o
                 <label
                   key={pack.id}
                   className={`flex items-start gap-3 p-4 bg-white rounded-xl border-2 cursor-pointer transition-all ${
-                    checked ? "border-blue-600 shadow-sm bg-blue-50/20" : "border-gray-100 hover:border-gray-200"
+                    checked ? "border-brand shadow-sm bg-tint-blue/20" : "border-gray-100 hover:border-gray-200"
                   }`}
                 >
                   <input
                     type="checkbox"
                     checked={checked}
                     onChange={() => onToggleAddon(pack.slug)}
-                    className="mt-0.5 w-4 h-4 accent-blue-600 flex-shrink-0"
+                    className="mt-0.5 w-4 h-4 accent-[color:var(--brand)] flex-shrink-0"
                   />
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-900 text-sm">{pack.name}</p>
@@ -405,10 +405,10 @@ function CheckoutStep({
                   <label
                     key={pack.id}
                     className={`flex items-start gap-3 p-4 bg-white rounded-xl border-2 cursor-pointer transition-all ${
-                      checked ? "border-blue-600 shadow-sm bg-blue-50/20" : "border-gray-100 hover:border-gray-200"
+                      checked ? "border-brand shadow-sm bg-tint-blue/20" : "border-gray-100 hover:border-gray-200"
                     }`}
                   >
-                    <input type="checkbox" checked={checked} onChange={() => onToggleAddon(pack.slug)} className="mt-0.5 w-4 h-4 accent-blue-600 flex-shrink-0" />
+                    <input type="checkbox" checked={checked} onChange={() => onToggleAddon(pack.slug)} className="mt-0.5 w-4 h-4 accent-[color:var(--brand)] flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-gray-900 text-sm">{pack.name}</p>
                       <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · never expire</p>
@@ -465,7 +465,7 @@ function CheckoutStep({
                     onChange={e => onCouponInputChange(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); onApplyCoupon(); } }}
                     placeholder="Coupon code"
-                    className="flex-1 min-w-0 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold tracking-wide uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 min-w-0 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold tracking-wide uppercase focus:outline-none focus:ring-2 focus:ring-brand/40"
                   />
                   <button
                     onClick={onApplyCoupon}
@@ -505,7 +505,7 @@ function CheckoutStep({
         <button
           onClick={onPay}
           disabled={checkoutLoading}
-          className="mt-6 w-full bg-blue-600 text-white font-bold py-3.5 rounded-full hover:bg-blue-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2 text-sm"
+          className="mt-6 w-full bg-brand text-white font-bold py-3.5 rounded-full hover:bg-brand-dark transition-colors disabled:opacity-60 flex items-center justify-center gap-2 text-sm"
         >
           {checkoutLoading ? (
             <>

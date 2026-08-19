@@ -204,16 +204,16 @@ function FreeCard({ currency }: { currency: Currency }) {
     `${STORAGE_LIMIT_GB.free * 1000} MB storage`,
   ];
   return (
-    <div className="relative h-full rounded-2xl p-8 border-2 border-gray-100 bg-white text-gray-900 shadow-sm flex flex-col">
+    <div className="relative h-full rounded-2xl p-8 border-2 border-card-border bg-white text-ink shadow-sm flex flex-col">
       <div className="mb-6">
-        <p className="text-sm font-bold uppercase tracking-widest mb-1 text-gray-400">Free</p>
+        <p className="text-sm font-bold uppercase tracking-widest mb-1 text-ink-soft">Free</p>
         <div className="flex items-start gap-0.5">
-          <span className="text-xl font-bold mt-1.5 text-gray-400">{currency === "USD" ? "$" : "₹"}</span>
-          <span className="text-5xl font-black leading-none tracking-tight">0</span>
-          <span className="text-sm font-medium self-end mb-1 ml-1 text-gray-400">/month</span>
+          <span className="text-xl font-bold mt-1.5 text-ink-soft">{currency === "USD" ? "$" : "₹"}</span>
+          <span className="text-5xl font-semibold leading-none tracking-tight">0</span>
+          <span className="text-sm font-medium self-end mb-1 ml-1 text-ink-soft">/month</span>
         </div>
-        <p className="text-xs mt-2 text-gray-500">No card required</p>
-        <p className="text-sm font-semibold mt-4 pt-4 border-t border-gray-100 text-gray-900">
+        <p className="text-xs mt-2 text-ink-soft">No card required</p>
+        <p className="text-sm font-semibold mt-4 pt-4 border-t border-card-border text-ink">
           {FREE_TIER_MONTHLY_BONUS_CREDITS} credits every month
         </p>
       </div>
@@ -221,8 +221,8 @@ function FreeCard({ currency }: { currency: Currency }) {
       <ul className="space-y-3 mb-8 flex-1">
         {perks.map(p => (
           <li key={p} className="flex items-start gap-2.5 text-sm">
-            <CheckIcon className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-600" />
-            <span className="text-gray-700">{p}</span>
+            <CheckIcon className="w-4 h-4 flex-shrink-0 mt-0.5 text-brand" />
+            <span className="text-ink-soft">{p}</span>
           </li>
         ))}
       </ul>
@@ -233,7 +233,7 @@ function FreeCard({ currency }: { currency: Currency }) {
       >
         Start free
       </Link>
-      <p className="text-center text-[11px] mt-2 text-gray-400">Upgrade whenever you need more</p>
+      <p className="text-center text-[11px] mt-2 text-ink-soft">Upgrade whenever you need more</p>
     </div>
   );
 }
@@ -243,15 +243,15 @@ function CompareRow({ feature, creator, pro, studio, shaded }: {
   feature: string; creator: boolean; pro: boolean; studio: boolean; shaded: boolean;
 }) {
   const cell = (val: boolean, highlight: boolean) => (
-    <td className={`text-center py-4 px-4 ${highlight ? "bg-blue-50/50" : ""}`}>
+    <td className={`text-center py-4 px-4 ${highlight ? "bg-tint-blue/50" : ""}`}>
       {val
-        ? <CheckIcon className="w-5 h-5 text-blue-600 mx-auto" />
+        ? <CheckIcon className="w-5 h-5 text-brand mx-auto" />
         : <MinusIcon className="w-5 h-5 text-gray-300 mx-auto" />}
     </td>
   );
   return (
-    <tr className={shaded ? "bg-gray-50" : "bg-white"}>
-      <td className="py-4 px-6 text-sm text-gray-700">{feature}</td>
+    <tr className={shaded ? "bg-surface" : "bg-white"}>
+      <td className="py-4 px-6 text-sm text-ink-soft">{feature}</td>
       {cell(creator, false)}
       {cell(pro, true)}
       {cell(studio, false)}
@@ -441,12 +441,12 @@ export default function PricingPage() {
     : totalDueMinor;
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="flat-brand min-h-screen bg-white">
       <SiteNavbar solid />
 
       {/* ── Success banner ── */}
       {successBanner && (
-        <div className="bg-green-500 text-white text-center py-3 px-4 text-sm font-semibold flex items-center justify-center gap-3">
+        <div className="bg-emerald-500 text-white text-center py-3 px-4 text-sm font-semibold flex items-center justify-center gap-3">
           <CheckIcon className="w-4 h-4" />
           Payment successful! Credits will appear in your account shortly.
           <button onClick={() => setSuccessBanner(false)} className="ml-2 underline opacity-75 hover:opacity-100 text-xs">
@@ -457,24 +457,24 @@ export default function PricingPage() {
 
       {/* ── Hero ── */}
       <section className="pt-16 pb-4 text-center px-4">
-        <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 mb-3">
+        <h1 className="text-4xl sm:text-5xl font-semibold text-ink mb-3">
           Pro video tools. One credit at a time.
         </h1>
-        <p className="text-lg text-gray-500 max-w-xl mx-auto mb-2">
+        <p className="text-lg text-ink-soft max-w-xl mx-auto mb-2">
           Every AI tool — voiceovers, captions, AI-generated videos, and more — in one plan.
           {savePct != null && (
-            <> Go <span className="font-semibold text-gray-700">yearly to save {savePct}%</span>.</>
+            <> Go <span className="font-semibold text-ink-soft">yearly to save {savePct}%</span>.</>
           )}
         </p>
       </section>
 
       {/* ── Trust Strip ── */}
-      <div className="border-y border-gray-100 bg-gray-50 py-5 px-4">
+      <div className="border-y border-card-border bg-surface py-5 px-4">
         <div className="max-w-4xl mx-auto flex flex-wrap justify-center gap-x-10 gap-y-3 text-center text-sm">
-          <span className="text-gray-500">✓ <strong className="text-gray-700">48-hour money-back</strong> guarantee</span>
-          <span className="text-gray-500">✓ <strong className="text-gray-700">No hidden fees</strong> — cancel anytime</span>
-          <span className="text-gray-500">✓ <strong className="text-gray-700">UPI, cards & wallets</strong> via Razorpay</span>
-          <span className="text-gray-500">✓ <strong className="text-gray-700">Commercial license</strong> on all plans</span>
+          <span className="text-ink-soft">✓ <strong className="text-ink-soft">48-hour money-back</strong> guarantee</span>
+          <span className="text-ink-soft">✓ <strong className="text-ink-soft">No hidden fees</strong> — cancel anytime</span>
+          <span className="text-ink-soft">✓ <strong className="text-ink-soft">UPI, cards & wallets</strong> via Razorpay</span>
+          <span className="text-ink-soft">✓ <strong className="text-ink-soft">Commercial license</strong> on all plans</span>
         </div>
       </div>
 
@@ -488,12 +488,12 @@ export default function PricingPage() {
                 key={t.months}
                 onClick={() => setTerm(t.months)}
                 className={`relative px-5 sm:px-7 py-2 rounded-full text-sm font-semibold transition-all ${
-                  term === t.months ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:text-gray-900"
+                  term === t.months ? "bg-brand text-white shadow" : "text-ink-soft hover:text-ink"
                 }`}
               >
                 {t.label}
                 {t.months === 12 && savePct != null && (
-                  <span className={`ml-2 text-[10px] font-black px-1.5 py-0.5 rounded-full ${
+                  <span className={`ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
                     term === 12 ? "bg-green-400 text-green-900" : "bg-green-100 text-green-700"
                   }`}>
                     SAVE {savePct}%
@@ -510,7 +510,7 @@ export default function PricingPage() {
                 onClick={() => { setCurrency(c); clearCoupon(); }}
                 aria-pressed={currency === c}
                 className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
-                  currency === c ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:text-gray-900"
+                  currency === c ? "bg-brand text-white shadow" : "text-ink-soft hover:text-ink"
                 }`}
               >
                 {c === "INR" ? "₹ INR" : "$ USD"}
@@ -522,7 +522,7 @@ export default function PricingPage() {
         {plansLoading ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
             {[0, 1, 2, 3].map(i => (
-              <div key={i} className="rounded-2xl p-8 border-2 border-gray-100 bg-white h-96 animate-pulse">
+              <div key={i} className="rounded-2xl p-8 border-2 border-card-border bg-white h-96 animate-pulse">
                 <div className="h-3 w-16 rounded bg-gray-100" />
                 <div className="h-9 w-28 rounded bg-gray-200 mt-3" />
                 <div className="h-3 w-24 rounded bg-gray-100 mt-3" />
@@ -543,7 +543,7 @@ export default function PricingPage() {
 
           if (cards.length === 0) {
             return (
-              <p className="text-center text-gray-400 text-sm py-12">
+              <p className="text-center text-ink-soft text-sm py-12">
                 Pricing is being updated. Please check back shortly.
               </p>
             );
@@ -576,14 +576,14 @@ export default function PricingPage() {
                           onClick={() => openCheckout(plan, true)}
                           className={`w-full font-semibold py-2.5 mt-2.5 rounded-full text-sm transition-all ${
                             idx === 1
-                              ? "bg-blue-500/40 text-white ring-1 ring-white/30 hover:bg-blue-500/60"
-                              : "bg-white text-blue-600 ring-1 ring-blue-200 hover:bg-blue-50"
+                              ? "bg-white/25 text-white ring-1 ring-white/30 hover:bg-white/40"
+                              : "bg-white text-brand ring-1 ring-brand-soft hover:bg-tint-blue"
                           }`}
                         >
                           Or start a 7-day free trial
                         </button>
                       )}
-                      <p className={`text-center text-[11px] mt-2 ${idx === 1 ? "text-blue-300/80" : "text-gray-400"}`}>
+                      <p className={`text-center text-[11px] mt-2 ${idx === 1 ? "text-white/70" : "text-ink-soft"}`}>
                         ✓ 48-hour money-back guarantee
                       </p>
                     </>
@@ -599,11 +599,11 @@ export default function PricingPage() {
           return (
             <div className="mt-16">
               <div className="text-center mb-8">
-                <span className="inline-block bg-blue-100 text-blue-700 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
+                <span className="inline-block bg-tint-blue text-brand text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
                   {hasActivePlan ? "Top-up Credits" : "Optional Add-ons"}
                 </span>
-                <h3 className="text-2xl font-extrabold text-gray-900">Need extra credits?</h3>
-                <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
+                <h3 className="text-2xl font-semibold text-ink">Need extra credits?</h3>
+                <p className="text-sm text-ink-soft mt-2 max-w-md mx-auto">
                   {hasActivePlan
                     ? "Top-up anytime — add-on credits stack with your subscription and never expire."
                     : "Bundle any credit pack with your plan at checkout. Add-on credits never expire."}
@@ -619,8 +619,8 @@ export default function PricingPage() {
                       key={pack.id}
                       className={`flex flex-col bg-white rounded-xl border-2 shadow-sm transition-all overflow-hidden ${
                         checked
-                          ? "border-blue-600 ring-1 ring-blue-600/20 bg-blue-50/20"
-                          : "border-gray-200 hover:border-blue-200"
+                          ? "border-brand ring-1 ring-brand/20 bg-tint-blue/20"
+                          : "border-card-border hover:border-brand-soft"
                       }`}
                     >
                       <label className="flex items-start gap-3 p-5 cursor-pointer flex-1">
@@ -628,19 +628,19 @@ export default function PricingPage() {
                           type="checkbox"
                           checked={checked}
                           onChange={() => toggleAddon(pack.slug)}
-                          className="mt-0.5 w-4 h-4 accent-blue-600 flex-shrink-0"
+                          className="mt-0.5 w-4 h-4 accent-[color:var(--brand)] flex-shrink-0"
                         />
                         <div className="flex-1 min-w-0">
-                          <p className="font-bold text-gray-900 text-sm leading-snug">{pack.name}</p>
-                          <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · never expire</p>
-                          <p className="text-xl font-black text-gray-900 mt-3">{formatMoney(minorUnits(pack, currency), currency)}</p>
+                          <p className="font-bold text-ink text-sm leading-snug">{pack.name}</p>
+                          <p className="text-xs text-ink-soft mt-0.5">{pack.credits} credits · never expire</p>
+                          <p className="text-xl font-semibold text-ink mt-3">{formatMoney(minorUnits(pack, currency), currency)}</p>
                         </div>
                       </label>
                       {hasActivePlan && (
                         <button
                           onClick={() => handleBuyPack(pack)}
                           disabled={!!buyingPack}
-                          className="mx-4 mb-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
+                          className="mx-4 mb-4 py-2 rounded-lg bg-brand text-white text-sm font-bold hover:bg-brand-dark transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
                         >
                           {isLoading ? (
                             <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Buying...</>
@@ -653,16 +653,16 @@ export default function PricingPage() {
               </div>
 
               {hasActivePlan ? (
-                <p className="text-center text-sm text-gray-400 mt-5">
+                <p className="text-center text-sm text-ink-soft mt-5">
                   Click <strong>Buy Now</strong> to top-up instantly, or check a pack and click a plan above to bundle it.
                 </p>
               ) : selectedAddons.length > 0 ? (
-                <p className="text-center text-sm text-blue-700 font-semibold mt-5 bg-blue-50 border border-blue-100 rounded-lg py-3">
+                <p className="text-center text-sm text-brand font-semibold mt-5 bg-tint-blue border border-brand-soft rounded-lg py-3">
                   {selectedAddons.length} add-on pack{selectedAddons.length > 1 ? "s" : ""} selected —
                   click any plan above to bundle them at checkout.
                 </p>
               ) : (
-                <p className="text-center text-sm text-gray-400 mt-5">
+                <p className="text-center text-sm text-ink-soft mt-5">
                   Select any packs above, then click a plan to buy them together in one payment.
                 </p>
               )}
@@ -670,7 +670,7 @@ export default function PricingPage() {
           );
         })()}
 
-        <p className="text-center mt-10 text-gray-400 text-sm">
+        <p className="text-center mt-10 text-ink-soft text-sm">
           Free tools always free · Subscription credits refill monthly &amp; roll over up to 2× · Add-on credits never expire · Powered by Razorpay
         </p>
       </section>
@@ -679,18 +679,18 @@ export default function PricingPage() {
       {!plansLoading && subs.length > 0 && (() => {
         const result = computeRecommendation(calcSelections, subs, term);
         return (
-          <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16 border-t border-gray-100">
+          <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16 border-t border-card-border">
             <div className="text-center mb-8">
-              <span className="inline-block bg-blue-100 text-blue-700 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
+              <span className="inline-block bg-tint-blue text-brand text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
                 Credit calculator
               </span>
-              <h2 className="text-3xl font-extrabold text-gray-900">Estimate your monthly usage</h2>
-              <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
+              <h2 className="text-3xl font-semibold text-ink">Estimate your monthly usage</h2>
+              <p className="text-sm text-ink-soft mt-2 max-w-md mx-auto">
                 Pick the models you plan to use and how often — we&apos;ll estimate your monthly credits and recommend a plan.
               </p>
             </div>
 
-            <div className="bg-gray-50 rounded-2xl border border-gray-100 p-6 space-y-3">
+            <div className="bg-surface rounded-2xl border border-card-border p-6 space-y-3">
               {calcSelections.map((sel, idx) => {
                 const models = sel.kind === "image" ? IMAGE_MODELS : VIDEO_MODELS;
                 return (
@@ -698,7 +698,7 @@ export default function PricingPage() {
                     <select
                       value={sel.kind}
                       onChange={e => updateCalcRow(idx, { kind: e.target.value as "image" | "video" })}
-                      className="bg-white border border-gray-200 rounded-lg px-2.5 py-2 text-sm font-medium"
+                      className="bg-white border border-card-border rounded-lg px-2.5 py-2 text-sm font-medium"
                     >
                       <option value="image">Image</option>
                       <option value="video">Video</option>
@@ -706,7 +706,7 @@ export default function PricingPage() {
                     <select
                       value={sel.modelId}
                       onChange={e => updateCalcRow(idx, { modelId: e.target.value })}
-                      className="flex-1 min-w-[160px] bg-white border border-gray-200 rounded-lg px-2.5 py-2 text-sm font-medium"
+                      className="flex-1 min-w-[160px] bg-white border border-card-border rounded-lg px-2.5 py-2 text-sm font-medium"
                     >
                       {models.map(m => <option key={m.id} value={m.id}>{m.displayName}</option>)}
                     </select>
@@ -715,28 +715,28 @@ export default function PricingPage() {
                       min={0}
                       value={sel.qty}
                       onChange={e => updateCalcRow(idx, { qty: Math.max(0, parseInt(e.target.value, 10) || 0) })}
-                      className="w-20 bg-white border border-gray-200 rounded-lg px-2.5 py-2 text-sm font-medium text-center"
+                      className="w-20 bg-white border border-card-border rounded-lg px-2.5 py-2 text-sm font-medium text-center"
                     />
-                    <span className="text-xs text-gray-400 whitespace-nowrap">per month</span>
+                    <span className="text-xs text-ink-soft whitespace-nowrap">per month</span>
                     {calcSelections.length > 1 && (
-                      <button onClick={() => removeCalcRow(idx)} className="text-gray-400 hover:text-red-500 p-1" aria-label="Remove">
+                      <button onClick={() => removeCalcRow(idx)} className="text-ink-soft hover:text-red-500 p-1" aria-label="Remove">
                         <XIcon className="w-4 h-4" />
                       </button>
                     )}
                   </div>
                 );
               })}
-              <button onClick={addCalcRow} className="text-sm font-semibold text-blue-600 hover:text-blue-800">
+              <button onClick={addCalcRow} className="text-sm font-semibold text-brand hover:text-brand-dark">
                 + Add another model
               </button>
             </div>
 
-            <div className="mt-6 rounded-2xl border-2 border-blue-100 bg-blue-50/40 p-6 text-center">
-              <p className="text-sm text-gray-500">Estimated monthly credits</p>
-              <p className="text-4xl font-black text-gray-900 mt-1">{result.totalCredits.toLocaleString("en-IN")}</p>
+            <div className="mt-6 rounded-2xl border-2 border-brand-soft bg-tint-blue/40 p-6 text-center">
+              <p className="text-sm text-ink-soft">Estimated monthly credits</p>
+              <p className="text-4xl font-semibold text-ink mt-1">{result.totalCredits.toLocaleString("en-IN")}</p>
 
               {result.recommendedPlan ? (
-                <p className="text-sm text-gray-700 mt-3">
+                <p className="text-sm text-ink-soft mt-3">
                   <strong>{TIER_LABEL[result.recommendedPlan.tier!]}</strong> covers your selection
                   ({result.recommendedPlan.monthlyCredits} credits/month).
                 </p>
@@ -749,7 +749,7 @@ export default function PricingPage() {
                   Even Studio&apos;s monthly allowance may be short for this much usage — consider a top-up pack alongside your plan.
                 </p>
               ) : (
-                <p className="text-sm text-gray-400 mt-3">Add a model and quantity above to see an estimate.</p>
+                <p className="text-sm text-ink-soft mt-3">Add a model and quantity above to see an estimate.</p>
               )}
             </div>
           </section>
@@ -771,7 +771,7 @@ export default function PricingPage() {
             <button
               onClick={() => !checkoutLoading && setCheckoutPlan(null)}
               disabled={checkoutLoading}
-              className="absolute top-4 right-4 z-10 p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all disabled:opacity-40"
+              className="absolute top-4 right-4 z-10 p-1.5 rounded-full text-ink-soft hover:text-ink-soft hover:bg-gray-100 transition-all disabled:opacity-40"
               aria-label="Close"
             >
               <XIcon className="w-5 h-5" />
@@ -781,15 +781,15 @@ export default function PricingPage() {
             <div className="flex flex-col md:flex-row overflow-y-auto flex-1 min-h-0">
 
               {/* LEFT: plan info + add-ons */}
-              <div className="flex-1 p-8 bg-gray-50 overflow-y-auto">
+              <div className="flex-1 p-8 bg-surface overflow-y-auto">
                 {/* Selected plan card */}
-                <div className="mb-6 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Selected Plan</p>
-                  <p className="font-extrabold text-gray-900 text-lg leading-snug">{checkoutPlan.name}</p>
-                  <p className="text-sm text-gray-500 mt-0.5">{checkoutPlan.monthlyCredits} credits / month</p>
-                  <p className="text-2xl font-black text-gray-900 mt-2">
+                <div className="mb-6 p-4 bg-white rounded-xl border border-card-border shadow-sm">
+                  <p className="text-xs font-bold text-ink-soft uppercase tracking-widest mb-1">Selected Plan</p>
+                  <p className="font-semibold text-ink text-lg leading-snug">{checkoutPlan.name}</p>
+                  <p className="text-sm text-ink-soft mt-0.5">{checkoutPlan.monthlyCredits} credits / month</p>
+                  <p className="text-2xl font-semibold text-ink mt-2">
                     {formatMoney(minorUnits(checkoutPlan, currency), currency)}
-                    <span className="text-sm font-normal text-gray-400 ml-1">
+                    <span className="text-sm font-normal text-ink-soft ml-1">
                       {checkoutPlan.intervalMonths && checkoutPlan.intervalMonths > 1
                         ? `/ ${checkoutPlan.intervalMonths} months`
                         : "/ month"}
@@ -820,7 +820,7 @@ export default function PricingPage() {
                   <>
                     <div className="flex items-center gap-3 mb-4">
                       <div className="h-px flex-1 bg-gray-200" />
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">
+                      <p className="text-xs font-bold text-ink-soft uppercase tracking-widest whitespace-nowrap">
                         Bundle Add-ons
                       </p>
                       <div className="h-px flex-1 bg-gray-200" />
@@ -834,21 +834,21 @@ export default function PricingPage() {
                             key={pack.id}
                             className={`flex items-start gap-3 p-4 bg-white rounded-xl border-2 cursor-pointer transition-all ${
                               checked
-                                ? "border-blue-600 shadow-sm bg-blue-50/20"
-                                : "border-gray-100 hover:border-gray-200"
+                                ? "border-brand shadow-sm bg-tint-blue/20"
+                                : "border-card-border hover:border-card-border"
                             }`}
                           >
                             <input
                               type="checkbox"
                               checked={checked}
                               onChange={() => toggleAddon(pack.slug)}
-                              className="mt-0.5 w-4 h-4 accent-blue-600 flex-shrink-0"
+                              className="mt-0.5 w-4 h-4 accent-[color:var(--brand)] flex-shrink-0"
                             />
                             <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-gray-900 text-sm">{pack.name}</p>
-                              <p className="text-xs text-gray-500 mt-0.5">{pack.credits} credits · never expire</p>
+                              <p className="font-semibold text-ink text-sm">{pack.name}</p>
+                              <p className="text-xs text-ink-soft mt-0.5">{pack.credits} credits · never expire</p>
                             </div>
-                            <p className="font-bold text-gray-900 whitespace-nowrap">
+                            <p className="font-bold text-ink whitespace-nowrap">
                               {formatMoney(minorUnits(pack, currency), currency)}
                             </p>
                           </label>
@@ -868,17 +868,17 @@ export default function PricingPage() {
               </div>
 
               {/* RIGHT: order summary */}
-              <div className="w-full md:w-72 p-8 flex flex-col border-t md:border-t-0 md:border-l border-gray-100 flex-shrink-0">
-                <h3 className="font-bold text-gray-900 text-lg mb-5">Order Summary</h3>
+              <div className="w-full md:w-72 p-8 flex flex-col border-t md:border-t-0 md:border-l border-card-border flex-shrink-0">
+                <h3 className="font-bold text-ink text-lg mb-5">Order Summary</h3>
 
                 <div className="flex-1 space-y-4 min-h-0">
                   {/* Base plan */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{checkoutPlan.name}</p>
-                      <p className="text-xs text-gray-400">Subscription plan</p>
+                      <p className="text-sm font-medium text-ink truncate">{checkoutPlan.name}</p>
+                      <p className="text-xs text-ink-soft">Subscription plan</p>
                     </div>
-                    <p className="text-sm font-semibold text-gray-900 whitespace-nowrap">
+                    <p className="text-sm font-semibold text-ink whitespace-nowrap">
                       {formatMoney(minorUnits(checkoutPlan, currency), currency)}
                     </p>
                   </div>
@@ -890,10 +890,10 @@ export default function PricingPage() {
                     return (
                       <div key={slug} className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{pack.name}</p>
-                          <p className="text-xs text-gray-400">{pack.credits} credits · add-on</p>
+                          <p className="text-sm font-medium text-ink truncate">{pack.name}</p>
+                          <p className="text-xs text-ink-soft">{pack.credits} credits · add-on</p>
                         </div>
-                        <p className="text-sm font-semibold text-gray-900 whitespace-nowrap">
+                        <p className="text-sm font-semibold text-ink whitespace-nowrap">
                           {formatMoney(minorUnits(pack, currency), currency)}
                         </p>
                       </div>
@@ -901,12 +901,12 @@ export default function PricingPage() {
                   })}
 
                   {selectedAddons.length === 0 && packs.length > 0 && (
-                    <p className="text-xs text-gray-400 italic">No add-ons selected yet.</p>
+                    <p className="text-xs text-ink-soft italic">No add-ons selected yet.</p>
                   )}
 
                   {/* Coupon — INR only; see couponsAvailable. */}
                   {couponsAvailable && (
-                  <div className="border-t border-gray-100 pt-4">
+                  <div className="border-t border-card-border pt-4">
                     {appliedCoupon ? (
                       <div className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
                         <div className="min-w-0">
@@ -923,7 +923,7 @@ export default function PricingPage() {
                             onChange={e => { setCouponInput(e.target.value.toUpperCase()); setCouponError(""); }}
                             onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); applyCoupon(); } }}
                             placeholder="Coupon code"
-                            className="flex-1 min-w-0 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold tracking-wide uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="flex-1 min-w-0 bg-surface border border-card-border rounded-lg px-3 py-2 text-sm font-semibold tracking-wide uppercase focus:outline-none focus:ring-2 focus:ring-brand/40"
                           />
                           <button
                             onClick={applyCoupon}
@@ -940,12 +940,12 @@ export default function PricingPage() {
                   )}
 
                   {/* Total */}
-                  <div className="border-t border-gray-100 pt-4 mt-2">
+                  <div className="border-t border-card-border pt-4 mt-2">
                     {couponsAvailable && appliedCoupon && appliedCoupon.discountInPaise > 0 && (
                       <>
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-500">Subtotal</span>
-                          <span className="text-gray-500">{formatMoney(totalDueMinor, currency)}</span>
+                          <span className="text-ink-soft">Subtotal</span>
+                          <span className="text-ink-soft">{formatMoney(totalDueMinor, currency)}</span>
                         </div>
                         <div className="flex items-center justify-between text-sm mt-1">
                           <span className="text-green-600 font-medium">Discount ({appliedCoupon.code})</span>
@@ -954,24 +954,24 @@ export default function PricingPage() {
                       </>
                     )}
                     <div className="flex items-center justify-between mt-2">
-                      <p className="font-bold text-gray-900">{checkoutTrial ? "Due today" : "Total Due"}</p>
-                      <p className="text-xl font-black text-gray-900">
+                      <p className="font-bold text-ink">{checkoutTrial ? "Due today" : "Total Due"}</p>
+                      <p className="text-xl font-semibold text-ink">
                         {checkoutTrial ? formatMoney(0, currency) : formatMoney(discountedTotalMinor, currency)}
                       </p>
                     </div>
                     {checkoutTrial && (
-                      <p className="text-xs text-gray-500 mt-1.5">
+                      <p className="text-xs text-ink-soft mt-1.5">
                         Free for 7 days, then {formatMoney(discountedTotalMinor, currency)}. Cancel any time before it ends.
                       </p>
                     )}
-                    <p className="text-xs text-gray-400 mt-1">Secure payment via Razorpay</p>
+                    <p className="text-xs text-ink-soft mt-1">Secure payment via Razorpay</p>
                   </div>
                 </div>
 
                 <button
                   onClick={handlePay}
                   disabled={checkoutLoading}
-                  className="mt-6 w-full bg-blue-600 text-white font-bold py-3.5 rounded-full hover:bg-blue-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2 text-sm"
+                  className="mt-6 w-full bg-brand text-white font-bold py-3.5 rounded-full hover:bg-brand-dark transition-colors disabled:opacity-60 flex items-center justify-center gap-2 text-sm"
                 >
                   {checkoutLoading ? (
                     <>
@@ -982,13 +982,13 @@ export default function PricingPage() {
                     "Pay with Razorpay →"
                   )}
                 </button>
-                <p className="text-xs text-gray-400 text-center mt-3">
+                <p className="text-xs text-ink-soft text-center mt-3">
                   By continuing, you agree to our{" "}
-                  <Link href="/terms" className="underline hover:text-gray-600">Terms of Service</Link>
+                  <Link href="/terms" className="underline hover:text-ink-soft">Terms of Service</Link>
                 </p>
-                <p className="text-xs text-gray-400 text-center mt-1">
+                <p className="text-xs text-ink-soft text-center mt-1">
                   48-hour money-back guarantee ·{" "}
-                  <Link href="/refund" className="underline hover:text-gray-600">Refund Policy</Link>
+                  <Link href="/refund" className="underline hover:text-ink-soft">Refund Policy</Link>
                 </p>
               </div>
             </div>
@@ -998,26 +998,26 @@ export default function PricingPage() {
 
       {/* ── What each feature costs (live credit costs) ── */}
       {toolCosts.length > 0 && (
-        <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16 border-t border-gray-100">
+        <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16 border-t border-card-border">
           <div className="text-center mb-10">
-            <span className="inline-block bg-blue-100 text-blue-700 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
+            <span className="inline-block bg-tint-blue text-brand text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
               Credit costs
             </span>
-            <h2 className="text-3xl font-extrabold text-gray-900">What each feature costs</h2>
-            <p className="text-sm text-gray-500 mt-2 max-w-lg mx-auto">
+            <h2 className="text-3xl font-semibold text-ink">What each feature costs</h2>
+            <p className="text-sm text-ink-soft mt-2 max-w-lg mx-auto">
               Every plan shares one credit balance. Spend it on whatever you need — here&apos;s what each tool costs per use.
             </p>
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {(showAllCosts ? toolCosts : toolCosts.slice(0, 6)).map(t => (
-              <div key={t.slug} className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
+              <div key={t.slug} className="flex items-center justify-between gap-3 rounded-xl border border-card-border bg-white px-4 py-3 shadow-sm">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 truncate">{t.label}</p>
-                  {t.service && <p className="text-[11px] text-gray-400 truncate">{t.service}</p>}
+                  <p className="text-sm font-semibold text-ink truncate">{t.label}</p>
+                  {t.service && <p className="text-[11px] text-ink-soft truncate">{t.service}</p>}
                 </div>
                 <span className={`flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${
-                  t.creditCost === 0 ? "bg-green-100 text-green-700" : t.creditCost >= 20 ? "bg-purple-100 text-purple-700" : "bg-blue-50 text-blue-700"
+                  t.creditCost === 0 ? "bg-green-100 text-green-700" : t.creditCost >= 20 ? "bg-purple-100 text-purple-700" : "bg-tint-blue text-brand"
                 }`}>
                   {t.creditCostMin != null && t.creditCostMax != null && t.creditCostMax > t.creditCostMin
                     ? `${t.creditCostMin}–${t.creditCostMax} credits`
@@ -1030,13 +1030,13 @@ export default function PricingPage() {
             <div className="text-center mt-5">
               <button
                 onClick={() => setShowAllCosts(v => !v)}
-                className="text-sm font-semibold text-blue-600 hover:text-blue-800 underline underline-offset-2 transition-colors"
+                className="text-sm font-semibold text-brand hover:text-brand-dark underline underline-offset-2 transition-colors"
               >
                 {showAllCosts ? "Show less ↑" : `See all ${toolCosts.length} tool costs ↓`}
               </button>
             </div>
           )}
-          <p className="text-center text-xs text-gray-400 mt-6">
+          <p className="text-center text-xs text-ink-soft mt-6">
             Free tools never use credits. Subscription credits refill monthly and roll over up to 2× your allowance. Add-on credits never expire.
           </p>
         </section>
@@ -1044,56 +1044,56 @@ export default function PricingPage() {
 
       {/* ── Feature Comparison Table ── */}
       <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <h2 className="text-3xl font-extrabold text-gray-900 text-center mb-12">Compare all features</h2>
+        <h2 className="text-3xl font-semibold text-ink text-center mb-12">Compare all features</h2>
 
-        <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
+        <div className="overflow-x-auto rounded-2xl border border-card-border shadow-sm">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-100">
-                <th className="text-left py-5 px-6 text-sm font-semibold text-gray-500 w-1/2">Feature</th>
-                <th className="text-center py-5 px-4 text-sm font-bold text-gray-900">Creator</th>
-                <th className="text-center py-5 px-4 text-sm font-bold text-blue-600 bg-blue-50/50">
+              <tr className="border-b border-card-border">
+                <th className="text-left py-5 px-6 text-sm font-semibold text-ink-soft w-1/2">Feature</th>
+                <th className="text-center py-5 px-4 text-sm font-bold text-ink">Creator</th>
+                <th className="text-center py-5 px-4 text-sm font-bold text-brand bg-tint-blue/50">
                   Pro
-                  <span className="block text-xs font-normal text-blue-400">Most popular</span>
+                  <span className="block text-xs font-normal text-white/70">Most popular</span>
                 </th>
-                <th className="text-center py-5 px-4 text-sm font-bold text-gray-900">Studio</th>
+                <th className="text-center py-5 px-4 text-sm font-bold text-ink">Studio</th>
               </tr>
             </thead>
 
             <tbody>
-              <tr className="bg-gray-50">
-                <td colSpan={4} className="py-3 px-6 text-xs font-bold text-gray-400 uppercase tracking-widest">
+              <tr className="bg-surface">
+                <td colSpan={4} className="py-3 px-6 text-xs font-bold text-ink-soft uppercase tracking-widest">
                   Credits &amp; Perks
                 </td>
               </tr>
               <tr className="bg-white border-b border-gray-50">
-                <td className="py-4 px-6 text-sm text-gray-700">Credits per month</td>
+                <td className="py-4 px-6 text-sm text-ink-soft">Credits per month</td>
                 {PURCHASABLE_TIER_ORDER.map(t => (
                   <td
                     key={t}
-                    className={`text-center py-4 px-4 text-sm font-semibold ${t === "pro" ? "text-blue-600 bg-blue-50/50" : "text-gray-900"}`}
+                    className={`text-center py-4 px-4 text-sm font-semibold ${t === "pro" ? "text-brand bg-tint-blue/50" : "text-ink"}`}
                   >
                     {subs.find(p => p.tier === t && p.intervalMonths === term)?.monthlyCredits ?? "—"}
                   </td>
                 ))}
               </tr>
-              <tr className="bg-gray-50">
-                <td className="py-4 px-6 text-sm text-gray-700">Priority rendering</td>
+              <tr className="bg-surface">
+                <td className="py-4 px-6 text-sm text-ink-soft">Priority rendering</td>
                 <td className="text-center py-4 px-4"><MinusIcon className="w-5 h-5 text-gray-300 mx-auto" /></td>
-                <td className="text-center py-4 px-4 bg-blue-50/50"><CheckIcon className="w-5 h-5 text-blue-600 mx-auto" /></td>
-                <td className="text-center py-4 px-4"><CheckIcon className="w-5 h-5 text-blue-600 mx-auto" /></td>
+                <td className="text-center py-4 px-4 bg-tint-blue/50"><CheckIcon className="w-5 h-5 text-brand mx-auto" /></td>
+                <td className="text-center py-4 px-4"><CheckIcon className="w-5 h-5 text-brand mx-auto" /></td>
               </tr>
               <tr className="bg-white">
-                <td className="py-4 px-6 text-sm text-gray-700">Support</td>
-                <td className="text-center py-4 px-4 text-sm text-gray-700">Email</td>
-                <td className="text-center py-4 px-4 text-sm text-blue-700 bg-blue-50/50 font-medium">Priority</td>
-                <td className="text-center py-4 px-4 text-sm text-gray-700">Dedicated</td>
+                <td className="py-4 px-6 text-sm text-ink-soft">Support</td>
+                <td className="text-center py-4 px-4 text-sm text-ink-soft">Email</td>
+                <td className="text-center py-4 px-4 text-sm text-brand bg-tint-blue/50 font-medium">Priority</td>
+                <td className="text-center py-4 px-4 text-sm text-ink-soft">Dedicated</td>
               </tr>
             </tbody>
 
             <tbody>
               <tr>
-                <td colSpan={4} className="py-3 px-6 text-xs font-bold text-gray-400 uppercase tracking-widest bg-gray-50 border-t border-gray-100">
+                <td colSpan={4} className="py-3 px-6 text-xs font-bold text-ink-soft uppercase tracking-widest bg-surface border-t border-card-border">
                   Clipiro Workflows
                 </td>
               </tr>
@@ -1104,7 +1104,7 @@ export default function PricingPage() {
 
             <tbody>
               <tr>
-                <td colSpan={4} className="py-3 px-6 text-xs font-bold text-gray-400 uppercase tracking-widest bg-gray-50 border-t border-gray-100">
+                <td colSpan={4} className="py-3 px-6 text-xs font-bold text-ink-soft uppercase tracking-widest bg-surface border-t border-card-border">
                   Clipiro AI Tools
                 </td>
               </tr>
@@ -1118,22 +1118,22 @@ export default function PricingPage() {
 
       {/* ── FAQ ── */}
       <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <h2 className="text-3xl font-extrabold text-gray-900 text-center mb-10">Frequently asked questions</h2>
+        <h2 className="text-3xl font-semibold text-ink text-center mb-10">Frequently asked questions</h2>
         <div className="space-y-3">
           {FAQS.map((faq, i) => (
             <div
               key={i}
-              className={`bg-white border rounded-xl overflow-hidden transition-all ${openFaq === i ? "border-blue-200 shadow-sm" : "border-gray-100"}`}
+              className={`bg-white border rounded-xl overflow-hidden transition-all ${openFaq === i ? "border-brand-soft shadow-sm" : "border-card-border"}`}
             >
               <button
                 className="w-full flex items-center justify-between px-6 py-5 text-left"
                 onClick={() => setOpenFaq(openFaq === i ? null : i)}
               >
-                <span className="font-semibold text-gray-900 text-sm">{faq.q}</span>
-                <ChevronDownIcon className={`w-5 h-5 text-gray-400 flex-shrink-0 ml-4 transition-transform ${openFaq === i ? "rotate-180" : ""}`} />
+                <span className="font-semibold text-ink text-sm">{faq.q}</span>
+                <ChevronDownIcon className={`w-5 h-5 text-ink-soft flex-shrink-0 ml-4 transition-transform ${openFaq === i ? "rotate-180" : ""}`} />
               </button>
               {openFaq === i && (
-                <div className="px-6 pb-5 text-sm text-gray-600 leading-relaxed border-t border-gray-100 pt-4">
+                <div className="px-6 pb-5 text-sm text-ink-soft leading-relaxed border-t border-card-border pt-4">
                   {faq.a}
                 </div>
               )}
@@ -1144,16 +1144,16 @@ export default function PricingPage() {
 
       {/* ── Bottom CTA ── */}
       <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
-        <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-3xl p-12 text-center text-white shadow-2xl">
-          <h2 className="text-3xl sm:text-4xl font-extrabold mb-3">Still have questions?</h2>
-          <p className="text-blue-200 mb-8">
+        <div className="bg-brand rounded-3xl p-12 text-center text-white shadow-2xl">
+          <h2 className="text-3xl sm:text-4xl font-semibold mb-3">Still have questions?</h2>
+          <p className="text-white/80 mb-8">
             Our support team is available 24/7. Or start free — no credit card needed.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             {user ? (
               <button
                 onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-                className="inline-flex items-center justify-center gap-2 bg-white text-blue-600 font-bold px-8 py-3.5 rounded-full hover:bg-blue-50 transition-colors shadow-lg"
+                className="inline-flex items-center justify-center gap-2 bg-white text-brand font-bold px-8 py-3.5 rounded-full hover:bg-tint-blue transition-colors shadow-lg"
               >
                 <ZapIcon className="w-4 h-4" />
                 Choose a Plan
@@ -1161,7 +1161,7 @@ export default function PricingPage() {
             ) : (
               <button
                 onClick={() => openAuthModal("register")}
-                className="inline-flex items-center justify-center gap-2 bg-white text-blue-600 font-bold px-8 py-3.5 rounded-full hover:bg-blue-50 transition-colors shadow-lg"
+                className="inline-flex items-center justify-center gap-2 bg-white text-brand font-bold px-8 py-3.5 rounded-full hover:bg-tint-blue transition-colors shadow-lg"
               >
                 <ZapIcon className="w-4 h-4" />
                 Start Free

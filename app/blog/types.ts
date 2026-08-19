@@ -26,9 +26,10 @@ export interface BlogImage {
   caption?: string;
   /**
    * Attribution rendered under the image. Inline rather than a
-   * public/blog/_manifest.json sidecar (the pattern public/tools uses) because
-   * this one is actually rendered, and a sidecar is unreachable from a server
-   * component without a build-time fs read — a second source of truth for no gain.
+   * public/blog/_manifest.json sidecar because this one is actually rendered,
+   * and a sidecar is unreachable from a server component without a build-time
+   * fs read — a second source of truth for no gain. public/tools once shipped
+   * such a sidecar; it went unread for its whole life and has been removed.
    */
   credit?: { name: string; url?: string };
 }
