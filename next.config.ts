@@ -51,7 +51,10 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "*.s3.*.amazonaws.com" },
       // Google OAuth profile avatar images.
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
-    ],
+    ],
+    // Next 16 only honours qualities on this allowlist, defaulting to [75].
+    // The tool-page artwork carries small caption text that 75 visibly softens.
+    qualities: [75, 90],
   },
   // Content-Security-Policy moved to proxy.ts (see lib/csp.ts) so it can
   // carry a per-request nonce — next.config.ts's headers() is static and

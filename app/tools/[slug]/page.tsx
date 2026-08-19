@@ -18,9 +18,11 @@ import {
   getToolBySlug,
   toolPath,
 } from "@/app/components/featureLinks";
+import ToolImage from "@/app/components/marketing/ToolImage";
 import ToolMock from "@/app/components/marketing/ToolMock";
 import { hasSecondaryMotif } from "@/app/components/marketing/toolMotifs";
 import { getToolContent } from "../content";
+import { getToolImages } from "../toolImages";
 
 const SITE_URL = "https://clipiro.com";
 
@@ -61,6 +63,8 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
   const categoryLabel = CATEGORY_LABELS[tool.category];
   const related = TOOLS_BY_CATEGORY[tool.category].filter((t) => t.slug !== tool.slug).slice(0, 3);
   const isFree = tool.category === "free";
+  // A designed illustration wins over the generated motif when one exists.
+  const artwork = getToolImages(slug);
 
   const schema = [
     {
@@ -72,9 +76,14 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
       description: content.metaDescription,
       url: `${SITE_URL}/tools/${slug}`,
       publisher: { "@type": "Organization", name: "Clipiro", url: SITE_URL },
-      // No `image` key: the page artwork is inline SVG, and schema.org needs an
-      // absolute URL to a raster file. A per-route opengraph-image would serve
-      // both this and social previews — worth doing, but separately.
+      // Only tools with real artwork can fill this — schema.org needs an
+      // absolute URL to a raster, which inline SVG cannot provide. Tools still
+      // on a generated motif simply omit it rather than pointing at nothing.
+      ...(artwork && {
+        image: [artwork.primary, artwork.secondary]
+          .filter((i) => i !== undefined)
+          .map((i) => `${SITE_URL}${i.src}`),
+      }),
       ...(isFree && {
         offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
       }),
@@ -100,8 +109,17 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
         lede={content.lede}
         media={
           <div className="mx-auto flex max-w-[1100px] flex-col gap-5">
-            <ToolMock slug={slug} label={tool.title} />
-            {hasSecondaryMotif(slug) && <ToolMock slug={slug} variant="secondary" label={tool.title} />}
+            {artwork ? (
+              <>
+                <ToolImage {...artwork.primary} priority />
+                {artwork.secondary && <ToolImage {...artwork.secondary} />}
+              </>
+            ) : (
+              <>
+                <ToolMock slug={slug} label={tool.title} />
+                {hasSecondaryMotif(slug) && <ToolMock slug={slug} variant="secondary" label={tool.title} />}
+              </>
+            )}
           </div>
         }
         above={
