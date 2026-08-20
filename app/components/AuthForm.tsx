@@ -3,13 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 
 function BrandIcon() {
-  return (
-    <div className="w-12 h-12 rounded-2xl bg-brand flex items-center justify-center shadow-lg shadow-blue-200">
-      <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-      </svg>
-    </div>
-  );
+  return <img src="/icon.png" alt="Clipiro" className="w-12 h-12 rounded-2xl" />;
 }
 
 function MailIcon() {
@@ -72,7 +66,7 @@ const inputClass =
 // Panels of the horizontal login slider, in the order they're laid out. "otp"
 // is the email/SMS code; "totp" is the second factor from an authenticator app
 // (only reached when the account has 2FA on).
-const LOGIN_STEPS = ["identifier", "password", "otp", "totp"] as const;
+const LOGIN_STEPS = ["identifier", "password", "otp", "totp", "forgot-password"] as const;
 type LoginStep = (typeof LOGIN_STEPS)[number];
 
 const CODE_LENGTH = 6;
@@ -233,6 +227,9 @@ export default function AuthForm({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
+
   useEffect(() => { setMode(initialMode); }, [initialMode]);
 
   // Google's callback is a full browser navigation, not a fetch, so it can't
@@ -347,6 +344,28 @@ export default function AuthForm({
       finishAuth(data.token);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleForgotPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail.trim().toLowerCase() }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Something went wrong.");
+      }
+      setForgotSent(true);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setLoading(false);
     }
@@ -631,14 +650,24 @@ export default function AuthForm({
           {errorBlock}
 
           <PrimaryBtn enabled={registerOk} loading={loading}>
-            {loading ? "Creating account…" : (
-              <>
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                Get Started — It&apos;s Free
-              </>
-            )}
+            {loading ? "Creating account…" : "Get Started — It's Free"}
           </PrimaryBtn>
         </form>
+
+        <div className="flex items-center gap-3 my-5">
+          <div className="flex-1 h-px bg-gray-100" />
+          <span className="text-xs text-gray-400 font-medium">or</span>
+          <div className="flex-1 h-px bg-gray-100" />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => window.location.href = "/api/auth/google"}
+          className="w-full flex items-center justify-center gap-2.5 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 active:bg-gray-100 rounded-full py-3 text-sm font-medium text-gray-700 transition-all shadow-sm"
+        >
+          <GoogleIcon />
+          Continue with Google
+        </button>
 
         <p className="text-center text-[13px] text-gray-500 mt-5">
           Already have an account?{" "}
@@ -760,12 +789,17 @@ export default function AuthForm({
             >
               Use OTP instead
             </button>
-            <a
-              href="/reset-password-request"
-              className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+            <button
+              type="button"
+              onClick={() => {
+                setForgotEmail(identifierIsEmail ? identifier : "");
+                setForgotSent(false);
+                goToStep("forgot-password");
+              }}
+              className="text-sm text-gray-400 hover:text-gray-600 transition-colors bg-transparent border-none p-0 cursor-pointer"
             >
               Forgot password?
-            </a>
+            </button>
           </div>
 
           <div className="flex justify-center mt-6">
@@ -898,6 +932,72 @@ export default function AuthForm({
               Back
             </button>
           </div>
+        </div>
+
+        {/* Panel 5 — forgot password */}
+        <div className="px-8 py-8 flex-shrink-0" style={panelStyle}>
+          {forgotSent ? (
+            <div className="text-center">
+              <div className="w-14 h-14 rounded-full bg-tint-blue flex items-center justify-center mx-auto">
+                <MailIcon />
+              </div>
+              <h1 className="mt-4 text-[22px] font-bold text-gray-900 tracking-tight">Check your email</h1>
+              <p className="mt-2 text-sm text-gray-500 leading-relaxed">
+                If <span className="font-semibold text-gray-700">{forgotEmail}</span> is registered, we&apos;ve sent a password reset link. Check your inbox (and spam folder).
+              </p>
+              <p className="mt-1 text-xs text-gray-400">The link expires in 15 minutes.</p>
+
+              <div className="flex justify-center mt-6">
+                <button
+                  type="button"
+                  onClick={() => goToStep("password")}
+                  className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors bg-transparent border-none p-0 cursor-pointer"
+                >
+                  <BackArrow />
+                  Back to login
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col items-center text-center mb-7">
+                <BrandIcon />
+                <h1 className="mt-4 text-[22px] font-bold text-gray-900 tracking-tight">Forgot password?</h1>
+                <p className="mt-1 text-sm text-gray-500">Enter your email and we&apos;ll send you a reset link.</p>
+              </div>
+
+              <form onSubmit={handleForgotPassword} className="space-y-3">
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"><MailIcon /></span>
+                  <input
+                    type="email"
+                    value={forgotEmail}
+                    onChange={e => setForgotEmail(e.target.value)}
+                    required
+                    placeholder="Email address"
+                    className={inputClass}
+                  />
+                </div>
+
+                {loginStep === "forgot-password" && errorBlock}
+
+                <PrimaryBtn enabled={isValidEmail(forgotEmail)} loading={loading}>
+                  {loading ? "Sending…" : "Send reset link"}
+                </PrimaryBtn>
+              </form>
+
+              <div className="flex justify-center mt-6">
+                <button
+                  type="button"
+                  onClick={() => goToStep("password")}
+                  className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors bg-transparent border-none p-0 cursor-pointer"
+                >
+                  <BackArrow />
+                  Back
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

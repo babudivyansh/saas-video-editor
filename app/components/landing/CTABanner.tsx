@@ -4,7 +4,6 @@ import React from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import Reveal from "@/app/components/Reveal";
-import { ZapIcon } from "@/app/components/landing/icons";
 
 export default function CTABanner() {
   const { user, openAuthModal } = useAuth();
@@ -31,7 +30,6 @@ export default function CTABanner() {
                     href="/dashboard"
                     className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 text-base font-bold text-brand-deep shadow-lg transition-transform duration-200 hover:scale-[1.02]"
                   >
-                    <ZapIcon className="h-4 w-4" />
                     Go to Dashboard
                   </Link>
                 ) : (
@@ -39,7 +37,6 @@ export default function CTABanner() {
                     onClick={() => openAuthModal("register")}
                     className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 text-base font-bold text-brand-deep shadow-lg transition-transform duration-200 hover:scale-[1.02] cursor-pointer"
                   >
-                    <ZapIcon className="h-4 w-4" />
                     Start Free
                   </button>
                 )}

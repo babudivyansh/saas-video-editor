@@ -888,9 +888,6 @@ function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onVie
               const isLoading = activeId === addon.slug;
               return (
                 <Card key={addon.id} className="flex items-center gap-5 px-6 py-5 hover:border-violet-200 transition-colors">
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 grad-brand text-white">
-                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>
-                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="font-bold text-ink text-sm">{addon.name}</p>
