@@ -25,7 +25,7 @@ import { CreditsPill } from "@/app/components/ui/CreditsPill";
 import { Skeleton } from "@/app/components/ui/Skeleton";
 
 function IcZap() {
-  return <img src="/icon.png" alt="" className="w-3.5 h-3.5 flex-shrink-0" />;
+  return <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 flex-shrink-0"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>;
 }
 function IcSearch() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>;

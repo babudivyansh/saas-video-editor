@@ -74,7 +74,9 @@ export default function ReceiptPage() {
               {/* Header */}
               <div className="flex items-center justify-between pb-6 border-b border-gray-100">
                 <div className="flex items-center gap-2">
-                  <img src="/icon.png" alt="Clipiro" className="w-8 h-8 rounded-lg" />
+                  <span className="grad-brand text-white rounded-lg w-8 h-8 flex items-center justify-center">
+                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                  </span>
                   <span className="font-black text-gray-900 text-lg tracking-tight">CLIPIRO</span>
                 </div>
                 <div className="text-right">
