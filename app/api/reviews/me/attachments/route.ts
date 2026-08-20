@@ -8,6 +8,11 @@ import { enqueueReviewAttachmentModeration } from "@/lib/reviews/attachment-mode
 import { logger } from "@/lib/logger";
 
 const MAX_ATTACHMENTS_PER_REVIEW = 5;
+// Intentionally NOT plan-aware (Upload Limits Audit §27): a review attachment
+// is a screenshot/clip proving a testimonial, not a paid-plan media feature —
+// it never becomes an Asset and isn't subject to lib/plans/tiers.ts's
+// per-tier upload caps. Every user, on every tier, gets the same flat limit
+// here by deliberate product decision, not an oversight.
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 // Narrower than the general uploader's allow-list — these are illustrative

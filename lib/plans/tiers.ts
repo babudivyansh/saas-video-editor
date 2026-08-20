@@ -48,11 +48,13 @@ export function maxDurationForTier(tier: TierId): number {
   return tier === "free" ? TIER_MAX_DURATION_SECONDS.creator : TIER_MAX_DURATION_SECONDS[tier];
 }
 
-// Per-tier Assets-library storage cap, in GB. Server-enforced in
-// app/api/upload/route.ts and app/api/editor/stock/import/route.ts — the
-// storage meter shown in the UI (app/dashboard/assets/page.tsx,
-// app/components/SidebarAccount.tsx) reads this same map instead of a
-// hardcoded display constant.
+// Per-tier Assets-library storage cap, in GB. Server-enforced via
+// storageLimitBytesForTier in lib/asset-service.ts (assertUnderStorageQuota)
+// — the storage meter shown in app/dashboard/assets/page.tsx and
+// app/dashboard/settings/page.tsx reads this same map (via /api/assets's
+// `limitBytes`) instead of a hardcoded display constant. SidebarAccount.tsx
+// does not render a storage meter at all — it's a lightweight account
+// popover, not the place this value is displayed.
 export const STORAGE_LIMIT_GB: Record<TierId, number> = {
   free: 0.5,
   creator: 2,
@@ -65,11 +67,13 @@ export function storageLimitBytesForTier(tier: TierId): number {
 }
 
 // Per-tier maximum for a SINGLE uploaded/imported file (distinct from the
-// cumulative STORAGE_LIMIT_GB quota above). This is the one source of truth for
-// the "max individual file size" cap — every upload path (the Assets library,
-// AutoClip source, URL import, the generate flows, avatars) enforces this same
-// map server-side via maxUploadBytesForTier, so a cap can never drift per-route
-// again. Numbers are business policy and freely tunable.
+// cumulative STORAGE_LIMIT_GB quota above). This is the one source of truth
+// for the "max individual file size" cap. Enforced server-side via
+// maxUploadBytesForTier by: the Assets library, AutoClip source uploads, URL
+// import, and avatars (lib/asset-service.ts's assertFileSizeAllowed) — and,
+// combined with a per-feature technical ceiling via min(), by the AI/utility
+// tool routes under app/api/tools/* (lib/upload-policy.ts's
+// resolveUploadPolicy). Numbers are business policy and freely tunable.
 export const MAX_UPLOAD_BYTES_BY_TIER: Record<TierId, number> = {
   free: 250 * 1024 ** 2, // 250 MB
   creator: 1 * 1024 ** 3, // 1 GB

@@ -11,6 +11,7 @@ import { withRetry } from "@/lib/with-retry";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress, checkModelAccess } from "@/lib/credits";
+import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
 
 export const maxDuration = 120;
@@ -131,12 +132,18 @@ async function handlePOST(req: NextRequest) {
   }
 
   const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+  const policy = await resolveUploadPolicy(auth.userId, "face-swap");
   for (const f of [characterFile, targetFile]) {
     if (!allowed.includes(f.type)) {
       return NextResponse.json({ error: "Only PNG, JPG, WEBP images are supported" }, { status: 400 });
     }
-    if (f.size > 10 * 1024 * 1024) {
-      return NextResponse.json({ error: "Each image must be under 10 MB" }, { status: 413 });
+    try {
+      assertWithinUploadPolicy(policy, f.size);
+    } catch (e) {
+      if (e instanceof UploadPolicyError) {
+        return NextResponse.json(uploadPolicyErrorBody(e, policy), { status: uploadPolicyErrorStatus(e.limitingFactor) });
+      }
+      throw e;
     }
   }
 

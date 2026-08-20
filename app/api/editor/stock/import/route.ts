@@ -39,7 +39,12 @@ function hostAllowed(url: string): boolean {
 
 const KIND_EXT: Record<string, string> = { image: "jpg", video: "mp4", audio: "mp3" };
 const KIND_MIME: Record<string, string> = { image: "image/jpeg", video: "video/mp4", audio: "audio/mpeg" };
-const MAX_BYTES = 100 * 1024 * 1024; // 100 MB — generous for a stock photo/clip/track
+// Intentionally NOT plan-aware (Upload Limits Audit §28): this downloads
+// from a controlled, licensed stock-media provider, not an arbitrary
+// user-supplied file — a different threat/cost model than direct user
+// upload, so it stays a flat feature/provider-technical guard rather than a
+// per-tier cap. 100 MB is generous for a stock photo/clip/track.
+const MAX_BYTES = 100 * 1024 * 1024;
 
 // POST /api/editor/stock/import { downloadUrl, kind, name, width?, height?, durationSec? }
 // Downloads a stock item server-side and re-hosts it as a normal Asset, so

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/app/components/AuthContext";
 import { useJobPolling } from "./useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
+import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
 
 function IcUpload() {
   return (
@@ -56,13 +57,14 @@ function ImageDropZone({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
+  const { maxBytes: uploadMaxBytes } = useUploadEntitlement("face-swap");
 
   function pick(files: FileList | null) {
     if (!files || files.length === 0) return;
     const f = files[0];
     const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
     if (!allowed.includes(f.type)) return;
-    if (f.size > 10 * 1024 * 1024) return;
+    if (uploadMaxBytes != null && f.size > uploadMaxBytes) return;
     onPick(f);
   }
 

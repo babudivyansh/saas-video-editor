@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/app/components/AuthContext";
 import { useJobPolling } from "./useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
+import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
 
 function IcLink() {
   return (
@@ -51,12 +52,14 @@ export default function EnhanceSpeechTool() {
   const [downloadName, setDownloadName] = useState("enhanced-audio.mp3");
   const [dragging, setDragging] = useState(false);
   const [pickError, setPickError] = useState<string | null>(null);
+  const { maxBytes: uploadMaxBytes, formattedMaxSize: uploadMaxSizeLabel } = useUploadEntitlement("enhance-speech");
 
   const acceptFile = useCallback((f: File) => {
-    // Matches the server's cap (app/api/tools/enhance-speech/route.ts) —
-    // gives instant feedback instead of only finding out after a full upload.
-    if (f.size > 50 * 1024 * 1024) {
-      setPickError("File too large (max 50 MB).");
+    // Mirrors the server's effective cap (app/api/tools/enhance-speech/route.ts,
+    // via lib/upload-policy.ts) — gives instant feedback instead of only
+    // finding out after a full upload.
+    if (uploadMaxBytes != null && f.size > uploadMaxBytes) {
+      setPickError(`File too large (max ${uploadMaxSizeLabel}).`);
       return;
     }
     setPickError(null);
@@ -64,7 +67,7 @@ export default function EnhanceSpeechTool() {
     job.reset();
     if (downloadUrl) { URL.revokeObjectURL(downloadUrl); setDownloadUrl(null); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [downloadUrl]);
+  }, [downloadUrl, uploadMaxBytes, uploadMaxSizeLabel]);
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];

@@ -3,6 +3,7 @@ import { useCallback, useRef, useState, useEffect } from "react";
 import { useAuth } from "@/app/components/AuthContext";
 import { useJobPolling } from "./useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
+import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
 
 function IcCloud() {
   return (
@@ -80,6 +81,7 @@ export default function BackgroundRemoverTool() {
   const [preview, setPreview] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [pickError, setPickError] = useState<string | null>(null);
+  const { maxBytes: uploadMaxBytes, formattedMaxSize: uploadMaxSizeLabel } = useUploadEntitlement("background-remover");
   const [resultUrl, setResultUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -98,8 +100,8 @@ export default function BackgroundRemoverTool() {
       setPickError("Only PNG, JPG, WEBP, GIF images are supported.");
       return;
     }
-    if (f.size > 10 * 1024 * 1024) {
-      setPickError("File too large (max 10 MB).");
+    if (uploadMaxBytes != null && f.size > uploadMaxBytes) {
+      setPickError(`File too large (max ${uploadMaxSizeLabel}).`);
       return;
     }
     setFile(f);

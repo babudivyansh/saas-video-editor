@@ -3,7 +3,14 @@ import { getAuthUser } from "@/lib/auth";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { ALLOWED_UPLOAD_MIME } from "@/lib/plans/tiers";
 import { extensionForMime, sanitizeS3Key, uploadBufferToS3 } from "@/utils/s3-upload";
-import { adoptUploadedBytes, adoptExistingS3Object, AssetLimitError, assetLimitStatus } from "@/lib/asset-service";
+import {
+  adoptUploadedBytes,
+  adoptExistingS3Object,
+  assertFileSizeAllowed,
+  assertUnderStorageQuota,
+  AssetLimitError,
+  assetLimitStatus,
+} from "@/lib/asset-service";
 import { randomUUID } from "crypto";
 import { logger } from "@/lib/logger";
 
@@ -36,14 +43,38 @@ async function handlePOST(req: NextRequest) {
   // Assets library's primary flow — the returned URL gets stored forever as
   // User.avatarUrl, so this path keeps the original permanent, publicly-served
   // URL it already depends on instead of a short-lived signed one. It still
-  // adopts the same object as an Asset (best-effort, never fails the avatar
-  // upload) so the image shows up in the user's library too — spec #1 applies
-  // to every upload surface, avatars included.
+  // adopts the same object as an Asset (so the image shows up in the user's
+  // library too — spec #1 applies to every upload surface, avatars included)
+  // and DOES count against the account's storage quota like any other Asset —
+  // skipAsset only means "don't return the short-lived signed URL shape",
+  // never "skip subscription entitlement enforcement".
+  //
+  // Security fix (Upload Limits Audit §7/P1): the plan-size/quota check now
+  // runs BEFORE the S3 write and BEFORE any response is sent, instead of as a
+  // fire-and-forget `.catch()`-only call after the client already got a 200.
+  // A rejection here must actually reject the upload.
   if (skipAsset) {
+    try {
+      const tier = await assertFileSizeAllowed(auth.userId, buffer.length);
+      await assertUnderStorageQuota(auth.userId, tier, buffer.length);
+    } catch (e) {
+      if (e instanceof AssetLimitError) {
+        return NextResponse.json(
+          { error: e.message, limitBytes: e.limitBytes, usedBytes: e.usedBytes },
+          { status: assetLimitStatus(e.kind) },
+        );
+      }
+      throw e;
+    }
+
     const ext = extensionForMime(mimeType);
     const key = sanitizeS3Key(`uploads/${auth.userId}/${randomUUID()}.${ext}`);
     const url = await uploadBufferToS3(buffer, key, mimeType);
 
+    // Entitlement is already verified above against the real buffer length —
+    // this remains a best-effort adopt only for non-entitlement failures
+    // (e.g. a transient DB error), never for size/quota, which can no longer
+    // fail here having already been checked.
     adoptExistingS3Object({
       userId: auth.userId,
       s3Key: key,

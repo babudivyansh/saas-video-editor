@@ -8,6 +8,7 @@ import { withRetry } from "@/lib/with-retry";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
+import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
 import path from "path";
@@ -65,9 +66,14 @@ async function handlePOST(req: NextRequest) {
   const audioFile = formData.get("audio") as File | null;
   if (!audioFile) return NextResponse.json({ error: "No audio file provided" }, { status: 400 });
 
-  const MAX_BYTES = 50 * 1024 * 1024;
-  if (audioFile.size > MAX_BYTES) {
-    return NextResponse.json({ error: "File exceeds 50 MB limit" }, { status: 413 });
+  const policy = await resolveUploadPolicy(auth.userId, "voice-changer");
+  try {
+    assertWithinUploadPolicy(policy, audioFile.size);
+  } catch (e) {
+    if (e instanceof UploadPolicyError) {
+      return NextResponse.json(uploadPolicyErrorBody(e, policy), { status: uploadPolicyErrorStatus(e.limitingFactor) });
+    }
+    throw e;
   }
 
   const voiceSlug = (formData.get("voiceSlug") as string | null) ?? "adam";

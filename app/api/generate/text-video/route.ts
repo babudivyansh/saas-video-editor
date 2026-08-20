@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, getUserTier } from "@/lib/auth";
+import { maxUploadBytesForTier, formatBytes } from "@/lib/plans/tiers";
 import { prisma } from "@/lib/prisma";
 import { InProcessQueue } from "@/lib/job-queue";
 import { chargeCredits, refundCredits, markGenerationStatus } from "@/lib/credits";
@@ -422,7 +423,15 @@ async function handlePOST(req: NextRequest) {
   // starting the render — previously this only surfaced deep inside the
   // render job (loadImage() on a bad buffer), wasting a full TTS+FFmpeg
   // pass and a charge/refund cycle on something checkable up front.
-  const MAX_AVATAR_BYTES = 10 * 1024 * 1024;
+  //
+  // The cap is the user's actual plan upload limit (same as every other
+  // avatar/Asset-library path), not a flat number — previously hardcoded at
+  // 10MB regardless of tier, which would reject a Pro/Studio avatar that
+  // adoptUploadedBytes below would otherwise happily accept (Upload Limits
+  // Audit §15 pattern, applied here too since this is the same "avatar image"
+  // category as the other flows already fixed).
+  const avatarTier = await getUserTier(auth.userId);
+  const maxAvatarBytes = maxUploadBytesForTier(avatarTier);
   let avatarBuffer: Buffer | undefined;
   // avatarUrl (an asset reused from the library) is downloaded server-side
   // inside the render job, not here — but it must be constrained to our own
@@ -437,8 +446,8 @@ async function handlePOST(req: NextRequest) {
     } catch {
       return NextResponse.json({ error: "Invalid avatar image data" }, { status: 400 });
     }
-    if (avatarBuffer.length === 0 || avatarBuffer.length > MAX_AVATAR_BYTES) {
-      return NextResponse.json({ error: "Avatar image must be under 10 MB" }, { status: 413 });
+    if (avatarBuffer.length === 0 || avatarBuffer.length > maxAvatarBytes) {
+      return NextResponse.json({ error: `Avatar image must be under ${formatBytes(maxAvatarBytes)}` }, { status: 413 });
     }
   }
 

@@ -7,6 +7,7 @@ import { withRetry } from "@/lib/with-retry";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress, checkModelAccess } from "@/lib/credits";
+import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
 import path from "path";
@@ -186,9 +187,14 @@ async function handlePOST(req: NextRequest) {
   const videoFile = formData.get("video") as File | null;
   if (!videoFile) return NextResponse.json({ error: "No video file provided" }, { status: 400 });
 
-  const MAX_BYTES = 500 * 1024 * 1024;
-  if (videoFile.size > MAX_BYTES) {
-    return NextResponse.json({ error: "File too large (max 500 MB)" }, { status: 413 });
+  const policy = await resolveUploadPolicy(auth.userId, "subtitle-remover");
+  try {
+    assertWithinUploadPolicy(policy, videoFile.size);
+  } catch (e) {
+    if (e instanceof UploadPolicyError) {
+      return NextResponse.json(uploadPolicyErrorBody(e, policy), { status: uploadPolicyErrorStatus(e.limitingFactor) });
+    }
+    throw e;
   }
 
   const jobId = randomUUID();

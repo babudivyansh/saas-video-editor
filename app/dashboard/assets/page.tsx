@@ -301,7 +301,9 @@ function AssetsPageInner() {
                 <IcUpload />
               </div>
               <p className="text-sm text-ink-soft mt-1">Drop files here or <span className="text-brand font-semibold">browse</span></p>
-              <p className="text-xs text-ink-soft/60">Supports video, audio, and images up to 500 MB</p>
+              <p className="text-xs text-ink-soft/60">
+                Supports video, audio, and images{stats ? ` up to ${fmtSize(stats.maxUploadBytes)} per file` : ""}
+              </p>
             </div>
           )}
 

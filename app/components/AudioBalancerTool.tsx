@@ -2,6 +2,7 @@
 import { useCallback, useRef, useState, useEffect } from "react";
 import { useJobPolling } from "./useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
+import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
 
 interface BalanceMode {
   id: string;
@@ -78,6 +79,7 @@ export default function AudioBalancerTool() {
   const inputRef = useRef<HTMLInputElement>(null);
   const job = useJobPolling({ toolSlug: "audio-balancer", token: null, requireAuth: false });
   const fireReviewPrompt = useReviewPromptTrigger();
+  const { formattedMaxSize: uploadMaxSizeLabel } = useUploadEntitlement("audio-balancer");
   const submittingRef = useRef(false);
   const downloadedForJobId = useRef<string | null>(null);
 
@@ -236,7 +238,7 @@ export default function AudioBalancerTool() {
                 </div>
                 <p className="text-[15px] font-semibold text-gray-900">Upload audio or video</p>
                 <p className="text-sm text-gray-400 mt-1">Drag and drop or click to browse</p>
-                <p className="text-xs text-gray-400 mt-2">.mp3, .wav, .aac, .ogg, .flac, .mp4, .mov, .mkv • Max 500 MB</p>
+                <p className="text-xs text-gray-400 mt-2">.mp3, .wav, .aac, .ogg, .flac, .mp4, .mov, .mkv • Max {uploadMaxSizeLabel ?? "500 MB"}</p>
               </button>
             </>
           )}

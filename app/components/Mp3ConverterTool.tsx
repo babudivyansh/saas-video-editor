@@ -2,6 +2,7 @@
 import { useCallback, useRef, useState, useEffect } from "react";
 import { useJobPolling } from "./useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
+import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
 
 interface QualityOption {
   id: string;
@@ -82,6 +83,7 @@ export default function Mp3ConverterTool() {
   const inputRef = useRef<HTMLInputElement>(null);
   const job = useJobPolling({ toolSlug: "mp3-converter", token: null, requireAuth: false });
   const fireReviewPrompt = useReviewPromptTrigger();
+  const { formattedMaxSize: uploadMaxSizeLabel } = useUploadEntitlement("mp3-converter");
   const submittingRef = useRef(false);
   const downloadedForJobId = useRef<string | null>(null);
 
@@ -241,7 +243,7 @@ export default function Mp3ConverterTool() {
                 </div>
                 <p className="text-[15px] font-semibold text-gray-900">Upload audio or video</p>
                 <p className="text-sm text-gray-400 mt-1">Drag and drop or click to browse</p>
-                <p className="text-xs text-gray-400 mt-2">.mp3, .wav, .aac, .mp4, .mov, .mkv, .webm • Max 500 MB</p>
+                <p className="text-xs text-gray-400 mt-2">.mp3, .wav, .aac, .mp4, .mov, .mkv, .webm • Max {uploadMaxSizeLabel ?? "500 MB"}</p>
               </button>
             </>
           )}

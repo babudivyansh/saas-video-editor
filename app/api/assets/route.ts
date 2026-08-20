@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser, getUserTier } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
-import { storageLimitBytesForTier } from "@/lib/plans/tiers";
+import { storageLimitBytesForTier, maxUploadBytesForTier } from "@/lib/plans/tiers";
 import { getAssetReadUrl } from "@/utils/s3-upload";
 
 async function resolveAssetUrls<T extends { s3Key: string; thumbnailS3Key: string | null }>(
@@ -42,7 +42,12 @@ async function handleGET(req: NextRequest) {
       else if (row.kind === "image") byKind.image = row._count;
     }
     const limitBytes = storageLimitBytesForTier(tier);
-    return NextResponse.json({ totalSize, count, byKind, usedBytes: totalSize, limitBytes, tier });
+    // maxUploadBytes = the per-file cap for this tier (distinct from
+    // limitBytes, the cumulative storage quota) — exposed so the frontend
+    // never has to hardcode or duplicate the tier map to display the
+    // correct "up to X per file" copy (Upload Limits Audit §16).
+    const maxUploadBytes = maxUploadBytesForTier(tier);
+    return NextResponse.json({ totalSize, count, byKind, usedBytes: totalSize, limitBytes, maxUploadBytes, tier });
   }
 
   const kind = searchParams.get("kind") ?? "all";

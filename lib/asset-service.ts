@@ -134,7 +134,7 @@ function assertAllowedMime(mimeType: string): void {
   }
 }
 
-async function assertUnderStorageQuota(userId: string, tier: TierId, incomingBytes: number): Promise<void> {
+export async function assertUnderStorageQuota(userId: string, tier: TierId, incomingBytes: number): Promise<void> {
   const limitBytes = storageLimitBytesForTier(tier);
   const usage = await prisma.asset.aggregate({
     where: { userId, archivedAt: null },
@@ -147,7 +147,7 @@ async function assertUnderStorageQuota(userId: string, tier: TierId, incomingByt
   }
 }
 
-async function assertFileSizeAllowed(userId: string, bytes: number): Promise<TierId> {
+export async function assertFileSizeAllowed(userId: string, bytes: number): Promise<TierId> {
   const tier = await getUserTier(userId);
   const maxBytes = maxUploadBytesForTier(tier);
   if (bytes > maxBytes) {
