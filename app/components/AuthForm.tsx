@@ -3,13 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 
 function BrandIcon() {
-  return (
-    <div className="w-12 h-12 rounded-2xl bg-brand flex items-center justify-center shadow-lg shadow-blue-200">
-      <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-      </svg>
-    </div>
-  );
+  return <img src="/icon.png" alt="Clipiro" className="w-12 h-12 rounded-2xl" />;
 }
 
 function MailIcon() {
@@ -639,6 +633,21 @@ export default function AuthForm({
             )}
           </PrimaryBtn>
         </form>
+
+        <div className="flex items-center gap-3 my-5">
+          <div className="flex-1 h-px bg-gray-100" />
+          <span className="text-xs text-gray-400 font-medium">or</span>
+          <div className="flex-1 h-px bg-gray-100" />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => window.location.href = "/api/auth/google"}
+          className="w-full flex items-center justify-center gap-2.5 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 active:bg-gray-100 rounded-full py-3 text-sm font-medium text-gray-700 transition-all shadow-sm"
+        >
+          <GoogleIcon />
+          Continue with Google
+        </button>
 
         <p className="text-center text-[13px] text-gray-500 mt-5">
           Already have an account?{" "}
