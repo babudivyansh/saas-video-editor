@@ -125,7 +125,12 @@ export default function ToolsSidebar({ active = "home" }: { active?: string }) {
       {/* Bottom section */}
       <div className="w-8 h-px bg-gray-200 mb-3 flex-shrink-0" />
       <div className="flex flex-col items-center gap-2.5 w-full px-3.5 flex-shrink-0">
-        {BOTTOM_NAV.map(item => (
+        {/* "billing" is excluded here — its icon-badge NavLink has no icon to
+            show any more, and the header's own Upgrade/Top Up button already
+            covers this at the same xl: breakpoint. Still present in
+            bottomNav for the mobile drawer, which renders it as a plain
+            icon-less text row instead of an empty gradient square. */}
+        {BOTTOM_NAV.filter(item => item.id !== "billing").map(item => (
           <NavLink key={item.id} {...item} active={active} />
         ))}
       </div>
