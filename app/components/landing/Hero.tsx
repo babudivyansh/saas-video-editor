@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import Reveal from "@/app/components/Reveal";
-import { ZapIcon, PlayIcon, CheckIcon } from "@/app/components/landing/icons";
+import { PlayIcon, CheckIcon } from "@/app/components/landing/icons";
 import HeroRatingBadge from "@/app/components/landing/HeroRatingBadge";
 import { MINIMUM_REVIEWS_FOR_SCHEMA } from "@/app/reviews/schema";
 import type { ReviewSummary } from "@/lib/reviews/queries";
@@ -32,7 +32,6 @@ export default function Hero({ reviewSummary }: HeroProps) {
         {/* Badge */}
         <Reveal>
           <span className="inline-flex items-center gap-2 rounded-full border border-brand/25 bg-brand-soft px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-brand-deep">
-            <ZapIcon className="h-3.5 w-3.5" />
             AI-powered clipping, captions & export
           </span>
         </Reveal>
@@ -62,7 +61,6 @@ export default function Hero({ reviewSummary }: HeroProps) {
                 href="/dashboard"
                 className="inline-flex items-center gap-2 rounded-full bg-brand px-8 py-4 text-base font-bold text-white shadow-card transition-all duration-200 hover:scale-[1.02] hover:bg-brand-dark"
               >
-                <ZapIcon className="h-4 w-4" />
                 Go to Dashboard
               </Link>
             ) : (
@@ -70,7 +68,6 @@ export default function Hero({ reviewSummary }: HeroProps) {
                 onClick={() => openAuthModal("register")}
                 className="inline-flex items-center gap-2 rounded-full bg-brand px-8 py-4 text-base font-bold text-white shadow-card transition-all duration-200 hover:scale-[1.02] hover:bg-brand-dark cursor-pointer"
               >
-                <ZapIcon className="h-4 w-4" />
                 Try Clipiro Free
               </button>
             )}

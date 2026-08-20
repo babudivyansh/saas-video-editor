@@ -49,9 +49,6 @@ function IcInfo() {
 function IcSparkle() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/><path d="M19 3l.8 2.2L22 6l-2.2.8L19 9l-.8-2.2L16 6l2.2-.8z"/><path d="M5 17l.5 1.5L7 19l-1.5.5L5 21l-.5-1.5L3 19l1.5-.5z"/></svg>;
 }
-function IcWand() {
-  return <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>;
-}
 function Spinner({ className = "w-4 h-4" }: { className?: string }) {
   return <svg className={`animate-spin ${className}`} viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>;
 }
@@ -492,7 +489,7 @@ export default function ImageGeneratorTool() {
               disabled={!prompt.trim() || enhancing}
               className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-2.5 py-1.5 text-[12px] font-semibold text-gray-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
-              {enhancing ? <Spinner className="w-3 h-3" /> : <IcWand />}
+              {enhancing && <Spinner className="w-3 h-3" />}
               Enhance Prompt
               {!enhancing && <IcChevron />}
             </button>
@@ -514,7 +511,7 @@ export default function ImageGeneratorTool() {
                 : "bg-gray-100 text-gray-400 cursor-not-allowed"
             }`}
           >
-            {generating ? <><Spinner /> Generating…</> : <><IcWand /> Generate Image</>}
+            {generating ? <><Spinner /> Generating…</> : "Generate Image"}
             {!generating && prompt.trim() && (
               <kbd className="ml-1 hidden sm:inline-block text-[11px] font-semibold bg-white/20 rounded px-1.5 py-0.5">⌘+Enter</kbd>
             )}

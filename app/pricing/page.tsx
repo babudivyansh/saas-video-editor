@@ -20,13 +20,6 @@ import { PlanCard } from "@/app/components/billing/PlanCard";
 import { minorUnits, yearlySavePct } from "@/lib/plans/display";
 
 // ── Icons ──────────────────────────────────────────────────────────────────
-function ZapIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-    </svg>
-  );
-}
 function CheckIcon({ className = "" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -1155,7 +1148,6 @@ export default function PricingPage() {
                 onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
                 className="inline-flex items-center justify-center gap-2 bg-white text-brand font-bold px-8 py-3.5 rounded-full hover:bg-tint-blue transition-colors shadow-lg"
               >
-                <ZapIcon className="w-4 h-4" />
                 Choose a Plan
               </button>
             ) : (
@@ -1163,7 +1155,6 @@ export default function PricingPage() {
                 onClick={() => openAuthModal("register")}
                 className="inline-flex items-center justify-center gap-2 bg-white text-brand font-bold px-8 py-3.5 rounded-full hover:bg-tint-blue transition-colors shadow-lg"
               >
-                <ZapIcon className="w-4 h-4" />
                 Start Free
               </button>
             )}
