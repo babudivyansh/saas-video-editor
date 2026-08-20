@@ -652,7 +652,7 @@ export default function AuthForm({
           <PrimaryBtn enabled={registerOk} loading={loading}>
             {loading ? "Creating account…" : (
               <>
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                <img src="/icon.png" alt="" className="w-4 h-4 rounded-sm" />
                 Get Started — It&apos;s Free
               </>
             )}
