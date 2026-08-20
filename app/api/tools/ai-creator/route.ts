@@ -9,6 +9,7 @@ import { env } from "@/lib/env";
 import { TOOL_COSTS } from "@/lib/tool-costs";
 import { chargeCredits, refundCredits, markGenerationStatus, checkModelAccess, updateGenerationProgress } from "@/lib/credits";
 import { maxDurationForTier } from "@/lib/plans/tiers";
+import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
 import { adoptUploadedBytes } from "@/lib/asset-service";
 import os from "os";
@@ -149,9 +150,17 @@ async function handlePOST(req: NextRequest) {
   const videoFile = formData.get("video") as File | null;
   if (!videoFile) return NextResponse.json({ error: "No video provided" }, { status: 400 });
 
-  const MAX_VIDEO = 200 * 1024 * 1024;
-  if (videoFile.size > MAX_VIDEO) {
-    return NextResponse.json({ error: "Video too large (max 200 MB)" }, { status: 413 });
+  // effectiveMaxBytes = min(plan upload cap, AI Creator's 200MB technical
+  // cap) — previously a flat 200MB for every tier, unlike this route's
+  // duration logic below which already correctly combines the two.
+  const uploadPolicy = await resolveUploadPolicy(auth.userId, "ai-creator");
+  try {
+    assertWithinUploadPolicy(uploadPolicy, videoFile.size);
+  } catch (e) {
+    if (e instanceof UploadPolicyError) {
+      return NextResponse.json(uploadPolicyErrorBody(e, uploadPolicy), { status: uploadPolicyErrorStatus(e.limitingFactor) });
+    }
+    throw e;
   }
 
   const avatarType = (formData.get("avatarType") as string | null) ?? "upload";

@@ -5,6 +5,7 @@ import { useJobPolling } from "./useJobPolling";
 import { TOOL_COSTS } from "@/lib/tool-costs";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { VOICES, voiceBySlug, type Voice } from "@/app/components/voice-catalog";
+import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
 
 const VOICE_CHANGER_CREDIT_COST = TOOL_COSTS["voice-changer"].creditCost;
 
@@ -268,11 +269,12 @@ export default function VoiceChangerTool() {
   const selectedVoice = voiceBySlug(voiceSlug);
 
   const ACCEPTED = ".mp3,.wav,.m4a,.ogg,.aac,.mp4,.mov,.avi,.webm";
-  const MAX_MB = 50;
+  const { maxBytes: uploadMaxBytes, formattedMaxSize: uploadMaxSizeLabel } = useUploadEntitlement("voice-changer");
+  const MAX_MB_LABEL = uploadMaxSizeLabel ?? "50 MB";
 
   function handleFileChange(file: File | null) {
     if (!file) return;
-    if (file.size > MAX_MB * 1024 * 1024) {
+    if (uploadMaxBytes != null && file.size > uploadMaxBytes) {
       job.reset();
       return;
     }
@@ -447,7 +449,7 @@ export default function VoiceChangerTool() {
                       <p className="text-xs text-slate-400 mt-1">Drag and drop or click to browse</p>
                     </div>
                     <p className="text-[11px] text-slate-400 text-center leading-relaxed">
-                      .mp3, .wav, .m4a, .ogg, .aac, .mp4, .mov, .avi, .webm &bull; Max {MAX_MB} MB
+                      .mp3, .wav, .m4a, .ogg, .aac, .mp4, .mov, .avi, .webm &bull; Max {MAX_MB_LABEL}
                     </p>
                   </div>
                 )}

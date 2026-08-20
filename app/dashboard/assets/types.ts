@@ -52,6 +52,8 @@ export interface AssetStats {
   byKind: { video: number; audio: number; image: number };
   usedBytes: number;
   limitBytes: number;
+  /** Per-file upload cap for the account's current tier (distinct from limitBytes, the cumulative quota). */
+  maxUploadBytes: number;
   tier: string;
 }
 

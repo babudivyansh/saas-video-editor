@@ -5,6 +5,7 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import { withRetry } from "@/lib/with-retry";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
+import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
 import path from "path";
@@ -58,9 +59,14 @@ async function handlePOST(req: NextRequest) {
   const file = formData.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
-  const MAX_BYTES = 50 * 1024 * 1024;
-  if (file.size > MAX_BYTES) {
-    return NextResponse.json({ error: "File too large (max 50 MB)" }, { status: 413 });
+  const policy = await resolveUploadPolicy(auth.userId, "enhance-speech");
+  try {
+    assertWithinUploadPolicy(policy, file.size);
+  } catch (e) {
+    if (e instanceof UploadPolicyError) {
+      return NextResponse.json(uploadPolicyErrorBody(e, policy), { status: uploadPolicyErrorStatus(e.limitingFactor) });
+    }
+    throw e;
   }
 
   const jobId = randomUUID();

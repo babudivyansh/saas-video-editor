@@ -7,6 +7,7 @@ import { withRetry } from "@/lib/with-retry";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
+import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
 import path from "path";
@@ -132,9 +133,14 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "Only PNG, JPG, WEBP, GIF images are supported" }, { status: 400 });
   }
 
-  const MAX_BYTES = 10 * 1024 * 1024; // 10 MB for images
-  if (file.size > MAX_BYTES) {
-    return NextResponse.json({ error: "File too large (max 10 MB)" }, { status: 413 });
+  const policy = await resolveUploadPolicy(auth.userId, "background-remover");
+  try {
+    assertWithinUploadPolicy(policy, file.size);
+  } catch (e) {
+    if (e instanceof UploadPolicyError) {
+      return NextResponse.json(uploadPolicyErrorBody(e, policy), { status: uploadPolicyErrorStatus(e.limitingFactor) });
+    }
+    throw e;
   }
 
   const idempotencyKey = (formData.get("idempotencyKey") as string | null) ?? undefined;

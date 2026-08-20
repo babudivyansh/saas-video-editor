@@ -4,9 +4,11 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import { useAuth } from "@/app/components/AuthContext";
 import { useJobPolling } from "@/app/components/useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
+import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
 
 export default function SubtitleRemoverTool() {
   const { token, refreshUser } = useAuth();
+  const { maxBytes: uploadMaxBytes, formattedMaxSize: uploadMaxSizeLabel } = useUploadEntitlement("subtitle-remover");
   const job = useJobPolling({ toolSlug: "subtitle-remover", token });
   const fireReviewPrompt = useReviewPromptTrigger();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -21,15 +23,15 @@ export default function SubtitleRemoverTool() {
   const downloadedForJobId = useRef<string | null>(null);
   const submittingRef = useRef(false);
 
-  const MAX_MB = 500;
+  const MAX_MB_LABEL = uploadMaxSizeLabel ?? "500 MB";
 
   const acceptFile = useCallback((f: File) => {
     if (!f.type.startsWith("video/")) {
       setErrorMsg("Please upload a video file (MP4, MOV, WEBM).");
       return;
     }
-    if (f.size > MAX_MB * 1024 * 1024) {
-      setErrorMsg(`File exceeds ${MAX_MB} MB limit.`);
+    if (uploadMaxBytes != null && f.size > uploadMaxBytes) {
+      setErrorMsg(`File exceeds ${MAX_MB_LABEL} limit.`);
       return;
     }
     if (originalPreviewUrl) URL.revokeObjectURL(originalPreviewUrl);
@@ -39,7 +41,7 @@ export default function SubtitleRemoverTool() {
     setDownloadUrl(null);
     setCompareView("after");
     job.reset();
-  }, [job, originalPreviewUrl]);
+  }, [job, originalPreviewUrl, uploadMaxBytes, MAX_MB_LABEL]);
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -209,7 +211,7 @@ export default function SubtitleRemoverTool() {
                   />
                 </svg>
                 <p className="text-sm font-medium text-gray-700">Click to upload video</p>
-                <p className="text-xs text-gray-400 mt-1">MP4, MOV, WEBM &bull; Max {MAX_MB} MB</p>
+                <p className="text-xs text-gray-400 mt-1">MP4, MOV, WEBM &bull; Max {MAX_MB_LABEL}</p>
               </div>
             ) : (
               <div className="border border-gray-200 rounded-xl p-4 flex items-center gap-3 bg-gray-50">

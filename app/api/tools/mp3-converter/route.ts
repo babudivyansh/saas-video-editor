@@ -3,6 +3,8 @@ import { runFFmpegWithProgress } from "@/utils/ffmpeg-render";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { checkFreeToolDailyCap, freeToolCapResponseBody } from "@/lib/free-tool-caps";
 import { createJobStatusHandler } from "@/lib/job-routes";
+import { getAuthUser } from "@/lib/auth";
+import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -67,9 +69,18 @@ export async function POST(req: NextRequest) {
   const file = formData.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
-  const MAX_BYTES = 500 * 1024 * 1024; // 500 MB
-  if (file.size > MAX_BYTES) {
-    return NextResponse.json({ error: "File too large (max 500 MB)" }, { status: 413 });
+  // Anonymously callable free tool (see audio-balancer/route.ts for the same
+  // note) — resolve a real plan cap when a session is present, else fall
+  // back to just the feature's technical ceiling.
+  const auth = await getAuthUser(req);
+  const policy = await resolveUploadPolicy(auth?.userId ?? null, "mp3-converter");
+  try {
+    assertWithinUploadPolicy(policy, file.size);
+  } catch (e) {
+    if (e instanceof UploadPolicyError) {
+      return NextResponse.json(uploadPolicyErrorBody(e, policy), { status: uploadPolicyErrorStatus(e.limitingFactor) });
+    }
+    throw e;
   }
 
   const quality = (formData.get("quality") as string | null) ?? "medium";

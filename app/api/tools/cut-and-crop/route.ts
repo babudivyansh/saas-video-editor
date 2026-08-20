@@ -4,6 +4,7 @@ import { cropScaleFilter } from "@/lib/crop";
 import { getAuthUser } from "@/lib/auth";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
+import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
 import path from "path";
@@ -129,10 +130,18 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "Trims/files count mismatch" }, { status: 400 });
   }
 
-  const MAX_BYTES = 500 * 1024 * 1024;
+  const policy = await resolveUploadPolicy(auth.userId, "cut-and-crop");
   for (const f of files) {
-    if (f.size > MAX_BYTES) {
-      return NextResponse.json({ error: `File ${f.name} exceeds 500 MB` }, { status: 413 });
+    try {
+      assertWithinUploadPolicy(policy, f.size);
+    } catch (e) {
+      if (e instanceof UploadPolicyError) {
+        return NextResponse.json(
+          { ...uploadPolicyErrorBody(e, policy), error: `File ${f.name}: ${e.message}` },
+          { status: uploadPolicyErrorStatus(e.limitingFactor) },
+        );
+      }
+      throw e;
     }
   }
 

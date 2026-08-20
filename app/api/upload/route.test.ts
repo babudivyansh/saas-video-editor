@@ -46,6 +46,7 @@ vi.mock("@/utils/s3-upload", () => ({
 }));
 vi.mock("@/lib/asset-moderation", () => ({ enqueueAssetModeration: vi.fn() }));
 vi.mock("@/lib/asset-audit", () => ({ auditAssetAction: vi.fn() }));
+vi.mock("@/lib/onboarding-analytics", () => ({ trackOnboardingEvent: vi.fn() }));
 vi.mock("@/lib/plans/tiers", () => ({
   storageLimitBytesForTier: () => 10 ** 12,
   maxUploadBytesForTier: () => 10 ** 12,
@@ -64,6 +65,12 @@ function uploadRequest(): NextRequest {
   return new NextRequest("http://localhost/api/upload", { method: "POST", body: form });
 }
 
+function skipAssetRequest(bytes: Uint8Array): NextRequest {
+  const form = new FormData();
+  form.append("file", new File([bytes], "avatar.png", { type: "image/png" }));
+  return new NextRequest("http://localhost/api/upload?skipAsset=true", { method: "POST", body: form });
+}
+
 beforeEach(() => {
   authUser = { userId: "u1" };
 });
@@ -78,5 +85,34 @@ describe("POST /api/upload — duplicate response shape", () => {
     expect(json.url).toBe("https://signed.example/read-url");
     expect(json.key).toBe(existingAsset.s3Key);
     expect(json.asset.url).toBe("https://signed.example/read-url");
+  });
+});
+
+describe("POST /api/upload?skipAsset=true — avatar entitlement can no longer be bypassed (Upload Limits Audit §7/P1)", () => {
+  it("rejects an oversized avatar BEFORE uploading to S3 — the response itself is not a 200", async () => {
+    const uploadBufferToS3 = vi.mocked((await import("@/utils/s3-upload")).uploadBufferToS3);
+    uploadBufferToS3.mockClear();
+    // The shared tiers mock in this file sets maxUploadBytesForTier to a huge
+    // number by default — override it for this test only, to something an
+    // "avatar" can realistically exceed.
+    const tiersMod = await import("@/lib/plans/tiers");
+    vi.spyOn(tiersMod, "maxUploadBytesForTier").mockReturnValue(10); // 10 bytes, trivially exceeded
+
+    const res = await POST(skipAssetRequest(new Uint8Array(50).fill(1)));
+    expect(res.status).not.toBe(200);
+    expect(res.status).toBe(413);
+    // The old bug: the S3 write happened unconditionally before any check.
+    expect(uploadBufferToS3).not.toHaveBeenCalled();
+  });
+
+  it("still succeeds for a file within the plan's cap", async () => {
+    const tiersMod = await import("@/lib/plans/tiers");
+    vi.spyOn(tiersMod, "maxUploadBytesForTier").mockReturnValue(10 ** 9);
+    const uploadBufferToS3 = vi.mocked((await import("@/utils/s3-upload")).uploadBufferToS3);
+    uploadBufferToS3.mockResolvedValue("https://bucket.example/uploads/u1/avatar.png");
+
+    const res = await POST(skipAssetRequest(new Uint8Array(50).fill(1)));
+    expect(res.status).toBe(200);
+    expect(uploadBufferToS3).toHaveBeenCalled();
   });
 });

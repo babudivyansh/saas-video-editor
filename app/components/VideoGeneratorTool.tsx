@@ -10,6 +10,7 @@ import { maxDurationForTier } from "@/lib/plans/tiers";
 import { Switch } from "@/app/components/ui/Switch";
 import { AssetPicker } from "@/app/components/assets/AssetPicker";
 import type { PickerAsset } from "@/app/components/assets/assetPickerData";
+import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
 
 // ── Options ────────────────────────────────────────────────────────────────────
 const RATIOS    = ["16:9", "9:16", "1:1"];
@@ -449,6 +450,7 @@ function PromptDocsPopover({ onClose }: { onClose: () => void }) {
 
 export default function VideoGeneratorTool() {
   const { user, token, openAuthModal, refreshUser } = useAuth();
+  const { maxBytes: refImageMaxBytes, formattedMaxSize: refImageMaxSizeLabel } = useUploadEntitlement("reference-image");
   const job = useJobPolling({ toolSlug: "video-generator", token });
   const fireReviewPrompt = useReviewPromptTrigger();
   const submittingRef = useRef(false);
@@ -745,8 +747,8 @@ export default function VideoGeneratorTool() {
                   setPickError("Only PNG, JPG, WEBP images are supported for the reference image.");
                   return;
                 }
-                if (f.size > 10 * 1024 * 1024) {
-                  setPickError("Reference image must be under 10 MB.");
+                if (refImageMaxBytes != null && f.size > refImageMaxBytes) {
+                  setPickError(`Reference image must be under ${refImageMaxSizeLabel}.`);
                   return;
                 }
                 setRefImage(f);

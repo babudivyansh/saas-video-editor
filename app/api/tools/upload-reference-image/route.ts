@@ -4,10 +4,10 @@ import { getAuthUser } from "@/lib/auth";
 import { uploadBufferToS3 } from "@/utils/s3-upload";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { adoptExistingS3Object } from "@/lib/asset-service";
+import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import { logger } from "@/lib/logger";
 
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
-const MAX_SIZE = 10 * 1024 * 1024;
 
 // Uploads a reference/lead-frame image to S3 and returns a public URL, for use
 // as the `referenceImageUrl` sent to /api/tools/video-generator — several
@@ -28,8 +28,14 @@ async function handlePOST(req: NextRequest) {
   if (!ALLOWED_TYPES.includes(file.type)) {
     return NextResponse.json({ error: "Only PNG, JPG, WEBP images are supported" }, { status: 400 });
   }
-  if (file.size > MAX_SIZE) {
-    return NextResponse.json({ error: "Image must be under 10 MB" }, { status: 413 });
+  const policy = await resolveUploadPolicy(auth.userId, "reference-image");
+  try {
+    assertWithinUploadPolicy(policy, file.size);
+  } catch (e) {
+    if (e instanceof UploadPolicyError) {
+      return NextResponse.json(uploadPolicyErrorBody(e, policy), { status: uploadPolicyErrorStatus(e.limitingFactor) });
+    }
+    throw e;
   }
 
   const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";

@@ -3,6 +3,8 @@ import { runFFmpegWithProgress } from "@/utils/ffmpeg-render";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { checkFreeToolDailyCap, freeToolCapResponseBody } from "@/lib/free-tool-caps";
 import { createJobStatusHandler } from "@/lib/job-routes";
+import { getAuthUser } from "@/lib/auth";
+import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -61,9 +63,21 @@ export async function POST(req: NextRequest) {
   const file = formData.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
-  const MAX_BYTES = 500 * 1024 * 1024;
-  if (file.size > MAX_BYTES) {
-    return NextResponse.json({ error: "File too large (max 500 MB)" }, { status: 413 });
+  // This route is intentionally callable anonymously (IP-rate-limited free
+  // tool, no login wall on the API itself — only /dashboard/tools/free/* is
+  // login-gated at the page level). When a session IS present, resolve the
+  // real subscription tier so a logged-in paid user gets their actual plan
+  // cap instead of the flat feature ceiling; an anonymous caller only gets
+  // the feature's technical ceiling, since there's no plan to resolve.
+  const auth = await getAuthUser(req);
+  const policy = await resolveUploadPolicy(auth?.userId ?? null, "audio-balancer");
+  try {
+    assertWithinUploadPolicy(policy, file.size);
+  } catch (e) {
+    if (e instanceof UploadPolicyError) {
+      return NextResponse.json(uploadPolicyErrorBody(e, policy), { status: uploadPolicyErrorStatus(e.limitingFactor) });
+    }
+    throw e;
   }
 
   const mode = (formData.get("mode") as string | null) ?? "balance-center";

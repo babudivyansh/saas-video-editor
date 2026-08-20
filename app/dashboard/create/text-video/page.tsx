@@ -6,6 +6,7 @@ import { useAuth } from "@/app/components/AuthContext";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { AssetField } from "@/app/components/assets/AssetField";
 import type { PickerAsset } from "@/app/components/assets/assetPickerData";
+import { formatBytes } from "@/lib/plans/tiers";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 function IcChevron() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M9 18l6-6-6-6"/></svg>; }
@@ -633,9 +634,24 @@ function AiScriptModal({
 function TextVideoFlow() {
   const router = useRouter();
   const params = useSearchParams();
-  const { openAuthModal } = useAuth();
+  const { openAuthModal, token } = useAuth();
   const stepParam = params.get("step") || "script";
   const stepIndex = Math.max(0, STEPS.findIndex(s => s.id === stepParam));
+
+  // The avatar picker goes through /api/upload (not skipAsset), which is
+  // already plan-aware — this just mirrors the real per-tier cap in the
+  // client-side copy/check instead of a hardcoded 10 MB that could disagree
+  // with what the server actually allows (Upload Limits Audit §15).
+  const [avatarMaxBytes, setAvatarMaxBytes] = useState<number | null>(null);
+  useEffect(() => {
+    if (!token) return;
+    fetch("/api/assets?stats=true", { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { maxUploadBytes?: number } | null) => {
+        if (data?.maxUploadBytes) setAvatarMaxBytes(data.maxUploadBytes);
+      })
+      .catch(() => {});
+  }, [token]);
 
   // Script state
   const [profilePic, setProfilePic] = useState<string | null>(null);
@@ -765,8 +781,8 @@ function TextVideoFlow() {
       setAvatarError("Only PNG, JPG, WEBP images are supported.");
       return;
     }
-    if (f.size > 10 * 1024 * 1024) {
-      setAvatarError("Profile picture must be under 10 MB.");
+    if (avatarMaxBytes != null && f.size > avatarMaxBytes) {
+      setAvatarError(`Profile picture must be under ${formatBytes(avatarMaxBytes)}.`);
       return;
     }
     const url = URL.createObjectURL(f);
