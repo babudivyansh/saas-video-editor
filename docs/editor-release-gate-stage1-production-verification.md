@@ -246,6 +246,119 @@ Each case must show: `status=completed`, `failureReason=null`, a real S3 video
 that returns 200 and plays with correct duration/aspect/audio, and exactly one
 credit charged.
 
+---
+
+## P0-2 Runtime Capability Investigation
+
+A single-purpose diagnostic deploy, existing only to answer one question with
+certainty: **does the production Linux host already provide a viable system
+ffmpeg with every capability Clipiro requires?** It is report-only and changes
+no runtime behaviour — deliberately, so a diagnostic deploy cannot become an
+unreviewed runtime migration.
+
+### Confirmed root cause
+
+`ffmpeg-static@5.3.0`'s Linux runtime lacks the `drawtext` capability.
+FFmpeg 7.0 made `libharfbuzz` a hard build dependency of `drawtext`; the
+Linux asset is a johnvansickle 7.0.2 build configured with `libfreetype` but
+**not** `libharfbuzz`, so `drawtext` is silently not compiled while every
+other text-adjacent component (fontconfig, fribidi, libass) remains present.
+
+### Platform split
+
+| | Windows (dev) | Linux (production) |
+|---|---|---|
+| ffmpeg version | 6.1.1 (`essentials_build-www.gyan.dev`) | 7.0.2-static (johnvansickle) |
+| `drawtext` | **present** | **absent** |
+| Source | same pinned `ffmpeg-static@5.3.0` | same pinned `ffmpeg-static@5.3.0` |
+
+Same dependency, same lockfile, different capability. `b6.1.1` names the
+ffmpeg-static *release*, not the ffmpeg version — verified by downloading and
+decompressing that release asset: 79,826,272 bytes, byte-for-byte identical to
+production's binary, with no `drawtext` string in it. Production is running
+exactly what this project pins; nothing was swapped or overridden.
+
+Treated as a **latent Linux runtime incompatibility**, not a recent
+regression, until evidence says otherwise.
+
+### Why video-only tests failed
+
+Isolation testing removed the text clip and the export still failed
+identically. That looked like it exonerated text rendering; it did not. The
+free-tier watermark (`lib/editor/filtergraph.ts`, applied as the last video
+node) injects `drawtext` **unconditionally**, so a project containing no
+user-added text still emits `drawtext` and still fails on the free plan. This
+is why the failure is universal rather than limited to projects using text.
+
+### Required capabilities (traced, not assumed)
+
+Taken from the real production render commands — `lib/editor/filtergraph.ts`
+(editor) and `encodeArgs("cpu")` in `utils/ffmpeg-render.ts` (AutoClip):
+
+- **Video encoder:** `libx264`
+- **Audio encoder:** `aac`
+- **Filters:** 33, including `drawtext`, `subtitles`, `overlay`, `scale`,
+  `crop`, `xfade`, `amix`, `adelay`, `volume`, `fps`, `format`, `concat`
+
+`subtitles` is probed independently of `drawtext` — the caption path depends
+on ASS/libass and its presence must not be inferred from drawtext's.
+
+### Bundled runtime capabilities
+
+_Probe results pending deploy._
+
+### System FFmpeg probe
+
+Candidates searched deterministically plus PATH resolution:
+`/usr/bin/ffmpeg`, `/usr/local/bin/ffmpeg`, `/opt/ffmpeg/bin/ffmpeg`,
+`/snap/bin/ffmpeg`, and bare `ffmpeg`. For each: resolved path, exists,
+executable bit and permissions, version, build configuration flags, full
+filter availability, and encoder availability.
+
+Filter availability is read from `ffmpeg -filters` and is authoritative;
+build flags (freetype / harfbuzz / libass / fontconfig) are recorded as
+supporting evidence only — a build can enable libfreetype and still lack
+`drawtext`, which is precisely this incident.
+
+_Probe results pending deploy._
+
+### Direct smoke tests
+
+Run against a specific binary, using Clipiro's real encoder request, on
+synthetic `lavfi` sources only — no user media is touched. Each output must
+exit 0, exist, be non-empty, and validate as real playable media (via a
+sibling `ffprobe` where one exists, otherwise `ffmpeg -i` parsing; the method
+used is reported so a weaker check is never mistaken for a stronger one).
+
+| Case | What it proves |
+|---|---|
+| **A — basic encode** | 1080×1920 encode with Clipiro's actual `encodeArgs("cpu")` |
+| **B — drawtext** | renders "Clipiro Test" via `drawtext` — the capability P0-2 turns on |
+| **C — audio** | encodes with Clipiro's actual `aac` request |
+| **D — subtitles/libass** | burns in a minimal ASS file via `subtitles` |
+
+Verified locally before deploy that all four pass against a capable binary and
+all four correctly **fail** against a missing one — so a production result is
+a real finding rather than a probe artefact.
+
+_Production results pending deploy._
+
+### Decision
+
+_Pending deploy._ Will be exactly one of **VIABLE SYSTEM FFMPEG FOUND** or
+**SYSTEM FFMPEG OPTION ELIMINATED**.
+
+### Next fix
+
+_Pending the decision above._ Not to be chosen before the probe returns.
+
+### P0-2 status
+
+**FAILED / OPEN.** A capability probe does not close the incident. No
+successful production export has been observed.
+
+---
+
 ### Final P0-2 status
 
 **FAILED / OPEN.**
