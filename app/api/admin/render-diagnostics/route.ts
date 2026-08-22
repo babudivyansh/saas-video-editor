@@ -126,6 +126,66 @@ export const GET = withAdmin(async () => {
   } catch { /* stays false — that's meaningful too */ }
   try { fs.unlinkSync(smokeOut); } catch { /* best effort cleanup */ }
 
+  // 5. Variant probes — only run once the baseline smoke test above has
+  // actually failed. The baseline uses this app's real encodeArgs("cpu");
+  // if it already fails, these narrow down *why*, testing specific
+  // mitigations for known libx264-in-a-VM failure classes (see comments per
+  // variant) rather than guessing at a fix blind. Each is independent and
+  // self-contained so a bad candidate can't affect the others' results.
+  const variantResults: Array<{ name: string; args: string[]; exitCode: number | null; success: boolean; stderrTail: string }> = [];
+  if (smoke.spawnError === null && !(smoke.code === 0 && smokeOutputInfo.exists && smokeOutputInfo.size > 0)) {
+    const variants: Array<{ name: string; args: string[] }> = [
+      {
+        // ffmpeg's own per-output -threads option is honored by the libx264
+        // wrapper as the encoder's thread count (libavcodec/libx264.c reads
+        // avctx->thread_count into x264's param.i_threads) — this is a
+        // documented ffmpeg option, not an x264-internal one. Tests whether
+        // x264's default multi-threaded slicing is where this breaks.
+        name: "global_threads_1",
+        args: ["-threads", "1", "-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k"],
+      },
+      {
+        // Different preset exercises a different set of x264 asm code paths;
+        // narrows down whether the failure is preset-specific.
+        name: "ultrafast_preset",
+        args: ["-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k"],
+      },
+      {
+        // Smaller frame size narrows down whether this is a buffer-size /
+        // memory-allocation failure rather than an instruction-set one.
+        name: "low_res_320x240",
+        args: ["-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k"],
+        // resolution override applied via a separate input below
+      },
+    ];
+    for (const v of variants) {
+      const out = path.join(tmp, `render-diagnostics-variant-${v.name}-${Date.now()}.mp4`);
+      const size = v.name === "low_res_320x240" ? "320x240" : "1280x720";
+      const args = [
+        "-y",
+        "-f", "lavfi", "-i", `testsrc=size=${size}:rate=30`,
+        "-f", "lavfi", "-i", "sine=frequency=440",
+        "-t", "2",
+        ...v.args,
+        out,
+      ];
+      const r = await run(ffmpegBin, args, 30_000);
+      let info: { exists: boolean; size: number } = { exists: false, size: 0 };
+      try {
+        const st = fs.statSync(out);
+        info = { exists: true, size: st.size };
+      } catch { /* stays false */ }
+      try { fs.unlinkSync(out); } catch { /* best effort cleanup */ }
+      variantResults.push({
+        name: v.name,
+        args,
+        exitCode: r.code,
+        success: r.spawnError === null && r.code === 0 && info.exists && info.size > 0,
+        stderrTail: r.stderr.slice(-800),
+      });
+    }
+  }
+
   return NextResponse.json({
     environment: {
       platform: process.platform,
@@ -173,5 +233,6 @@ export const GET = withAdmin(async () => {
           ? "SUCCESS — minimal encode works"
           : "FAILED — ffmpeg ran but did not produce a valid output (see exitCode/signal/stderrTail)",
     },
+    variantProbes: variantResults,
   });
 });
