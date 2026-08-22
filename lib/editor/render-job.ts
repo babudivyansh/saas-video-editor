@@ -29,7 +29,7 @@ export interface EditorRenderPayload {
 }
 
 // Probe whether a media file has an audio stream by parsing ffmpeg -i stderr.
-function hasAudioStream(filePath: string): Promise<boolean> {
+export function hasAudioStream(filePath: string): Promise<boolean> {
   return new Promise((resolve) => {
     // Use the one resolved, exec-bit-restored binary from ffmpeg-render. The
     // previous `require("ffmpeg-static")` returned Next's rewritten "\ROOT\…"
