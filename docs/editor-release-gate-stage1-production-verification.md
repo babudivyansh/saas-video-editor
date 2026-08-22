@@ -172,12 +172,27 @@ both render paths, for the separate AVX-512 encoder bug:
 | `lib/editor/filtergraph.test.ts` | the editor's own arg array emits `-threads 1` before `-c:v` |
 | `app/api/admin/render-diagnostics/route.test.ts` | `-filters` and `-version` parsing produce real results (caught a regex flaw that reported a filter literally named `=`); full untruncated subprocess output (caught a truncation bug that would have falsely reported libx264/aac missing) |
 
-**Gap, stated plainly:** there is no automated test that would have caught this
-outage, and none is added here. The failure is a property of the *deployed
-binary*, not of the code — every local test passes against a 6.1.1 binary that
-has `drawtext`. Closing this properly requires either a production-binary
-capability preflight or CI running against the same binary production uses.
-See "Follow-ups".
+Additionally, `utils/test-effects.ts` — a pre-existing smoke test that runs
+every effect and transition filter against the *actually installed* ffmpeg
+binary — now also covers the two text filters:
+
+| Check | Guards |
+|---|---|
+| `text-drawtext` | the filter behind every text clip **and** the unconditional free-tier watermark — the exact filter whose absence caused this outage |
+| `text-subtitles` | libass caption burn-in (present in both builds, but the other text path the editor depends on) |
+
+That script already existed and was already the right *kind* of guard — it ran
+real filters against the real binary. It simply never covered `drawtext`, which
+is precisely where the outage landed. Verified the new checks are not vacuous:
+an intentionally nonexistent filter name makes the harness exit non-zero with
+`No such filter`, so a missing `drawtext` genuinely fails the run.
+
+**Gap that remains, stated plainly:** `utils/test-effects.ts` only validates
+the binary on the machine where it runs. Running it locally or in CI does not
+prove production is healthy — every local test passes against a 6.1.1 binary
+that has `drawtext`, which is exactly why this outage reached users. Closing
+this fully requires running it (or an equivalent capability preflight) against
+the **production** binary as part of deploy. See "Follow-ups".
 
 ### Production verification
 
@@ -212,8 +227,11 @@ observed.** P0-2 does not move off FAILED until Cases A–C pass in production.
    rendered via libass (`subtitles`), which *is* present in both builds and
    for which the repo already has a generator (`lib/editor/caption-ass.ts`).
    This would make the pipeline immune to this entire class of failure.
-3. **Pin the binary in CI** — CI currently validates against whatever ffmpeg
-   the runner has, not the one production runs.
+3. **Run the capability smoke test against production** — wire
+   `utils/test-effects.ts` (or the `/api/admin/render-diagnostics` filter
+   probe) into the deploy so a binary missing a required filter fails the
+   deploy instead of silently breaking every export. This is the single
+   change that would have prevented this outage reaching users.
 4. **Credit refund on failure** — `refundCredit()` exists and is called in the
    failure path; worth confirming it actually restored credits for the failed
    renders during this outage.
