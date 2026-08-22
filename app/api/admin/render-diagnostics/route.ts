@@ -101,6 +101,35 @@ export const GET = withAdmin(async () => {
     requestedEncoders.map((name) => [name, new RegExp(`\\b${name}\\b`).test(encoders.stdout)]),
   );
 
+  // 2b. Filter availability. The real production failure is
+  // `No such filter: 'drawtext'` (exit 8, at -filter_complex parse time,
+  // before encoding starts) — a *build* gap, not an encoder gap, so the
+  // encoder checks above can all pass while every real export still dies.
+  // REQUIRED_FILTERS is every filter lib/editor/filtergraph.ts and
+  // lib/editor/types.ts's FILTER_PRESETS/EFFECT_PRESETS can emit; the full
+  // name list is returned too so a fix can be chosen against what this
+  // binary actually has rather than against what it's assumed to have.
+  const REQUIRED_FILTERS = [
+    "adelay", "afade", "aformat", "amix", "anullsrc", "asetpts", "atempo", "atrim",
+    "color", "colorbalance", "colorchannelmixer", "concat", "crop", "drawtext",
+    "eq", "fade", "format", "fps", "hue", "noise", "overlay", "rgbashift",
+    "scale", "setpts", "setsar", "settb", "subtitles", "tpad", "trim",
+    "vignette", "volume", "xfade", "zoompan",
+  ];
+  const filtersOut = await run(ffmpegBin, ["-hide_banner", "-filters"]);
+  // ` TSC  name  IN->OUT  description`. Anchoring on the flag column alone
+  // isn't enough — the legend lines ("T.. = Timeline support") match it too
+  // and yield a filter literally named "=", so also require a real
+  // identifier and ffmpeg's in->out signature.
+  const availableFilters = [...filtersOut.stdout.matchAll(/^\s*[TSC.]{3}\s+([a-zA-Z][\w]*)\s+\S+->\S+/gm)].map((m) => m[1]);
+  const filterSet = new Set(availableFilters);
+  const missingFilters = REQUIRED_FILTERS.filter((f) => !filterSet.has(f));
+
+  // Build configuration flag NAMES only (no values) — identifies which
+  // optional libraries this build was compiled against, which is what
+  // decides whether drawtext (libfreetype) / subtitles (libass) exist.
+  const configFlags = [...version.stdout.matchAll(/--(?:enable|disable)-[\w-]+/g)].map((m) => m[0]);
+
   // 3. Filesystem
   const tmpWritable = await checkWritable(tmp);
   const disk = diskFree(tmp);
@@ -231,6 +260,19 @@ export const GET = withAdmin(async () => {
       spawnError: encoders.spawnError,
       exitCode: encoders.code,
       availability: encoderAvailability,
+    },
+    filters: {
+      spawnError: filtersOut.spawnError,
+      exitCode: filtersOut.code,
+      totalAvailable: availableFilters.length,
+      missingRequired: missingFilters,
+      allNames: availableFilters,
+    },
+    buildConfig: {
+      flags: configFlags,
+      hasFreetype: configFlags.some((f) => /freetype/.test(f) && f.startsWith("--enable")),
+      hasLibass: configFlags.some((f) => /libass/.test(f) && f.startsWith("--enable")),
+      hasFontconfig: configFlags.some((f) => /fontconfig/.test(f) && f.startsWith("--enable")),
     },
     filesystem: {
       tmpWritable: tmpWritable.writable,

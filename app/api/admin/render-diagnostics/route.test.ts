@@ -50,6 +50,30 @@ describe("run() — output completeness (the actual bug this test guards against
     }
   });
 
+  it("parses `-filters` output into real filter names (guards the same false-negative class as the truncation bug)", async () => {
+    const result = await run(ffmpegBin, ["-hide_banner", "-filters"]);
+    expect(result.spawnError).toBeNull();
+    // Same regex the route uses to build its availability list.
+    const names = [...result.stdout.matchAll(/^\s*[TSC.]{3}\s+([a-zA-Z][\w]*)\s+\S+->\S+/gm)].map((m) => m[1]);
+    expect(names.length).toBeGreaterThan(100);
+    // Filters the editor's filtergraph always emits — if the parse is wrong
+    // these come back "missing" and the route reports a false root cause.
+    for (const f of ["scale", "crop", "concat", "overlay", "fps", "trim"]) {
+      expect(names).toContain(f);
+    }
+    // Sanity: header/legend lines must not be picked up as filter names.
+    expect(names).not.toContain("=");
+    expect(names).not.toContain("Filters:");
+  });
+
+  it("extracts build configuration flag names from `-version`", async () => {
+    const result = await run(ffmpegBin, ["-version"]);
+    expect(result.spawnError).toBeNull();
+    const flags = [...result.stdout.matchAll(/--(?:enable|disable)-[\w-]+/g)].map((m) => m[0]);
+    expect(flags.length).toBeGreaterThan(0);
+    expect(flags.every((f) => f.startsWith("--enable-") || f.startsWith("--disable-"))).toBe(true);
+  });
+
   it("reports a spawn error (not a silent empty result) for a genuinely missing binary", async () => {
     const result = await run(path.join(os.tmpdir(), "definitely-does-not-exist-ffmpeg-binary"), ["-version"]);
     expect(result.spawnError).not.toBeNull();
