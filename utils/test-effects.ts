@@ -4,11 +4,25 @@
  * zoompan, vignette, noise, xfade transition names, tpad, settb). Uses tiny
  * synthetic lavfi sources so it runs in seconds with no assets. Run with:
  *   npx tsx utils/test-effects.ts
+ *
+ * Also covers the two *text* filters, added after the P0-2 production export
+ * outage: production ran an ffmpeg 7.0.2 build compiled without libharfbuzz,
+ * which FFmpeg 7.0 made a hard dependency of `drawtext`, so drawtext was
+ * silently absent and EVERY export died at -filter_complex parse time. This
+ * script already existed and would have caught it — except it only covered
+ * effects and transitions, never drawtext. See
+ * docs/editor-release-gate-stage1-production-verification.md.
+ *
+ * NOTE: this validates whichever binary is *actually installed where it
+ * runs*. Running it in CI or locally does not prove production is healthy —
+ * that was precisely the gap. Run it against the production host's binary.
  */
 import os from "os";
+import fs from "fs";
 import path from "path";
 import { spawnSync } from "child_process";
 import { EFFECT_PRESETS, TRANSITION_PRESETS, TRANSITION_DURATION_SEC } from "../lib/editor/types";
+import { resolveFontFile } from "../lib/editor/filtergraph";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const ffmpeg = require("ffmpeg-static") as string;
@@ -40,6 +54,37 @@ for (const [key, def] of Object.entries(TRANSITION_PRESETS)) {
     `[1:v]format=yuv420p,settb=AVTB[b];` +
     `[a][b]xfade=transition=${def.xfade}:duration=${TRANSITION_DURATION_SEC}:offset=1[v]`;
   if (!run(`transition-${key}`, fc, [...src("blue", 1), ...src("red", 1)])) failures++;
+}
+
+// ── Text filters (P0-2 regression guard) ──
+// drawtext is emitted once per text clip AND unconditionally for the
+// free-tier watermark, so if it is missing every single export fails.
+{
+  const font = resolveFontFile("Poppins").replace(/\\/g, "/").replace(/:/g, "\\:");
+  const fc = `[0:v]drawtext=fontfile='${font}':text='Clipiro':fontsize=24:fontcolor=white,format=yuv420p[v]`;
+  if (!run("text-drawtext", fc, src("blue", 2))) failures++;
+}
+
+// subtitles (libass) burns in the caption track. Not implicated in the P0-2
+// outage — it was present in both builds — but it is the other text path the
+// editor depends on, and a binary missing it would break every captioned
+// export the same way.
+{
+  const assPath = path.join(os.tmpdir(), "fx-smoke-captions.ass");
+  fs.writeFileSync(
+    assPath,
+    "[Script Info]\nScriptType: v4.00+\nPlayResX: 270\nPlayResY: 480\n\n" +
+      "[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, Alignment\n" +
+      "Style: Default,Poppins,24,&H00FFFFFF,2\n\n" +
+      "[Events]\nFormat: Layer, Start, End, Style, Text\n" +
+      "Dialogue: 0,0:00:00.00,0:00:02.00,Default,Clipiro\n",
+    "utf8",
+  );
+  const fontsDir = path.join(process.cwd(), "public/fonts").replace(/\\/g, "/").replace(/:/g, "\\:");
+  const esc = assPath.replace(/\\/g, "/").replace(/:/g, "\\:");
+  const fc = `[0:v]subtitles=filename='${esc}':fontsdir='${fontsDir}',format=yuv420p[v]`;
+  if (!run("text-subtitles", fc, src("blue", 2))) failures++;
+  try { fs.unlinkSync(assPath); } catch { /* best effort */ }
 }
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILURES`);

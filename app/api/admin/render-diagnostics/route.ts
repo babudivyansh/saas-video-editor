@@ -1,18 +1,26 @@
-// SEV-1 diagnostic route for the production export outage (P0-2). Admin-only
-// (withAdmin requires role + a recent OTP step-up — this reveals server
-// filesystem paths and binary versions, not something a bare dashboard
-// session should be able to probe). Answers, with real evidence instead of
-// guesses, exactly what CLIPIRO_EDITOR_COMPLETE_AUDIT.md's Phase 3/4/5 ask
-// for: is the production ffmpeg binary the right OS/arch, does it have the
-// encoders this app actually requests, and does the simplest possible encode
-// using this app's own encodeArgs() succeed at all — all run from inside the
-// real production Node process, which is the one place that actually matters
-// since there is no shell/SSH access to the host available for this
-// investigation.
+// SEV-1 P0-2 runtime capability probe. Admin-only (withAdmin requires role +
+// a recent OTP step-up — this reveals server filesystem paths and binary
+// versions, not something a bare dashboard session should be able to probe).
 //
-// Every value returned here is either a version string, a boolean, a byte
-// count, or ffmpeg's own stderr for a synthetic (lavfi) smoke-test input —
-// never a real user's file path, signed URL, token, or asset content.
+// Purpose, single and narrow: answer whether the production Linux host
+// already provides a viable system ffmpeg with every capability Clipiro
+// requires — so the P0-2 remediation is chosen from evidence rather than
+// assumption.
+//
+// Confirmed context this exists to resolve: the bundled binary
+// (ffmpeg-static@5.3.0, release tag `b6.1.1` — which names the ffmpeg-static
+// release, NOT the ffmpeg version) ships a johnvansickle 7.0.2 linux build
+// with no `drawtext` filter. Verified byte-identical to what production runs.
+// Clipiro always reaches drawtext (user text overlays AND the free-tier
+// watermark), so every applicable export fails at -filter_complex parse time.
+//
+// REPORT-ONLY. This route changes no runtime behaviour and does not alter
+// binary selection — deliberately, so a diagnostic deploy cannot become an
+// unreviewed runtime migration.
+//
+// Every value returned is a path, version string, boolean, byte count, or
+// ffmpeg's own output for synthetic (lavfi) input. Never a user's media, a
+// signed URL, a token, a cookie, or an environment variable value.
 
 import os from "os";
 import path from "path";
@@ -20,7 +28,9 @@ import fs from "fs";
 import { spawn } from "child_process";
 import { NextResponse } from "next/server";
 import { withAdmin } from "@/lib/admin/api";
+import { logger } from "@/lib/logger";
 import { ffmpegBin, ffmpegBinaryInfo, encodeArgs } from "@/utils/ffmpeg-render";
+import { resolveFontFile } from "@/lib/editor/filtergraph";
 
 export function run(bin: string, args: string[], timeoutMs = 15_000): Promise<{ code: number | null; signal: NodeJS.Signals | null; stdout: string; stderr: string; spawnError: string | null }> {
   return new Promise((resolve) => {
@@ -55,245 +65,326 @@ export function run(bin: string, args: string[], timeoutMs = 15_000): Promise<{ 
   });
 }
 
-async function checkWritable(dir: string): Promise<{ writable: boolean; error?: string }> {
-  const probe = path.join(dir, `diag-write-probe-${Date.now()}.tmp`);
+/**
+ * Parse `ffmpeg -filters` output into filter names.
+ *
+ * Format is ` TSC  name  IN->OUT  description`. Anchoring on the flag column
+ * alone isn't enough — the legend lines ("T.. = Timeline support") match it
+ * too and yield a filter literally named "=", so require a real identifier
+ * and the in->out signature as well.
+ */
+export function parseFilterNames(stdout: string): string[] {
+  return [...stdout.matchAll(/^\s*[TSC.]{3}\s+([a-zA-Z][\w]*)\s+\S+->\S+/gm)].map((m) => m[1]);
+}
+
+// Every filter lib/editor/filtergraph.ts and lib/editor/types.ts's
+// FILTER_PRESETS / EFFECT_PRESETS / TRANSITION_PRESETS can emit.
+const REQUIRED_FILTERS = [
+  "adelay", "afade", "aformat", "amix", "anullsrc", "asetpts", "atempo", "atrim",
+  "color", "colorbalance", "colorchannelmixer", "concat", "crop", "drawtext",
+  "eq", "fade", "format", "fps", "hue", "noise", "overlay", "rgbashift",
+  "scale", "setpts", "setsar", "settb", "subtitles", "tpad", "trim",
+  "vignette", "volume", "xfade", "zoompan",
+];
+
+// Traced from the actual production render commands, not assumed:
+// lib/editor/filtergraph.ts (editor) and utils/ffmpeg-render.ts's
+// encodeArgs("cpu") (AutoClip) both request libx264 + aac. h264_nvenc is the
+// gpu path, unused in production per lib/render-target.ts.
+const REQUIRED_VIDEO_ENCODER = "libx264";
+const REQUIRED_AUDIO_ENCODER = "aac";
+
+const SYSTEM_CANDIDATES = ["/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/opt/ffmpeg/bin/ffmpeg", "/snap/bin/ffmpeg", "ffmpeg"];
+
+interface BinaryProbe {
+  path: string;
+  usable: boolean;
+  reason?: string;
+  file?: { existsOnDisk: boolean; executable: boolean; sizeBytes: number | null; permissionsOctal: string | null };
+  versionFirstLine?: string | null;
+  totalFilters?: number;
+  filters?: Record<string, boolean>;
+  missingFilters?: string[];
+  encoders?: Record<string, boolean>;
+  buildFlags?: { count: number; freetype: boolean; harfbuzz: boolean; libass: boolean; fontconfig: boolean };
+}
+
+function fileIdentity(bin: string): BinaryProbe["file"] {
+  // Bare "ffmpeg" resolves via PATH — nothing to stat.
+  if (!path.isAbsolute(bin)) return { existsOnDisk: false, executable: false, sizeBytes: null, permissionsOctal: null };
+  let executable = false;
+  try { fs.accessSync(bin, fs.constants.X_OK); executable = true; } catch { /* reported false */ }
   try {
-    fs.writeFileSync(probe, "probe");
-    fs.unlinkSync(probe);
-    return { writable: true };
-  } catch (e) {
-    return { writable: false, error: e instanceof Error ? e.message : String(e) };
+    const st = fs.statSync(bin);
+    return { existsOnDisk: true, executable, sizeBytes: st.size, permissionsOctal: (st.mode & 0o777).toString(8) };
+  } catch {
+    return { existsOnDisk: false, executable, sizeBytes: null, permissionsOctal: null };
   }
 }
 
-function diskFree(dir: string): { availableBytes: number | null; totalBytes: number | null; error?: string } {
-  try {
-    // Node 18.15+/19.6+. Falls back gracefully below if unavailable.
-    const stats = (fs as unknown as { statfsSync?: (p: string) => { bavail: number; bsize: number; blocks: number } }).statfsSync?.(dir);
-    if (!stats) return { availableBytes: null, totalBytes: null, error: "fs.statfsSync unavailable on this Node version" };
-    return { availableBytes: stats.bavail * stats.bsize, totalBytes: stats.blocks * stats.bsize };
-  } catch (e) {
-    return { availableBytes: null, totalBytes: null, error: e instanceof Error ? e.message : String(e) };
+/**
+ * Full capability probe of one ffmpeg binary. Used identically for the
+ * bundled binary and every system candidate so the two are directly
+ * comparable rather than measured different ways.
+ *
+ * Filter availability comes from `-filters` (authoritative); build flags are
+ * collected as supporting evidence only — a build can enable libfreetype and
+ * still lack drawtext, which is exactly the P0-2 situation.
+ */
+export async function probeBinary(bin: string): Promise<BinaryProbe> {
+  const file = fileIdentity(bin);
+  const version = await run(bin, ["-version"], 10_000);
+  if (version.spawnError || version.code !== 0) {
+    return { path: bin, usable: false, reason: version.spawnError ?? `exit ${version.code}`, file };
   }
+  const filtersOut = await run(bin, ["-hide_banner", "-filters"], 15_000);
+  const names = new Set(parseFilterNames(filtersOut.stdout));
+  const encodersOut = await run(bin, ["-hide_banner", "-encoders"], 15_000);
+  const hasEncoder = (n: string) => new RegExp(`\\b${n}\\b`).test(encodersOut.stdout);
+  const flags = [...version.stdout.matchAll(/--(?:enable|disable)-[\w-]+/g)].map((m) => m[0]);
+  const enabled = (needle: RegExp) => flags.some((f) => needle.test(f) && f.startsWith("--enable"));
+
+  return {
+    path: bin,
+    usable: true,
+    file,
+    versionFirstLine: version.stdout.split("\n")[0] ?? null,
+    totalFilters: names.size,
+    filters: Object.fromEntries(REQUIRED_FILTERS.map((f) => [f, names.has(f)])),
+    missingFilters: REQUIRED_FILTERS.filter((f) => !names.has(f)),
+    encoders: {
+      [REQUIRED_VIDEO_ENCODER]: hasEncoder(REQUIRED_VIDEO_ENCODER),
+      [REQUIRED_AUDIO_ENCODER]: hasEncoder(REQUIRED_AUDIO_ENCODER),
+      h264_nvenc: hasEncoder("h264_nvenc"),
+    },
+    buildFlags: {
+      count: flags.length,
+      freetype: enabled(/freetype/),
+      harfbuzz: enabled(/harfbuzz/),
+      libass: enabled(/libass/),
+      fontconfig: enabled(/fontconfig/),
+    },
+  };
+}
+
+/** A binary is only viable if it can fully replace the bundled runtime. */
+function isViable(p: BinaryProbe): boolean {
+  return p.usable === true
+    && (p.missingFilters?.length ?? 1) === 0
+    && p.encoders?.[REQUIRED_VIDEO_ENCODER] === true
+    && p.encoders?.[REQUIRED_AUDIO_ENCODER] === true;
+}
+
+/**
+ * Validate a produced file really is playable media. Prefers a sibling
+ * ffprobe (this project bundles no ffprobe package — ffmpeg-static ships
+ * ffmpeg only — but a system ffmpeg almost always has one alongside);
+ * otherwise falls back to parsing `ffmpeg -i`. The method used is reported so
+ * a weaker check is never mistaken for a stronger one.
+ */
+async function validateMedia(bin: string, file: string): Promise<{ method: string; ok: boolean; detail: string }> {
+  const sibling = path.isAbsolute(bin) ? path.join(path.dirname(bin), "ffprobe") : "ffprobe";
+  const probe = await run(sibling, ["-v", "error", "-show_entries", "format=duration:stream=codec_name,codec_type", "-of", "default=noprint_wrappers=1", file], 10_000);
+  if (!probe.spawnError && probe.code === 0) {
+    return {
+      method: `ffprobe (${sibling})`,
+      ok: /duration=[\d.]+/.test(probe.stdout) && /codec_type=video/.test(probe.stdout),
+      detail: probe.stdout.trim().slice(0, 400),
+    };
+  }
+  const viaFfmpeg = await run(bin, ["-hide_banner", "-i", file], 10_000);
+  return {
+    method: "ffmpeg -i (no ffprobe available)",
+    ok: /Stream #\d+:\d+.*Video/.test(viaFfmpeg.stderr) && /Duration:\s*\d/.test(viaFfmpeg.stderr),
+    detail: (viaFfmpeg.stderr.match(/Duration:[^\n]*|Stream #[^\n]*/g) ?? []).join(" | ").slice(0, 400),
+  };
+}
+
+interface SmokeResult {
+  name: string;
+  exitCode: number | null;
+  spawnError: string | null;
+  outputExists: boolean;
+  outputBytes: number;
+  validation: { method: string; ok: boolean; detail: string } | null;
+  passed: boolean;
+  stderrTail?: string;
+}
+
+/**
+ * Direct smoke tests against one specific binary, using Clipiro's real
+ * encoder request. Synthetic lavfi sources only — no user media touched.
+ * Each output must exist, be non-empty, exit 0, and validate as real media.
+ */
+export async function smokeTests(bin: string, tmp: string): Promise<SmokeResult[]> {
+  const results: SmokeResult[] = [];
+  const stamp = Date.now();
+
+  // Filter-arg escaping: on Linux these paths contain neither backslashes nor
+  // colons, but normalise defensively so a Windows-hosted run is not silently
+  // malformed.
+  const esc = (p: string) => p.replace(/\\/g, "/").replace(/:/g, "\\:");
+
+  const cases: Array<{ name: string; args: (out: string) => string[] }> = [
+    {
+      // A. Basic encoding with Clipiro's actual production encoder request.
+      name: "A_basic_encode",
+      args: (out) => [
+        "-y", "-f", "lavfi", "-i", "testsrc=size=1080x1920:rate=30",
+        "-f", "lavfi", "-i", "sine=frequency=440",
+        "-t", "2", ...encodeArgs("cpu"), out,
+      ],
+    },
+    {
+      // B. drawtext — the exact capability P0-2 turns on.
+      name: "B_drawtext",
+      args: (out) => [
+        "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=30", "-t", "2",
+        "-vf", `drawtext=fontfile='${esc(resolveFontFile("Poppins"))}':text='Clipiro Test':fontsize=32:fontcolor=white,format=yuv420p`,
+        "-c:v", REQUIRED_VIDEO_ENCODER, "-preset", "ultrafast", out,
+      ],
+    },
+    {
+      // C. Audio with Clipiro's actual audio encoder.
+      name: "C_audio_aac",
+      args: (out) => [
+        "-y", "-f", "lavfi", "-i", "sine=frequency=440", "-t", "2",
+        "-c:a", REQUIRED_AUDIO_ENCODER, "-b:a", "192k", out,
+      ],
+    },
+    {
+      // D. ASS/libass caption burn-in — the editor's other text path.
+      name: "D_subtitles_libass",
+      args: (out) => [
+        "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=30", "-t", "2",
+        "-vf", `subtitles=filename='${esc(path.join(tmp, `render-diag-${stamp}.ass`))}':fontsdir='${esc(path.join(process.cwd(), "public/fonts"))}',format=yuv420p`,
+        "-c:v", REQUIRED_VIDEO_ENCODER, "-preset", "ultrafast", out,
+      ],
+    },
+  ];
+
+  const assPath = path.join(tmp, `render-diag-${stamp}.ass`);
+  fs.writeFileSync(
+    assPath,
+    "[Script Info]\nScriptType: v4.00+\nPlayResX: 640\nPlayResY: 360\n\n" +
+      "[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, Alignment\n" +
+      "Style: Default,Poppins,32,&H00FFFFFF,2\n\n" +
+      "[Events]\nFormat: Layer, Start, End, Style, Text\n" +
+      "Dialogue: 0,0:00:00.00,0:00:02.00,Default,Clipiro Test\n",
+    "utf8",
+  );
+
+  for (const c of cases) {
+    const ext = c.name === "C_audio_aac" ? "m4a" : "mp4";
+    const out = path.join(tmp, `render-diag-smoke-${c.name}-${stamp}.${ext}`);
+    const r = await run(bin, c.args(out), 40_000);
+    let outputExists = false;
+    let outputBytes = 0;
+    try { const st = fs.statSync(out); outputExists = true; outputBytes = st.size; } catch { /* stays false */ }
+
+    // Audio-only output has no video stream, so validate it by codec presence
+    // rather than through the video-oriented validator.
+    let validation: SmokeResult["validation"] = null;
+    if (outputExists && outputBytes > 0) {
+      if (c.name === "C_audio_aac") {
+        const check = await run(bin, ["-hide_banner", "-i", out], 10_000);
+        validation = {
+          method: "ffmpeg -i (audio stream check)",
+          ok: /Stream #\d+:\d+.*Audio.*aac/i.test(check.stderr),
+          detail: (check.stderr.match(/Stream #[^\n]*/g) ?? []).join(" | ").slice(0, 400),
+        };
+      } else {
+        validation = await validateMedia(bin, out);
+      }
+    }
+    const passed = r.spawnError === null && r.code === 0 && outputExists && outputBytes > 0 && validation?.ok === true;
+    results.push({
+      name: c.name,
+      exitCode: r.code,
+      spawnError: r.spawnError,
+      outputExists,
+      outputBytes,
+      validation,
+      passed,
+      ...(passed ? {} : { stderrTail: r.stderr.slice(-1200) }),
+    });
+    try { fs.unlinkSync(out); } catch { /* best effort cleanup */ }
+  }
+  try { fs.unlinkSync(assPath); } catch { /* best effort cleanup */ }
+  return results;
 }
 
 export const GET = withAdmin(async () => {
   const tmp = os.tmpdir();
 
-  // 1. Binary identity
+  // ── Bundled runtime ──
   const binInfo = ffmpegBinaryInfo();
-  let executable = false;
-  let statInfo: { size: number; mode: string } | null = null;
-  try {
-    fs.accessSync(binInfo.path, fs.constants.X_OK);
-    executable = true;
-  } catch { /* reported as false below */ }
-  try {
-    const st = fs.statSync(binInfo.path);
-    statInfo = { size: st.size, mode: (st.mode & 0o777).toString(8) };
-  } catch { /* file may not exist at all — binInfo.bundled already reflects that */ }
+  const bundled = await probeBinary(ffmpegBin);
 
-  // 2. Version + encoder availability
-  const version = await run(ffmpegBin, ["-version"]);
-  const encoders = await run(ffmpegBin, ["-hide_banner", "-encoders"]);
-  const requestedEncoders = ["libx264", "aac", "h264_nvenc"]; // cpu path uses the first two; gpu path (unused in prod per lib/render-target.ts) uses the third
-  const encoderAvailability = Object.fromEntries(
-    requestedEncoders.map((name) => [name, new RegExp(`\\b${name}\\b`).test(encoders.stdout)]),
-  );
-
-  // 2b. Filter availability. The real production failure is
-  // `No such filter: 'drawtext'` (exit 8, at -filter_complex parse time,
-  // before encoding starts) — a *build* gap, not an encoder gap, so the
-  // encoder checks above can all pass while every real export still dies.
-  // REQUIRED_FILTERS is every filter lib/editor/filtergraph.ts and
-  // lib/editor/types.ts's FILTER_PRESETS/EFFECT_PRESETS can emit; the full
-  // name list is returned too so a fix can be chosen against what this
-  // binary actually has rather than against what it's assumed to have.
-  const REQUIRED_FILTERS = [
-    "adelay", "afade", "aformat", "amix", "anullsrc", "asetpts", "atempo", "atrim",
-    "color", "colorbalance", "colorchannelmixer", "concat", "crop", "drawtext",
-    "eq", "fade", "format", "fps", "hue", "noise", "overlay", "rgbashift",
-    "scale", "setpts", "setsar", "settb", "subtitles", "tpad", "trim",
-    "vignette", "volume", "xfade", "zoompan",
-  ];
-  const filtersOut = await run(ffmpegBin, ["-hide_banner", "-filters"]);
-  // ` TSC  name  IN->OUT  description`. Anchoring on the flag column alone
-  // isn't enough — the legend lines ("T.. = Timeline support") match it too
-  // and yield a filter literally named "=", so also require a real
-  // identifier and ffmpeg's in->out signature.
-  const availableFilters = [...filtersOut.stdout.matchAll(/^\s*[TSC.]{3}\s+([a-zA-Z][\w]*)\s+\S+->\S+/gm)].map((m) => m[1]);
-  const filterSet = new Set(availableFilters);
-  const missingFilters = REQUIRED_FILTERS.filter((f) => !filterSet.has(f));
-
-  // Build configuration flag NAMES only (no values) — identifies which
-  // optional libraries this build was compiled against, which is what
-  // decides whether drawtext (libfreetype) / subtitles (libass) exist.
-  const configFlags = [...version.stdout.matchAll(/--(?:enable|disable)-[\w-]+/g)].map((m) => m[0]);
-
-  // 3. Filesystem
-  const tmpWritable = await checkWritable(tmp);
-  const disk = diskFree(tmp);
-
-  // 4. Minimal smoke test — the exact same encodeArgs("cpu") this app's real
-  // renders use, against a synthetic lavfi input so no real asset/S3 access
-  // is needed. This directly tests "does the requested encoder actually work
-  // end-to-end", not just "does ffmpeg -encoders list it".
-  const smokeOut = path.join(tmp, `render-diagnostics-smoke-${Date.now()}.mp4`);
-  const smokeArgs = [
-    "-y",
-    "-f", "lavfi", "-i", "testsrc=size=1280x720:rate=30",
-    "-f", "lavfi", "-i", "sine=frequency=440",
-    "-t", "2",
-    ...encodeArgs("cpu"),
-    smokeOut,
-  ];
-  const smoke = await run(ffmpegBin, smokeArgs, 30_000);
-  let smokeOutputInfo: { exists: boolean; size: number } = { exists: false, size: 0 };
-  try {
-    const st = fs.statSync(smokeOut);
-    smokeOutputInfo = { exists: true, size: st.size };
-  } catch { /* stays false — that's meaningful too */ }
-  try { fs.unlinkSync(smokeOut); } catch { /* best effort cleanup */ }
-
-  // 5. Variant probes — only run once the baseline smoke test above has
-  // actually failed. The baseline uses this app's real encodeArgs("cpu");
-  // if it already fails, these narrow down *why*, testing specific
-  // mitigations for known libx264-in-a-VM failure classes (see comments per
-  // variant) rather than guessing at a fix blind. Each is independent and
-  // self-contained so a bad candidate can't affect the others' results.
-  const variantResults: Array<{ name: string; args: string[]; exitCode: number | null; success: boolean; stderrTail: string }> = [];
-  if (smoke.spawnError === null && !(smoke.code === 0 && smokeOutputInfo.exists && smokeOutputInfo.size > 0)) {
-    const variants: Array<{ name: string; size: string; args: string[] }> = [
-      {
-        // ffmpeg's own per-output -threads option is honored by the libx264
-        // wrapper as the encoder's thread count (libavcodec/libx264.c reads
-        // avctx->thread_count into x264's param.i_threads) — this is a
-        // documented ffmpeg option, not an x264-internal one. Tests whether
-        // x264's default multi-threaded slicing is where this breaks.
-        name: "global_threads_1",
-        size: "1280x720",
-        args: ["-threads", "1", "-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k"],
-      },
-      {
-        // Different preset exercises a different set of x264 asm code paths;
-        // narrows down whether the failure is preset-specific.
-        name: "ultrafast_preset",
-        size: "1280x720",
-        args: ["-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k"],
-      },
-      {
-        // Smaller frame size narrows down whether this is a buffer-size /
-        // memory-allocation failure rather than an instruction-set one.
-        name: "low_res_320x240",
-        size: "320x240",
-        args: ["-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k"],
-      },
-      {
-        // 1080x1920 (9:16) is this app's actual, most common export
-        // resolution (lib/editor/types.ts ASPECT_DIMENSIONS) — confirms the
-        // failure reproduces at real production dimensions, not just the
-        // smaller synthetic default above.
-        name: "real_res_1080x1920_default_threads",
-        size: "1080x1920",
-        args: ["-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k"],
-      },
-      {
-        // The candidate fix (-threads 1), tested at the real 1080x1920
-        // export resolution rather than the smaller 1280x720 used above —
-        // must pass here before it's trusted as the actual fix.
-        name: "real_res_1080x1920_threads_1",
-        size: "1080x1920",
-        args: ["-threads", "1", "-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k"],
-      },
-    ];
-    for (const v of variants) {
-      const out = path.join(tmp, `render-diagnostics-variant-${v.name}-${Date.now()}.mp4`);
-      const size = v.size;
-      const args = [
-        "-y",
-        "-f", "lavfi", "-i", `testsrc=size=${size}:rate=30`,
-        "-f", "lavfi", "-i", "sine=frequency=440",
-        "-t", "2",
-        ...v.args,
-        out,
-      ];
-      const r = await run(ffmpegBin, args, 30_000);
-      let info: { exists: boolean; size: number } = { exists: false, size: 0 };
-      try {
-        const st = fs.statSync(out);
-        info = { exists: true, size: st.size };
-      } catch { /* stays false */ }
-      try { fs.unlinkSync(out); } catch { /* best effort cleanup */ }
-      variantResults.push({
-        name: v.name,
-        args,
-        exitCode: r.code,
-        success: r.spawnError === null && r.code === 0 && info.exists && info.size > 0,
-        stderrTail: r.stderr.slice(-800),
-      });
-    }
+  // ── System candidates ──
+  const system: BinaryProbe[] = [];
+  const seen = new Set<string>([ffmpegBin]);
+  for (const candidate of SYSTEM_CANDIDATES) {
+    if (seen.has(candidate)) continue;
+    seen.add(candidate);
+    system.push(await probeBinary(candidate));
   }
 
+  // ── Direct smoke tests ──
+  // Bundled always (establishes the failing baseline); the first viable
+  // system candidate only, to keep this deploy cheap.
+  const bundledSmoke = await smokeTests(ffmpegBin, tmp);
+  const viableCandidate = system.find(isViable);
+  const systemSmoke = viableCandidate ? await smokeTests(viableCandidate.path, tmp) : null;
+
+  const allSystemSmokePassed = systemSmoke !== null && systemSmoke.every((r) => r.passed);
+  const decision = viableCandidate && allSystemSmokePassed
+    ? "VIABLE SYSTEM FFMPEG FOUND"
+    : "SYSTEM FFMPEG OPTION ELIMINATED";
+
+  // ── Filesystem ──
+  let tmpWritable = true;
+  let tmpWriteError: string | null = null;
+  const probeFile = path.join(tmp, `diag-write-probe-${Date.now()}.tmp`);
+  try { fs.writeFileSync(probeFile, "probe"); fs.unlinkSync(probeFile); }
+  catch (e) { tmpWritable = false; tmpWriteError = e instanceof Error ? e.message : String(e); }
+
+  // ── Phase 8: one concise structured event. Paths, versions and capability
+  // booleans only — no secrets, no media URLs, no env values. ──
+  logger.info("editor-render-runtime-capabilities", "P0-2 runtime capability probe", {
+    bundledPath: bundled.path,
+    bundledVersion: bundled.versionFirstLine ?? null,
+    bundledMissingFilters: bundled.missingFilters ?? null,
+    bundledMissingEncoders: Object.entries(bundled.encoders ?? {}).filter(([, v]) => !v).map(([k]) => k),
+    systemCandidatePath: viableCandidate?.path ?? null,
+    systemVersion: viableCandidate?.versionFirstLine ?? null,
+    systemMissingFilters: viableCandidate?.missingFilters ?? null,
+    bundledSmoke: bundledSmoke.map((r) => `${r.name}=${r.passed ? "PASS" : "FAIL"}`),
+    systemSmoke: systemSmoke?.map((r) => `${r.name}=${r.passed ? "PASS" : "FAIL"}`) ?? null,
+    decision,
+  });
+
   return NextResponse.json({
+    note: "REPORT-ONLY. This route does not change binary selection or any runtime behaviour.",
     environment: {
       platform: process.platform,
       arch: process.arch,
       nodeVersion: process.version,
       cwd: process.cwd(),
       tmpdir: tmp,
+      tmpWritable,
+      tmpWriteError,
     },
-    binary: {
-      resolvedPath: binInfo.path,
-      bundled: binInfo.bundled,
-      existsOnDisk: statInfo !== null,
-      executable,
-      sizeBytes: statInfo?.size ?? null,
-      permissionsOctal: statInfo?.mode ?? null,
+    requiredCapabilities: {
+      filters: REQUIRED_FILTERS,
+      videoEncoder: REQUIRED_VIDEO_ENCODER,
+      audioEncoder: REQUIRED_AUDIO_ENCODER,
+      source: "traced from lib/editor/filtergraph.ts and utils/ffmpeg-render.ts encodeArgs('cpu')",
     },
-    version: {
-      spawnError: version.spawnError,
-      exitCode: version.code,
-      firstLine: version.stdout.split("\n")[0] ?? null,
-      stderrTail: version.spawnError ? version.stderr.slice(-2000) : undefined,
-    },
-    encoders: {
-      spawnError: encoders.spawnError,
-      exitCode: encoders.code,
-      availability: encoderAvailability,
-    },
-    filters: {
-      spawnError: filtersOut.spawnError,
-      exitCode: filtersOut.code,
-      totalAvailable: availableFilters.length,
-      missingRequired: missingFilters,
-      allNames: availableFilters,
-    },
-    buildConfig: {
-      flags: configFlags,
-      hasFreetype: configFlags.some((f) => /freetype/.test(f) && f.startsWith("--enable")),
-      hasLibass: configFlags.some((f) => /libass/.test(f) && f.startsWith("--enable")),
-      hasFontconfig: configFlags.some((f) => /fontconfig/.test(f) && f.startsWith("--enable")),
-    },
-    filesystem: {
-      tmpWritable: tmpWritable.writable,
-      tmpWriteError: tmpWritable.error ?? null,
-      diskAvailableBytes: disk.availableBytes,
-      diskTotalBytes: disk.totalBytes,
-      diskCheckError: disk.error ?? null,
-    },
-    smokeTest: {
-      argsUsed: smokeArgs,
-      spawnError: smoke.spawnError,
-      exitCode: smoke.code,
-      signal: smoke.signal,
-      outputProduced: smokeOutputInfo,
-      stderrTail: smoke.stderr.slice(-2000),
-      verdict: smoke.spawnError
-        ? "SPAWN FAILED — binary not found/executable"
-        : smoke.code === 0 && smokeOutputInfo.exists && smokeOutputInfo.size > 0
-          ? "SUCCESS — minimal encode works"
-          : "FAILED — ffmpeg ran but did not produce a valid output (see exitCode/signal/stderrTail)",
-    },
-    variantProbes: variantResults,
+    bundled: { ...bundled, bundledFlag: binInfo.bundled, smokeTests: bundledSmoke },
+    systemCandidates: system,
+    viableSystemCandidate: viableCandidate?.path ?? null,
+    systemSmokeTests: systemSmoke,
+    decision,
   });
 });
