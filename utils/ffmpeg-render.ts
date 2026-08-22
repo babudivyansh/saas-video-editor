@@ -85,7 +85,20 @@ export function encodeArgs(target: RenderTarget = "cpu"): string[] {
       ...common,
     ];
   }
-  return ["-c:v", "libx264", "-preset", "superfast", "-crf", "23", ...common];
+  // `-threads 1` (SEV-1, P0-2): the production host's CPU advertises AVX-512
+  // via cpuid and x264 detects it fine, but actually using it under x264's
+  // default multi-threaded slicing fails encoder init outright ("Error while
+  // opening encoder" immediately after the cpu-capabilities log line, exit
+  // 187) — a known class of hypervisor/kernel bug where AVX-512 execution
+  // state isn't handled correctly across thread context switches. Forcing
+  // libx264 to single-threaded mode (ffmpeg's own -threads is read into
+  // libx264's thread count by libavcodec's wrapper) sidesteps it. Confirmed
+  // empirically against the real production host at both a synthetic
+  // resolution and this app's actual 1080x1920 export size — default
+  // threading reproduces the failure at both, -threads 1 fixes both. See
+  // docs/editor-release-gate-stage1-production-verification.md's P0-2
+  // incident section.
+  return ["-threads", "1", "-c:v", "libx264", "-preset", "superfast", "-crf", "23", ...common];
 }
 
 /**
