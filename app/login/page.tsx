@@ -1,6 +1,8 @@
 "use client";
-import { useRouter } from "next/navigation";
+import React from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import AuthForm from "@/app/components/AuthForm";
+import { getSafeNextPath, withNextParam } from "@/lib/safe-redirect";
 
 function BlurredBackground() {
   return (
@@ -26,15 +28,17 @@ function BlurredBackground() {
   );
 }
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const handleSuccess = () => {
-    router.push("/dashboard");
+    const next = getSafeNextPath(searchParams.get("next"));
+    router.push(next ?? "/dashboard");
   };
 
   const handleModeToggle = (mode: "login" | "register") => {
-    router.push(mode === "login" ? "/login" : "/register");
+    router.push(withNextParam(mode === "login" ? "/login" : "/register", searchParams.get("next")));
   };
 
   return (
@@ -42,10 +46,11 @@ export default function LoginPage() {
       <BlurredBackground />
 
       <div className="relative z-10 w-full max-w-[760px] min-h-[520px] flex rounded-2xl shadow-2xl overflow-hidden bg-white">
-        <AuthForm 
-          initialMode="login" 
-          onSuccess={handleSuccess} 
+        <AuthForm
+          initialMode="login"
+          onSuccess={handleSuccess}
           onModeToggle={handleModeToggle}
+          next={searchParams.get("next")}
         />
 
         {/* Right panel */}
@@ -65,5 +70,13 @@ export default function LoginPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <LoginPageContent />
+    </React.Suspense>
   );
 }

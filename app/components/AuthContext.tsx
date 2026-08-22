@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthUser, type AuthUser } from "./useAuthUser";
+import { getSafeNextPath } from "@/lib/safe-redirect";
 
 type User = AuthUser;
 
@@ -11,6 +12,14 @@ interface AuthModalState {
   mode: "login" | "register";
   feature?: string;
   isFree?: boolean;
+  /** Where to send the user after a successful login/register — the page they were actually trying to reach. */
+  next?: string;
+}
+
+/** Current path+query, validated as a safe same-origin redirect target. Call only client-side. */
+function currentSafeNext(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  return getSafeNextPath(window.location.pathname + window.location.search) ?? undefined;
 }
 
 interface AuthContextType {
@@ -93,6 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthModal({
         isOpen: true,
         mode: "login",
+        next: currentSafeNext(),
         ...(freeTool ? { feature: freeTool, isFree: true } : {}),
       });
     }
@@ -109,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [pathname, user, isLoading, router]);
 
   const openAuthModal = (mode: "login" | "register" = "login", feature?: string, isFree?: boolean) => {
-    setAuthModal({ isOpen: true, mode, feature, isFree });
+    setAuthModal({ isOpen: true, mode, feature, isFree, next: currentSafeNext() });
   };
 
   const closeAuthModal = () => {

@@ -5,17 +5,19 @@ import AuthForm from "./AuthForm";
 
 export default function AuthModal() {
   const { authModal, closeAuthModal, refreshUser } = useAuth();
-  const { feature, isFree } = authModal;
+  const { feature, isFree, next } = authModal;
 
   if (!authModal.isOpen) return null;
 
   const handleSuccess = async (_token: string) => {
     await refreshUser();
     closeAuthModal();
-    // If opened from the pricing page (feature = plan name, not a free tool), go to billing
-    // Full page load, so it cannot open the overlay directly — the ?billing=1
-    // param is what BillingOverlayProvider reads on mount.
-    const dest = feature && !isFree ? "/dashboard?billing=1" : "/dashboard";
+    // Return to wherever the user was actually trying to go (e.g. a specific
+    // editor project deep link) when we know it and it isn't the generic
+    // "open the pricing modal" flow below. Full page load, so it cannot open
+    // the overlay directly — the ?billing=1 param is what BillingOverlayProvider
+    // reads on mount.
+    const dest = feature && !isFree ? "/dashboard?billing=1" : (next ?? "/dashboard");
     window.location.href = dest;
   };
 
@@ -44,10 +46,11 @@ export default function AuthModal() {
 
         {/* Auth Form (Left sliding panel inside AuthForm) */}
         <div className="flex-1 overflow-y-auto max-h-[90vh]">
-          <AuthForm 
-            initialMode={authModal.mode} 
+          <AuthForm
+            initialMode={authModal.mode}
             onSuccess={handleSuccess}
             isModalContext={true}
+            next={next}
           />
         </div>
 

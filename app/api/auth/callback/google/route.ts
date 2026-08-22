@@ -11,6 +11,8 @@ import { mintTwoFactorTicket } from "@/lib/two-factor-ticket";
 import { attributeReferral } from "@/lib/affiliate";
 import { recordSignupAttribution } from "@/lib/marketing-analytics";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { withNextParam } from "@/lib/safe-redirect";
+import { decodeNextFromState, toInlineScriptJson } from "@/lib/oauth-state";
 
 export async function GET(req: NextRequest) {
   try {
@@ -37,6 +39,8 @@ export async function GET(req: NextRequest) {
       logger.warn("google-callback", "OAuth state mismatch or missing");
       return NextResponse.redirect(new URL("/login?error=oauth_state", appUrl()));
     }
+    // state is confirmed non-null by stateValid above.
+    const next = decodeNextFromState(state!);
 
     const rateLimitResult = await rateLimit(`oauth:google:ip:${getClientIp(req)}`, 20, 3600);
     if (!rateLimitResult.allowed) {
@@ -167,15 +171,24 @@ export async function GET(req: NextRequest) {
     if (user.twoFactorEnabled) {
       // Redirect rather than JSON: this is a top-level browser navigation, so
       // the sign-in page picks the ticket back up from the query string and
-      // opens on the code step (see AuthForm's `2fa` param handling).
+      // opens on the code step (see AuthForm's `2fa` param handling). `next`
+      // rides along the same way — /login itself reads it from the URL once
+      // the user actually completes the 2FA step there.
       const ticket = await mintTwoFactorTicket(user.id);
-      return NextResponse.redirect(new URL(`/login?2fa=${encodeURIComponent(ticket)}`, appUrl()));
+      const dest = withNextParam(`/login?2fa=${encodeURIComponent(ticket)}`, next);
+      return NextResponse.redirect(new URL(dest, appUrl()));
     }
 
     // 5. Issue JWT and cache session
     const { token } = await completeLogin(req, user);
 
-    // 6. Return HTML page that sets localStorage and redirects
+    // 6. Return HTML page that sets localStorage and redirects.
+    // toInlineScriptJson escapes "<" so a value can never contain a literal
+    // "</script>" that would break out of this block — `next` passed
+    // getSafeNextPath (which allows any same-origin path, no HTML-safety
+    // guarantee) so this is a real boundary, not defensive-for-show. `token`
+    // is JWT-shaped and wouldn't contain this today, but there's no reason
+    // for its embedding to depend on that staying true.
     const html = `
       <!DOCTYPE html>
       <html>
@@ -183,10 +196,10 @@ export async function GET(req: NextRequest) {
           <title>Authenticating...</title>
         </head>
         <body>
-          <p>Redirecting to dashboard...</p>
+          <p>Redirecting...</p>
           <script>
-            localStorage.setItem("token", ${JSON.stringify(token)});
-            window.location.href = "/dashboard";
+            localStorage.setItem("token", ${toInlineScriptJson(token)});
+            window.location.href = ${toInlineScriptJson(next ?? "/dashboard")};
           </script>
         </body>
       </html>
