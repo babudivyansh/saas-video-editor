@@ -1,7 +1,9 @@
 "use client";
-import { useRouter } from "next/navigation";
+import React from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import AuthForm from "@/app/components/AuthForm";
 import { useAuth } from "@/app/components/AuthContext";
+import { getSafeNextPath, withNextParam } from "@/lib/safe-redirect";
 
 function BlurredBackground() {
   return (
@@ -27,8 +29,9 @@ function BlurredBackground() {
   );
 }
 
-export default function RegisterPage() {
+function RegisterPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { refreshUser } = useAuth();
 
   // AuthProvider is mounted once at the root layout and never remounts on
@@ -39,11 +42,12 @@ export default function RegisterPage() {
   // wrote to localStorage and resolves the user before we navigate.
   const handleSuccess = async () => {
     await refreshUser();
-    router.push("/dashboard");
+    const next = getSafeNextPath(searchParams.get("next"));
+    router.push(next ?? "/dashboard");
   };
 
   const handleModeToggle = (mode: "login" | "register") => {
-    router.push(mode === "login" ? "/login" : "/register");
+    router.push(withNextParam(mode === "login" ? "/login" : "/register", searchParams.get("next")));
   };
 
   return (
@@ -51,10 +55,11 @@ export default function RegisterPage() {
       <BlurredBackground />
 
       <div className="relative z-10 w-full max-w-[760px] min-h-[520px] flex rounded-2xl shadow-2xl overflow-hidden bg-white">
-        <AuthForm 
-          initialMode="register" 
-          onSuccess={handleSuccess} 
+        <AuthForm
+          initialMode="register"
+          onSuccess={handleSuccess}
           onModeToggle={handleModeToggle}
+          next={searchParams.get("next")}
         />
 
         {/* Right panel */}
@@ -74,5 +79,13 @@ export default function RegisterPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <RegisterPageContent />
+    </React.Suspense>
   );
 }

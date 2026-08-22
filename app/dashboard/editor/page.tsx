@@ -34,7 +34,7 @@ function EditorPageContent() {
           const res = await fetch(`/api/projects/${projectId}`, { headers });
           if (!res.ok) throw new Error("Project not found");
           const { project } = await res.json();
-          loadProject(project.id, (project.editorDoc as TimelineDoc) ?? null);
+          loadProject(project.id, (project.editorDoc as TimelineDoc) ?? null, project.editorVersion);
           setState("ready");
         } else {
           const res = await fetch("/api/projects", {

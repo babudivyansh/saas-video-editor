@@ -12,6 +12,7 @@
 // vstack, textfile= instead of inline text escaping.
 
 import fs from "fs";
+import { logger } from "@/lib/logger";
 import path from "path";
 import type { TextClip, TimelineDoc, TransitionPreset } from "./types";
 import {
@@ -95,6 +96,16 @@ export function resolveFontFile(family: string): string {
   for (const c of candidates) {
     if (fs.existsSync(c)) return c;
   }
+  // A bundled Google Font (public/fonts/*.ttf) missing at its expected,
+  // process.cwd()-relative path is exactly the failure mode that once took
+  // ffmpeg binary resolution down in prod (see utils/ffmpeg-render.ts's
+  // resolveFfmpegBin comment) — log loudly here too, before falling through
+  // to a substitute font, so a wrong-looking render is traceable instead of
+  // silently "close enough".
+  logger.warn("editor-render", `font "${family}" not found at its expected path, falling back to Arial`, {
+    triedCandidates: candidates,
+    cwd: process.cwd(),
+  });
   // Last-resort fallbacks across platforms
   const fallbacks = [
     FONT_FILES.Arial.win,
@@ -102,7 +113,9 @@ export function resolveFontFile(family: string): string {
     FONT_FILES.Arial.mac,
   ];
   for (const f of fallbacks) if (fs.existsSync(f)) return f;
-  throw new Error(`No usable font file found for "${family}"`);
+  throw new Error(
+    `No usable font file found for "${family}" (tried: ${[...candidates, ...fallbacks].join(", ")}; cwd: ${process.cwd()})`,
+  );
 }
 
 /** Escape a path for use inside a filtergraph option value. */

@@ -11,7 +11,12 @@ import { DEFAULT_DOC, MIN_CLIP_DURATION, normalizeDoc } from "@/lib/editor/types
 import { placeCaptionClip, placeVideoClip, splitCaptionClip, splitVideoClip, videoClipAt } from "@/lib/editor/doc-utils";
 import { emptyHistory, pushHistory, redo, undo, type HistoryState } from "./history";
 
-export type SaveState = "saved" | "dirty" | "saving" | "error";
+// "conflict" = the server rejected our last save because a newer version (from
+// another tab/device) already landed — see app/dashboard/editor/hooks/useAutosave.ts.
+// Local edits are intentionally NOT discarded when this happens; the user must
+// explicitly choose to reload the server's version (loadProject) or keep
+// editing and try saving again (which re-checks and can re-surface conflict).
+export type SaveState = "saved" | "dirty" | "saving" | "error" | "conflict";
 export type PanelKind =
   | "media"
   | "image"
@@ -35,6 +40,8 @@ interface EditorState {
   projectId: string | null;
   doc: TimelineDoc;
   history: HistoryState;
+  /** Optimistic-concurrency token last confirmed from the server (Project.editorVersion). */
+  editorVersion: number;
 
   // Transient state
   selection: Selection | null;
@@ -49,8 +56,9 @@ interface EditorState {
   focusTextClipId: string | null; // set by "Add Text"/double-click-on-canvas to focus the Lexical editor in the properties panel
 
   // Lifecycle
-  loadProject: (projectId: string, doc: TimelineDoc | null) => void;
+  loadProject: (projectId: string, doc: TimelineDoc | null, editorVersion?: number) => void;
   markSaved: (state: SaveState) => void;
+  setEditorVersion: (v: number) => void;
 
   // Selection / UI
   select: (sel: Selection | null) => void;
@@ -96,6 +104,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   projectId: null,
   doc: structuredClone(DEFAULT_DOC),
   history: emptyHistory(),
+  editorVersion: 1,
 
   selection: null,
   clipboard: null,
@@ -108,7 +117,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   saveState: "saved",
   focusTextClipId: null,
 
-  loadProject: (projectId, doc) =>
+  loadProject: (projectId, doc, editorVersion) =>
     set({
       projectId,
       // normalizeDoc backfills any track arrays missing from an older saved
@@ -117,6 +126,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       // one place that guarantee has to actually be established.
       doc: doc ? normalizeDoc(doc) : structuredClone(DEFAULT_DOC),
       history: emptyHistory(),
+      editorVersion: editorVersion ?? 1,
       selection: null,
       playing: false,
       currentTime: 0,
@@ -125,6 +135,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
 
   markSaved: (state) => set({ saveState: state }),
+  setEditorVersion: (v) => set({ editorVersion: v }),
 
   select: (sel) => set({ selection: sel }),
   setActivePanel: (p) => set({ activePanel: p }),

@@ -9,6 +9,7 @@ import { extractAudio } from "@/utils/ffmpeg-render";
 import { transcribe } from "@/lib/transcription";
 import { downloadFile } from "@/utils/download";
 import { logger } from "@/lib/logger";
+import { classifyCaptionFailure } from "@/lib/caption-failure";
 
 const CREDIT_COST = 1;
 
@@ -59,9 +60,13 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     // Refund on failure — restores the exact buckets the spend drained.
     await restoreSpend({ userId: auth.userId, refId: spendRef, reason: "refund:editor-captions-failed" });
-    const message = err instanceof Error ? err.message : "Transcription failed";
-    logger.error("editor-captions", "failed", err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    // classification never throws and never echoes the raw error text (which
+    // can be a third-party provider's full error body) back to the client —
+    // the full message/stack still reaches engineering via logger.error ->
+    // Sentry, tagged with the category for easy triage.
+    const { category, userMessage } = classifyCaptionFailure(err);
+    logger.error("editor-captions", `failed [${category}]`, err);
+    return NextResponse.json({ error: userMessage }, { status: 500 });
   } finally {
     for (const f of [mediaPath, audioPath]) {
       try {

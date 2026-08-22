@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE_NAME, verifyToken } from "@/lib/auth";
 import { publicPathForAppPath } from "@/app/components/featureLinks";
+import { withNextParam } from "@/lib/safe-redirect";
 import { isPublicApiRoute } from "@/lib/api-public-routes";
 import { ATTRIBUTION_COOKIE, buildAttributionCookie } from "@/lib/marketing-attribution";
 import { rateLimit } from "@/lib/rate-limit";
@@ -130,11 +131,18 @@ export async function proxy(request: NextRequest) {
 
   const isProtectedPage = PROTECTED_PAGE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   if (isProtectedPage && !auth) {
-    // If the path is a tool, send them to that tool's public page rather than a
-    // bare login form: they clicked "AI Voiceover" wanting to know what it is,
-    // and the marketing page answers that and then offers the sign-up.
-    const publicPage = publicPathForAppPath(pathname);
-    return withCsp(NextResponse.redirect(new URL(publicPage ?? "/login", request.url)), csp);
+    const originalDestination = pathname + request.nextUrl.search;
+    // A bare tool path (no query string) is ambiguous browsing — send them to
+    // that tool's public marketing page rather than a bare login form: they
+    // clicked "AI Voiceover" wanting to know what it is, and the marketing
+    // page answers that and then offers the sign-up. But a query string (e.g.
+    // ?projectId=... on the editor) signals genuine intent to reach a specific
+    // resource, not idle browsing — skip the marketing detour and preserve the
+    // exact destination through /login?next= instead, since the tool page's
+    // own sign-in CTA has no way to carry that state onward.
+    const publicPage = request.nextUrl.search ? undefined : publicPathForAppPath(pathname);
+    const target = publicPage ?? withNextParam("/login", originalDestination);
+    return withCsp(NextResponse.redirect(new URL(target, request.url)), csp);
   }
 
   const isSignedOutOnlyPage = SIGNED_OUT_ONLY_PATHS.includes(pathname);

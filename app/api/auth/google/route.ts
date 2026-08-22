@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { env } from "@/lib/env";
 import { appUrl } from "@/lib/social/oauth";
+import { encodeOAuthState } from "@/lib/oauth-state";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   // Fixed, config-driven redirect_uri (same pattern as lib/social/oauth.ts's
   // other OAuth providers) — not derived from the request's Host header.
   // That header can differ between this initial redirect and the eventual
@@ -15,7 +16,16 @@ export async function GET() {
   // Anti-CSRF state: random nonce echoed back by Google and matched against
   // an httpOnly cookie in the callback, so an attacker can't complete a
   // login flow they initiated (login CSRF) by handing the victim a code.
-  const state = crypto.randomBytes(16).toString("hex");
+  //
+  // The destination to return to after a successful Google sign-in (e.g. a
+  // specific editor project deep link) rides along inside this same opaque
+  // state value — Google echoes state back verbatim, so this is the one
+  // piece of app data guaranteed to survive the round trip to Google and
+  // back without a third cookie. It is re-validated with getSafeNextPath
+  // again at the callback regardless of having passed it here — this is
+  // encoding for transport, not a trust boundary.
+  const nonce = crypto.randomBytes(16).toString("hex");
+  const state = encodeOAuthState(nonce, req.nextUrl.searchParams.get("next"));
 
   const rootUrl = "https://accounts.google.com/o/oauth2/v2/auth";
   const options = {

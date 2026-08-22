@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { withNextParam } from "@/lib/safe-redirect";
 
 function BrandIcon() {
   return <img src="/icon.png" alt="Clipiro" className="w-12 h-12 rounded-2xl" />;
@@ -181,12 +182,15 @@ interface AuthFormProps {
   onSuccess?: (token: string) => void;
   onModeToggle?: (mode: "login" | "register") => void;
   isModalContext?: boolean;
+  /** Where to return the user after a successful sign-in (email/password AND Google) — see lib/safe-redirect.ts. */
+  next?: string | null;
 }
 
 export default function AuthForm({
   initialMode,
   onSuccess,
   onModeToggle,
+  next,
 }: AuthFormProps) {
   const [mode, setMode] = useState<"login" | "register">(initialMode);
 
@@ -736,7 +740,7 @@ export default function AuthForm({
 
           <button
             type="button"
-            onClick={() => window.location.href = "/api/auth/google"}
+            onClick={() => window.location.href = withNextParam("/api/auth/google", next)}
             className="w-full flex items-center justify-center gap-2.5 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 active:bg-gray-100 rounded-full py-3 text-sm font-medium text-gray-700 transition-all shadow-sm"
           >
             <GoogleIcon />

@@ -18,6 +18,7 @@ import type { TimelineDoc } from "./types";
 import { normalizeDoc } from "./types";
 import { buildFilterGraph, maybeUseFilterScript, writeTextFiles, type ClipInput } from "./filtergraph";
 import { generateCaptionASS } from "./caption-ass";
+import { classifyRenderFailure } from "./render-failure";
 
 export const EDITOR_RENDER_CREDIT_COST = 1;
 
@@ -150,8 +151,15 @@ export async function editorRenderJob(payload: EditorRenderPayload): Promise<voi
     void markQuestComplete(project.userId, "first-export");
     await setRenderProgress(projectId, "completed", 100);
   } catch (err) {
-    logger.error("editor-render", `failed for ${projectId}`, err);
-    await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } }).catch(() => {});
+    // classification never throws and never echoes the raw error text back to
+    // the project owner — the full message/stack (which can include ffmpeg
+    // stderr, S3 keys, local paths) still reaches engineering via logger.error
+    // -> Sentry, tagged with the category for easy triage.
+    const { category, userMessage } = classifyRenderFailure(err);
+    logger.error("editor-render", `failed for ${projectId} [${category}]`, err);
+    await prisma.project
+      .update({ where: { id: projectId }, data: { status: "failed", failureReason: userMessage } })
+      .catch(() => {});
     await setRenderProgress(projectId, "failed");
     await refundCredit(projectId);
   } finally {

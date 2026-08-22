@@ -13,7 +13,7 @@ import { ChevronLeft, Command, Bell, Sparkles, User as UserIcon, LogOut } from "
 import type { Aspect } from "@/lib/editor/types";
 import { useAuth } from "@/app/components/AuthContext";
 import { useEditorStore } from "./store/editorStore";
-import { useAutosave } from "./hooks/useAutosave";
+import { useAutosave, reloadLatestProject } from "./hooks/useAutosave";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import SidebarTabs from "./components/SidebarTabs";
 import PreviewStage from "./components/PreviewStage";
@@ -32,19 +32,33 @@ const SAVE_LABEL: Record<string, { text: string; dot: string }> = {
   dirty: { text: "Unsaved changes", dot: "bg-amber-400" },
   saving: { text: "Saving…", dot: "bg-amber-400 animate-pulse" },
   error: { text: "Save failed", dot: "bg-red-500" },
+  conflict: { text: "Saved elsewhere", dot: "bg-red-500" },
 };
 
 export default function EditorShell() {
   const aspect = useEditorStore((s) => s.doc.aspect);
   const setAspect = useEditorStore((s) => s.setAspect);
   const saveState = useEditorStore((s) => s.saveState);
+  const projectId = useEditorStore((s) => s.projectId);
   const exportOpen = useEditorStore((s) => s.exportOpen);
   const setExportOpen = useEditorStore((s) => s.setExportOpen);
+  const [reloading, setReloading] = useState(false);
 
   useAutosave();
   useKeyboardShortcuts();
 
   const save = SAVE_LABEL[saveState];
+
+  const handleReloadLatest = async () => {
+    if (!projectId || reloading) return;
+    // The only path that ever discards local edits — only reachable from the
+    // conflict banner, only on explicit click, never automatic.
+    if (!window.confirm("Load the version saved from another tab/device? Your unsaved changes here will be lost.")) return;
+    setReloading(true);
+    const result = await reloadLatestProject(projectId);
+    setReloading(false);
+    if (!result.ok) window.alert(result.error ?? "Could not load the latest version.");
+  };
 
   return (
     <div className="clipiro-editor flex h-screen flex-col overflow-hidden bg-editor-bg font-sans text-editor-text">
@@ -67,6 +81,16 @@ export default function EditorShell() {
             <span className={`h-1.5 w-1.5 rounded-full ${save.dot}`} />
             {save.text}
           </span>
+          {saveState === "conflict" && (
+            <button
+              onClick={handleReloadLatest}
+              disabled={reloading}
+              className="rounded-editor-full border border-red-500/40 px-2.5 py-1 text-[11px] font-semibold text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50 cursor-pointer"
+              title="Someone (or another tab) saved this project after your last edit here. Your changes below are safe but not saved yet."
+            >
+              {reloading ? "Loading…" : "Reload latest"}
+            </button>
+          )}
 
           {/* Aspect picker */}
           <div className="flex items-center rounded-editor-md border border-editor-border bg-editor-panel p-0.5">

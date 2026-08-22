@@ -38,8 +38,19 @@ export default function ExportModal() {
   };
 
   // If the user clicked Export while a save was pending, start once it flushes.
+  // "conflict" and "error" will never resolve to "saved" on their own — surface
+  // them immediately instead of leaving the modal on "Saving your latest
+  // changes…" forever.
   useEffect(() => {
-    if (stage === "waiting-save" && saveState === "saved") startRender();
+    if (stage !== "waiting-save") return;
+    if (saveState === "saved") startRender();
+    else if (saveState === "conflict") {
+      setError("This project was saved from another tab or device since you opened it. Reload the latest version from the editor before exporting.");
+      setStage("error");
+    } else if (saveState === "error") {
+      setError("Your latest changes couldn't be saved, so we can't export yet. Check your connection and try again.");
+      setStage("error");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage, saveState]);
 
@@ -85,7 +96,11 @@ export default function ExportModal() {
             fireReviewPrompt("export_complete", { featureHint: "ai_video_editor" }).catch(() => { /* non-critical */ });
           } else if (project.status === "failed") {
             if (poll.current) clearInterval(poll.current);
-            setError("Render failed — your credit was refunded.");
+            setError(
+              project.failureReason
+                ? `${project.failureReason} Your credit was refunded.`
+                : "Render failed — your credit was refunded.",
+            );
             setStage("error");
             refreshUser();
           }

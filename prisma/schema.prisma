@@ -396,6 +396,13 @@ model Project {
   failureReason        String?
   faceTimeline         Json?
   createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  // Optimistic-concurrency token for the manual editor's autosave. Bumped by
+  // one on every successful PATCH that touches editorDoc; the client must
+  // send back the version it last read, and a mismatch means a newer save
+  // already landed (from another tab/device) — the request is rejected with
+  // 409 rather than silently overwriting it. See app/api/projects/[id]/route.ts.
+  editorVersion        Int      @default(1)
   clips                Clip[]
 
   @@index([userId])

@@ -89,7 +89,7 @@ async function handlePOST(req: NextRequest) {
 
   await prisma.project.update({
     where: { id: projectId },
-    data: { status: "rendering", progress: 0, videoUrl: null },
+    data: { status: "rendering", progress: 0, videoUrl: null, failureReason: null },
   });
 
   renderQueue.enqueue(projectId, { projectId, assetUrls }, { priority: tierPriority(await getUserTier(auth.userId)) });
