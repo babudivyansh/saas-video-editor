@@ -303,59 +303,188 @@ Taken from the real production render commands — `lib/editor/filtergraph.ts`
 `subtitles` is probed independently of `drawtext` — the caption path depends
 on ASS/libass and its presence must not be inferred from drawtext's.
 
-### Bundled runtime capabilities
+### Blast radius — wider than the editor
 
-_Probe results pending deploy._
+`drawtext` is emitted at **four** production sites, not two. Every one of them
+is broken on this binary:
 
-### System FFmpeg probe
+| Site | Usage | Affected |
+|---|---|---|
+| `lib/editor/filtergraph.ts:379,384` | editor text clips (incl. shadow-offset pass) | any project with text |
+| `lib/editor/filtergraph.ts:435` | editor free-tier watermark | **all** free-tier editor exports |
+| `lib/autoclip-pipeline.ts:1310` | AutoClip free-tier watermark | **all** free-tier AutoClip renders |
+| `utils/ffmpeg-render.ts:657` | streamer-video title overlay | **all** streamer-video generations |
 
-Candidates searched deterministically plus PATH resolution:
-`/usr/bin/ffmpeg`, `/usr/local/bin/ffmpeg`, `/opt/ffmpeg/bin/ffmpeg`,
-`/snap/bin/ffmpeg`, and bare `ffmpeg`. For each: resolved path, exists,
-executable bit and permissions, version, build configuration flags, full
-filter availability, and encoder availability.
+The incident was scoped to the manual editor. It is not: AutoClip free-tier
+renders and the streamer-video tool emit `drawtext` too and must be failing in
+production for the same reason. This materially affects remediation scope —
+see "Recommended Final Remediation".
 
-Filter availability is read from `ffmpeg -filters` and is authoritative;
-build flags (freetype / harfbuzz / libass / fontconfig) are recorded as
-supporting evidence only — a build can enable libfreetype and still lack
-`drawtext`, which is precisely this incident.
+### Bundled FFmpeg
 
-_Probe results pending deploy._
+Production probe, build `01a02ad3-…`:
 
-### Direct smoke tests
-
-Run against a specific binary, using Clipiro's real encoder request, on
-synthetic `lavfi` sources only — no user media is touched. Each output must
-exit 0, exist, be non-empty, and validate as real playable media (via a
-sibling `ffprobe` where one exists, otherwise `ffmpeg -i` parsing; the method
-used is reported so a weaker check is never mistaken for a stronger one).
-
-| Case | What it proves |
+| Property | Value |
 |---|---|
-| **A — basic encode** | 1080×1920 encode with Clipiro's actual `encodeArgs("cpu")` |
-| **B — drawtext** | renders "Clipiro Test" via `drawtext` — the capability P0-2 turns on |
-| **C — audio** | encodes with Clipiro's actual `aac` request |
-| **D — subtitles/libass** | burns in a minimal ASS file via `subtitles` |
+| Resolved path class | bundled — `…/nodejs/node_modules/ffmpeg-static/ffmpeg` |
+| Exists | yes |
+| Executable | yes (mode `755`, 79,826,272 bytes) |
+| Version | **7.0.2-static** (johnvansickle) |
+| Platform / arch | linux / x64 (Node v22.18.0) |
+| Filters available | 486 |
+| freetype | ✅ |
+| **harfbuzz** | ❌ |
+| libass | ✅ |
+| fontconfig | ✅ |
 
-Verified locally before deploy that all four pass against a capable binary and
-all four correctly **fail** against a missing one — so a production result is
-a real finding rather than a probe artefact.
+### Required Capability Matrix
 
-_Production results pending deploy._
+32 of 33 required filters present. **`drawtext` is the only absent one.**
 
-### Decision
+| Capability | Bundled FFmpeg | System FFmpeg |
+|---|---|---|
+| drawtext | ❌ | n/a — none exists |
+| subtitles | ✅ | n/a |
+| overlay | ✅ | n/a |
+| scale | ✅ | n/a |
+| crop | ✅ | n/a |
+| xfade | ✅ | n/a |
+| amix | ✅ | n/a |
+| adelay | ✅ | n/a |
+| volume | ✅ | n/a |
+| fps | ✅ | n/a |
+| format | ✅ | n/a |
+| concat | ✅ | n/a |
+| **libx264** (video encoder) | ✅ | n/a |
+| **aac** (audio encoder) | ✅ | n/a |
 
-_Pending deploy._ Will be exactly one of **VIABLE SYSTEM FFMPEG FOUND** or
-**SYSTEM FFMPEG OPTION ELIMINATED**.
+Remaining 21 of the 33-filter contract (`afade`, `aformat`, `anullsrc`,
+`asetpts`, `atempo`, `atrim`, `color`, `colorbalance`, `colorchannelmixer`,
+`eq`, `fade`, `hue`, `noise`, `rgbashift`, `setpts`, `setsar`, `settb`, `tpad`,
+`trim`, `vignette`, `zoompan`): all ✅.
 
-### Next fix
+`h264_nvenc` ❌ — expected and irrelevant; the gpu path is unused in
+production per `lib/render-target.ts`.
 
-_Pending the decision above._ Not to be chosen before the probe returns.
+### System Candidates
 
-### P0-2 status
+**No system ffmpeg exists on the production host.** All five candidates,
+including PATH resolution, failed with `ENOENT`:
+
+| Path | Exists | Usable | Reason |
+|---|---|---|---|
+| `/usr/bin/ffmpeg` | no | ❌ | `spawn … ENOENT` |
+| `/usr/local/bin/ffmpeg` | no | ❌ | `spawn … ENOENT` |
+| `/opt/ffmpeg/bin/ffmpeg` | no | ❌ | `spawn … ENOENT` |
+| `/snap/bin/ffmpeg` | no | ❌ | `spawn … ENOENT` |
+| `ffmpeg` (PATH) | no | ❌ | `spawn … ENOENT` |
+
+No candidate reached capability probing, so there are no versions, filters,
+encoders or build flags to report — nothing was found to probe.
+
+### Smoke Test Matrix
+
+Bundled binary, run on production against synthetic `lavfi` sources with
+Clipiro's real encoder arguments. No system smoke tests ran — there was no
+viable candidate to run them against.
+
+| Case | Exit | Output | Non-empty | Valid media | Result |
+|---|---|---|---|---|---|
+| **A** basic encode 1080×1920 (`encodeArgs("cpu")`) | 0 | yes | 110,080 B | ✅ | **PASS** |
+| **B** drawtext "Clipiro Test" | **8** | **no** | 0 B | — | **FAIL** |
+| **C** aac audio | 0 | yes | 34,074 B | ✅ | **PASS** |
+| **D** subtitles / libass | 0 | yes | 50,007 B | ✅ | **PASS** |
+
+Validation used `ffmpeg -i` parsing — this project bundles no ffprobe package
+and the host has no system ffmpeg to borrow one from. The method is recorded
+so a weaker check is not mistaken for a stronger one.
+
+Two results carry decisive weight:
+
+- **B reproduces P0-2 exactly** (exit 8, no output) on synthetic input with no
+  user media involved — confirming the fault is the binary's capability, not
+  anything about a project, asset, font or filtergraph.
+- **D proves the ASS/libass path genuinely works on the binary already in
+  production** — not merely that `subtitles` appears in a filter listing, but
+  that a real ASS file burns in and produces valid playable output.
+
+A also confirms the earlier `-threads 1` change is doing its job: this same
+1080×1920 encode previously failed with exit 187.
+
+### Viability Decision
+
+**SYSTEM FFMPEG OPTION ELIMINATED.**
+
+Eliminated on the strongest possible ground — not "present but inadequate",
+but **absent entirely**. There is no system ffmpeg on the production host at
+any standard location or on `PATH`. `resolveFfmpegBin()`'s existing
+system-PATH fallback is therefore dead code in this environment.
+
+### Operational Stability Assessment
+
+Moot for the eliminated option — there is no host binary whose stability could
+be assessed. The finding that matters for what comes next:
+
+The application's ffmpeg runtime is currently **fully deployment-controlled**:
+it ships via `package.json` → `ffmpeg-static@5.3.0` → the `b6.1.1` release
+asset, resolved per deploy, with no host dependency whatsoever. That property
+is valuable and should be preserved. The runtime is deterministic today; it is
+simply deterministic *at the wrong capability set*.
+
+Had a system binary been found, depending on it would have traded that
+determinism for an unmanaged dependency — installed outside Clipiro releases,
+upgradable without a Clipiro deploy, and able to change or vanish between
+deploys. **Technically viable** and **best long-term choice** would not have
+been the same answer. That trade-off no longer needs deciding.
+
+### Recommended Final Remediation
+
+**Option 1 — ship a known-good pinned Linux FFmpeg build.** Recommended.
+
+- Fixes all four `drawtext` sites at once with **zero rendering-code change**
+  and **zero visual change** — including AutoClip and streamer-video, which
+  Option 2 would otherwise have to port separately.
+- Preserves full deployment control and determinism; must be pinned to a
+  specific build **with checksum verification**, never a floating "latest"
+  download.
+- Costs ~80 MB and a build-time network dependency in the deploy.
+- Restores service fastest and carries the least correctness risk, which is
+  what a SEV-1 warrants.
+
+**Option 2 — port text/watermark rendering to ASS/libass.** Recommended as
+follow-up hardening, not as the incident fix.
+
+- **Confirmed technically viable on production's current binary** — smoke test
+  D passed, so this option genuinely solves the deployment problem without
+  changing the binary. That is real evidence, not an assumption.
+- Permanently removes the dependency on a fragile, platform-variable filter,
+  and the repo already has an ASS generator (`lib/editor/caption-ass.ts`).
+- But scope is four call sites across three subsystems, with real visual
+  parity risk on fonts, positioning, outlines, shadows and opacity — the
+  editor's text path alone uses `borderw`/`bordercolor`/`shadowx`/`shadowy`
+  plus a separate shadow-offset `drawtext` pass. Substantial work with a
+  visible-output blast radius; wrong shape for a SEV-1 hotfix.
+
+Neither is implemented. Awaiting review.
+
+### P0-2 Status
 
 **FAILED / OPEN.** A capability probe does not close the incident. No
 successful production export has been observed.
+
+### Probe methodology (for reproducing these results)
+
+Candidates searched deterministically plus PATH resolution. Filter
+availability is read from `ffmpeg -filters` and is authoritative; build flags
+(freetype / harfbuzz / libass / fontconfig) are supporting evidence only — a
+build can enable libfreetype and still lack `drawtext`, which is precisely
+this incident.
+
+Smoke tests use synthetic `lavfi` sources only; no user media is touched.
+Before deploying, all four cases were verified locally to pass against a
+capable binary **and** to correctly fail against a missing one — so a
+production result is a real finding rather than a probe artefact. The probe
+is report-only: it does not change binary selection or any runtime behaviour.
 
 ---
 
