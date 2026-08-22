@@ -134,7 +134,7 @@ export const GET = withAdmin(async () => {
   // self-contained so a bad candidate can't affect the others' results.
   const variantResults: Array<{ name: string; args: string[]; exitCode: number | null; success: boolean; stderrTail: string }> = [];
   if (smoke.spawnError === null && !(smoke.code === 0 && smokeOutputInfo.exists && smokeOutputInfo.size > 0)) {
-    const variants: Array<{ name: string; args: string[] }> = [
+    const variants: Array<{ name: string; size: string; args: string[] }> = [
       {
         // ffmpeg's own per-output -threads option is honored by the libx264
         // wrapper as the encoder's thread count (libavcodec/libx264.c reads
@@ -142,25 +142,44 @@ export const GET = withAdmin(async () => {
         // documented ffmpeg option, not an x264-internal one. Tests whether
         // x264's default multi-threaded slicing is where this breaks.
         name: "global_threads_1",
+        size: "1280x720",
         args: ["-threads", "1", "-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k"],
       },
       {
         // Different preset exercises a different set of x264 asm code paths;
         // narrows down whether the failure is preset-specific.
         name: "ultrafast_preset",
+        size: "1280x720",
         args: ["-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k"],
       },
       {
         // Smaller frame size narrows down whether this is a buffer-size /
         // memory-allocation failure rather than an instruction-set one.
         name: "low_res_320x240",
+        size: "320x240",
         args: ["-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k"],
-        // resolution override applied via a separate input below
+      },
+      {
+        // 1080x1920 (9:16) is this app's actual, most common export
+        // resolution (lib/editor/types.ts ASPECT_DIMENSIONS) — confirms the
+        // failure reproduces at real production dimensions, not just the
+        // smaller synthetic default above.
+        name: "real_res_1080x1920_default_threads",
+        size: "1080x1920",
+        args: ["-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k"],
+      },
+      {
+        // The candidate fix (-threads 1), tested at the real 1080x1920
+        // export resolution rather than the smaller 1280x720 used above —
+        // must pass here before it's trusted as the actual fix.
+        name: "real_res_1080x1920_threads_1",
+        size: "1080x1920",
+        args: ["-threads", "1", "-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k"],
       },
     ];
     for (const v of variants) {
       const out = path.join(tmp, `render-diagnostics-variant-${v.name}-${Date.now()}.mp4`);
-      const size = v.name === "low_res_320x240" ? "320x240" : "1280x720";
+      const size = v.size;
       const args = [
         "-y",
         "-f", "lavfi", "-i", `testsrc=size=${size}:rate=30`,
