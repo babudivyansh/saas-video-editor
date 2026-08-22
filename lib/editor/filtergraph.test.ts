@@ -45,6 +45,18 @@ function build(d: TimelineDoc) {
   });
 }
 
+describe("encoder args — P0-2 threads=1 fix", () => {
+  it("forces single-threaded libx264, ordered ahead of -c:v (SEV-1 production export outage)", () => {
+    const d = doc([videoClip({ id: "c1" })]);
+    const { args } = build(d);
+    const threadsIdx = args.indexOf("-threads");
+    const cvIdx = args.indexOf("-c:v");
+    expect(threadsIdx).toBeGreaterThanOrEqual(0);
+    expect(args[threadsIdx + 1]).toBe("1");
+    expect(cvIdx).toBeGreaterThan(threadsIdx);
+  });
+});
+
 describe("effects", () => {
   it("splices the effect filter into the clip's video chain", () => {
     const d = doc([videoClip({ id: "c1", effect: "chromaticAberration" })]);

@@ -444,6 +444,19 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
     "-filter_complex", filterComplex,
     "-map", videoOut,
     "-map", audioOut,
+    // -threads 1 (SEV-1, P0-2): production's CPU advertises AVX-512 via
+    // cpuid and x264 detects it, but x264's default multi-threaded slicing
+    // then fails to open the encoder at all ("Error while opening encoder",
+    // exit 187) — a known hypervisor/kernel class of bug around AVX-512
+    // execution state across x264's thread context switches. Forcing
+    // single-threaded encoding (ffmpeg's own -threads, read into x264's
+    // thread count by libavcodec's wrapper) sidesteps it. Confirmed against
+    // the real production host at this app's actual 1080x1920 export size —
+    // see docs/editor-release-gate-stage1-production-verification.md's
+    // P0-2 incident section. Mirrors the same fix already applied to the
+    // AutoClip pipeline's encodeArgs() in utils/ffmpeg-render.ts, which this
+    // file's own filtergraph does NOT route through.
+    "-threads", "1",
     "-c:v", "libx264",
     "-preset", "superfast",
     "-crf", "23",
