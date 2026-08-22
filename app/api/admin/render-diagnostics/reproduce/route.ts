@@ -33,7 +33,7 @@ import { hasAudioStream } from "@/lib/editor/render-job";
 import { getUserTier } from "@/lib/auth";
 import { getAssetReadUrl } from "@/utils/s3-upload";
 import { downloadFile } from "@/utils/download";
-import { runFFmpegWithProgress, ffmpegBin } from "@/utils/ffmpeg-render";
+import { runFFmpegWithProgress } from "@/utils/ffmpeg-render";
 
 export const GET = withAdmin(async (req: NextRequest) => {
   const projectId = req.nextUrl.searchParams.get("projectId");
@@ -95,7 +95,6 @@ export const GET = withAdmin(async (req: NextRequest) => {
     const args = maybeUseFilterScript(result, scriptPath);
     if (args !== result.args) tempFiles.push(scriptPath);
 
-    let stderrTail = "";
     let succeeded = false;
     let thrown: string | null = null;
     try {
@@ -105,7 +104,6 @@ export const GET = withAdmin(async (req: NextRequest) => {
       // runFFmpegWithProgress rejects with `FFmpeg exited N:\n<stderr tail>`
       // — exactly the real error the production job itself sees and logs.
       thrown = e instanceof Error ? e.message : String(e);
-      stderrTail = thrown;
     }
 
     let outputInfo: { exists: boolean; size: number } = { exists: false, size: 0 };
@@ -114,13 +112,26 @@ export const GET = withAdmin(async (req: NextRequest) => {
       outputInfo = { exists: true, size: st.size };
     } catch { /* stays false */ }
 
-    // Redact anything that could be a local temp path or filename (asset
-    // ids, project id) from the returned text — the ffmpeg binary path
-    // itself is not a secret and is left as-is.
-    const redact = (s: string) =>
+    // Aggressive scrub: strips URLs outright (presigned S3 links), any
+    // key=value assignment token (AWS sig components, and incidentally most
+    // ffmpeg filter param syntax like fontsize=..:x=..), local temp paths,
+    // and the project id. Deliberately over-broad — this text only needs to
+    // carry the *error class* (missing font, permission denied, invalid
+    // filter syntax, encoder failure, etc.), not the full filtergraph.
+    const scrub = (s: string) =>
       s
+        .replace(/https?:\/\/\S+/g, "<url>")
         .replace(new RegExp(projectId, "g"), "<projectId>")
-        .replace(/[A-Za-z]:\\[^\s"']+|\/tmp\/[^\s"']+/g, "<local-path>");
+        .replace(/[A-Za-z]:\\[^\s"']+|\/tmp\/\S+/g, "<local-path>")
+        .replace(/[\w.-]+=[\w%+/.-]{4,}/g, "<kv>")
+        .replace(/[?&][\w.-]+=[^\s"'&]*/g, "");
+
+    // Only surface lines that plausibly describe *why* it failed — drops
+    // ffmpeg's routine build-config/stream-mapping banner noise, which is
+    // most of what -filter_complex runs otherwise print.
+    const errorLines = thrown
+      ? thrown.split("\n").filter((l) => /error|invalid|cannot|fail|no such|denied|unable|exit/i.test(l))
+      : [];
 
     return NextResponse.json({
       projectId,
@@ -131,15 +142,12 @@ export const GET = withAdmin(async (req: NextRequest) => {
         captionClips: doc.tracks.caption.length,
         hasWatermark: tier === "free",
       },
-      ffmpegBinary: ffmpegBin,
       result: succeeded
         ? "SUCCESS — real project's real filtergraph rendered successfully"
         : "FAILED — this is the real production error for this real project",
       outputProduced: outputInfo,
-      argsUsed: redact(JSON.stringify(args)),
       filterComplexLength: result.filterComplex.length,
-      error: thrown ? redact(thrown) : null,
-      stderrTail: redact(stderrTail).slice(-3000),
+      errorLines: errorLines.map(scrub).slice(0, 15),
     });
   } finally {
     for (const f of tempFiles) {
