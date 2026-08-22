@@ -5,15 +5,49 @@ import { WordTiming } from "./elevenlabs";
 import ffmpegStatic from "ffmpeg-static";
 import { ensureExecutable } from "@/lib/ensure-executable";
 
+/**
+ * The pinned, application-owned Linux render runtime installed by
+ * scripts/install-render-ffmpeg.mjs (SHA-256 verified at install time).
+ *
+ * Exists because ffmpeg-static's Linux asset lacks `drawtext` — see that
+ * script's header and docs/editor-release-gate-stage1-production-verification.md.
+ * Kept outside node_modules so a package reinstall cannot silently replace a
+ * verified runtime.
+ */
+const PINNED_RUNTIME_PATH = path.join(process.cwd(), "vendor", "ffmpeg", "ffmpeg");
+
 // Next.js bundles ffmpeg-static and rewrites its internal __dirname to a literal
 // "\ROOT\...", which makes the exported path point at a file that doesn't exist.
-// Resolve the real binary ourselves: trust the export only if it exists on disk,
-// otherwise fall back to node_modules under the project cwd, then system PATH.
+// Resolve the real binary ourselves rather than trusting the export blindly.
+//
+// Resolution order, most authoritative first:
+//   1. CLIPIRO_FFMPEG_PATH — explicit operator override, for pinning a
+//      specific binary without a code change.
+//   2. The pinned, checksum-verified runtime (Linux production).
+//   3. ffmpeg-static's bundled binary — the development path. On Windows and
+//      macOS this release ships ffmpeg 6.1.1, which HAS drawtext; on Linux it
+//      ships 7.0.2, which does not, so in production this is a fallback that
+//      the runtime health gate will correctly refuse to render with.
+//   4. Bare "ffmpeg" on PATH — LOCAL DEVELOPMENT ONLY. Production has no
+//      system ffmpeg (every candidate path returned ENOENT), so this is not
+//      and must not become the production answer.
 function resolveFfmpegBin(): string {
-  const candidate = (ffmpegStatic && fs.existsSync(ffmpegStatic))
-    ? ffmpegStatic
-    : path.join(process.cwd(), "node_modules", "ffmpeg-static", process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg");
-  if (fs.existsSync(candidate)) {
+  // An explicit override that points nowhere is an operator error, not a
+  // reason to quietly use something else. Silent fallback to a different
+  // binary than the one configured is the exact failure shape behind P0-2.
+  const override = process.env.CLIPIRO_FFMPEG_PATH;
+  if (override && !fs.existsSync(override)) {
+    throw new Error(`CLIPIRO_FFMPEG_PATH is set to "${override}" but no file exists there — refusing to silently fall back to a different ffmpeg.`);
+  }
+
+  const candidates = [
+    override,
+    PINNED_RUNTIME_PATH,
+    ffmpegStatic ?? undefined,
+    path.join(process.cwd(), "node_modules", "ffmpeg-static", process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg"),
+  ];
+  for (const candidate of candidates) {
+    if (!candidate || !fs.existsSync(candidate)) continue;
     // The standalone build ships this binary but the deploy can strip its
     // execute bit — restore it here, in-process, after every copy/extract,
     // or every spawn dies with EACCES (which is exactly what took prod down).

@@ -488,6 +488,120 @@ is report-only: it does not change binary selection or any runtime behaviour.
 
 ---
 
+---
+
+## P0-2 Final Remediation
+
+### P0-2 Final Root Cause
+
+The Linux binary distributed through `ffmpeg-static@5.3.0` was incompatible
+with Clipiro's render contract because the `drawtext` filter was absent. Its
+release tag `b6.1.1` names the ffmpeg-static release, not the ffmpeg version;
+the Linux x64 asset was republished on 2025-11-14 as a johnvansickle **7.0.2**
+build configured with `libfreetype` but without `libharfbuzz`, which FFmpeg
+7.0 made a hard dependency of `drawtext`. 32 of Clipiro's 33 required filters
+were present and `drawtext` was the only one missing. Every applicable
+production render encountered `drawtext` — including apparently text-free
+Free-tier exports, because the watermark itself uses the filter — so FFmpeg
+failed during filtergraph parsing with **exit code 8, before encoding began**.
+
+### Why Earlier Diagnoses Were Wrong
+
+Recorded rather than deleted; each was believed at the time and disproven by
+later evidence.
+
+| Hypothesis | Verdict | How it was disproven |
+|---|---|---|
+| Specific asset or project is corrupt | **Disproven** | Reproduced on three different assets and on a single untouched clip |
+| Font selection / missing font file | **Disproven** | Fails identically with a synthetic `lavfi` source and no user font involved |
+| Removing user text avoids the failure | **Disproven** | The Free-tier watermark injects `drawtext` unconditionally, so text-free projects still emit it |
+| AVX-512 / libx264 threading is the root cause | **Real but secondary** | A genuine, reproducible bug (exit 187 → fixed by `-threads 1`), but the real render dies at exit 8 during parsing and never reaches the encoder |
+| A passing synthetic encode proves the pipeline works | **Disproven** | The synthetic test never exercised `-filter_complex`; it passed while every real export failed |
+| Production's binary was swapped/overridden on the host | **Disproven** | The pinned `b6.1.1` asset is byte-for-byte identical (79,826,272 bytes) to production's — nothing was swapped |
+| A system ffmpeg could be preferred instead | **Eliminated** | No system ffmpeg exists: all five candidate paths and PATH returned ENOENT |
+
+The single most costly mistake was treating a green synthetic smoke test as
+evidence that real rendering worked. It cost a deploy cycle and produced a
+confident, wrong "root cause" report.
+
+### Blast Radius
+
+`drawtext` is emitted at four production call sites, all sharing one binary:
+
+| Call site | Path | Impact |
+|---|---|---|
+| Editor text clips | `lib/editor/filtergraph.ts:379,384` | any project with text |
+| Editor Free-tier watermark | `lib/editor/filtergraph.ts:435` | **all** Free-tier editor exports |
+| AutoClip Free-tier watermark | `lib/autoclip-pipeline.ts:1310` | **all** Free-tier AutoClip renders |
+| Streamer-video title | `utils/ffmpeg-render.ts:657` | **all** streamer-video generations |
+
+This is why a single runtime replacement was chosen over three separate ASS
+rewrites.
+
+### Replacement Runtime
+
+| Property | Value |
+|---|---|
+| Source | `eugeneware/ffmpeg-static` release **`b6.0`** (johnvansickle build) |
+| Artifact | `ffmpeg-linux-x64.gz` |
+| Version | **ffmpeg 6.0-static** |
+| Archive SHA-256 | `17c1ae10b52ac499180679fe6ba77e17642390c4eedb0f1e3b0ac045da55128f` |
+| Binary SHA-256 | `ed652b2f32e0851d1946894fb8333f5b677c1b2ce6b9d187910a67f8b99da028` |
+| Binary size | 78,683,840 bytes |
+| Capabilities | `drawtext` ✅, `subtitles` ✅, `libx264` ✅, freetype ✅, libass ✅ |
+| Install path | `vendor/ffmpeg/ffmpeg` (outside `node_modules`, so a package reinstall cannot replace a verified runtime) |
+
+**Why 6.0:** it predates the FFmpeg 7.0 change that made harfbuzz mandatory
+for `drawtext`, so the filter is compiled in. It also narrows the dev/prod gap
+— development runs 6.1.1.
+
+**Licensing:** same provider and same GPL/version3 licensing family as the
+binary it replaces (production already reported `--enable-gpl
+--enable-version3`). This is a version pin, **not** a licensing change, and
+introduces no new obligation.
+
+**Update process:** change `PINNED` in `scripts/install-render-ffmpeg.mjs` —
+URL, version, and *both* checksums together — then run
+`npm run verify:render-runtime`. Never bypass a checksum mismatch; verify the
+artifact and update the pin deliberately.
+
+### Deployment Protection
+
+Three independent layers, each of which alone would have caught this outage:
+
+1. **Install-time integrity** — `postinstall` downloads the pinned artifact
+   and verifies SHA-256 of both the archive and the decompressed executable
+   before trusting it. A mismatch is fatal and fails the install.
+2. **Deploy-time capability gate** — `npm run verify:render-runtime` runs
+   inside `build`, executes the real selected binary, and checks all 33
+   filters, both encoders, and four live smoke renders (basic encode,
+   drawtext, aac, ASS/libass). A failure fails the build, so a runtime that
+   cannot render never reaches production.
+3. **Request-time fail-closed gate** — `POST /api/editor/render` calls
+   `getRenderRuntimeHealth()` **before** spending a credit. An unhealthy
+   runtime returns `503 RENDER_RUNTIME_UNHEALTHY` with a sanitized user
+   message; internally the exact missing filters/encoders, binary path and
+   version are logged. During the outage the service charged a credit and
+   enqueued a render it could not complete; it will no longer do that.
+
+Runtime resolution order (`resolveFfmpegBin()`): `CLIPIRO_FFMPEG_PATH` →
+pinned `vendor/ffmpeg/ffmpeg` → `ffmpeg-static` (development) → bare `ffmpeg`
+on PATH (**local development only** — production has none). An explicitly
+configured `CLIPIRO_FFMPEG_PATH` that does not exist now throws rather than
+silently falling back, since silent substitution is the failure shape that
+produced this incident.
+
+### Production Verification Matrix
+
+_Pending deploy._
+
+### P0-2 Status
+
+**FAILED / OPEN** until the production verification matrix above is complete.
+A green capability check does not close this incident.
+
+---
+
 ### Final P0-2 status
 
 **FAILED / OPEN.**

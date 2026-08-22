@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma migrate deploy && next build",
+    "build": "prisma migrate deploy && npm run verify:render-runtime && next build",
     "build:no-db": "next build",
     "postbuild": "node scripts/postbuild.js",
     "start": "node .next/standalone/server.js",
@@ -15,8 +15,9 @@
     "db:seed": "tsx prisma/seed.ts",
     "test": "vitest run",
     "test:ffmpeg": "tsx utils/test-ffmpeg.ts",
-    "postinstall": "prisma generate",
-    "check:gpu": "node scripts/check-gpu-service.mjs"
+    "postinstall": "prisma generate && node scripts/install-render-ffmpeg.mjs",
+    "check:gpu": "node scripts/check-gpu-service.mjs",
+    "verify:render-runtime": "tsx scripts/verify-render-runtime.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
