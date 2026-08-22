@@ -92,16 +92,31 @@ This is the crux: the bug cannot reproduce in development.
 | Filters available | — | 486 (drawtext is the *only* missing one the app needs) |
 | Build flags | — | 40 flags incl. `--enable-libfreetype`, `--enable-fontconfig`, `--enable-libfribidi`, `--enable-libass`; **no `--enable-libharfbuzz`** |
 
-`package.json` pins `ffmpeg-static@^5.3.0`; the installed package declares
-`binary-release-tag: b6.1.1`. A clean install of this lockfile yields ffmpeg
-**6.1.1**, which has `drawtext`. Production is running **7.0.2**, which a
-clean install of this lockfile would never produce. Nothing in the repo
-overrides it — no `.npmrc`, and no `FFMPEG_BIN` / `FFMPEG_BINARY_RELEASE` /
-`FFMPEG_BINARIES_URL` reference anywhere in the source tree.
+`package.json` pins `ffmpeg-static@^5.3.0` (5.3.0 is the latest published
+version, so the caret range is not a factor); the installed package declares
+`binary-release-tag: b6.1.1`.
+
+**`b6.1.1` names the ffmpeg-static release, not the ffmpeg version.** Its
+`ffmpeg-linux-x64` asset is a johnvansickle **7.0.2** build. Verified directly
+by downloading and decompressing that release asset:
+
+| | Value |
+|---|---|
+| `b6.1.1` linux-x64, uncompressed | **79,826,272 bytes** |
+| production binary | **79,826,272 bytes** |
+| match | **byte-for-byte identical** |
+| `drawtext` string present in binary | **no** |
+
+So production is running **exactly** the binary this project pins. Nothing was
+swapped, overridden or hand-patched — consistent with the repo containing no
+`.npmrc` and no `FFMPEG_BIN` / `FFMPEG_BINARY_RELEASE` / `FFMPEG_BINARIES_URL`
+reference anywhere, and with release tag `b7.0.2` not existing at all (404).
+
+**This is therefore not a regression.** The editor's text rendering has never
+worked on Linux with this dependency. It presents as a sudden total outage
+only because the free-tier watermark makes every export emit `drawtext`.
 
 ### Root cause
-
-Two independent facts combine:
 
 1. **FFmpeg 7.0 made `libharfbuzz` a hard build dependency of the `drawtext`
    filter.** In a 7.x build configured with `libfreetype` but *without*
@@ -110,8 +125,14 @@ Two independent facts combine:
    present. This matches the observed evidence exactly: `drawtext` is the sole
    missing filter out of 486.
 
-2. **Production is running an ffmpeg build that this project does not pin**
-   (7.0.2 instead of the pinned 6.1.1), and that build lacks harfbuzz.
+2. **`ffmpeg-static@5.3.0` — the latest published version, and the one this
+   project pins — ships exactly such a build for linux-x64.** The Windows
+   asset for the same release is ffmpeg 6.1.1, which predates the harfbuzz
+   requirement and *does* have `drawtext`.
+
+The result is a platform split: the filter exists in development and does not
+exist in production, from the same pinned dependency. No host-side action can
+change this, and there is no newer `ffmpeg-static` release to upgrade to.
 
 The editor's filtergraph emits `drawtext` in two places
 (`lib/editor/filtergraph.ts`): once per text clip, and **unconditionally for
@@ -148,13 +169,29 @@ AVX-512 failure.
 
 ### Fix
 
-**Primary (infrastructure, restores service):** restore the pinned ffmpeg
-binary on the production host, so `node_modules/ffmpeg-static/ffmpeg` is the
-6.1.1 build the lockfile specifies rather than the 7.0.2 build currently
-present. Most likely cause of the mismatch is a `FFMPEG_BINARY_RELEASE` or
-`FFMPEG_BINARIES_URL` environment variable set on the host, which
-`ffmpeg-static`'s postinstall honours. Zero code change; zero change to
-rendered output.
+**Primary — not yet chosen; being decided by evidence.** An earlier revision
+of this document recommended "restore the pinned binary on the host." **That
+was wrong** and is recorded here rather than deleted: it rested on the
+assumption that release tag `b6.1.1` meant ffmpeg 6.1.1. Production was
+already running the pinned binary, so there was nothing to restore, and the
+host-side work that recommendation prompted could not have helped.
+
+Three candidate fixes, in ascending cost:
+
+1. **Prefer a system ffmpeg** — if the host ships its own ffmpeg that has
+   `drawtext`, preferring it in `resolveFfmpegBin()` is a few lines with no
+   rendering changes and no visual change. A probe for this was added to
+   `GET /api/admin/render-diagnostics` (`systemFfmpeg` section); its verdict
+   decides whether this option is available at all.
+2. **Ship a drawtext-capable binary** — postinstall download of a linux build
+   compiled with harfbuzz (e.g. BtbN) instead of relying on ffmpeg-static's
+   asset. Preserves exact rendering output; costs ~80MB and a build-time
+   network dependency.
+3. **Port text rendering to libass** — rewrite text clips and the watermark
+   onto the `ass`/`subtitles` filters, both confirmed present in the
+   production binary, reusing the existing `lib/editor/caption-ass.ts`
+   generator. Permanently binary-agnostic; substantial rewrite with real
+   visual-parity risk (fonts, positioning, shadows, background boxes).
 
 **Retained (code, already merged):** `-threads 1` on the libx264 output, in
 both render paths, for the separate AVX-512 encoder bug:

@@ -55,6 +55,18 @@ export function run(bin: string, args: string[], timeoutMs = 15_000): Promise<{ 
   });
 }
 
+/**
+ * Parse `ffmpeg -filters` output into filter names.
+ *
+ * Format is ` TSC  name  IN->OUT  description`. Anchoring on the flag column
+ * alone isn't enough — the legend lines ("T.. = Timeline support") match it
+ * too and yield a filter literally named "=", so require a real identifier
+ * and the in->out signature as well.
+ */
+export function parseFilterNames(stdout: string): string[] {
+  return [...stdout.matchAll(/^\s*[TSC.]{3}\s+([a-zA-Z][\w]*)\s+\S+->\S+/gm)].map((m) => m[1]);
+}
+
 async function checkWritable(dir: string): Promise<{ writable: boolean; error?: string }> {
   const probe = path.join(dir, `diag-write-probe-${Date.now()}.tmp`);
   try {
@@ -117,13 +129,45 @@ export const GET = withAdmin(async () => {
     "vignette", "volume", "xfade", "zoompan",
   ];
   const filtersOut = await run(ffmpegBin, ["-hide_banner", "-filters"]);
-  // ` TSC  name  IN->OUT  description`. Anchoring on the flag column alone
-  // isn't enough — the legend lines ("T.. = Timeline support") match it too
-  // and yield a filter literally named "=", so also require a real
-  // identifier and ffmpeg's in->out signature.
-  const availableFilters = [...filtersOut.stdout.matchAll(/^\s*[TSC.]{3}\s+([a-zA-Z][\w]*)\s+\S+->\S+/gm)].map((m) => m[1]);
+  const availableFilters = parseFilterNames(filtersOut.stdout);
   const filterSet = new Set(availableFilters);
   const missingFilters = REQUIRED_FILTERS.filter((f) => !filterSet.has(f));
+
+  // 2c. System ffmpeg candidates.
+  //
+  // The bundled binary (ffmpeg-static@5.3.0's `b6.1.1` release — a tag naming
+  // the ffmpeg-static release, NOT the ffmpeg version) ships a johnvansickle
+  // 7.0.2 linux build compiled without libharfbuzz, which FFmpeg 7.0 made a
+  // hard dependency of `drawtext`. Verified byte-identical to what production
+  // runs, so this is a property of the dependency itself, not of the deploy —
+  // no host action can fix it, and there is no newer ffmpeg-static release.
+  //
+  // If the host happens to ship its own ffmpeg WITH drawtext, preferring it
+  // is by far the cheapest fix: no rendering changes and no visual change.
+  // This probes for that. Report-only — it changes no behaviour.
+  const SYSTEM_CANDIDATES = ["/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/opt/ffmpeg/bin/ffmpeg", "/snap/bin/ffmpeg", "ffmpeg"];
+  const systemFfmpeg: Array<Record<string, unknown>> = [];
+  for (const candidate of SYSTEM_CANDIDATES) {
+    if (candidate === ffmpegBin) continue; // already covered above
+    const v = await run(candidate, ["-version"], 10_000);
+    if (v.spawnError || v.code !== 0) {
+      systemFfmpeg.push({ path: candidate, usable: false, reason: v.spawnError ?? `exit ${v.code}` });
+      continue;
+    }
+    const f = await run(candidate, ["-hide_banner", "-filters"], 15_000);
+    const names = new Set(parseFilterNames(f.stdout));
+    systemFfmpeg.push({
+      path: candidate,
+      usable: true,
+      versionFirstLine: v.stdout.split("\n")[0] ?? null,
+      totalFilters: names.size,
+      hasDrawtext: names.has("drawtext"),
+      missingRequired: REQUIRED_FILTERS.filter((n) => !names.has(n)),
+    });
+  }
+  const viableSystemFfmpeg = systemFfmpeg.find(
+    (c) => c.usable === true && c.hasDrawtext === true && Array.isArray(c.missingRequired) && c.missingRequired.length === 0,
+  );
 
   // Build configuration flag NAMES only (no values) — identifies which
   // optional libraries this build was compiled against, which is what
@@ -267,6 +311,13 @@ export const GET = withAdmin(async () => {
       totalAvailable: availableFilters.length,
       missingRequired: missingFilters,
       allNames: availableFilters,
+    },
+    systemFfmpeg: {
+      candidates: systemFfmpeg,
+      viable: viableSystemFfmpeg ? viableSystemFfmpeg.path : null,
+      verdict: viableSystemFfmpeg
+        ? `USABLE — ${viableSystemFfmpeg.path} has drawtext and every required filter; preferring it fixes P0-2 with no rendering changes`
+        : "NONE — no system ffmpeg on this host has drawtext; P0-2 needs a bundled-binary swap or a libass port",
     },
     buildConfig: {
       flags: configFlags,

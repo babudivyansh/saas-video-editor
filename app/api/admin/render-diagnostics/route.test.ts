@@ -17,7 +17,7 @@ import os from "os";
 // relevant here and isn't configured in this test environment.
 vi.mock("@/lib/admin/api", () => ({ withAdmin: (handler: unknown) => handler }));
 
-const { run } = await import("./route");
+const { run, parseFilterNames } = await import("./route");
 
 const ffmpegBin = (() => {
   const candidate = path.join(process.cwd(), "node_modules", "ffmpeg-static", process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg");
@@ -53,8 +53,8 @@ describe("run() — output completeness (the actual bug this test guards against
   it("parses `-filters` output into real filter names (guards the same false-negative class as the truncation bug)", async () => {
     const result = await run(ffmpegBin, ["-hide_banner", "-filters"]);
     expect(result.spawnError).toBeNull();
-    // Same regex the route uses to build its availability list.
-    const names = [...result.stdout.matchAll(/^\s*[TSC.]{3}\s+([a-zA-Z][\w]*)\s+\S+->\S+/gm)].map((m) => m[1]);
+    // The exact parser the route uses, not a copy of it.
+    const names = parseFilterNames(result.stdout);
     expect(names.length).toBeGreaterThan(100);
     // Filters the editor's filtergraph always emits — if the parse is wrong
     // these come back "missing" and the route reports a false root cause.
@@ -64,6 +64,12 @@ describe("run() — output completeness (the actual bug this test guards against
     // Sanity: header/legend lines must not be picked up as filter names.
     expect(names).not.toContain("=");
     expect(names).not.toContain("Filters:");
+    // drawtext IS present locally (Windows ffmpeg-static ships 6.1.1) and is
+    // absent in production (linux ships 7.0.2 without harfbuzz) — the exact
+    // platform split behind P0-2. Asserting it here documents that the
+    // parser reports drawtext correctly when it genuinely exists, so an
+    // "absent" reading from production is a real finding and not a parse bug.
+    expect(names).toContain("drawtext");
   });
 
   it("extracts build configuration flag names from `-version`", async () => {
