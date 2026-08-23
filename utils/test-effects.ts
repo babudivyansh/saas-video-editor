@@ -24,8 +24,10 @@ import { spawnSync } from "child_process";
 import { EFFECT_PRESETS, TRANSITION_PRESETS, TRANSITION_DURATION_SEC } from "../lib/editor/types";
 import { resolveFontFile } from "../lib/editor/filtergraph";
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const ffmpeg = require("ffmpeg-static") as string;
+// The application's resolved binary, not ffmpeg-static directly: on Linux
+// that package's build is the drawtext-less one P0-2 replaced, so probing it
+// would report a failure for a binary production no longer uses.
+import { ffmpegBin as ffmpeg } from "./ffmpeg-render";
 
 const W = 270, H = 480; // small = fast; same 9:16 shape as a real portrait export
 const out = (n: string) => path.join(os.tmpdir(), `fx-smoke-${n}.mp4`);

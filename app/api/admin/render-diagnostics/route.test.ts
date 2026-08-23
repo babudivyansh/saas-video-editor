@@ -19,10 +19,12 @@ vi.mock("@/lib/admin/api", () => ({ withAdmin: (handler: unknown) => handler }))
 
 const { run, parseFilterNames, probeBinary, smokeTests } = await import("./route");
 
-const ffmpegBin = (() => {
-  const candidate = path.join(process.cwd(), "node_modules", "ffmpeg-static", process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg");
-  return fs.existsSync(candidate) ? candidate : "ffmpeg";
-})();
+// The binary the application actually resolves (pinned vendor runtime in
+// production/CI-on-Linux, ffmpeg-static in local development) — NOT a
+// hard-coded node_modules path. On Linux that path is the drawtext-less
+// build this fix replaces, so testing it would assert against the wrong
+// runtime entirely.
+const { ffmpegBin } = await import("@/utils/ffmpeg-render");
 
 describe("run() — output completeness (the actual bug this test guards against)", () => {
   it("returns the full stdout of a long listing, not just a tail slice that could cut off an earlier match", async () => {

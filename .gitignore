@@ -68,3 +68,8 @@ next-env.d.ts
 # local scratch/test output
 /scratch/
 
+
+# Pinned render runtime — downloaded and SHA-256 verified by
+# scripts/install-render-ffmpeg.mjs at install time. ~80MB executable;
+# never commit it (see docs/editor-release-gate-stage1-production-verification.md).
+/vendor/

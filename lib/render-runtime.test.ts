@@ -10,7 +10,7 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import path from "path";
 import os from "os";
-import fs from "fs";
+import { ffmpegBin } from "@/utils/ffmpeg-render";
 import {
   parseFilterNames,
   probeRuntimeCapabilities,
@@ -22,10 +22,12 @@ import {
   RENDER_RUNTIME_UNAVAILABLE_MESSAGE,
 } from "./render-runtime";
 
-const realFfmpeg = (() => {
-  const candidate = path.join(process.cwd(), "node_modules", "ffmpeg-static", process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg");
-  return fs.existsSync(candidate) ? candidate : "ffmpeg";
-})();
+// Deliberately the binary the APPLICATION resolves, not a hard-coded
+// node_modules path. Pointing these assertions at ffmpeg-static directly
+// would test the very binary this fix replaces — on Linux that build has no
+// drawtext, so the suite would either fail for the wrong reason or, worse,
+// pass while production used something else entirely.
+const realFfmpeg = ffmpegBin;
 const missingBinary = path.join(os.tmpdir(), "definitely-not-ffmpeg-p02");
 
 beforeEach(() => resetRenderRuntimeHealthCache());
