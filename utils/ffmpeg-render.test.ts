@@ -18,7 +18,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { spawn } from "child_process";
-import { encodeArgs } from "./ffmpeg-render";
+import { encodeArgs, ffmpegBin } from "./ffmpeg-render";
 
 describe("encodeArgs(\"cpu\") — P0-2 threads=1 fix", () => {
   it("forces single-threaded libx264, ordered ahead of -c:v", () => {
@@ -37,10 +37,9 @@ describe("encodeArgs(\"cpu\") — P0-2 threads=1 fix", () => {
   });
 
   it("still produces a real, valid encode end-to-end at the app's actual 1080x1920 export size", async () => {
-    const ffmpegBin = (() => {
-      const candidate = path.join(process.cwd(), "node_modules", "ffmpeg-static", process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg");
-      return fs.existsSync(candidate) ? candidate : "ffmpeg";
-    })();
+    // Uses the application's own resolved binary (pinned vendor runtime on
+    // Linux, ffmpeg-static in local dev) rather than a hard-coded
+    // node_modules path — the Linux ffmpeg-static build is the broken one.
     const out = path.join(os.tmpdir(), `ffmpeg-render-cpu-fix-test-${Date.now()}.mp4`);
     const args = [
       "-y",

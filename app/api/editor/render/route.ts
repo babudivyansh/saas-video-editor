@@ -13,6 +13,13 @@ import {
 } from "@/lib/editor/render-job";
 import { getAssetReadUrl } from "@/utils/s3-upload";
 import { spendCredits } from "@/lib/credits";
+import { ffmpegBin } from "@/utils/ffmpeg-render";
+import { logger } from "@/lib/logger";
+import {
+  getRenderRuntimeHealth,
+  RENDER_RUNTIME_UNHEALTHY,
+  RENDER_RUNTIME_UNAVAILABLE_MESSAGE,
+} from "@/lib/render-runtime";
 
 const renderQueue = createRenderQueue<EditorRenderPayload>("editor-render", editorRenderJob);
 
@@ -61,6 +68,30 @@ async function handlePOST(req: NextRequest) {
   // these once, well within a presigned URL's expiry.
   const assetUrls: Record<string, string> = {};
   await Promise.all(assets.map(async (a) => { assetUrls[a.id] = await getAssetReadUrl(a.s3Key); }));
+
+  // Runtime capability gate — BEFORE any credit is spent (P0-2).
+  //
+  // During the P0-2 outage every export was charged a credit and enqueued
+  // into a render that could not possibly succeed, because the deployed
+  // ffmpeg lacked `drawtext`. Refunds fired afterwards, but the service was
+  // knowingly selling a guaranteed failure. If the runtime cannot satisfy the
+  // render contract, refuse here instead: no charge, no queue entry.
+  const runtime = await getRenderRuntimeHealth(ffmpegBin);
+  if (!runtime.ok) {
+    logger.error("editor-render", `${RENDER_RUNTIME_UNHEALTHY} — refusing export`, {
+      code: RENDER_RUNTIME_UNHEALTHY,
+      binaryPath: runtime.binaryPath,
+      version: runtime.version,
+      spawnError: runtime.spawnError,
+      missingFilters: runtime.missingFilters,
+      missingEncoders: runtime.missingEncoders,
+      projectId,
+    });
+    return NextResponse.json(
+      { error: RENDER_RUNTIME_UNHEALTHY, message: RENDER_RUNTIME_UNAVAILABLE_MESSAGE },
+      { status: 503 },
+    );
+  }
 
   // Fast-path credit check via Redis cache.
   const cachedCredits = await redis.get(`credits:${auth.userId}`);

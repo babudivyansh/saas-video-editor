@@ -31,6 +31,12 @@ import { withAdmin } from "@/lib/admin/api";
 import { logger } from "@/lib/logger";
 import { ffmpegBin, ffmpegBinaryInfo, encodeArgs } from "@/utils/ffmpeg-render";
 import { resolveFontFile } from "@/lib/editor/filtergraph";
+import {
+  parseFilterNames,
+  REQUIRED_FILTERS,
+  REQUIRED_VIDEO_ENCODER,
+  REQUIRED_AUDIO_ENCODER,
+} from "@/lib/render-runtime";
 
 export function run(bin: string, args: string[], timeoutMs = 15_000): Promise<{ code: number | null; signal: NodeJS.Signals | null; stdout: string; stderr: string; spawnError: string | null }> {
   return new Promise((resolve) => {
@@ -65,34 +71,11 @@ export function run(bin: string, args: string[], timeoutMs = 15_000): Promise<{ 
   });
 }
 
-/**
- * Parse `ffmpeg -filters` output into filter names.
- *
- * Format is ` TSC  name  IN->OUT  description`. Anchoring on the flag column
- * alone isn't enough — the legend lines ("T.. = Timeline support") match it
- * too and yield a filter literally named "=", so require a real identifier
- * and the in->out signature as well.
- */
-export function parseFilterNames(stdout: string): string[] {
-  return [...stdout.matchAll(/^\s*[TSC.]{3}\s+([a-zA-Z][\w]*)\s+\S+->\S+/gm)].map((m) => m[1]);
-}
-
-// Every filter lib/editor/filtergraph.ts and lib/editor/types.ts's
-// FILTER_PRESETS / EFFECT_PRESETS / TRANSITION_PRESETS can emit.
-const REQUIRED_FILTERS = [
-  "adelay", "afade", "aformat", "amix", "anullsrc", "asetpts", "atempo", "atrim",
-  "color", "colorbalance", "colorchannelmixer", "concat", "crop", "drawtext",
-  "eq", "fade", "format", "fps", "hue", "noise", "overlay", "rgbashift",
-  "scale", "setpts", "setsar", "settb", "subtitles", "tpad", "trim",
-  "vignette", "volume", "xfade", "zoompan",
-];
-
-// Traced from the actual production render commands, not assumed:
-// lib/editor/filtergraph.ts (editor) and utils/ffmpeg-render.ts's
-// encodeArgs("cpu") (AutoClip) both request libx264 + aac. h264_nvenc is the
-// gpu path, unused in production per lib/render-target.ts.
-const REQUIRED_VIDEO_ENCODER = "libx264";
-const REQUIRED_AUDIO_ENCODER = "aac";
+// The render-runtime contract lives in lib/render-runtime.ts and is shared
+// with the deploy verifier and the export API's fail-closed gate. Imported
+// rather than restated here so this diagnostic can never report against a
+// different contract than the one production actually enforces.
+export { parseFilterNames };
 
 const SYSTEM_CANDIDATES = ["/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/opt/ffmpeg/bin/ffmpeg", "/snap/bin/ffmpeg", "ffmpeg"];
 
