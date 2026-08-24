@@ -974,17 +974,180 @@ frozen baseline.
   quota-exhausted key still reaches spend-then-refund.
 - OpenAI fallback configuration is unverified pending the diagnostics route.
 
-## Final P0-1 Status
+---
 
-**FAILED / OPEN.**
+## P0-1 UI Success-Path Fix — Production Verification
 
-Transcription itself is now fixed — the credential works and the provider
-returns real, valid word-level timestamps. But the mandatory closure
-conditions "real Editor UI caption request succeeds", "real CaptionClips
-created", "captions persist after refresh" and "real caption-containing
-production export completes" are not met, because UI generation charges a
-credit and silently delivers nothing. Per the strict rule this is FAILED /
-OPEN, not PARTIAL.
+### Root Cause
+
+`app/dashboard/editor/page.tsx` hydrates the project inside an effect whose
+dependency array was `[user, token, searchParams]`. `loadProject()` — which
+that effect calls — **replaces** the in-memory `TimelineDoc`, clears history,
+and resets `saveState` to `"saved"`.
+
+`refreshUser()` refetches the user, producing a **new object identity**.
+React compares dependencies with `Object.is`, so a mere credit-balance refresh
+counted as a change and re-ran project hydration.
+
+### Trigger vs Defect
+
+| | |
+|---|---|
+| **Trigger** | `refreshUser()`, called on caption success purely to update the visible credit balance |
+| **Defect** | project hydration coupled to account-object identity |
+
+`refreshUser()` was not itself wrong — any future user refetch would have done
+the same. The fault was the coupling, so the coupling was fixed and the call
+left in place (the credit badge still updates).
+
+### Race Sequence (before the fix)
+
+```
+caption API 200
+→ 40 CaptionClips committed locally (saveState: dirty)
+→ refreshUser()
+→ new `user` object identity
+→ hydration effect re-runs
+→ GET /api/projects/:id
+→ loadProject(server doc, 0 captions)
+→ local cues replaced, history cleared, saveState reset to "saved"
+→ autosave has nothing dirty to persist
+→ no PATCH, no editorVersion bump, and NO error (nothing threw)
+```
+
+### Fix
+
+```diff
+- }, [user, token, searchParams]);
++ }, [userId, token, projectId]);
+```
+
+with `const userId = user?.id;` and
+`const projectId = searchParams.get("projectId");` — stable primitives instead
+of object identities. Two dependency keys; no store, AuthContext or autosave
+redesign.
+
+### Regression Proof
+
+Written **before** the fix and confirmed failing on the old code
+(`app/dashboard/editor/page.component.test.tsx`):
+
+| Scenario | Old | Fixed |
+|---|---|---|
+| 1 credit refresh | `loadProject` × **2** | × 1 |
+| 3 credit refreshes | `loadProject` × **4** | × 1 |
+| Project change | rehydrates | rehydrates ✅ |
+| Different account signs in | rehydrates | rehydrates ✅ |
+| Auth resolves | hydrates | hydrates ✅ |
+
+`useAutosave.test.ts` additionally proves `addCaptionClips` commits 40 cues to
+the live document **and** that the outgoing PATCH really carries the caption
+track — UI visibility is not evidence of durability.
+
+### Real UI Generation
+
+| | |
+|---|---|
+| Provider | ElevenLabs Scribe |
+| HTTP | 200 |
+| Words | 178–180 |
+| Cues generated | **39** |
+| Visible immediately | ✅ yes |
+| Survived `refreshUser()` | ✅ yes |
+
+Observed state trail: `Saved/0 cues` → `working` → `Unsaved/cues` → `Saving` →
+`Saved`.
+
+### Autosave
+
+| | |
+|---|---|
+| saveState | saved → dirty → saving → saved ✅ |
+| editorVersion | **17 → 18** ✅ |
+| Server caption count | **39** ✅ |
+| 409 conflicts | none ✅ |
+
+### Refresh Persistence
+
+| | |
+|---|---|
+| Cues before reload | 39 |
+| Cues after full browser reload | **39** ✅ |
+| Sorted / non-overlapping | ✅ / ✅ |
+| Cues retaining word (karaoke) metadata | **39 / 39** ✅ |
+
+### Preview
+
+| Position | Result |
+|---|---|
+| Beginning (~5.0s) | ✅ caption rendered |
+| Middle (9.98s) | ✅ exact match for cue [9.92, 10.32) |
+| Near end (17.93s) | ✅ exact match for cue [17.84, 18.40) |
+| Seek backward (3.0s) | ✅ exact match for cue [2.74, 3.12), not stale |
+
+### Production Export
+
+| | |
+|---|---|
+| status / progress / failureReason | `completed` / `100` / `null` ✅ |
+| S3 object | HTTP 200, `video/mp4`, 6,357,459 bytes ✅ |
+| Duration | 20.03s (timeline 20s) ✅ |
+| Video | h264 High, yuv420p, **720×1280, DAR 9:16**, 30 fps ✅ |
+| Audio | **AAC LC, 44.1 kHz, stereo** ✅ |
+| Burned-in captions | ✅ verified on extracted frames |
+| drawtext (watermark) | ✅ present on every frame |
+
+Captions were confirmed by extracting real frames from the delivered MP4 (a
+2 fps contact sheet across all 20s). Point-sampling alone was misleading — the
+cues are short (0.2–0.4s) with gaps, so individual timestamps can legitimately
+land between them.
+
+### Credits
+
+| | |
+|---|---|
+| Caption generation | 778 → 777 — exactly one spend ✅ |
+| Export render | 777 → 776 — exactly one spend ✅ |
+| Duplicate spend | none ✅ |
+| Refund on success | none ✅ |
+| Usable result delivered | ✅ 39 durable cues + burned-in MP4 |
+
+Invariant `credit charged ⇔ usable result delivered` now holds for this flow.
+
+### Historical Credits
+
+```
+Historical caption credits potentially affected by pre-fix bug: ~5
+Automatic compensation performed: NO
+```
+
+Left as a product/billing decision, per instruction.
+
+### P0-5 Regression
+
+**None.** Single-editor caption autosave produced a clean
+dirty → saving → saved cycle with `editorVersion` 17 → 18 and no
+`version_conflict`. Optimistic concurrency untouched; its tests still pass.
+
+### P0-2 Regression
+
+**None.** This export is itself the minimal P0-2 regression test and it passed
+end to end: `drawtext` (watermark) ✅, `subtitles`/libass (captions) ✅,
+`libx264` ✅, `aac` ✅, on the pinned ffmpeg 6.0-static runtime. No FFmpeg
+runtime, checksum, resolver, capability gate or `-threads 1` code was touched.
+
+### Final P0-1 Status
+
+**FIXED.**
+
+Every mandatory closure condition is met with real production evidence: UI
+generation succeeds, 39 real cues appear and survive the credit refresh,
+autosave runs, `editorVersion` advances, the server document holds the
+captions, a full browser reload restores them intact with word metadata,
+preview synchronises at start/middle/end and on backward seek, the export
+completes and the captions are visibly burned into a valid playable MP4, and
+exactly one credit is charged per action with no charge-without-output path
+remaining in this flow.
 
 ---
 
