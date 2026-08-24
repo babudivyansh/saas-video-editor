@@ -57,6 +57,10 @@ import { computeDuckEnvelope, duckVolumeExpr } from "@/lib/audio-ducking";
 import { getCaptionTemplate, planEmoji } from "@/lib/caption-templates";
 import { buildCameraZoom, applyZoomToKeyframes, ZOOM_STRENGTH_MAX } from "@/lib/camera-motion";
 import { getFaceTimeline } from "@/lib/asd";
+// P0-3: Project.uploadedVideoUrl is a PRESIGNED url minted at upload time and
+// only valid for 6 hours, so every job that reused it later died on its first
+// step with 403 "Request has expired". Always re-mint before downloading.
+import { freshSourceUrl } from "@/lib/source-url";
 import { loadFaceTimeline, saveFaceTimeline } from "@/lib/face-timeline-store";
 import { calibrateScore, getViralityWeights, type SubScores } from "@/lib/virality-score";
 import { computeBrollWindow, pickBroll, planBrollWindows, type BrollCue } from "@/lib/broll";
@@ -697,7 +701,7 @@ export async function pickJob(payload: PickPayload): Promise<void> {
   watchdog.unref?.();
 
   try {
-    await timeStage("download", () => downloadFile(project.uploadedVideoUrl!, videoPath));
+    await timeStage("download", async () => downloadFile(await freshSourceUrl(project.uploadedVideoUrl!), videoPath));
     const probe = await probeMediaDuration(videoPath);
     if (probe.durationSec === null) {
       // A failed probe is NOT a short video. Reporting it as one blamed the
@@ -1679,7 +1683,7 @@ export async function renderJob(payload: RenderPayload): Promise<void> {
   const videoPath = path.join(tmp, `${projectId}-src-render.mp4`);
 
   try {
-    await downloadFile(project.uploadedVideoUrl, videoPath);
+    await downloadFile(await freshSourceUrl(project.uploadedVideoUrl), videoPath);
 
     let readyCount = 0;
     let bestUrl: string | null = null;
@@ -1818,7 +1822,7 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
   const tmp = os.tmpdir();
   const videoPath = path.join(tmp, `${projectId}-src-rerender-${clipId}.mp4`);
   try {
-    await downloadFile(project.uploadedVideoUrl, videoPath);
+    await downloadFile(await freshSourceUrl(project.uploadedVideoUrl), videoPath);
 
     let updatedClip = clip;
     const allFaces = await loadFaceTimeline(project);
@@ -1874,10 +1878,30 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
     // studio-insights branch fixed by rethrowing for a BullMQ retry — the newer
     // refund-and-fail path here supersedes it: the user is made whole rather
     // than retried against an already-expired source.)
-    logger.error("auto-clip", `rerender failed for clip ${clipId}`, err);
+    const { classifyAutoClipFailure } = await import("@/lib/autoclip-failure");
+    const { category, userMessage } = classifyAutoClipFailure(err);
+    logger.error("auto-clip", `rerender failed for clip ${clipId} [${category}]`, err);
     await prisma.clip.update({ where: { id: clipId }, data: { status: "failed" } }).catch(() => {});
+    // P0-3: a failed re-render used to leave failureReason null, so neither the
+    // user nor an operator could tell what broke. Clip has no failureReason
+    // column, so the sanitized classification is recorded on the project.
+    await prisma.project.update({ where: { id: projectId }, data: { failureReason: userMessage } }).catch(() => {});
     await refundFailedRerender(clipId);
-    throw err;
+    // P0-3 (billing): this path refunds AND used to rethrow a plain Error, so
+    // the queue retried it (in-process MAX_RETRIES=2 → 3 attempts). Because
+    // refundFailedRerender decrements rerenderCount, each retry recomputed a
+    // LOWER `attempt` and therefore refunded a DIFFERENT, earlier refId — an
+    // already-delivered re-render — handing the user net credits (the observed
+    // 781 → 783). restoreSpend's per-refId idempotency cannot catch that,
+    // because every retry targets a different key.
+    //
+    // Retrying is also pointless here: the refund has already made the user
+    // whole and the clip is marked failed, which is exactly what this path's
+    // own comment says it supersedes. NonRetryableError is honoured by both
+    // drivers (in-process skips retry; the BullMQ driver maps it to
+    // UnrecoverableError), while still throwing so the queue wrapper records
+    // the run as failed rather than completed.
+    throw new NonRetryableError(err instanceof Error ? err.message : String(err));
   } finally {
     try { if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath); } catch {}
   }
