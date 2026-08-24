@@ -1881,12 +1881,29 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
     const { classifyAutoClipFailure } = await import("@/lib/autoclip-failure");
     const { category, userMessage } = classifyAutoClipFailure(err);
     logger.error("auto-clip", `rerender failed for clip ${clipId} [${category}]`, err);
-    await prisma.clip.update({ where: { id: clipId }, data: { status: "failed" } }).catch(() => {});
+    // Bookkeeping below must never mask the original failure. `.catch()` alone
+    // is not enough: it guards a rejected promise, not a synchronous throw, so
+    // each step is wrapped. (Caught in CI — a missing method threw a TypeError
+    // that replaced the real error and made the true cause unreportable, which
+    // is precisely the class of blindness this P0-3 work exists to remove.)
+    try {
+      await prisma.clip.update({ where: { id: clipId }, data: { status: "failed" } });
+    } catch (e) {
+      logger.error("auto-clip", `could not mark clip ${clipId} failed`, e);
+    }
     // P0-3: a failed re-render used to leave failureReason null, so neither the
     // user nor an operator could tell what broke. Clip has no failureReason
     // column, so the sanitized classification is recorded on the project.
-    await prisma.project.update({ where: { id: projectId }, data: { failureReason: userMessage } }).catch(() => {});
-    await refundFailedRerender(clipId);
+    try {
+      await prisma.project.update({ where: { id: projectId }, data: { failureReason: userMessage } });
+    } catch (e) {
+      logger.error("auto-clip", `could not record failureReason for project ${projectId}`, e);
+    }
+    try {
+      await refundFailedRerender(clipId);
+    } catch (e) {
+      logger.error("auto-clip", `could not refund failed re-render for clip ${clipId}`, e);
+    }
     // P0-3 (billing): this path refunds AND used to rethrow a plain Error, so
     // the queue retried it (in-process MAX_RETRIES=2 → 3 attempts). Because
     // refundFailedRerender decrements rerenderCount, each retry recomputed a
