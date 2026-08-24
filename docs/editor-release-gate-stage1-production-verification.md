@@ -591,14 +591,134 @@ configured `CLIPIRO_FFMPEG_PATH` that does not exist now throws rather than
 silently falling back, since silent substitution is the failure shape that
 produced this incident.
 
-### Production Verification Matrix
+### Deployment Verification
 
-_Pending deploy._
+Production build `01a02fa5-de31-71f5-8c3a-424533a51487`, verified live:
+
+| Gate | Result |
+|---|---|
+| postinstall | ✅ pinned runtime installed to `…/nodejs/vendor/ffmpeg/ffmpeg` |
+| checksum | ✅ install is fatal on mismatch; binary on disk is **78,683,840 bytes**, exactly the pinned size. Independently proven on a real Linux runner in CI: `[render-ffmpeg] sha256 verified: ed652b2f…` |
+| runtime verifier | ✅ `verify:render-runtime` runs inside `build`; the deploy succeeded, so it passed |
+| build | ✅ completed |
+| production runtime | ✅ `ffmpeg version 6.0-static` (johnvansickle), executable, mode 755 |
+| capability contract | ✅ **33/33 filters**, `missingFilters: []`, 478 filters available |
+| encoders | ✅ `libx264`, `aac` (`h264_nvenc` absent — gpu path unused in production) |
+
+Live smoke tests on the production host:
+
+| Case | Result |
+|---|---|
+| A basic encode (1080×1920, production encoder args) | ✅ PASS — exit 0, 110,080 B |
+| B **drawtext** | ✅ PASS — exit 0, 51,970 B *(previously exit 8)* |
+| C aac audio | ✅ PASS — exit 0, 34,074 B |
+| D subtitles / libass | ✅ PASS — exit 0, 50,007 B |
+
+### Production Export Matrix
+
+Real exports against real assets on production.
+
+| Test | Result | Progress | Output | Credits |
+|---|---|---|---|---|
+| Free watermark | ✅ **PASS** | 100 | 720×1280, 6.00s, 2.18 MB, plays; watermark visibly burned in | 786→785 (−1) |
+| User text | ✅ **PASS** | 100 | 720×1280, 6.00s; "Big Bold Heading" in Anton, white, centred, with watermark | 785→784 (−1) |
+| Split clips | ✅ **PASS** | 100 | 720×1280, **8.00s** (4+4), audio present, segments visually distinct | 783→782 (−1) |
+| Different asset | ✅ **PASS** | 100 | 720×1280, 4.00s, watermark present | 782→781 (−1) |
+| Paid / no watermark | ⚠️ **NOT TESTED** | — | Account's subscription lapsed 2026-08-22; testing would require mutating billing | — |
+| Captions | ⛔ **BLOCKED BY P0-1** | — | STT credentials still unavailable; sanitized error, **no credit charged** | 781→781 (0) |
+| AutoClip watermark | ❌ **FAILS — NOT drawtext** | 0 | Fails immediately at progress 0 with `failureReason: null`, before any filtergraph | charged then refunded |
+| Streamer title | ⚠️ **NOT VERIFIED** | — | Requires overwriting a real project's uploaded source — destructive, not run | — |
+
+All four editor exports: `status=completed`, `progress=100`, `failureReason=null`,
+S3 object HTTP 200 `video/mp4`, decodes and seeks, correct 9:16 (0.5625) aspect
+with the free-tier 720p cap applied, and duration exactly matching the timeline.
+
+**Test-design correction, recorded:** the first split-clip attempt produced 4s
+instead of 8s. That was **my error, not a product fault** — I built segment B
+at source offset 25s trusting `Asset.durationSec = 45`, but the file is really
+**22.56s**, so that segment had no frames. Re-run with in-range offsets it
+produced exactly 8.00s. This does surface a genuine, separate data-integrity
+bug (stored asset duration ~2× the real length), which also explains why the
+user's original 45s timeline was built on bad metadata. Out of scope here.
+
+**AutoClip (Test 7), classified deliberately:** two re-renders were attempted.
+The first failed because the project's source upload no longer exists
+(retention/cleanup). The second used a project whose source is present and
+reachable (HTTP 200) and still failed at `progress: 0` with no
+`failureReason`, i.e. before ffmpeg built any filtergraph. This is **not the
+drawtext failure**: `drawtext` is proven present on this binary by smoke B,
+and the editor watermark — which uses the *same* `resolveFontFile("Poppins")`
+and the same drawtext construction — renders correctly in Test 1. AutoClip has
+an independent open issue; it is not P0-2 and was not investigated further per
+scope.
+
+**Streamer title (Test 8) residual risk:** `runStreamerFFmpeg`
+(`utils/ffmpeg-render.ts:657`) emits `drawtext` **without a `fontfile`**,
+relying on fontconfig to resolve a family. The build has `--enable-fontconfig`,
+but a static binary on a minimal host may have no system fonts installed, in
+which case that call can still fail with "Cannot find a valid font". Untested
+and unproven either way — worth an explicit check before relying on it.
+
+### Secondary Encoder Finding
+
+**Status: UNRESOLVED.** Mitigation retained, untouched.
+
+The AVX-512 / libx264 threading failure (exit 187) was reproduced on the *old*
+7.0.2 binary at 1080×1920 with default threading, and fixed by `-threads 1`.
+The new runtime is a different build (6.0) with a different bundled libx264, so
+the earlier result does not transfer. Smoke A passes at 1080×1920 — but it runs
+**with** `-threads 1` in `encodeArgs("cpu")`, so it cannot tell us whether the
+bug still exists underneath. Determining that requires rendering without the
+mitigation, which this task explicitly forbade.
+
+Recommended follow-up (no production risk): add a default-threads variant probe
+to `/api/admin/render-diagnostics` and compare against the `-threads 1` case on
+the new binary. Until then the mitigation stays.
+
+### Runtime Protection
+
+| Layer | State |
+|---|---|
+| Checksum gate | ✅ Active — fatal on mismatch; verified on a real Linux runner in CI |
+| Capability gate | ✅ Active — production reports 33/33 filters and both encoders |
+| Smoke-test gate | ✅ Active — runs inside `build`; all four passed on the deployed host |
+| Request-time fail-closed | ✅ Active — `POST /api/editor/render` calls `getRenderRuntimeHealth()` before `spendCredits`. Covered by 6 automated tests (refuses without charging, refuses on missing filter, missing encoder, or unusable binary; sanitized message; capability logging; healthy runtime still renders). Not exercised destructively in production by design — the runtime is healthy, so every gate call passed through and all four exports proceeded. |
+
+### Credit Integrity
+
+- **Editor exports (P0-2 scope): PASS.** Four successful renders, each charged
+  exactly once (−1), no refund on success, no duplicate charge.
+- **Failed caption attempt: correct.** 781→781, no net charge.
+- **Anomaly, outside P0-2:** across the two failed AutoClip re-renders the
+  balance ended **+2 higher** than charge/refund arithmetic predicts (781 →
+  783, stable on re-read). It favours the user and is confined to the AutoClip
+  re-render refund path, not the editor export path. `CreditTransaction` is not
+  exposed through any API, so this could not be reconciled against the ledger
+  from here — flagged for a direct DB check.
+
+### Observability
+
+Across all real production renders: **no `missing_filter`, no drawtext error,
+no ffmpeg exit 8, no runtime-capability error.** Every editor export completed
+with `failureReason: null`. The caption failure returned its sanitized
+classification correctly. One gap noted: failed AutoClip re-renders record
+`failureReason: null`, leaving no user- or operator-visible reason.
 
 ### P0-2 Status
 
-**FAILED / OPEN** until the production verification matrix above is complete.
-A green capability check does not close this incident.
+**FIXED.**
+
+Every closure condition is met with real production evidence: pinned runtime
+active, checksum verified, 33/33 capability contract satisfied, all four
+deployment smoke tests passed, and four real editor exports — free-tier
+watermark, user text, split clips, and a second unrelated asset — each reached
+`progress=100` with `failureReason=null`, produced a valid playable MP4 at the
+correct duration and aspect, and charged exactly one credit. The universal
+render failure is gone.
+
+Scope note: AutoClip and streamer-video remain unverified/failing for reasons
+established above to be independent of `drawtext`. They are tracked separately
+and do not reopen P0-2.
 
 ---
 
@@ -610,6 +730,116 @@ Root cause is proven with direct production evidence. The fix is identified
 and the code-side portion is merged, but the primary fix is a host action that
 has not yet been applied, and **no successful production export has been
 observed.** P0-2 does not move off FAILED until Cases A–C pass in production.
+
+---
+
+# P0-1 Production Auto-Captions Closure
+
+## Original Failure
+
+Production caption generation fails because no transcription provider
+authenticates. Evidence from a real production request: the API returned the
+`provider_auth` classification ("Caption generation is temporarily
+unavailable. Our team has been notified…"), which is only reachable when at
+least one provider **is** configured and the chain's first error matched an
+authentication pattern. A provider that is merely absent produces the
+`no_speech` message instead, so this is an invalid credential, not an empty
+configuration. Prior investigation found `ELEVENLABS_API_KEY` holding a key
+**ID** (a UUID from the API-keys dashboard) rather than an API key value.
+
+## Provider Chain
+
+Actual order in `lib/transcription.ts`, first non-empty result wins. Each
+provider is attempted only when its key is present, so an unconfigured
+provider is skipped rather than counted as a failure:
+
+1. **ElevenLabs Scribe** (`scribe_v1`) — primary, best word timing
+2. **OpenAI Whisper** (`whisper-1`, word granularity) — when `OPENAI_API_KEY` set
+3. **fal.ai Whisper** (`chunk_level: word`) — when `FAL_KEY` set
+
+If every *available* provider throws, the highest-priority error is surfaced
+and classified by `lib/caption-failure.ts`. Already covered by existing tests:
+primary success, primary failure → fallback, unconfigured provider skipped,
+all providers fail, nothing configured.
+
+## Provider Configuration
+
+_Pending deploy of `/api/admin/transcription-diagnostics`._ To be recorded as
+configured / working only — never credential values.
+
+## Pipeline Trace (Phase 1)
+
+| Stage | Location |
+|---|---|
+| Caption UI | `app/dashboard/editor/components/panels/caption/GenerateSection.tsx` |
+| Per-asset planning | `planCaptionGeneration()` — `lib/editor/caption-generation.ts` |
+| API | `POST /api/editor/captions` |
+| Runtime gate (new) | `getTranscriptionRuntimeHealth()` — before any charge |
+| Cost / spend | `CREDIT_COST = 1`, `spendCredits()` with `refId: editor-captions:<assetId>:<ts>` |
+| Asset resolution | `prisma.asset.findFirst` scoped to the owner |
+| Media download / audio | `downloadFile()` → `extractAudio()` |
+| Transcription | `transcribe()` — provider chain above |
+| Refund | `restoreSpend()` on any failure, same `refId` |
+| Failure classification | `classifyCaptionFailure()` |
+| Words → cues | `wordsToCaptionCues()` (ms source-time → s timeline-time, speed/srcIn aware) |
+| Persistence | `addCaptionClips()` → autosave → `Project.editorDoc` |
+| Export | `generateCaptionASS()` → `subtitles` filter (libass) |
+
+## Runtime Gate (new)
+
+Caption generation now refuses **before** `spendCredits` when the runtime is
+unusable, returning `503 TRANSCRIPTION_RUNTIME_UNAVAILABLE` with the sanitized
+message and logging provider names plus shape verdicts only. It refuses on two
+unambiguous conditions — nothing configured, or everything configured is
+obviously malformed (e.g. a UUID in `ELEVENLABS_API_KEY`). It deliberately does
+not try to predict whether a well-formed credential will authenticate; that
+case still fails downstream and refunds exactly as before.
+
+## Credit Integrity
+
+`restoreSpend()` is idempotent by construction: it locks the user row and
+refunds the **net** of all ledger deltas for a `refId`, so a repeat refund on
+the same ref pays zero. Captions use a unique `refId` per request. **The
+AutoClip balance anomaly recorded above is therefore not a shared
+double-refund in this primitive, and captions are unaffected** (Phase 13).
+
+With the new gate, an unusable runtime produces **no spend at all** rather than
+spend-then-refund.
+
+## Production Transcription
+
+_Blocked — requires a working provider credential._
+
+## Editor Verification
+
+_Blocked — requires successful generation._
+
+## Export Verification
+
+_Blocked — requires successful generation._ Note the render half is already
+proven independently: `subtitles`/libass smoke test D passes on the production
+runtime.
+
+## Error Sanitization
+
+Raw provider bodies never reach the client: `classifyCaptionFailure()` maps to
+five safe categories (`no_speech`, `provider_auth`, `download_failed`,
+`provider_unavailable`, `unknown`), and the gate's own refusal carries only the
+generic message. Regression-tested against a real ElevenLabs
+`authentication_error` / `invalid_api_key` body.
+
+## Remaining Risks
+
+- fal.ai cannot be auth-probed without queuing billable work, so its
+  credential validity is unknowable short of a real transcription.
+- The shape check is intentionally permissive; a well-formed but revoked or
+  quota-exhausted key still reaches spend-then-refund.
+
+## Final P0-1 Status
+
+**FAILED / OPEN** — no production transcription provider authenticates.
+
+---
 
 ### Follow-ups (out of scope for this incident, recorded not actioned)
 
