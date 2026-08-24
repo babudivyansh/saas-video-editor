@@ -806,19 +806,116 @@ double-refund in this primitive, and captions are unaffected** (Phase 13).
 With the new gate, an unusable runtime produces **no spend at all** rather than
 spend-then-refund.
 
-## Production Transcription
+## Production Provider State
 
-_Blocked — requires a working provider credential._
+Credentials were updated in the hosting environment (deploy of `777fc98`).
+Verified indirectly through real production requests — the admin diagnostics
+route could not be read because admin OTP elevation had lapsed.
 
-## Editor Verification
+| Provider | Configured | Health | Used |
+|---|---|---|---|
+| ElevenLabs | YES | **PASS** — real transcriptions returned | **YES** |
+| OpenAI | UNKNOWN | NOT TESTED — needs the diagnostics route | no |
+| fal.ai | UNKNOWN | NOT TESTED (no free identity endpoint) | no |
 
-_Blocked — requires successful generation._
+ElevenLabs is proven working: it is first in the chain, and the chain only
+falls through on failure, so a successful result means the primary
+authenticated. No credential value was read or displayed at any point.
+
+## Real Caption Generation
+
+| | |
+|---|---|
+| Media duration | 22.56s (real speech) |
+| Provider | ElevenLabs Scribe (primary) |
+| Latency | ~5.1s |
+| Word count | 178–180 across runs |
+| Cue count (from that data) | 40 |
+| API result | **HTTP 200** |
+
+## Timestamp Validation
+
+Against the real production response (178 words):
+
+| Check | Result |
+|---|---|
+| Finite | ✅ no NaN |
+| Non-negative | ✅ |
+| `end > start` | ⚠️ 179/180 — **one zero-length token** (`start == end` at 13.96s) |
+| Monotonic | ✅ no backwards ordering |
+| Adjacent overlaps | ✅ none |
+| Within media bounds | ✅ first 219ms, last ends 22.34s vs 22.56s media |
+
+The single zero-length token is a benign ElevenLabs quirk, not a defect:
+`wordsToCaptionCues` clamps every cue to a 0.2s minimum and bounds word times
+into `[0, durationMs]`, so it cannot produce an invalid cue. Covered by an
+automated test.
+
+## TimelineDoc Validation
+
+**PASS.** 40 cues built from the real response were accepted by
+`PATCH /api/projects/:id` (which re-validates server-side) and persisted —
+first cue 0.219s, last 19.879s, all inside the 20s clip.
+
+## Editor Preview
+
+**PASS (rendering path).** Captions persisted server-side load and display
+correctly in the Caption panel after refresh (cue list populated with real
+timecodes: `0:00 – 0:00`, `0:00 – 0:01`, `0:01 – 0:01`, …).
+
+## Persistence
+
+**PASS for server-sourced captions** — they survive reload and render.
+**FAIL for UI-generated captions** — see below; they never reach the document.
+
+---
+
+## BLOCKER — UI caption generation charges a credit and produces nothing
+
+Reproduced three times through the real `/dashboard/editor` UI.
+
+**Observed:** click *Generate Captions* → button disables, "Transcribing
+asset 1 of 1…" appears → request returns **HTTP 200** → **one credit is
+charged** → **no caption cues appear**, **no autosave (`PATCH`) is issued**,
+`editorVersion` does not advance, and **no error is shown to the user**. The
+save indicator reads "Saved".
+
+**Evidence isolating each stage:**
+
+| Stage | Verdict | Evidence |
+|---|---|---|
+| Provider / API | ✅ works | 200 with 178–180 real words, valid timings |
+| Conversion math | ✅ works | the same response yields 40 cues |
+| Server validation + persistence | ✅ works | those 40 cues PATCH and persist |
+| Panel rendering | ✅ works | server-loaded captions display correctly |
+| Error rendering | ✅ works | the no-video path shows "Add a video clip to the timeline first." and charges nothing |
+| **UI generate → document** | ❌ **broken** | credit charged, zero cues, no PATCH, no error |
+
+**What this rules out:** because the error path renders correctly, the absence
+of any error means `generate()` did **not** throw. It therefore reached
+`addCaptionClips(allCues)` with a non-empty array (a zero-length array would
+have thrown "No speech detected across the timeline."). Yet the rendered
+document never changed and autosave never fired.
+
+**Leading hypothesis — NOT yet proven:** `refreshUser()` on the success path
+(`GenerateSection.tsx`) re-initialises the editor from the server before the
+debounced autosave persists the new cues, discarding them along with any
+component state. This is consistent with every observation, including why the
+early-return error survives (that path returns before the `try` block and
+never calls `refreshUser()`). It is a hypothesis, not a diagnosis; it must be
+confirmed before any fix.
+
+**User impact:** worse than the original P0-1 failure. Previously the user saw
+a sanitized error and was refunded; now the credit is consumed on a successful
+API call and silently produces nothing.
 
 ## Export Verification
 
-_Blocked — requires successful generation._ Note the render half is already
-proven independently: `subtitles`/libass smoke test D passes on the production
-runtime.
+**NOT TESTED.** Blocked by the above: no UI-generated captions can reach a
+document, so the mandatory "export with real generated captions" test cannot
+be performed as specified. The render half remains independently proven —
+`subtitles`/libass smoke test D passes on the production runtime, and 40
+real-transcription cues validate and persist.
 
 ## Error Sanitization
 
@@ -835,9 +932,59 @@ generic message. Regression-tested against a real ElevenLabs
 - The shape check is intentionally permissive; a well-formed but revoked or
   quota-exhausted key still reaches spend-then-refund.
 
+## Credits (measured in production)
+
+| Scenario | Expected | Observed |
+|---|---|---|
+| Successful generation (API) | exactly one spend, no refund | ✅ 782→781, 779→778 — one spend each, no refund |
+| Runtime unavailable | no spend at all | ✅ (new gate; no production instance to observe since the runtime is now healthy) |
+| Provider failure | spend + exactly one restore | ✅ observed earlier: 781→781 net zero |
+| No-video early return | no spend | ✅ 778→778 |
+| **Successful generation via UI** | one spend, captions delivered | ❌ **one spend, nothing delivered** |
+
+No duplicate charge, no refund-without-spend, and no double refund was seen.
+`restoreSpend` remains idempotent by construction (Phase 13), so the AutoClip
+`+2` anomaly is still unrelated to captions and stays a separate billing
+investigation.
+
+## Provider Fallback
+
+**PASS (automated) / NOT TESTED (production).** The chain is covered by
+existing unit tests (primary success, primary fails → fallback succeeds,
+unconfigured provider skipped, all fail, none configured). Production fallback
+was deliberately not exercised: doing so would require invalidating a working
+production credential, i.e. manufacturing an outage.
+
+## Security / Sanitization
+
+**PASS.** No credential value was read, logged, printed, or transmitted at any
+point in this verification. Raw provider errors remain sanitized by
+`classifyCaptionFailure`; the runtime gate returns only the generic message.
+
+## P0-2 Regression Check
+
+**NONE.** No FFmpeg runtime, checksum, resolver, capability gate, or
+`-threads 1` code was touched. The pinned ffmpeg 6.0-static runtime remains the
+frozen baseline.
+
+## Remaining Risks
+
+- fal.ai cannot be auth-probed without queuing billable work.
+- The shape check is intentionally permissive; a well-formed but revoked or
+  quota-exhausted key still reaches spend-then-refund.
+- OpenAI fallback configuration is unverified pending the diagnostics route.
+
 ## Final P0-1 Status
 
-**FAILED / OPEN** — no production transcription provider authenticates.
+**FAILED / OPEN.**
+
+Transcription itself is now fixed — the credential works and the provider
+returns real, valid word-level timestamps. But the mandatory closure
+conditions "real Editor UI caption request succeeds", "real CaptionClips
+created", "captions persist after refresh" and "real caption-containing
+production export completes" are not met, because UI generation charges a
+credit and silently delivers nothing. Per the strict rule this is FAILED /
+OPEN, not PARTIAL.
 
 ---
 

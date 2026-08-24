@@ -18,6 +18,29 @@ function EditorPageContent() {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
 
+  // Hydration keys, deliberately primitives.
+  //
+  // This effect calls loadProject(), which REPLACES the in-memory TimelineDoc,
+  // clears history and resets saveState to "saved". Re-running it at the wrong
+  // moment therefore silently destroys unsaved work.
+  //
+  // It used to depend on the whole `user` object. Anything that refetched the
+  // user — notably refreshUser() after a successful caption generation, which
+  // exists only to update the credit balance — handed React a new object
+  // identity, so Object.is saw a change and the effect re-ran, re-fetched the
+  // project, and overwrote the just-generated caption cues with the server's
+  // (caption-less) document before autosave could persist them. Because
+  // loadProject also marks the document clean, nothing was left dirty to save
+  // and no error ever surfaced. See P0-1 in
+  // docs/editor-release-gate-stage1-production-verification.md.
+  //
+  // Keying on the user's ID instead means an account CHANGE still rehydrates
+  // (correct — a different user must not inherit this document) while a mere
+  // balance refresh does not. `searchParams` is likewise narrowed to the
+  // projectId string so an unrelated query-param change cannot rehydrate either.
+  const userId = user?.id;
+  const projectId = searchParams.get("projectId");
+
   useEffect(() => {
     if (user === undefined) return; // auth still resolving
     if (!user || !token) {
@@ -25,7 +48,6 @@ function EditorPageContent() {
       return;
     }
 
-    const projectId = searchParams.get("projectId");
     const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 
     (async () => {
@@ -54,7 +76,7 @@ function EditorPageContent() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, token, searchParams]);
+  }, [userId, token, projectId]);
 
   if (!user) {
     return (

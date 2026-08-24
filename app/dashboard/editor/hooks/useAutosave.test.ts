@@ -55,6 +55,78 @@ describe("useAutosave", () => {
     expect(useEditorStore.getState().editorVersion).toBe(2);
   });
 
+  // ── P0-1: generated captions must reach the server, not just the store ──
+  // Production charged a credit for a successful transcription and then lost
+  // the cues. Two links in that chain are proven here against the real store
+  // and the real autosave: addCaptionClips actually commits to the document,
+  // and the resulting PATCH really carries the caption track.
+  it("generated caption cues are committed to the store and included in the outgoing autosave PATCH", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ project: { editorVersion: 2 } }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    renderHook(() => useAutosave());
+
+    const cues = Array.from({ length: 40 }, (_, i) => ({
+      type: "caption" as const,
+      id: `cue-${i}`,
+      timelineStart: i * 0.5,
+      duration: 0.4,
+      text: `w${i}`,
+      words: [{ word: `w${i}`, startMs: 0, endMs: 400 }],
+      fontFamily: "Arial" as const,
+      fontSizePct: 0.04,
+      color: "#ffffff",
+      bold: true,
+      bgColor: "#000000",
+      x: 0.5,
+      y: 0.85,
+      highlightMode: "karaoke" as const,
+    }));
+
+    expect(useEditorStore.getState().doc.tracks.caption).toHaveLength(0);
+    act(() => useEditorStore.getState().addCaptionClips(cues));
+
+    // Phase 3: the commit lands on the live document and marks it dirty.
+    expect(useEditorStore.getState().doc.tracks.caption).toHaveLength(40);
+    expect(useEditorStore.getState().saveState).toBe("dirty");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1600);
+    });
+
+    // Phase 13: the PATCH actually carries the cues — UI visibility alone is
+    // not evidence of durability.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.editorDoc.tracks.caption).toHaveLength(40);
+    expect(body.expectedVersion).toBe(1);
+
+    expect(useEditorStore.getState().editorVersion).toBe(2);
+    expect(useEditorStore.getState().saveState).toBe("saved");
+  });
+
+  it("loadProject wipes unsaved cues and marks the doc clean — why an errant rehydrate silently destroyed generated captions", () => {
+    // Not a defect in loadProject: replacing the document is exactly its job.
+    // This pins the destructive consequence that made the P0-1 page-effect bug
+    // invisible — no error, and nothing left dirty for autosave to rescue.
+    act(() => useEditorStore.getState().addCaptionClips([{
+      type: "caption", id: "c1", timelineStart: 0, duration: 1, text: "hi",
+      words: [{ word: "hi", startMs: 0, endMs: 500 }],
+      fontFamily: "Arial", fontSizePct: 0.04, color: "#ffffff", bold: true,
+      bgColor: "#000000", x: 0.5, y: 0.85, highlightMode: "karaoke",
+    } as never]));
+    expect(useEditorStore.getState().doc.tracks.caption).toHaveLength(1);
+    expect(useEditorStore.getState().saveState).toBe("dirty");
+
+    act(() => useEditorStore.getState().loadProject("proj-1", structuredClone(DEFAULT_DOC), 7));
+
+    expect(useEditorStore.getState().doc.tracks.caption).toHaveLength(0);
+    expect(useEditorStore.getState().saveState).toBe("saved"); // nothing left to save
+  });
+
   it("409 conflict: saveState becomes 'conflict', the local doc is left untouched, and it does not keep retrying on its own", async () => {
     const fetchMock = vi.fn(async () => ({ ok: false, status: 409 }));
     vi.stubGlobal("fetch", fetchMock);
