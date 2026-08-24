@@ -731,6 +731,116 @@ and the code-side portion is merged, but the primary fix is a host action that
 has not yet been applied, and **no successful production export has been
 observed.** P0-2 does not move off FAILED until Cases A–C pass in production.
 
+---
+
+# P0-1 Production Auto-Captions Closure
+
+## Original Failure
+
+Production caption generation fails because no transcription provider
+authenticates. Evidence from a real production request: the API returned the
+`provider_auth` classification ("Caption generation is temporarily
+unavailable. Our team has been notified…"), which is only reachable when at
+least one provider **is** configured and the chain's first error matched an
+authentication pattern. A provider that is merely absent produces the
+`no_speech` message instead, so this is an invalid credential, not an empty
+configuration. Prior investigation found `ELEVENLABS_API_KEY` holding a key
+**ID** (a UUID from the API-keys dashboard) rather than an API key value.
+
+## Provider Chain
+
+Actual order in `lib/transcription.ts`, first non-empty result wins. Each
+provider is attempted only when its key is present, so an unconfigured
+provider is skipped rather than counted as a failure:
+
+1. **ElevenLabs Scribe** (`scribe_v1`) — primary, best word timing
+2. **OpenAI Whisper** (`whisper-1`, word granularity) — when `OPENAI_API_KEY` set
+3. **fal.ai Whisper** (`chunk_level: word`) — when `FAL_KEY` set
+
+If every *available* provider throws, the highest-priority error is surfaced
+and classified by `lib/caption-failure.ts`. Already covered by existing tests:
+primary success, primary failure → fallback, unconfigured provider skipped,
+all providers fail, nothing configured.
+
+## Provider Configuration
+
+_Pending deploy of `/api/admin/transcription-diagnostics`._ To be recorded as
+configured / working only — never credential values.
+
+## Pipeline Trace (Phase 1)
+
+| Stage | Location |
+|---|---|
+| Caption UI | `app/dashboard/editor/components/panels/caption/GenerateSection.tsx` |
+| Per-asset planning | `planCaptionGeneration()` — `lib/editor/caption-generation.ts` |
+| API | `POST /api/editor/captions` |
+| Runtime gate (new) | `getTranscriptionRuntimeHealth()` — before any charge |
+| Cost / spend | `CREDIT_COST = 1`, `spendCredits()` with `refId: editor-captions:<assetId>:<ts>` |
+| Asset resolution | `prisma.asset.findFirst` scoped to the owner |
+| Media download / audio | `downloadFile()` → `extractAudio()` |
+| Transcription | `transcribe()` — provider chain above |
+| Refund | `restoreSpend()` on any failure, same `refId` |
+| Failure classification | `classifyCaptionFailure()` |
+| Words → cues | `wordsToCaptionCues()` (ms source-time → s timeline-time, speed/srcIn aware) |
+| Persistence | `addCaptionClips()` → autosave → `Project.editorDoc` |
+| Export | `generateCaptionASS()` → `subtitles` filter (libass) |
+
+## Runtime Gate (new)
+
+Caption generation now refuses **before** `spendCredits` when the runtime is
+unusable, returning `503 TRANSCRIPTION_RUNTIME_UNAVAILABLE` with the sanitized
+message and logging provider names plus shape verdicts only. It refuses on two
+unambiguous conditions — nothing configured, or everything configured is
+obviously malformed (e.g. a UUID in `ELEVENLABS_API_KEY`). It deliberately does
+not try to predict whether a well-formed credential will authenticate; that
+case still fails downstream and refunds exactly as before.
+
+## Credit Integrity
+
+`restoreSpend()` is idempotent by construction: it locks the user row and
+refunds the **net** of all ledger deltas for a `refId`, so a repeat refund on
+the same ref pays zero. Captions use a unique `refId` per request. **The
+AutoClip balance anomaly recorded above is therefore not a shared
+double-refund in this primitive, and captions are unaffected** (Phase 13).
+
+With the new gate, an unusable runtime produces **no spend at all** rather than
+spend-then-refund.
+
+## Production Transcription
+
+_Blocked — requires a working provider credential._
+
+## Editor Verification
+
+_Blocked — requires successful generation._
+
+## Export Verification
+
+_Blocked — requires successful generation._ Note the render half is already
+proven independently: `subtitles`/libass smoke test D passes on the production
+runtime.
+
+## Error Sanitization
+
+Raw provider bodies never reach the client: `classifyCaptionFailure()` maps to
+five safe categories (`no_speech`, `provider_auth`, `download_failed`,
+`provider_unavailable`, `unknown`), and the gate's own refusal carries only the
+generic message. Regression-tested against a real ElevenLabs
+`authentication_error` / `invalid_api_key` body.
+
+## Remaining Risks
+
+- fal.ai cannot be auth-probed without queuing billable work, so its
+  credential validity is unknowable short of a real transcription.
+- The shape check is intentionally permissive; a well-formed but revoked or
+  quota-exhausted key still reaches spend-then-refund.
+
+## Final P0-1 Status
+
+**FAILED / OPEN** — no production transcription provider authenticates.
+
+---
+
 ### Follow-ups (out of scope for this incident, recorded not actioned)
 
 1. **Preflight capability check** — verify `drawtext` (and other required
