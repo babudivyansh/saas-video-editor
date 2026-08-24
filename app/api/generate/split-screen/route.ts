@@ -21,6 +21,7 @@ import fs from "fs";
 import { InProcessQueue } from "@/lib/job-queue";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { logger } from "@/lib/logger";
+import { freshSourceUrl } from "@/lib/source-url";
 
 export const maxDuration = 300;
 
@@ -74,8 +75,13 @@ async function renderJob(payload: SplitScreenPayload): Promise<void> {
   const outPath   = path.join(tmp, `${projectId}-output.mp4`);
 
   try {
+    // Project.uploadedVideoUrl is the PRESIGNED upload URL (6h lifetime), not a
+    // durable identity — reusing it made every project older than six hours fail
+    // with 403 "Request has expired". Re-mint from the owned S3 key instead.
+    // Same defect and same shared resolver as the AutoClip P0-3 incident; see
+    // docs/stale-presigned-url-cross-product-fix.md.
     await Promise.all([
-      downloadFile(project.uploadedVideoUrl, userPath),
+      downloadFile(await freshSourceUrl(project.uploadedVideoUrl, project.userId), userPath),
       downloadFile(bgVideoUrl, bgPath),
     ]);
 

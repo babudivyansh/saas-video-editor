@@ -701,7 +701,7 @@ export async function pickJob(payload: PickPayload): Promise<void> {
   watchdog.unref?.();
 
   try {
-    await timeStage("download", async () => downloadFile(await freshSourceUrl(project.uploadedVideoUrl!), videoPath));
+    await timeStage("download", async () => downloadFile(await freshSourceUrl(project.uploadedVideoUrl!, project.userId), videoPath));
     const probe = await probeMediaDuration(videoPath);
     if (probe.durationSec === null) {
       // A failed probe is NOT a short video. Reporting it as one blamed the
@@ -1683,7 +1683,7 @@ export async function renderJob(payload: RenderPayload): Promise<void> {
   const videoPath = path.join(tmp, `${projectId}-src-render.mp4`);
 
   try {
-    await downloadFile(await freshSourceUrl(project.uploadedVideoUrl), videoPath);
+    await downloadFile(await freshSourceUrl(project.uploadedVideoUrl, project.userId), videoPath);
 
     let readyCount = 0;
     let bestUrl: string | null = null;
@@ -1822,7 +1822,7 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
   const tmp = os.tmpdir();
   const videoPath = path.join(tmp, `${projectId}-src-rerender-${clipId}.mp4`);
   try {
-    await downloadFile(await freshSourceUrl(project.uploadedVideoUrl), videoPath);
+    await downloadFile(await freshSourceUrl(project.uploadedVideoUrl, project.userId), videoPath);
 
     let updatedClip = clip;
     const allFaces = await loadFaceTimeline(project);
