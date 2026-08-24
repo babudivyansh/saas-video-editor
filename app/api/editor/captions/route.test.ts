@@ -25,6 +25,26 @@ vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: 
 let transcribeImpl: () => Promise<{ word: string; start: number; end: number }[]>;
 vi.mock("@/lib/transcription", () => ({ transcribe: (...a: unknown[]) => transcribeImpl() }));
 
+// Runtime health is real code but env-driven; drive it explicitly so each test
+// states the runtime state it is exercising rather than inheriting the test
+// environment's (empty) configuration.
+const runtimeHealth = vi.hoisted(() => ({
+  value: { ok: true, providers: [], reason: null } as {
+    ok: boolean;
+    providers: { name: string; configured: boolean; shapeValid: boolean; shapeIssue: string | null }[];
+    reason: string | null;
+  },
+}));
+// Fully inline (no importOriginal): the real module imports @/lib/env, whose
+// schema validation would fail this suite for reasons unrelated to captions.
+// The constant values below are pinned against the real module's exports by
+// lib/transcription-runtime.test.ts, so this copy cannot drift unnoticed.
+vi.mock("@/lib/transcription-runtime", () => ({
+  getTranscriptionRuntimeHealth: () => runtimeHealth.value,
+  TRANSCRIPTION_RUNTIME_UNAVAILABLE: "TRANSCRIPTION_RUNTIME_UNAVAILABLE",
+  TRANSCRIPTION_UNAVAILABLE_MESSAGE: "Caption generation is temporarily unavailable. Please try again shortly.",
+}));
+
 const fakeFs = {
   readFileSync: vi.fn(() => Buffer.from("fake-audio")),
   unlinkSync: vi.fn(),
@@ -52,6 +72,43 @@ describe("POST /api/editor/captions", () => {
   beforeEach(() => {
     spendCredits.mockClear();
     restoreSpend.mockClear();
+    runtimeHealth.value = { ok: true, providers: [], reason: null };
+  });
+
+  // ── Runtime gate (P0-1): refuse before charging, not after. ──
+  it("refuses WITHOUT spending a credit when no transcription provider is configured", async () => {
+    runtimeHealth.value = {
+      ok: false,
+      reason: "no_provider_configured",
+      providers: [{ name: "elevenlabs", configured: false, shapeValid: false, shapeIssue: null }],
+    };
+    const res = await POST(makeRequest({ assetId: "asset-1" }));
+    expect(res.status).toBe(503);
+    // The whole point: no charge, and therefore nothing to refund.
+    expect(spendCredits).not.toHaveBeenCalled();
+    expect(restoreSpend).not.toHaveBeenCalled();
+  });
+
+  it("refuses without spending when every configured credential is malformed", async () => {
+    runtimeHealth.value = {
+      ok: false,
+      reason: "all_providers_malformed",
+      providers: [{ name: "elevenlabs", configured: true, shapeValid: false, shapeIssue: "is a UUID — that is an ElevenLabs key ID, not an API key" }],
+    };
+    const res = await POST(makeRequest({ assetId: "asset-1" }));
+    expect(res.status).toBe(503);
+    expect(spendCredits).not.toHaveBeenCalled();
+  });
+
+  it("leaks no provider, credential or configuration detail when the gate refuses", async () => {
+    runtimeHealth.value = {
+      ok: false,
+      reason: "all_providers_malformed",
+      providers: [{ name: "elevenlabs", configured: true, shapeValid: false, shapeIssue: "is a UUID — that is an ElevenLabs key ID, not an API key" }],
+    };
+    const json = await (await POST(makeRequest({ assetId: "asset-1" }))).json();
+    expect(json.message).toBe("Caption generation is temporarily unavailable. Please try again shortly.");
+    expect(JSON.stringify(json)).not.toMatch(/elevenlabs|uuid|key id|malformed/i);
   });
 
   it("returns real word timings on a successful provider", async () => {

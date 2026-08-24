@@ -10,6 +10,11 @@ import { transcribe } from "@/lib/transcription";
 import { downloadFile } from "@/utils/download";
 import { logger } from "@/lib/logger";
 import { classifyCaptionFailure } from "@/lib/caption-failure";
+import {
+  getTranscriptionRuntimeHealth,
+  TRANSCRIPTION_RUNTIME_UNAVAILABLE,
+  TRANSCRIPTION_UNAVAILABLE_MESSAGE,
+} from "@/lib/transcription-runtime";
 
 const CREDIT_COST = 1;
 
@@ -31,6 +36,31 @@ export async function POST(req: NextRequest) {
 
   const asset = await prisma.asset.findFirst({ where: { id: assetId, userId: auth.userId } });
   if (!asset) return NextResponse.json({ error: "Asset not found" }, { status: 404 });
+
+  // Transcription runtime gate — BEFORE any credit is spent (P0-1).
+  //
+  // Previously an unusable runtime still charged a credit, downloaded the
+  // media, extracted audio, called a provider, failed, and refunded. The
+  // refund made it non-destructive but it was still selling a guaranteed
+  // failure — the same pattern as the P0-2 ffmpeg outage. Network-free, so it
+  // costs nothing per request, and only refuses on unambiguous
+  // misconfiguration (nothing configured, or everything configured is
+  // obviously malformed); a well-formed credential that the provider later
+  // rejects still fails downstream and refunds exactly as before.
+  const runtime = getTranscriptionRuntimeHealth();
+  if (!runtime.ok) {
+    logger.error("editor-captions", `${TRANSCRIPTION_RUNTIME_UNAVAILABLE} — refusing before charge`, {
+      code: TRANSCRIPTION_RUNTIME_UNAVAILABLE,
+      reason: runtime.reason,
+      // Names and shape verdicts only — never credential values.
+      providers: runtime.providers.map((p) => `${p.name}:${p.configured ? (p.shapeValid ? "ok" : `malformed(${p.shapeIssue})`) : "absent"}`),
+      assetId,
+    });
+    return NextResponse.json(
+      { error: TRANSCRIPTION_RUNTIME_UNAVAILABLE, message: TRANSCRIPTION_UNAVAILABLE_MESSAGE },
+      { status: 503 },
+    );
+  }
 
   // Bucket-aware atomic spend (lib/credits.ts).
   const spendRef = `editor-captions:${assetId}:${Date.now()}`;
