@@ -249,4 +249,38 @@ describe("refundFailedRerender", () => {
     const { rerenderRefId } = await import("./autoclip-rerender");
     expect(rerenderRefId("clip-9", 3)).toBe("auto-clip-rerender:clip-9:3");
   });
+
+  // P0-3 billing. Observed in production: two failed re-renders left the
+  // balance 781 → 783, i.e. the user GAINED credits by failing.
+  //
+  // Mechanism, pinned here: this function derives the attempt from
+  // rerenderCount and then decrements it, so calling it repeatedly for ONE
+  // logical operation walks backwards through refIds, refunding earlier,
+  // already-delivered re-renders. restoreSpend is idempotent per refId, which
+  // cannot help when every call targets a different key — function-level
+  // idempotency is not operation-level idempotency.
+  //
+  // That is exactly what the queue used to cause: the failure path refunded
+  // and then rethrew a plain Error, so the in-process driver retried
+  // (MAX_RETRIES=2 → 3 attempts) and refunded three times for one charge.
+  // The fix throws NonRetryableError instead, so this walk can only ever
+  // happen once per operation.
+  it("walks backwards through refIds when called repeatedly — why the failure path must never be retried", async () => {
+    const { refundFailedRerender } = await import("./autoclip-rerender");
+    clip.rerenderCount = 3;
+
+    await refundFailedRerender("clip-1");
+    await refundFailedRerender("clip-1");
+    await refundFailedRerender("clip-1");
+
+    const refIds = restoreSpend.mock.calls.map((c) => (c[0] as { refId: string }).refId);
+    expect(refIds).toEqual([
+      "auto-clip-rerender:clip-1:2",
+      "auto-clip-rerender:clip-1:1",
+      "auto-clip-rerender:clip-1:0",
+    ]);
+    // Three DISTINCT refunds for a single failed operation — the +2.
+    expect(new Set(refIds).size).toBe(3);
+    expect(clip.rerenderCount).toBe(0);
+  });
 });

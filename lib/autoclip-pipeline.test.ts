@@ -10,10 +10,15 @@ vi.mock("@/lib/env", () => ({
 
 let configRow: { key: string; value: string } | null = null;
 let clipUpdates: Array<{ where: { id: string }; data: unknown }> = [];
+let projectUpdates: Array<{ where: { id: string }; data: Record<string, unknown> }> = [];
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     config: { findUnique: vi.fn(async () => configRow) },
-    project: { findUnique: vi.fn(async () => ({ id: "project-1", userId: "user-1", uploadedVideoUrl: "https://x/vid.mp4", faceTimeline: null })) },
+    project: {
+      findUnique: vi.fn(async () => ({ id: "project-1", userId: "user-1", uploadedVideoUrl: "https://x/vid.mp4", faceTimeline: null })),
+      // P0-3: the failure path now records a sanitized failureReason here.
+      update: vi.fn(async (args: { where: { id: string }; data: Record<string, unknown> }) => { projectUpdates.push(args); return args; }),
+    },
     clip: {
       findUnique: vi.fn(async () => ({ id: "clip-1", projectId: "project-1", status: "queued", startSec: 0, endSec: 10 })),
       update: vi.fn(async (args: { where: { id: string }; data: unknown }) => { clipUpdates.push(args); return args; }),
@@ -28,6 +33,12 @@ vi.mock("@/lib/redis", () => ({
 vi.mock("@/utils/download", () => ({
   downloadFile: vi.fn(async () => { throw new Error("source unreachable"); }),
 }));
+
+// rerenderJob lazily imports this on its failure path (the two modules are a
+// deliberate cycle). Importing it for real constructs a render queue and
+// reaches for Redis/BullMQ, which has no place in a unit test of error
+// handling — the refund's own behaviour is covered by autoclip-rerender.test.ts.
+vi.mock("@/lib/autoclip-rerender", () => ({ refundFailedRerender: vi.fn(async () => {}) }));
 
 const {
   sliceWordsForClip, rebaseClipWords, computeCreditCost, getAutoClipPricing, AUTOCLIP_PRICING_DEFAULTS,
@@ -255,9 +266,31 @@ describe("enforceNonOverlapping", () => {
 describe("rerenderJob error handling", () => {
   it("flips the clip to failed and rethrows when downloadFile fails", async () => {
     clipUpdates = [];
+    projectUpdates = [];
     await expect(rerenderJob({ projectId: "project-1", clipId: "clip-1" })).rejects.toThrow("source unreachable");
     expect(clipUpdates).toContainEqual(
       expect.objectContaining({ where: { id: "clip-1" }, data: { status: "failed" } }),
     );
+  });
+
+  // P0-3: this failure used to leave failureReason null, so a production P0
+  // had no diagnosable reason on the record.
+  it("records a sanitized failureReason on the project instead of leaving it null", async () => {
+    clipUpdates = [];
+    projectUpdates = [];
+    await expect(rerenderJob({ projectId: "project-1", clipId: "clip-1" })).rejects.toThrow();
+    const reason = projectUpdates.find((u) => "failureReason" in u.data)?.data.failureReason as string | undefined;
+    expect(reason).toBeTruthy();
+    // Sanitized: never the raw error, a URL, a signature or a temp path.
+    expect(reason).not.toMatch(/source unreachable|https?:|X-Amz|\/tmp\//i);
+  });
+
+  // P0-3 billing: refunding AND rethrowing a retryable error made the queue
+  // retry, and each retry refunded a different (earlier) refId — the observed
+  // 781 → 783. NonRetryableError stops the retry while still failing the run.
+  it("throws NonRetryableError so the queue cannot retry a failure it already refunded", async () => {
+    const { NonRetryableError } = await import("./job-queue");
+    await expect(rerenderJob({ projectId: "project-1", clipId: "clip-1" }))
+      .rejects.toBeInstanceOf(NonRetryableError);
   });
 });
