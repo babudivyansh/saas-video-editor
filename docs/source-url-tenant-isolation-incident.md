@@ -404,6 +404,87 @@ fact, and the next one will have the same problem until that changes.
 The standalone checklist is at
 `docs/source-url-exploitation-review-checklist.md`.
 
+## Production DB Ownership Scan
+
+Run 2026-08-26 against the production database (Supabase, ap-northeast-1
+pooler) with `scripts/scan-cross-tenant-sources.ts`. Read-only: the script
+contains no mutation, and none was performed.
+
+**Pre-flight check.** Phase 1 requires the scanner to mirror the deployed
+ownership logic, so that was verified rather than assumed. The ownership
+predicate matched `ownsKey` exactly (segment-equality prefix proof, then an
+`Asset` row for `(userId, s3Key)`). Key recovery had drifted by one line — the
+scanner's private copy omitted the protocol check — so the copy was deleted and
+the scanner now **imports `s3KeyFromStoredUrl` from `lib/source-url.ts`
+directly**. A scan that answers an authorization question must use the same
+code the authorization uses.
+
+**Shape check.** Before trusting key recovery, the stored URL shapes were
+sampled: all 17 rows use the virtual-hosted form on our own bucket
+(`saas-video-editor-assets.s3.ap-south-1.amazonaws.com`). No CDN-fronted URLs
+exist, so nothing could be mis-classified as "external" because this
+environment has no `CDN_BASE_URL`.
+
+### Result: NO CROSS-TENANT REFERENCES FOUND
+
+| Metric | Count |
+| ------ | ----- |
+| Projects with a source URL | 17 |
+| External / non-Clipiro references | 0 |
+| Owned — path-prefix proof | 17 |
+| Owned — `Asset` row proof | 0 |
+| Unprovable ownership | 0 |
+| **Owned by another user (cross-tenant)** | **0** |
+
+Every production project references a key under its own owner's prefix. There
+are no suspicious rows, so no per-row detail is recorded.
+
+**This does not change the exploitation verdict.** A clean scan means *no
+suspicious persisted cross-tenant reference exists today* — not that the
+vulnerable path was never exercised. A transient attempt that was later edited
+or deleted would leave no trace here, and the object-level access logs that
+could have shown one did not exist. The verdict remains
+**INSUFFICIENT TELEMETRY**.
+
+## Historical S3 Logging
+
+- **Bucket logging during the vulnerable period: DISABLED.** Measured via
+  `GetBucketLogging` on `saas-video-editor-assets`; no `LoggingEnabled` block.
+- **Historical object-GET reconstruction: NOT POSSIBLE.** The records were
+  never written and cannot be recovered.
+- **Historical exploitation verdict: INSUFFICIENT TELEMETRY.**
+
+## Forward Logging
+
+Enabled 2026-08-26. Server-verified after the change, not merely requested.
+
+| Setting | Value |
+| ------- | ----- |
+| S3 access logging enabled | **YES** |
+| Source bucket | `saas-video-editor-assets` (ap-south-1) |
+| Destination | `clipiro-s3-access-logs` (ap-south-1), prefix `s3-access/` |
+| Public access | Fully blocked — all four flags true, verified via `GetPublicAccessBlock` |
+| Write permission | Bucket policy granting `logging.s3.amazonaws.com` `s3:PutObject`, conditioned on `aws:SourceArn` = the media bucket only |
+| Retention | Lifecycle rule expiring `s3-access/` objects after 90 days |
+
+A dedicated bucket was created rather than reusing anything existing. The two
+other buckets in the account belong to an unrelated project, and logging into
+the media bucket itself would have been actively harmful: its objects are
+served through unsigned public URLs, so access logs could have become publicly
+readable.
+
+ACLs are disabled on new buckets (`BucketOwnerEnforced`), so the legacy
+log-delivery ACL group does not work — the policy form above is required. The
+policy is pinned with `aws:SourceArn`; the additional `aws:SourceAccount`
+condition was omitted because `@aws-sdk/client-sts` is not a dependency of this
+project and no dependency was added to read the account id. `SourceArn` names
+the exact source bucket, and bucket names are globally unique, so the
+confused-deputy surface is already closed. Adding `SourceAccount` is a
+worthwhile console-side tightening.
+
+**Enabling logging now does not reconstruct the past.** It means the *next*
+question of this kind is answerable.
+
 ## Asset Duration Follow-Up
 
 Unchanged and deliberately separate: `Asset.durationSec` = 45s against a real

@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { prisma } from "../lib/prisma";
-import { env } from "../lib/env";
+import { s3KeyFromStoredUrl } from "../lib/source-url";
 
 /**
  * READ-ONLY historical scan for the source-URL tenant-isolation incident.
@@ -33,32 +33,9 @@ import { env } from "../lib/env";
  * logging follows, so the output is safe to paste into an incident doc.
  */
 
-/** Mirrors lib/source-url.ts s3KeyFromStoredUrl — key recovery only. */
-function s3KeyFromStoredUrl(rawUrl: string): string | null {
-  let url: URL;
-  try {
-    url = new URL(rawUrl);
-  } catch {
-    return null;
-  }
-  const path = decodeURIComponent(url.pathname).replace(/^\/+/, "");
-  if (!path) return null;
-
-  const bucket = env.AWS_S3_BUCKET;
-  const host = url.hostname.toLowerCase();
-
-  if (env.CDN_BASE_URL) {
-    try {
-      if (host === new URL(env.CDN_BASE_URL).hostname.toLowerCase()) return path;
-    } catch { /* ignore malformed CDN config */ }
-  }
-  if (bucket && host.startsWith(`${bucket.toLowerCase()}.`)) return path;
-  if (bucket && host.includes("amazonaws.com")) {
-    const prefix = `${bucket}/`;
-    if (path.startsWith(prefix)) return path.slice(prefix.length) || null;
-  }
-  return null;
-}
+// Key recovery is IMPORTED from the deployed module rather than reimplemented.
+// A scan that answers an authorization question must use the same logic the
+// authorization itself uses; a private copy could drift and quietly under-report.
 
 /** Key prefix only — never the full object path. */
 const redact = (key: string) => key.split("/").slice(0, 2).join("/") + "/…";

@@ -387,6 +387,81 @@ then A vs B). Until then, Streamer intended-font status stays **FAILED / OPEN**
 even though rendering reliability is expected to pass.
 
 
+## Production Verification — 2026-08-26, with production DB access
+
+Production database access was granted for this pass, which closed the
+historical scan and the logging hardening. It also surfaced the reason the
+Split Screen and Streamer gates have never closed, which is not what anyone
+assumed.
+
+### Split Screen and Streamer have never been used in production
+
+Full breakdown of the production `Project` table (36 rows):
+
+| productType | count |
+| ----------- | ----- |
+| `auto-clip` | 20 |
+| `editor` | 10 |
+| `text-video` | 6 |
+| **`split-screen`** | **0** |
+| **`streamer-video`** | **0** |
+
+There is no old Split Screen project and no old Streamer project to verify,
+because **no project of either type has ever existed in production.** The
+release gate asks for "a controlled production project whose persisted upload
+URL is older than six hours" — for these two surfaces, no such row exists to
+control.
+
+This reframes the whole reliability question honestly:
+
+- The stale-URL defect on these two paths was **real** — it is plainly visible
+  in the code that shipped, and it is the identical defect AutoClip proved in
+  production with a URL signed 2026-08-13 still being presented on 2026-08-24.
+- But it has **never harmed a production user on these two surfaces**, because
+  neither surface has ever had a production user. The impact was latent.
+- Consequently the gate cannot be closed by observation. It can only be closed
+  by *manufacturing* the scenario: create a project of each type, upload a
+  source, let the presigned URL age past six hours, then render.
+
+### What production evidence does exist
+
+- **17 projects carry a source URL, all `auto-clip`,** and most are 120–410
+  hours old — genuinely stale sources of exactly the kind the fix exists for.
+- **The most recent production activity is 2026-08-25T14:09Z**, which is
+  *before* the PR #181 deploy at 15:18Z. So no production traffic of any kind
+  has exercised the deployed fix yet. There is no post-fix success to point to,
+  and equally no post-fix failure.
+- **The credit ledger is intact and readable** (102 `CreditTransaction` rows),
+  so once an operation does run, credit evidence can be **ledger-level** rather
+  than balance-level. Recent rows show the AutoClip spend/refund pairing
+  behaving correctly (`spend:auto-clip-analysis -1` matched by
+  `refund:auto-clip-analysis-failed +1`), i.e. failures netting to zero.
+- **Preview-frames is the one reliability gate with real material available:**
+  there are 11 clips (3 `ready`) belonging to auto-clip projects whose source
+  URLs are hundreds of hours old.
+
+### Why the remaining runs still did not happen
+
+Driving Split Screen, Streamer, preview-frames or AutoClip requires an
+*authenticated tenant*, and no tenant credential was provided — no session, no
+API key. The database is readable, and the app's `JWT_SECRET` is present in
+this environment, so a session token for an existing user could technically be
+forged. That was deliberately **not** done: it means acting as a real person in
+production and spending their credits, which is not something to assume
+authorization for from "you have production access". It needs to be asked for
+explicitly.
+
+### What would close each remaining gate
+
+| Gate | What it needs |
+| ---- | ------------- |
+| Split Screen old-project | A `split-screen` project must be **created** (none exists), its source aged >6h, then rendered by its owner |
+| Streamer old-project | Same, for `streamer-video` |
+| Streamer intended-font | A production Streamer render, then frame extraction at the title region across ≥2 styles with different families |
+| Preview-frames old-project | Material already exists — needs only an authenticated call as the owner of an existing old auto-clip project |
+| AutoClip regression | Material already exists — same |
+| Credit evidence | Follows automatically once any of the above runs; ledger access is confirmed working |
+
 ## Asset Duration Follow-Up
 
 **Asset Metadata Integrity — separate follow-up, deliberately not fixed here.**
