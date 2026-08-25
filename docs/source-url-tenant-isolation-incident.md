@@ -353,23 +353,56 @@ function's own check.
 
 ## Historical Exploitation Review
 
-**Status: NOT REVIEWED.**
+**Status: INSUFFICIENT TELEMETRY.**
 
-- **Telemetry reviewed:** none. No production database, S3, CloudTrail or log
-  access was available to any session that worked on this.
-- **Retention / gaps:** unknown. Whether S3 server access logging or CloudTrail
-  data events were enabled for the bucket during the exposure window has not
-  been established.
-- **Conclusion:** the question is open. `NOT EXPLOITED` is not an available
-  conclusion and must not be recorded — absence of evidence is not evidence of
-  absence when it is not yet known whether object-level telemetry existed at
-  all.
+### Telemetry reviewed
 
-A standalone checklist for whoever performs the review lives at
-`docs/source-url-exploitation-review-checklist.md`. Its most useful step needs
-no AWS access: a cross-tenant attempt requires a `Project` whose
-`uploadedVideoUrl` names a key its owner does not own, and that state is still
-queryable in the production database today.
+- **S3 server access logging on `saas-video-editor-assets` (ap-south-1):
+  DISABLED.** Checked directly via `GetBucketLogging` with the application's
+  own credentials — the response carries no `LoggingEnabled` block. This is the
+  primary place a per-object `GET` would have been recorded, and it was not
+  recording during the exposure window.
+- **CloudTrail data events: NOT DETERMINED.** `@aws-sdk/client-cloudtrail` is
+  not a dependency of this project and a dependency was not added to run a
+  probe. S3 object-level data events are **off by default** and billed
+  separately, so the prior probability that they were enabled is low — but that
+  is an inference, not a measurement, and it is recorded as such.
+- **Application logs: no usable signal for the historical window.** The
+  `refusing to mint a source URL…` line only exists *because of* the fix, so it
+  cannot describe behaviour from before the fix. Post-fix, any occurrence is a
+  **blocked** attempt and is worth investigating on its own.
+- **Database ownership scan: NOT RUN against production.** No production
+  database access. A read-only scanner was written for whoever has it —
+  `scripts/scan-cross-tenant-sources.ts` — and validated against a development
+  database. It writes nothing.
+
+### Retention / gaps
+
+The decisive gap is the disabled S3 access logging: object-level `GET` history
+for the exposure window **does not exist and cannot be reconstructed**. No
+later investigation can recover it.
+
+### Conclusion
+
+**INSUFFICIENT TELEMETRY.** This is now an evidence-backed classification
+rather than an unexamined one: the primary object-level log was measured and
+found disabled. `NOT EXPLOITED` remains unavailable and must never be recorded
+— with no access log, non-exploitation is not a conclusion the evidence can
+support in either direction.
+
+What is still worth doing, and needs no AWS access:
+`scripts/scan-cross-tenant-sources.ts` against a production read replica. A
+cross-tenant attempt requires a `Project` whose `uploadedVideoUrl` names a key
+its owner cannot be shown to own, and **that state is still in the database**,
+unaffected by the missing logs. A hit there proves suspicious *persisted state*
+existed; it still would not prove the bytes were read.
+
+**Recommendation:** enable S3 server access logging (or CloudTrail S3 data
+events) on the media bucket. This incident could not be investigated after the
+fact, and the next one will have the same problem until that changes.
+
+The standalone checklist is at
+`docs/source-url-exploitation-review-checklist.md`.
 
 ## Asset Duration Follow-Up
 

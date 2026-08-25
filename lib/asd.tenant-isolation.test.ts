@@ -142,6 +142,23 @@ describe("ASD face-timeline source authorization", () => {
     expect(detectFaceTimeline).not.toHaveBeenCalled();
   }, 30_000);
 
+  it.skipIf(!dbUp)("keeps the GPU grant at one hour — a shared-resolver default must not widen it", async () => {
+    // Refactor hazard, caught during review and pinned here. The ASD path
+    // deliberately mints a SHORTER grant than a same-process download needs,
+    // because the URL leaves our infrastructure for a third-party GPU service.
+    // Routing it through the shared resolver made it trivially easy to inherit
+    // that helper's 6-hour default and silently sextuple a third party's access
+    // window. This assertion fails if that ever happens.
+    getAssetReadUrl.mockClear();
+
+    await getFaceTimeline(a.id, aUrl);
+
+    expect(getAssetReadUrl).toHaveBeenCalledTimes(1);
+    const [, ttl] = getAssetReadUrl.mock.calls[0];
+    expect(ttl).toBe(3600);
+    expect(ttl).not.toBe(6 * 3600); // the shared default — must not leak in
+  }, 30_000);
+
   it.skipIf(!dbUp)("refuses a prefix-lookalike segment", async () => {
     getAssetReadUrl.mockClear(); runAsd.mockClear();
 

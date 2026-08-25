@@ -329,6 +329,64 @@ automated evidence does and does not cover:
   render inspected visually, comparing two materially different styles.
 
 
+## Production Verification — Consolidated Status
+
+As of the closure pass following PR #182 (`3230ee5`, merged 2026-08-25).
+
+**Every production run required by the release gate is still NOT RUN.** The
+blocker is unchanged and is access, not effort: this environment's
+`DATABASE_URL` points at `localhost:5432`, there are no production tenant
+credentials, and there is no admin login. Creating accounts to obtain them is
+not something this session will do.
+
+| Gate item | Status | Why |
+| --------- | ------ | --- |
+| Split Screen old-project run | **NOT RUN** | no production tenant |
+| Split Screen output probe (ffprobe/frames) | **NOT RUN** | depends on the run above |
+| Split Screen credit effect | **NOT RUN** | no production balance to observe |
+| Streamer old-project run | **NOT RUN** | no production tenant |
+| Streamer output probe | **NOT RUN** | depends on the run above |
+| Streamer intended-font visual check | **NOT RUN** | depends on the run above |
+| Streamer credit effect | **NOT RUN** | no production balance to observe |
+| Preview-frames old-project run | **NOT RUN** | no production tenant |
+| Historical DB ownership scan | **NOT RUN** | no production database |
+
+### What *is* established, and what it is not a substitute for
+
+Deployed-code evidence, run against the exact merged commit:
+
+- the shared resolver refuses a foreign key and mints for an owned one, proven
+  against a real database with real two-tenant rows;
+- the ASD path refuses before **both** privileged operations, proven by calling
+  it directly with no pipeline ordering to lean on;
+- Split Screen and Streamer never fetch the stale URL, charge exactly once on
+  success and net zero on failure;
+- all 16 Streamer styles resolve to real font files, and three families render
+  through the pinned runtime producing genuinely different glyphs.
+
+None of that substitutes for the production runs. Automated evidence shows the
+code behaves correctly given the inputs the tests supply; it cannot show that a
+real ten-day-old production project, with whatever its `uploadedVideoUrl`
+actually contains, completes end to end on the production host. The release
+gate is explicit that only the live runs close this, and that judgement is
+correct.
+
+### Streamer font — the specific production unknown
+
+The automated tests prove the filter now carries an explicit, existing
+`fontfile`. They cannot prove *which* file production resolves. `resolveFontFile`
+maps Arial / Impact / Times New Roman to Liberation or DejaVu paths on Linux;
+if the production host ships neither, every style silently takes the bundled
+Poppins fallback. That would be **reliable but wrong**: rendering succeeds, and
+all 16 styles look alike — which is the very symptom the original bug caused.
+
+So a production render that merely *shows a title* does not close this. Closing
+it requires two materially different styles rendered and compared at the title
+region, per the incident's font-control method (same font twice as a control,
+then A vs B). Until then, Streamer intended-font status stays **FAILED / OPEN**
+even though rendering reliability is expected to pass.
+
+
 ## Asset Duration Follow-Up
 
 **Asset Metadata Integrity — separate follow-up, deliberately not fixed here.**
