@@ -17,7 +17,8 @@
     "test:ffmpeg": "tsx utils/test-ffmpeg.ts",
     "postinstall": "prisma generate && node scripts/install-render-ffmpeg.mjs",
     "check:gpu": "node scripts/check-gpu-service.mjs",
-    "verify:render-runtime": "tsx scripts/verify-render-runtime.ts"
+    "verify:render-runtime": "tsx scripts/verify-render-runtime.ts",
+    "verify:production-media-flows": "tsx scripts/verify-production-media-flows.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

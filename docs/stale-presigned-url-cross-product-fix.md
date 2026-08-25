@@ -462,6 +462,91 @@ explicitly.
 | AutoClip regression | Material already exists — same |
 | Credit evidence | Follows automatically once any of the above runs; ledger access is confirmed working |
 
+## QA Verification Pass — 2026-08-26
+
+### The authentication wall, and why the render gates are still open
+
+Split Screen, Streamer Video and preview-frames all authenticate through
+`getAuthUser`, which requires a **session JWT backed by a server-side session
+record**. API keys are accepted only on `/api/v1/*`, which does not expose any
+of these routes. So driving them in production requires either signing in with
+a password or forging a token from `JWT_SECRET`. Forging was ruled out
+explicitly, and creating an account and authenticating with a password is not
+something this agent does. The render gates therefore remain open — not for
+want of a QA tenant, but because reaching those endpoints needs a human-held
+credential.
+
+What that does **not** block is the defect itself, which lives in storage
+resolution rather than in the HTTP layer.
+
+### Stale source, proven against production S3
+
+Run via `npm run verify:production-media-flows`. No database write, no account
+creation, no customer object touched. Ownership rides on the path-prefix proof,
+which `ownsKey()` accepts without consulting the `User` table, so a synthetic
+owner id is sufficient and nothing persistent is created.
+
+| Step | Result |
+| ---- | ------ |
+| Synthetic 8s / 720x1280 / AAC media uploaded to production S3 | 284,210 bytes |
+| Grant fetched **before** expiry | HTTP 200, full bytes |
+| Grant fetched **after** expiry | **HTTP 403 "Request has expired"** |
+| `classifySource` for the owner | `owned` |
+| Re-mint | new grant issued, expired URL not reused |
+| Fetch with fresh grant | **HTTP 200, 284,210 / 284,210 bytes — source recovered** |
+| Same object requested by a different tenant | **refused, no grant issued** |
+| Cleanup | object deleted, HTTP 404 |
+
+The six-hour wait was compressed to two seconds by minting a deliberately
+short-lived grant. That is the same mechanism and the same failure — S3 returns
+the identical `403 Request has expired` that took AutoClip down in production —
+so nothing is being simulated except the passage of time.
+
+This is the first end-to-end proof of the fix against real production
+infrastructure: a real object in the production bucket, a real expiry, the
+deployed resolver, and a real recovery. It also re-proves tenant isolation
+against a real production object rather than a fixture.
+
+### Font control experiment
+
+Rendered `A1`/`A2` (style 0, Arial), `B` (style 2, Times New Roman) and `C`
+(style 7, Impact) from one input, then extracted the same cropped title band
+from each.
+
+- **Control holds:** A1 and A2 are byte-identical, so any A/B difference is
+  glyphs and not container metadata.
+- **B and C differ from A**, and inspection of the frames confirms three
+  genuinely different typefaces: Arial sans with a black outline, a Times
+  serif, and condensed bold Impact.
+
+**This ran on a Windows host, not production.** `resolveFontFile` maps the three
+legacy families to Liberation/DejaVu paths on Linux; if the production host
+ships neither, all sixteen styles silently take the bundled Poppins fallback —
+reliable, but not the intended typefaces, and indistinguishable from the
+original bug to a viewer. Running the same harness **on the production host**
+answers this in one command; section 2 of its output prints each family's
+resolved path and flags `[bundled fallback]` versus `[system font]`.
+
+Streamer intended-font status therefore stays **FAILED / OPEN**: the mechanism
+is proven, the production typefaces are not.
+
+### Reusable harness
+
+`scripts/verify-production-media-flows.ts` (`npm run verify:production-media-flows`)
+exists because these gates were unclosable by observation — production has
+never contained a Split Screen or Streamer project, so there was nothing old to
+verify. It manufactures the scenario safely instead.
+
+- Sections 1–3 need **no credentials** and are safe to run any time.
+- Section 4 drives the real production render endpoints and runs only when
+  `CLIPIRO_QA_SESSION_TOKEN` is set. It creates a QA project, points it at an
+  already-expired grant, triggers the render, polls to completion, downloads
+  the output and probes it.
+- Everything it creates in S3 is deleted unless `--keep` is passed.
+
+Point it at a dedicated QA tenant only: section 4 spends credits and creates
+projects.
+
 ## Asset Duration Follow-Up
 
 **Asset Metadata Integrity — separate follow-up, deliberately not fixed here.**
