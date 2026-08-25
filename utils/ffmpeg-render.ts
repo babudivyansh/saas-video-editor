@@ -4,6 +4,8 @@ import { spawn } from "child_process";
 import { WordTiming } from "./elevenlabs";
 import ffmpegStatic from "ffmpeg-static";
 import { ensureExecutable } from "@/lib/ensure-executable";
+import { logger } from "@/lib/logger";
+import { resolveFontFile, escapeFilterPath } from "@/lib/editor/filtergraph";
 
 /**
  * The pinned, application-owned Linux render runtime installed by
@@ -669,6 +671,30 @@ export interface DrawtextOptions {
   borderw: number;
 }
 
+/**
+ * The font file a Streamer title should actually be drawn with.
+ *
+ * `resolveFontFile` is the authoritative resolver (shared with the editor
+ * renderer): it maps a family to a bundled TTF, or to the platform's system
+ * path for the three legacy families, and throws when nothing usable exists.
+ *
+ * A throw must not fail a render that would previously have produced *some*
+ * output, so an unavailable family falls back to a font that ships in this
+ * repository and is therefore always present. That keeps the choice
+ * deterministic and ours — the one thing we must never do is hand drawtext no
+ * font and let the host pick.
+ */
+export const STREAMER_FALLBACK_FONT = path.join(process.cwd(), "public/fonts/Poppins-Bold.ttf");
+
+export function streamerFontFile(family: string): string {
+  try {
+    return resolveFontFile(family);
+  } catch (err) {
+    logger.warn("streamer-video", `no font file for "${family}", using the bundled Clipiro fallback`, err);
+    return STREAMER_FALLBACK_FONT;
+  }
+}
+
 export interface StreamerVideoOptions {
   userVideoPath: string;
   titleText: string;
@@ -687,8 +713,17 @@ export function runStreamerFFmpeg(opts: StreamerVideoOptions): Promise<void> {
     .replace(/\]/g, "\\]");
 
   const dt = drawtextOpts;
+  // The style's font family used to be computed and then thrown away: this
+  // filter carried no `fontfile=` and no `font=`, so every one of the 16 title
+  // styles rendered in whatever family fontconfig picked as its default. That
+  // made the styles differ only in colour and size, and made rendering depend
+  // on the host having a usable default font at all — which the build-time
+  // runtime gate does NOT prove, since its drawtext smoke passes an explicit
+  // fontfile. Resolve the family to a real file and pass it explicitly, using
+  // the same resolver the editor renderer uses.
   const drawFilter =
-    `drawtext=text='${escapedText}':fontsize=${dt.fontsize}:fontcolor=${dt.fontcolor}:` +
+    `drawtext=text='${escapedText}':fontfile='${escapeFilterPath(streamerFontFile(dt.fontname))}':` +
+    `fontsize=${dt.fontsize}:fontcolor=${dt.fontcolor}:` +
     `x=(w-text_w)/2:y=h*0.08:borderw=${dt.borderw}:bordercolor=${dt.bordercolor}:` +
     `shadowx=2:shadowy=2:shadowcolor=${dt.shadowcolor}`;
 

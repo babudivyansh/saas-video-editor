@@ -17,8 +17,8 @@
 
 import { runAsd, GpuServiceError } from "@/lib/gpu-service";
 import { shouldUseAsd } from "@/lib/render-target";
-import { detectFaceTimeline, parseS3Url, type FaceBox, type FaceTimelineResult } from "@/lib/reframe";
-import { getAssetReadUrl } from "@/utils/s3-upload";
+import { detectFaceTimeline, type FaceBox, type FaceTimelineResult } from "@/lib/reframe";
+import { classifySource } from "@/lib/source-url";
 import { logger } from "@/lib/logger";
 
 export const ASD_MIN_CONFIDENCE = 0.5;
@@ -58,12 +58,36 @@ export function asdTracksToFaceBoxes(result: {
  * error.
  */
 export async function getFaceTimeline(userId: string, videoUrl: string): Promise<FaceTimelineResult> {
+  // ── AUTHORIZATION GATE ─────────────────────────────────────────────────────
+  // This must stand on its own. Both steps below spend Clipiro's credentials on
+  // whatever object `videoUrl` names — ASD by minting a presigned GET,
+  // Rekognition by handing bucket/key straight to our own IAM — and `videoUrl`
+  // reaches here as `project.uploadedVideoUrl`, which is client-settable.
+  //
+  // It was previously un-gated. Nothing was exploitable in practice only
+  // because AutoClip's ownership-checked source download runs earlier in the
+  // same try block and fails first on a foreign key. That is execution order,
+  // not authorization: reordering those steps, adding a second caller, or
+  // calling this function directly would all have reopened it. See
+  // docs/source-url-tenant-isolation-incident.md.
+  //
+  // `userId` is the project owner, read server-side. It was already an
+  // argument here, but only ever fed shouldUseAsd() — a rollout flag, not a
+  // permission.
+  // One-hour grant: the GPU service is a third party, so it gets the shortest
+  // lifetime that still covers a long analysis — unchanged from before the gate.
+  const source = await classifySource(videoUrl, userId, 60 * 60);
+  if (source.kind === "foreign") {
+    logger.error("asd", "refusing face detection for media this user does not own", { userId });
+    return { boxes: [], failure: "unconfigured" };
+  }
+
   if (await shouldUseAsd(userId)) {
     try {
       // The GPU service holds no AWS credentials, so it gets a short-lived
-      // presigned URL rather than the bucket path.
-      const loc = parseS3Url(videoUrl);
-      const signed = loc ? await getAssetReadUrl(loc.key, 60 * 60) : videoUrl;
+      // presigned URL rather than the bucket path. An external source is
+      // fetched by the GPU service directly — no Clipiro credential involved.
+      const signed = source.kind === "owned" ? source.url : videoUrl;
       const result = await runAsd(signed);
       const boxes = asdTracksToFaceBoxes(result);
       if (boxes.length > 0) {
@@ -79,6 +103,12 @@ export async function getFaceTimeline(userId: string, videoUrl: string): Promise
       logger.warn("asd", `ASD unavailable (${cls}), falling back to Rekognition`, err);
     }
   }
+  // Rekognition reads the object with OUR IAM credentials, so it runs only for
+  // media we have proven the user owns. An external URL is not a Rekognition
+  // input in the first place (the job takes an S3 object in our own account),
+  // so skipping it changes no working behaviour — it just stops us handing an
+  // attacker-influenced bucket/key pair to AWS on our own credentials.
+  if (source.kind !== "owned") return { boxes: [], failure: "unconfigured" };
   return detectFaceTimeline(videoUrl);
 }
 

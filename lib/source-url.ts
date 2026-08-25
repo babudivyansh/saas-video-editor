@@ -91,31 +91,72 @@ async function ownsKey(userId: string, key: string): Promise<boolean> {
 }
 
 /**
- * A currently-valid URL for a stored source media URL.
+ * What a stored source URL actually is, from an authorization standpoint.
+ *
+ *   • `owned`    — our storage, and `ownerUserId` is proven to own the object.
+ *                  Carries the durable key and a freshly minted access URL.
+ *   • `foreign`  — our storage, ownership NOT proven. Every privileged use must
+ *                  refuse: no signature, no Rekognition job, nothing that
+ *                  spends Clipiro's credentials on it.
+ *   • `external` — not our storage at all (a third-party https URL). No
+ *                  Clipiro credential is involved in fetching it, so this is
+ *                  not a privileged operation and callers may pass it through.
+ *
+ * The three-way answer exists because "fall back to the stored URL" is only
+ * safe for callers that *fetch the URL*. A caller that extracts the bucket/key
+ * and uses our own IAM (Rekognition does exactly this) is not protected by a
+ * dead signature at all, so it needs to distinguish `foreign` from `external`
+ * and hard-refuse the former.
  *
  * `ownerUserId` must be the owner of the record the URL came from (e.g.
  * `project.userId`), read server-side — never a client-supplied value.
+ */
+export type SourceClassification =
+  | { kind: "owned"; key: string; url: string }
+  | { kind: "foreign"; key: string }
+  | { kind: "external" };
+
+export async function classifySource(
+  storedUrl: string,
+  ownerUserId: string,
+  /** Lifetime of the minted grant. Callers handing the URL to a third party
+   *  (the GPU/ASD service) deliberately ask for a shorter one than a
+   *  same-process download needs. */
+  expiresInSec?: number,
+): Promise<SourceClassification> {
+  const key = s3KeyFromStoredUrl(storedUrl);
+  if (!key) {
+    logger.warn("source-url", "could not recover an S3 key from a stored source URL; treating it as external");
+    return { kind: "external" };
+  }
+  if (!(await ownsKey(ownerUserId, key))) {
+    logger.error("source-url", "refusing to mint a source URL for a key the project owner does not own", {
+      ownerUserId,
+      // Prefix only — enough to investigate, never the full object path.
+      keyPrefix: key.split("/").slice(0, 2).join("/"),
+    });
+    return { kind: "foreign", key };
+  }
+  // Only pass a TTL when one was asked for, so the default-expiry callers keep
+  // calling getAssetReadUrl exactly as they always did.
+  const url = expiresInSec === undefined ? await getAssetReadUrl(key) : await getAssetReadUrl(key, expiresInSec);
+  return { kind: "owned", key, url };
+}
+
+/**
+ * A currently-valid URL for a stored source media URL.
  *
  * Falls back to the stored URL rather than throwing when the key cannot be
  * recovered or cannot be proven owned. That keeps behaviour exactly as it was
  * before re-minting existed (the download simply fails on its own if the URL
  * is expired or foreign), so this can never grant access the caller did not
  * already have.
+ *
+ * Only correct for callers whose privileged step is *fetching this URL*. A
+ * caller that instead hands the derived key to an AWS API on our credentials
+ * must use `classifySource` and refuse `foreign` outright.
  */
 export async function freshSourceUrl(storedUrl: string, ownerUserId: string): Promise<string> {
-  const key = s3KeyFromStoredUrl(storedUrl);
-  if (!key) {
-    logger.warn("source-url", "could not recover an S3 key from a stored source URL; using it as-is");
-    return storedUrl;
-  }
-  if (!(await ownsKey(ownerUserId, key))) {
-    // Never mint for media we cannot prove the owner owns.
-    logger.error("source-url", "refusing to mint a source URL for a key the project owner does not own", {
-      ownerUserId,
-      // Prefix only — enough to investigate, never the full object path.
-      keyPrefix: key.split("/").slice(0, 2).join("/"),
-    });
-    return storedUrl;
-  }
-  return getAssetReadUrl(key);
+  const source = await classifySource(storedUrl, ownerUserId);
+  return source.kind === "owned" ? source.url : storedUrl;
 }

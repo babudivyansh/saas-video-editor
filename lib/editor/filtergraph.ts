@@ -119,7 +119,7 @@ export function resolveFontFile(family: string): string {
 }
 
 /** Escape a path for use inside a filtergraph option value. */
-function escapeFilterPath(p: string): string {
+export function escapeFilterPath(p: string): string {
   return p.replace(/\\/g, "/").replace(/:/g, "\\:");
 }
 
