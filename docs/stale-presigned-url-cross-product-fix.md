@@ -245,6 +245,90 @@ so previewing any project older than six hours hit the same 403. The route was
 already ownership-scoped, involves no credits, and the fix is a one-line reuse
 of the same resolver. It is called out here rather than folded in silently.
 
+## Streamer Font Resolution
+
+### Old behavior
+
+`runStreamerFFmpeg` computed a font family from the style index
+(`styleIndexToDrawtext` → Arial / Times New Roman / Impact) and then **threw it
+away**. The emitted filter carried neither `fontfile=` nor `font=`:
+
+```
+drawtext=text='…':fontsize=72:fontcolor=white:x=(w-text_w)/2:y=h*0.08:…
+```
+
+Two consequences:
+
+1. **All 16 title styles rendered in the same face** — whatever fontconfig
+   chose as its default. The styles differed only in colour and size, so the
+   font half of every style was decorative metadata that never reached FFmpeg.
+2. **Rendering depended on the host having a usable default font.** On a
+   minimal Linux container with no fonts installed, drawtext fails outright
+   (`Cannot find a valid font for the family Sans` / `No usable font file
+   found`). The build-time gate (`scripts/verify-render-runtime.ts`) does *not*
+   cover this case: its drawtext smoke test passes an explicit
+   `fontfile=resolveFontFile("Poppins")`, so it proves the filter exists, not
+   that a default family resolves.
+
+This is a Streamer rendering bug, not a P0-2 runtime issue. The pinned runtime
+supports `drawtext` — it was simply never told what to draw with.
+
+### Fix
+
+Font selection is now deterministic and explicit, reusing the authoritative
+resolver the editor renderer already uses (`resolveFontFile` in
+`lib/editor/filtergraph.ts`) rather than adding a second font path:
+
+```
+drawtext=text='…':fontfile='<resolved path>':fontsize=…
+```
+
+`streamerFontFile(family)` wraps that resolver with one deliberate difference:
+`resolveFontFile` throws when nothing usable exists, and a throw must not turn
+a render that previously produced *something* into a hard failure. An
+unavailable family therefore falls back to `public/fonts/Poppins-Bold.ttf` —
+a file that ships in this repository, so it is present on every host regardless
+of what the OS has installed — and logs that it did so. The one thing that
+never happens any more is handing drawtext no font and letting the host decide.
+
+Path escaping goes through the same `escapeFilterPath` the editor uses (now
+exported rather than duplicated).
+
+### Styles tested
+
+All **16**, automatically:
+
+- every style's family resolves to a file that exists on disk;
+- the families actually referenced are exactly `{Arial, Times New Roman,
+  Impact}`, and each resolves;
+- distinct families resolve to distinct files, so styles cannot silently
+  collapse onto one face;
+- an unknown family falls back to the bundled Clipiro font, not the OS.
+
+Beyond string inspection, three **real renders** run through the pinned runtime
+— one per family — and must complete without a font error. The proof that the
+font is actually applied is a controlled byte comparison: the same font
+rendered twice is byte-identical, while Arial and Times New Roman differ. Since
+text, size, colour and input are held constant, the difference can only be
+glyphs. (Without the identical-control, a difference could have been mp4
+metadata and would have proved nothing.)
+
+### Production visual verification
+
+**Not performed** — no production tenant credentials were available. What the
+automated evidence does and does not cover:
+
+- covered: the filter now carries an explicit, existing font file; the render
+  succeeds for all three families on the pinned runtime; different families
+  produce different pixels.
+- not covered: that a production Streamer render looks right to a human, and
+  that the production host resolves the *system* families (Arial → Liberation
+  on Linux) rather than taking the bundled fallback. If the production host
+  lacks Liberation/DejaVu, every style will render in Poppins — deterministic
+  and legible, but not the intended face. Confirming that needs one production
+  render inspected visually, comparing two materially different styles.
+
+
 ## Asset Duration Follow-Up
 
 **Asset Metadata Integrity — separate follow-up, deliberately not fixed here.**

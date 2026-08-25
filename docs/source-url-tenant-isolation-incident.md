@@ -85,6 +85,7 @@ un-gated:
 | `app/api/generate/split-screen/route.ts:85` | gated — passes `project.userId` |
 | `app/api/generate/streamer-video/route.ts:63` | gated — passes `project.userId` |
 | `app/api/projects/[id]/clips/[clipId]/preview-frames/route.ts:46` | gated — passes `auth.userId` |
+| `lib/asd.ts` (ASD presign + Rekognition) | gated — classifies before either privileged step (this pass) |
 
 Verified: no single-argument `freshSourceUrl(...)` call remains anywhere in the
 repository.
@@ -165,10 +166,21 @@ PR #181 merged to `main` as `a8679e8` on 2026-08-25T15:18:23Z and reported
 deployed by the operator. `https://clipiro.com/api/health` returns
 `{"status":"ok","db":true,"redis":true}`.
 
-**Caveat:** the health endpoint exposes no build or commit identifier, so this
-session could not independently confirm that the running production build is
-`a8679e8`. Deployment is taken on the operator's word. A version/commit field
-on `/api/health` would make this verifiable and is recommended.
+**DEPLOYMENT IDENTITY NOT AVAILABLE.** The health endpoint exposes no build or
+commit identifier, so no session has been able to independently confirm which
+commit production is running. This was investigated for a fix and deliberately
+left unchanged:
+
+- there is no deploy step in `.github/workflows/ci.yml` — deployment is manual
+  / external — so nothing injects a commit SHA;
+- there is no Dockerfile or deploy manifest that could carry one;
+- `lib/env.ts` declares no build/commit/version variable.
+
+Nothing trustworthy is available to expose, and inventing one — hardcoding a
+SHA, or shipping a field that is always absent — would be worse than the gap it
+papers over. The fix belongs at the deploy step: have it export the commit SHA
+(e.g. `CLIPIRO_BUILD_ID`) into the runtime environment, after which surfacing
+it from `/api/health` is a two-line change. Recommended, not blocking.
 
 ## Production Security Verification
 
@@ -222,6 +234,87 @@ Suites green: `autoclip-pipeline` (29), `autoclip-failure`, `autoclip-refund`,
 `autoclip-rerender`, plus credits. All three AutoClip call sites pass
 `project.userId`. No production re-run was possible.
 
+## Residual ASD Authorization Site
+
+### Previous behavior
+
+`lib/asd.ts` → `getFaceTimeline(userId, videoUrl)` performed **no ownership
+check**. It spent Clipiro's credentials on whatever object `videoUrl` named,
+in two distinct ways:
+
+- **ASD:** `getAssetReadUrl(parseS3Url(videoUrl).key, 3600)` minted a presigned
+  GET and handed it to the external GPU service.
+- **Rekognition fallback:** `detectFaceTimeline(videoUrl)` passed
+  `Bucket`/`Name` straight to `StartFaceDetectionCommand`, which reads the
+  object using **our own IAM role** — a dead signature offers no protection
+  against this at all.
+
+`videoUrl` arrives from `lib/autoclip-pipeline.ts:773` as
+`project.uploadedVideoUrl`, which is client-settable. The `userId` argument was
+already present but fed only `shouldUseAsd()`, a tier/rollout flag — never a
+permission.
+
+### Why execution-order protection was insufficient
+
+The path was not exploitable in the shipped AutoClip flow, because the
+ownership-gated source download at line 704 runs earlier in the same `try`
+block and throws first on a foreign key. That is a coincidence of ordering, not
+an authorization boundary. It would have been reopened by any of:
+
+- reordering the pipeline so face detection starts before the download
+  (explicitly desirable — the comment at line 760 notes Rekognition is the
+  longest-running call and is deliberately kicked off early);
+- adding a second caller that does not download first;
+- calling the exported function directly.
+
+Correct classification: **latent authorization bypass / defense-in-depth
+failure**, not a confirmed exploitable vulnerability.
+
+### Fix
+
+`lib/source-url.ts` gained `classifySource(storedUrl, ownerUserId, expiresInSec?)`,
+which returns a three-way verdict rather than a URL:
+
+- `owned` — our storage, ownership proven; carries the durable key and a fresh
+  grant;
+- `foreign` — our storage, ownership **not** proven; every privileged use must
+  refuse;
+- `external` — not our storage; no Clipiro credential is involved, so callers
+  may pass it through.
+
+The three-way answer is the point. "Fall back to the stored URL" is only safe
+for a caller whose privileged step is *fetching that URL*; a caller that hands
+the derived key to an AWS API on our credentials needs `foreign` and `external`
+to be distinguishable. `freshSourceUrl` is now a thin wrapper
+(`owned ? url : storedUrl`), so the six existing call sites are behaviourally
+identical — same call shape, same fail-safe semantics.
+
+`getFaceTimeline` now classifies **first**, before either privileged step:
+`foreign` returns an empty timeline (a static centre crop — the module's
+existing graceful degradation), and Rekognition runs only for `owned` media.
+External sources still reach ASD directly, so legitimate third-party media is
+unaffected. The one-hour GPU grant was preserved by threading the TTL through
+`classifySource`; the shared resolver's 6-hour default would otherwise have
+silently widened it.
+
+### Regression proof
+
+`lib/asd.tenant-isolation.test.ts` — 5 tests against a real database with real
+two-tenant rows, calling `getFaceTimeline` **directly**. No AutoClip download
+runs first, which is precisely the point: the refusal must come from this
+function's own check.
+
+- tenant A on tenant B's object → empty timeline, **no** presigned URL minted,
+  **no** GPU call, **no** Rekognition call;
+- tenant A on its own object → mints, calls ASD with the fresh URL, reaches
+  Rekognition;
+- an explicit "reordering cannot reopen this" case that hammers the function
+  the way a reordered pipeline or a new caller would, asserting all three
+  privileged operations stay un-called;
+- a third-party URL still reaches ASD, and never spends our IAM;
+- prefix-lookalike segment refused.
+
+
 ## Remaining URL Risks
 
 1. **`lib/asd.ts:66` is an un-gated re-mint site.**
@@ -258,6 +351,26 @@ Suites green: `autoclip-pipeline` (29), `autoclip-failure`, `autoclip-refund`,
    A schema change is not required by this task, but the direction is to store
    `s3Key`/`assetId` on the project and let the URL column become a cache.
 
+## Historical Exploitation Review
+
+**Status: NOT REVIEWED.**
+
+- **Telemetry reviewed:** none. No production database, S3, CloudTrail or log
+  access was available to any session that worked on this.
+- **Retention / gaps:** unknown. Whether S3 server access logging or CloudTrail
+  data events were enabled for the bucket during the exposure window has not
+  been established.
+- **Conclusion:** the question is open. `NOT EXPLOITED` is not an available
+  conclusion and must not be recorded — absence of evidence is not evidence of
+  absence when it is not yet known whether object-level telemetry existed at
+  all.
+
+A standalone checklist for whoever performs the review lives at
+`docs/source-url-exploitation-review-checklist.md`. Its most useful step needs
+no AWS access: a cross-tenant attempt requires a `Project` whose
+`uploadedVideoUrl` names a key its owner does not own, and that state is still
+queryable in the production database today.
+
 ## Asset Duration Follow-Up
 
 Unchanged and deliberately separate: `Asset.durationSec` = 45s against a real
@@ -268,12 +381,26 @@ authoritative. **Not started.**
 
 ## Final Status
 
-**Security incident: FIXED**, on the release gate's sanctioned alternative —
-the cross-tenant exploit is proven denied by a security test tied to the
-deployed commit, and proven to succeed against the pre-fix code. Two
-qualifications stand: production deployment of `a8679e8` is taken on the
-operator's word, and no exploitation search has been done.
+**Original incident (un-gated `freshSourceUrl`): FIXED**, on the release gate's
+sanctioned alternative — the cross-tenant exploit is proven denied by a
+security test tied to the deployed commit, and proven to succeed against the
+pre-fix code. Two qualifications stand: production deployment of `a8679e8` is
+taken on the operator's word, and no exploitation search has been done.
+
+**Residual authorization hardening (ASD): FIXED in code, not yet deployed.**
+`getFaceTimeline` now proves ownership itself, before both the presign and the
+Rekognition job, and a direct-invocation regression test proves the refusal
+does not depend on AutoClip's earlier download.
+
+**Streamer font resolution: FIXED in code, production visual check
+outstanding.** Titles now pass an explicit, deterministically resolved
+`fontfile`; automated renders prove three families reach FFmpeg and produce
+different pixels. Whether the production host resolves the system faces or
+takes the bundled fallback still needs one render inspected by eye.
 
 **Stale-URL cross-product reliability issue: FAILED / OPEN.** The production
-old-project runs for Split Screen, Streamer Video and preview frames have not
-been executed, and the gate requires them.
+old-project runs for Split Screen, Streamer Video and preview frames have still
+not been executed, and the gate requires them. No automated evidence
+substitutes for those runs.
+
+**Historical exploitation: NOT REVIEWED.**
