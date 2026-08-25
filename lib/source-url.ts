@@ -15,6 +15,7 @@
 // the object key is the stable part, and only the signature expires.
 
 import { env } from "@/lib/env";
+import { prisma } from "@/lib/prisma";
 import { getAssetReadUrl } from "@/utils/s3-upload";
 import { logger } from "@/lib/logger";
 
@@ -66,16 +67,54 @@ export function s3KeyFromStoredUrl(rawUrl: string): string | null {
 }
 
 /**
+ * Is `key` media that `userId` is actually entitled to read?
+ *
+ * This gate is essential, not defensive dressing. `Project.uploadedVideoUrl` is
+ * CLIENT-SETTABLE — the public API (`POST /api/v1/projects`) and the project
+ * PATCH allowlist both accept an arbitrary https URL. Before re-minting
+ * existed that was harmless: a URL naming another tenant's key carries no
+ * valid signature, so S3 answers 403. Minting a fresh signature for whatever
+ * key the client stored would turn that dead end into cross-tenant media
+ * access, so ownership is proven before any signature is issued.
+ *
+ * Two accepted proofs, in order of authority:
+ *   1. an Asset row for (userId, s3Key) — the real ownership record;
+ *   2. the key sits under the user's own prefix (`…/<userId>/…`), which is how
+ *      upload builds keys (`uploads/<userId>/<uuid>.<ext>`). Needed because
+ *      some legacy sources predate Asset rows — see
+ *      scripts/backfill-project-source-assets.ts.
+ */
+async function ownsKey(userId: string, key: string): Promise<boolean> {
+  if (key.split("/").includes(userId)) return true;
+  const asset = await prisma.asset.findFirst({ where: { userId, s3Key: key }, select: { id: true } });
+  return asset !== null;
+}
+
+/**
  * A currently-valid URL for a stored source media URL.
  *
- * Falls back to the stored URL when the key cannot be recovered — a URL that
- * might work is strictly better than throwing on something we simply failed to
- * parse, and the caller's own download error handling still covers it.
+ * `ownerUserId` must be the owner of the record the URL came from (e.g.
+ * `project.userId`), read server-side — never a client-supplied value.
+ *
+ * Falls back to the stored URL rather than throwing when the key cannot be
+ * recovered or cannot be proven owned. That keeps behaviour exactly as it was
+ * before re-minting existed (the download simply fails on its own if the URL
+ * is expired or foreign), so this can never grant access the caller did not
+ * already have.
  */
-export async function freshSourceUrl(storedUrl: string): Promise<string> {
+export async function freshSourceUrl(storedUrl: string, ownerUserId: string): Promise<string> {
   const key = s3KeyFromStoredUrl(storedUrl);
   if (!key) {
     logger.warn("source-url", "could not recover an S3 key from a stored source URL; using it as-is");
+    return storedUrl;
+  }
+  if (!(await ownsKey(ownerUserId, key))) {
+    // Never mint for media we cannot prove the owner owns.
+    logger.error("source-url", "refusing to mint a source URL for a key the project owner does not own", {
+      ownerUserId,
+      // Prefix only — enough to investigate, never the full object path.
+      keyPrefix: key.split("/").slice(0, 2).join("/"),
+    });
     return storedUrl;
   }
   return getAssetReadUrl(key);

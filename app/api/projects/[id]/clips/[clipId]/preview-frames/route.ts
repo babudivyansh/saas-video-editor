@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { renderPreviewFrames } from "@/lib/autoclip-preview";
+import { freshSourceUrl } from "@/lib/source-url";
 
 // POST /api/projects/[id]/clips/[clipId]/preview-frames
 //
@@ -36,7 +37,14 @@ async function handlePOST(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!clip) return NextResponse.json({ error: "Clip not found" }, { status: 404 });
 
   try {
-    const frames = await renderPreviewFrames(project.uploadedVideoUrl, clip);
+    // Same stale-presigned-URL defect as Split Screen, Streamer Video and
+    // AutoClip P0-3: uploadedVideoUrl is the presigned UPLOAD url (6h), so a
+    // preview of any project older than that died on the download with
+    // 403 "Request has expired". auth.userId is the proven owner — the
+    // findFirst above already scoped the project to them.
+    // See docs/stale-presigned-url-cross-product-fix.md.
+    const source = await freshSourceUrl(project.uploadedVideoUrl, auth.userId);
+    const frames = await renderPreviewFrames(source, clip);
     if (frames.length === 0) {
       return NextResponse.json({ error: "Could not generate a preview for this clip" }, { status: 503 });
     }

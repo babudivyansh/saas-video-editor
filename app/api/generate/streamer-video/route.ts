@@ -13,6 +13,8 @@ import { logger } from "@/lib/logger";
 import os from "os";
 import path from "path";
 import fs from "fs";
+import { freshSourceUrl } from "@/lib/source-url";
+import { classifyProjectRenderFailure } from "@/lib/project-render-failure";
 
 export const maxDuration = 300;
 
@@ -53,7 +55,12 @@ async function renderJob(payload: StreamerPayload): Promise<void> {
   const outPath  = path.join(tmp, `${projectId}-output.mp4`);
 
   try {
-    await downloadFile(project.uploadedVideoUrl, userPath);
+    // Project.uploadedVideoUrl is the PRESIGNED upload URL (6h lifetime), not a
+    // durable identity — reusing it made every project older than six hours fail
+    // with 403 "Request has expired". Re-mint from the owned S3 key instead.
+    // Same defect and same shared resolver as the AutoClip P0-3 incident; see
+    // docs/stale-presigned-url-cross-product-fix.md.
+    await downloadFile(await freshSourceUrl(project.uploadedVideoUrl, project.userId), userPath);
 
     const drawtextOpts = styleIndexToDrawtext(subtitleStyleIndex);
     await runStreamerFFmpeg({ userVideoPath: userPath, titleText, drawtextOpts, outputPath: outPath });
@@ -63,9 +70,28 @@ async function renderJob(payload: StreamerPayload): Promise<void> {
 
     await prisma.project.update({ where: { id: projectId }, data: { status: "completed", videoUrl } });
   } catch (err) {
-    logger.error("streamer-video", `render failed for ${projectId}`, err);
-    await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } });
-    await refundRenderCredit(projectId);
+    const { category, userMessage } = classifyProjectRenderFailure(err);
+    logger.error("streamer-video", `render failed for ${projectId} [${category}]`, err);
+    // Bookkeeping must never mask the original failure or abort the steps after
+    // it — the defect CI caught in the AutoClip P0-3 failure path (5e38744).
+    // `.catch()` alone is not enough: it guards a rejected promise, not a
+    // synchronous throw. Unguarded, a failed status write would skip the refund
+    // and leave the user charged for a render that never produced anything.
+    try {
+      // The raw error can carry the presigned source URL, signature included
+      // (utils/download.ts), so only the sanitized classification is persisted.
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { status: "failed", failureReason: userMessage },
+      });
+    } catch (e) {
+      logger.error("streamer-video", `could not mark project ${projectId} failed`, e);
+    }
+    try {
+      await refundRenderCredit(projectId);
+    } catch (e) {
+      logger.error("streamer-video", `could not refund failed render for project ${projectId}`, e);
+    }
   } finally {
     for (const f of [userPath, outPath]) {
       try { fs.unlinkSync(f); } catch {}
@@ -108,7 +134,9 @@ async function handlePOST(req: NextRequest) {
   // the only race-safe check.
   const claimed = await prisma.project.updateMany({
     where: { id: body.projectId, userId: auth.userId, status: { not: "rendering" } },
-    data: { status: "rendering" },
+    // Clear any previous failureReason with the claim, so the UI never shows a
+    // stale reason from the last attempt while this one is running.
+    data: { status: "rendering", failureReason: null },
   });
   if (claimed.count === 0) {
     return NextResponse.json({ error: "A render is already in progress for this project." }, { status: 409 });
