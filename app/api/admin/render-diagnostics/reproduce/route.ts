@@ -25,6 +25,8 @@ import path from "path";
 import fs from "fs";
 import { NextRequest, NextResponse } from "next/server";
 import { withAdmin } from "@/lib/admin/api";
+import { auditAdminAction, auditIp } from "@/lib/admin/audit";
+import { rateLimit } from "@/lib/rate-limit";
 import { prisma } from "@/lib/prisma";
 import { normalizeDoc, type TimelineDoc } from "@/lib/editor/types";
 import { buildFilterGraph, maybeUseFilterScript, writeTextFiles, type ClipInput } from "@/lib/editor/filtergraph";
@@ -35,11 +37,18 @@ import { getAssetReadUrl } from "@/utils/s3-upload";
 import { downloadFile } from "@/utils/download";
 import { runFFmpegWithProgress } from "@/utils/ffmpeg-render";
 
-export const GET = withAdmin(async (req: NextRequest) => {
+export const GET = withAdmin(async (req: NextRequest, { admin }) => {
   const projectId = req.nextUrl.searchParams.get("projectId");
   if (!projectId) {
     return NextResponse.json({ error: "projectId query param required" }, { status: 400 });
   }
+
+  // This is the one route in the admin surface that downloads and re-renders
+  // a specific user's real assets — same audit + rate-limit floor as every
+  // other data-touching admin route, even though it's read-only and its
+  // response is scrubbed of paths/URLs/project id.
+  const { allowed } = await rateLimit(`admin-render-repro:${admin.userId}`, 10, 900);
+  if (!allowed) return NextResponse.json({ error: "Too many requests — try again shortly." }, { status: 429 });
 
   const tmp = os.tmpdir();
   const tempFiles: string[] = [];
@@ -132,6 +141,11 @@ export const GET = withAdmin(async (req: NextRequest) => {
     const errorLines = thrown
       ? thrown.split("\n").filter((l) => /error|invalid|cannot|fail|no such|denied|unable|exit/i.test(l))
       : [];
+
+    await auditAdminAction(admin.userId, "render.diagnostics_reproduce", projectId, {
+      after: { succeeded, outputProduced: outputInfo.exists },
+      ip: auditIp(req),
+    });
 
     return NextResponse.json({
       projectId,

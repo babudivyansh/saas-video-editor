@@ -44,7 +44,11 @@ export async function auditAdminAction(
       },
     });
   } catch (e) {
-    logger.warn("audit", `audit write failed for ${action} on ${targetId ?? "-"}`, {
+    // error, not warn: a lost audit row is invisible everywhere except
+    // whatever the team already watches at error level — a warn-level log
+    // that nobody pages on is functionally the same as the old silent
+    // swallow this file's intro comment says it replaced.
+    logger.error("audit-write-failure", `audit write failed for ${action} on ${targetId ?? "-"}`, {
       reason: (e as Error).message,
     });
   }

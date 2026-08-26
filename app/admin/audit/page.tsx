@@ -20,6 +20,9 @@ function fmt(iso: string) {
     hour: "2-digit", minute: "2-digit",
   });
 }
+function fmtShort(iso: string) {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 
 function prettyJson(raw: string | null) {
   if (!raw) return "—";
@@ -46,6 +49,7 @@ export default function AdminAuditPage() {
   const [page, setPage]     = useState(1);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [byAdmin, setByAdmin] = useState<AdminActivity[]>([]);
+  const [activityWindow, setActivityWindow] = useState<{ from: string; to: string | null } | null>(null);
   // filters
   const [fAction, setFAction] = useState("");
   const [fTarget, setFTarget] = useState("");
@@ -64,7 +68,10 @@ export default function AdminAuditPage() {
     const data = res.ok ? await res.json() : { logs: [], total: 0, byAdmin: [] };
     setLogs(data.logs ?? []);
     setTotal(data.total ?? 0);
-    if (page === 1) setByAdmin(data.byAdmin ?? []);
+    if (page === 1) {
+      setByAdmin(data.byAdmin ?? []);
+      setActivityWindow(data.activityWindow ?? null);
+    }
     setLoading(false);
   }, [token, user?.role, page, fAction, fTarget, fAdmin, fFrom, fTo]);
 
@@ -86,7 +93,11 @@ export default function AdminAuditPage() {
 
       {byAdmin.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2">Admin activity — last 30 days</p>
+          <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2">
+            Admin activity — {activityWindow
+              ? `since ${fmtShort(activityWindow.from)}${activityWindow.to ? ` to ${fmtShort(activityWindow.to)}` : ""}`
+              : "last 30 days"}
+          </p>
           <div className="flex flex-wrap gap-2">
             {byAdmin.map(a => (
               <button

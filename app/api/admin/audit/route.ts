@@ -63,10 +63,20 @@ export const GET = withAdmin(async (req) => {
     }
   }
 
-  const where = {
+  // Shared by both queries below so the activity summary can never silently
+  // diverge from the detail table by filtering on different fields — see
+  // OBS-1: the summary previously hardcoded its own 30-day-only `where`,
+  // completely independent of the active action/targetId/adminEmail/date
+  // filters, so it could show a smaller count than the (unfiltered, or
+  // differently-filtered) rows visible in the table right beneath it.
+  const baseFilters = {
     ...(action ? { action: { startsWith: action } } : {}),
     ...(targetId ? { targetId } : {}),
     ...(adminIdFilter ? { adminId: { in: adminIdFilter } } : {}),
+  };
+
+  const where = {
+    ...baseFilters,
     ...(from || to
       ? {
           createdAt: {
@@ -80,6 +90,19 @@ export const GET = withAdmin(async (req) => {
   if (req.nextUrl.searchParams.get("export") === "csv") {
     return exportCsv(where);
   }
+
+  // Activity summary needs a lower bound to stay a bounded "recent activity"
+  // view — defaults to 30 days back only when the caller hasn't set an
+  // explicit `from`, and always respects an explicit `to`, so it's the same
+  // filter set as `where` plus that one default.
+  const summaryFrom = from ?? new Date(Date.now() - 30 * 86400_000);
+  const byAdminWhere = {
+    ...baseFilters,
+    createdAt: {
+      gte: summaryFrom,
+      ...(to ? { lte: new Date(to.getTime() + 86_399_000) } : {}),
+    },
+  };
 
   const [logs, total, byAdminRaw] = await Promise.all([
     prisma.auditLog.findMany({
@@ -95,7 +118,7 @@ export const GET = withAdmin(async (req) => {
           by: ["adminId"],
           _count: true,
           _max: { createdAt: true },
-          where: { createdAt: { gte: new Date(Date.now() - 30 * 86400_000) } },
+          where: byAdminWhere,
           orderBy: { _count: { adminId: "desc" } },
           take: 10,
         })
@@ -120,5 +143,9 @@ export const GET = withAdmin(async (req) => {
       actions30d: a._count,
       lastActionAt: a._max.createdAt,
     })),
+    // Lets the UI show the window the summary actually used (e.g. "since Jul 27")
+    // instead of a hardcoded "LAST 30 DAYS" label that can silently stop
+    // matching once a caller sets an explicit `from`/`to`.
+    activityWindow: { from: summaryFrom.toISOString(), to: to ? to.toISOString() : null },
   });
 });
