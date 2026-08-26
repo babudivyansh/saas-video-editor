@@ -1,7 +1,10 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminShell from "../AdminShell";
+import { ErrorCard } from "../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
+import { useToast } from "@/app/components/ui/Toast";
 
 interface Tool {
   slug: string;
@@ -12,45 +15,44 @@ interface Tool {
 
 export default function AdminToolsPage() {
   const { token, user } = useAuth();
-  const [tools, setTools]       = useState<Tool[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [savingSlug, setSavingSlug] = useState<string | null>(null);
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
   const [editCost, setEditCost] = useState<Record<string, string>>({});
 
-  const load = useCallback(async () => {
-    if (!token || user?.role !== "ADMIN") return;
-    setLoading(true);
-    const res = await fetch("/api/admin/tools", { headers: { Authorization: `Bearer ${token}` } });
-    const data = res.ok ? await res.json() : { tools: [] };
-    const list: Tool[] = data.tools ?? [];
-    setTools(list);
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ["admin-tools"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/tools", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error("Failed to load tools");
+      return (await res.json()) as { tools?: Tool[] };
+    },
+    enabled: !!token && user?.role === "ADMIN",
+  });
+  const tools = data?.tools ?? [];
+
+  useEffect(() => {
     const costs: Record<string, string> = {};
-    for (const t of list) costs[t.slug] = String(t.creditCost);
+    for (const t of tools) costs[t.slug] = String(t.creditCost);
     setEditCost(costs);
-    setLoading(false);
-  }, [token, user?.role]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-seed drafts when the server list itself changes
+  }, [data]);
 
-  useEffect(() => { load(); }, [load]);
-
-  async function patch(slug: string, body: { enabled?: boolean; creditCost?: number }) {
-    setSavingSlug(slug);
-    try {
+  const patchMutation = useMutation({
+    mutationFn: async ({ slug, body }: { slug: string; body: { enabled?: boolean; creditCost?: number } }) => {
       const res = await fetch("/api/admin/tools", {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ slug, ...body }),
       });
-      if (res.ok) {
-        setTools(prev => prev.map(t => t.slug === slug ? { ...t, ...body } : t));
-      }
-    } finally {
-      setSavingSlug(null);
-    }
-  }
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Update failed");
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-tools"] }),
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
 
   function saveCost(slug: string) {
     const n = parseInt(editCost[slug] ?? "0", 10);
-    if (!isNaN(n) && n >= 0) patch(slug, { creditCost: n });
+    if (!isNaN(n) && n >= 0) patchMutation.mutate({ slug, body: { creditCost: n } });
   }
 
   return (
@@ -58,7 +60,9 @@ export default function AdminToolsPage() {
       <p className="text-sm text-gray-500 mb-6">
         Enable/disable tools in real-time and override their credit cost. Changes take effect within 60 seconds (Redis cache).
       </p>
-      {loading ? (
+      {isError ? (
+        <ErrorCard onRetry={refetch} />
+      ) : isLoading ? (
         <p className="text-sm text-gray-400">Loading tools…</p>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -75,7 +79,7 @@ export default function AdminToolsPage() {
               </thead>
               <tbody>
                 {tools.map(t => {
-                  const busy = savingSlug === t.slug;
+                  const busy = patchMutation.isPending && patchMutation.variables?.slug === t.slug;
                   return (
                     <tr key={t.slug} className={`border-b border-gray-50 last:border-0 ${!t.enabled ? "opacity-50" : ""}`}>
                       <td className="py-3 px-5">
@@ -106,7 +110,7 @@ export default function AdminToolsPage() {
                       </td>
                       <td className="py-3 px-3">
                         <button
-                          onClick={() => patch(t.slug, { enabled: !t.enabled })}
+                          onClick={() => patchMutation.mutate({ slug: t.slug, body: { enabled: !t.enabled } })}
                           disabled={busy}
                           className={`text-xs font-semibold px-4 py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${
                             t.enabled
