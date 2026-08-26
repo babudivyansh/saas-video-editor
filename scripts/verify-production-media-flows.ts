@@ -45,7 +45,28 @@ import { streamerFontFile } from "../utils/ffmpeg-render";
  */
 
 const BASE = process.env.CLIPIRO_BASE_URL ?? "https://clipiro.com";
-const TOKEN = process.env.CLIPIRO_QA_SESSION_TOKEN ?? "";
+
+/**
+ * The QA session token, from the env var or — preferably — a file.
+ *
+ * The file form exists because a token pasted into a chat, a shell history or
+ * a CI log is a token you have to rotate. Write it to a file outside the repo,
+ * point this at it, and delete the file afterwards; it never appears in an
+ * argument list, an environment dump or a transcript.
+ */
+function readToken(): string {
+  const file = process.env.CLIPIRO_QA_SESSION_TOKEN_FILE;
+  if (file) {
+    try {
+      return fs.readFileSync(file, "utf8").trim();
+    } catch (e) {
+      console.error(`could not read CLIPIRO_QA_SESSION_TOKEN_FILE: ${(e as Error).message}`);
+      return "";
+    }
+  }
+  return (process.env.CLIPIRO_QA_SESSION_TOKEN ?? "").trim();
+}
+const TOKEN = readToken();
 const KEEP = process.argv.includes("--keep");
 const tmp = os.tmpdir();
 
@@ -200,7 +221,7 @@ async function verifyRenderFlows(mediaPath: string): Promise<void> {
     // Distinguish "not attempted" from "attempted and lost the value" — a
     // shell `read` that hit EOF exports an empty string, which looks the same
     // as never setting it unless we say so.
-    if ("CLIPIRO_QA_SESSION_TOKEN" in process.env) {
+    if ("CLIPIRO_QA_SESSION_TOKEN" in process.env || "CLIPIRO_QA_SESSION_TOKEN_FILE" in process.env) {
       bad("QA session token is set but EMPTY",
         "a `read` prompt that got EOF, or an unset that ran too early — the render flows did NOT run");
     } else {
