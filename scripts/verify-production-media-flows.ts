@@ -292,9 +292,37 @@ async function verifyRenderFlows(mediaPath: string): Promise<void> {
   if (!KEEP) await deleteS3Object(key);
 }
 
+/**
+ * `--whoami`: answer "whose token is this?" and nothing else.
+ *
+ * Worth its own mode because the expensive failure is discovering the answer
+ * three minutes into a run that has already uploaded media — or worse,
+ * discovering it after the run spent credits on the wrong tenant.
+ */
+async function whoami(): Promise<void> {
+  if (!TOKEN) { console.log("no token provided — set CLIPIRO_QA_SESSION_TOKEN or CLIPIRO_QA_SESSION_TOKEN_FILE"); return; }
+  const res = await api("GET", "/api/auth/me");
+  if (res.status !== 200) {
+    console.log(`token REJECTED — GET /api/auth/me -> HTTP ${res.status}`);
+    console.log("a 401 usually means the session was signed out (revoked server-side) or the token is truncated.");
+    process.exitCode = 1;
+    return;
+  }
+  const me = (res.json.user ?? res.json) as { email?: string; credits?: number; bonusCredits?: number; purchasedCredits?: number; subscriptionCredits?: number };
+  const email = me.email ?? "(unknown)";
+  const spendable = (me.bonusCredits ?? 0) + (me.subscriptionCredits ?? 0) + (me.purchasedCredits ?? 0);
+  console.log(`token is VALID for: ${email}`);
+  console.log(`displayed credits: ${me.credits ?? "?"}   actually spendable (bucket sum): ${spendable}`);
+  console.log(spendable >= 2
+    ? "sufficient for a full run (1 credit per render, 2 renders)"
+    : "NOT ENOUGH — spendCredits drains the buckets, not the displayed total");
+}
+
 async function main() {
   console.log("Clipiro production media-flow verification");
   console.log(`base=${BASE} session=${TOKEN ? "provided" : "absent (render flows will skip)"}`);
+
+  if (process.argv.includes("--whoami")) { await whoami(); return; }
 
   const media = await makeSyntheticMedia();
   try {
