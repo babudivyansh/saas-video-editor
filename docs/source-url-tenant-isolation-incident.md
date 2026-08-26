@@ -66,6 +66,21 @@ previously harmless condition into a privilege escalation:
 
 - **Before re-minting:** a URL naming another tenant's key carried no valid
   signature, so S3 answered 403. The stored value was inert.
+
+  **CORRECTION (2026-08-26).** That holds only for a URL carrying an *expired
+  signature*. The media bucket serves **unsigned reads publicly** — a plain
+  `https://<bucket>.s3.<region>.amazonaws.com/<key>` returns HTTP 200, verified
+  directly against production. So anyone who already knew another tenant's key
+  could read that object without the vulnerability at all. Re-minting made the
+  access server-mediated and durable past expiry; it did not unlock media the
+  key alone could not already reach.
+
+  This *lowers* the incremental severity of this incident and *raises* a
+  standing one: every object in the media bucket is readable by anyone holding
+  its key, with the key's unguessability (a UUID) as the only control. Keys
+  appear in the database, in API responses and in client-side URLs, so that is
+  security by obscurity rather than access control. Tracked separately — it is
+  not a stale-URL issue, and it is not fixed by anything in this document.
 - **After re-minting, before the gate:** the server re-signed that key with its
   own credentials, turning an inert string into working access.
 
@@ -353,23 +368,137 @@ function's own check.
 
 ## Historical Exploitation Review
 
-**Status: NOT REVIEWED.**
+**Status: INSUFFICIENT TELEMETRY.**
 
-- **Telemetry reviewed:** none. No production database, S3, CloudTrail or log
-  access was available to any session that worked on this.
-- **Retention / gaps:** unknown. Whether S3 server access logging or CloudTrail
-  data events were enabled for the bucket during the exposure window has not
-  been established.
-- **Conclusion:** the question is open. `NOT EXPLOITED` is not an available
-  conclusion and must not be recorded — absence of evidence is not evidence of
-  absence when it is not yet known whether object-level telemetry existed at
-  all.
+### Telemetry reviewed
 
-A standalone checklist for whoever performs the review lives at
-`docs/source-url-exploitation-review-checklist.md`. Its most useful step needs
-no AWS access: a cross-tenant attempt requires a `Project` whose
-`uploadedVideoUrl` names a key its owner does not own, and that state is still
-queryable in the production database today.
+- **S3 server access logging on `saas-video-editor-assets` (ap-south-1):
+  DISABLED.** Checked directly via `GetBucketLogging` with the application's
+  own credentials — the response carries no `LoggingEnabled` block. This is the
+  primary place a per-object `GET` would have been recorded, and it was not
+  recording during the exposure window.
+- **CloudTrail data events: NOT DETERMINED.** `@aws-sdk/client-cloudtrail` is
+  not a dependency of this project and a dependency was not added to run a
+  probe. S3 object-level data events are **off by default** and billed
+  separately, so the prior probability that they were enabled is low — but that
+  is an inference, not a measurement, and it is recorded as such.
+- **Application logs: no usable signal for the historical window.** The
+  `refusing to mint a source URL…` line only exists *because of* the fix, so it
+  cannot describe behaviour from before the fix. Post-fix, any occurrence is a
+  **blocked** attempt and is worth investigating on its own.
+- **Database ownership scan: NOT RUN against production.** No production
+  database access. A read-only scanner was written for whoever has it —
+  `scripts/scan-cross-tenant-sources.ts` — and validated against a development
+  database. It writes nothing.
+
+### Retention / gaps
+
+The decisive gap is the disabled S3 access logging: object-level `GET` history
+for the exposure window **does not exist and cannot be reconstructed**. No
+later investigation can recover it.
+
+### Conclusion
+
+**INSUFFICIENT TELEMETRY.** This is now an evidence-backed classification
+rather than an unexamined one: the primary object-level log was measured and
+found disabled. `NOT EXPLOITED` remains unavailable and must never be recorded
+— with no access log, non-exploitation is not a conclusion the evidence can
+support in either direction.
+
+What is still worth doing, and needs no AWS access:
+`scripts/scan-cross-tenant-sources.ts` against a production read replica. A
+cross-tenant attempt requires a `Project` whose `uploadedVideoUrl` names a key
+its owner cannot be shown to own, and **that state is still in the database**,
+unaffected by the missing logs. A hit there proves suspicious *persisted state*
+existed; it still would not prove the bytes were read.
+
+**Recommendation:** enable S3 server access logging (or CloudTrail S3 data
+events) on the media bucket. This incident could not be investigated after the
+fact, and the next one will have the same problem until that changes.
+
+The standalone checklist is at
+`docs/source-url-exploitation-review-checklist.md`.
+
+## Production DB Ownership Scan
+
+Run 2026-08-26 against the production database (Supabase, ap-northeast-1
+pooler) with `scripts/scan-cross-tenant-sources.ts`. Read-only: the script
+contains no mutation, and none was performed.
+
+**Pre-flight check.** Phase 1 requires the scanner to mirror the deployed
+ownership logic, so that was verified rather than assumed. The ownership
+predicate matched `ownsKey` exactly (segment-equality prefix proof, then an
+`Asset` row for `(userId, s3Key)`). Key recovery had drifted by one line — the
+scanner's private copy omitted the protocol check — so the copy was deleted and
+the scanner now **imports `s3KeyFromStoredUrl` from `lib/source-url.ts`
+directly**. A scan that answers an authorization question must use the same
+code the authorization uses.
+
+**Shape check.** Before trusting key recovery, the stored URL shapes were
+sampled: all 17 rows use the virtual-hosted form on our own bucket
+(`saas-video-editor-assets.s3.ap-south-1.amazonaws.com`). No CDN-fronted URLs
+exist, so nothing could be mis-classified as "external" because this
+environment has no `CDN_BASE_URL`.
+
+### Result: NO CROSS-TENANT REFERENCES FOUND
+
+| Metric | Count |
+| ------ | ----- |
+| Projects with a source URL | 17 |
+| External / non-Clipiro references | 0 |
+| Owned — path-prefix proof | 17 |
+| Owned — `Asset` row proof | 0 |
+| Unprovable ownership | 0 |
+| **Owned by another user (cross-tenant)** | **0** |
+
+Every production project references a key under its own owner's prefix. There
+are no suspicious rows, so no per-row detail is recorded.
+
+**This does not change the exploitation verdict.** A clean scan means *no
+suspicious persisted cross-tenant reference exists today* — not that the
+vulnerable path was never exercised. A transient attempt that was later edited
+or deleted would leave no trace here, and the object-level access logs that
+could have shown one did not exist. The verdict remains
+**INSUFFICIENT TELEMETRY**.
+
+## Historical S3 Logging
+
+- **Bucket logging during the vulnerable period: DISABLED.** Measured via
+  `GetBucketLogging` on `saas-video-editor-assets`; no `LoggingEnabled` block.
+- **Historical object-GET reconstruction: NOT POSSIBLE.** The records were
+  never written and cannot be recovered.
+- **Historical exploitation verdict: INSUFFICIENT TELEMETRY.**
+
+## Forward Logging
+
+Enabled 2026-08-26. Server-verified after the change, not merely requested.
+
+| Setting | Value |
+| ------- | ----- |
+| S3 access logging enabled | **YES** |
+| Source bucket | `saas-video-editor-assets` (ap-south-1) |
+| Destination | `clipiro-s3-access-logs` (ap-south-1), prefix `s3-access/` |
+| Public access | Fully blocked — all four flags true, verified via `GetPublicAccessBlock` |
+| Write permission | Bucket policy granting `logging.s3.amazonaws.com` `s3:PutObject`, conditioned on `aws:SourceArn` = the media bucket only |
+| Retention | Lifecycle rule expiring `s3-access/` objects after 90 days |
+
+A dedicated bucket was created rather than reusing anything existing. The two
+other buckets in the account belong to an unrelated project, and logging into
+the media bucket itself would have been actively harmful: its objects are
+served through unsigned public URLs, so access logs could have become publicly
+readable.
+
+ACLs are disabled on new buckets (`BucketOwnerEnforced`), so the legacy
+log-delivery ACL group does not work — the policy form above is required. The
+policy is pinned with `aws:SourceArn`; the additional `aws:SourceAccount`
+condition was omitted because `@aws-sdk/client-sts` is not a dependency of this
+project and no dependency was added to read the account id. `SourceArn` names
+the exact source bucket, and bucket names are globally unique, so the
+confused-deputy surface is already closed. Adding `SourceAccount` is a
+worthwhile console-side tightening.
+
+**Enabling logging now does not reconstruct the past.** It means the *next*
+question of this kind is answerable.
 
 ## Asset Duration Follow-Up
 

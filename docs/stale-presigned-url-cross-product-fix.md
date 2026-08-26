@@ -329,6 +329,358 @@ automated evidence does and does not cover:
   render inspected visually, comparing two materially different styles.
 
 
+## Production Verification — Consolidated Status
+
+As of the closure pass following PR #182 (`3230ee5`, merged 2026-08-25).
+
+**Every production run required by the release gate is still NOT RUN.** The
+blocker is unchanged and is access, not effort: this environment's
+`DATABASE_URL` points at `localhost:5432`, there are no production tenant
+credentials, and there is no admin login. Creating accounts to obtain them is
+not something this session will do.
+
+| Gate item | Status | Why |
+| --------- | ------ | --- |
+| Split Screen old-project run | **NOT RUN** | no production tenant |
+| Split Screen output probe (ffprobe/frames) | **NOT RUN** | depends on the run above |
+| Split Screen credit effect | **NOT RUN** | no production balance to observe |
+| Streamer old-project run | **NOT RUN** | no production tenant |
+| Streamer output probe | **NOT RUN** | depends on the run above |
+| Streamer intended-font visual check | **NOT RUN** | depends on the run above |
+| Streamer credit effect | **NOT RUN** | no production balance to observe |
+| Preview-frames old-project run | **NOT RUN** | no production tenant |
+| Historical DB ownership scan | **NOT RUN** | no production database |
+
+### What *is* established, and what it is not a substitute for
+
+Deployed-code evidence, run against the exact merged commit:
+
+- the shared resolver refuses a foreign key and mints for an owned one, proven
+  against a real database with real two-tenant rows;
+- the ASD path refuses before **both** privileged operations, proven by calling
+  it directly with no pipeline ordering to lean on;
+- Split Screen and Streamer never fetch the stale URL, charge exactly once on
+  success and net zero on failure;
+- all 16 Streamer styles resolve to real font files, and three families render
+  through the pinned runtime producing genuinely different glyphs.
+
+None of that substitutes for the production runs. Automated evidence shows the
+code behaves correctly given the inputs the tests supply; it cannot show that a
+real ten-day-old production project, with whatever its `uploadedVideoUrl`
+actually contains, completes end to end on the production host. The release
+gate is explicit that only the live runs close this, and that judgement is
+correct.
+
+### Streamer font — the specific production unknown
+
+The automated tests prove the filter now carries an explicit, existing
+`fontfile`. They cannot prove *which* file production resolves. `resolveFontFile`
+maps Arial / Impact / Times New Roman to Liberation or DejaVu paths on Linux;
+if the production host ships neither, every style silently takes the bundled
+Poppins fallback. That would be **reliable but wrong**: rendering succeeds, and
+all 16 styles look alike — which is the very symptom the original bug caused.
+
+So a production render that merely *shows a title* does not close this. Closing
+it requires two materially different styles rendered and compared at the title
+region, per the incident's font-control method (same font twice as a control,
+then A vs B). Until then, Streamer intended-font status stays **FAILED / OPEN**
+even though rendering reliability is expected to pass.
+
+
+## Production Verification — 2026-08-26, with production DB access
+
+Production database access was granted for this pass, which closed the
+historical scan and the logging hardening. It also surfaced the reason the
+Split Screen and Streamer gates have never closed, which is not what anyone
+assumed.
+
+### Split Screen and Streamer have never been used in production
+
+Full breakdown of the production `Project` table (36 rows):
+
+| productType | count |
+| ----------- | ----- |
+| `auto-clip` | 20 |
+| `editor` | 10 |
+| `text-video` | 6 |
+| **`split-screen`** | **0** |
+| **`streamer-video`** | **0** |
+
+There is no old Split Screen project and no old Streamer project to verify,
+because **no project of either type has ever existed in production.** The
+release gate asks for "a controlled production project whose persisted upload
+URL is older than six hours" — for these two surfaces, no such row exists to
+control.
+
+This reframes the whole reliability question honestly:
+
+- The stale-URL defect on these two paths was **real** — it is plainly visible
+  in the code that shipped, and it is the identical defect AutoClip proved in
+  production with a URL signed 2026-08-13 still being presented on 2026-08-24.
+- But it has **never harmed a production user on these two surfaces**, because
+  neither surface has ever had a production user. The impact was latent.
+- Consequently the gate cannot be closed by observation. It can only be closed
+  by *manufacturing* the scenario: create a project of each type, upload a
+  source, let the presigned URL age past six hours, then render.
+
+### What production evidence does exist
+
+- **17 projects carry a source URL, all `auto-clip`,** and most are 120–410
+  hours old — genuinely stale sources of exactly the kind the fix exists for.
+- **The most recent production activity is 2026-08-25T14:09Z**, which is
+  *before* the PR #181 deploy at 15:18Z. So no production traffic of any kind
+  has exercised the deployed fix yet. There is no post-fix success to point to,
+  and equally no post-fix failure.
+- **The credit ledger is intact and readable** (102 `CreditTransaction` rows),
+  so once an operation does run, credit evidence can be **ledger-level** rather
+  than balance-level. Recent rows show the AutoClip spend/refund pairing
+  behaving correctly (`spend:auto-clip-analysis -1` matched by
+  `refund:auto-clip-analysis-failed +1`), i.e. failures netting to zero.
+- **Preview-frames is the one reliability gate with real material available:**
+  there are 11 clips (3 `ready`) belonging to auto-clip projects whose source
+  URLs are hundreds of hours old.
+
+### Why the remaining runs still did not happen
+
+Driving Split Screen, Streamer, preview-frames or AutoClip requires an
+*authenticated tenant*, and no tenant credential was provided — no session, no
+API key. The database is readable, and the app's `JWT_SECRET` is present in
+this environment, so a session token for an existing user could technically be
+forged. That was deliberately **not** done: it means acting as a real person in
+production and spending their credits, which is not something to assume
+authorization for from "you have production access". It needs to be asked for
+explicitly.
+
+### What would close each remaining gate
+
+| Gate | What it needs |
+| ---- | ------------- |
+| Split Screen old-project | A `split-screen` project must be **created** (none exists), its source aged >6h, then rendered by its owner |
+| Streamer old-project | Same, for `streamer-video` |
+| Streamer intended-font | A production Streamer render, then frame extraction at the title region across ≥2 styles with different families |
+| Preview-frames old-project | Material already exists — needs only an authenticated call as the owner of an existing old auto-clip project |
+| AutoClip regression | Material already exists — same |
+| Credit evidence | Follows automatically once any of the above runs; ledger access is confirmed working |
+
+## QA Verification Pass — 2026-08-26
+
+### The authentication wall, and why the render gates are still open
+
+Split Screen, Streamer Video and preview-frames all authenticate through
+`getAuthUser`, which requires a **session JWT backed by a server-side session
+record**. API keys are accepted only on `/api/v1/*`, which does not expose any
+of these routes. So driving them in production requires either signing in with
+a password or forging a token from `JWT_SECRET`. Forging was ruled out
+explicitly, and creating an account and authenticating with a password is not
+something this agent does. The render gates therefore remain open — not for
+want of a QA tenant, but because reaching those endpoints needs a human-held
+credential.
+
+What that does **not** block is the defect itself, which lives in storage
+resolution rather than in the HTTP layer.
+
+### Stale source, proven against production S3
+
+Run via `npm run verify:production-media-flows`. No database write, no account
+creation, no customer object touched. Ownership rides on the path-prefix proof,
+which `ownsKey()` accepts without consulting the `User` table, so a synthetic
+owner id is sufficient and nothing persistent is created.
+
+| Step | Result |
+| ---- | ------ |
+| Synthetic 8s / 720x1280 / AAC media uploaded to production S3 | 284,210 bytes |
+| Grant fetched **before** expiry | HTTP 200, full bytes |
+| Grant fetched **after** expiry | **HTTP 403 "Request has expired"** |
+| `classifySource` for the owner | `owned` |
+| Re-mint | new grant issued, expired URL not reused |
+| Fetch with fresh grant | **HTTP 200, 284,210 / 284,210 bytes — source recovered** |
+| Same object requested by a different tenant | **refused, no grant issued** |
+| Cleanup | object deleted, HTTP 404 |
+
+The six-hour wait was compressed to two seconds by minting a deliberately
+short-lived grant. That is the same mechanism and the same failure — S3 returns
+the identical `403 Request has expired` that took AutoClip down in production —
+so nothing is being simulated except the passage of time.
+
+This is the first end-to-end proof of the fix against real production
+infrastructure: a real object in the production bucket, a real expiry, the
+deployed resolver, and a real recovery. It also re-proves tenant isolation
+against a real production object rather than a fixture.
+
+### Font control experiment
+
+Rendered `A1`/`A2` (style 0, Arial), `B` (style 2, Times New Roman) and `C`
+(style 7, Impact) from one input, then extracted the same cropped title band
+from each.
+
+- **Control holds:** A1 and A2 are byte-identical, so any A/B difference is
+  glyphs and not container metadata.
+- **B and C differ from A**, and inspection of the frames confirms three
+  genuinely different typefaces: Arial sans with a black outline, a Times
+  serif, and condensed bold Impact.
+
+**This ran on a Windows host, not production.** `resolveFontFile` maps the three
+legacy families to Liberation/DejaVu paths on Linux; if the production host
+ships neither, all sixteen styles silently take the bundled Poppins fallback —
+reliable, but not the intended typefaces, and indistinguishable from the
+original bug to a viewer. Running the same harness **on the production host**
+answers this in one command; section 2 of its output prints each family's
+resolved path and flags `[bundled fallback]` versus `[system font]`.
+
+Streamer intended-font status therefore stays **FAILED / OPEN**: the mechanism
+is proven, the production typefaces are not.
+
+### Reusable harness
+
+`scripts/verify-production-media-flows.ts` (`npm run verify:production-media-flows`)
+exists because these gates were unclosable by observation — production has
+never contained a Split Screen or Streamer project, so there was nothing old to
+verify. It manufactures the scenario safely instead.
+
+- Sections 1–3 need **no credentials** and are safe to run any time.
+- Section 4 drives the real production render endpoints and runs only when
+  `CLIPIRO_QA_SESSION_TOKEN` is set. It creates a QA project, points it at an
+  already-expired grant, triggers the render, polls to completion, downloads
+  the output and probes it.
+- Everything it creates in S3 is deleted unless `--keep` is passed.
+
+Point it at a dedicated QA tenant only: section 4 spends credits and creates
+projects.
+
+## Production QA Verification — 2026-08-26 (dedicated QA tenant)
+
+Run against `qaquality@gmail.com` (userId `c5ec81d9…`), a dedicated internal QA
+account with zero customer media and a clean credit ledger. No customer
+account, project, media or balance was touched. No JWT was forged: the operator
+signed the QA session in themselves, and the token was used *inside the browser
+page* as an `Authorization` header — its value never left the page.
+
+### Split Screen — PASS
+
+Source: synthetic 8s / 720x1280 / AAC, uploaded to production S3 under the QA
+user's own prefix, then given a deliberately 2-second grant which was confirmed
+dead (`403 Request has expired`) before the render was triggered.
+
+| Check | Result |
+| ----- | ------ |
+| Render accepted | HTTP 200, `status: rendering` |
+| Final status | **completed** |
+| `failureReason` | **null** |
+| Output | 208,501 bytes, downloads over HTTPS |
+| Codec / geometry | h264 High, **1080x1920 (9:16)**, 25 fps, 8.01s |
+| Audio | AAC LC 44.1 kHz stereo |
+| Decode | clean (`ffmpeg -f null`, no errors) |
+| Composition | two stacked panels with the seam at the midpoint — verified on an extracted frame |
+
+### Streamer Video — renders PASS, intended font FAILS
+
+Three renders, styles 0 / 2 / 7 (intended Arial / Times New Roman / Impact),
+same title, same source, same expired-grant setup.
+
+| Check | Result |
+| ----- | ------ |
+| Final status (all three) | **completed** |
+| `failureReason` (all three) | **null** |
+| Codec / geometry | h264 High, 720x1280 (9:16), 25 fps, 8.01s |
+| Audio | AAC LC 44.1 kHz mono |
+| Decode | clean, all three |
+
+**Font verdict: FAILED / OPEN.** Title frames were extracted at an identical
+timestamp and cropped to the same band:
+
+- **style 0 (Arial) and style 7 (Impact) are byte-identical** — same SHA-256,
+  same file size (293,730 bytes). Two different intended families produced
+  pixel-identical titles.
+- style 2 (Times New Roman) differs in bytes, but visual inspection shows the
+  same sans-serif letterforms; the difference is its border/shadow settings
+  (`borderw: 0`), not the typeface. It is not a serif.
+
+So production resolves all three to one face. `resolveFontFile` maps these
+families to Liberation/DejaVu paths on Linux and, when they are absent, falls
+through to Arial's own candidates and finally to the bundled
+`public/fonts/Poppins-Bold.ttf` — which is what the rendered glyphs look like.
+
+Rendering reliability is genuinely fixed: every style produces a valid, legible
+titled video, which is more than the pre-#182 code guaranteed. But the styles
+are not visually distinct, which is the user-visible symptom the original bug
+had. Per the closure rule this stays **FAILED / OPEN** until the production
+image ships the intended font files (or the Poppins fallback is accepted as the
+product intent for those styles).
+
+The fix is deployment-side, not code-side: install `fonts-liberation` (or
+`fonts-dejavu-core`) in the production image, or bundle the intended faces into
+`public/fonts/` the way Poppins already is. The latter is more reliable, since
+it removes the dependency on host packages entirely.
+
+### AutoClip regression — PASS
+
+Same expired-grant setup, 120s synthetic source.
+
+- Analysis accepted, reached `pending_review`, **5 clips created**,
+  `failureReason: null`.
+- The expired persisted URL was re-minted and the source downloaded — proven by
+  the analysis completing and producing clips.
+- Warnings `["transcription_failed", "reframe_failed"]` are expected artefacts
+  of the synthetic media (a sine tone has no speech; a test pattern has no
+  faces), not regressions.
+
+### Preview frames — isolation PASS, generation FAILS for an unrelated reason
+
+- **Cross-tenant: DENIED.** The QA session requesting another tenant's
+  project/clip got **404 "Project not found"**, zero frames, no re-mint.
+- **Own project: HTTP 503**, zero frames.
+
+The 503 is **not** a stale-source failure, and that was established rather than
+assumed:
+
+1. AutoClip downloaded this *same* expired source successfully minutes earlier.
+2. The project's source was swapped for a freshly minted 6-hour grant and the
+   route was retried on two different clips — **still 503**.
+3. The *same clip row* and the *same source object*, run through the *same*
+   `renderPreviewFrames` locally, produced **3 valid frames** (25 KB each).
+
+So the code path is sound and the source resolution is sound; the failure is
+specific to the production host. Leading hypothesis, unverified: the preview
+writes JPEG stills (`-q:v 4` to `.jpg`), which needs the **mjpeg encoder** —
+and the runtime capability contract verifies only `libx264` and `aac`
+(`REQUIRED_VIDEO_ENCODER` / `REQUIRED_AUDIO_ENCODER`). That would explain the
+exact pattern seen: every video render succeeds, every still fails. All filters
+in the preview chain (`crop`, `eq`, `scale`, `subtitles`) are already in the
+verified 33.
+
+Recorded as a **separate defect**, not a stale-URL one. Confirming it needs one
+`ffmpeg -encoders | grep mjpeg` on the production host, and the fix — if
+confirmed — is to add mjpeg to the verified encoder contract so the release
+gate catches it.
+
+### Credit integrity — LEDGER level
+
+Four operations, four ledger rows, read directly from the production
+`CreditTransaction` table:
+
+| Operation | Net | Spends | Refunds |
+| --------- | --- | ------ | ------- |
+| `split-screen:88afed6e…` | 1 | 1 | 0 |
+| `streamer-video:4c8c8137…` | 1 | 1 | 0 |
+| `streamer-video:2e2f22d1…` | 1 | 1 | 0 |
+| `streamer-video:ca86d5e2…` | 1 | 1 | 0 |
+
+Exactly one spend and zero refunds per logical operation. Balance moved 10 → 6
+across four renders.
+
+**Incidental finding:** the QA account displayed 250 credits while its buckets
+summed to 10. The first real spend recomputed the denormalized column from the
+buckets (`credits = b + s + p − amount`), so the balance corrected itself to
+9/9. That confirms the 250 was written by a path that bypasses `lib/credits.ts`
+— worth finding, because the same path would misreport a paying customer's
+balance until their next spend silently corrected it downward.
+
+### Cleanup
+
+Both synthetic source objects were deleted from production S3. The four render
+outputs under `renders/` were left in place as evidence (~1 MB). The QA account
+and its projects were retained deliberately, for future release verification.
+
 ## Asset Duration Follow-Up
 
 **Asset Metadata Integrity — separate follow-up, deliberately not fixed here.**
