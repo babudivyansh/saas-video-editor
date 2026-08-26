@@ -21,9 +21,17 @@ export const userPatchSchema = z
     subscriptionEndsAt: z.coerce.date().nullable().optional(),
     name: z.string().max(100).optional(),
     email: z.string().trim().toLowerCase().pipe(z.email()).optional(),
+    // Required only when granting ADMIN — mints a second full admin, so it
+    // gets the same explicit-confirm gate as the other high-blast-radius
+    // actions below, not just an enum-validated dropdown value.
+    confirm: z.literal(true).optional(),
   })
   .strict()
-  .refine((v) => Object.keys(v).length > 0, { message: "Nothing to update" });
+  .refine((v) => Object.keys(v).length > 0, { message: "Nothing to update" })
+  .refine((v) => v.role !== "ADMIN" || v.confirm === true, {
+    message: "confirm is required when granting the ADMIN role",
+    path: ["confirm"],
+  });
 
 // ── Plans ─────────────────────────────────────────────────────────────────────
 const planFields = {
@@ -218,8 +226,16 @@ export const moderateUserSchema = z
   .object({
     action: z.enum(["suspend", "unsuspend", "revoke_sessions"]),
     reason: z.string().max(500).optional(),
+    // Required for the two actions that cut a live user off (suspend already
+    // has a client confirm-flip; revoke_sessions previously had none at all).
+    // Not required for "unsuspend" — that action is restorative, not destructive.
+    confirm: z.literal(true).optional(),
   })
-  .strict();
+  .strict()
+  .refine((v) => v.action === "unsuspend" || v.confirm === true, {
+    message: "confirm is required for this action",
+    path: ["confirm"],
+  });
 
 export const refundSchema = z
   .object({
@@ -258,10 +274,18 @@ export const opsJobActionSchema = z
 export const opsFlagsSchema = z
   .object({
     flag: z.object({ name: z.string().regex(/^[\w.-]{1,64}$/), value: z.boolean().nullable() }).strict().optional(),
-    maintenance: z.object({ on: z.boolean(), message: z.string().max(300).optional() }).strict().optional(),
+    // confirm required in both directions — flipping maintenance ON blocks
+    // all non-admin traffic site-wide, and flipping it OFF mid-incident with
+    // one accidental click is just as consequential.
+    maintenance: z.object({ on: z.boolean(), message: z.string().max(300).optional(), confirm: z.literal(true) }).strict().optional(),
   })
   .strict()
   .refine((v) => v.flag !== undefined || v.maintenance !== undefined, { message: "Nothing to update" });
+
+// POST /api/admin/ops/sessions — revokes every non-admin session platform-wide.
+// The UI already gates this behind a confirm-flip; this makes that
+// confirmation a server-enforced requirement, not just a UI courtesy.
+export const opsSessionsRevokeSchema = z.object({ confirm: z.literal(true) }).strict();
 
 // Empty-string query params (cleared filter inputs) are treated as absent.
 const blankAsUndefined = (v: unknown) => (v === "" ? undefined : v);

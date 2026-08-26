@@ -41,7 +41,7 @@ function RevokeAllSessions({ headers, onDone }: { headers: () => Record<string, 
   async function run() {
     setBusy(true);
     try {
-      const res = await fetch("/api/admin/ops/sessions", { method: "POST", headers: headers() });
+      const res = await fetch("/api/admin/ops/sessions", { method: "POST", headers: headers(), body: JSON.stringify({ confirm: true }) });
       if (res.ok) onDone();
     } finally {
       setBusy(false);
@@ -69,6 +69,7 @@ export default function AdminOpsPage() {
   const [maintMessage, setMaintMessage] = useState("");
   const [newFlag, setNewFlag] = useState("");
   const [confirmMaint, setConfirmMaint] = useState(false);
+  const [confirmMaintOff, setConfirmMaintOff] = useState(false);
 
   const headers = useCallback(
     () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` }),
@@ -99,6 +100,7 @@ export default function AdminOpsPage() {
       setMsg(e.issues?.[0]?.message ?? e.error ?? "Update failed");
     }
     setConfirmMaint(false);
+    setConfirmMaintOff(false);
     await load();
   }
 
@@ -142,11 +144,18 @@ export default function AdminOpsPage() {
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 mb-2"
           />
           {d.maintenance.on ? (
-            <button onClick={() => patch({ maintenance: { on: false } })} className="text-xs font-semibold text-white bg-emerald-600 px-4 py-2 rounded-lg cursor-pointer">
-              Turn OFF maintenance
-            </button>
+            confirmMaintOff ? (
+              <button onClick={() => patch({ maintenance: { on: false, confirm: true } })} onBlur={() => setConfirmMaintOff(false)}
+                className="text-xs font-bold text-white bg-emerald-700 px-4 py-2 rounded-lg cursor-pointer">
+                Confirm — restore traffic?
+              </button>
+            ) : (
+              <button onClick={() => setConfirmMaintOff(true)} className="text-xs font-semibold text-white bg-emerald-600 px-4 py-2 rounded-lg cursor-pointer">
+                Turn OFF maintenance
+              </button>
+            )
           ) : confirmMaint ? (
-            <button onClick={() => patch({ maintenance: { on: true, message: maintMessage.trim() || undefined } })} onBlur={() => setConfirmMaint(false)}
+            <button onClick={() => patch({ maintenance: { on: true, message: maintMessage.trim() || undefined, confirm: true } })} onBlur={() => setConfirmMaint(false)}
               className="text-xs font-bold text-white bg-red-600 px-4 py-2 rounded-lg cursor-pointer">
               Confirm — take the API down?
             </button>

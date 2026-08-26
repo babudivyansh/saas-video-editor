@@ -5,6 +5,7 @@ import { auditAdminAction, auditIp } from "@/lib/admin/audit";
 import { commissionActionSchema } from "@/lib/admin/schemas";
 import { notifyAdminsIfPayoutEligible } from "@/lib/affiliate";
 import { logger } from "@/lib/logger";
+import { rateLimit } from "@/lib/rate-limit";
 
 // POST /api/admin/commissions/[id]  body: { action: "release" | "reject", reason? }
 //
@@ -14,6 +15,10 @@ import { logger } from "@/lib/logger";
 // an audit row for both outcomes.
 export const POST = withAdmin<{ id: string }>(async (req, { admin, params }) => {
   const { id } = params;
+
+  const { allowed } = await rateLimit(`admin-commission:${admin.userId}`, 10, 900);
+  if (!allowed) return NextResponse.json({ error: "Too many requests — try again shortly." }, { status: 429 });
+
   const { action, reason } = await parseBody(req, commissionActionSchema);
 
   const result = await prisma.$transaction(async (tx) => {

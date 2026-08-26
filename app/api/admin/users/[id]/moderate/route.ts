@@ -4,6 +4,7 @@ import { invalidateSession } from "@/lib/auth";
 import { withAdmin, parseBody } from "@/lib/admin/api";
 import { auditAdminAction, auditIp } from "@/lib/admin/audit";
 import { moderateUserSchema } from "@/lib/admin/schemas";
+import { rateLimit } from "@/lib/rate-limit";
 
 // POST /api/admin/users/[id]/moderate  body: { action: suspend|unsuspend|revoke_sessions, reason? }
 // Suspend also revokes the live session immediately — login is blocked while
@@ -11,6 +12,10 @@ import { moderateUserSchema } from "@/lib/admin/schemas";
 // locked out without touching the per-request auth hot path.
 export const POST = withAdmin<{ id: string }>(async (req, { admin, params }) => {
   const { id } = params;
+
+  const { allowed } = await rateLimit(`admin-moderate:${admin.userId}`, 10, 900);
+  if (!allowed) return NextResponse.json({ error: "Too many requests — try again shortly." }, { status: 429 });
+
   const { action, reason } = await parseBody(req, moderateUserSchema);
 
   if (id === admin.userId && action !== "revoke_sessions") {

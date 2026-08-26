@@ -5,6 +5,7 @@ import { withAdmin, parseBody } from "@/lib/admin/api";
 import { auditAdminAction, auditIp } from "@/lib/admin/audit";
 import { userPatchSchema } from "@/lib/admin/schemas";
 import { logger } from "@/lib/logger";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const PATCH = withAdmin<{ id: string }>(async (req, { admin, params }) => {
   const { id } = params;
@@ -115,6 +116,16 @@ export const DELETE = withAdmin<{ id: string }>(async (req, { admin, params }) =
     select: { id: true, email: true, name: true, role: true },
   });
   if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+  // The harder-to-reverse action (delete) had a weaker guard than the
+  // reversible one (moderate/suspend, which already refuses an ADMIN target)
+  // — bring delete in line with that.
+  if (target.role === "ADMIN") {
+    return NextResponse.json({ error: "Demote the admin role before deleting this account." }, { status: 409 });
+  }
+
+  const { allowed } = await rateLimit(`admin-user-delete:${admin.userId}`, 10, 900);
+  if (!allowed) return NextResponse.json({ error: "Too many requests — try again shortly." }, { status: 429 });
 
   // Purchase rows are financial/audit records and can't cascade away with the
   // account (Purchase.user is onDelete: Restrict) — refuse up front with a

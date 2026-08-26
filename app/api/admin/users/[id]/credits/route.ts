@@ -3,11 +3,15 @@ import { withAdmin, parseBody } from "@/lib/admin/api";
 import { auditIp } from "@/lib/admin/audit";
 import { creditAdjustSchema } from "@/lib/admin/schemas";
 import { adjustCredits } from "@/lib/admin/billing";
+import { rateLimit } from "@/lib/rate-limit";
 
 // POST /api/admin/users/[id]/credits  body: { delta, reason }
 // The audited way to correct a balance (vs. silently overwriting the credits
 // field): grants and deductions both require a reason and land in AuditLog.
 export const POST = withAdmin<{ id: string }>(async (req, { admin, params }) => {
+  const { allowed } = await rateLimit(`admin-credit-adjust:${admin.userId}`, 10, 900);
+  if (!allowed) return NextResponse.json({ error: "Too many requests — try again shortly." }, { status: 429 });
+
   const { delta, reason } = await parseBody(req, creditAdjustSchema);
   const result = await adjustCredits({
     userId: params.id,

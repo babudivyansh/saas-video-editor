@@ -88,6 +88,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   const [notesSaved, setNotesSaved] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [confirmSuspend, setConfirmSuspend] = useState(false);
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
 
   const headers = useCallback(
     () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` }),
@@ -110,10 +111,11 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   async function moderate(action: "suspend" | "unsuspend" | "revoke_sessions") {
     setMsg(null);
     setConfirmSuspend(false);
+    setConfirmRevoke(false);
     const res = await fetch(`/api/admin/users/${id}/moderate`, {
       method: "POST",
       headers: headers(),
-      body: JSON.stringify({ action }),
+      body: JSON.stringify({ action, confirm: action !== "unsuspend" ? true : undefined }),
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
@@ -191,9 +193,15 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           </div>
           <CreditAdjust userId={id} onDone={load} headers={headers} />
           <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-50">
-            <button onClick={() => moderate("revoke_sessions")} className="text-xs font-semibold text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg border border-gray-200 cursor-pointer">
-              Revoke sessions
-            </button>
+            {confirmRevoke ? (
+              <button onClick={() => moderate("revoke_sessions")} onBlur={() => setConfirmRevoke(false)} className="text-xs font-bold text-white bg-gray-700 px-3 py-1.5 rounded-lg cursor-pointer">
+                Confirm revoke?
+              </button>
+            ) : (
+              <button onClick={() => setConfirmRevoke(true)} className="text-xs font-semibold text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg border border-gray-200 cursor-pointer">
+                Revoke sessions
+              </button>
+            )}
             {suspended ? (
               <button onClick={() => moderate("unsuspend")} className="text-xs font-semibold text-emerald-700 px-3 py-1.5 rounded-lg border border-emerald-200 cursor-pointer">
                 Unsuspend

@@ -52,6 +52,11 @@ export default function AdminUsersPage() {
   const [deletingId, setDeletingId]       = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
+  // Granting ADMIN mints a second full admin — confirm before it fires,
+  // same as the delete-confirm pattern above. Demoting back to USER doesn't
+  // need this (reversible, lower blast radius).
+  const [confirmPromoteId, setConfirmPromoteId] = useState<string | null>(null);
+
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async (q: string, pg: number) => {
@@ -200,13 +205,29 @@ export default function AdminUsersPage() {
                           <td className="py-3 px-3">
                             <select
                               value={u.role}
-                              onChange={e => patch(u.id, { role: e.target.value })}
+                              onChange={e => e.target.value === "ADMIN" ? setConfirmPromoteId(u.id) : patch(u.id, { role: e.target.value })}
                               disabled={savingId === u.id}
                               className={`text-xs font-semibold border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 ${isAdmin ? "border-blue-200 text-blue-700 bg-blue-50" : "border-gray-200 text-gray-600 bg-white"}`}
                             >
                               <option value="USER">User</option>
                               <option value="ADMIN">Admin</option>
                             </select>
+                            {confirmPromoteId === u.id && (
+                              <div className="flex items-center gap-1.5 mt-1.5 whitespace-nowrap">
+                                <span className="text-[11px] text-gray-500">Grant admin?</span>
+                                <button
+                                  onClick={() => { patch(u.id, { role: "ADMIN", confirm: true }); setConfirmPromoteId(null); }}
+                                  disabled={savingId === u.id}
+                                  className="text-[11px] font-bold text-white bg-red-600 hover:bg-red-700 rounded px-2 py-0.5">
+                                  Confirm
+                                </button>
+                                <button
+                                  onClick={() => setConfirmPromoteId(null)}
+                                  className="text-[11px] text-gray-500 hover:text-gray-700 border border-gray-200 rounded px-2 py-0.5">
+                                  Cancel
+                                </button>
+                              </div>
+                            )}
                           </td>
                           <td className="py-3 px-3 text-gray-600">{u._count.projects}</td>
                           <td className="py-3 px-3 text-gray-400 text-xs whitespace-nowrap">{fmt(u.createdAt)}</td>
