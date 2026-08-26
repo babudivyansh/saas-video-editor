@@ -2,6 +2,8 @@
 import { useEffect, useState, useCallback } from "react";
 import AdminShell from "../AdminShell";
 import { useAuth } from "@/app/components/AuthContext";
+import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
+import { useToast } from "@/app/components/ui/Toast";
 
 interface Plan {
   id: string;
@@ -27,6 +29,7 @@ const input = "w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 tex
 
 export default function AdminPricingPage() {
   const { token, user } = useAuth();
+  const { showToast } = useToast();
   const [plans, setPlans]       = useState<Plan[]>([]);
   const [loading, setLoading]   = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -75,7 +78,7 @@ export default function AdminPricingPage() {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
     });
-    setConfirmDelete(null);
+    showToast("Plan deactivated", "success");
     await load();
   }
 
@@ -134,14 +137,7 @@ export default function AdminPricingPage() {
                   <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer">
                     <input type="checkbox" checked={p.active} onChange={e => edit(p.id, { active: e.target.checked })} /> Active
                   </label>
-                  {confirmDelete === p.id ? (
-                    <div className="flex gap-2">
-                      <button onClick={() => deletePlan(p.id)} className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg">Confirm Delete</button>
-                      <button onClick={() => setConfirmDelete(null)} className="text-xs text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-lg border border-gray-200">Cancel</button>
-                    </div>
-                  ) : (
-                    <button onClick={() => setConfirmDelete(p.id)} className="text-xs font-semibold text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">Delete</button>
-                  )}
+                  <button onClick={() => setConfirmDelete(p.id)} className="text-xs font-semibold text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">Deactivate</button>
                 </div>
               </div>
 
@@ -280,6 +276,15 @@ export default function AdminPricingPage() {
           </form>
         </div>
       )}
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Deactivate plan"
+        message={`Deactivate "${plans.find(p => p.id === confirmDelete)?.name ?? ""}"? It stops being offered to new customers; existing subscribers are unaffected.`}
+        confirmLabel="Deactivate"
+        danger
+        onConfirm={async () => { if (confirmDelete) await deletePlan(confirmDelete); }}
+        onClose={() => setConfirmDelete(null)}
+      />
     </AdminShell>
   );
 }

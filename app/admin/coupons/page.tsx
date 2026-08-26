@@ -2,6 +2,8 @@
 import { useEffect, useState, useCallback } from "react";
 import AdminShell from "../AdminShell";
 import { useAuth } from "@/app/components/AuthContext";
+import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
+import { useToast } from "@/app/components/ui/Toast";
 
 interface Coupon {
   id: string;
@@ -35,6 +37,7 @@ function fmtDate(iso: string | null) {
 
 export default function AdminCouponsPage() {
   const { token, user } = useAuth();
+  const { showToast } = useToast();
   const [coupons, setCoupons]   = useState<Coupon[]>([]);
   const [loading, setLoading]   = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -90,7 +93,7 @@ export default function AdminCouponsPage() {
 
   async function deleteCoupon(id: string) {
     await fetch(`/api/admin/coupons/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-    setConfirmDelete(null);
+    showToast("Coupon deactivated", "success");
     await load();
   }
 
@@ -169,14 +172,7 @@ export default function AdminCouponsPage() {
                   <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer">
                     <input type="checkbox" checked={c.active} onChange={e => edit(c.id, { active: e.target.checked })} /> Active
                   </label>
-                  {confirmDelete === c.id ? (
-                    <div className="flex gap-2">
-                      <button onClick={() => deleteCoupon(c.id)} className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg">Confirm</button>
-                      <button onClick={() => setConfirmDelete(null)} className="text-xs text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-lg border border-gray-200">Cancel</button>
-                    </div>
-                  ) : (
-                    <button onClick={() => setConfirmDelete(c.id)} className="text-xs font-semibold text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">Deactivate</button>
-                  )}
+                  <button onClick={() => setConfirmDelete(c.id)} className="text-xs font-semibold text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">Deactivate</button>
                 </div>
               </div>
 
@@ -332,6 +328,15 @@ export default function AdminCouponsPage() {
           </form>
         </div>
       )}
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Deactivate coupon"
+        message={`Deactivate "${coupons.find(c => c.id === confirmDelete)?.code ?? ""}"? It stops working for new redemptions immediately.`}
+        confirmLabel="Deactivate"
+        danger
+        onConfirm={async () => { if (confirmDelete) await deleteCoupon(confirmDelete); }}
+        onClose={() => setConfirmDelete(null)}
+      />
     </AdminShell>
   );
 }

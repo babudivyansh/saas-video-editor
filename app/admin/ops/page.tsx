@@ -4,8 +4,11 @@
 // worker liveness, feature flags, maintenance mode, and a storage report.
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import AdminShell from "../AdminShell";
 import { useAuth } from "@/app/components/AuthContext";
+import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
+import { useToast } from "@/app/components/ui/Toast";
 
 interface OpsData {
   queueCounts: Record<string, Record<string, number>> | null;
@@ -36,33 +39,33 @@ function fmtBytes(bytes: number) {
 // Incident response: force every non-admin user to log in again.
 function RevokeAllSessions({ headers, onDone }: { headers: () => Record<string, string>; onDone: () => void }) {
   const [confirm, setConfirm] = useState(false);
-  const [busy, setBusy] = useState(false);
 
   async function run() {
-    setBusy(true);
-    try {
-      const res = await fetch("/api/admin/ops/sessions", { method: "POST", headers: headers(), body: JSON.stringify({ confirm: true }) });
-      if (res.ok) onDone();
-    } finally {
-      setBusy(false);
-      setConfirm(false);
-    }
+    const res = await fetch("/api/admin/ops/sessions", { method: "POST", headers: headers(), body: JSON.stringify({ confirm: true }) });
+    if (res.ok) onDone();
   }
 
-  return confirm ? (
-    <button onClick={run} onBlur={() => setConfirm(false)} disabled={busy}
-      className="text-xs font-bold text-white bg-red-600 px-3 py-1.5 rounded-lg disabled:opacity-50 cursor-pointer">
-      {busy ? "Revoking…" : "Confirm — log everyone out?"}
-    </button>
-  ) : (
-    <button onClick={() => setConfirm(true)} className="text-xs font-semibold text-red-600 border border-red-200 px-3 py-1.5 rounded-lg cursor-pointer">
-      Revoke all user sessions
-    </button>
+  return (
+    <>
+      <button onClick={() => setConfirm(true)} className="text-xs font-semibold text-red-600 border border-red-200 px-3 py-1.5 rounded-lg cursor-pointer">
+        Revoke all user sessions
+      </button>
+      <ConfirmDialog
+        open={confirm}
+        title="Revoke all user sessions"
+        message="Log every non-admin user out immediately? They'll all need to sign in again."
+        confirmLabel="Revoke all"
+        danger
+        onConfirm={run}
+        onClose={() => setConfirm(false)}
+      />
+    </>
   );
 }
 
 export default function AdminOpsPage() {
   const { token } = useAuth();
+  const { showToast } = useToast();
   const [d, setD] = useState<OpsData | null>(null);
   const [assetsD, setAssetsD] = useState<AssetsAdminData | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -92,16 +95,15 @@ export default function AdminOpsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function patch(body: Record<string, unknown>) {
+  async function patch(body: Record<string, unknown>): Promise<boolean> {
     setMsg(null);
     const res = await fetch("/api/admin/ops", { method: "PATCH", headers: headers(), body: JSON.stringify(body) });
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
       setMsg(e.issues?.[0]?.message ?? e.error ?? "Update failed");
     }
-    setConfirmMaint(false);
-    setConfirmMaintOff(false);
     await load();
+    return res.ok;
   }
 
   async function jobAction(jobId: string, action: "retry" | "remove", queueName: string) {
@@ -125,6 +127,11 @@ export default function AdminOpsPage() {
 
   return (
     <AdminShell title="Operations">
+      <div className="flex justify-end mb-4">
+        <Link href="/admin/ops/diagnostics" className="text-xs font-semibold text-gray-500 hover:text-gray-800 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50">
+          Incident Tools →
+        </Link>
+      </div>
       {msg && <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg px-4 py-2 mb-4">{msg}</p>}
       {d.maintenance.on && (
         <p className="text-sm font-semibold text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 mb-4">
@@ -144,20 +151,8 @@ export default function AdminOpsPage() {
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 mb-2"
           />
           {d.maintenance.on ? (
-            confirmMaintOff ? (
-              <button onClick={() => patch({ maintenance: { on: false, confirm: true } })} onBlur={() => setConfirmMaintOff(false)}
-                className="text-xs font-bold text-white bg-emerald-700 px-4 py-2 rounded-lg cursor-pointer">
-                Confirm — restore traffic?
-              </button>
-            ) : (
-              <button onClick={() => setConfirmMaintOff(true)} className="text-xs font-semibold text-white bg-emerald-600 px-4 py-2 rounded-lg cursor-pointer">
-                Turn OFF maintenance
-              </button>
-            )
-          ) : confirmMaint ? (
-            <button onClick={() => patch({ maintenance: { on: true, message: maintMessage.trim() || undefined, confirm: true } })} onBlur={() => setConfirmMaint(false)}
-              className="text-xs font-bold text-white bg-red-600 px-4 py-2 rounded-lg cursor-pointer">
-              Confirm — take the API down?
+            <button onClick={() => setConfirmMaintOff(true)} className="text-xs font-semibold text-white bg-emerald-600 px-4 py-2 rounded-lg cursor-pointer">
+              Turn OFF maintenance
             </button>
           ) : (
             <button onClick={() => setConfirmMaint(true)} className="text-xs font-semibold text-red-600 border border-red-200 px-4 py-2 rounded-lg cursor-pointer">
@@ -355,6 +350,29 @@ export default function AdminOpsPage() {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={confirmMaint}
+        title="Turn ON maintenance"
+        message="Block all non-admin API traffic with a 503 immediately? Admin routes and /api/health stay reachable."
+        confirmLabel="Turn on"
+        danger
+        onConfirm={async () => {
+          const ok = await patch({ maintenance: { on: true, message: maintMessage.trim() || undefined, confirm: true } });
+          showToast(ok ? "Maintenance mode is ON" : "Failed to turn on maintenance mode", ok ? "success" : "error");
+        }}
+        onClose={() => setConfirmMaint(false)}
+      />
+      <ConfirmDialog
+        open={confirmMaintOff}
+        title="Turn OFF maintenance"
+        message="Restore normal traffic immediately?"
+        confirmLabel="Turn off"
+        onConfirm={async () => {
+          const ok = await patch({ maintenance: { on: false, confirm: true } });
+          showToast(ok ? "Maintenance mode is OFF" : "Failed to turn off maintenance mode", ok ? "success" : "error");
+        }}
+        onClose={() => setConfirmMaintOff(false)}
+      />
     </AdminShell>
   );
 }

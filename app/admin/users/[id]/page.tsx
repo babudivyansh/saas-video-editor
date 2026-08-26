@@ -8,6 +8,7 @@ import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import AdminShell from "../../AdminShell";
 import { useAuth } from "@/app/components/AuthContext";
+import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 
 interface Detail {
   user: {
@@ -193,22 +194,12 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           </div>
           <CreditAdjust userId={id} onDone={load} headers={headers} />
           <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-50">
-            {confirmRevoke ? (
-              <button onClick={() => moderate("revoke_sessions")} onBlur={() => setConfirmRevoke(false)} className="text-xs font-bold text-white bg-gray-700 px-3 py-1.5 rounded-lg cursor-pointer">
-                Confirm revoke?
-              </button>
-            ) : (
-              <button onClick={() => setConfirmRevoke(true)} className="text-xs font-semibold text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg border border-gray-200 cursor-pointer">
-                Revoke sessions
-              </button>
-            )}
+            <button onClick={() => setConfirmRevoke(true)} className="text-xs font-semibold text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg border border-gray-200 cursor-pointer">
+              Revoke sessions
+            </button>
             {suspended ? (
               <button onClick={() => moderate("unsuspend")} className="text-xs font-semibold text-emerald-700 px-3 py-1.5 rounded-lg border border-emerald-200 cursor-pointer">
                 Unsuspend
-              </button>
-            ) : confirmSuspend ? (
-              <button onClick={() => moderate("suspend")} onBlur={() => setConfirmSuspend(false)} className="text-xs font-bold text-white bg-red-600 px-3 py-1.5 rounded-lg cursor-pointer">
-                Confirm suspend?
               </button>
             ) : (
               <button onClick={() => setConfirmSuspend(true)} className="text-xs font-semibold text-red-600 px-3 py-1.5 rounded-lg border border-red-200 cursor-pointer">
@@ -341,6 +332,24 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           </table>
         )}
       </div>
+      <ConfirmDialog
+        open={confirmSuspend}
+        title="Suspend user"
+        message={`Suspend "${d.user.email}"? Their login is blocked immediately and their live session is revoked.`}
+        confirmLabel="Suspend"
+        danger
+        onConfirm={() => moderate("suspend")}
+        onClose={() => setConfirmSuspend(false)}
+      />
+      <ConfirmDialog
+        open={confirmRevoke}
+        title="Revoke sessions"
+        message={`Log "${d.user.email}" out of every active session? They'll need to sign in again.`}
+        confirmLabel="Revoke"
+        danger
+        onConfirm={() => moderate("revoke_sessions")}
+        onClose={() => setConfirmRevoke(false)}
+      />
     </AdminShell>
   );
 }

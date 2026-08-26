@@ -2,6 +2,8 @@
 import { useEffect, useState, useCallback, useRef, Fragment } from "react";
 import AdminShell from "../AdminShell";
 import { useAuth } from "@/app/components/AuthContext";
+import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
+import { useToast } from "@/app/components/ui/Toast";
 
 interface PlanRef { id: string; name: string; slug: string }
 interface AdminUser {
@@ -31,6 +33,7 @@ function isExpired(iso: string | null) {
 
 export default function AdminUsersPage() {
   const { token, user } = useAuth();
+  const { showToast } = useToast();
   const [users, setUsers]     = useState<AdminUser[]>([]);
   const [plans, setPlans]     = useState<PlanRef[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +52,6 @@ export default function AdminUsersPage() {
   const [editEmail, setEditEmail]         = useState("");
 
   // Delete confirm
-  const [deletingId, setDeletingId]       = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Granting ADMIN mints a second full admin — confirm before it fires,
@@ -110,7 +112,6 @@ export default function AdminUsersPage() {
   }
 
   async function deleteUser(id: string) {
-    setDeletingId(id);
     try {
       const res = await fetch(`/api/admin/users/${id}`, {
         method: "DELETE",
@@ -120,12 +121,12 @@ export default function AdminUsersPage() {
         setUsers(prev => prev.filter(x => x.id !== id));
         setTotal(prev => prev - 1);
         if (expandedId === id) setExpandedId(null);
+        showToast("User deleted", "success");
       } else {
         const d = await res.json() as { error?: string };
-        alert(d.error ?? "Failed to delete user.");
+        showToast(d.error ?? "Failed to delete user.", "error");
       }
     } finally {
-      setDeletingId(null);
       setDeleteConfirmId(null);
     }
   }
@@ -212,22 +213,6 @@ export default function AdminUsersPage() {
                               <option value="USER">User</option>
                               <option value="ADMIN">Admin</option>
                             </select>
-                            {confirmPromoteId === u.id && (
-                              <div className="flex items-center gap-1.5 mt-1.5 whitespace-nowrap">
-                                <span className="text-[11px] text-gray-500">Grant admin?</span>
-                                <button
-                                  onClick={() => { patch(u.id, { role: "ADMIN", confirm: true }); setConfirmPromoteId(null); }}
-                                  disabled={savingId === u.id}
-                                  className="text-[11px] font-bold text-white bg-red-600 hover:bg-red-700 rounded px-2 py-0.5">
-                                  Confirm
-                                </button>
-                                <button
-                                  onClick={() => setConfirmPromoteId(null)}
-                                  className="text-[11px] text-gray-500 hover:text-gray-700 border border-gray-200 rounded px-2 py-0.5">
-                                  Cancel
-                                </button>
-                              </div>
-                            )}
                           </td>
                           <td className="py-3 px-3 text-gray-600">{u._count.projects}</td>
                           <td className="py-3 px-3 text-gray-400 text-xs whitespace-nowrap">{fmt(u.createdAt)}</td>
@@ -243,27 +228,11 @@ export default function AdminUsersPage() {
                                 className="text-xs font-semibold text-blue-600 hover:text-blue-800 border border-blue-200 rounded-lg px-2.5 py-1.5 hover:bg-blue-50 transition-colors">
                                 {expandedId === u.id ? "Close" : "Edit"}
                               </button>
-                              {deleteConfirmId === u.id ? (
-                                <>
-                                  <button
-                                    onClick={() => deleteUser(u.id)}
-                                    disabled={deletingId === u.id}
-                                    className="text-xs font-semibold text-white bg-red-600 hover:bg-red-700 disabled:bg-red-400 rounded-lg px-2.5 py-1.5 transition-colors">
-                                    {deletingId === u.id ? "…" : "Confirm"}
-                                  </button>
-                                  <button
-                                    onClick={() => setDeleteConfirmId(null)}
-                                    className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-2 py-1.5 hover:bg-gray-50 transition-colors">
-                                    Cancel
-                                  </button>
-                                </>
-                              ) : (
-                                <button
-                                  onClick={() => setDeleteConfirmId(u.id)}
-                                  className="text-xs font-semibold text-red-600 hover:text-red-800 border border-red-200 rounded-lg px-2.5 py-1.5 hover:bg-red-50 transition-colors">
-                                  Delete
-                                </button>
-                              )}
+                              <button
+                                onClick={() => setDeleteConfirmId(u.id)}
+                                className="text-xs font-semibold text-red-600 hover:text-red-800 border border-red-200 rounded-lg px-2.5 py-1.5 hover:bg-red-50 transition-colors">
+                                Delete
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -348,6 +317,28 @@ export default function AdminUsersPage() {
           </div>
         </>
       )}
+      <ConfirmDialog
+        open={confirmPromoteId !== null}
+        title="Grant admin access"
+        message={`Make "${users.find(u => u.id === confirmPromoteId)?.email ?? ""}" a full admin? They'll get access to every page and action in this console.`}
+        confirmLabel="Grant admin"
+        danger
+        onConfirm={async () => {
+          if (!confirmPromoteId) return;
+          await patch(confirmPromoteId, { role: "ADMIN", confirm: true });
+          showToast("Admin access granted", "success");
+        }}
+        onClose={() => setConfirmPromoteId(null)}
+      />
+      <ConfirmDialog
+        open={deleteConfirmId !== null}
+        title="Delete user"
+        message={`Permanently delete "${users.find(u => u.id === deleteConfirmId)?.email ?? ""}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        danger
+        onConfirm={async () => { if (deleteConfirmId) await deleteUser(deleteConfirmId); }}
+        onClose={() => setDeleteConfirmId(null)}
+      />
     </AdminShell>
   );
 }
