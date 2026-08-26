@@ -20,6 +20,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/app/components/AuthContext";
 import { NotificationBell } from "@/app/components/NotificationBell";
 import { ToastProvider } from "@/app/components/ui/Toast";
@@ -293,15 +294,23 @@ function Shell({ email, onSignOut, children }: { email: string; onSignOut: () =>
 
 export default function AdminLayoutClient({ children }: { children: React.ReactNode }) {
   const { user, isLoading, signOut, token } = useAuth();
-  const [elevated, setElevated] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    if (!token || !user || user.role !== "ADMIN") return;
-    fetch("/api/admin/elevate", { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => (r.ok ? r.json() : { elevated: false }))
-      .then((d) => setElevated(!!d.elevated))
-      .catch(() => setElevated(false));
-  }, [token, user]);
+  // SEC-10: previously a mount-only effect, so a session that lapsed mid-tab
+  // (the 8h elevation window closing while the tab stayed open) was only
+  // ever discovered when some action's own API call 403'd — the user saw
+  // scattered failures, not a redirect back to re-verify. Polling via
+  // react-query means a lapse is caught here, once, within 5 minutes.
+  const { data: elevatedData, refetch: refetchElevated } = useQuery({
+    queryKey: ["admin-elevated", token],
+    queryFn: async () => {
+      const r = await fetch("/api/admin/elevate", { headers: { Authorization: `Bearer ${token}` } });
+      return r.ok ? ((await r.json()) as { elevated: boolean }) : { elevated: false };
+    },
+    enabled: !!token && !!user && user.role === "ADMIN",
+    refetchInterval: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
+  const elevated = elevatedData ? elevatedData.elevated : null;
 
   if (isLoading || (user && user.role === "ADMIN" && elevated === null)) {
     return (
@@ -320,7 +329,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
   }
 
   if (!elevated) {
-    return <AdminGate email={user.email} onElevated={() => setElevated(true)} />;
+    return <AdminGate email={user.email} onElevated={() => refetchElevated()} />;
   }
 
   return (
