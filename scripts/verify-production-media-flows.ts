@@ -197,10 +197,29 @@ async function renderFontSamples(mediaPath: string): Promise<void> {
 async function verifyRenderFlows(mediaPath: string): Promise<void> {
   console.log("\n[4] Authenticated production render flows");
   if (!TOKEN) {
-    console.log("  SKIPPED — set CLIPIRO_QA_SESSION_TOKEN to a dedicated QA account's session token.");
+    // Distinguish "not attempted" from "attempted and lost the value" — a
+    // shell `read` that hit EOF exports an empty string, which looks the same
+    // as never setting it unless we say so.
+    if ("CLIPIRO_QA_SESSION_TOKEN" in process.env) {
+      bad("QA session token is set but EMPTY",
+        "a `read` prompt that got EOF, or an unset that ran too early — the render flows did NOT run");
+    } else {
+      console.log("  SKIPPED — set CLIPIRO_QA_SESSION_TOKEN to a dedicated QA account's session token.");
+    }
     console.log("  These endpoints use session auth (getAuthUser); API keys are only accepted on /api/v1.");
     return;
   }
+
+  // Fail fast and loudly rather than spending credits on the wrong tenant.
+  const who = await api("GET", "/api/auth/me");
+  if (who.status !== 200) {
+    bad("QA session token rejected", `GET /api/auth/me -> HTTP ${who.status}`);
+    return;
+  }
+  const me = (who.json.user ?? who.json) as { email?: string; credits?: number };
+  const email = me.email ?? "(unknown)";
+  console.log(`  authenticated as ${email.replace(/^(.{4}).*(@.*)$/, "$1***$2")} — credits=${me.credits ?? "?"}`);
+  console.log("  NOTE: this run creates projects and spends credits on THIS account. It must be a QA tenant.");
 
   const owner = `qa-smoke-${randomUUID()}`;
   const key = `uploads/${owner}/clipiro-qa-render-${Date.now()}.mp4`;
@@ -266,7 +285,16 @@ async function main() {
     if (!KEEP) { try { fs.unlinkSync(media); } catch { /* best effort */ } }
   }
 
-  console.log(`\n${failures === 0 ? "ALL CHECKS PASSED" : `${failures} CHECK(S) FAILED`}`);
+  // Never report a bare "all passed" when the render flows did not run. An
+  // empty CLIPIRO_QA_SESSION_TOKEN (a `read` that hit EOF, an unset that fired
+  // early) would otherwise skip section 4 silently and still look green, which
+  // is exactly the kind of false pass this harness exists to prevent.
+  const scope = TOKEN ? "storage + render flows" : "STORAGE ONLY — render flows skipped, no session token";
+  console.log(`\nScope: ${scope}`);
+  console.log(failures === 0 ? "ALL EXECUTED CHECKS PASSED" : `${failures} CHECK(S) FAILED`);
+  if (!TOKEN) {
+    console.log("Split Screen / Streamer / preview-frames remain UNVERIFIED — this run does not close those gates.");
+  }
   process.exitCode = failures === 0 ? 0 : 1;
 }
 
