@@ -547,6 +547,140 @@ verify. It manufactures the scenario safely instead.
 Point it at a dedicated QA tenant only: section 4 spends credits and creates
 projects.
 
+## Production QA Verification — 2026-08-26 (dedicated QA tenant)
+
+Run against `qaquality@gmail.com` (userId `c5ec81d9…`), a dedicated internal QA
+account with zero customer media and a clean credit ledger. No customer
+account, project, media or balance was touched. No JWT was forged: the operator
+signed the QA session in themselves, and the token was used *inside the browser
+page* as an `Authorization` header — its value never left the page.
+
+### Split Screen — PASS
+
+Source: synthetic 8s / 720x1280 / AAC, uploaded to production S3 under the QA
+user's own prefix, then given a deliberately 2-second grant which was confirmed
+dead (`403 Request has expired`) before the render was triggered.
+
+| Check | Result |
+| ----- | ------ |
+| Render accepted | HTTP 200, `status: rendering` |
+| Final status | **completed** |
+| `failureReason` | **null** |
+| Output | 208,501 bytes, downloads over HTTPS |
+| Codec / geometry | h264 High, **1080x1920 (9:16)**, 25 fps, 8.01s |
+| Audio | AAC LC 44.1 kHz stereo |
+| Decode | clean (`ffmpeg -f null`, no errors) |
+| Composition | two stacked panels with the seam at the midpoint — verified on an extracted frame |
+
+### Streamer Video — renders PASS, intended font FAILS
+
+Three renders, styles 0 / 2 / 7 (intended Arial / Times New Roman / Impact),
+same title, same source, same expired-grant setup.
+
+| Check | Result |
+| ----- | ------ |
+| Final status (all three) | **completed** |
+| `failureReason` (all three) | **null** |
+| Codec / geometry | h264 High, 720x1280 (9:16), 25 fps, 8.01s |
+| Audio | AAC LC 44.1 kHz mono |
+| Decode | clean, all three |
+
+**Font verdict: FAILED / OPEN.** Title frames were extracted at an identical
+timestamp and cropped to the same band:
+
+- **style 0 (Arial) and style 7 (Impact) are byte-identical** — same SHA-256,
+  same file size (293,730 bytes). Two different intended families produced
+  pixel-identical titles.
+- style 2 (Times New Roman) differs in bytes, but visual inspection shows the
+  same sans-serif letterforms; the difference is its border/shadow settings
+  (`borderw: 0`), not the typeface. It is not a serif.
+
+So production resolves all three to one face. `resolveFontFile` maps these
+families to Liberation/DejaVu paths on Linux and, when they are absent, falls
+through to Arial's own candidates and finally to the bundled
+`public/fonts/Poppins-Bold.ttf` — which is what the rendered glyphs look like.
+
+Rendering reliability is genuinely fixed: every style produces a valid, legible
+titled video, which is more than the pre-#182 code guaranteed. But the styles
+are not visually distinct, which is the user-visible symptom the original bug
+had. Per the closure rule this stays **FAILED / OPEN** until the production
+image ships the intended font files (or the Poppins fallback is accepted as the
+product intent for those styles).
+
+The fix is deployment-side, not code-side: install `fonts-liberation` (or
+`fonts-dejavu-core`) in the production image, or bundle the intended faces into
+`public/fonts/` the way Poppins already is. The latter is more reliable, since
+it removes the dependency on host packages entirely.
+
+### AutoClip regression — PASS
+
+Same expired-grant setup, 120s synthetic source.
+
+- Analysis accepted, reached `pending_review`, **5 clips created**,
+  `failureReason: null`.
+- The expired persisted URL was re-minted and the source downloaded — proven by
+  the analysis completing and producing clips.
+- Warnings `["transcription_failed", "reframe_failed"]` are expected artefacts
+  of the synthetic media (a sine tone has no speech; a test pattern has no
+  faces), not regressions.
+
+### Preview frames — isolation PASS, generation FAILS for an unrelated reason
+
+- **Cross-tenant: DENIED.** The QA session requesting another tenant's
+  project/clip got **404 "Project not found"**, zero frames, no re-mint.
+- **Own project: HTTP 503**, zero frames.
+
+The 503 is **not** a stale-source failure, and that was established rather than
+assumed:
+
+1. AutoClip downloaded this *same* expired source successfully minutes earlier.
+2. The project's source was swapped for a freshly minted 6-hour grant and the
+   route was retried on two different clips — **still 503**.
+3. The *same clip row* and the *same source object*, run through the *same*
+   `renderPreviewFrames` locally, produced **3 valid frames** (25 KB each).
+
+So the code path is sound and the source resolution is sound; the failure is
+specific to the production host. Leading hypothesis, unverified: the preview
+writes JPEG stills (`-q:v 4` to `.jpg`), which needs the **mjpeg encoder** —
+and the runtime capability contract verifies only `libx264` and `aac`
+(`REQUIRED_VIDEO_ENCODER` / `REQUIRED_AUDIO_ENCODER`). That would explain the
+exact pattern seen: every video render succeeds, every still fails. All filters
+in the preview chain (`crop`, `eq`, `scale`, `subtitles`) are already in the
+verified 33.
+
+Recorded as a **separate defect**, not a stale-URL one. Confirming it needs one
+`ffmpeg -encoders | grep mjpeg` on the production host, and the fix — if
+confirmed — is to add mjpeg to the verified encoder contract so the release
+gate catches it.
+
+### Credit integrity — LEDGER level
+
+Four operations, four ledger rows, read directly from the production
+`CreditTransaction` table:
+
+| Operation | Net | Spends | Refunds |
+| --------- | --- | ------ | ------- |
+| `split-screen:88afed6e…` | 1 | 1 | 0 |
+| `streamer-video:4c8c8137…` | 1 | 1 | 0 |
+| `streamer-video:2e2f22d1…` | 1 | 1 | 0 |
+| `streamer-video:ca86d5e2…` | 1 | 1 | 0 |
+
+Exactly one spend and zero refunds per logical operation. Balance moved 10 → 6
+across four renders.
+
+**Incidental finding:** the QA account displayed 250 credits while its buckets
+summed to 10. The first real spend recomputed the denormalized column from the
+buckets (`credits = b + s + p − amount`), so the balance corrected itself to
+9/9. That confirms the 250 was written by a path that bypasses `lib/credits.ts`
+— worth finding, because the same path would misreport a paying customer's
+balance until their next spend silently corrected it downward.
+
+### Cleanup
+
+Both synthetic source objects were deleted from production S3. The four render
+outputs under `renders/` were left in place as evidence (~1 MB). The QA account
+and its projects were retained deliberately, for future release verification.
+
 ## Asset Duration Follow-Up
 
 **Asset Metadata Integrity — separate follow-up, deliberately not fixed here.**

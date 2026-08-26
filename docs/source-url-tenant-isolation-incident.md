@@ -66,6 +66,21 @@ previously harmless condition into a privilege escalation:
 
 - **Before re-minting:** a URL naming another tenant's key carried no valid
   signature, so S3 answered 403. The stored value was inert.
+
+  **CORRECTION (2026-08-26).** That holds only for a URL carrying an *expired
+  signature*. The media bucket serves **unsigned reads publicly** — a plain
+  `https://<bucket>.s3.<region>.amazonaws.com/<key>` returns HTTP 200, verified
+  directly against production. So anyone who already knew another tenant's key
+  could read that object without the vulnerability at all. Re-minting made the
+  access server-mediated and durable past expiry; it did not unlock media the
+  key alone could not already reach.
+
+  This *lowers* the incremental severity of this incident and *raises* a
+  standing one: every object in the media bucket is readable by anyone holding
+  its key, with the key's unguessability (a UUID) as the only control. Keys
+  appear in the database, in API responses and in client-side URLs, so that is
+  security by obscurity rather than access control. Tracked separately — it is
+  not a stale-URL issue, and it is not fixed by anything in this document.
 - **After re-minting, before the gate:** the server re-signed that key with its
   own credentials, turning an inert string into working access.
 
