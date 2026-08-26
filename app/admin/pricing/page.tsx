@@ -1,6 +1,8 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminShell from "../AdminShell";
+import { ErrorCard } from "../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { useToast } from "@/app/components/ui/Toast";
@@ -30,102 +32,97 @@ const input = "w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 tex
 export default function AdminPricingPage() {
   const { token, user } = useAuth();
   const { showToast } = useToast();
-  const [plans, setPlans]       = useState<Plan[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [savingId, setSavingId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [creating, setCreating] = useState(false);
   const [form, setForm]         = useState({ ...EMPTY });
   const [err, setErr]           = useState("");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!token || user?.role !== "ADMIN") return;
-    const res = await fetch("/api/admin/plans", { headers: { Authorization: `Bearer ${token}` } });
-    const data = res.ok ? await res.json() : { plans: [] };
-    setPlans(data.plans ?? []);
-    setLoading(false);
-  }, [token, user?.role]);
+  const headers = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` });
 
-  useEffect(() => { load(); }, [load]);
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ["admin-plans"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/plans", { headers: headers() });
+      if (!res.ok) throw new Error("Failed to load plans");
+      return (await res.json()) as { plans?: Plan[] };
+    },
+    enabled: !!token && user?.role === "ADMIN",
+  });
 
-  async function savePlan(p: Plan) {
-    setSavingId(p.id);
-    try {
-      await fetch(`/api/admin/plans/${p.id}`, {
+  // Editable working copy, same pattern as Coupons — server data is the
+  // source of truth on load/save, fields are edited in place before Save.
+  const [localPlans, setLocalPlans] = useState<Plan[] | null>(null);
+  useEffect(() => { if (data) setLocalPlans(data.plans ?? []); }, [data]);
+  const plans = localPlans ?? [];
+
+  const saveMutation = useMutation({
+    mutationFn: async (p: Plan) => {
+      const res = await fetch(`/api/admin/plans/${p.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: headers(),
         body: JSON.stringify({
-          name: p.name,
-          priceInPaise: p.priceInPaise,
-          credits: p.credits,
-          features: p.features,
-          active: p.active,
-          sortOrder: p.sortOrder,
-          kind: p.kind,
-          intervalMonths: p.intervalMonths ?? null,
-          monthlyCredits: p.monthlyCredits ?? null,
-          tier: p.tier ?? null,
+          name: p.name, priceInPaise: p.priceInPaise, credits: p.credits, features: p.features,
+          active: p.active, sortOrder: p.sortOrder, kind: p.kind,
+          intervalMonths: p.intervalMonths ?? null, monthlyCredits: p.monthlyCredits ?? null, tier: p.tier ?? null,
         }),
       });
-      await load();
-    } finally {
-      setSavingId(null);
-    }
-  }
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Save failed");
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-plans"] }); showToast("Plan saved", "success"); },
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
 
-  async function deletePlan(id: string) {
-    await fetch(`/api/admin/plans/${id}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    showToast("Plan deactivated", "success");
-    await load();
-  }
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/plans/${id}`, { method: "DELETE", headers: headers() });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Deactivate failed");
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-plans"] }); showToast("Plan deactivated", "success"); },
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
 
-  function edit(id: string, patch: Partial<Plan>) {
-    setPlans(prev => prev.map(p => p.id === id ? { ...p, ...patch } : p));
-  }
-
-  async function createPlan(e: React.FormEvent) {
-    e.preventDefault();
-    setErr("");
-    setCreating(true);
-    try {
+  const createMutation = useMutation({
+    mutationFn: async () => {
       const res = await fetch("/api/admin/plans", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: headers(),
         body: JSON.stringify({
-          slug: form.slug,
-          name: form.name,
-          priceInPaise: Number(form.priceInPaise),
-          credits: Number(form.credits),
-          sortOrder: Number(form.sortOrder),
-          kind: form.kind,
+          slug: form.slug, name: form.name, priceInPaise: Number(form.priceInPaise), credits: Number(form.credits),
+          sortOrder: Number(form.sortOrder), kind: form.kind,
           intervalMonths: form.intervalMonths !== "" ? Number(form.intervalMonths) : null,
           monthlyCredits: form.monthlyCredits !== "" ? Number(form.monthlyCredits) : null,
           tier: form.tier !== "" ? form.tier : null,
           features: form.features.split("\n").map(s => s.trim()).filter(Boolean),
         }),
       });
-      if (!res.ok) {
-        const d = await res.json() as { error?: string };
-        setErr(d.error ?? "Failed to create plan");
-        return;
-      }
-      setForm({ ...EMPTY });
-      await load();
-    } finally {
-      setCreating(false);
-    }
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Failed to create plan");
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-plans"] }); setForm({ ...EMPTY }); setErr(""); },
+    onError: (e: Error) => setErr(e.message),
+  });
+
+  function edit(id: string, patch: Partial<Plan>) {
+    setLocalPlans(prev => prev ? prev.map(p => p.id === id ? { ...p, ...patch } : p) : prev);
+  }
+
+  async function createPlan(e: React.FormEvent) {
+    e.preventDefault();
+    setCreating(true);
+    try { await createMutation.mutateAsync(); } finally { setCreating(false); }
   }
 
   return (
     <AdminShell title="Pricing">
-      {loading ? (
+      {isError ? (
+        <ErrorCard onRetry={refetch} />
+      ) : isLoading ? (
         <p className="text-sm text-gray-400">Loading plans…</p>
       ) : (
         <div className="space-y-5">
-          {plans.map(p => (
+          {plans.map(p => {
+            const savingThis = saveMutation.isPending && saveMutation.variables?.id === p.id;
+            return (
             <div key={p.id} className={`bg-white rounded-2xl border shadow-sm p-6 ${p.active ? "border-gray-100" : "border-gray-200 opacity-60"}`}>
               <div className="flex items-start justify-between mb-4 gap-3 flex-wrap">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -200,13 +197,14 @@ export default function AdminPricingPage() {
                   onChange={e => edit(p.id, { features: e.target.value.split("\n").map(s => s.trim()).filter(Boolean) })} />
               </div>
               <div className="flex justify-end mt-4">
-                <button onClick={() => savePlan(p)} disabled={savingId === p.id}
+                <button onClick={() => saveMutation.mutate(p)} disabled={savingThis}
                   className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold px-5 py-2 rounded-xl transition-colors">
-                  {savingId === p.id ? "Saving…" : "Save"}
+                  {savingThis ? "Saving…" : "Save"}
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
 
           {/* Create new plan */}
           <form onSubmit={createPlan} className="bg-white rounded-2xl border border-dashed border-gray-300 p-6">
@@ -282,7 +280,7 @@ export default function AdminPricingPage() {
         message={`Deactivate "${plans.find(p => p.id === confirmDelete)?.name ?? ""}"? It stops being offered to new customers; existing subscribers are unaffected.`}
         confirmLabel="Deactivate"
         danger
-        onConfirm={async () => { if (confirmDelete) await deletePlan(confirmDelete); }}
+        onConfirm={async () => { if (confirmDelete) await deleteMutation.mutateAsync(confirmDelete); }}
         onClose={() => setConfirmDelete(null)}
       />
     </AdminShell>
