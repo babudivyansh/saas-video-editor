@@ -4,17 +4,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/app/components/AuthContext";
 import { NotificationBell } from "@/app/components/NotificationBell";
+import { ADMIN_NAV } from "./nav-config";
 
-function IcGrid()    { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>; }
-function IcUsers()   { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>; }
-function IcTag()     { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><circle cx="7" cy="7" r="1"/></svg>; }
-function IcReceipt() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>; }
-function IcCalendar(){ return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>; }
-function IcTool()    { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>; }
-function IcLog()     { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>; }
-function IcGift()    { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>; }
-function IcTicket()  { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M3 9a2 2 0 012-2h14a2 2 0 012 2v1.5a1.5 1.5 0 000 3V15a2 2 0 01-2 2H5a2 2 0 01-2-2v-1.5a1.5 1.5 0 000-3z"/><path d="M13 7v10" strokeDasharray="2 2"/></svg>; }
-function IcStar()    { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M12 2.5l2.95 6.28 6.8.79-5.1 4.7 1.4 6.73L12 17.6l-6.05 3.4 1.4-6.73-5.1-4.7 6.8-.79L12 2.5z"/></svg>; }
 function IcSpinner() { return <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />; }
 function IcMenu({ open }: { open: boolean }) {
   return (
@@ -23,22 +14,6 @@ function IcMenu({ open }: { open: boolean }) {
     </svg>
   );
 }
-
-const NAV = [
-  { href: "/admin",               label: "Dashboard",    icon: <IcGrid />,     exact: true  },
-  { href: "/admin/users",         label: "Users",        icon: <IcUsers />,    exact: false },
-  { href: "/admin/reviews",       label: "Reviews",      icon: <IcStar />,     exact: false },
-  { href: "/admin/subscriptions", label: "Subscriptions",icon: <IcCalendar />, exact: false },
-  { href: "/admin/pricing",       label: "Pricing",      icon: <IcTag />,      exact: false },
-  { href: "/admin/coupons",       label: "Coupons",      icon: <IcTicket />,   exact: false },
-  { href: "/admin/tools",         label: "Tools",        icon: <IcTool />,     exact: false },
-  { href: "/admin/models",        label: "AI Models",    icon: <IcTool />,     exact: false },
-  { href: "/admin/purchases",     label: "Purchases",    icon: <IcReceipt />,  exact: false },
-  { href: "/admin/analytics",     label: "Analytics",    icon: <IcGrid />,     exact: false },
-  { href: "/admin/ops",           label: "Operations",   icon: <IcGrid />,     exact: false },
-  { href: "/admin/audit",         label: "Audit Log",    icon: <IcLog />,      exact: false },
-  { href: "/admin/affiliate",     label: "Affiliates",   icon: <IcGift />,     exact: false },
-];
 
 // Step-up sign-in: even with a valid dashboard session, /admin requires a
 // fresh email-code verification (8h window). The screen mirrors the real
@@ -258,12 +233,13 @@ export default function AdminShell({ children, title }: { children: React.ReactN
   const navContent = (
     <>
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {NAV.map(item => {
+        {ADMIN_NAV.map(item => {
           const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
+          const Icon = item.icon;
           return (
             <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${active ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"}`}>
-              {item.icon} {item.label}
+              <Icon className="w-[18px] h-[18px]" strokeWidth={1.75} /> {item.label}
             </Link>
           );
         })}
