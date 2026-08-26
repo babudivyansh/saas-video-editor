@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart,
@@ -8,7 +9,7 @@ import {
 } from "recharts";
 import AdminShell from "../../AdminShell";
 import { useAuth } from "@/app/components/AuthContext";
-import { BRAND, PALETTE, ChartContainer, Skeleton } from "../../dashboard/ui";
+import { BRAND, PALETTE, ChartContainer, ErrorCard, Skeleton } from "../../dashboard/ui";
 import { Donut, HBars } from "../../dashboard/charts";
 import { featureUsedLabel } from "@/lib/reviews/constants";
 
@@ -69,16 +70,16 @@ function weightedAverage(dist: { rating: number; count: number }[]): number {
 export default function AdminReviewsAnalyticsPage() {
   const { token } = useAuth();
   const [range, setRange] = useState<(typeof RANGES)[number]>(30);
-  const [data, setData] = useState<Analytics | null>(null);
 
-  const load = useCallback(async () => {
-    if (!token) return;
-    setData(null);
-    const res = await fetch(`/api/admin/reviews/analytics?range=${range}`, { headers: { Authorization: `Bearer ${token}` } });
-    if (res.ok) setData(await res.json());
-  }, [token, range]);
-
-  useEffect(() => { load(); }, [load]);
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ["admin-review-analytics", range],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/reviews/analytics?range=${range}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error("Failed to load analytics");
+      return (await res.json()) as Analytics;
+    },
+    enabled: !!token,
+  });
 
   return (
     <AdminShell title="Review Analytics">
@@ -97,7 +98,9 @@ export default function AdminReviewsAnalyticsPage() {
         </div>
       </div>
 
-      {!data ? (
+      {isError ? (
+        <ErrorCard onRetry={refetch} />
+      ) : isLoading || !data ? (
         <div className="space-y-5">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{[1, 2, 3, 4].map((i) => <Skeleton key={i} h="h-20" />)}</div>
           <Skeleton h="h-64" />
