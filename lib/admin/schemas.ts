@@ -218,6 +218,12 @@ export const affiliateQuerySchema = pageQuerySchema.extend({
   search: z.preprocess((v) => (v === "" ? undefined : v), z.string().max(200).optional()),
 });
 
+// Subscriptions list — same free-text-search extension (email/name), added
+// so the page can filter like Users' otherwise-identical table already did.
+export const subscriptionsQuerySchema = pageQuerySchema.extend({
+  search: z.preprocess((v) => (v === "" ? undefined : v), z.string().max(200).optional()),
+});
+
 export const adminNotesSchema = z
   .object({ adminNotes: z.string().max(5000).nullable() })
   .strict();

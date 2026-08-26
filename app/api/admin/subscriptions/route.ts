@@ -1,14 +1,21 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAdmin, parseQuery } from "@/lib/admin/api";
-import { pageQuerySchema } from "@/lib/admin/schemas";
+import { subscriptionsQuerySchema } from "@/lib/admin/schemas";
 
-// GET /api/admin/subscriptions?page&limit — active subscribers, paginated.
+// GET /api/admin/subscriptions?page&limit&search — active subscribers,
+// paginated, optionally filtered by email/name (UX-7 — this table had no
+// search at all, unlike the otherwise-identical Users page).
 // Response keys are additive over the old shape ({ subscribers, total }).
 export const GET = withAdmin(async (req) => {
-  const { page, limit } = parseQuery(req, pageQuerySchema);
+  const { page, limit, search } = parseQuery(req, subscriptionsQuerySchema);
   const now = new Date();
-  const where = { subscriptionEndsAt: { gt: now } };
+  const where = {
+    subscriptionEndsAt: { gt: now },
+    ...(search
+      ? { OR: [{ email: { contains: search, mode: "insensitive" as const } }, { name: { contains: search, mode: "insensitive" as const } }] }
+      : {}),
+  };
 
   const [subscribers, total] = await Promise.all([
     prisma.user.findMany({
