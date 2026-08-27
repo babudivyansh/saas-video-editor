@@ -34,7 +34,9 @@ const prismaMock = {
 };
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 
-const { kpisSection, revenueSection, activitySection } = await import("./metrics");
+const { kpisSection, revenueSection, activitySection, infraSection } = await import("./metrics");
+const { redis } = await import("@/lib/redis");
+const { KNOWN_CRON_NAMES } = await import("@/lib/cron-tracking");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -141,5 +143,48 @@ describe("activitySection", () => {
     expect(a.events[0].title).toContain("₹999");
     expect(a.events[2].href).toBe("/admin/users/u1");
     expect(a.events[3].kind).toBe("refund");
+  });
+});
+
+describe("infraSection — stale cron detection", () => {
+  // A production audit found every one of the 13 cron jobs had gone 14+ days
+  // with no recorded run, silently blocking most of the app's scheduled
+  // emails, and it was only discoverable by drilling into the Ops page's own
+  // cron list. staleCronCount is what surfaces that as a Dashboard alert.
+  //
+  // infraSection also calls renderQueueCounts(), which opens a real BullMQ
+  // connection unless redis.ping() reports down first — the file-level mock
+  // has ping() succeed (for tests that don't reach this code at all), so
+  // these tests force it to fail here to stay hermetic instead of actually
+  // dialing a non-existent Redis.
+  beforeEach(() => {
+    vi.mocked(redis.ping).mockResolvedValue(false);
+  });
+
+  it("counts every cron as stale when none has ever run", async () => {
+    vi.mocked(redis.get).mockResolvedValue(null);
+    const infra = await infraSection();
+    expect(infra.staleCronCount).toBe(KNOWN_CRON_NAMES.length);
+  });
+
+  it("does not count a cron whose last run is within its expected cadence", async () => {
+    vi.mocked(redis.get).mockImplementation(async () => new Date().toISOString());
+    const infra = await infraSection();
+    expect(infra.staleCronCount).toBe(0);
+  });
+
+  it("counts only the crons that are actually overdue for their own cadence", async () => {
+    const now = Date.now();
+    vi.mocked(redis.get).mockImplementation(async (key: string) => {
+      // stale-clip-sweep expects ~15 min; give it a 2h-old run (overdue).
+      if (key === "cron:lastrun:stale-clip-sweep") return new Date(now - 2 * 3600_000).toISOString();
+      // refill-credits expects ~daily; give it a 2h-old run (well within cadence).
+      if (key === "cron:lastrun:refill-credits") return new Date(now - 2 * 3600_000).toISOString();
+      return null; // every other cron: never run
+    });
+    const infra = await infraSection();
+    // Only stale-clip-sweep is overdue for ITS cadence; refill-credits is
+    // fine at 2h old; every other cron is null (never run) and counts too.
+    expect(infra.staleCronCount).toBe(KNOWN_CRON_NAMES.length - 1);
   });
 });

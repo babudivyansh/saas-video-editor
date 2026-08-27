@@ -12,6 +12,7 @@ import { redis } from "@/lib/redis";
 import { env } from "@/lib/env";
 import { getSyncStats } from "@/lib/social/service";
 import { KNOWN_RENDER_QUEUE_NAMES } from "@/lib/render-queue";
+import { getCronRunStatuses, type CronName } from "@/lib/cron-tracking";
 
 export type MetricsSection =
   | "kpis" | "revenue" | "ai" | "social" | "infra" | "growth"
@@ -329,17 +330,48 @@ export async function socialSection() {
   };
 }
 
+// Expected cadence per known cron (SETUP.md §7's schedule). A job whose last
+// recorded run is older than this — or that has never run at all — counts as
+// stale for the Dashboard alert. This is what surfaces a scheduler lapse on
+// the main admin screen instead of only being visible by drilling into the
+// Ops page's own cron list, which is how a 14-day production lapse of every
+// single cron job went unnoticed.
+const CRON_STALE_AFTER_SEC: Record<CronName, number> = {
+  "asset-cleanup": 3600, // every 15 min
+  "stale-clip-sweep": 3600, // every 15 min
+  "clip-publish": 3600, // every 10 min
+  "social-refresh": 3 * 3600, // hourly snapshot refresh
+  "refill-credits": 36 * 3600,
+  "commission-payout": 36 * 3600,
+  "account-purge": 36 * 3600,
+  onboarding: 36 * 3600,
+  "review-drip": 36 * 3600,
+  "review-prompts": 36 * 3600,
+  "subscription-reminder": 36 * 3600,
+  "admin-digest": 9 * 24 * 3600, // weekly
+  reengagement: 9 * 24 * 3600, // weekly
+};
+
+async function staleCronCount(): Promise<number> {
+  const statuses = await getCronRunStatuses();
+  return statuses.filter(
+    (s) => s.ageSeconds === null || s.ageSeconds > CRON_STALE_AFTER_SEC[s.name],
+  ).length;
+}
+
 // ── Infra ────────────────────────────────────────────────────────────────────
 export async function infraSection() {
-  const [dbOk, redisOk, queue] = await Promise.all([
+  const [dbOk, redisOk, queue, staleCrons] = await Promise.all([
     prisma.$queryRaw`SELECT 1`.then(() => true).catch(() => false),
     redis.ping(),
     renderQueueCounts(),
+    staleCronCount(),
   ]);
   return {
     db: dbOk,
     redis: redisOk,
     renderQueue: queue,
+    staleCronCount: staleCrons,
     process: {
       rssMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
       heapUsedMb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
