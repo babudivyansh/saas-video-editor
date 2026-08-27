@@ -171,6 +171,13 @@ export async function spendCredits(params: SpendCreditsParams): Promise<SpendCre
 
   if (!outcome) {
     const balances = await getBalances(userId);
+    // Fire-and-forget, same reasoning as the success-path hooks below: every
+    // credit-spending route in the app converges on this function, so this is
+    // the one place that can guarantee the zero-credits email fires regardless
+    // of which route the failed spend came from.
+    void import("@/lib/credit-events")
+      .then((m) => m.fireZeroCreditsEmail(userId))
+      .catch(() => {});
     return { ok: false, reason: "insufficient_credits", balances };
   }
   await refreshCreditCache(userId, outcome.balances.total);
@@ -178,6 +185,17 @@ export async function spendCredits(params: SpendCreditsParams): Promise<SpendCre
   // Fire-and-forget: never let the auto-topup check add latency or failure
   // risk to the hot spend path.
   void maybeAutoTopup(userId, outcome.balances.total).catch(() => {});
+
+  // Fire-and-forget, lazily imported to keep lib/credit-events.ts's
+  // prisma/email import graph out of this module's module-load path (same
+  // reasoning as the lazy @/lib/auth import in checkModelAccess below).
+  // Centralized here — rather than left to each caller to remember — because
+  // every credit-spending route converges on spendCredits(); a route that
+  // forgets to call this itself silently loses the first-video and
+  // low-credit emails for every user who happens to hit it first.
+  void import("@/lib/credit-events")
+    .then((m) => m.firePostCreditSpendEmails(userId, outcome.balances.total))
+    .catch(() => {});
 
   return { ok: true, ...outcome };
 }

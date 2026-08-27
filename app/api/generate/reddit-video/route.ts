@@ -6,7 +6,6 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { InProcessQueue } from "@/lib/job-queue";
 import { chargeCredits, refundCredits, markGenerationStatus } from "@/lib/credits";
-import { firePostCreditSpendEmails, fireZeroCreditsEmail } from "@/lib/credit-events";
 import { synthesizeVoice, WordTiming } from "@/utils/elevenlabs";
 import { generateASS, runFFmpeg, runFFmpegArgs, styleIndexToSubtitleStyle } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
@@ -321,10 +320,8 @@ async function handlePOST(req: NextRequest) {
     if (charge.reason === "tool_disabled") {
       return NextResponse.json({ error: "Reddit Video Generator is temporarily disabled." }, { status: 503 });
     }
-    fireZeroCreditsEmail(auth.userId);
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
-  firePostCreditSpendEmails(auth.userId, charge.balance);
 
   await prisma.project.update({
     where: { id: body.projectId },

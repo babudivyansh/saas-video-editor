@@ -58,6 +58,7 @@ interface Social {
 interface Infra {
   db: boolean; redis: boolean;
   renderQueue: Record<string, number> | null;
+  staleCronCount: number;
   process: { rssMb: number; heapUsedMb: number; uptimeHours: number };
 }
 interface Growth {
@@ -237,6 +238,7 @@ export default function AdminDashboardPage() {
   if (social.data?.needsReauth) alerts.push({ label: `${social.data.needsReauth} social account(s) need re-auth`, href: "/admin/analytics" });
   if (social.data && social.data.syncsToday.fail > 0) alerts.push({ label: `${social.data.syncsToday.fail} sync failure(s) today`, href: "/admin/ops" });
   if (infra.data && !healthOk) alerts.push({ label: "Core service degraded", href: "/admin/ops" });
+  if (infra.data?.staleCronCount) alerts.push({ label: `${infra.data.staleCronCount} cron job(s) haven't run recently`, href: "/admin/ops" });
 
   const o = overview.data;
 

@@ -31,7 +31,7 @@ describe("email registry", () => {
   const entries = Object.entries(EMAIL_REGISTRY);
 
   it("covers every send function in lib/email.ts", () => {
-    expect(entries).toHaveLength(41);
+    expect(entries).toHaveLength(42);
   });
 
   it("keys match each entry's declared id", () => {
@@ -86,6 +86,7 @@ describe("email registry", () => {
       "payment-failed",
       "subscription-cancelled",
       "newsletter-confirm",
+      "clips-ready",
     ];
     for (const id of mustBeTransactional) {
       expect(EMAIL_REGISTRY[id].category, `${id} must stay transactional`).toBe("transactional");

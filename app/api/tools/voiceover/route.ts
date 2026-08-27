@@ -5,7 +5,6 @@ import { synthesizeVoice } from "@/utils/elevenlabs";
 import { resolveVoiceId } from "@/utils/voice-ids";
 import { uploadBufferToS3 } from "@/utils/s3-upload";
 import { markQuestComplete } from "@/lib/quests";
-import { firePostCreditSpendEmails, fireZeroCreditsEmail } from "@/lib/credit-events";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { logger } from "@/lib/logger";
@@ -93,10 +92,8 @@ async function handlePOST(req: NextRequest) {
     if (charge.reason === "tool_disabled") {
       return NextResponse.json({ error: "Voiceover generation is temporarily disabled." }, { status: 503 });
     }
-    fireZeroCreditsEmail(auth.userId);
     return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
   }
-  firePostCreditSpendEmails(auth.userId, charge.balance);
 
   const jobId = randomUUID();
   const job: Job = {

@@ -50,13 +50,23 @@ export function firePostCreditSpendEmails(userId: string, newBalance: number): v
       // firstVideoAt is the once-only guard. Previously the send was deferred
       // an hour via setTimeout — an in-process timer that was silently dropped
       // on any server restart within that hour, so the email often never went.
-      // Send it now instead (still fire-and-forget, so the caller's response
-      // isn't held up); a durable 1h delay would need a scheduled job, not a
-      // timer tied to this process's lifetime.
+      // Send it now instead (still fire-and-forget relative to the caller,
+      // since this whole function runs in an unawaited IIFE — awaiting here
+      // adds no latency anywhere).
+      //
+      // The flag is written only AFTER a non-"failed" send outcome, not
+      // before: writing it first (the original ordering) meant a transient
+      // send error permanently lost this one-shot email, silently, with no
+      // retry. "sent"/"suppressed"/"skipped-optout"/"dev-logged" are all
+      // terminal outcomes that would recur identically on a retry, so only
+      // "failed" leaves the flag unset — the next credit spend then retries
+      // it naturally, with no separate retry infrastructure needed.
       if (!user.firstVideoAt) {
-        await prisma.user.update({ where: { id: userId }, data: { firstVideoAt: now } });
-        sendFirstVideoSuccessEmail(user.email, displayName)
-          .catch((e) => logger.error("credit-events", "first-video email error", e));
+        const delivered = await sendFirstVideoSuccessEmail(user.email, displayName)
+          .catch((e) => { logger.error("credit-events", "first-video email error", e); return false; });
+        if (delivered) {
+          await prisma.user.update({ where: { id: userId }, data: { firstVideoAt: now } });
+        }
       }
 
       // ── 2. Low-credits warning (≤20% of monthly allocation) ────────────

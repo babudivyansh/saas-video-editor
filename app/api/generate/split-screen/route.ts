@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { spendCredits, restoreSpend } from "@/lib/credits";
 import { markQuestComplete } from "@/lib/quests";
-import { firePostCreditSpendEmails, fireZeroCreditsEmail } from "@/lib/credit-events";
 import {
   extractAudio,
   generateASS,
@@ -189,10 +188,8 @@ async function handlePOST(req: NextRequest) {
   if (!spend.ok) {
     // Release the claim so the user can retry once they top up.
     await prisma.project.update({ where: { id: body.projectId }, data: { status: project.status } }).catch(() => {});
-    fireZeroCreditsEmail(auth.userId);
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
-  firePostCreditSpendEmails(auth.userId, spend.balances.total);
 
   getQueue().enqueue(body.projectId, {
     projectId: body.projectId,

@@ -14,6 +14,7 @@ import type { EmailDocument } from "../layout";
 import * as auth from "./auth";
 import * as billing from "./billing";
 import * as credits from "./credits";
+import * as generations from "./generations";
 import * as lifecycle from "./lifecycle";
 import * as affiliate from "./affiliate";
 import * as reviews from "./reviews";
@@ -38,6 +39,7 @@ export type EmailGroup =
   | "auth"
   | "billing"
   | "credits"
+  | "generations"
   | "lifecycle"
   | "affiliate"
   | "reviews"
@@ -302,6 +304,20 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
         packName: "Starter Pack (+100 credits)",
         checkoutUrl: "https://clipiro.com/checkout?pack=starter",
       },
+    },
+  }),
+
+  // ── Generations ───────────────────────────────────────────────────────────
+  "clips-ready": entry({
+    id: "clips-ready",
+    title: "Your clips are ready",
+    group: "generations",
+    category: "transactional",
+    trigger: "An Auto Clip render finishes with at least one successful clip",
+    build: generations.clipsReady,
+    samples: {
+      default: { name: "Divyansh", readyCount: 3, href: "https://clipiro.com/dashboard/create/auto-clip?project=abc123" },
+      "single clip": { name: "Divyansh", readyCount: 1, href: "https://clipiro.com/dashboard/create/auto-clip?project=abc123" },
     },
   }),
 
@@ -603,6 +619,7 @@ export const GROUP_LABELS: Record<EmailGroup, string> = {
   auth: "Auth & security",
   billing: "Billing & receipts",
   credits: "Credits",
+  generations: "Renders",
   lifecycle: "Lifecycle & onboarding",
   affiliate: "Affiliate",
   reviews: "Reviews",
@@ -615,6 +632,7 @@ export const GROUP_ORDER: EmailGroup[] = [
   "auth",
   "billing",
   "credits",
+  "generations",
   "lifecycle",
   "affiliate",
   "reviews",
