@@ -48,6 +48,10 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("@/lib/redis", () => ({
   redis: { get: vi.fn(async (key: string) => (key.startsWith("admin-elevated:") ? "1" : null)), set: vi.fn(async () => {}), del: vi.fn(async () => {}), incrWithExpire: vi.fn(async () => 1) },
 }));
+vi.mock("@/lib/rate-limit", () => ({
+  rateLimit: vi.fn(async () => ({ allowed: true, remaining: 9 })),
+  getClientIp: vi.fn((req: { headers: { get: (k: string) => string | null } }) => req.headers.get("x-forwarded-for") ?? "unknown"),
+}));
 
 const { POST } = await import("./route");
 

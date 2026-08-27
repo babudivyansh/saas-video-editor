@@ -23,6 +23,10 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("@/lib/redis", () => ({
   redis: { get: vi.fn(async (key: string) => (key.startsWith("admin-elevated:") ? "1" : null)), set: vi.fn(async () => {}), del: vi.fn(async () => {}), incrWithExpire: vi.fn(async () => 1) },
 }));
+vi.mock("@/lib/rate-limit", () => ({
+  rateLimit: vi.fn(async () => ({ allowed: true, remaining: 9 })),
+  getClientIp: vi.fn(() => "unknown"),
+}));
 
 const { POST } = await import("./route");
 const { invalidateSession } = await import("@/lib/auth");
@@ -41,28 +45,34 @@ beforeEach(() => {
 
 describe("user moderation", () => {
   it("suspend sets suspendedAt AND revokes the live session", async () => {
-    const res = await post("u1", { action: "suspend", reason: "abuse" });
+    const res = await post("u1", { action: "suspend", reason: "abuse", confirm: true });
     expect(res.status).toBe(200);
     expect(updates[0].suspendedAt).toBeInstanceOf(Date);
     expect(invalidateSession).toHaveBeenCalledWith("u1");
   });
 
+  it("suspend without confirm is rejected with a validation error", async () => {
+    const res = await post("u1", { action: "suspend" });
+    expect(res.status).toBe(400);
+    expect(updates).toHaveLength(0);
+  });
+
   it("suspending an already-suspended user returns 409", async () => {
     user = { suspendedAt: new Date(), role: "USER" };
-    expect((await post("u1", { action: "suspend" })).status).toBe(409);
+    expect((await post("u1", { action: "suspend", confirm: true })).status).toBe(409);
     expect(updates).toHaveLength(0);
   });
 
   it("refuses to suspend an admin account", async () => {
     user = { suspendedAt: null, role: "ADMIN" };
-    expect((await post("u1", { action: "suspend" })).status).toBe(409);
+    expect((await post("u1", { action: "suspend", confirm: true })).status).toBe(409);
   });
 
   it("refuses self-suspension", async () => {
-    expect((await post("admin-1", { action: "suspend" })).status).toBe(400);
+    expect((await post("admin-1", { action: "suspend", confirm: true })).status).toBe(400);
   });
 
-  it("unsuspend clears suspendedAt", async () => {
+  it("unsuspend clears suspendedAt without needing confirm", async () => {
     user = { suspendedAt: new Date(), role: "USER" };
     const res = await post("u1", { action: "unsuspend" });
     expect(res.status).toBe(200);
@@ -70,9 +80,15 @@ describe("user moderation", () => {
   });
 
   it("revoke_sessions works without touching the user row", async () => {
-    const res = await post("u1", { action: "revoke_sessions" });
+    const res = await post("u1", { action: "revoke_sessions", confirm: true });
     expect(res.status).toBe(200);
     expect(updates).toHaveLength(0);
     expect(invalidateSession).toHaveBeenCalledWith("u1");
+  });
+
+  it("revoke_sessions without confirm is rejected with a validation error", async () => {
+    const res = await post("u1", { action: "revoke_sessions" });
+    expect(res.status).toBe(400);
+    expect(invalidateSession).not.toHaveBeenCalled();
   });
 });

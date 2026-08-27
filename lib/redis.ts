@@ -186,6 +186,15 @@ export const redis = {
    * the first time the key is created (fixed-window counter). Used for rate
    * limiting — a small race on the very first increment (INCR then EXPIRE,
    * not a single atomic op) is an accepted tradeoff for a rate limiter.
+   *
+   * Admin-audit note (accepted tradeoff, not changed): this same fallback
+   * path backs the admin elevation OTP's rate limits (lib/admin/elevation.ts)
+   * and the withAdmin() per-route limits (lib/rate-limit.ts). During a real
+   * Redis outage, counters become per-instance instead of shared, narrowing
+   * (not removing) those limits on a multi-instance deploy. Already logged
+   * above (logFallback, throttled to 1/min/op); deliberately not made to
+   * fail closed, since that would lock every admin out of /admin whenever
+   * Redis has any outage, for any reason.
    */
   async incrWithExpire(key: string, ttlSeconds: number): Promise<number> {
     try {

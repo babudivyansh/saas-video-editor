@@ -7,20 +7,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, RefreshCw, Search } from "lucide-react";
+import { ADMIN_NAV } from "../nav-config";
 
-const PAGES = [
-  { label: "Users", href: "/admin/users" },
-  { label: "Subscriptions", href: "/admin/subscriptions" },
-  { label: "Pricing", href: "/admin/pricing" },
-  { label: "Coupons", href: "/admin/coupons" },
-  { label: "Tools", href: "/admin/tools" },
-  { label: "AI Models", href: "/admin/models" },
-  { label: "Purchases", href: "/admin/purchases" },
-  { label: "Analytics", href: "/admin/analytics" },
-  { label: "Operations", href: "/admin/ops" },
-  { label: "Audit Log", href: "/admin/audit" },
-  { label: "Affiliates", href: "/admin/affiliate" },
-];
+// Derived from the shared nav (minus "Dashboard" — you're already here) so
+// this jump-search list can't drift out of sync with the sidebar the way
+// its previous hand-maintained copy did (it was missing "Reviews").
+const PAGES = ADMIN_NAV.filter((item) => item.href !== "/admin").map(({ label, href }) => ({ label, href }));
 
 export const RANGES = [7, 30, 90, 365] as const;
 

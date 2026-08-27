@@ -4,8 +4,9 @@
 // impact, and the affiliate funnel — the slices the executive dashboard
 // doesn't carry. Every table exports to CSV client-side.
 
-import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import AdminShell from "../AdminShell";
+import { ErrorCard } from "../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
 import { TypeBars } from "@/app/components/charts";
 
@@ -37,17 +38,21 @@ function downloadCsv(filename: string, header: string[], rows: Array<Array<strin
 
 export default function AdminAnalyticsPage() {
   const { token } = useAuth();
-  const [g, setG] = useState<Growth | null>(null);
 
-  const load = useCallback(async () => {
-    if (!token) return;
-    const res = await fetch("/api/admin/metrics?section=growth", { headers: { Authorization: `Bearer ${token}` } });
-    if (res.ok) setG((await res.json()).data);
-  }, [token]);
+  const { data: g, isLoading, isError, refetch } = useQuery({
+    queryKey: ["admin-growth-analytics"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/metrics?section=growth", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error("Failed to load analytics");
+      return ((await res.json()).data) as Growth;
+    },
+    enabled: !!token,
+  });
 
-  useEffect(() => { load(); }, [load]);
-
-  if (!g) {
+  if (isError) {
+    return <AdminShell title="Analytics"><ErrorCard onRetry={refetch} /></AdminShell>;
+  }
+  if (isLoading || !g) {
     return (
       <AdminShell title="Analytics">
         <div className="animate-pulse space-y-4"><div className="h-48 bg-gray-100 rounded-2xl" /><div className="h-48 bg-gray-100 rounded-2xl" /></div>

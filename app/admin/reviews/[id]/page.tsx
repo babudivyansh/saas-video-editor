@@ -1,9 +1,12 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import AdminShell from "../../AdminShell";
+import { ErrorCard } from "../../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
+import { useToast } from "@/app/components/ui/Toast";
 
 interface ReviewDetail {
   id: string;
@@ -42,122 +45,113 @@ const dt = (iso: string) => new Date(iso).toLocaleString("en-IN", { dateStyle: "
 export default function AdminReviewDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { token } = useAuth();
-  const [review, setReview] = useState<ReviewDetail | null>(null);
-  const [history, setHistory] = useState<AuditEntry[]>([]);
-  const [notFound, setNotFound] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editBody, setEditBody] = useState("");
   const [editTitle, setEditTitle] = useState("");
   const [replyEditing, setReplyEditing] = useState(false);
   const [replyBody, setReplyBody] = useState("");
-  const [replyBusy, setReplyBusy] = useState(false);
+  const [editSeededFor, setEditSeededFor] = useState<string | null>(null);
 
-  const headers = useCallback(() => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` }), [token]);
+  const headers = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` });
 
-  const load = useCallback(async () => {
-    if (!token) return;
-    const res = await fetch(`/api/admin/reviews/${id}`, { headers: { Authorization: `Bearer ${token}` } });
-    if (res.status === 404) { setNotFound(true); return; }
-    if (!res.ok) return;
-    const data = await res.json() as { review: ReviewDetail; moderationHistory: AuditEntry[] };
-    setReview(data.review);
-    setHistory(data.moderationHistory);
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ["admin-review-detail", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/reviews/${id}`, { headers: headers() });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error("Failed to load review");
+      return (await res.json()) as { review: ReviewDetail; moderationHistory: AuditEntry[] };
+    },
+    enabled: !!token,
+  });
+
+  // Seed the edit/reply drafts once per review, without clobbering an
+  // in-progress edit on every background refetch.
+  if (data && editSeededFor !== id) {
+    setEditSeededFor(id);
     setEditBody(data.review.body);
     setEditTitle(data.review.title ?? "");
     setReplyBody(data.review.reply?.body ?? "");
-  }, [token, id]);
-
-  useEffect(() => { load(); }, [load]);
-
-  async function moderate(action: string, reason?: string) {
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/admin/reviews/${id}/moderate`, {
-        method: "POST",
-        headers: headers(),
-        body: JSON.stringify({ action, reason }),
-      });
-      if (res.ok) await load();
-      else { const d = await res.json().catch(() => ({})); alert(d.error ?? "Action failed."); }
-    } finally {
-      setBusy(false);
-    }
   }
+
+  const moderateMutation = useMutation({
+    mutationFn: async ({ action, reason }: { action: string; reason?: string }) => {
+      const res = await fetch(`/api/admin/reviews/${id}/moderate`, { method: "POST", headers: headers(), body: JSON.stringify({ action, reason }) });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Action failed.");
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-review-detail", id] }),
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
 
   function reject() {
     const reason = window.prompt("Reason for rejecting this review (shown to the reviewer):");
     if (reason === null) return;
-    if (!reason.trim()) { alert("A reason is required."); return; }
-    moderate("reject", reason.trim());
+    if (!reason.trim()) { showToast("A reason is required.", "error"); return; }
+    moderateMutation.mutate({ action: "reject", reason: reason.trim() });
   }
 
-  async function saveEdit() {
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/admin/reviews/${id}`, {
-        method: "PATCH",
-        headers: headers(),
-        body: JSON.stringify({ title: editTitle.trim() || null, body: editBody.trim() }),
-      });
-      if (res.ok) { setEditing(false); await load(); }
-      else { const d = await res.json().catch(() => ({})); alert(d.error ?? "Save failed."); }
-    } finally {
-      setBusy(false);
-    }
-  }
+  const saveEditMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/admin/reviews/${id}`, { method: "PATCH", headers: headers(), body: JSON.stringify({ title: editTitle.trim() || null, body: editBody.trim() }) });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Save failed.");
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-review-detail", id] }); setEditing(false); },
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
 
-  async function saveReply() {
-    if (!replyBody.trim()) return;
-    setReplyBusy(true);
-    try {
+  const saveReplyMutation = useMutation({
+    mutationFn: async () => {
       const res = await fetch(`/api/admin/reviews/${id}/reply`, {
-        method: review?.reply ? "PATCH" : "POST",
-        headers: headers(),
-        body: JSON.stringify({ body: replyBody.trim() }),
+        method: data?.review.reply ? "PATCH" : "POST", headers: headers(), body: JSON.stringify({ body: replyBody.trim() }),
       });
-      if (res.ok) { setReplyEditing(false); await load(); }
-      else { const d = await res.json().catch(() => ({})); alert(d.error ?? "Save failed."); }
-    } finally {
-      setReplyBusy(false);
-    }
-  }
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Save failed.");
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-review-detail", id] }); setReplyEditing(false); },
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
 
-  async function deleteReply() {
-    if (!window.confirm("Delete this reply?")) return;
-    setReplyBusy(true);
-    try {
+  const deleteReplyMutation = useMutation({
+    mutationFn: async () => {
       const res = await fetch(`/api/admin/reviews/${id}/reply`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) await load();
-      else { const d = await res.json().catch(() => ({})); alert(d.error ?? "Delete failed."); }
-    } finally {
-      setReplyBusy(false);
-    }
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Delete failed.");
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-review-detail", id] }),
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
+  function deleteReply() {
+    if (!window.confirm("Delete this reply?")) return;
+    deleteReplyMutation.mutate();
   }
 
-  async function deleteReview() {
-    setBusy(true);
-    try {
+  const deleteReviewMutation = useMutation({
+    mutationFn: async () => {
       const res = await fetch(`/api/admin/reviews/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) window.location.href = "/admin/reviews";
-      else { const d = await res.json().catch(() => ({})); alert(d.error ?? "Delete failed."); }
-    } finally {
-      setBusy(false);
-      setConfirmDelete(false);
-    }
-  }
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Delete failed.");
+    },
+    onSuccess: () => { window.location.href = "/admin/reviews"; },
+    onError: (e: Error) => { showToast(e.message, "error"); setConfirmDelete(false); },
+  });
 
-  if (notFound) {
+  if (data === null) {
     return (
       <AdminShell title="Review">
         <p className="text-sm text-gray-400">Review not found. <Link href="/admin/reviews" className="text-blue-600 hover:underline">Back to Reviews</Link></p>
       </AdminShell>
     );
   }
-  if (!review) {
+  if (isError) {
+    return <AdminShell title="Review"><ErrorCard onRetry={refetch} /></AdminShell>;
+  }
+  if (isLoading || !data) {
     return <AdminShell title="Review"><p className="text-sm text-gray-400">Loading…</p></AdminShell>;
   }
+
+  const review = data.review;
+  const history = data.moderationHistory;
+  const busy = moderateMutation.isPending || saveEditMutation.isPending || deleteReviewMutation.isPending;
 
   return (
     <AdminShell title="Review">
@@ -187,8 +181,8 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
                 <textarea value={editBody} onChange={(e) => setEditBody(e.target.value)} rows={6}
                   className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2" />
                 <div className="flex gap-2">
-                  <button onClick={saveEdit} disabled={busy} className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg disabled:opacity-50">
-                    {busy ? "Saving…" : "Save"}
+                  <button onClick={() => saveEditMutation.mutate()} disabled={saveEditMutation.isPending} className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg disabled:opacity-50">
+                    {saveEditMutation.isPending ? "Saving…" : "Save"}
                   </button>
                   <button onClick={() => { setEditing(false); setEditBody(review.body); setEditTitle(review.title ?? ""); }}
                     className="text-xs font-semibold text-gray-500 border border-gray-200 rounded-lg px-4 py-2 hover:bg-gray-50">
@@ -242,8 +236,8 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
                   placeholder="Write a public reply as Clipiro…"
                   className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2" />
                 <div className="flex gap-2">
-                  <button onClick={saveReply} disabled={replyBusy || !replyBody.trim()} className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg disabled:opacity-50">
-                    {replyBusy ? "Saving…" : "Save reply"}
+                  <button onClick={() => saveReplyMutation.mutate()} disabled={saveReplyMutation.isPending || !replyBody.trim()} className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg disabled:opacity-50">
+                    {saveReplyMutation.isPending ? "Saving…" : "Save reply"}
                   </button>
                   <button onClick={() => { setReplyEditing(false); setReplyBody(review.reply?.body ?? ""); }}
                     className="text-xs font-semibold text-gray-500 border border-gray-200 rounded-lg px-4 py-2 hover:bg-gray-50">
@@ -256,7 +250,7 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
                 <p className="text-sm text-gray-700 whitespace-pre-line">{review.reply.body}</p>
                 <div className="flex items-center gap-3 mt-2">
                   <p className="text-xs text-gray-400">{dt(review.reply.editedAt ?? review.reply.createdAt)}{review.reply.editedAt ? " (edited)" : ""}</p>
-                  <button onClick={deleteReply} disabled={replyBusy} className="text-xs font-semibold text-red-600 hover:text-red-800">Delete</button>
+                  <button onClick={deleteReply} disabled={deleteReplyMutation.isPending} className="text-xs font-semibold text-red-600 hover:text-red-800">Delete</button>
                 </div>
               </div>
             ) : (
@@ -295,27 +289,27 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-2">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Actions</p>
             {review.status !== "published" && (
-              <button disabled={busy} onClick={() => moderate("approve")} className="w-full text-xs font-semibold text-emerald-700 border border-emerald-200 rounded-lg px-3 py-2 hover:bg-emerald-50 disabled:opacity-50">Approve</button>
+              <button disabled={busy} onClick={() => moderateMutation.mutate({ action: "approve" })} className="w-full text-xs font-semibold text-emerald-700 border border-emerald-200 rounded-lg px-3 py-2 hover:bg-emerald-50 disabled:opacity-50">Approve</button>
             )}
             {review.status !== "rejected" && (
               <button disabled={busy} onClick={reject} className="w-full text-xs font-semibold text-red-600 border border-red-200 rounded-lg px-3 py-2 hover:bg-red-50 disabled:opacity-50">Reject</button>
             )}
             {review.status === "hidden" ? (
-              <button disabled={busy} onClick={() => moderate("unhide")} className="w-full text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50 disabled:opacity-50">Unhide</button>
+              <button disabled={busy} onClick={() => moderateMutation.mutate({ action: "unhide" })} className="w-full text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50 disabled:opacity-50">Unhide</button>
             ) : (
-              <button disabled={busy} onClick={() => moderate("hide")} className="w-full text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50 disabled:opacity-50">Hide</button>
+              <button disabled={busy} onClick={() => moderateMutation.mutate({ action: "hide" })} className="w-full text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50 disabled:opacity-50">Hide</button>
             )}
             {review.status === "published" && (
               review.pinned ? (
-                <button disabled={busy} onClick={() => moderate("unpin")} className="w-full text-xs font-semibold text-violet-700 border border-violet-200 rounded-lg px-3 py-2 hover:bg-violet-50 disabled:opacity-50">Unpin</button>
+                <button disabled={busy} onClick={() => moderateMutation.mutate({ action: "unpin" })} className="w-full text-xs font-semibold text-violet-700 border border-violet-200 rounded-lg px-3 py-2 hover:bg-violet-50 disabled:opacity-50">Unpin</button>
               ) : (
-                <button disabled={busy} onClick={() => moderate("pin")} className="w-full text-xs font-semibold text-violet-700 border border-violet-200 rounded-lg px-3 py-2 hover:bg-violet-50 disabled:opacity-50">Feature</button>
+                <button disabled={busy} onClick={() => moderateMutation.mutate({ action: "pin" })} className="w-full text-xs font-semibold text-violet-700 border border-violet-200 rounded-lg px-3 py-2 hover:bg-violet-50 disabled:opacity-50">Feature</button>
               )
             )}
             <div className="pt-2 border-t border-gray-50">
               {confirmDelete ? (
                 <div className="flex gap-2">
-                  <button disabled={busy} onClick={deleteReview} className="flex-1 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg px-3 py-2 disabled:opacity-50">Confirm delete</button>
+                  <button disabled={deleteReviewMutation.isPending} onClick={() => deleteReviewMutation.mutate()} className="flex-1 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg px-3 py-2 disabled:opacity-50">Confirm delete</button>
                   <button onClick={() => setConfirmDelete(false)} className="text-xs text-gray-500 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50">Cancel</button>
                 </div>
               ) : (

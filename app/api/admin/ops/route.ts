@@ -56,11 +56,14 @@ export const PATCH = withAdmin(async (req, { admin }) => {
     });
   }
   if (maintenance) {
+    // Strip `confirm` — it exists only to force the caller through the
+    // confirm-gate in opsFlagsSchema, not to be persisted or audited.
+    const { on, message } = maintenance;
     const before = await getMaintenanceMode();
-    await setMaintenanceMode(maintenance);
-    await auditAdminAction(admin.userId, maintenance.on ? "maintenance.enabled" : "maintenance.disabled", undefined, {
+    await setMaintenanceMode({ on, message });
+    await auditAdminAction(admin.userId, on ? "maintenance.enabled" : "maintenance.disabled", undefined, {
       before,
-      after: maintenance,
+      after: { on, message },
       ip: auditIp(req),
     });
   }

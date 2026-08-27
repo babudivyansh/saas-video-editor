@@ -1,7 +1,11 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminShell from "../AdminShell";
+import { ErrorCard } from "../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
+import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
+import { useToast } from "@/app/components/ui/Toast";
 
 interface Coupon {
   id: string;
@@ -35,45 +39,47 @@ function fmtDate(iso: string | null) {
 
 export default function AdminCouponsPage() {
   const { token, user } = useAuth();
-  const [coupons, setCoupons]   = useState<Coupon[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [savingId, setSavingId] = useState<string | null>(null);
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
   const [creating, setCreating] = useState(false);
   const [form, setForm]         = useState({ ...EMPTY });
   const [err, setErr]           = useState("");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [redemptionsFor, setRedemptionsFor] = useState<string | null>(null);
-  const [redemptions, setRedemptions] = useState<Array<{
-    id: string; discountInPaise: number; orderId: string | null; createdAt: string;
-    user: { email: string; name: string | null };
-  }> | null>(null);
 
-  async function toggleRedemptions(couponId: string) {
-    if (redemptionsFor === couponId) { setRedemptionsFor(null); return; }
-    setRedemptionsFor(couponId);
-    setRedemptions(null);
-    const res = await fetch(`/api/admin/coupons/${couponId}/redemptions`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    setRedemptions(res.ok ? (await res.json()).redemptions ?? [] : []);
-  }
+  const headers = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` });
 
-  const load = useCallback(async () => {
-    if (!token || user?.role !== "ADMIN") return;
-    const res = await fetch("/api/admin/coupons", { headers: { Authorization: `Bearer ${token}` } });
-    const data = res.ok ? await res.json() : { coupons: [] };
-    setCoupons(data.coupons ?? []);
-    setLoading(false);
-  }, [token, user?.role]);
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ["admin-coupons"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/coupons", { headers: headers() });
+      if (!res.ok) throw new Error("Failed to load coupons");
+      return (await res.json()) as { coupons?: Coupon[] };
+    },
+    enabled: !!token && user?.role === "ADMIN",
+  });
 
-  useEffect(() => { load(); }, [load]);
+  // Editable working copy — server data is the source of truth on load/save,
+  // but fields are edited in place before an explicit Save, same as before.
+  const [localCoupons, setLocalCoupons] = useState<Coupon[] | null>(null);
+  useEffect(() => { if (data) setLocalCoupons(data.coupons ?? []); }, [data]);
+  const coupons = localCoupons ?? [];
 
-  async function saveCoupon(c: Coupon) {
-    setSavingId(c.id);
-    try {
-      await fetch(`/api/admin/coupons/${c.id}`, {
+  const { data: redemptions } = useQuery({
+    queryKey: ["admin-coupon-redemptions", redemptionsFor],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/coupons/${redemptionsFor}/redemptions`, { headers: headers() });
+      if (!res.ok) return { redemptions: [] };
+      return (await res.json()) as { redemptions: Array<{ id: string; discountInPaise: number; orderId: string | null; createdAt: string; user: { email: string; name: string | null } }> };
+    },
+    enabled: !!redemptionsFor,
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (c: Coupon) => {
+      const res = await fetch(`/api/admin/coupons/${c.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: headers(),
         body: JSON.stringify({
           description: c.description, discountType: c.discountType, discountValue: c.discountValue,
           appliesTo: c.appliesTo, minAmountInPaise: c.minAmountInPaise,
@@ -82,30 +88,26 @@ export default function AdminCouponsPage() {
           expiresAt: c.expiresAt,
         }),
       });
-      await load();
-    } finally {
-      setSavingId(null);
-    }
-  }
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Save failed");
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-coupons"] }); showToast("Coupon saved", "success"); },
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
 
-  async function deleteCoupon(id: string) {
-    await fetch(`/api/admin/coupons/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-    setConfirmDelete(null);
-    await load();
-  }
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/coupons/${id}`, { method: "DELETE", headers: headers() });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Deactivate failed");
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-coupons"] }); showToast("Coupon deactivated", "success"); },
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
 
-  function edit(id: string, patch: Partial<Coupon>) {
-    setCoupons(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
-  }
-
-  async function createCoupon(e: React.FormEvent) {
-    e.preventDefault();
-    setErr("");
-    setCreating(true);
-    try {
+  const createMutation = useMutation({
+    mutationFn: async () => {
       const res = await fetch("/api/admin/coupons", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: headers(),
         body: JSON.stringify({
           code: form.code,
           description: form.description,
@@ -120,16 +122,20 @@ export default function AdminCouponsPage() {
           expiresAt: form.expiresAt || null,
         }),
       });
-      if (!res.ok) {
-        const d = await res.json() as { error?: string };
-        setErr(d.error ?? "Failed to create coupon");
-        return;
-      }
-      setForm({ ...EMPTY });
-      await load();
-    } finally {
-      setCreating(false);
-    }
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Failed to create coupon");
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-coupons"] }); setForm({ ...EMPTY }); setErr(""); },
+    onError: (e: Error) => setErr(e.message),
+  });
+
+  function edit(id: string, patch: Partial<Coupon>) {
+    setLocalCoupons(prev => prev ? prev.map(c => c.id === id ? { ...c, ...patch } : c) : prev);
+  }
+
+  async function createCoupon(e: React.FormEvent) {
+    e.preventDefault();
+    setCreating(true);
+    try { await createMutation.mutateAsync(); } finally { setCreating(false); }
   }
 
   const valueLabel = (c: { discountType: string; discountValue: number }) =>
@@ -137,7 +143,9 @@ export default function AdminCouponsPage() {
 
   return (
     <AdminShell title="Coupons">
-      {loading ? (
+      {isError ? (
+        <ErrorCard onRetry={refetch} />
+      ) : isLoading ? (
         <p className="text-sm text-gray-400">Loading coupons…</p>
       ) : (
         <div className="space-y-5">
@@ -145,7 +153,9 @@ export default function AdminCouponsPage() {
             <p className="text-sm text-gray-400">No coupons yet — create your first launch code below.</p>
           )}
 
-          {coupons.map(c => (
+          {coupons.map(c => {
+            const savingThis = saveMutation.isPending && saveMutation.variables?.id === c.id;
+            return (
             <div key={c.id} className={`bg-white rounded-2xl border shadow-sm p-6 ${c.active ? "border-gray-100" : "border-gray-200 opacity-60"}`}>
               <div className="flex items-start justify-between mb-4 gap-3 flex-wrap">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -158,7 +168,7 @@ export default function AdminCouponsPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => toggleRedemptions(c.id)}
+                    onClick={() => setRedemptionsFor(redemptionsFor === c.id ? null : c.id)}
                     disabled={c.timesRedeemed === 0}
                     className="text-xs text-gray-500 hover:text-blue-600 disabled:cursor-default disabled:hover:text-gray-500 cursor-pointer"
                     title={c.timesRedeemed > 0 ? "View who redeemed this coupon" : undefined}
@@ -169,29 +179,22 @@ export default function AdminCouponsPage() {
                   <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer">
                     <input type="checkbox" checked={c.active} onChange={e => edit(c.id, { active: e.target.checked })} /> Active
                   </label>
-                  {confirmDelete === c.id ? (
-                    <div className="flex gap-2">
-                      <button onClick={() => deleteCoupon(c.id)} className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg">Confirm</button>
-                      <button onClick={() => setConfirmDelete(null)} className="text-xs text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-lg border border-gray-200">Cancel</button>
-                    </div>
-                  ) : (
-                    <button onClick={() => setConfirmDelete(c.id)} className="text-xs font-semibold text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">Deactivate</button>
-                  )}
+                  <button onClick={() => setConfirmDelete(c.id)} className="text-xs font-semibold text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">Deactivate</button>
                 </div>
               </div>
 
               {redemptionsFor === c.id && (
                 <div className="mb-4 bg-gray-50 rounded-xl p-4">
                   <p className="text-xs font-semibold text-gray-500 mb-2">Redemptions</p>
-                  {redemptions === null ? (
+                  {!redemptions ? (
                     <p className="text-xs text-gray-400">Loading…</p>
-                  ) : redemptions.length === 0 ? (
+                  ) : redemptions.redemptions.length === 0 ? (
                     <p className="text-xs text-gray-400">No redemptions recorded.</p>
                   ) : (
                     <div className="overflow-x-auto">
                     <table className="w-full text-xs">
                       <tbody>
-                        {redemptions.map(r => (
+                        {redemptions.redemptions.map(r => (
                           <tr key={r.id} className="border-t border-gray-100 first:border-0">
                             <td className="py-1.5 text-gray-700">{r.user.email}</td>
                             <td className="py-1.5 text-gray-400">{new Date(r.createdAt).toLocaleDateString("en-IN")}</td>
@@ -258,13 +261,14 @@ export default function AdminCouponsPage() {
                 <input className={input} value={c.description ?? ""} onChange={e => edit(c.id, { description: e.target.value })} />
               </div>
               <div className="flex justify-end mt-4">
-                <button onClick={() => saveCoupon(c)} disabled={savingId === c.id}
+                <button onClick={() => saveMutation.mutate(c)} disabled={savingThis}
                   className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold px-5 py-2 rounded-xl transition-colors">
-                  {savingId === c.id ? "Saving…" : "Save"}
+                  {savingThis ? "Saving…" : "Save"}
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
 
           {/* Create new coupon */}
           <form onSubmit={createCoupon} className="bg-white rounded-2xl border border-dashed border-gray-300 p-6">
@@ -332,6 +336,15 @@ export default function AdminCouponsPage() {
           </form>
         </div>
       )}
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Deactivate coupon"
+        message={`Deactivate "${coupons.find(c => c.id === confirmDelete)?.code ?? ""}"? It stops working for new redemptions immediately.`}
+        confirmLabel="Deactivate"
+        danger
+        onConfirm={async () => { if (confirmDelete) await deleteMutation.mutateAsync(confirmDelete); }}
+        onClose={() => setConfirmDelete(null)}
+      />
     </AdminShell>
   );
 }

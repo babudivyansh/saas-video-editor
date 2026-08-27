@@ -4,10 +4,14 @@
 // (suspend / revoke sessions), admin notes, purchases, credit ledger, social
 // accounts, affiliate state, and login history — everything in one place.
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import AdminShell from "../../AdminShell";
+import { ErrorCard } from "../../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
+import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
+import { useToast } from "@/app/components/ui/Toast";
 
 interface Detail {
   user: {
@@ -30,36 +34,31 @@ const inr = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
 const dt = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—");
 
 // Audited credit correction — grant or deduct with a mandatory reason.
-function CreditAdjust({ userId, onDone, headers }: { userId: string; onDone: () => void; headers: () => Record<string, string> }) {
+function CreditAdjust({ userId, headers }: { userId: string; headers: () => Record<string, string> }) {
+  const queryClient = useQueryClient();
   const [delta, setDelta] = useState("");
   const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  async function apply() {
-    const n = parseInt(delta, 10);
-    if (!Number.isInteger(n) || n === 0) { setMsg("Enter a non-zero integer (negative to deduct)."); return; }
-    setBusy(true);
-    setMsg(null);
-    try {
+  const adjustMutation = useMutation({
+    mutationFn: async () => {
+      const n = parseInt(delta, 10);
+      if (!Number.isInteger(n) || n === 0) throw new Error("Enter a non-zero integer (negative to deduct).");
       const res = await fetch(`/api/admin/users/${userId}/credits`, {
-        method: "POST",
-        headers: headers(),
-        body: JSON.stringify({ delta: n, reason: reason.trim() }),
+        method: "POST", headers: headers(), body: JSON.stringify({ delta: n, reason: reason.trim() }),
       });
       const d = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setMsg(`Done — balance is now ${d.balance}.`);
-        setDelta("");
-        setReason("");
-        onDone();
-      } else {
-        setMsg(d.issues?.[0]?.message ?? d.error ?? "Failed");
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
+      if (!res.ok) throw new Error(d.issues?.[0]?.message ?? d.error ?? "Failed");
+      return d as { balance: number };
+    },
+    onSuccess: (d) => {
+      setMsg(`Done — balance is now ${d.balance}.`);
+      setDelta("");
+      setReason("");
+      queryClient.invalidateQueries({ queryKey: ["admin-user-detail", userId] });
+    },
+    onError: (e: Error) => setMsg(e.message),
+  });
 
   return (
     <div className="pt-2 border-t border-gray-50">
@@ -69,7 +68,7 @@ function CreditAdjust({ userId, onDone, headers }: { userId: string; onDone: () 
           className="w-16 text-xs border border-gray-200 rounded-lg px-2 py-1.5" aria-label="Credit delta" />
         <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (required)"
           className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5" aria-label="Reason" />
-        <button onClick={apply} disabled={busy || reason.trim().length < 3}
+        <button onClick={() => adjustMutation.mutate()} disabled={adjustMutation.isPending || reason.trim().length < 3}
           className="text-xs font-semibold text-white bg-gray-900 px-3 py-1.5 rounded-lg disabled:opacity-50 cursor-pointer">
           Apply
         </button>
@@ -82,66 +81,81 @@ function CreditAdjust({ userId, onDone, headers }: { userId: string; onDone: () 
 export default function AdminUserDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { token } = useAuth();
-  const [d, setD] = useState<Detail | null>(null);
-  const [notFound, setNotFound] = useState(false);
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
   const [notes, setNotes] = useState("");
+  const [notesLoadedFor, setNotesLoadedFor] = useState<string | null>(null);
   const [notesSaved, setNotesSaved] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
   const [confirmSuspend, setConfirmSuspend] = useState(false);
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
 
-  const headers = useCallback(
-    () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` }),
-    [token],
-  );
+  const headers = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` });
 
-  const load = useCallback(async () => {
-    if (!token) return;
-    const res = await fetch(`/api/admin/users/${id}/detail`, { headers: headers() });
-    if (res.status === 404) { setNotFound(true); return; }
-    if (res.ok) {
-      const data = (await res.json()) as Detail;
-      setD(data);
-      setNotes(data.user.adminNotes ?? "");
-    }
-  }, [token, id, headers]);
+  // data === undefined: loading. data === null: 404 (not found). Otherwise the detail payload.
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ["admin-user-detail", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/users/${id}/detail`, { headers: headers() });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error("Failed to load user");
+      return (await res.json()) as Detail;
+    },
+    enabled: !!token,
+  });
 
-  useEffect(() => { load(); }, [load]);
-
-  async function moderate(action: "suspend" | "unsuspend" | "revoke_sessions") {
-    setMsg(null);
-    setConfirmSuspend(false);
-    const res = await fetch(`/api/admin/users/${id}/moderate`, {
-      method: "POST",
-      headers: headers(),
-      body: JSON.stringify({ action }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      setMsg(action === "revoke_sessions" ? "Sessions revoked." : action === "suspend" ? "User suspended and sessions revoked." : "User unsuspended.");
-      await load();
-    } else {
-      setMsg(data.error ?? "Action failed");
-    }
+  // Seed the notes textarea once per user, without clobbering an in-progress
+  // edit on every background refetch.
+  if (data && notesLoadedFor !== id) {
+    setNotesLoadedFor(id);
+    setNotes(data.user.adminNotes ?? "");
   }
 
-  async function saveNotes() {
-    const res = await fetch(`/api/admin/users/${id}/detail`, {
-      method: "PATCH",
-      headers: headers(),
-      body: JSON.stringify({ adminNotes: notes.trim() || null }),
-    });
-    setNotesSaved(res.ok);
-    setTimeout(() => setNotesSaved(false), 2000);
-  }
+  const moderateMutation = useMutation({
+    mutationFn: async (action: "suspend" | "unsuspend" | "revoke_sessions") => {
+      const res = await fetch(`/api/admin/users/${id}/moderate`, {
+        method: "POST", headers: headers(), body: JSON.stringify({ action, confirm: action !== "unsuspend" ? true : undefined }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error ?? "Action failed");
+      return action;
+    },
+    onSuccess: (action) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-user-detail", id] });
+      showToast(action === "revoke_sessions" ? "Sessions revoked." : action === "suspend" ? "User suspended and sessions revoked." : "User unsuspended.", "success");
+    },
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
 
-  if (notFound) {
+  const saveNotesMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/admin/users/${id}/detail`, {
+        method: "PATCH", headers: headers(), body: JSON.stringify({ adminNotes: notes.trim() || null }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-user-detail", id] });
+      setNotesSaved(true);
+      setTimeout(() => setNotesSaved(false), 2000);
+    },
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
+
+  if (data === null) {
     return (
       <AdminShell title="User">
         <p className="text-sm text-gray-500">User not found. <Link href="/admin/users" className="text-blue-600 font-semibold">Back to users</Link></p>
       </AdminShell>
     );
   }
-  if (!d) {
+  if (isError) {
+    return (
+      <AdminShell title="User">
+        <ErrorCard onRetry={refetch} />
+      </AdminShell>
+    );
+  }
+  if (isLoading || !data) {
     return (
       <AdminShell title="User">
         <div className="animate-pulse space-y-4"><div className="h-32 bg-gray-100 rounded-2xl" /><div className="h-64 bg-gray-100 rounded-2xl" /></div>
@@ -149,6 +163,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
     );
   }
 
+  const d = data;
   const suspended = !!d.user.suspendedAt;
   const subActive = !!d.user.subscriptionEndsAt && new Date(d.user.subscriptionEndsAt) > new Date();
 
@@ -156,7 +171,6 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
     <AdminShell title={d.user.name || d.user.email}>
       <Link href="/admin/users" className="text-xs font-semibold text-gray-400 hover:text-gray-700">← All users</Link>
 
-      {msg && <p className="text-sm text-blue-800 bg-blue-50 border border-blue-100 rounded-lg px-4 py-2 my-3">{msg}</p>}
       {suspended && (
         <p className="text-sm text-red-800 bg-red-50 border border-red-100 rounded-lg px-4 py-2 my-3">
           Suspended since {dt(d.user.suspendedAt)} — login is blocked.
@@ -189,18 +203,14 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
               {d.hasActiveSession ? "Active session" : "No live session"}
             </span>
           </div>
-          <CreditAdjust userId={id} onDone={load} headers={headers} />
+          <CreditAdjust userId={id} headers={headers} />
           <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-50">
-            <button onClick={() => moderate("revoke_sessions")} className="text-xs font-semibold text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg border border-gray-200 cursor-pointer">
+            <button onClick={() => setConfirmRevoke(true)} className="text-xs font-semibold text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg border border-gray-200 cursor-pointer">
               Revoke sessions
             </button>
             {suspended ? (
-              <button onClick={() => moderate("unsuspend")} className="text-xs font-semibold text-emerald-700 px-3 py-1.5 rounded-lg border border-emerald-200 cursor-pointer">
+              <button onClick={() => moderateMutation.mutate("unsuspend")} className="text-xs font-semibold text-emerald-700 px-3 py-1.5 rounded-lg border border-emerald-200 cursor-pointer">
                 Unsuspend
-              </button>
-            ) : confirmSuspend ? (
-              <button onClick={() => moderate("suspend")} onBlur={() => setConfirmSuspend(false)} className="text-xs font-bold text-white bg-red-600 px-3 py-1.5 rounded-lg cursor-pointer">
-                Confirm suspend?
               </button>
             ) : (
               <button onClick={() => setConfirmSuspend(true)} className="text-xs font-semibold text-red-600 px-3 py-1.5 rounded-lg border border-red-200 cursor-pointer">
@@ -220,7 +230,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             className="w-full text-sm border border-gray-200 rounded-xl p-3 resize-y"
             placeholder="Support history, warnings, context…"
           />
-          <button onClick={saveNotes} className="mt-2 text-xs font-semibold text-white bg-gray-900 px-4 py-1.5 rounded-lg cursor-pointer">
+          <button onClick={() => saveNotesMutation.mutate()} className="mt-2 text-xs font-semibold text-white bg-gray-900 px-4 py-1.5 rounded-lg cursor-pointer">
             {notesSaved ? "Saved ✓" : "Save notes"}
           </button>
         </div>
@@ -333,6 +343,24 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           </table>
         )}
       </div>
+      <ConfirmDialog
+        open={confirmSuspend}
+        title="Suspend user"
+        message={`Suspend "${d.user.email}"? Their login is blocked immediately and their live session is revoked.`}
+        confirmLabel="Suspend"
+        danger
+        onConfirm={async () => { await moderateMutation.mutateAsync("suspend"); }}
+        onClose={() => setConfirmSuspend(false)}
+      />
+      <ConfirmDialog
+        open={confirmRevoke}
+        title="Revoke sessions"
+        message={`Log "${d.user.email}" out of every active session? They'll need to sign in again.`}
+        confirmLabel="Revoke"
+        danger
+        onConfirm={async () => { await moderateMutation.mutateAsync("revoke_sessions"); }}
+        onClose={() => setConfirmRevoke(false)}
+      />
     </AdminShell>
   );
 }

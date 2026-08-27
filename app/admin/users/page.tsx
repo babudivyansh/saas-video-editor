@@ -1,7 +1,12 @@
 "use client";
-import { useEffect, useState, useCallback, useRef, Fragment } from "react";
+import { useState, Fragment } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminShell from "../AdminShell";
+import { ErrorCard } from "../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
+import { useToast } from "@/app/components/ui/Toast";
 
 interface PlanRef { id: string; name: string; slug: string }
 interface AdminUser {
@@ -29,16 +34,15 @@ function isExpired(iso: string | null) {
   return iso ? new Date(iso) <= new Date() : true;
 }
 
+const LIMIT = 50;
+
 export default function AdminUsersPage() {
   const { token, user } = useAuth();
-  const [users, setUsers]     = useState<AdminUser[]>([]);
-  const [plans, setPlans]     = useState<PlanRef[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [savingId, setSavingId] = useState<string | null>(null);
-  const [search, setSearch]   = useState("");
-  const [page, setPage]       = useState(1);
-  const [total, setTotal]     = useState(0);
-  const LIMIT = 50;
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
+  const [searchInput, setSearchInput] = useState("");
+  const search = useDebouncedValue(searchInput);
 
   // Expanded action row
   const [expandedId, setExpandedId]       = useState<string | null>(null);
@@ -48,51 +52,52 @@ export default function AdminUsersPage() {
   const [editName, setEditName]           = useState("");
   const [editEmail, setEditEmail]         = useState("");
 
-  // Delete confirm
-  const [deletingId, setDeletingId]       = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  // Granting ADMIN mints a second full admin — confirm before it fires, same
+  // as delete. Demoting back to USER doesn't need this (reversible).
+  const [confirmPromoteId, setConfirmPromoteId] = useState<string | null>(null);
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const headers = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` });
 
-  const load = useCallback(async (q: string, pg: number) => {
-    if (!token || user?.role !== "ADMIN") return;
-    setLoading(true);
-    const params = new URLSearchParams({ search: q, page: String(pg), limit: String(LIMIT) });
-    const [u, p] = await Promise.all([
-      fetch(`/api/admin/users?${params}`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : { users: [], total: 0 }),
-      fetch("/api/admin/plans", { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : { plans: [] }),
-    ]);
-    setUsers(u.users ?? []);
-    setTotal(u.total ?? 0);
-    setPlans(p.plans ?? []);
-    setLoading(false);
-  }, [token, user?.role]);
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ["admin-users", page, search],
+    queryFn: async () => {
+      const params = new URLSearchParams({ search, page: String(page), limit: String(LIMIT) });
+      const [u, p] = await Promise.all([
+        fetch(`/api/admin/users?${params}`, { headers: headers() }),
+        fetch("/api/admin/plans", { headers: headers() }),
+      ]);
+      if (!u.ok) throw new Error("Failed to load users");
+      const uData = (await u.json()) as { users?: AdminUser[]; total?: number };
+      const pData = p.ok ? ((await p.json()) as { plans?: PlanRef[] }) : { plans: [] };
+      return { users: uData.users ?? [], total: uData.total ?? 0, plans: pData.plans ?? [] };
+    },
+    enabled: !!token && user?.role === "ADMIN",
+  });
 
-  useEffect(() => { load(search, page); }, [load, search, page]);
+  const patchMutation = useMutation({
+    mutationFn: async ({ id, body }: { id: string; body: Record<string, unknown> }) => {
+      const res = await fetch(`/api/admin/users/${id}`, { method: "PATCH", headers: headers(), body: JSON.stringify(body) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error ?? "Update failed");
+      return d as { user: Partial<AdminUser> };
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-users"] }),
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
 
-  function onSearch(q: string) {
-    setSearch(q);
-    setPage(1);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => load(q, 1), 400);
-  }
-
-  async function patch(id: string, body: Record<string, unknown>) {
-    setSavingId(id);
-    try {
-      const res = await fetch(`/api/admin/users/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(body),
-      });
-      if (res.ok) {
-        const data = await res.json() as { user: Partial<AdminUser> };
-        setUsers(prev => prev.map(x => x.id === id ? { ...x, ...data.user } as AdminUser : x));
-      }
-    } finally {
-      setSavingId(null);
-    }
-  }
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/users/${id}`, { method: "DELETE", headers: headers() });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Failed to delete user.");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      showToast("User deleted", "success");
+      setDeleteConfirmId(null);
+    },
+    onError: (e: Error) => { showToast(e.message, "error"); setDeleteConfirmId(null); },
+  });
 
   function openExpand(u: AdminUser) {
     if (expandedId === u.id) { setExpandedId(null); return; }
@@ -104,28 +109,7 @@ export default function AdminUsersPage() {
     setEditEmail(u.email);
   }
 
-  async function deleteUser(id: string) {
-    setDeletingId(id);
-    try {
-      const res = await fetch(`/api/admin/users/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        setUsers(prev => prev.filter(x => x.id !== id));
-        setTotal(prev => prev - 1);
-        if (expandedId === id) setExpandedId(null);
-      } else {
-        const d = await res.json() as { error?: string };
-        alert(d.error ?? "Failed to delete user.");
-      }
-    } finally {
-      setDeletingId(null);
-      setDeleteConfirmId(null);
-    }
-  }
-
-  async function saveExpanded(u: AdminUser) {
+  function saveExpanded(u: AdminUser) {
     const body: Record<string, unknown> = {};
     const cr = parseInt(editCredits, 10);
     if (!isNaN(cr) && cr !== u.credits) body.credits = cr;
@@ -138,10 +122,13 @@ export default function AdminUsersPage() {
     if (trimName !== (u.name ?? "")) body.name = trimName;
     const trimEmail = editEmail.trim().toLowerCase();
     if (trimEmail && trimEmail !== u.email) body.email = trimEmail;
-    if (Object.keys(body).length > 0) await patch(u.id, body);
+    if (Object.keys(body).length > 0) patchMutation.mutate({ id: u.id, body });
     setExpandedId(null);
   }
 
+  const users = data?.users ?? [];
+  const plans = data?.plans ?? [];
+  const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
   const inputCls = "bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
 
@@ -150,15 +137,17 @@ export default function AdminUsersPage() {
       {/* Search + pagination controls */}
       <div className="flex items-center justify-between mb-5 gap-4 flex-wrap">
         <input
-          value={search}
-          onChange={e => onSearch(e.target.value)}
+          value={searchInput}
+          onChange={e => { setSearchInput(e.target.value); setPage(1); }}
           placeholder="Search by email or name…"
           className="w-72 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
         />
         <span className="text-sm text-gray-400">{total} user{total !== 1 ? "s" : ""}</span>
       </div>
 
-      {loading ? (
+      {isError ? (
+        <ErrorCard onRetry={refetch} />
+      ) : isLoading ? (
         <p className="text-sm text-gray-400">Loading users…</p>
       ) : (
         <>
@@ -182,6 +171,7 @@ export default function AdminUsersPage() {
                   {users.map(u => {
                     const subExpired = isExpired(u.subscriptionEndsAt);
                     const isAdmin = u.role === "ADMIN";
+                    const savingThis = patchMutation.isPending && patchMutation.variables?.id === u.id;
                     return (
                       <Fragment key={u.id}>
                         <tr
@@ -200,8 +190,8 @@ export default function AdminUsersPage() {
                           <td className="py-3 px-3">
                             <select
                               value={u.role}
-                              onChange={e => patch(u.id, { role: e.target.value })}
-                              disabled={savingId === u.id}
+                              onChange={e => e.target.value === "ADMIN" ? setConfirmPromoteId(u.id) : patchMutation.mutate({ id: u.id, body: { role: e.target.value } })}
+                              disabled={savingThis}
                               className={`text-xs font-semibold border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 ${isAdmin ? "border-blue-200 text-blue-700 bg-blue-50" : "border-gray-200 text-gray-600 bg-white"}`}
                             >
                               <option value="USER">User</option>
@@ -222,27 +212,11 @@ export default function AdminUsersPage() {
                                 className="text-xs font-semibold text-blue-600 hover:text-blue-800 border border-blue-200 rounded-lg px-2.5 py-1.5 hover:bg-blue-50 transition-colors">
                                 {expandedId === u.id ? "Close" : "Edit"}
                               </button>
-                              {deleteConfirmId === u.id ? (
-                                <>
-                                  <button
-                                    onClick={() => deleteUser(u.id)}
-                                    disabled={deletingId === u.id}
-                                    className="text-xs font-semibold text-white bg-red-600 hover:bg-red-700 disabled:bg-red-400 rounded-lg px-2.5 py-1.5 transition-colors">
-                                    {deletingId === u.id ? "…" : "Confirm"}
-                                  </button>
-                                  <button
-                                    onClick={() => setDeleteConfirmId(null)}
-                                    className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-2 py-1.5 hover:bg-gray-50 transition-colors">
-                                    Cancel
-                                  </button>
-                                </>
-                              ) : (
-                                <button
-                                  onClick={() => setDeleteConfirmId(u.id)}
-                                  className="text-xs font-semibold text-red-600 hover:text-red-800 border border-red-200 rounded-lg px-2.5 py-1.5 hover:bg-red-50 transition-colors">
-                                  Delete
-                                </button>
-                              )}
+                              <button
+                                onClick={() => setDeleteConfirmId(u.id)}
+                                className="text-xs font-semibold text-red-600 hover:text-red-800 border border-red-200 rounded-lg px-2.5 py-1.5 hover:bg-red-50 transition-colors">
+                                Delete
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -274,8 +248,8 @@ export default function AdminUsersPage() {
                                   <label className="text-[10px] font-semibold text-gray-400 block mb-1">Assign Plan</label>
                                   <select
                                     value={u.plan?.id ?? ""}
-                                    onChange={e => patch(u.id, { planId: e.target.value || null })}
-                                    disabled={savingId === u.id}
+                                    onChange={e => patchMutation.mutate({ id: u.id, body: { planId: e.target.value || null } })}
+                                    disabled={savingThis}
                                     className={inputCls}
                                   >
                                     <option value="">Free</option>
@@ -285,9 +259,9 @@ export default function AdminUsersPage() {
                                 <div className="flex gap-2 pb-0.5">
                                   <button
                                     onClick={() => saveExpanded(u)}
-                                    disabled={savingId === u.id}
+                                    disabled={savingThis}
                                     className="text-xs font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-1.5 rounded-lg transition-colors">
-                                    {savingId === u.id ? "Saving…" : "Save"}
+                                    {savingThis ? "Saving…" : "Save"}
                                   </button>
                                   <button
                                     onClick={() => setExpandedId(null)}
@@ -327,6 +301,28 @@ export default function AdminUsersPage() {
           </div>
         </>
       )}
+      <ConfirmDialog
+        open={confirmPromoteId !== null}
+        title="Grant admin access"
+        message={`Make "${users.find(u => u.id === confirmPromoteId)?.email ?? ""}" a full admin? They'll get access to every page and action in this console.`}
+        confirmLabel="Grant admin"
+        danger
+        onConfirm={async () => {
+          if (!confirmPromoteId) return;
+          await patchMutation.mutateAsync({ id: confirmPromoteId, body: { role: "ADMIN", confirm: true } });
+          showToast("Admin access granted", "success");
+        }}
+        onClose={() => setConfirmPromoteId(null)}
+      />
+      <ConfirmDialog
+        open={deleteConfirmId !== null}
+        title="Delete user"
+        message={`Permanently delete "${users.find(u => u.id === deleteConfirmId)?.email ?? ""}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        danger
+        onConfirm={async () => { if (deleteConfirmId) await deleteMutation.mutateAsync(deleteConfirmId); }}
+        onClose={() => setDeleteConfirmId(null)}
+      />
     </AdminShell>
   );
 }

@@ -1,7 +1,11 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminShell from "../AdminShell";
+import { ErrorCard } from "../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { useToast } from "@/app/components/ui/Toast";
 
 interface Purchase {
   id: string;
@@ -21,76 +25,64 @@ const LIMIT = 50;
 
 export default function AdminPurchasesPage() {
   const { token, user } = useAuth();
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
-  const [plans, setPlans]         = useState<{ slug: string; name: string }[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [total, setTotal]         = useState(0);
-  const [page, setPage]           = useState(1);
-  const [search, setSearch]       = useState("");
-  const [planSlug, setPlanSlug]   = useState("");
-  const [status, setStatus]       = useState("");
-  const [from, setFrom]           = useState("");
-  const [to, setTo]               = useState("");
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
+  const [searchInput, setSearchInput] = useState("");
+  const search = useDebouncedValue(searchInput);
+  const [planSlug, setPlanSlug] = useState("");
+  const [status, setStatus]     = useState("");
+  const [from, setFrom]         = useState("");
+  const [to, setTo]             = useState("");
   const [refundingId, setRefundingId] = useState<string | null>(null);
   const [refundReason, setRefundReason] = useState("");
-  const [refundBusy, setRefundBusy] = useState(false);
-  const [refundMsg, setRefundMsg] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!token || user?.role !== "ADMIN") return;
-    setLoading(true);
-    const params = new URLSearchParams({
-      page: String(page), limit: String(LIMIT),
-      search, planSlug, status, from, to,
-    });
-    const [res, pRes] = await Promise.all([
-      fetch(`/api/admin/purchases?${params}`, { headers: { Authorization: `Bearer ${token}` } }),
-      fetch("/api/admin/plans", { headers: { Authorization: `Bearer ${token}` } }),
-    ]);
-    const data  = res.ok  ? await res.json()  : { purchases: [], total: 0 };
-    const pData = pRes.ok ? await pRes.json() : { plans: [] };
-    setPurchases(data.purchases ?? []);
-    setTotal(data.total ?? 0);
-    setPlans(pData.plans ?? []);
-    setLoading(false);
-  }, [token, user?.role, page, search, planSlug, status, from, to]);
+  const headers = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` });
+  const filterParams = { page: String(page), limit: String(LIMIT), search, planSlug, status, from, to };
 
-  useEffect(() => { load(); }, [load]);
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ["admin-purchases", filterParams],
+    queryFn: async () => {
+      const [res, pRes] = await Promise.all([
+        fetch(`/api/admin/purchases?${new URLSearchParams(filterParams)}`, { headers: headers() }),
+        fetch("/api/admin/plans", { headers: headers() }),
+      ]);
+      if (!res.ok) throw new Error("Failed to load purchases");
+      const data = (await res.json()) as { purchases?: Purchase[]; total?: number };
+      const pData = pRes.ok ? ((await pRes.json()) as { plans?: { slug: string; name: string }[] }) : { plans: [] };
+      return { purchases: data.purchases ?? [], total: data.total ?? 0, plans: pData.plans ?? [] };
+    },
+    enabled: !!token && user?.role === "ADMIN",
+  });
 
-  async function refund(purchaseId: string) {
-    setRefundBusy(true);
-    setRefundMsg(null);
-    try {
+  const refundMutation = useMutation({
+    mutationFn: async ({ purchaseId, reason }: { purchaseId: string; reason: string }) => {
       const res = await fetch(`/api/admin/purchases/${purchaseId}/refund`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ reason: refundReason.trim() }),
+        method: "POST", headers: headers(), body: JSON.stringify({ reason }),
       });
       const d = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setRefundMsg(`Refund recorded — ${d.creditsClawedBack} credits clawed back. Complete the money refund in the Razorpay dashboard.`);
-        setRefundingId(null);
-        await load();
-      } else {
-        setRefundMsg(d.error ?? "Refund failed");
-      }
-    } finally {
-      setRefundBusy(false);
-    }
-  }
+      if (!res.ok) throw new Error(d.error ?? "Refund failed");
+      return d as { creditsClawedBack: number };
+    },
+    onSuccess: (d) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-purchases"] });
+      showToast(`Refund recorded — ${d.creditsClawedBack} credits clawed back. Complete the money refund in the Razorpay dashboard.`, "success");
+      setRefundingId(null);
+    },
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
 
   function doExport() {
     const params = new URLSearchParams({ export: "csv", search, planSlug, status, from, to });
     const url = `/api/admin/purchases?${params}`;
-    const a = document.createElement("a");
-    a.href = url;
-    a.setAttribute("download", `purchases-${Date.now()}.csv`);
     // Auth header can't be set on anchor; use fetch+blob instead
-    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(url, { headers: headers() })
       .then(r => r.blob())
       .then(blob => {
         const objUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
         a.href = objUrl;
+        a.setAttribute("download", `purchases-${Date.now()}.csv`);
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -98,6 +90,9 @@ export default function AdminPurchasesPage() {
       });
   }
 
+  const purchases = data?.purchases ?? [];
+  const total = data?.total ?? 0;
+  const plans = data?.plans ?? [];
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
   const totalRevenue = purchases.reduce((s, p) => s + p.amountInPaise, 0);
   const inputCls = "bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm";
@@ -108,8 +103,8 @@ export default function AdminPurchasesPage() {
       <div className="flex flex-wrap gap-3 mb-5">
         <input
           placeholder="Search user email…"
-          value={search}
-          onChange={e => { setSearch(e.target.value); setPage(1); }}
+          value={searchInput}
+          onChange={e => { setSearchInput(e.target.value); setPage(1); }}
           className={`${inputCls} w-52`}
         />
         <select value={planSlug} onChange={e => { setPlanSlug(e.target.value); setPage(1); }} className={inputCls}>
@@ -131,7 +126,7 @@ export default function AdminPurchasesPage() {
       </div>
 
       {/* Summary cards */}
-      {!loading && (
+      {!isLoading && !isError && (
         <div className="flex gap-4 mb-5">
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <p className="text-2xl font-extrabold text-gray-900">{total}</p>
@@ -144,7 +139,9 @@ export default function AdminPurchasesPage() {
         </div>
       )}
 
-      {loading ? (
+      {isError ? (
+        <ErrorCard onRetry={refetch} />
+      ) : isLoading ? (
         <p className="text-sm text-gray-400">Loading purchases…</p>
       ) : purchases.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
@@ -153,9 +150,6 @@ export default function AdminPurchasesPage() {
         </div>
       ) : (
         <>
-          {refundMsg && (
-            <p className="text-sm text-blue-800 bg-blue-50 border border-blue-100 rounded-lg px-4 py-2 mb-4">{refundMsg}</p>
-          )}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -210,10 +204,10 @@ export default function AdminPurchasesPage() {
                                 className="border border-gray-200 rounded-lg px-2 py-1 text-xs w-36"
                               />
                               <button
-                                onClick={() => refund(p.id)}
-                                disabled={refundReason.trim().length < 3 || refundBusy}
+                                onClick={() => refundMutation.mutate({ purchaseId: p.id, reason: refundReason.trim() })}
+                                disabled={refundReason.trim().length < 3 || refundMutation.isPending}
                                 className="text-xs font-bold text-white bg-red-600 rounded-lg px-2 py-1 disabled:opacity-50">
-                                {refundBusy ? "…" : "Refund"}
+                                {refundMutation.isPending ? "…" : "Refund"}
                               </button>
                               <button onClick={() => setRefundingId(null)} className="text-xs text-gray-400">✕</button>
                             </div>

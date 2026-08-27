@@ -1,8 +1,10 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import AdminShell from "../../AdminShell";
+import { ErrorCard } from "../../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
+import { useToast } from "@/app/components/ui/Toast";
 
 interface AdminReport {
   id: string;
@@ -18,48 +20,49 @@ const dt = (iso: string) => new Date(iso).toLocaleString("en-IN", { dateStyle: "
 
 export default function AdminReviewReportsPage() {
   const { token } = useAuth();
-  const [reports, setReports] = useState<AdminReport[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
 
-  const load = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    const res = await fetch("/api/admin/reviews/reports?status=open", { headers: { Authorization: `Bearer ${token}` } });
-    const data = res.ok ? await res.json() : { reports: [] };
-    setReports(data.reports ?? []);
-    setLoading(false);
-  }, [token]);
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ["admin-review-reports"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/reviews/reports?status=open", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error("Failed to load reports");
+      return (await res.json()) as { reports?: AdminReport[] };
+    },
+    enabled: !!token,
+  });
+  const reports = data?.reports ?? [];
 
-  useEffect(() => { load(); }, [load]);
-
-  async function handle(id: string, action: "resolve" | "dismiss") {
-    setBusyId(id);
-    try {
+  const handleMutation = useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: "resolve" | "dismiss" }) => {
       const res = await fetch(`/api/admin/reviews/reports/${id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action }),
       });
-      if (res.ok) setReports((prev) => prev.filter((r) => r.id !== id));
-      else { const d = await res.json().catch(() => ({})); alert(d.error ?? "Action failed."); }
-    } finally {
-      setBusyId(null);
-    }
-  }
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Action failed.");
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-review-reports"] }),
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
 
   return (
     <AdminShell title="Review Reports">
       <Link href="/admin/reviews" className="text-xs font-semibold text-gray-500 hover:text-gray-800">← Back to Reviews</Link>
 
       <div className="mt-4">
-        {loading ? (
+        {isError ? (
+          <ErrorCard onRetry={refetch} />
+        ) : isLoading ? (
           <p className="text-sm text-gray-400">Loading…</p>
         ) : reports.length === 0 ? (
           <p className="text-sm text-gray-400 py-12 text-center">No open reports. Nice and quiet.</p>
         ) : (
           <div className="space-y-3">
-            {reports.map((r) => (
+            {reports.map((r) => {
+              const busy = handleMutation.isPending && handleMutation.variables?.id === r.id;
+              return (
               <div key={r.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
@@ -74,18 +77,19 @@ export default function AdminReviewReportsPage() {
                     <p className="text-xs text-gray-400 mt-1">Reported by {r.user.name || r.user.email} · {dt(r.createdAt)}</p>
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
-                    <button disabled={busyId === r.id} onClick={() => handle(r.id, "dismiss")}
+                    <button disabled={busy} onClick={() => handleMutation.mutate({ id: r.id, action: "dismiss" })}
                       className="text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50 disabled:opacity-50">
                       Dismiss
                     </button>
-                    <button disabled={busyId === r.id} onClick={() => handle(r.id, "resolve")}
+                    <button disabled={busy} onClick={() => handleMutation.mutate({ id: r.id, action: "resolve" })}
                       className="text-xs font-semibold text-emerald-700 border border-emerald-200 rounded-lg px-3 py-2 hover:bg-emerald-50 disabled:opacity-50">
                       Resolve
                     </button>
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

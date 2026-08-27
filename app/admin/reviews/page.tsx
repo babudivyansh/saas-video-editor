@@ -1,8 +1,12 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import AdminShell from "../AdminShell";
+import { ErrorCard } from "../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { useToast } from "@/app/components/ui/Toast";
 
 interface AdminReview {
   id: string;
@@ -34,64 +38,52 @@ function fmt(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
+const LIMIT = 25;
+
 export default function AdminReviewsPage() {
   const { token, user } = useAuth();
-  const [reviews, setReviews] = useState<AdminReview[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<StatusTab>("pending");
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const search = useDebouncedValue(searchInput);
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const LIMIT = 25;
 
-  const load = useCallback(async () => {
-    if (!token || user?.role !== "ADMIN") return;
-    setLoading(true);
-    const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
-    if (tab !== "all") params.set("status", tab);
-    if (search.trim()) params.set("search", search.trim());
-    const res = await fetch(`/api/admin/reviews?${params}`, { headers: { Authorization: `Bearer ${token}` } });
-    const data = res.ok ? await res.json() : { reviews: [], total: 0 };
-    setReviews(data.reviews ?? []);
-    setTotal(data.total ?? 0);
-    setLoading(false);
-  }, [token, user?.role, tab, page, search]);
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ["admin-reviews", tab, page, search],
+    queryFn: async () => {
+      const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
+      if (tab !== "all") params.set("status", tab);
+      if (search.trim()) params.set("search", search.trim());
+      const res = await fetch(`/api/admin/reviews?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error("Failed to load reviews");
+      return (await res.json()) as { reviews?: AdminReview[]; total?: number };
+    },
+    enabled: !!token && user?.role === "ADMIN",
+  });
 
-  useEffect(() => { load(); }, [load]);
-
-  async function moderate(id: string, action: string, reason?: string) {
-    setBusyId(id);
-    try {
+  const moderateMutation = useMutation({
+    mutationFn: async ({ id, action, reason }: { id: string; action: string; reason?: string }) => {
       const res = await fetch(`/api/admin/reviews/${id}/moderate`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action, reason }),
       });
-      if (res.ok) {
-        const data = await res.json() as { review: AdminReview };
-        if (tab !== "all" && data.review.status !== tab) {
-          setReviews((prev) => prev.filter((r) => r.id !== id));
-          setTotal((prev) => prev - 1);
-        } else {
-          setReviews((prev) => prev.map((r) => (r.id === id ? { ...r, ...data.review } : r)));
-        }
-      } else {
-        const d = await res.json() as { error?: string };
-        alert(d.error ?? "Action failed.");
-      }
-    } finally {
-      setBusyId(null);
-    }
-  }
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Action failed.");
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-reviews"] }),
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
 
   function reject(id: string) {
     const reason = window.prompt("Reason for rejecting this review (shown to the reviewer):");
     if (reason === null) return;
-    if (!reason.trim()) { alert("A reason is required to reject a review."); return; }
-    moderate(id, "reject", reason.trim());
+    if (!reason.trim()) { showToast("A reason is required to reject a review.", "error"); return; }
+    moderateMutation.mutate({ id, action: "reject", reason: reason.trim() });
   }
 
+  const reviews = data?.reviews ?? [];
+  const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
 
   return (
@@ -121,8 +113,8 @@ export default function AdminReviewsPage() {
             Settings
           </Link>
           <input
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            value={searchInput}
+            onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
             placeholder="Search title or body…"
             className="w-64 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
           />
@@ -130,7 +122,9 @@ export default function AdminReviewsPage() {
         </div>
       </div>
 
-      {loading ? (
+      {isError ? (
+        <ErrorCard onRetry={refetch} />
+      ) : isLoading ? (
         <p className="text-sm text-gray-400">Loading reviews…</p>
       ) : reviews.length === 0 ? (
         <p className="text-sm text-gray-400 py-12 text-center">No reviews in this view.</p>
@@ -151,7 +145,9 @@ export default function AdminReviewsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {reviews.map((r) => (
+                  {reviews.map((r) => {
+                    const busy = moderateMutation.isPending && moderateMutation.variables?.id === r.id;
+                    return (
                     <tr key={r.id} className="border-b border-gray-50 last:border-0">
                       <td className="py-3 px-5 max-w-sm">
                         <Link href={`/admin/reviews/${r.id}`} className="font-semibold text-gray-900 hover:text-blue-600 line-clamp-1">
@@ -169,36 +165,36 @@ export default function AdminReviewsPage() {
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {r.status !== "published" && (
-                            <button disabled={busyId === r.id} onClick={() => moderate(r.id, "approve")}
+                            <button disabled={busy} onClick={() => moderateMutation.mutate({ id: r.id, action: "approve" })}
                               className="text-xs font-semibold text-emerald-700 border border-emerald-200 rounded-lg px-2.5 py-1.5 hover:bg-emerald-50 disabled:opacity-50">
                               Approve
                             </button>
                           )}
                           {r.status !== "rejected" && (
-                            <button disabled={busyId === r.id} onClick={() => reject(r.id)}
+                            <button disabled={busy} onClick={() => reject(r.id)}
                               className="text-xs font-semibold text-red-600 border border-red-200 rounded-lg px-2.5 py-1.5 hover:bg-red-50 disabled:opacity-50">
                               Reject
                             </button>
                           )}
                           {r.status === "hidden" ? (
-                            <button disabled={busyId === r.id} onClick={() => moderate(r.id, "unhide")}
+                            <button disabled={busy} onClick={() => moderateMutation.mutate({ id: r.id, action: "unhide" })}
                               className="text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-50">
                               Unhide
                             </button>
                           ) : (
-                            <button disabled={busyId === r.id} onClick={() => moderate(r.id, "hide")}
+                            <button disabled={busy} onClick={() => moderateMutation.mutate({ id: r.id, action: "hide" })}
                               className="text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-50">
                               Hide
                             </button>
                           )}
                           {r.status === "published" && (
                             r.pinned ? (
-                              <button disabled={busyId === r.id} onClick={() => moderate(r.id, "unpin")}
+                              <button disabled={busy} onClick={() => moderateMutation.mutate({ id: r.id, action: "unpin" })}
                                 className="text-xs font-semibold text-violet-700 border border-violet-200 rounded-lg px-2.5 py-1.5 hover:bg-violet-50 disabled:opacity-50">
                                 Unpin
                               </button>
                             ) : (
-                              <button disabled={busyId === r.id} onClick={() => moderate(r.id, "pin")}
+                              <button disabled={busy} onClick={() => moderateMutation.mutate({ id: r.id, action: "pin" })}
                                 className="text-xs font-semibold text-violet-700 border border-violet-200 rounded-lg px-2.5 py-1.5 hover:bg-violet-50 disabled:opacity-50">
                                 Feature
                               </button>
@@ -207,7 +203,8 @@ export default function AdminReviewsPage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
