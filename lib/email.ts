@@ -172,6 +172,16 @@ export async function sendAutoTopupPromptEmail(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Generations
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function sendClipsReadyEmail(
+  to: string, name: string, readyCount: number, href: string,
+): Promise<void> {
+  await sendTemplate("clips-ready", to, { name, readyCount, href });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Lifecycle
 // ─────────────────────────────────────────────────────────────────────────────
 

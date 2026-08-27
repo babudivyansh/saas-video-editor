@@ -31,6 +31,8 @@ import { withRetry } from "@/lib/with-retry";
 import { NonRetryableError } from "@/lib/render-queue";
 import { logger } from "@/lib/logger";
 import { notify } from "@/lib/notify";
+import { sendClipsReadyEmail } from "@/lib/email";
+import { APP_URL } from "@/lib/email/tokens";
 import { timeStage } from "@/lib/pipeline-metrics";
 import { env } from "@/lib/env";
 import { FILTER_PRESETS, type FilterPreset } from "@/lib/editor/types";
@@ -196,13 +198,19 @@ export async function refundCredits(projectId: string, amount: number): Promise<
 }
 
 /**
- * In-app bell notification for a render's FINAL outcome — "your clips are
- * ready" or "render didn't finish" — linking back to the results grid. Renders
- * take minutes and the user previously had to sit on the page polling with no
- * signal. Reused by the stale-clip sweep's crash reconciliation. `notify`
- * swallows its own errors, so this never throws. Deliberately NOT called from
- * the retrying catch path (a transient failure about to be retried must not
- * send a false "failed").
+ * In-app bell notification (+ email, on success) for a render's FINAL
+ * outcome — "your clips are ready" or "render didn't finish" — linking back
+ * to the results grid. Renders take minutes and the user previously had to
+ * sit on the page polling with no signal. Reused by the stale-clip sweep's
+ * crash reconciliation, so this is the one place a "clips are ready" moment
+ * can be raised regardless of which path the render finished through. `notify`
+ * swallows its own errors, so this never throws; the email send below has its
+ * own try/catch for the same reason — a lookup or send failure must not
+ * suppress the in-app bell. Deliberately NOT called from the retrying catch
+ * path (a transient failure about to be retried must not send a false
+ * "failed"), and deliberately scoped to the main render outcome only — not
+ * fired for a single-clip re-render or dub, which aren't the "your whole
+ * batch is ready" moment this exists for.
  */
 export async function notifyRenderOutcome(
   projectId: string,
@@ -220,6 +228,14 @@ export async function notifyRenderOutcome(
       body: n > 0 ? `${n} clip${n === 1 ? "" : "s"} finished rendering.` : "Your Auto Clips finished rendering.",
       href,
     });
+    try {
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, firstName: true, name: true } });
+      if (user) {
+        await sendClipsReadyEmail(user.email, user.firstName ?? user.name ?? "", n, `${APP_URL}${href}`);
+      }
+    } catch (e) {
+      logger.error("auto-clip", "clips-ready email error", e);
+    }
   } else {
     await notify({
       userId,

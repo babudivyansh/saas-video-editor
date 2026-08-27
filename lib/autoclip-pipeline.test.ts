@@ -11,6 +11,9 @@ vi.mock("@/lib/env", () => ({
 let configRow: { key: string; value: string } | null = null;
 let clipUpdates: Array<{ where: { id: string }; data: unknown }> = [];
 let projectUpdates: Array<{ where: { id: string }; data: Record<string, unknown> }> = [];
+let userRow: { email: string; firstName: string | null; name: string | null } | null = {
+  email: "creator@test.co", firstName: "Ada", name: null,
+};
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     config: { findUnique: vi.fn(async () => configRow) },
@@ -23,12 +26,21 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: vi.fn(async () => ({ id: "clip-1", projectId: "project-1", status: "queued", startSec: 0, endSec: 10 })),
       update: vi.fn(async (args: { where: { id: string }; data: unknown }) => { clipUpdates.push(args); return args; }),
     },
+    user: {
+      findUnique: vi.fn(async () => userRow),
+    },
   },
 }));
 
 vi.mock("@/lib/redis", () => ({
   redis: { get: vi.fn(async () => null), set: vi.fn(async () => {}), del: vi.fn(async () => {}) },
 }));
+
+const notify = vi.fn(async () => {});
+vi.mock("@/lib/notify", () => ({ notify }));
+
+const sendClipsReadyEmail = vi.fn(async () => {});
+vi.mock("@/lib/email", () => ({ sendClipsReadyEmail }));
 
 vi.mock("@/utils/download", () => ({
   downloadFile: vi.fn(async () => { throw new Error("source unreachable"); }),
@@ -42,7 +54,7 @@ vi.mock("@/lib/autoclip-rerender", () => ({ refundFailedRerender: vi.fn(async ()
 
 const {
   sliceWordsForClip, rebaseClipWords, computeCreditCost, getAutoClipPricing, AUTOCLIP_PRICING_DEFAULTS,
-  buildBrollFilterComplex, computeKeeps, enforceNonOverlapping, rerenderJob,
+  buildBrollFilterComplex, computeKeeps, enforceNonOverlapping, rerenderJob, notifyRenderOutcome,
 } = await import("./autoclip-pipeline");
 
 describe("sliceWordsForClip", () => {
@@ -292,5 +304,49 @@ describe("rerenderJob error handling", () => {
     const { NonRetryableError } = await import("./job-queue");
     await expect(rerenderJob({ projectId: "project-1", clipId: "clip-1" }))
       .rejects.toBeInstanceOf(NonRetryableError);
+  });
+});
+
+// An audit found AutoClip's own render pipeline was the one path that never
+// sent the "your clips are ready" email — the in-app bell fired, but nothing
+// reached the user's inbox for renders that can take minutes. This pins the
+// email as part of the same terminal-outcome hook the bell already uses.
+describe("notifyRenderOutcome — clips-ready email", () => {
+  it("sends the email on a successful completion, with an absolute URL", async () => {
+    notify.mockClear();
+    sendClipsReadyEmail.mockClear();
+    userRow = { email: "creator@test.co", firstName: "Ada", name: null };
+
+    await notifyRenderOutcome("project-1", "user-1", "completed", { readyCount: 3 });
+
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(sendClipsReadyEmail).toHaveBeenCalledTimes(1);
+    const [to, name, readyCount, href] = sendClipsReadyEmail.mock.calls[0];
+    expect(to).toBe("creator@test.co");
+    expect(name).toBe("Ada");
+    expect(readyCount).toBe(3);
+    expect(href).toMatch(/^https?:\/\/.+\/dashboard\/create\/auto-clip\?project=project-1$/);
+  });
+
+  it("never sends an email on a failed outcome", async () => {
+    notify.mockClear();
+    sendClipsReadyEmail.mockClear();
+
+    await notifyRenderOutcome("project-1", "user-1", "failed", { reason: "no clips survived" });
+
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(sendClipsReadyEmail).not.toHaveBeenCalled();
+  });
+
+  it("still fires the in-app bell even if the user lookup fails — the email is best-effort, not load-bearing", async () => {
+    notify.mockClear();
+    sendClipsReadyEmail.mockClear();
+    userRow = null; // simulates a lookup miss / DB hiccup
+
+    await expect(notifyRenderOutcome("project-1", "user-1", "completed", { readyCount: 1 })).resolves.toBeUndefined();
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(sendClipsReadyEmail).not.toHaveBeenCalled();
+
+    userRow = { email: "creator@test.co", firstName: "Ada", name: null }; // restore for later tests
   });
 });
