@@ -6,6 +6,7 @@
 // can't derive render as labeled placeholders or are omitted with a note.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   Coins, CreditCard, RefreshCcw, ShieldAlert, Ticket, TrendingUp, UserPlus, Users, Zap,
@@ -81,13 +82,11 @@ interface Ops {
 }
 
 // ── Lazy section hook ────────────────────────────────────────────────────────
+// Internals run on react-query; the external tuple shape ({data,env,error,retry}, ref)
+// is unchanged so every Row below stays untouched.
 function useSection<T>(section: string, range: number, refreshKey: number, opts?: { compare?: boolean; eager?: boolean }) {
   const { token } = useAuth();
-  const [data, setData] = useState<T | null>(null);
-  const [env, setEnv] = useState<string | null>(null);
-  const [error, setError] = useState(false);
   const [visible, setVisible] = useState(!!opts?.eager);
-  const loadedOnce = useRef(false);
   const ioRef = useRef<IntersectionObserver | null>(null);
   const eager = opts?.eager;
   const compare = opts?.compare;
@@ -110,36 +109,36 @@ function useSection<T>(section: string, range: number, refreshKey: number, opts?
   // Disconnect observer on unmount.
   useEffect(() => () => { ioRef.current?.disconnect(); }, []);
 
-  const load = useCallback(async () => {
-    if (!token) return;
-    setError(false);
-    try {
+  const query = useQuery({
+    queryKey: ["admin-dashboard", section, range, compare],
+    queryFn: async () => {
       const params = new URLSearchParams({ section, range: String(range) });
       if (compare) params.set("compare", "1");
       const res = await fetch(`/api/admin/metrics?${params}`, { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error("Failed to load");
       const d = await res.json();
-      setData(d.data as T);
-      setEnv(d.env ?? null);
-      loadedOnce.current = true;
-    } catch {
-      setError(true);
-    }
-  }, [token, section, range, compare]);
+      return { value: d.data as T, env: (d.env as string | undefined) ?? null };
+    },
+    enabled: !!token && visible,
+  });
 
+  // Auto/manual refresh only refetches sections that already loaded — read
+  // through a ref so this effect depends on refreshKey alone.
+  const latest = useRef({ visible, refetch: query.refetch });
   useEffect(() => {
-    if (visible) load();
-  }, [visible, load]);
-
-  // Auto/manual refresh only refetches sections that already loaded.
+    latest.current = { visible, refetch: query.refetch };
+  });
   useEffect(() => {
-    if (refreshKey > 0 && loadedOnce.current) load();
-  }, [refreshKey, load]);
+    if (refreshKey > 0 && latest.current.visible) latest.current.refetch();
+  }, [refreshKey]);
 
   // Return as tuple so the React Compiler does not taint data/error/retry
   // with the ref (react-hooks/refs fires on any property of an object that
   // also contains a ref).
-  return [{ data, env, error, retry: load }, ref] as const;
+  return [
+    { data: query.data?.value ?? null, env: query.data?.env ?? null, error: query.isError, retry: () => { query.refetch(); } },
+    ref,
+  ] as const;
 }
 
 function Row({ children, ariaLabel }: { children: React.ReactNode; ariaLabel: string }) {
@@ -596,7 +595,6 @@ export default function AdminDashboardPage() {
 
 function useOps(refreshKey: number) {
   const { token } = useAuth();
-  const [data, setData] = useState<Ops | null>(null);
   const [visible, setVisible] = useState(false);
   const ioRef = useRef<IntersectionObserver | null>(null);
 
@@ -611,15 +609,25 @@ function useOps(refreshKey: number) {
 
   useEffect(() => () => { ioRef.current?.disconnect(); }, []);
 
-  useEffect(() => {
-    if (!visible || !token) return;
-    fetch("/api/admin/ops", { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setData(d))
-      .catch(() => {});
-  }, [visible, token, refreshKey]);
+  const query = useQuery({
+    queryKey: ["admin-dashboard-ops-strip"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/ops", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error("Failed to load");
+      return (await res.json()) as Ops;
+    },
+    enabled: !!token && visible,
+  });
 
-  return [{ data }, ref] as const;
+  const latest = useRef({ visible, refetch: query.refetch });
+  useEffect(() => {
+    latest.current = { visible, refetch: query.refetch };
+  });
+  useEffect(() => {
+    if (refreshKey > 0 && latest.current.visible) latest.current.refetch();
+  }, [refreshKey]);
+
+  return [{ data: query.data ?? null }, ref] as const;
 }
 
 function ActivityIcon({ kind }: { kind: string }) {

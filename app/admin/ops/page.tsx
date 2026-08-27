@@ -3,9 +3,11 @@
 // Operations console: render-queue state with retry/remove on failed jobs,
 // worker liveness, feature flags, maintenance mode, and a storage report.
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import AdminShell from "../AdminShell";
+import { ErrorCard } from "../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { useToast } from "@/app/components/ui/Toast";
@@ -66,58 +68,76 @@ function RevokeAllSessions({ headers, onDone }: { headers: () => Record<string, 
 export default function AdminOpsPage() {
   const { token } = useAuth();
   const { showToast } = useToast();
-  const [d, setD] = useState<OpsData | null>(null);
-  const [assetsD, setAssetsD] = useState<AssetsAdminData | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [maintMessage, setMaintMessage] = useState("");
+  const [maintMessageSeededFor, setMaintMessageSeededFor] = useState(false);
   const [newFlag, setNewFlag] = useState("");
   const [confirmMaint, setConfirmMaint] = useState(false);
   const [confirmMaintOff, setConfirmMaintOff] = useState(false);
 
-  const headers = useCallback(
-    () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` }),
-    [token],
-  );
+  const headers = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` });
 
-  const load = useCallback(async () => {
-    if (!token) return;
-    const [res, assetsRes] = await Promise.all([
-      fetch("/api/admin/ops", { headers: headers() }),
-      fetch("/api/admin/assets", { headers: headers() }),
-    ]);
-    if (res.ok) {
-      const data = (await res.json()) as OpsData;
-      setD(data);
-      setMaintMessage(data.maintenance.message ?? "");
-    }
-    if (assetsRes.ok) setAssetsD(await assetsRes.json());
-  }, [token, headers]);
+  const { data: d, isLoading, isError, refetch } = useQuery({
+    queryKey: ["admin-ops"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/ops", { headers: headers() });
+      if (!res.ok) throw new Error("Failed to load operations data");
+      return (await res.json()) as OpsData;
+    },
+    enabled: !!token,
+  });
 
-  useEffect(() => { load(); }, [load]);
-
-  async function patch(body: Record<string, unknown>): Promise<boolean> {
-    setMsg(null);
-    const res = await fetch("/api/admin/ops", { method: "PATCH", headers: headers(), body: JSON.stringify(body) });
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      setMsg(e.issues?.[0]?.message ?? e.error ?? "Update failed");
-    }
-    await load();
-    return res.ok;
+  // Seed the maintenance-message input once, without clobbering an
+  // in-progress edit on every background refetch.
+  if (d && !maintMessageSeededFor) {
+    setMaintMessageSeededFor(true);
+    setMaintMessage(d.maintenance.message ?? "");
   }
 
-  async function jobAction(jobId: string, action: "retry" | "remove", queueName: string) {
-    setMsg(null);
-    const res = await fetch("/api/admin/ops/jobs", {
-      method: "POST",
-      headers: headers(),
-      body: JSON.stringify({ jobId, action, queueName }),
-    });
-    if (!res.ok) setMsg((await res.json().catch(() => ({}))).error ?? "Action failed");
-    await load();
+  const { data: assetsD } = useQuery({
+    queryKey: ["admin-assets"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/assets", { headers: headers() });
+      if (!res.ok) throw new Error("Failed to load assets");
+      return (await res.json()) as AssetsAdminData;
+    },
+    enabled: !!token,
+  });
+
+  const patchMutation = useMutation({
+    mutationFn: async (body: Record<string, unknown>) => {
+      const res = await fetch("/api/admin/ops", { method: "PATCH", headers: headers(), body: JSON.stringify(body) });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.issues?.[0]?.message ?? e.error ?? "Update failed");
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-ops"] }),
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
+
+  const jobActionMutation = useMutation({
+    mutationFn: async ({ jobId, action, queueName }: { jobId: string; action: "retry" | "remove"; queueName: string }) => {
+      const res = await fetch("/api/admin/ops/jobs", { method: "POST", headers: headers(), body: JSON.stringify({ jobId, action, queueName }) });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Action failed");
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-ops"] }),
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
+
+  async function saveMaintenance(body: { on: boolean; message?: string; confirm: true }) {
+    try {
+      await patchMutation.mutateAsync({ maintenance: body });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
-  if (!d) {
+  if (isError) {
+    return <AdminShell title="Operations"><ErrorCard onRetry={refetch} /></AdminShell>;
+  }
+  if (isLoading || !d) {
     return (
       <AdminShell title="Operations">
         <div className="animate-pulse space-y-4"><div className="h-32 bg-gray-100 rounded-2xl" /><div className="h-64 bg-gray-100 rounded-2xl" /></div>
@@ -132,7 +152,6 @@ export default function AdminOpsPage() {
           Incident Tools →
         </Link>
       </div>
-      {msg && <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg px-4 py-2 mb-4">{msg}</p>}
       {d.maintenance.on && (
         <p className="text-sm font-semibold text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 mb-4">
           ⚠ Maintenance mode is ON — non-admin API traffic is being refused with 503.
@@ -165,7 +184,7 @@ export default function AdminOpsPage() {
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <div className="flex items-center justify-between gap-2 mb-3">
             <h2 className="text-sm font-bold text-gray-800">Workers</h2>
-            <RevokeAllSessions headers={headers} onDone={() => setMsg("All non-admin sessions revoked.")} />
+            <RevokeAllSessions headers={headers} onDone={() => showToast("All non-admin sessions revoked.", "success")} />
           </div>
           <div className="space-y-2 text-sm">
             {Object.entries(d.heartbeats).map(([name, beat]) => (
@@ -240,8 +259,8 @@ export default function AdminOpsPage() {
                   <td className="py-2 text-right text-gray-500">{j.attemptsMade}</td>
                   <td className="py-2 text-right text-xs text-gray-400">{new Date(j.timestamp).toLocaleString()}</td>
                   <td className="py-2 text-right">
-                    <button onClick={() => jobAction(j.id!, "retry", j.queueName)} className="text-xs font-semibold text-blue-600 hover:underline mr-3 cursor-pointer">Retry</button>
-                    <button onClick={() => jobAction(j.id!, "remove", j.queueName)} className="text-xs font-semibold text-red-500 hover:underline cursor-pointer">Remove</button>
+                    <button onClick={() => jobActionMutation.mutate({ jobId: j.id!, action: "retry", queueName: j.queueName })} className="text-xs font-semibold text-blue-600 hover:underline mr-3 cursor-pointer">Retry</button>
+                    <button onClick={() => jobActionMutation.mutate({ jobId: j.id!, action: "remove", queueName: j.queueName })} className="text-xs font-semibold text-red-500 hover:underline cursor-pointer">Remove</button>
                   </td>
                 </tr>
               ))}
@@ -261,16 +280,16 @@ export default function AdminOpsPage() {
               <div key={name} className="flex items-center gap-2 text-sm">
                 <code className="font-mono text-xs text-gray-700 flex-1">{name}</code>
                 <label className="inline-flex items-center gap-1.5 text-xs font-semibold cursor-pointer">
-                  <input type="checkbox" checked={value} onChange={(e) => patch({ flag: { name, value: e.target.checked } })} />
+                  <input type="checkbox" checked={value} onChange={(e) => patchMutation.mutate({ flag: { name, value: e.target.checked } })} />
                   {value ? "on" : "off"}
                 </label>
-                <button onClick={() => patch({ flag: { name, value: null } })} className="text-xs text-gray-300 hover:text-red-500 cursor-pointer" aria-label={`Delete flag ${name}`}>✕</button>
+                <button onClick={() => patchMutation.mutate({ flag: { name, value: null } })} className="text-xs text-gray-300 hover:text-red-500 cursor-pointer" aria-label={`Delete flag ${name}`}>✕</button>
               </div>
             ))}
             {Object.keys(d.flags).length === 0 && <p className="text-xs text-gray-400">No flags defined.</p>}
           </div>
           <form
-            onSubmit={(e) => { e.preventDefault(); if (newFlag.trim()) { patch({ flag: { name: newFlag.trim(), value: false } }); setNewFlag(""); } }}
+            onSubmit={(e) => { e.preventDefault(); if (newFlag.trim()) { patchMutation.mutate({ flag: { name: newFlag.trim(), value: false } }); setNewFlag(""); } }}
             className="flex gap-2 mt-3"
           >
             <input value={newFlag} onChange={(e) => setNewFlag(e.target.value)} placeholder="new_flag_name"
@@ -357,7 +376,7 @@ export default function AdminOpsPage() {
         confirmLabel="Turn on"
         danger
         onConfirm={async () => {
-          const ok = await patch({ maintenance: { on: true, message: maintMessage.trim() || undefined, confirm: true } });
+          const ok = await saveMaintenance({ on: true, message: maintMessage.trim() || undefined, confirm: true });
           showToast(ok ? "Maintenance mode is ON" : "Failed to turn on maintenance mode", ok ? "success" : "error");
         }}
         onClose={() => setConfirmMaint(false)}
@@ -368,7 +387,7 @@ export default function AdminOpsPage() {
         message="Restore normal traffic immediately?"
         confirmLabel="Turn off"
         onConfirm={async () => {
-          const ok = await patch({ maintenance: { on: false, confirm: true } });
+          const ok = await saveMaintenance({ on: false, confirm: true });
           showToast(ok ? "Maintenance mode is OFF" : "Failed to turn off maintenance mode", ok ? "success" : "error");
         }}
         onClose={() => setConfirmMaintOff(false)}

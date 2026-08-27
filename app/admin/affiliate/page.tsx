@@ -1,8 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminShell from "@/app/admin/AdminShell";
 import { useAuth } from "@/app/components/AuthContext";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { useToast } from "@/app/components/ui/Toast";
 import { MIN_PAYOUT_AMOUNT } from "@/lib/affiliate-constants";
 
 interface AffiliateRow {
@@ -56,149 +59,130 @@ function timeAgo(iso: string): string {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
+
 function AffiliateContent() {
   const { token } = useAuth();
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<"affiliates" | "commissions" | "payouts">("affiliates");
-  const [affiliates, setAffiliates] = useState<AffiliateRow[]>([]);
-  const [affiliateTotal, setAffiliateTotal] = useState(0);
-  const [commissions, setCommissions] = useState<CommissionRow[]>([]);
-  const [commissionTotal, setCommissionTotal] = useState(0);
   const [statusFilter, setStatusFilter] = useState("all");
   const [affiliateStatusFilter, setAffiliateStatusFilter] = useState("all");
-  const [affiliateSearch, setAffiliateSearch] = useState("");
+  const [affiliateSearchInput, setAffiliateSearchInput] = useState("");
+  const affiliateSearch = useDebouncedValue(affiliateSearchInput);
   const [payoutRef, setPayoutRef] = useState<Record<string, string>>({});
-  const [payoutMsg, setPayoutMsg] = useState<Record<string, string>>({});
-  const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [confirmReject, setConfirmReject] = useState<string | null>(null);
   const [confirmBan, setConfirmBan] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState<Record<string, string>>({});
   const [banReason, setBanReason] = useState<Record<string, string>>({});
-  const [sweepMsg, setSweepMsg] = useState<string | null>(null);
-  const [sweeping, setSweeping] = useState(false);
-  const [loading, setLoading] = useState(false);
 
-  const authHeaders = useCallback(
-    () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` }),
-    [token],
-  );
+  const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` });
 
-  const loadAffiliates = useCallback(async (page: number, append: boolean, status: string, search: string) => {
-    const params = new URLSearchParams({ page: String(page), limit: String(PAGE_LIMIT) });
-    if (status !== "all") params.set("status", status);
-    if (search.trim()) params.set("search", search.trim());
-    const d = await fetch(`/api/admin/affiliates?${params}`, { headers: authHeaders() }).then(r => r.json());
-    setAffiliates(prev => (append ? [...prev, ...(d.affiliates ?? [])] : d.affiliates ?? []));
-    setAffiliateTotal(d.total ?? 0);
-  }, [authHeaders]);
+  const affiliatesQuery = useInfiniteQuery({
+    queryKey: ["admin-affiliates", affiliateStatusFilter, affiliateSearch],
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams({ page: String(pageParam), limit: String(PAGE_LIMIT) });
+      if (affiliateStatusFilter !== "all") params.set("status", affiliateStatusFilter);
+      if (affiliateSearch.trim()) params.set("search", affiliateSearch.trim());
+      const res = await fetch(`/api/admin/affiliates?${params}`, { headers: authHeaders() });
+      if (!res.ok) throw new Error("Failed to load affiliates");
+      return (await res.json()) as { affiliates: AffiliateRow[]; total: number };
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((s, p) => s + p.affiliates.length, 0);
+      return loaded < lastPage.total ? allPages.length + 1 : undefined;
+    },
+    enabled: !!token,
+  });
+  const affiliates = affiliatesQuery.data?.pages.flatMap((p) => p.affiliates) ?? [];
+  const affiliateTotal = affiliatesQuery.data?.pages[0]?.total ?? 0;
 
-  const loadCommissions = useCallback(async (page: number, append: boolean) => {
-    const d = await fetch(`/api/admin/commissions?page=${page}&limit=${PAGE_LIMIT}`, { headers: authHeaders() }).then(r => r.json());
-    setCommissions(prev => (append ? [...prev, ...(d.commissions ?? [])] : d.commissions ?? []));
-    setCommissionTotal(d.total ?? 0);
-  }, [authHeaders]);
+  const commissionsQuery = useInfiniteQuery({
+    queryKey: ["admin-commissions-list"],
+    queryFn: async ({ pageParam }) => {
+      const res = await fetch(`/api/admin/commissions?page=${pageParam}&limit=${PAGE_LIMIT}`, { headers: authHeaders() });
+      if (!res.ok) throw new Error("Failed to load commissions");
+      return (await res.json()) as { commissions: CommissionRow[]; total: number };
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((s, p) => s + p.commissions.length, 0);
+      return loaded < lastPage.total ? allPages.length + 1 : undefined;
+    },
+    enabled: !!token,
+  });
+  const commissions = commissionsQuery.data?.pages.flatMap((p) => p.commissions) ?? [];
+  const commissionTotal = commissionsQuery.data?.pages[0]?.total ?? 0;
 
-  useEffect(() => {
-    if (!token) return;
-    setLoading(true);
-    Promise.all([loadAffiliates(1, false, "all", ""), loadCommissions(1, false)]).finally(() => setLoading(false));
-  }, [token, loadAffiliates, loadCommissions]);
+  const loading = affiliatesQuery.isLoading || commissionsQuery.isLoading;
 
-  // Status-filter clicks reload instantly; free-text search debounces so
-  // typing doesn't fire a request per keystroke (same pattern as
-  // app/admin/users/page.tsx's search box).
-  const affiliateSearchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  function onAffiliateStatusFilter(status: string) {
-    setAffiliateStatusFilter(status);
-    loadAffiliates(1, false, status, affiliateSearch);
-  }
-
-  function onAffiliateSearch(search: string) {
-    setAffiliateSearch(search);
-    if (affiliateSearchDebounce.current) clearTimeout(affiliateSearchDebounce.current);
-    affiliateSearchDebounce.current = setTimeout(() => loadAffiliates(1, false, affiliateStatusFilter, search), 400);
-  }
-
-  async function runPayoutSweep() {
-    setSweeping(true);
-    setSweepMsg(null);
-    try {
+  const sweepMutation = useMutation({
+    mutationFn: async () => {
       const res = await fetch("/api/admin/commissions/run-payout-sweep", { method: "POST", headers: authHeaders() });
       const data = await res.json();
-      if (res.ok) {
-        setSweepMsg(`Swept ${data.notified} commission(s) to available${data.errors ? `, ${data.errors} error(s)` : ""}.`);
-        loadCommissions(1, false);
-        loadAffiliates(1, false, affiliateStatusFilter, affiliateSearch);
-      } else {
-        setSweepMsg(data.error ?? "Sweep failed");
-      }
-    } finally {
-      setSweeping(false);
-    }
-  }
+      if (!res.ok) throw new Error(data.error ?? "Sweep failed");
+      return data as { notified: number; errors?: number };
+    },
+    onSuccess: (data) => {
+      showToast(`Swept ${data.notified} commission(s) to available${data.errors ? `, ${data.errors} error(s)` : ""}.`, "success");
+      queryClient.invalidateQueries({ queryKey: ["admin-commissions-list"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-affiliates"] });
+    },
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
 
   // Surfaces the new structured validation errors instead of silently
   // applying an optimistic update the server may have rejected.
-  async function updateAffiliate(id: string, data: object) {
-    const res = await fetch(`/api/admin/affiliates/${id}`, {
-      method: "PATCH",
-      headers: authHeaders(),
-      body: JSON.stringify(data),
-    });
-    if (res.ok) {
-      setActionMsg(null);
-      setAffiliates(prev => prev.map(a => a.id === id ? { ...a, ...data } : a));
-    } else {
-      const d = await res.json().catch(() => ({}));
-      setActionMsg(d.issues?.[0] ? `${d.issues[0].path}: ${d.issues[0].message}` : d.error ?? "Update failed");
-    }
-  }
+  const updateAffiliateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: object }) => {
+      const res = await fetch(`/api/admin/affiliates/${id}`, { method: "PATCH", headers: authHeaders(), body: JSON.stringify(data) });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.issues?.[0] ? `${d.issues[0].path}: ${d.issues[0].message}` : d.error ?? "Update failed");
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-affiliates"] }),
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
 
-  async function commissionAction(id: string, action: "release" | "reject", reason?: string) {
-    const res = await fetch(`/api/admin/commissions/${id}`, {
-      method: "POST",
-      headers: authHeaders(),
-      body: JSON.stringify(reason ? { action, reason } : { action }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setActionMsg(null);
-      setCommissions(prev => prev.map(c => c.id === id ? { ...c, status: data.commission?.status ?? c.status } : c));
-    } else {
-      setActionMsg(data.error ?? "Action failed");
-    }
-    setConfirmReject(null);
-    setRejectReason(r => ({ ...r, [id]: "" }));
-  }
+  const commissionActionMutation = useMutation({
+    mutationFn: async ({ id, action, reason }: { id: string; action: "release" | "reject"; reason?: string }) => {
+      const res = await fetch(`/api/admin/commissions/${id}`, { method: "POST", headers: authHeaders(), body: JSON.stringify(reason ? { action, reason } : { action }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Action failed");
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-commissions-list"] }),
+    onError: (e: Error) => showToast(e.message, "error"),
+    onSettled: () => { setConfirmReject(null); setRejectReason({}); },
+  });
 
-  async function banAffiliate(id: string, reason?: string) {
-    await updateAffiliate(id, reason ? { status: "banned", reason } : { status: "banned" });
+  function banAffiliate(id: string, reason?: string) {
+    updateAffiliateMutation.mutate({ id, data: reason ? { status: "banned", reason } : { status: "banned" } });
     setConfirmBan(null);
-    setBanReason(r => ({ ...r, [id]: "" }));
+    setBanReason((r) => ({ ...r, [id]: "" }));
   }
 
-  async function markPaid(affiliateId: string) {
-    const ref = payoutRef[affiliateId]?.trim();
-    if (!ref) { setPayoutMsg(m => ({ ...m, [affiliateId]: "Enter a payout reference (UPI/Wise txn ID)" })); return; }
-    const res = await fetch(`/api/admin/payouts/${affiliateId}`, {
-      method: "POST",
-      headers: authHeaders(),
-      body: JSON.stringify({ payoutRef: ref }),
-    });
-    const data = await res.json();
-    if (data.success) {
-      setPayoutMsg(m => ({ ...m, [affiliateId]: `Paid ₹${data.amount?.toFixed(2)} across ${data.commissions} commissions.` }));
-      loadCommissions(1, false);
-      loadAffiliates(1, false, affiliateStatusFilter, affiliateSearch);
-    } else {
-      setPayoutMsg(m => ({ ...m, [affiliateId]: data.error ?? "Error" }));
-    }
-  }
+  const markPaidMutation = useMutation({
+    mutationFn: async (affiliateId: string) => {
+      const ref = payoutRef[affiliateId]?.trim();
+      if (!ref) throw new Error("Enter a payout reference (UPI/Wise txn ID)");
+      const res = await fetch(`/api/admin/payouts/${affiliateId}`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ payoutRef: ref }) });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error ?? "Error");
+      return data as { amount: number; commissions: number };
+    },
+    onSuccess: (data) => {
+      showToast(`Paid ₹${data.amount?.toFixed(2)} across ${data.commissions} commissions.`, "success");
+      queryClient.invalidateQueries({ queryKey: ["admin-commissions-list"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-affiliates"] });
+    },
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
 
-  const filteredCommissions = statusFilter === "all" ? commissions : commissions.filter(c => c.status === statusFilter);
+  const filteredCommissions = statusFilter === "all" ? commissions : commissions.filter((c) => c.status === statusFilter);
 
   const payoutCandidates = [...affiliates]
-    .filter(a => a.commissionTotals.available >= MIN_PAYOUT_AMOUNT)
+    .filter((a) => a.commissionTotals.available >= MIN_PAYOUT_AMOUNT)
     .sort((a, b) => (b.payoutRequestedAt ? 1 : 0) - (a.payoutRequestedAt ? 1 : 0));
 
   return (
@@ -217,9 +201,6 @@ function AffiliateContent() {
       </div>
 
       {loading && <p className="text-gray-400 text-sm">Loading...</p>}
-      {actionMsg && (
-        <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg px-4 py-2 mb-4">{actionMsg}</p>
-      )}
 
       {/* Affiliates tab */}
       {tab === "affiliates" && !loading && (
@@ -227,13 +208,13 @@ function AffiliateContent() {
           <div className="flex gap-2 mb-4 flex-wrap items-center">
             <input
               type="text"
-              value={affiliateSearch}
-              onChange={e => onAffiliateSearch(e.target.value)}
+              value={affiliateSearchInput}
+              onChange={e => setAffiliateSearchInput(e.target.value)}
               placeholder="Search by code, name, or email…"
               className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-64"
             />
             {["all", "active", "suspended", "banned"].map(s => (
-              <button key={s} onClick={() => onAffiliateStatusFilter(s)}
+              <button key={s} onClick={() => setAffiliateStatusFilter(s)}
                 className={`px-4 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${affiliateStatusFilter === s ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
                 {s}
               </button>
@@ -270,7 +251,7 @@ function AffiliateContent() {
                     <td className="px-4 py-3">
                       <input type="number" defaultValue={(a.commissionRate * 100).toFixed(0)} min={0} max={100}
                         className="w-16 border border-gray-200 rounded px-2 py-1 text-xs"
-                        onBlur={e => updateAffiliate(a.id, { commissionRate: parseFloat(e.target.value) / 100 })} />%
+                        onBlur={e => updateAffiliateMutation.mutate({ id: a.id, data: { commissionRate: parseFloat(e.target.value) / 100 } })} />%
                     </td>
                     <td className="px-4 py-3 text-gray-600">{a.referralCount} ({converted} converted)</td>
                     <td className="px-4 py-3 text-gray-800 font-medium">₹{a.totalEarned.toFixed(2)}</td>
@@ -290,13 +271,13 @@ function AffiliateContent() {
                       ) : (
                         <div className="flex items-center gap-2.5">
                           {a.status === "active" && (
-                            <button onClick={() => updateAffiliate(a.id, { status: "suspended" })} className="text-xs text-yellow-600 hover:underline">Suspend</button>
+                            <button onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "suspended" } })} className="text-xs text-yellow-600 hover:underline">Suspend</button>
                           )}
                           {a.status === "suspended" && (
-                            <button onClick={() => updateAffiliate(a.id, { status: "active" })} className="text-xs text-green-600 hover:underline">Activate</button>
+                            <button onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "active" } })} className="text-xs text-green-600 hover:underline">Activate</button>
                           )}
                           {a.status === "banned" && (
-                            <button onClick={() => updateAffiliate(a.id, { status: "active" })} className="text-xs text-green-600 hover:underline">Reinstate</button>
+                            <button onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "active" } })} className="text-xs text-green-600 hover:underline">Reinstate</button>
                           )}
                           {a.status !== "banned" && (
                             <button onClick={() => setConfirmBan(a.id)} className="text-xs text-red-500 hover:underline">Ban</button>
@@ -315,10 +296,11 @@ function AffiliateContent() {
           </div>
           {affiliates.length < affiliateTotal && (
             <button
-              onClick={() => loadAffiliates(Math.floor(affiliates.length / PAGE_LIMIT) + 1, true, affiliateStatusFilter, affiliateSearch)}
-              className="w-full py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-800 border-t border-gray-50"
+              onClick={() => affiliatesQuery.fetchNextPage()}
+              disabled={affiliatesQuery.isFetchingNextPage}
+              className="w-full py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-800 border-t border-gray-50 disabled:opacity-50"
             >
-              Load more ({affiliates.length} of {affiliateTotal})
+              {affiliatesQuery.isFetchingNextPage ? "Loading…" : `Load more (${affiliates.length} of ${affiliateTotal})`}
             </button>
           )}
           </div>
@@ -366,7 +348,7 @@ function AffiliateContent() {
                     <td className="px-4 py-3 text-xs text-gray-500">{new Date(c.availableAt).toLocaleDateString("en-IN")}</td>
                     <td className="px-4 py-3">
                       {c.status === "pending" && (
-                        <button onClick={() => commissionAction(c.id, "release")} className="text-xs text-blue-600 hover:underline mr-2">Release</button>
+                        <button onClick={() => commissionActionMutation.mutate({ id: c.id, action: "release" })} className="text-xs text-blue-600 hover:underline mr-2">Release</button>
                       )}
                       {(c.status === "pending" || c.status === "available") && (
                         confirmReject === c.id ? (
@@ -376,7 +358,7 @@ function AffiliateContent() {
                               onChange={e => setRejectReason(r => ({ ...r, [c.id]: e.target.value }))}
                               className="border border-gray-200 rounded px-1.5 py-0.5 text-xs w-28" />
                             <button
-                              onClick={() => commissionAction(c.id, "reject", rejectReason[c.id]?.trim() || undefined)}
+                              onClick={() => commissionActionMutation.mutate({ id: c.id, action: "reject", reason: rejectReason[c.id]?.trim() || undefined })}
                               className="text-xs font-bold text-white bg-red-600 rounded px-2 py-0.5"
                             >
                               Confirm reject?
@@ -397,10 +379,11 @@ function AffiliateContent() {
             </div>
             {commissions.length < commissionTotal && (
               <button
-                onClick={() => loadCommissions(Math.floor(commissions.length / PAGE_LIMIT) + 1, true)}
-                className="w-full py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-800 border-t border-gray-50"
+                onClick={() => commissionsQuery.fetchNextPage()}
+                disabled={commissionsQuery.isFetchingNextPage}
+                className="w-full py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-800 border-t border-gray-50 disabled:opacity-50"
               >
-                Load more ({commissions.length} of {commissionTotal})
+                {commissionsQuery.isFetchingNextPage ? "Loading…" : `Load more (${commissions.length} of ${commissionTotal})`}
               </button>
             )}
           </div>
@@ -412,19 +395,16 @@ function AffiliateContent() {
         <div className="space-y-4">
           <div className="flex items-center gap-3 flex-wrap">
             <button
-              onClick={runPayoutSweep}
-              disabled={sweeping}
+              onClick={() => sweepMutation.mutate()}
+              disabled={sweepMutation.isPending}
               className="px-4 py-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-all"
             >
-              {sweeping ? "Running…" : "Run payout sweep now"}
+              {sweepMutation.isPending ? "Running…" : "Run payout sweep now"}
             </button>
             <span className="text-xs text-gray-400">
               Flips pending commissions past their 30-day hold to available &amp; emails affiliates. Same sweep the daily cron runs.
             </span>
           </div>
-          {sweepMsg && (
-            <p className="text-sm text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-4 py-2">{sweepMsg}</p>
-          )}
           {payoutCandidates.length === 0 && (
             <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-gray-400 shadow-sm">
               No affiliates have ₹{MIN_PAYOUT_AMOUNT}+ available for payout
@@ -452,15 +432,13 @@ function AffiliateContent() {
                       value={payoutRef[a.id] ?? ""}
                       onChange={e => setPayoutRef(p => ({ ...p, [a.id]: e.target.value }))}
                       className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-48" />
-                    <button onClick={() => markPaid(a.id)}
-                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-all">
+                    <button onClick={() => markPaidMutation.mutate(a.id)}
+                      disabled={markPaidMutation.isPending && markPaidMutation.variables === a.id}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-all">
                       Mark Paid
                     </button>
                   </div>
                 </div>
-                {payoutMsg[a.id] && (
-                  <p className="text-sm mt-3 text-green-700 bg-green-50 rounded-lg px-4 py-2">{payoutMsg[a.id]}</p>
-                )}
               </div>
             );
           })}
