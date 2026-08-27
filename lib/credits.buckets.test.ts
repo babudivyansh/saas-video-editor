@@ -22,6 +22,15 @@ vi.mock("@/lib/tool-config", () => ({
   getToolConfig: vi.fn(async () => ({ enabled: true })),
 }));
 
+// spendCredits fires these post-spend hooks (first-video / low-credit /
+// zero-credit emails) fire-and-forget via a dynamic import — mocked here so
+// this stays a hermetic bucket-arithmetic test rather than dragging in the
+// real email/env graph. Covered on its own in credits.postspend.test.ts.
+vi.mock("@/lib/credit-events", () => ({
+  firePostCreditSpendEmails: vi.fn(),
+  fireZeroCreditsEmail: vi.fn(),
+}));
+
 function drain(amount: number) {
   const ob = buckets.bonus, os = buckets.subscription, op = buckets.purchased;
   if (ob + os + op < amount) return [];

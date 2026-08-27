@@ -8,7 +8,6 @@ import { generateASS, runFFmpeg } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { downloadFile } from "@/utils/download";
 import { markQuestComplete } from "@/lib/quests";
-import { firePostCreditSpendEmails, fireZeroCreditsEmail } from "@/lib/credit-events";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { logger } from "@/lib/logger";
 import os from "os";
@@ -130,12 +129,8 @@ async function handlePOST(req: NextRequest) {
       where: { id: body.projectId },
       data: { status: "draft" },
     });
-    fireZeroCreditsEmail(auth.userId);
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
-
-  // ── Post-spend email side effects (first video, low credits) ───────
-  firePostCreditSpendEmails(auth.userId, spend.balances.total);
 
   renderQueue.enqueue(body.projectId, body);
   void markQuestComplete(auth.userId, "first-clip");

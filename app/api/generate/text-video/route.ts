@@ -7,7 +7,6 @@ import { maxUploadBytesForTier, formatBytes } from "@/lib/plans/tiers";
 import { prisma } from "@/lib/prisma";
 import { InProcessQueue } from "@/lib/job-queue";
 import { chargeCredits, refundCredits, markGenerationStatus } from "@/lib/credits";
-import { firePostCreditSpendEmails, fireZeroCreditsEmail } from "@/lib/credit-events";
 import { synthesizeVoice, WordTiming } from "@/utils/elevenlabs";
 import { runFFmpegArgs } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
@@ -488,10 +487,8 @@ async function handlePOST(req: NextRequest) {
     if (charge.reason === "tool_disabled") {
       return NextResponse.json({ error: "Text Video Generator is temporarily disabled." }, { status: 503 });
     }
-    fireZeroCreditsEmail(auth.userId);
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
-  firePostCreditSpendEmails(auth.userId, charge.balance);
 
   const defaultTheme: ThemeColors = {
     bg: "#1C1C1E", headerBg: "#1C1C1E", headerText: "#ffffff",

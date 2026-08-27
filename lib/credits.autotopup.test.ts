@@ -23,6 +23,14 @@ vi.mock("@/lib/tool-config", () => ({ getToolConfig: vi.fn(async () => ({ enable
 
 vi.mock("@/lib/email", () => ({ sendAutoTopupPromptEmail }));
 
+// spendCredits also fires the first-video/low-credit/zero-credit hooks via a
+// dynamic import of lib/credit-events — mocked out here so this file stays
+// scoped to auto-topup. Covered on its own in credits.postspend.test.ts.
+vi.mock("@/lib/credit-events", () => ({
+  firePostCreditSpendEmails: vi.fn(),
+  fireZeroCreditsEmail: vi.fn(),
+}));
+
 function drain(amount: number) {
   const ob = buckets.bonus, os = buckets.subscription, op = buckets.purchased;
   if (ob + os + op < amount) return [];
