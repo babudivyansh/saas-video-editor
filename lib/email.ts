@@ -209,8 +209,11 @@ export async function sendReengagement30DayEmail(
   await sendTemplate("reengagement-30d", to, { name, creditsLeft, daysSinceLogin });
 }
 
-export async function sendFirstVideoSuccessEmail(to: string, name: string): Promise<void> {
-  await sendTemplate("first-video-success", to, { name });
+/** Returns false on a delivery failure, so the one-shot caller in
+ * lib/credit-events.ts can avoid marking this sent until it actually is. */
+export async function sendFirstVideoSuccessEmail(to: string, name: string): Promise<boolean> {
+  const r = await sendTemplate("first-video-success", to, { name });
+  return r.status !== "failed";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
