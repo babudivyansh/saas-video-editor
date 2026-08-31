@@ -129,13 +129,13 @@ export async function accountExportJob(payload: AccountExportPayload): Promise<v
     fs.rmSync(tmpDir, { recursive: true, force: true });
 
     const url = await getAssetReadUrl(key, EXPORT_URL_TTL_SEC);
-    await redis.set(statusKey(jobId), JSON.stringify({ status: "ready", url }), "EX", EXPORT_URL_TTL_SEC);
+    await redis.set(statusKey(jobId), JSON.stringify({ status: "ready", url, userId }), "EX", EXPORT_URL_TTL_SEC);
 
     sendAccountExportReadyEmail(user.email, user.firstName ?? user.name ?? "", url)
       .catch((e) => logger.error("account-export", "ready email failed", e));
   } catch (e) {
     logger.error("account-export", `export job ${jobId} failed`, e);
-    await redis.set(statusKey(jobId), JSON.stringify({ status: "failed", error: "Failed to build your data export." }), "EX", EXPORT_URL_TTL_SEC).catch(() => {});
+    await redis.set(statusKey(jobId), JSON.stringify({ status: "failed", error: "Failed to build your data export.", userId }), "EX", EXPORT_URL_TTL_SEC).catch(() => {});
     throw e;
   }
 }
@@ -144,6 +144,10 @@ export interface AccountExportStatus {
   status: "queued" | "ready" | "failed";
   url?: string;
   error?: string;
+  /** Set on "ready"/"failed" records so the status route can enforce that
+   * only the user who enqueued this export can read it — the jobId being an
+   * unguessable UUID is not, on its own, an authorization check. */
+  userId?: string;
 }
 
 export async function getAccountExportStatus(jobId: string): Promise<AccountExportStatus> {
