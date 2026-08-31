@@ -18,6 +18,7 @@ export const KNOWN_CRON_NAMES = [
   "onboarding",
   "asset-cleanup",
   "stale-clip-sweep",
+  "dub-sweep",
   "commission-payout",
   "account-purge",
   "admin-digest",

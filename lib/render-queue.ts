@@ -70,6 +70,7 @@ export const KNOWN_RENDER_QUEUE_NAMES = [
   "auto-clip-render",
   "auto-clip-rerender",
   "auto-clip-dub",
+  "auto-clip-dub-finish",
   "video-compressor",
   "asset-moderation",
   "asset-zip",
