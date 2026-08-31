@@ -488,7 +488,19 @@ model ClipDub {
   clipId     String
   clip       Clip     @relation(fields: [clipId], references: [id], onDelete: Cascade)
   targetLang String
-  status     String   @default("dubbing") // dubbing | ready | failed
+  status     String   @default("dubbing") // dubbing | processing | ready | failed
+  // ElevenLabs dubbing_id — persisted once startDubJob's startDubbing() call
+  // succeeds, so a queue retry can detect "already started" (dubbingId !=
+  // null) instead of calling startDubbing() again, and so the completion
+  // webhook/fallback cron — neither of which has the original job payload —
+  // can look up which ClipDub row a completion notice belongs to.
+  dubbingId  String?  @unique
+  // Who paid, and the credits-ledger refId used at spend time. Populated at
+  // creation (route.ts already has both in scope) so the webhook route and
+  // dub-sweep cron can refund correctly without needing the original
+  // enqueue payload — see lib/autoclip-dub.ts's FinishDubPayload doc comment.
+  userId     String?
+  refId      String?
   videoUrl   String?
   createdAt  DateTime @default(now())
 

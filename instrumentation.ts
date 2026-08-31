@@ -45,7 +45,7 @@ export async function register() {
   const { createRenderQueue } = await import("./lib/render-queue");
   const { editorRenderJob } = await import("./lib/editor/render-job");
   const { pickJob, renderJob, rerenderJob } = await import("./lib/autoclip-pipeline");
-  const { dubJob } = await import("./lib/autoclip-dub");
+  const { startDubJob, finishDubJob } = await import("./lib/autoclip-dub");
   const { assetModerationJob } = await import("./lib/asset-moderation");
   const { assetZipJob } = await import("./lib/asset-zip");
   const { accountExportJob } = await import("./lib/account-export");
@@ -54,7 +54,8 @@ export async function register() {
   createRenderQueue("auto-clip-pick", pickJob);
   createRenderQueue("auto-clip-render", renderJob);
   createRenderQueue("auto-clip-rerender", rerenderJob);
-  createRenderQueue("auto-clip-dub", dubJob);
+  createRenderQueue("auto-clip-dub", startDubJob);
+  createRenderQueue("auto-clip-dub-finish", finishDubJob);
   createRenderQueue("asset-moderation", assetModerationJob);
   createRenderQueue("asset-zip", assetZipJob);
   createRenderQueue("account-export", accountExportJob);

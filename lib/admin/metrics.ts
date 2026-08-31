@@ -339,6 +339,7 @@ export async function socialSection() {
 const CRON_STALE_AFTER_SEC: Record<CronName, number> = {
   "asset-cleanup": 3600, // every 15 min
   "stale-clip-sweep": 3600, // every 15 min
+  "dub-sweep": 600, // every 2 min — the primary dub-completion path until webhooks are confirmed, see lib/cron/dub-sweep.ts
   "clip-publish": 3600, // every 10 min
   "social-refresh": 3 * 3600, // hourly snapshot refresh
   "refill-credits": 36 * 3600,

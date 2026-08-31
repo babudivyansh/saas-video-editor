@@ -144,6 +144,16 @@ Auto Clip sweep).
 # enough given the 18-minute staleness window. Also reachable on demand via
 # POST /api/admin/ops/run-stale-clip-sweep (admin-authenticated).
 */15 * * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/stale-clip-sweep
+
+# AutoClip dub sweep — finishes ElevenLabs dubbing jobs (lib/autoclip-dub.ts).
+# Until a dub-completion webhook is confirmed to exist and is registered in
+# the ElevenLabs dashboard (see app/api/webhooks/elevenlabs/route.ts), this
+# sweep IS the primary way a dub ever finishes, not a safety net — 2 minutes
+# keeps completion latency close to today's poll-based resolution. Relax to
+# match stale-clip-sweep's cadence once webhook delivery is confirmed
+# reliable in production. Also reachable on demand via
+# POST /api/admin/ops/run-dub-sweep (admin-authenticated).
+*/2 * * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/dub-sweep
 ```
 
 Use cPanel's Cron Jobs UI to enter the schedule and command — it writes to the

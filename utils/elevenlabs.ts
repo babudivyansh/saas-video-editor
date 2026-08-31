@@ -199,6 +199,47 @@ export async function transcribeAudio(
     }));
 }
 
+// Aligns known text to audio that actually contains it — used for dubbed
+// clips, where translateTranscript() already produced the right words but
+// only heuristic timing (normaliseSpan() in lib/caption-translate.ts: trust
+// the model's own timestamps if they're coherent, otherwise spread evenly).
+// Real alignment against the dubbed audio is strictly better when available.
+// Returns [] on no API key or no usable words, same degrade-gracefully
+// contract as transcribeAudio() — callers should fall back to whatever
+// timing they already had, not treat this as fatal.
+//
+// NOTE: this function is also added independently on the
+// feat/elevenlabs-forced-alignment branch (PR #198) — both branches touch
+// lib/autoclip-dub.ts's same function, so this was duplicated here rather
+// than one PR depending on the other merging first. Trivial to reconcile
+// (identical code) whichever merges second.
+export async function forcedAlign(audioBuffer: Buffer, text: string): Promise<WordTiming[]> {
+  const apiKey = env.ELEVENLABS_API_KEY;
+  if (!apiKey || !text.trim()) return [];
+
+  const form = new FormData();
+  form.append("file", new Blob([new Uint8Array(audioBuffer)], { type: "audio/mpeg" }), "audio.mp3");
+  form.append("text", text);
+
+  const res = await fetchElevenLabs(
+    "https://api.elevenlabs.io/v1/forced-alignment",
+    { method: "POST", headers: { "xi-api-key": apiKey }, body: form },
+    { timeoutMs: 30_000, errorContext: "ElevenLabs forced-alignment error" },
+  );
+
+  const json = (await res.json()) as {
+    words?: { text: string; start: number; end: number; loss?: number }[];
+  };
+
+  return (json.words ?? [])
+    .filter((w) => w.text.trim())
+    .map((w) => ({
+      word: w.text.trim(),
+      start: Math.round(w.start * 1000),
+      end: Math.round(w.end * 1000),
+    }));
+}
+
 // ── AI Dubbing & translation (ElevenLabs Dubbing API) ────────────────────────
 // Turns a video's speech into another language while preserving the speaker's
 // voice. Async: start → poll status → fetch dubbed audio.

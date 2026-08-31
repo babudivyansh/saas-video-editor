@@ -91,6 +91,13 @@ const schema = z.object({
   GEMINI_API_KEY: z.string().optional(),
   GOOGLE_GEMINI_API_KEY: z.string().optional(),
   ELEVENLABS_API_KEY: z.string().optional(),
+  // Verifies app/api/webhooks/elevenlabs/route.ts's elevenlabs-signature
+  // header. Optional — unset means that route rejects every request (no
+  // secret to verify against), which is the safe default until this is
+  // actually registered in the ElevenLabs dashboard. See that route's own
+  // doc comment for why whether ElevenLabs Dubbing even sends this webhook
+  // is still unconfirmed.
+  ELEVENLABS_WEBHOOK_SECRET: z.string().optional(),
   // Fallback speech-to-text provider (lib/transcription.ts) — used only when
   // ElevenLabs Scribe's own retries are exhausted, so transcription (feeding
   // both clip selection and captions) isn't a single-vendor point of failure.
