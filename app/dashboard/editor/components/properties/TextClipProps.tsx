@@ -1,10 +1,13 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import dynamic from "next/dynamic";
 import { useEditorStore } from "../../store/editorStore";
+import { useAuth } from "@/app/components/AuthContext";
 import type { FontFamily, TextClip, TextEntrancePreset, TextLoopPreset, TextExitPreset } from "@/lib/editor/types";
 import { FONT_WHITELIST, TEXT_ENTRANCE_PRESETS, TEXT_LOOP_PRESETS, TEXT_EXIT_PRESETS } from "@/lib/editor/types";
+import { addEmojisToText, autoLineBreaks, removeFillerWords, type AiTextLlmOperation } from "@/lib/editor/ai-text";
+import { DUB_LANGUAGES } from "@/lib/languages";
 import {
   Button,
   ColorField,
@@ -16,7 +19,6 @@ import {
   SelectField,
   Slider,
   Switch,
-  Tooltip,
 } from "../ui";
 // Pulls in the full Lexical library, which loaded into the editor's initial
 // bundle for every selection — text clip or not — since this was a static
@@ -26,11 +28,70 @@ const LexicalTextEditor = dynamic(() => import("./text/LexicalTextEditor"), {
   loading: () => <div className="h-24 animate-pulse rounded-editor-md bg-editor-card" />,
 });
 
-const AI_STUBS = ["Rewrite this text", "Fix grammar", "Translate", "Shorten", "Expand"];
+const AI_LLM_TOOLS: { label: string; operation: AiTextLlmOperation }[] = [
+  { label: "Rewrite this text", operation: "rewrite" },
+  { label: "Fix grammar", operation: "grammar" },
+  { label: "Shorten", operation: "shorten" },
+  { label: "Expand", operation: "expand" },
+];
+const AI_FREE_TOOLS: { label: string; run: (text: string) => string }[] = [
+  { label: "Add emojis", run: addEmojisToText },
+  { label: "Auto line breaks", run: autoLineBreaks },
+  { label: "Remove filler words", run: removeFillerWords },
+];
 
 export default function TextClipProps({ clip, activeTab }: { clip: TextClip; activeTab: string }) {
   const updateClip = useEditorStore((s) => s.updateClip);
   const patch = (p: Partial<TextClip>, undoable = true) => updateClip("text", clip.id, p, undoable);
+  const { user, refreshUser } = useAuth();
+  const [aiWorking, setAiWorking] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [targetLang, setTargetLang] = useState(DUB_LANGUAGES[0]?.label ?? "Spanish");
+
+  // Text clips have no richText yet if never opened in the rich editor
+  // (`richText` undefined = legacy/plain-text clip, per its own doc comment);
+  // once set, `text` is meant to stay auto-synced FROM richText, never
+  // hand-edited on its own. An AI edit replaces the wording outright, so it
+  // clears richText along with it rather than leaving a stale rich doc the
+  // plain `text` no longer matches — this drops any per-run formatting
+  // (mixed bold/color within the string) on that clip, which is an honest,
+  // acceptable trade for a rewrite the user explicitly asked for.
+  async function runLlmOp(operation: AiTextLlmOperation) {
+    if (aiWorking) return;
+    const CREDIT_COST = 1;
+    if ((user?.credits ?? 0) < CREDIT_COST) {
+      setAiError(`Not enough credits (${CREDIT_COST} needed).`);
+      return;
+    }
+    setAiWorking(operation);
+    setAiError(null);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/editor/ai-text", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ operation, text: clip.text, targetLang: operation === "translate" ? targetLang : undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "AI Tools request failed");
+      patch({ text: data.result, richText: undefined });
+      refreshUser();
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "AI Tools request failed");
+    } finally {
+      setAiWorking(null);
+    }
+  }
+
+  function runFreeOp(label: string, run: (text: string) => string) {
+    setAiError(null);
+    const result = run(clip.text);
+    if (!result.trim()) {
+      setAiError(`${label} left nothing behind — not applied.`);
+      return;
+    }
+    patch({ text: result, richText: undefined });
+  }
 
   if (activeTab === "transform") {
     return (
@@ -241,14 +302,37 @@ export default function TextClipProps({ clip, activeTab }: { clip: TextClip; act
       <div className="flex flex-col gap-3 p-3">
         <PropertyCard title="AI Tools" collapsible={false}>
           <div className="flex flex-col gap-1.5">
-            {AI_STUBS.map((label) => (
-              <Tooltip key={label} content="Coming soon" side="top">
-                <Button variant="subtle" size="sm" disabled className="justify-start">
-                  {label}
-                </Button>
-              </Tooltip>
+            {AI_LLM_TOOLS.map(({ label, operation }) => (
+              <Button
+                key={operation}
+                variant="subtle"
+                size="sm"
+                disabled={!!aiWorking}
+                className="justify-start"
+                onClick={() => runLlmOp(operation)}
+              >
+                {aiWorking === operation ? "Working…" : `${label} (1 credit)`}
+              </Button>
+            ))}
+            <div className="flex gap-1.5 items-center">
+              <Button
+                variant="subtle"
+                size="sm"
+                disabled={!!aiWorking}
+                className="justify-start flex-1"
+                onClick={() => runLlmOp("translate")}
+              >
+                {aiWorking === "translate" ? "Working…" : "Translate (1 credit)"}
+              </Button>
+              <SelectField label="" value={targetLang} options={DUB_LANGUAGES.map((l) => l.label)} onChange={setTargetLang} />
+            </div>
+            {AI_FREE_TOOLS.map(({ label, run }) => (
+              <Button key={label} variant="subtle" size="sm" className="justify-start" onClick={() => runFreeOp(label, run)}>
+                {label} (free)
+              </Button>
             ))}
           </div>
+          {aiError && <p className="text-xs text-red-400 mt-1.5">{aiError}</p>}
         </PropertyCard>
       </div>
     );
