@@ -12,7 +12,7 @@ vi.mock("@/lib/env", () => ({
   env: { ELEVENLABS_API_KEY: "sk_test_key", ELEVENLABS_MAX_VOICE_SLOTS: "100" },
 }));
 
-const { fetchElevenLabs, ElevenLabsHttpError, deleteClonedVoice, transcribeAudio } = await import("./elevenlabs");
+const { fetchElevenLabs, ElevenLabsHttpError, deleteClonedVoice, transcribeAudio, forcedAlign } = await import("./elevenlabs");
 
 function jsonResponse(status: number, body: unknown, headers?: Record<string, string>) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...headers } });
@@ -55,6 +55,53 @@ describe("transcribeAudio — diarization", () => {
     const words = await transcribeAudio(Buffer.from("audio"));
     expect(words).toEqual([{ word: "hi", start: 0, end: 500 }]);
     expect("speaker" in words[0]).toBe(false);
+  });
+});
+
+// forcedAlign — response shape confirmed against ElevenLabs' current API
+// reference (2026-09-01): { words: [{text, start, end, loss}], characters:
+// [...], loss }, timings in SECONDS. Maps `words` directly — a DIFFERENT
+// shape from synthesizeVoice()'s character-level alignment, so this must
+// NOT reuse buildWordTimings().
+describe("forcedAlign", () => {
+  it("sends the audio and text as multipart form fields", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { words: [] }));
+    await forcedAlign(Buffer.from("audio"), "hello there");
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://api.elevenlabs.io/v1/forced-alignment");
+    const form = init.body as FormData;
+    expect(form.get("text")).toBe("hello there");
+    expect(form.get("file")).toBeInstanceOf(Blob);
+  });
+
+  it("maps the response's word-level seconds into WordTiming milliseconds", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, {
+      words: [
+        { text: "hello", start: 0, end: 0.5, loss: 0.01 },
+        { text: "there", start: 0.6, end: 1.2, loss: 0.02 },
+      ],
+      characters: [],
+      loss: 0.015,
+    }));
+    const words = await forcedAlign(Buffer.from("audio"), "hello there");
+    expect(words).toEqual([
+      { word: "hello", start: 0, end: 500 },
+      { word: "there", start: 600, end: 1200 },
+    ]);
+  });
+
+  it("returns [] without calling the API when text is empty", async () => {
+    const words = await forcedAlign(Buffer.from("audio"), "   ");
+    expect(words).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("filters out empty-text entries from the response", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, {
+      words: [{ text: "hi", start: 0, end: 0.3 }, { text: "  ", start: 0.3, end: 0.4 }],
+    }));
+    const words = await forcedAlign(Buffer.from("audio"), "hi");
+    expect(words).toEqual([{ word: "hi", start: 0, end: 300 }]);
   });
 });
 

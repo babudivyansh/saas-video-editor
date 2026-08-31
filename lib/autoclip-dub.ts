@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { downloadFile } from "@/utils/download";
 import { runFFmpegArgs, styleIndexToSubtitleStyle, generateASS } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
-import { startDubbing, getDubbingStatus, getDubbedAudio } from "@/utils/elevenlabs";
+import { startDubbing, getDubbingStatus, getDubbedAudio, forcedAlign } from "@/utils/elevenlabs";
 import { translateTranscript } from "@/lib/caption-translate";
 import { restoreSpend } from "@/lib/credits";
 import { logger } from "@/lib/logger";
@@ -71,12 +71,27 @@ export async function dubJob(payload: DubPayload): Promise<void> {
     if (hasCaptions && words && words.length > 0) {
       try {
         const translatedWords = await translateTranscript(words, dub.targetLang);
+
+        // translateTranscript's timing is a heuristic (normaliseSpan in
+        // lib/caption-translate.ts) — real alignment against the actual
+        // dubbed audio is strictly better when it succeeds. Its own
+        // try/catch, separate from this block's: a forced-alignment failure
+        // should fall back to the heuristic timing (still real captions),
+        // not disable captions entirely the way any other error here does.
+        let alignedWords = translatedWords;
+        try {
+          const aligned = await forcedAlign(audioBuffer, translatedWords.map((w) => w.word).join(" "));
+          if (aligned.length > 0) alignedWords = aligned;
+        } catch (err) {
+          logger.warn("auto-clip-dub", `Forced alignment failed for ${clipDubId}, using heuristic timing`, err);
+        }
+
         let style = styleIndexToSubtitleStyle(dub.clip.captionStyleIndex ?? 0, "oneword");
         const customStyle = dub.clip.subtitleStyleOverride as unknown as SubtitleStyle | null;
         if (customStyle) {
           style = { ...style, ...customStyle };
         }
-        generateASS(translatedWords, style, assPath);
+        generateASS(alignedWords, style, assPath);
       } catch (err) {
         hasCaptions = false;
         logger.warn("auto-clip-dub", `Subtitle translation failed for ${clipDubId}, rendering without subtitles`, err);
