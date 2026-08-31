@@ -11,6 +11,8 @@ import Link from "next/link";
 import AdminShell from "../../AdminShell";
 import { useAuth } from "@/app/components/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
+import { Button } from "@/app/components/ui/Button";
+import { Card as UiCard } from "@/app/components/ui/Card";
 
 function Badge({ ok, label }: { ok: boolean; label: string }) {
   return (
@@ -31,13 +33,16 @@ function RawJson({ data }: { data: unknown }) {
   );
 }
 
+// Thin wrapper over the shared Card with this page's own title/subtitle
+// convention — every probe card on this page uses it, so the shared
+// container styling lives in one place instead of four repeated literals.
 function Card({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+    <UiCard shadow padding="md">
       <h2 className="text-sm font-bold text-gray-800 mb-1">{title}</h2>
       <p className="text-xs text-gray-400 mb-3">{subtitle}</p>
       {children}
-    </div>
+    </UiCard>
   );
 }
 
@@ -70,9 +75,9 @@ function RenderCapabilityProbe({ headers }: { headers: () => Record<string, stri
 
   return (
     <Card title="Render capability probe" subtitle="Checks whether the bundled and any system ffmpeg can actually satisfy every filter/encoder Clipiro's renders require. Takes several seconds — it runs real encodes against synthetic input.">
-      <button onClick={run} disabled={busy} className="text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 disabled:opacity-50 px-4 py-2 rounded-lg cursor-pointer">
+      <Button variant="primary" size="sm" onClick={run} disabled={busy}>
         {busy ? "Running probe…" : "Run capability probe"}
-      </button>
+      </Button>
       {error && <p className="text-xs text-red-600 mt-3">{error}</p>}
       {report && (
         <div className="mt-4 space-y-3">
@@ -124,9 +129,9 @@ function RenderReproduce({ headers }: { headers: () => Record<string, string> })
       <div className="flex gap-2">
         <input value={projectId} onChange={(e) => setProjectId(e.target.value)} placeholder="Project ID"
           className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 font-mono" />
-        <button onClick={run} disabled={busy || !projectId.trim()} className="text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 disabled:opacity-50 px-4 py-2 rounded-lg cursor-pointer whitespace-nowrap">
+        <Button variant="primary" size="sm" onClick={run} disabled={busy || !projectId.trim()}>
           {busy ? "Rendering…" : "Reproduce"}
-        </button>
+        </Button>
       </div>
       {error && <p className="text-xs text-red-600 mt-3">{error}</p>}
       {result && (
@@ -166,9 +171,9 @@ function TranscriptionDiagnostics({ headers }: { headers: () => Record<string, s
 
   return (
     <Card title="Transcription provider probe" subtitle="Hits each configured STT provider's cheapest identity endpoint to verify credentials actually authenticate. Never transcribes anything, never bills usage, never reveals a credential value.">
-      <button onClick={run} disabled={busy} className="text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 disabled:opacity-50 px-4 py-2 rounded-lg cursor-pointer">
+      <Button variant="primary" size="sm" onClick={run} disabled={busy}>
         {busy ? "Probing…" : "Run probe"}
-      </button>
+      </Button>
       {error && <p className="text-xs text-red-600 mt-3">{error}</p>}
       {report && (
         <div className="mt-4 space-y-3">
@@ -241,9 +246,9 @@ function AutoClipCalibration({ headers }: { headers: () => Record<string, string
         {state.enabled ? "Enabled" : "Disabled"}
       </label>
       <div>
-        <button onClick={recalibrate} disabled={busy} className="text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 disabled:opacity-50 px-4 py-2 rounded-lg cursor-pointer">
+        <Button variant="primary" size="sm" onClick={recalibrate} disabled={busy}>
           {busy ? "Recalibrating…" : "Run recalibration now"}
-        </button>
+        </Button>
       </div>
       {result && (
         <p className="text-xs text-gray-500 mt-3">

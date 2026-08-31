@@ -2,6 +2,8 @@
 import { useEffect, useState, useCallback, Fragment } from "react";
 import AdminShell from "../AdminShell";
 import { useAuth } from "@/app/components/AuthContext";
+import { Button } from "@/app/components/ui/Button";
+import { Card } from "@/app/components/ui/Card";
 
 interface AuditEntry {
   id: string;
@@ -92,7 +94,7 @@ export default function AdminAuditPage() {
       </p>
 
       {byAdmin.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+        <Card shadow padding="sm" className="mb-4">
           <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2">
             Admin activity — {activityWindow
               ? `since ${fmtShort(activityWindow.from)}${activityWindow.to ? ` to ${fmtShort(activityWindow.to)}` : ""}`
@@ -100,21 +102,21 @@ export default function AdminAuditPage() {
           </p>
           <div className="flex flex-wrap gap-2">
             {byAdmin.map(a => (
-              <button
+              <Button
                 key={a.adminEmail}
+                variant="secondary"
+                size="sm"
                 onClick={() => { setFAdmin(a.adminEmail); setPage(1); }}
-                className="text-xs bg-gray-50 hover:bg-blue-50 border border-gray-100 rounded-lg px-3 py-1.5 cursor-pointer"
-                title="Filter to this admin"
               >
                 <span className="font-semibold text-gray-700">{a.adminEmail}</span>
                 <span className="text-gray-400"> · {a.actions30d} actions</span>
-              </button>
+              </Button>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4 flex flex-wrap gap-2 items-end">
+      <Card shadow padding="sm" className="mb-4 flex flex-wrap gap-2 items-end">
         <input value={fAction} onChange={e => { setFAction(e.target.value); setPage(1); }} placeholder="Action prefix (e.g. user., commission.)"
           className="text-xs border border-gray-200 rounded-lg px-3 py-2 w-56" aria-label="Filter by action" />
         <input value={fTarget} onChange={e => { setFTarget(e.target.value); setPage(1); }} placeholder="Target ID"
@@ -126,12 +128,14 @@ export default function AdminAuditPage() {
         <input type="date" value={fTo} onChange={e => { setFTo(e.target.value); setPage(1); }}
           className="text-xs border border-gray-200 rounded-lg px-3 py-2" aria-label="To date" />
         {(fAction || fTarget || fAdmin || fFrom || fTo) && (
-          <button onClick={() => { setFAction(""); setFTarget(""); setFAdmin(""); setFFrom(""); setFTo(""); setPage(1); }}
-            className="text-xs font-semibold text-gray-500 hover:text-red-600 px-3 py-2 cursor-pointer">
+          <Button variant="link" onClick={() => { setFAction(""); setFTarget(""); setFAdmin(""); setFFrom(""); setFTo(""); setPage(1); }} className="text-gray-500 hover:text-red-600">
             Clear filters
-          </button>
+          </Button>
         )}
-        <button
+        <Button
+          variant="secondary"
+          size="sm"
+          className="ml-auto"
           onClick={async () => {
             const params = new URLSearchParams({ export: "csv" });
             for (const [k, v] of [["action", fAction], ["targetId", fTarget], ["adminEmail", fAdmin], ["from", fFrom], ["to", fTo]] as const) {
@@ -146,22 +150,21 @@ export default function AdminAuditPage() {
             a.click();
             URL.revokeObjectURL(a.href);
           }}
-          className="ml-auto text-xs font-semibold text-gray-500 hover:text-blue-600 border border-gray-200 rounded-lg px-3 py-2 cursor-pointer"
         >
           Export CSV
-        </button>
-      </div>
+        </Button>
+      </Card>
 
       {loading ? (
         <p className="text-sm text-gray-400">Loading logs…</p>
       ) : logs.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+        <Card shadow className="p-12 text-center">
           <p className="text-sm font-semibold text-gray-600">No audit entries yet</p>
           <p className="text-xs text-gray-400 mt-1">Admin actions will be logged here automatically.</p>
-        </div>
+        </Card>
       ) : (
         <>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
+          <Card shadow className="mb-4">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -215,15 +218,13 @@ export default function AdminAuditPage() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </Card>
 
           <div className="flex items-center justify-between text-sm text-gray-500">
             <span>Page {page} of {totalPages} ({total} entries)</span>
             <div className="flex gap-2">
-              <button disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}
-                className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">← Prev</button>
-              <button disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Next →</button>
+              <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>← Prev</Button>
+              <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>Next →</Button>
             </div>
           </div>
         </>

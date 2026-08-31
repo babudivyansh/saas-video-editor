@@ -6,6 +6,7 @@ import { ErrorCard } from "../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { useToast } from "@/app/components/ui/Toast";
+import { Button } from "@/app/components/ui/Button";
 
 interface Coupon {
   id: string;
@@ -167,19 +168,19 @@ export default function AdminCouponsPage() {
                   {!c.active && <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">Inactive</span>}
                 </div>
                 <div className="flex items-center gap-3">
-                  <button
+                  <Button
+                    variant="link"
                     onClick={() => setRedemptionsFor(redemptionsFor === c.id ? null : c.id)}
                     disabled={c.timesRedeemed === 0}
-                    className="text-xs text-gray-500 hover:text-blue-600 disabled:cursor-default disabled:hover:text-gray-500 cursor-pointer"
-                    title={c.timesRedeemed > 0 ? "View who redeemed this coupon" : undefined}
+                    className="text-gray-500 hover:text-blue-600"
                   >
                     Used <strong>{c.timesRedeemed}</strong>{c.maxRedemptions != null ? ` / ${c.maxRedemptions}` : ""}
                     {c.timesRedeemed > 0 && <span className="ml-1">{redemptionsFor === c.id ? "▴" : "▾"}</span>}
-                  </button>
+                  </Button>
                   <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer">
                     <input type="checkbox" checked={c.active} onChange={e => edit(c.id, { active: e.target.checked })} /> Active
                   </label>
-                  <button onClick={() => setConfirmDelete(c.id)} className="text-xs font-semibold text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">Deactivate</button>
+                  <Button variant="danger" size="sm" onClick={() => setConfirmDelete(c.id)}>Deactivate</Button>
                 </div>
               </div>
 
@@ -261,10 +262,9 @@ export default function AdminCouponsPage() {
                 <input className={input} value={c.description ?? ""} onChange={e => edit(c.id, { description: e.target.value })} />
               </div>
               <div className="flex justify-end mt-4">
-                <button onClick={() => saveMutation.mutate(c)} disabled={savingThis}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold px-5 py-2 rounded-xl transition-colors">
+                <Button variant="primary" onClick={() => saveMutation.mutate(c)} disabled={savingThis}>
                   {savingThis ? "Saving…" : "Save"}
-                </button>
+                </Button>
               </div>
             </div>
             );
@@ -328,10 +328,9 @@ export default function AdminCouponsPage() {
               <input className={input} placeholder="Launch special — 30% off your first plan" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
             </div>
             <div className="flex justify-end mt-4">
-              <button type="submit" disabled={creating}
-                className="bg-gray-900 hover:bg-gray-800 disabled:bg-gray-500 text-white text-sm font-semibold px-5 py-2 rounded-xl transition-colors">
+              <Button type="submit" variant="primary" disabled={creating}>
                 {creating ? "Creating…" : "Create Coupon"}
-              </button>
+              </Button>
             </div>
           </form>
         </div>

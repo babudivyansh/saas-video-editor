@@ -6,6 +6,8 @@ import AdminShell from "../../AdminShell";
 import { ErrorCard } from "../../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
+import { Switch } from "@/app/components/ui/Switch";
+import { Card } from "@/app/components/ui/Card";
 
 interface ReviewSettings {
   minAccountAgeHours: number;
@@ -82,7 +84,7 @@ export default function AdminReviewSettingsPage() {
       {isError ? (
         <div className="mt-4"><ErrorCard onRetry={refetch} /></div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm mt-4 max-w-xl divide-y divide-gray-50">
+        <Card shadow className="mt-4 max-w-xl divide-y divide-gray-50">
           {isLoading || !settings ? (
             <p className="text-sm text-gray-400 p-6">Loading…</p>
           ) : (
@@ -95,13 +97,12 @@ export default function AdminReviewSettingsPage() {
                   <p className="text-xs text-gray-400 mt-0.5">{f.hint}</p>
                 </div>
                 {f.type === "boolean" ? (
-                  <button
-                    onClick={() => saveMutation.mutate({ key: f.key, value: !settings[f.key] })}
+                  <Switch
+                    checked={settings[f.key] as boolean}
+                    onChange={(v) => saveMutation.mutate({ key: f.key, value: v })}
                     disabled={savingThis}
-                    className={`w-11 h-6 rounded-full relative transition-colors flex-shrink-0 ${settings[f.key] ? "bg-blue-600" : "bg-gray-200"}`}
-                  >
-                    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${settings[f.key] ? "translate-x-5.5 left-0.5" : "left-0.5"}`} />
-                  </button>
+                    label={f.label}
+                  />
                 ) : (
                   <input
                     type="number"
@@ -118,7 +119,7 @@ export default function AdminReviewSettingsPage() {
               );
             })
           )}
-        </div>
+        </Card>
       )}
     </AdminShell>
   );

@@ -5,12 +5,13 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
 import AdminShell from "../AdminShell";
 import { ErrorCard } from "../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { useToast } from "@/app/components/ui/Toast";
+import { Button } from "@/app/components/ui/Button";
+import { Card } from "@/app/components/ui/Card";
 
 interface OpsData {
   queueCounts: Record<string, Record<string, number>> | null;
@@ -49,9 +50,9 @@ function RevokeAllSessions({ headers, onDone }: { headers: () => Record<string, 
 
   return (
     <>
-      <button onClick={() => setConfirm(true)} className="text-xs font-semibold text-red-600 border border-red-200 px-3 py-1.5 rounded-lg cursor-pointer">
+      <Button variant="danger" size="sm" onClick={() => setConfirm(true)}>
         Revoke all user sessions
-      </button>
+      </Button>
       <ConfirmDialog
         open={confirm}
         title="Revoke all user sessions"
@@ -148,9 +149,9 @@ export default function AdminOpsPage() {
   return (
     <AdminShell title="Operations">
       <div className="flex justify-end mb-4">
-        <Link href="/admin/ops/diagnostics" className="text-xs font-semibold text-gray-500 hover:text-gray-800 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50">
+        <Button href="/admin/ops/diagnostics" variant="secondary" size="sm">
           Incident Tools →
-        </Link>
+        </Button>
       </div>
       {d.maintenance.on && (
         <p className="text-sm font-semibold text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 mb-4">
@@ -160,7 +161,7 @@ export default function AdminOpsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Maintenance */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <Card shadow padding="md">
           <h2 className="text-sm font-bold text-gray-800 mb-2">Maintenance mode</h2>
           <p className="text-xs text-gray-400 mb-3">Blocks all non-admin API calls with a 503 + your message. Admin routes and /api/health stay reachable.</p>
           <input
@@ -170,18 +171,18 @@ export default function AdminOpsPage() {
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 mb-2"
           />
           {d.maintenance.on ? (
-            <button onClick={() => setConfirmMaintOff(true)} className="text-xs font-semibold text-white bg-emerald-600 px-4 py-2 rounded-lg cursor-pointer">
+            <Button variant="secondary" size="sm" onClick={() => setConfirmMaintOff(true)} className="!bg-emerald-600 !text-white !border-emerald-600 hover:!bg-emerald-700">
               Turn OFF maintenance
-            </button>
+            </Button>
           ) : (
-            <button onClick={() => setConfirmMaint(true)} className="text-xs font-semibold text-red-600 border border-red-200 px-4 py-2 rounded-lg cursor-pointer">
+            <Button variant="danger" size="sm" onClick={() => setConfirmMaint(true)}>
               Turn ON maintenance
-            </button>
+            </Button>
           )}
-        </div>
+        </Card>
 
         {/* Workers */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <Card shadow padding="md">
           <div className="flex items-center justify-between gap-2 mb-3">
             <h2 className="text-sm font-bold text-gray-800">Workers</h2>
             <RevokeAllSessions headers={headers} onDone={() => showToast("All non-admin sessions revoked.", "success")} />
@@ -229,11 +230,11 @@ export default function AdminOpsPage() {
               ))}
             </div>
           )}
-        </div>
+        </Card>
       </div>
 
       {/* Failed jobs */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mt-5">
+      <Card shadow padding="md" className="mt-5">
         <h2 className="text-sm font-bold text-gray-800 mb-3">Failed render jobs</h2>
         {d.failedJobs.length === 0 ? (
           <p className="text-sm text-gray-400">None — the dead-letter set is empty.</p>
@@ -259,8 +260,8 @@ export default function AdminOpsPage() {
                   <td className="py-2 text-right text-gray-500">{j.attemptsMade}</td>
                   <td className="py-2 text-right text-xs text-gray-400">{new Date(j.timestamp).toLocaleString()}</td>
                   <td className="py-2 text-right">
-                    <button onClick={() => jobActionMutation.mutate({ jobId: j.id!, action: "retry", queueName: j.queueName })} className="text-xs font-semibold text-blue-600 hover:underline mr-3 cursor-pointer">Retry</button>
-                    <button onClick={() => jobActionMutation.mutate({ jobId: j.id!, action: "remove", queueName: j.queueName })} className="text-xs font-semibold text-red-500 hover:underline cursor-pointer">Remove</button>
+                    <Button variant="link" onClick={() => jobActionMutation.mutate({ jobId: j.id!, action: "retry", queueName: j.queueName })} className="text-blue-600 mr-3">Retry</Button>
+                    <Button variant="link" onClick={() => jobActionMutation.mutate({ jobId: j.id!, action: "remove", queueName: j.queueName })} className="text-red-500">Remove</Button>
                   </td>
                 </tr>
               ))}
@@ -268,11 +269,11 @@ export default function AdminOpsPage() {
           </table>
           </div>
         )}
-      </div>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">
         {/* Feature flags */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <Card shadow padding="md">
           <h2 className="text-sm font-bold text-gray-800 mb-1">Feature flags</h2>
           <p className="text-xs text-gray-400 mb-3">Config-backed booleans readable anywhere via <code className="font-mono">isFeatureEnabled(&quot;name&quot;)</code>.</p>
           <div className="space-y-2">
@@ -283,6 +284,9 @@ export default function AdminOpsPage() {
                   <input type="checkbox" checked={value} onChange={(e) => patchMutation.mutate({ flag: { name, value: e.target.checked } })} />
                   {value ? "on" : "off"}
                 </label>
+                {/* Kept as a raw <button>, not Button — the only functional
+                    label here is the aria-label on this icon-only glyph, and
+                    Button doesn't forward arbitrary a11y props. */}
                 <button onClick={() => patchMutation.mutate({ flag: { name, value: null } })} className="text-xs text-gray-300 hover:text-red-500 cursor-pointer" aria-label={`Delete flag ${name}`}>✕</button>
               </div>
             ))}
@@ -294,12 +298,12 @@ export default function AdminOpsPage() {
           >
             <input value={newFlag} onChange={(e) => setNewFlag(e.target.value)} placeholder="new_flag_name"
               className="flex-1 text-xs font-mono border border-gray-200 rounded-lg px-3 py-2" />
-            <button type="submit" className="text-xs font-semibold text-white bg-gray-900 px-3 py-2 rounded-lg cursor-pointer">Add</button>
+            <Button type="submit" variant="primary" size="sm">Add</Button>
           </form>
-        </div>
+        </Card>
 
         {/* Storage */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <Card shadow padding="md">
           <h2 className="text-sm font-bold text-gray-800 mb-3">Storage — largest tables</h2>
           <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -313,13 +317,13 @@ export default function AdminOpsPage() {
             </tbody>
           </table>
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Assets library storage */}
       {assetsD && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <Card shadow padding="md">
             <h2 className="text-sm font-bold text-gray-800 mb-1">Assets library — top storage users</h2>
             <p className="text-xs text-gray-400 mb-3">
               {fmtBytes(assetsD.totalBytes)} across {assetsD.totalAssets} active assets · {fmtBytes(assetsD.archivedBytes)} in {assetsD.archivedCount} archived (pending purge)
@@ -344,9 +348,9 @@ export default function AdminOpsPage() {
               </table>
               </div>
             )}
-          </div>
+          </Card>
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <Card shadow padding="md">
             <h2 className="text-sm font-bold text-gray-800 mb-1">Moderation queue</h2>
             <p className="text-xs text-gray-400 mb-3">Assets Rekognition flagged for explicit/violent content — excluded from the uploader&apos;s grid pending review.</p>
             {assetsD.flaggedAssets.length === 0 ? (
@@ -366,7 +370,7 @@ export default function AdminOpsPage() {
               </table>
               </div>
             )}
-          </div>
+          </Card>
         </div>
       )}
       <ConfirmDialog

@@ -7,6 +7,8 @@ import { useAuth } from "@/app/components/AuthContext";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { useToast } from "@/app/components/ui/Toast";
+import { Button } from "@/app/components/ui/Button";
+import { Card } from "@/app/components/ui/Card";
 
 interface PlanRef { id: string; name: string; slug: string }
 interface AdminUser {
@@ -151,7 +153,7 @@ export default function AdminUsersPage() {
         <p className="text-sm text-gray-400">Loading users…</p>
       ) : (
         <>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
+          <Card shadow className="mb-4">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -202,21 +204,15 @@ export default function AdminUsersPage() {
                           <td className="py-3 px-3 text-gray-400 text-xs whitespace-nowrap">{fmt(u.createdAt)}</td>
                           <td className="py-3 px-3">
                             <div className="flex items-center gap-1.5">
-                              <a
-                                href={`/admin/users/${u.id}`}
-                                className="text-xs font-semibold text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 transition-colors">
+                              <Button href={`/admin/users/${u.id}`} variant="secondary" size="sm">
                                 View
-                              </a>
-                              <button
-                                onClick={() => openExpand(u)}
-                                className="text-xs font-semibold text-blue-600 hover:text-blue-800 border border-blue-200 rounded-lg px-2.5 py-1.5 hover:bg-blue-50 transition-colors">
+                              </Button>
+                              <Button variant="secondary" size="sm" onClick={() => openExpand(u)} className="!text-blue-600 !border-blue-200 hover:!bg-blue-50">
                                 {expandedId === u.id ? "Close" : "Edit"}
-                              </button>
-                              <button
-                                onClick={() => setDeleteConfirmId(u.id)}
-                                className="text-xs font-semibold text-red-600 hover:text-red-800 border border-red-200 rounded-lg px-2.5 py-1.5 hover:bg-red-50 transition-colors">
+                              </Button>
+                              <Button variant="danger" size="sm" onClick={() => setDeleteConfirmId(u.id)}>
                                 Delete
-                              </button>
+                              </Button>
                             </div>
                           </td>
                         </tr>
@@ -257,17 +253,12 @@ export default function AdminUsersPage() {
                                   </select>
                                 </div>
                                 <div className="flex gap-2 pb-0.5">
-                                  <button
-                                    onClick={() => saveExpanded(u)}
-                                    disabled={savingThis}
-                                    className="text-xs font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-1.5 rounded-lg transition-colors">
+                                  <Button variant="primary" size="sm" onClick={() => saveExpanded(u)} disabled={savingThis}>
                                     {savingThis ? "Saving…" : "Save"}
-                                  </button>
-                                  <button
-                                    onClick={() => setExpandedId(null)}
-                                    className="text-xs font-semibold text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
+                                  </Button>
+                                  <Button variant="secondary" size="sm" onClick={() => setExpandedId(null)}>
                                     Cancel
-                                  </button>
+                                  </Button>
                                 </div>
                               </div>
                             </td>
@@ -279,24 +270,18 @@ export default function AdminUsersPage() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </Card>
 
           {/* Pagination */}
           <div className="flex items-center justify-between text-sm text-gray-500">
             <span>Page {page} of {totalPages}</span>
             <div className="flex gap-2">
-              <button
-                disabled={page <= 1}
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+              <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>
                 ← Prev
-              </button>
-              <button
-                disabled={page >= totalPages}
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+              </Button>
+              <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>
                 Next →
-              </button>
+              </Button>
             </div>
           </div>
         </>
