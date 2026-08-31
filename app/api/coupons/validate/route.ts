@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { validateCoupon } from "@/lib/coupons";
+import { withRateLimit } from "@/lib/with-rate-limit";
 
 // Live discount preview for the checkout UI. Resolves the same cart amount the
 // checkout route uses, then validates the coupon against it.
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -46,3 +47,9 @@ export async function POST(req: NextRequest) {
     originalPaise: amountInPaise,
   });
 }
+
+// A live-typing coupon field can fire on every keystroke/blur — this is
+// authenticated but was ungated at every layer (not in PUBLIC_API_PREFIXES,
+// not one of proxy.ts's GROUP_LIMITS), so nothing stopped unlimited
+// per-user code guessing.
+export const POST = withRateLimit(handlePOST, { limit: 20, windowSec: 60, keyBy: "user", name: "coupons:validate" });

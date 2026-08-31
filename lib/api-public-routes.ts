@@ -81,6 +81,9 @@ const PUBLIC_API_PREFIXES = [
   // Each route does its own IP rate limiting; none reads a session.
   "/api/marketing/",
   "/api/newsletter/",
+  // Public contact form — reachable by logged-out visitors by definition.
+  // Does its own IP rate limiting.
+  "/api/contact",
   // Public developer API — authenticates by API key (lib/auth.ts's
   // getApiKeyAuth), a completely different mechanism from the session
   // cookie this gate exists to check. Each /api/v1/** route does its own
