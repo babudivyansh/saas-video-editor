@@ -22,20 +22,24 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 const startDubbing = vi.fn(async () => { throw new Error("ElevenLabs dubbing job failed"); });
+const forcedAlign = vi.fn(async () => [] as { word: string; start: number; end: number }[]);
 vi.mock("@/utils/elevenlabs", () => ({
   startDubbing: (...a: unknown[]) => startDubbing(...a),
   getDubbingStatus: vi.fn(async () => "dubbed"),
   getDubbedAudio: vi.fn(async () => Buffer.from("")),
+  forcedAlign: (...a: unknown[]) => forcedAlign(...a),
 }));
 
 vi.mock("@/utils/download", () => ({ downloadFile: vi.fn(async () => {}) }));
+const generateASS = vi.fn(() => {});
 vi.mock("@/utils/ffmpeg-render", () => ({
   runFFmpegArgs: vi.fn(async () => {}),
   styleIndexToSubtitleStyle: vi.fn(() => ({})),
-  generateASS: vi.fn(() => {}),
+  generateASS: (...a: unknown[]) => generateASS(...a),
 }));
 vi.mock("@/utils/s3-upload", () => ({ uploadFileToS3: vi.fn(async () => "https://cdn.example/out.mp4") }));
-vi.mock("@/lib/caption-translate", () => ({ translateTranscript: vi.fn(async (w: unknown) => w) }));
+const translateTranscript = vi.fn(async (w: unknown) => w);
+vi.mock("@/lib/caption-translate", () => ({ translateTranscript: (...a: unknown[]) => translateTranscript(...(a as [])) }));
 vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock("fs", () => ({
   default: { existsSync: () => false, writeFileSync: () => {}, unlinkSync: () => {} },
@@ -69,5 +73,46 @@ describe("dubJob — refund on failure", () => {
     restoreSpend.mockRejectedValueOnce(new Error("ledger unavailable"));
     await dubJob({ projectId: "proj1", clipDubId: "dub1", userId: "u1", refId: "auto-clip-dub:clip1:123" });
     expect(clipDubUpdate).toHaveBeenCalledWith({ where: { id: "dub1" }, data: { status: "failed" } });
+  });
+});
+
+describe("dubJob — forced alignment on the translated caption timing", () => {
+  const words = [{ word: "hola", start: 0, end: 500 }];
+
+  beforeEach(() => {
+    startDubbing.mockResolvedValueOnce({ dubbingId: "el-dub-1" });
+    dubRow!.clip.hasCaptions = true;
+    dubRow!.clip.transcriptJson = words;
+  });
+
+  it("uses forcedAlign's result when it returns real timing", async () => {
+    translateTranscript.mockResolvedValueOnce(words);
+    forcedAlign.mockResolvedValueOnce([{ word: "hola", start: 10, end: 480 }]);
+
+    await dubJob({ projectId: "proj1", clipDubId: "dub1", userId: "u1", refId: "ref1" });
+
+    expect(forcedAlign).toHaveBeenCalledWith(expect.any(Buffer), "hola");
+    expect(generateASS).toHaveBeenCalledWith([{ word: "hola", start: 10, end: 480 }], expect.anything(), expect.anything());
+  });
+
+  it("falls back to the heuristic (translateTranscript) timing when forcedAlign returns nothing", async () => {
+    translateTranscript.mockResolvedValueOnce(words);
+    forcedAlign.mockResolvedValueOnce([]);
+
+    await dubJob({ projectId: "proj1", clipDubId: "dub1", userId: "u1", refId: "ref1" });
+
+    expect(generateASS).toHaveBeenCalledWith(words, expect.anything(), expect.anything());
+  });
+
+  it("falls back to the heuristic timing, and still burns in captions, when forcedAlign itself throws", async () => {
+    translateTranscript.mockResolvedValueOnce(words);
+    forcedAlign.mockRejectedValueOnce(new Error("ElevenLabs forced-alignment error: 500"));
+
+    await dubJob({ projectId: "proj1", clipDubId: "dub1", userId: "u1", refId: "ref1" });
+
+    expect(generateASS).toHaveBeenCalledWith(words, expect.anything(), expect.anything());
+    // A forced-alignment failure must not trip the outer catch that disables
+    // captions entirely — the row should still end up "ready", not "failed".
+    expect(clipDubUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "ready" }) }));
   });
 });
