@@ -11,6 +11,11 @@ export interface WordTiming {
   word: string;
   start: number; // milliseconds
   end: number;   // milliseconds
+  /** Scribe speaker label (e.g. "speaker_0") when diarization was requested
+   * and the provider returned one — optional so Whisper/fal transcripts
+   * (which never set it) stay valid. Not yet consumed anywhere in the
+   * caption-rendering pipeline; this only makes the data available. */
+  speaker?: string;
 }
 
 export interface VoiceResult {
@@ -170,6 +175,7 @@ export async function transcribeAudio(
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(audioBuffer)], { type: mimeType }), "audio.mp3");
   form.append("model_id", "scribe_v1");
+  form.append("diarize", "true");
   if (languageCode && languageCode !== "auto") form.append("language_code", languageCode);
 
   const res = await fetchElevenLabs(
@@ -179,7 +185,7 @@ export async function transcribeAudio(
   );
 
   const json = (await res.json()) as {
-    words?: { text: string; start: number; end: number; type?: string }[];
+    words?: { text: string; start: number; end: number; type?: string; speaker_id?: string }[];
   };
 
   // Scribe returns word / spacing / audio_event entries — keep only real words.
@@ -189,6 +195,7 @@ export async function transcribeAudio(
       word: w.text.trim(),
       start: Math.round(w.start * 1000),
       end: Math.round(w.end * 1000),
+      ...(w.speaker_id ? { speaker: w.speaker_id } : {}),
     }));
 }
 
