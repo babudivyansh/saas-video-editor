@@ -9,6 +9,10 @@ interface CardProps {
   /** Wraps the card in a next/link when the whole card is clickable. */
   href?: string;
   padding?: "none" | "sm" | "md";
+  /** Static shadow-card elevation for a non-interactive card that should still
+   * read as raised (e.g. a page-level content panel) — independent of
+   * `interactive`, which is about the *hover* shadow/lift, not a resting one. */
+  shadow?: boolean;
   className?: string;
   children: React.ReactNode;
 }
@@ -25,9 +29,9 @@ const TINT: Record<CardTint, string> = {
 
 const PADDING = { none: "", sm: "p-4", md: "p-5" } as const;
 
-export function Card({ tint = "none", interactive, href, padding = "none", className = "", children }: CardProps) {
+export function Card({ tint = "none", interactive, href, padding = "none", shadow, className = "", children }: CardProps) {
   const lift = interactive || href;
-  const cls = `block rounded-[var(--radius-card)] border overflow-hidden ${TINT[tint]} ${
+  const cls = `block rounded-[var(--radius-card)] border overflow-hidden ${TINT[tint]} ${shadow ? "shadow-card" : ""} ${
     lift ? "transition-all hover:shadow-card-hover hover:-translate-y-0.5" : ""
   } ${PADDING[padding]} ${className}`;
   if (href) {

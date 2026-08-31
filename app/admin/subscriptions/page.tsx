@@ -6,6 +6,8 @@ import { ErrorCard } from "../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useToast } from "@/app/components/ui/Toast";
+import { Card } from "@/app/components/ui/Card";
+import { Button } from "@/app/components/ui/Button";
 
 interface Subscriber {
   id: string;
@@ -87,10 +89,10 @@ export default function AdminSubscriptionsPage() {
   return (
     <AdminShell title="Subscriptions">
       <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-4">
+        <Card shadow className="px-6 py-4">
           <p className="text-3xl font-extrabold text-gray-900">{total}</p>
           <p className="text-xs text-gray-400 mt-0.5">Active Subscribers</p>
-        </div>
+        </Card>
         <input
           value={searchInput}
           onChange={e => { setSearchInput(e.target.value); setPage(1); }}
@@ -104,12 +106,12 @@ export default function AdminSubscriptionsPage() {
       ) : isLoading ? (
         <p className="text-sm text-gray-400">Loading subscriptions…</p>
       ) : subs.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+        <Card shadow className="p-12 text-center">
           <p className="text-sm font-semibold text-gray-600">{search ? "No matching subscribers" : "No active subscribers"}</p>
           <p className="text-xs text-gray-400 mt-1">{search ? "Try a different search." : "Users with active subscriptions will appear here."}</p>
-        </div>
+        </Card>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <Card shadow>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -149,12 +151,14 @@ export default function AdminSubscriptionsPage() {
                       <td className="py-3 px-3 font-semibold text-gray-900">{s.credits} cr</td>
                       <td className="py-3 px-3">
                         <div className="flex flex-col gap-1.5">
-                          <button
+                          <Button
                             onClick={() => { setActingId(s.id); refillMutation.mutate(s.id); }}
                             disabled={busy}
-                            className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 px-3 py-1.5 rounded-lg transition-colors">
+                            variant="primary"
+                            size="sm"
+                          >
                             {busy ? "…" : `+${s.monthlyCredits} Refill`}
-                          </button>
+                          </Button>
                           <div className="flex gap-1">
                             <input
                               type="number"
@@ -163,19 +167,23 @@ export default function AdminSubscriptionsPage() {
                               onChange={e => setExtendMonths(prev => ({ ...prev, [s.id]: e.target.value }))}
                               className="w-12 bg-gray-50 border border-gray-200 rounded-md text-xs px-1.5 py-1 text-center focus:outline-none"
                             />
-                            <button
+                            <Button
                               onClick={() => { setActingId(s.id); adjustMutation.mutate({ userId: s.id, opts: { months } }); }}
                               disabled={busy}
-                              className="text-xs font-semibold text-blue-700 border border-blue-200 hover:bg-blue-50 px-2 py-1 rounded-lg transition-colors">
+                              variant="secondary"
+                              size="sm"
+                            >
                               +{months}mo
-                            </button>
+                            </Button>
                           </div>
-                          <button
+                          <Button
                             onClick={() => { setActingId(s.id); adjustMutation.mutate({ userId: s.id, opts: { expire: true } }); }}
                             disabled={busy}
-                            className="text-xs font-semibold text-red-600 border border-red-200 hover:bg-red-50 px-3 py-1 rounded-lg transition-colors">
+                            variant="danger"
+                            size="sm"
+                          >
                             Expire Now
-                          </button>
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -190,24 +198,16 @@ export default function AdminSubscriptionsPage() {
                 Page {page} of {Math.max(1, Math.ceil(total / LIMIT))} · {total} subscribers
               </span>
               <div className="flex gap-2">
-                <button
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                  className="px-3 py-1 rounded-lg border border-gray-200 font-semibold disabled:opacity-40"
-                >
+                <Button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} variant="secondary" size="sm">
                   Prev
-                </button>
-                <button
-                  onClick={() => setPage(p => p + 1)}
-                  disabled={page >= Math.ceil(total / LIMIT)}
-                  className="px-3 py-1 rounded-lg border border-gray-200 font-semibold disabled:opacity-40"
-                >
+                </Button>
+                <Button onClick={() => setPage(p => p + 1)} disabled={page >= Math.ceil(total / LIMIT)} variant="secondary" size="sm">
                   Next
-                </button>
+                </Button>
               </div>
             </div>
           )}
-        </div>
+        </Card>
       )}
     </AdminShell>
   );

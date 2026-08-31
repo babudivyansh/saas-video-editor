@@ -12,6 +12,8 @@ import { ErrorCard } from "../../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { useToast } from "@/app/components/ui/Toast";
+import { Card } from "@/app/components/ui/Card";
+import { Button } from "@/app/components/ui/Button";
 
 interface Detail {
   user: {
@@ -68,10 +70,9 @@ function CreditAdjust({ userId, headers }: { userId: string; headers: () => Reco
           className="w-16 text-xs border border-gray-200 rounded-lg px-2 py-1.5" aria-label="Credit delta" />
         <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (required)"
           className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5" aria-label="Reason" />
-        <button onClick={() => adjustMutation.mutate()} disabled={adjustMutation.isPending || reason.trim().length < 3}
-          className="text-xs font-semibold text-white bg-gray-900 px-3 py-1.5 rounded-lg disabled:opacity-50 cursor-pointer">
+        <Button onClick={() => adjustMutation.mutate()} disabled={adjustMutation.isPending || reason.trim().length < 3} variant="primary" size="sm">
           Apply
-        </button>
+        </Button>
       </div>
       {msg && <p className="text-[11px] text-gray-500 mt-1">{msg}</p>}
     </div>
@@ -179,7 +180,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mt-4">
         {/* Profile + moderation */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
+        <Card shadow padding="md" className="space-y-3">
           <div>
             <p className="font-bold text-gray-900">{d.user.name ?? d.user.firstName ?? "—"}</p>
             <p className="text-sm text-gray-500">{d.user.email}</p>
@@ -205,23 +206,23 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           </div>
           <CreditAdjust userId={id} headers={headers} />
           <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-50">
-            <button onClick={() => setConfirmRevoke(true)} className="text-xs font-semibold text-gray-600 hover:text-blue-600 px-3 py-1.5 rounded-lg border border-gray-200 cursor-pointer">
+            <Button onClick={() => setConfirmRevoke(true)} variant="secondary" size="sm">
               Revoke sessions
-            </button>
+            </Button>
             {suspended ? (
-              <button onClick={() => moderateMutation.mutate("unsuspend")} className="text-xs font-semibold text-emerald-700 px-3 py-1.5 rounded-lg border border-emerald-200 cursor-pointer">
+              <Button onClick={() => moderateMutation.mutate("unsuspend")} variant="secondary" size="sm" className="!text-emerald-700 !border-emerald-200">
                 Unsuspend
-              </button>
+              </Button>
             ) : (
-              <button onClick={() => setConfirmSuspend(true)} className="text-xs font-semibold text-red-600 px-3 py-1.5 rounded-lg border border-red-200 cursor-pointer">
+              <Button onClick={() => setConfirmSuspend(true)} variant="danger" size="sm">
                 Suspend user
-              </button>
+              </Button>
             )}
           </div>
-        </div>
+        </Card>
 
         {/* Admin notes */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <Card shadow padding="md">
           <p className="text-sm font-bold text-gray-800 mb-2">Admin notes <span className="text-[10px] font-normal text-gray-400">(internal only)</span></p>
           <textarea
             value={notes}
@@ -230,14 +231,14 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             className="w-full text-sm border border-gray-200 rounded-xl p-3 resize-y"
             placeholder="Support history, warnings, context…"
           />
-          <button onClick={() => saveNotesMutation.mutate()} className="mt-2 text-xs font-semibold text-white bg-gray-900 px-4 py-1.5 rounded-lg cursor-pointer">
+          <Button onClick={() => saveNotesMutation.mutate()} variant="primary" size="sm" className="mt-2">
             {notesSaved ? "Saved ✓" : "Save notes"}
-          </button>
-        </div>
+          </Button>
+        </Card>
 
         {/* Affiliate + social */}
         <div className="space-y-5">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <Card shadow padding="md">
             <p className="text-sm font-bold text-gray-800 mb-2">Affiliate</p>
             {d.affiliate ? (
               <p className="text-sm text-gray-600">
@@ -247,8 +248,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             ) : (
               <p className="text-sm text-gray-400">Not an affiliate.</p>
             )}
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          </Card>
+          <Card shadow padding="md">
             <p className="text-sm font-bold text-gray-800 mb-2">Social accounts</p>
             {d.socialAccounts.length === 0 ? (
               <p className="text-sm text-gray-400">None connected.</p>
@@ -264,13 +265,13 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                 ))}
               </ul>
             )}
-          </div>
+          </Card>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">
         {/* Purchases */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <Card shadow padding="md">
           <p className="text-sm font-bold text-gray-800 mb-3">Purchases (latest 20)</p>
           {d.purchases.length === 0 ? (
             <p className="text-sm text-gray-400">No purchases.</p>
@@ -289,10 +290,10 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
               </tbody>
             </table>
           )}
-        </div>
+        </Card>
 
         {/* Credit ledger */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <Card shadow padding="md">
           <p className="text-sm font-bold text-gray-800 mb-3">
             Credit ledger <span className="text-[10px] font-normal text-gray-400">({d.generationTotals.count} generations all time)</span>
           </p>
@@ -312,11 +313,11 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
               </tbody>
             </table>
           )}
-        </div>
+        </Card>
       </div>
 
       {/* Login history */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mt-5">
+      <Card shadow padding="md" className="mt-5">
         <p className="text-sm font-bold text-gray-800 mb-3">Login history (latest 15)</p>
         {d.loginEvents.length === 0 ? (
           <p className="text-sm text-gray-400">No logins recorded yet — history accrues from the next sign-in.</p>
@@ -342,7 +343,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             </tbody>
           </table>
         )}
-      </div>
+      </Card>
       <ConfirmDialog
         open={confirmSuspend}
         title="Suspend user"
