@@ -5,6 +5,8 @@ import AdminShell from "../AdminShell";
 import { ErrorCard } from "../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
+import { Card } from "@/app/components/ui/Card";
+import { Button } from "@/app/components/ui/Button";
 
 interface Tool {
   slug: string;
@@ -65,7 +67,7 @@ export default function AdminToolsPage() {
       ) : isLoading ? (
         <p className="text-sm text-gray-400">Loading tools…</p>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <Card shadow>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -100,25 +102,20 @@ export default function AdminToolsPage() {
                             onChange={e => setEditCost(prev => ({ ...prev, [t.slug]: e.target.value }))}
                             className="w-20 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
                           />
-                          <button
-                            onClick={() => saveCost(t.slug)}
-                            disabled={busy}
-                            className="text-xs font-semibold text-blue-700 border border-blue-200 hover:bg-blue-50 px-3 py-1.5 rounded-lg disabled:opacity-50 transition-colors">
+                          <Button onClick={() => saveCost(t.slug)} disabled={busy} variant="secondary" size="sm">
                             {busy ? "…" : "Set"}
-                          </button>
+                          </Button>
                         </div>
                       </td>
                       <td className="py-3 px-3">
-                        <button
+                        <Button
                           onClick={() => patchMutation.mutate({ slug: t.slug, body: { enabled: !t.enabled } })}
                           disabled={busy}
-                          className={`text-xs font-semibold px-4 py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${
-                            t.enabled
-                              ? "text-red-600 border-red-200 hover:bg-red-50"
-                              : "text-green-700 border-green-200 hover:bg-green-50"
-                          }`}>
+                          variant={t.enabled ? "danger" : "primary"}
+                          size="sm"
+                        >
                           {busy ? "…" : t.enabled ? "Disable" : "Enable"}
-                        </button>
+                        </Button>
                       </td>
                     </tr>
                   );
@@ -126,7 +123,7 @@ export default function AdminToolsPage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </Card>
       )}
     </AdminShell>
   );
