@@ -11,12 +11,21 @@ interface ConfirmDialogProps {
   message: string;
   confirmLabel?: string;
   danger?: boolean;
+  /**
+   * Extra content rendered between the message and the button row — for a
+   * caller that needs to collect something (e.g. a ban/refund reason) before
+   * confirming, instead of building its own inline row-with-input pattern.
+   */
+  children?: React.ReactNode;
+  /** Disables the confirm button without the caller needing its own `busy`
+   * state — e.g. a required reason field that isn't filled in yet. */
+  confirmDisabled?: boolean;
   /** May be async — the dialog stays open and disabled until it settles. */
   onConfirm: () => void | Promise<void>;
   onClose: () => void;
 }
 
-export function ConfirmDialog({ open, title, message, confirmLabel, danger, onConfirm, onClose }: ConfirmDialogProps) {
+export function ConfirmDialog({ open, title, message, confirmLabel, danger, children, confirmDisabled, onConfirm, onClose }: ConfirmDialogProps) {
   const t = useTranslations("Common");
   const [busy, setBusy] = useState(false);
 
@@ -39,13 +48,14 @@ export function ConfirmDialog({ open, title, message, confirmLabel, danger, onCo
   return (
     <Modal open={open} onClose={busy ? () => {} : onClose} title={title} maxWidth="max-w-sm">
       <p className="text-sm text-ink-soft">{message}</p>
+      {children && <div className="mt-3">{children}</div>}
       <div className="flex items-center justify-end gap-2 mt-5">
         <Button variant="secondary" size="sm" onClick={onClose} disabled={busy}>{t("cancel")}</Button>
         <Button
           variant="primary"
           size="sm"
           onClick={confirm}
-          disabled={busy}
+          disabled={busy || confirmDisabled}
           className={danger ? "!bg-none !bg-red-600 !shadow-none hover:!brightness-105" : undefined}
         >
           {confirmLabel ?? t("confirm")}

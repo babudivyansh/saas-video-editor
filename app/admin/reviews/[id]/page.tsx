@@ -7,6 +7,7 @@ import AdminShell from "../../AdminShell";
 import { ErrorCard } from "../../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
+import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 
 interface ReviewDetail {
   id: string;
@@ -47,7 +48,10 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
   const { token } = useAuth();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmDeleteReview, setConfirmDeleteReview] = useState(false);
+  const [confirmDeleteReply, setConfirmDeleteReply] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
   const [editing, setEditing] = useState(false);
   const [editBody, setEditBody] = useState("");
   const [editTitle, setEditTitle] = useState("");
@@ -86,13 +90,6 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
     onError: (e: Error) => showToast(e.message, "error"),
   });
 
-  function reject() {
-    const reason = window.prompt("Reason for rejecting this review (shown to the reviewer):");
-    if (reason === null) return;
-    if (!reason.trim()) { showToast("A reason is required.", "error"); return; }
-    moderateMutation.mutate({ action: "reject", reason: reason.trim() });
-  }
-
   const saveEditMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch(`/api/admin/reviews/${id}`, { method: "PATCH", headers: headers(), body: JSON.stringify({ title: editTitle.trim() || null, body: editBody.trim() }) });
@@ -121,10 +118,6 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-review-detail", id] }),
     onError: (e: Error) => showToast(e.message, "error"),
   });
-  function deleteReply() {
-    if (!window.confirm("Delete this reply?")) return;
-    deleteReplyMutation.mutate();
-  }
 
   const deleteReviewMutation = useMutation({
     mutationFn: async () => {
@@ -132,7 +125,7 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Delete failed.");
     },
     onSuccess: () => { window.location.href = "/admin/reviews"; },
-    onError: (e: Error) => { showToast(e.message, "error"); setConfirmDelete(false); },
+    onError: (e: Error) => { showToast(e.message, "error"); setConfirmDeleteReview(false); },
   });
 
   if (data === null) {
@@ -250,7 +243,7 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
                 <p className="text-sm text-gray-700 whitespace-pre-line">{review.reply.body}</p>
                 <div className="flex items-center gap-3 mt-2">
                   <p className="text-xs text-gray-400">{dt(review.reply.editedAt ?? review.reply.createdAt)}{review.reply.editedAt ? " (edited)" : ""}</p>
-                  <button onClick={deleteReply} disabled={deleteReplyMutation.isPending} className="text-xs font-semibold text-red-600 hover:text-red-800">Delete</button>
+                  <button onClick={() => setConfirmDeleteReply(true)} disabled={deleteReplyMutation.isPending} className="text-xs font-semibold text-red-600 hover:text-red-800">Delete</button>
                 </div>
               </div>
             ) : (
@@ -292,7 +285,7 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
               <button disabled={busy} onClick={() => moderateMutation.mutate({ action: "approve" })} className="w-full text-xs font-semibold text-emerald-700 border border-emerald-200 rounded-lg px-3 py-2 hover:bg-emerald-50 disabled:opacity-50">Approve</button>
             )}
             {review.status !== "rejected" && (
-              <button disabled={busy} onClick={reject} className="w-full text-xs font-semibold text-red-600 border border-red-200 rounded-lg px-3 py-2 hover:bg-red-50 disabled:opacity-50">Reject</button>
+              <button disabled={busy} onClick={() => setRejecting(true)} className="w-full text-xs font-semibold text-red-600 border border-red-200 rounded-lg px-3 py-2 hover:bg-red-50 disabled:opacity-50">Reject</button>
             )}
             {review.status === "hidden" ? (
               <button disabled={busy} onClick={() => moderateMutation.mutate({ action: "unhide" })} className="w-full text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50 disabled:opacity-50">Unhide</button>
@@ -307,18 +300,54 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
               )
             )}
             <div className="pt-2 border-t border-gray-50">
-              {confirmDelete ? (
-                <div className="flex gap-2">
-                  <button disabled={deleteReviewMutation.isPending} onClick={() => deleteReviewMutation.mutate()} className="flex-1 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg px-3 py-2 disabled:opacity-50">Confirm delete</button>
-                  <button onClick={() => setConfirmDelete(false)} className="text-xs text-gray-500 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50">Cancel</button>
-                </div>
-              ) : (
-                <button onClick={() => setConfirmDelete(true)} className="w-full text-xs font-semibold text-red-600 border border-red-200 rounded-lg px-3 py-2 hover:bg-red-50">Delete review</button>
-              )}
+              <button onClick={() => setConfirmDeleteReview(true)} className="w-full text-xs font-semibold text-red-600 border border-red-200 rounded-lg px-3 py-2 hover:bg-red-50">Delete review</button>
             </div>
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDeleteReview}
+        title="Delete review"
+        message="Delete this review? This can't be undone."
+        confirmLabel="Delete"
+        danger
+        onConfirm={async () => { await deleteReviewMutation.mutateAsync(); }}
+        onClose={() => setConfirmDeleteReview(false)}
+      />
+
+      <ConfirmDialog
+        open={confirmDeleteReply}
+        title="Delete reply"
+        message="Delete this reply? This can't be undone."
+        confirmLabel="Delete"
+        danger
+        onConfirm={async () => { await deleteReplyMutation.mutateAsync(); }}
+        onClose={() => setConfirmDeleteReply(false)}
+      />
+
+      <ConfirmDialog
+        open={rejecting}
+        title="Reject review"
+        message="This reason is shown to the reviewer."
+        confirmLabel="Reject"
+        danger
+        confirmDisabled={!rejectReason.trim()}
+        onConfirm={async () => {
+          await moderateMutation.mutateAsync({ action: "reject", reason: rejectReason.trim() });
+          setRejectReason("");
+        }}
+        onClose={() => { setRejecting(false); setRejectReason(""); }}
+      >
+        <textarea
+          value={rejectReason}
+          onChange={(e) => setRejectReason(e.target.value)}
+          rows={3}
+          autoFocus
+          placeholder="Reason for rejecting this review…"
+          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
+        />
+      </ConfirmDialog>
     </AdminShell>
   );
 }
