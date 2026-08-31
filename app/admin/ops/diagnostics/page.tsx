@@ -260,6 +260,42 @@ function AutoClipCalibration({ headers }: { headers: () => Record<string, string
   );
 }
 
+function S3AccessLoggingProbe({ headers }: { headers: () => Record<string, string> }) {
+  const [busy, setBusy] = useState(false);
+  const [report, setReport] = useState<{ enabled: boolean | null; bucket: string; targetBucket?: string | null; error?: string } | null>(null);
+
+  async function run() {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/admin/s3-access-logging", { headers: headers() });
+      setReport(await res.json().catch(() => null));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card title="S3 access-logging check" subtitle="Read-only bucket-policy check — confirms access logging is still on (it was turned on manually 2026-08-26; nothing else would notice if a bucket policy change or a redeploy against a different bucket silently turned it back off).">
+      <Button variant="primary" size="sm" onClick={run} disabled={busy}>
+        {busy ? "Checking…" : "Check now"}
+      </Button>
+      {report && (
+        <div className="mt-4 space-y-2">
+          {report.enabled === null ? (
+            <>
+              <Badge ok={false} label="COULD NOT VERIFY" />
+              <p className="text-xs text-gray-500">{report.error}</p>
+            </>
+          ) : (
+            <Badge ok={report.enabled} label={report.enabled ? `LOGGING ON → ${report.targetBucket}` : "LOGGING OFF"} />
+          )}
+          <RawJson data={report} />
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function AdminOpsDiagnosticsPage() {
   const { token } = useAuth();
   const headers = useCallback(() => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` }), [token]);
@@ -275,6 +311,7 @@ export default function AdminOpsDiagnosticsPage() {
         <RenderReproduce headers={headers} />
         <TranscriptionDiagnostics headers={headers} />
         <AutoClipCalibration headers={headers} />
+        <S3AccessLoggingProbe headers={headers} />
       </div>
     </AdminShell>
   );
