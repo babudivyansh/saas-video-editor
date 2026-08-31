@@ -6,6 +6,7 @@ import { ErrorCard } from "../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useToast } from "@/app/components/ui/Toast";
+import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 
 interface Purchase {
   id: string;
@@ -67,7 +68,6 @@ export default function AdminPurchasesPage() {
     onSuccess: (d) => {
       queryClient.invalidateQueries({ queryKey: ["admin-purchases"] });
       showToast(`Refund recorded — ${d.creditsClawedBack} credits clawed back. Complete the money refund in the Razorpay dashboard.`, "success");
-      setRefundingId(null);
     },
     onError: (e: Error) => showToast(e.message, "error"),
   });
@@ -194,30 +194,11 @@ export default function AdminPurchasesPage() {
                       <td className="py-3 px-3 text-gray-400 text-xs whitespace-nowrap">{fmt(p.createdAt)}</td>
                       <td className="py-3 px-3">
                         {p.status !== "refunded" && (
-                          refundingId === p.id ? (
-                            <div className="flex items-center gap-1.5">
-                              <input
-                                autoFocus
-                                value={refundReason}
-                                onChange={e => setRefundReason(e.target.value)}
-                                placeholder="Reason (required)"
-                                className="border border-gray-200 rounded-lg px-2 py-1 text-xs w-36"
-                              />
-                              <button
-                                onClick={() => refundMutation.mutate({ purchaseId: p.id, reason: refundReason.trim() })}
-                                disabled={refundReason.trim().length < 3 || refundMutation.isPending}
-                                className="text-xs font-bold text-white bg-red-600 rounded-lg px-2 py-1 disabled:opacity-50">
-                                {refundMutation.isPending ? "…" : "Refund"}
-                              </button>
-                              <button onClick={() => setRefundingId(null)} className="text-xs text-gray-400">✕</button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => { setRefundingId(p.id); setRefundReason(""); }}
-                              className="text-xs font-semibold text-red-600 hover:underline">
-                              Refund
-                            </button>
-                          )
+                          <button
+                            onClick={() => { setRefundingId(p.id); setRefundReason(""); }}
+                            className="text-xs font-semibold text-red-600 hover:underline">
+                            Refund
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -238,6 +219,33 @@ export default function AdminPurchasesPage() {
           </div>
         </>
       )}
+
+      <ConfirmDialog
+        open={!!refundingId}
+        title="Refund purchase"
+        message={(() => {
+          const target = purchases.find((p) => p.id === refundingId);
+          if (!target) return "";
+          const amount = `₹${Math.round(target.amountInPaise / 100).toLocaleString("en-IN")}`;
+          return `Refund ${amount} for ${target.user?.email ?? "this user"}? Credits are clawed back immediately — complete the money refund in the Razorpay dashboard separately.`;
+        })()}
+        confirmLabel="Refund"
+        danger
+        confirmDisabled={refundReason.trim().length < 3}
+        onConfirm={async () => {
+          if (!refundingId) return;
+          await refundMutation.mutateAsync({ purchaseId: refundingId, reason: refundReason.trim() });
+        }}
+        onClose={() => { setRefundingId(null); setRefundReason(""); }}
+      >
+        <input
+          autoFocus
+          value={refundReason}
+          onChange={(e) => setRefundReason(e.target.value)}
+          placeholder="Reason (required, min 3 characters)"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+        />
+      </ConfirmDialog>
     </AdminShell>
   );
 }

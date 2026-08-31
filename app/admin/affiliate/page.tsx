@@ -6,6 +6,7 @@ import AdminShell from "@/app/admin/AdminShell";
 import { useAuth } from "@/app/components/AuthContext";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useToast } from "@/app/components/ui/Toast";
+import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { MIN_PAYOUT_AMOUNT } from "@/lib/affiliate-constants";
 
 interface AffiliateRow {
@@ -72,8 +73,8 @@ function AffiliateContent() {
   const [payoutRef, setPayoutRef] = useState<Record<string, string>>({});
   const [confirmReject, setConfirmReject] = useState<string | null>(null);
   const [confirmBan, setConfirmBan] = useState<string | null>(null);
-  const [rejectReason, setRejectReason] = useState<Record<string, string>>({});
-  const [banReason, setBanReason] = useState<Record<string, string>>({});
+  const [rejectReasonText, setRejectReasonText] = useState("");
+  const [banReasonText, setBanReasonText] = useState("");
 
   const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` });
 
@@ -153,14 +154,7 @@ function AffiliateContent() {
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-commissions-list"] }),
     onError: (e: Error) => showToast(e.message, "error"),
-    onSettled: () => { setConfirmReject(null); setRejectReason({}); },
   });
-
-  function banAffiliate(id: string, reason?: string) {
-    updateAffiliateMutation.mutate({ id, data: reason ? { status: "banned", reason } : { status: "banned" } });
-    setConfirmBan(null);
-    setBanReason((r) => ({ ...r, [id]: "" }));
-  }
 
   const markPaidMutation = useMutation({
     mutationFn: async (affiliateId: string) => {
@@ -257,33 +251,20 @@ function AffiliateContent() {
                     <td className="px-4 py-3 text-gray-800 font-medium">₹{a.totalEarned.toFixed(2)}</td>
                     <td className="px-4 py-3 text-gray-800">₹{a.totalPaid.toFixed(2)}</td>
                     <td className="px-4 py-3">
-                      {confirmBan === a.id ? (
-                        <div className="flex items-center gap-1.5">
-                          <input type="text" placeholder="Reason (optional)"
-                            value={banReason[a.id] ?? ""}
-                            onChange={e => setBanReason(r => ({ ...r, [a.id]: e.target.value }))}
-                            className="border border-gray-200 rounded px-1.5 py-0.5 text-xs w-28" />
-                          <button onClick={() => banAffiliate(a.id, banReason[a.id]?.trim() || undefined)}
-                            className="text-xs font-bold text-white bg-red-600 rounded px-2 py-0.5">
-                            Confirm ban?
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2.5">
-                          {a.status === "active" && (
-                            <button onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "suspended" } })} className="text-xs text-yellow-600 hover:underline">Suspend</button>
-                          )}
-                          {a.status === "suspended" && (
-                            <button onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "active" } })} className="text-xs text-green-600 hover:underline">Activate</button>
-                          )}
-                          {a.status === "banned" && (
-                            <button onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "active" } })} className="text-xs text-green-600 hover:underline">Reinstate</button>
-                          )}
-                          {a.status !== "banned" && (
-                            <button onClick={() => setConfirmBan(a.id)} className="text-xs text-red-500 hover:underline">Ban</button>
-                          )}
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2.5">
+                        {a.status === "active" && (
+                          <button onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "suspended" } })} className="text-xs text-yellow-600 hover:underline">Suspend</button>
+                        )}
+                        {a.status === "suspended" && (
+                          <button onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "active" } })} className="text-xs text-green-600 hover:underline">Activate</button>
+                        )}
+                        {a.status === "banned" && (
+                          <button onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "active" } })} className="text-xs text-green-600 hover:underline">Reinstate</button>
+                        )}
+                        {a.status !== "banned" && (
+                          <button onClick={() => setConfirmBan(a.id)} className="text-xs text-red-500 hover:underline">Ban</button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -351,22 +332,7 @@ function AffiliateContent() {
                         <button onClick={() => commissionActionMutation.mutate({ id: c.id, action: "release" })} className="text-xs text-blue-600 hover:underline mr-2">Release</button>
                       )}
                       {(c.status === "pending" || c.status === "available") && (
-                        confirmReject === c.id ? (
-                          <div className="flex items-center gap-1.5">
-                            <input type="text" placeholder="Reason (optional)"
-                              value={rejectReason[c.id] ?? ""}
-                              onChange={e => setRejectReason(r => ({ ...r, [c.id]: e.target.value }))}
-                              className="border border-gray-200 rounded px-1.5 py-0.5 text-xs w-28" />
-                            <button
-                              onClick={() => commissionActionMutation.mutate({ id: c.id, action: "reject", reason: rejectReason[c.id]?.trim() || undefined })}
-                              className="text-xs font-bold text-white bg-red-600 rounded px-2 py-0.5"
-                            >
-                              Confirm reject?
-                            </button>
-                          </div>
-                        ) : (
-                          <button onClick={() => setConfirmReject(c.id)} className="text-xs text-red-500 hover:underline">Reject</button>
-                        )
+                        <button onClick={() => setConfirmReject(c.id)} className="text-xs text-red-500 hover:underline">Reject</button>
                       )}
                     </td>
                   </tr>
@@ -444,6 +410,58 @@ function AffiliateContent() {
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!confirmBan}
+        title="Ban affiliate"
+        message={(() => {
+          const target = affiliates.find((a) => a.id === confirmBan);
+          return `Ban ${target?.user.name ?? target?.user.email ?? "this affiliate"}? They'll be unable to earn further commissions.`;
+        })()}
+        confirmLabel="Ban"
+        danger
+        onConfirm={async () => {
+          if (!confirmBan) return;
+          const reason = banReasonText.trim() || undefined;
+          await updateAffiliateMutation.mutateAsync({ id: confirmBan, data: reason ? { status: "banned", reason } : { status: "banned" } });
+          setBanReasonText("");
+        }}
+        onClose={() => { setConfirmBan(null); setBanReasonText(""); }}
+      >
+        <input
+          type="text"
+          placeholder="Reason (optional)"
+          value={banReasonText}
+          onChange={(e) => setBanReasonText(e.target.value)}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+        />
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={!!confirmReject}
+        title="Reject commission"
+        message={(() => {
+          const target = commissions.find((c) => c.id === confirmReject);
+          return target ? `Reject the ₹${target.amount.toFixed(2)} commission for ${target.affiliate.user.email}?` : "";
+        })()}
+        confirmLabel="Reject"
+        danger
+        onConfirm={async () => {
+          if (!confirmReject) return;
+          const reason = rejectReasonText.trim() || undefined;
+          await commissionActionMutation.mutateAsync({ id: confirmReject, action: "reject", reason });
+          setRejectReasonText("");
+        }}
+        onClose={() => { setConfirmReject(null); setRejectReasonText(""); }}
+      >
+        <input
+          type="text"
+          placeholder="Reason (optional)"
+          value={rejectReasonText}
+          onChange={(e) => setRejectReasonText(e.target.value)}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+        />
+      </ConfirmDialog>
     </>
   );
 }
