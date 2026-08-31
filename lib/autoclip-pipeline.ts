@@ -253,7 +253,7 @@ export function sliceWordsForClip(words: WordTiming[], startSec: number, endSec:
   const startMs = startSec * 1000, endMs = endSec * 1000;
   return words
     .filter((w) => w.end > startMs && w.start < endMs)
-    .map((w) => ({ word: w.word, start: Math.max(0, w.start - startMs), end: Math.max(0, w.end - startMs) }));
+    .map((w) => ({ word: w.word, start: Math.max(0, w.start - startMs), end: Math.max(0, w.end - startMs), speaker: w.speaker }));
 }
 
 // A clip's transcriptJson is stored relative to the clip's own start (not the
@@ -267,9 +267,9 @@ export function rebaseClipWords(words: WordTiming[], oldStartSec: number, newSta
   const shiftMs = (newStartSec - oldStartSec) * 1000;
   const newDurationMs = (newEndSec - newStartSec) * 1000;
   return words
-    .map((w) => ({ word: w.word, start: w.start - shiftMs, end: w.end - shiftMs }))
+    .map((w) => ({ word: w.word, start: w.start - shiftMs, end: w.end - shiftMs, speaker: w.speaker }))
     .filter((w) => w.end > 0 && w.start < newDurationMs)
-    .map((w) => ({ word: w.word, start: Math.max(0, w.start), end: Math.min(newDurationMs, w.end) }));
+    .map((w) => ({ word: w.word, start: Math.max(0, w.start), end: Math.min(newDurationMs, w.end), speaker: w.speaker }));
 }
 
 // ── Gemini highlight selection (P2.4 — structured sub-scores + mood) ───────

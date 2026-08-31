@@ -81,6 +81,15 @@ describe("sliceWordsForClip", () => {
     const sliced = sliceWordsForClip(straddling, 1, 5);
     expect(sliced[0].start).toBe(0);
   });
+
+  it("carries the diarization speaker label through slicing", () => {
+    const withSpeakers = [
+      { word: "hello", start: 1000, end: 1400, speaker: "speaker_0" },
+      { word: "world", start: 1500, end: 1900, speaker: "speaker_1" },
+    ];
+    const sliced = sliceWordsForClip(withSpeakers, 1, 5);
+    expect(sliced.map((w) => w.speaker)).toEqual(["speaker_0", "speaker_1"]);
+  });
 });
 
 describe("rebaseClipWords", () => {
@@ -106,6 +115,15 @@ describe("rebaseClipWords", () => {
   it("returns an unchanged (zero-shift) result when start doesn't actually move", () => {
     const rebased = rebaseClipWords(words, 10, 10, 20);
     expect(rebased).toEqual(words);
+  });
+
+  it("carries the diarization speaker label through rebasing", () => {
+    const withSpeakers = [
+      { word: "a", start: 0, end: 400, speaker: "speaker_0" },
+      { word: "b", start: 2000, end: 2400, speaker: "speaker_1" },
+    ];
+    const rebased = rebaseClipWords(withSpeakers, 10, 10, 20);
+    expect(rebased.map((w) => w.speaker)).toEqual(["speaker_0", "speaker_1"]);
   });
 });
 
