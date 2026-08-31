@@ -7,6 +7,8 @@ import { useAuth } from "@/app/components/AuthContext";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useToast } from "@/app/components/ui/Toast";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
+import { Button } from "@/app/components/ui/Button";
+import { Card } from "@/app/components/ui/Card";
 
 interface Purchase {
   id: string;
@@ -119,23 +121,22 @@ export default function AdminPurchasesPage() {
         </select>
         <input type="date" value={from} onChange={e => { setFrom(e.target.value); setPage(1); }} className={inputCls} title="From date" />
         <input type="date" value={to}   onChange={e => { setTo(e.target.value);   setPage(1); }} className={inputCls} title="To date" />
-        <button onClick={doExport}
-          className="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm">
+        <Button variant="secondary" onClick={doExport}>
           Export CSV
-        </button>
+        </Button>
       </div>
 
       {/* Summary cards */}
       {!isLoading && !isError && (
         <div className="flex gap-4 mb-5">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <Card shadow padding="md">
             <p className="text-2xl font-extrabold text-gray-900">{total}</p>
             <p className="text-xs text-gray-400 mt-0.5">Transactions</p>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          </Card>
+          <Card shadow padding="md">
             <p className="text-2xl font-extrabold text-blue-600">₹{Math.round(totalRevenue / 100).toLocaleString("en-IN")}</p>
             <p className="text-xs text-gray-400 mt-0.5">Revenue (this page)</p>
-          </div>
+          </Card>
         </div>
       )}
 
@@ -144,13 +145,13 @@ export default function AdminPurchasesPage() {
       ) : isLoading ? (
         <p className="text-sm text-gray-400">Loading purchases…</p>
       ) : purchases.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+        <Card shadow className="p-12 text-center">
           <p className="text-sm font-semibold text-gray-600">No purchases found</p>
           <p className="text-xs text-gray-400 mt-1">Try adjusting your filters.</p>
-        </div>
+        </Card>
       ) : (
         <>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
+          <Card shadow className="mb-4">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -194,11 +195,13 @@ export default function AdminPurchasesPage() {
                       <td className="py-3 px-3 text-gray-400 text-xs whitespace-nowrap">{fmt(p.createdAt)}</td>
                       <td className="py-3 px-3">
                         {p.status !== "refunded" && (
-                          <button
+                          <Button
+                            variant="link"
                             onClick={() => { setRefundingId(p.id); setRefundReason(""); }}
-                            className="text-xs font-semibold text-red-600 hover:underline">
+                            className="text-red-600"
+                          >
                             Refund
-                          </button>
+                          </Button>
                         )}
                       </td>
                     </tr>
@@ -206,15 +209,13 @@ export default function AdminPurchasesPage() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </Card>
 
           <div className="flex items-center justify-between text-sm text-gray-500">
             <span>Page {page} of {totalPages} ({total} total)</span>
             <div className="flex gap-2">
-              <button disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}
-                className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">← Prev</button>
-              <button disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Next →</button>
+              <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>← Prev</Button>
+              <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>Next →</Button>
             </div>
           </div>
         </>

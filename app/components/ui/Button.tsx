@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "inverse" | "danger";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "inverse" | "danger" | "link";
 type ButtonSize = "sm" | "md" | "lg";
 
 interface ButtonProps {
@@ -36,6 +36,12 @@ const VARIANT: Record<ButtonVariant, string> = {
   // button pulls more attention than "Disconnect" deserves sitting next to a
   // routine "Re-sync", but it must still read as dangerous before the click.
   danger: "bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300",
+  // Borderless inline text action, for dense tables with several row-level
+  // actions (e.g. admin's Suspend/Ban/Release/Reject) where a pill per
+  // action is too heavy. No default color — callers set one via className
+  // (e.g. text-red-500) to carry the action's own semantic weight, same as
+  // the existing className color overrides on the other variants.
+  link: "bg-transparent hover:underline",
 };
 
 const SIZE: Record<ButtonSize, string> = {
@@ -45,7 +51,9 @@ const SIZE: Record<ButtonSize, string> = {
 };
 
 export function Button({ variant = "primary", size = "md", href, icon, onClick, disabled, className = "", children, type }: ButtonProps) {
-  const cls = `inline-flex items-center justify-center font-semibold rounded-full transition-all whitespace-nowrap ${VARIANT[variant]} ${SIZE[size]} ${disabled ? "opacity-50 pointer-events-none" : ""} ${className}`;
+  const cls = variant === "link"
+    ? `inline-flex items-center font-semibold whitespace-nowrap text-xs ${VARIANT.link} ${disabled ? "opacity-50 pointer-events-none" : ""} ${className}`
+    : `inline-flex items-center justify-center font-semibold rounded-full transition-all whitespace-nowrap ${VARIANT[variant]} ${SIZE[size]} ${disabled ? "opacity-50 pointer-events-none" : ""} ${className}`;
   if (href) {
     // onClick is forwarded here too: next/link accepts it natively, and
     // dropping it silently meant a tracked or instrumented link rendered fine
