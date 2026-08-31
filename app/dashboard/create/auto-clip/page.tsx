@@ -88,7 +88,7 @@ interface ScoreBreakdown {
   hook: number; pacing: number; payoff: number; engagement: number;
   audio: number; speechRate: number; composite: number;
 }
-interface ClipItem {
+export interface ClipItem {
   id: string;
   index: number;
   title: string | null;
@@ -134,7 +134,7 @@ function RerenderCostNote({ clip }: { clip: ClipItem }) {
     </p>
   );
 }
-interface ProjectMeta { status: string; warnings: string[] | null; failureReason: string | null; captionStyleIndex: number | null; uploadedVideoUrl: string | null }
+export interface ProjectMeta { status: string; warnings: string[] | null; failureReason: string | null; captionStyleIndex: number | null; uploadedVideoUrl: string | null }
 interface CostEstimate {
   clipCount: number; totalDurationSec: number;
   gross: number; analysisCredit: number; total: number;
@@ -813,17 +813,22 @@ function ClipWorkspace({
 
   // Transcript (fetched on open — clips list omits transcriptJson).
   interface WordTimingInfo { word: string; start: number; end: number }
+  const transcriptQuery = useQuery({
+    queryKey: ["auto-clip-transcript", projectId, clip.id],
+    queryFn: () => apiFetch<{ detail?: { transcriptJson: WordTimingInfo[] | null } }>(`/api/projects/${projectId}/clips?clipId=${encodeURIComponent(clip.id)}`),
+  });
   const [localWords, setLocalWords] = useState<WordTimingInfo[]>([]);
-  const [transcriptLoading, setTranscriptLoading] = useState(true);
-  useEffect(() => {
-    let cancelled = false;
-    setTranscriptLoading(true);
-    apiFetch<{ detail?: { transcriptJson: WordTimingInfo[] | null } }>(`/api/projects/${projectId}/clips?clipId=${encodeURIComponent(clip.id)}`)
-      .then((d) => { if (!cancelled) setLocalWords(d.detail?.transcriptJson ?? []); })
-      .catch(() => { if (!cancelled) setLocalWords([]); })
-      .finally(() => { if (!cancelled) setTranscriptLoading(false); });
-    return () => { cancelled = true; };
-  }, [projectId, clip.id]);
+  // Seed the editable draft once the fetch lands, then leave it alone — a
+  // background refetch (e.g. window refocus) must not clobber in-progress
+  // edits. ClipWorkspace is remounted (key={clip.id}) on every clip switch,
+  // so this only ever needs to guard "seeded or not", not "seeded for which
+  // clip" — a fresh instance already means a fresh, unseeded draft.
+  const [transcriptSeeded, setTranscriptSeeded] = useState(false);
+  if (transcriptQuery.data && !transcriptSeeded) {
+    setTranscriptSeeded(true);
+    setLocalWords(transcriptQuery.data.detail?.transcriptJson ?? []);
+  }
+  const transcriptLoading = transcriptQuery.isLoading;
 
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
@@ -1211,7 +1216,22 @@ function ClipWorkspace({
 }
 
 // ── Results orchestrator (processing → feed → workspace) ─────────────────────
-function ClipsResults({ projectId, status, error, expectedCount, fileName, onReset }: {
+
+// A pure function of the query's last-known data, not inline in the
+// useQuery call, so the "when do we stop polling" decision is testable
+// without needing real or faked timers — react-query calls this itself on
+// its own schedule; the test only needs to check what it WOULD return.
+export function autoClipPollIntervalMs(data: { project: ProjectMeta; clips: ClipItem[] } | undefined): number | false {
+  if (!data) return 2500;
+  const settled = data.project.status === "completed" || data.project.status === "failed";
+  const inFlight = data.clips.some((c) => c.status === "queued" || c.status === "rendering");
+  return !settled || inFlight ? 2500 : false;
+}
+
+const DEFAULT_PROJECT_META: ProjectMeta = { status: "rendering", warnings: null, failureReason: null, captionStyleIndex: null, uploadedVideoUrl: null };
+const EMPTY_CLIPS: ClipItem[] = [];
+
+export function ClipsResults({ projectId, status, error, expectedCount, fileName, onReset }: {
   projectId: string | null;
   status: GenerateStatus;
   error: string | null;
@@ -1219,8 +1239,24 @@ function ClipsResults({ projectId, status, error, expectedCount, fileName, onRes
   fileName: string | null;
   onReset: () => void;
 }) {
-  const [clips, setClips] = useState<ClipItem[]>([]);
-  const [project, setProject] = useState<ProjectMeta>({ status: "rendering", warnings: null, failureReason: null, captionStyleIndex: null, uploadedVideoUrl: null });
+  const clipsQuery = useQuery({
+    queryKey: ["auto-clip-project", projectId],
+    queryFn: () => apiFetch<{ project: ProjectMeta; clips: ClipItem[] }>(`/api/projects/${projectId}/clips`),
+    enabled: !!projectId,
+    // Keep polling while anything could still change — re-evaluated on every
+    // fetch (including a failed one, which leaves .data at its last good
+    // value: same "silently keep polling on a transient error" behavior the
+    // old setInterval had, without a bare catch swallowing the error).
+    refetchInterval: (query) => autoClipPollIntervalMs(query.state.data),
+  });
+  // Stable fallback references, not inline `?? []` / `?? {...}` literals —
+  // the edits-seeding effect below depends on `clips` by reference, and a
+  // fresh empty array every render (while the query is still loading) would
+  // make that dependency look "changed" every render, firing the effect's
+  // setState every time and looping forever (verified: reproduced an OOM
+  // from a single render with an inline `?? []` here).
+  const clips = clipsQuery.data?.clips ?? EMPTY_CLIPS;
+  const project = clipsQuery.data?.project ?? DEFAULT_PROJECT_META;
   const fireReviewPrompt = useReviewPromptTrigger();
   const reviewPromptFiredRef = useRef(false);
   const insufficientCredits = useInsufficientCredits();
@@ -1230,28 +1266,9 @@ function ClipsResults({ projectId, status, error, expectedCount, fileName, onRes
   const [openTab, setOpenTab] = useState<WorkspaceTab>("edit");
   const [openOrigin, setOpenOrigin] = useState("50% 50%");
 
-  const tick = useCallback(async () => {
-    if (!projectId) return;
-    try {
-      const d = await apiFetch<{ project: ProjectMeta; clips: ClipItem[] }>(`/api/projects/${projectId}/clips`);
-      setClips(d.clips ?? []);
-      setProject(d.project ?? { status: "rendering", warnings: null, failureReason: null, captionStyleIndex: null, uploadedVideoUrl: null });
-    } catch { /* keep polling */ }
-  }, [projectId]);
-
-  useEffect(() => { if (projectId) tick(); }, [projectId, tick]);
-
   const [sort, setSort] = useState<SortKey>("score");
 
   const projectStatus = project.status;
-  const projectSettled = projectStatus === "completed" || projectStatus === "failed";
-  const clipInFlight = clips.some((c) => c.status === "queued" || c.status === "rendering");
-  const shouldPoll = !projectSettled || clipInFlight;
-  useEffect(() => {
-    if (!projectId || !shouldPoll) return;
-    const id = setInterval(tick, 2500);
-    return () => clearInterval(id);
-  }, [projectId, shouldPoll, tick]);
 
   const readyClips = clips.filter((c) => c.status === "ready" && c.videoUrl);
   const sortedClips = [...clips].sort((a, b) => {
@@ -1287,34 +1304,49 @@ function ClipsResults({ projectId, status, error, expectedCount, fileName, onRes
   const keptCount = Object.values(edits).filter((e) => e.keep).length;
   const firstTrimError = Object.values(edits).map(trimError).find(Boolean) ?? null;
 
-  const [estimate, setEstimate] = useState<CostEstimate | null>(null);
+  // Debounce the edits payload the same 300ms the old setTimeout did — keying
+  // a query on a value that itself updates on a delay gets the same effect,
+  // plus (unlike the manual fetch this replaces) a stale in-flight estimate
+  // can no longer clobber a newer one: each distinct payload gets its own
+  // query-cache slot, so a late response for an edit the user has since
+  // changed just lands in a slot nothing is reading from anymore.
+  type EstimatePayload = ({ id: string } & ReviewEdit)[];
+  const [debouncedPayload, setDebouncedPayload] = useState<EstimatePayload | null>(null);
   useEffect(() => {
-    if (!pendingReview || !projectId || clips.length === 0 || Object.keys(edits).length === 0) return;
-    if (Object.values(edits).some((e) => trimError(e))) return;
+    if (!pendingReview || clips.length === 0 || Object.keys(edits).length === 0 || Object.values(edits).some((e) => trimError(e))) {
+      setDebouncedPayload(null);
+      return;
+    }
     const payload = clips.filter((c) => edits[c.id]).map((c) => ({ id: c.id, ...edits[c.id] }));
-    if (payload.length === 0) return;
-    const timer = setTimeout(() => {
-      apiFetch<CostEstimate>(`/api/projects/${projectId}/clips/estimate`, { method: "POST", body: JSON.stringify({ clips: payload }) })
-        .then(setEstimate).catch(() => {});
-    }, 300);
+    if (payload.length === 0) { setDebouncedPayload(null); return; }
+    const timer = setTimeout(() => setDebouncedPayload(payload), 300);
     return () => clearTimeout(timer);
-  }, [pendingReview, clips, edits, projectId]);
+  }, [pendingReview, clips, edits]);
 
-  const [confirming, setConfirming] = useState(false);
+  const estimateQuery = useQuery({
+    queryKey: ["auto-clip-estimate", projectId, debouncedPayload],
+    queryFn: () => apiFetch<CostEstimate>(`/api/projects/${projectId}/clips/estimate`, { method: "POST", body: JSON.stringify({ clips: debouncedPayload }) }),
+    enabled: !!projectId && !!debouncedPayload,
+  });
+  const estimate = estimateQuery.data ?? null;
+
   const [confirmErr, setConfirmErr] = useState<string | null>(null);
-  async function handleConfirm() {
-    if (!projectId) return;
-    setConfirming(true); setConfirmErr(null);
-    try {
-      const payload = clips.map((c) => ({ id: c.id, ...(edits[c.id] ?? { keep: true, startSec: c.startSec, endSec: c.endSec, aspectRatio: (c.aspectRatio as ReviewEdit["aspectRatio"]) || "9:16" }) }));
-      await apiFetch(`/api/projects/${projectId}/clips/confirm`, { method: "POST", body: JSON.stringify({ clips: payload }) });
+  const confirmMutation = useMutation({
+    mutationFn: (payload: EstimatePayload) => apiFetch(`/api/projects/${projectId}/clips/confirm`, { method: "POST", body: JSON.stringify({ clips: payload }) }),
+    onSuccess: () => {
       setOpenId(null);
-      tick();
-    } catch (err) {
+      clipsQuery.refetch();
+    },
+    onError: (err) => {
       if (err instanceof ApiError && err.status === 402) insufficientCredits.open({ required: err.body.required, balance: err.body.balance, action: "Auto Clips" });
       else setConfirmErr(err instanceof Error ? err.message : "Failed to confirm");
-      setConfirming(false);
-    }
+    },
+  });
+  function handleConfirm() {
+    if (!projectId) return;
+    setConfirmErr(null);
+    const payload = clips.map((c) => ({ id: c.id, ...(edits[c.id] ?? { keep: true, startSec: c.startSec, endSec: c.endSec, aspectRatio: (c.aspectRatio as ReviewEdit["aspectRatio"]) || "9:16" }) }));
+    confirmMutation.mutate(payload);
   }
 
   const openClip = (clip: ClipItem, tab: WorkspaceTab = "edit", origin = "50% 50%") => { setOpenId(clip.id); setOpenTab(tab); setOpenOrigin(origin); };
@@ -1403,7 +1435,7 @@ function ClipsResults({ projectId, status, error, expectedCount, fileName, onRes
           ? sortedClips.map((c) =>
               pendingReview
                 ? (edits[c.id] ? <ReviewClipCard key={c.id} clip={c} edit={edits[c.id]} onChange={(patch) => setEdits((prev) => ({ ...prev, [c.id]: { ...prev[c.id], ...patch } }))} onOpen={(origin) => openClip(c, "edit", origin)} /> : null)
-                : <ClipCard key={c.id} projectId={projectId!} clip={c} onChanged={tick} onOpen={openClip} />,
+                : <ClipCard key={c.id} projectId={projectId!} clip={c} onChanged={() => clipsQuery.refetch()} onOpen={openClip} />,
             )
           : Array.from({ length: Math.max(1, expectedCount) }).map((_, i) => (
               <div key={i} className="rounded-2xl bg-white overflow-hidden shadow-card">
@@ -1431,8 +1463,8 @@ function ClipsResults({ projectId, status, error, expectedCount, fileName, onRes
             <button onClick={() => setEdits((prev) => { const next: Record<string, ReviewEdit> = {}; for (const [id, e] of Object.entries(prev)) next[id] = { ...e, keep: keptCount > 0 ? false : true }; return next; })} className="text-[13px] font-semibold px-4 py-2.5 rounded-xl border border-card-border bg-white text-ink hover:bg-tint-blue transition-colors">
               {keptCount > 0 ? "Deselect all" : "Select all"}
             </button>
-            <button onClick={handleConfirm} disabled={confirming || keptCount === 0 || !!firstTrimError} className="text-sm font-bold px-6 py-3 rounded-xl grad-brand shadow-glow text-white disabled:opacity-40 disabled:cursor-not-allowed">
-              {confirming ? "Starting render…" : `Confirm & render${estimate ? ` · ${estimate.total} credit${estimate.total === 1 ? "" : "s"}` : ""}`}
+            <button onClick={handleConfirm} disabled={confirmMutation.isPending || keptCount === 0 || !!firstTrimError} className="text-sm font-bold px-6 py-3 rounded-xl grad-brand shadow-glow text-white disabled:opacity-40 disabled:cursor-not-allowed">
+              {confirmMutation.isPending ? "Starting render…" : `Confirm & render${estimate ? ` · ${estimate.total} credit${estimate.total === 1 ? "" : "s"}` : ""}`}
             </button>
           </div>
         </div>
@@ -1452,7 +1484,7 @@ function ClipsResults({ projectId, status, error, expectedCount, fileName, onRes
           onPrev={() => { const p = sortedClips[(openIdx - 1 + sortedClips.length) % sortedClips.length]; if (p) setOpenId(p.id); }}
           onNext={() => { const n = sortedClips[(openIdx + 1) % sortedClips.length]; if (n) setOpenId(n.id); }}
           onClose={() => setOpenId(null)}
-          onChanged={tick}
+          onChanged={() => clipsQuery.refetch()}
         />
       )}
 
