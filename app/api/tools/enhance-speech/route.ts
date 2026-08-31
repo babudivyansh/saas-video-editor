@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { getMediaDurationSec } from "@/utils/ffmpeg-render";
 import { withRateLimit } from "@/lib/with-rate-limit";
-import { withRetry } from "@/lib/with-retry";
+import { fetchElevenLabs } from "@/utils/elevenlabs";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
 import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
@@ -128,24 +128,15 @@ async function handlePOST(req: NextRequest) {
       job.progress = 30;
       if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
 
-      const res = await withRetry(
-        (signal) => fetch("https://api.elevenlabs.io/v1/audio-isolation", {
-          method: "POST",
-          headers: { "xi-api-key": env.ELEVENLABS_API_KEY! },
-          body: elForm,
-          signal,
-        }),
-        { timeoutMs: 60_000 },
+      const res = await fetchElevenLabs(
+        "https://api.elevenlabs.io/v1/audio-isolation",
+        { method: "POST", headers: { "xi-api-key": env.ELEVENLABS_API_KEY! }, body: elForm },
+        { timeoutMs: 60_000, errorContext: "ElevenLabs error" },
       );
 
       if ((job.status as string) === "cancelled") return;
       job.progress = 80;
       if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
-
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`ElevenLabs error ${res.status}: ${errText}`);
-      }
 
       const audioBuffer = Buffer.from(await res.arrayBuffer());
       fs.writeFileSync(outputPath, audioBuffer);

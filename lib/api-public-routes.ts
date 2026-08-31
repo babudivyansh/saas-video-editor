@@ -81,6 +81,9 @@ const PUBLIC_API_PREFIXES = [
   // Each route does its own IP rate limiting; none reads a session.
   "/api/marketing/",
   "/api/newsletter/",
+  // Public contact form — reachable by logged-out visitors by definition.
+  // Does its own IP rate limiting.
+  "/api/contact",
   // Browser-sent Content-Security-Policy violation reports (report-uri
   // directive in lib/csp.ts) — fired by any visitor's browser, logged-in or
   // not, so there is by definition no session to check. IP rate-limited by

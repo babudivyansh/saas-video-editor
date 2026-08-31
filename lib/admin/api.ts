@@ -1,13 +1,14 @@
-// Shared plumbing for every /api/admin route: one admin gate, one error shape.
-// Handlers validate with zod and just THROW — this wrapper turns failures into
-// consistent JSON: ZodError → 400 {error, issues}, malformed body → 400,
-// Prisma known errors → 404/409, anything else → logged 500.
+// Admin-specific layer over the shared request-handling core in
+// lib/api-handler.ts: adds the admin-role + step-up-elevation gate on top of
+// the same zod-validation/error-mapping every route gets via that module's
+// withApi(). parseQuery/parseBody are re-exported unchanged so the existing
+// admin routes importing them from here don't need to change.
 
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
-import { ZodError, type ZodType } from "zod";
 import { requireAdmin, type TokenPayload } from "@/lib/auth";
-import { logger } from "@/lib/logger";
+import { mapHandlerError } from "@/lib/api-handler";
+
+export { parseQuery, parseBody } from "@/lib/api-handler";
 
 type AdminHandler<P> = (
   req: NextRequest,
@@ -32,37 +33,7 @@ export function withAdmin<P = Record<string, never>>(handler: AdminHandler<P>) {
       const params = ctx?.params ? await ctx.params : ({} as P);
       return await handler(req, { admin, params });
     } catch (err) {
-      if (err instanceof ZodError) {
-        return NextResponse.json(
-          {
-            error: "Validation failed",
-            issues: err.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
-          },
-          { status: 400 },
-        );
-      }
-      if (err instanceof SyntaxError) {
-        return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-      }
-      if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        if (err.code === "P2025") return NextResponse.json({ error: "Not found" }, { status: 404 });
-        if (err.code === "P2002") return NextResponse.json({ error: "Conflict: duplicate value" }, { status: 409 });
-        if (err.code === "P2003") {
-          return NextResponse.json({ error: "Conflict: referenced by other records" }, { status: 409 });
-        }
-      }
-      logger.error("admin-api", `${req.method} ${new URL(req.url).pathname} failed`, err);
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+      return mapHandlerError("admin-api", req, err);
     }
   };
-}
-
-// Zod over query params. Throws ZodError → the wrapper's 400.
-export function parseQuery<T>(req: NextRequest, schema: ZodType<T>): T {
-  return schema.parse(Object.fromEntries(req.nextUrl.searchParams));
-}
-
-// Zod over the JSON body. Malformed JSON throws SyntaxError → the wrapper's 400.
-export async function parseBody<T>(req: NextRequest, schema: ZodType<T>): Promise<T> {
-  return schema.parse(await req.json());
 }

@@ -9,6 +9,7 @@ import { runFFmpegArgs, styleIndexToSubtitleStyle, generateASS } from "@/utils/f
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { startDubbing, getDubbingStatus, getDubbedAudio } from "@/utils/elevenlabs";
 import { translateTranscript } from "@/lib/caption-translate";
+import { restoreSpend } from "@/lib/credits";
 import { logger } from "@/lib/logger";
 import type { WordTiming } from "@/utils/elevenlabs";
 import type { SubtitleStyle } from "@/utils/ffmpeg-render";
@@ -16,7 +17,15 @@ import os from "os";
 import path from "path";
 import fs from "fs";
 
-export interface DubPayload { projectId: string; clipDubId: string }
+export interface DubPayload {
+  projectId: string;
+  clipDubId: string;
+  /** Who paid for this dub and the ledger refId spendCredits used, both
+   * threaded through from the route handler — dubJob runs later, out of
+   * request scope, so neither is otherwise recoverable if the job fails. */
+  userId: string;
+  refId: string;
+}
 
 export const DUB_CREDIT_COST = 1;
 
@@ -29,7 +38,7 @@ const POLL_INTERVAL_MS = 5000;
 // third, unreconciled language list.
 
 export async function dubJob(payload: DubPayload): Promise<void> {
-  const { clipDubId } = payload;
+  const { clipDubId, userId, refId } = payload;
   const dub = await prisma.clipDub.findUnique({ where: { id: clipDubId }, include: { clip: true } });
   if (!dub) throw new Error(`ClipDub ${clipDubId} not found`);
   if (!dub.clip.videoUrl) throw new Error(`Clip ${dub.clipId} has no rendered video to dub`);
@@ -97,6 +106,9 @@ export async function dubJob(payload: DubPayload): Promise<void> {
     await prisma.clipDub.update({ where: { id: clipDubId }, data: { status: "ready", videoUrl } });
   } catch (err) {
     logger.error("auto-clip-dub", `dub ${clipDubId} failed`, err);
+    await restoreSpend({ userId, refId, reason: "refund:auto-clip-dub-failed" }).catch((e) =>
+      logger.error("auto-clip-dub", `refund failed for ${clipDubId}`, e),
+    );
     await prisma.clipDub.update({ where: { id: clipDubId }, data: { status: "failed" } }).catch(() => {});
   } finally {
     for (const f of [dubbedAudioPath, sourceVideoPath, outputPath, assPath]) {

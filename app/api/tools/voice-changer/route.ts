@@ -4,7 +4,7 @@ import { markQuestComplete } from "@/lib/quests";
 import { resolveVoiceId } from "@/utils/voice-ids";
 import { getMediaDurationSec } from "@/utils/ffmpeg-render";
 import { withRateLimit } from "@/lib/with-rate-limit";
-import { withRetry } from "@/lib/with-retry";
+import { fetchElevenLabs, ElevenLabsHttpError } from "@/utils/elevenlabs";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
@@ -152,30 +152,15 @@ async function handlePOST(req: NextRequest) {
       job.progress = 20;
       if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
 
-      const res = await withRetry(
-        (signal) => fetch(`https://api.elevenlabs.io/v1/speech-to-speech/${voiceId}`, {
-          method: "POST",
-          headers: { "xi-api-key": env.ELEVENLABS_API_KEY! },
-          body: elForm,
-          signal,
-        }),
-        { timeoutMs: 60_000 },
+      const res = await fetchElevenLabs(
+        `https://api.elevenlabs.io/v1/speech-to-speech/${voiceId}`,
+        { method: "POST", headers: { "xi-api-key": env.ELEVENLABS_API_KEY! }, body: elForm },
+        { timeoutMs: 60_000, errorContext: "ElevenLabs error" },
       );
 
       if ((job.status as string) === "cancelled") return;
       job.progress = 60;
       if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
-
-      if (!res.ok) {
-        const errText = await res.text();
-        logger.error("voice-changer", `ElevenLabs error ${res.status}`, errText);
-        const friendly = res.status === 429
-          ? "The voice engine is busy right now — please try again in a moment."
-          : res.status >= 500
-            ? "The voice engine is temporarily unavailable — please try again."
-            : "Couldn't convert this audio — try a different voice or file.";
-        throw new Error(friendly);
-      }
 
       const audioBuffer = Buffer.from(await res.arrayBuffer());
       job.progress = 95;
@@ -190,7 +175,16 @@ async function handlePOST(req: NextRequest) {
     } catch (err) {
       if ((job.status as string) === "cancelled") return;
       job.status = "error";
-      job.error = err instanceof Error ? err.message : "Voice change failed";
+      if (err instanceof ElevenLabsHttpError) {
+        logger.error("voice-changer", `ElevenLabs error ${err.status}`, err.body);
+        job.error = err.status === 429
+          ? "The voice engine is busy right now — please try again in a moment."
+          : err.status >= 500
+            ? "The voice engine is temporarily unavailable — please try again."
+            : "Couldn't convert this audio — try a different voice or file.";
+      } else {
+        job.error = err instanceof Error ? err.message : "Voice change failed";
+      }
       if (!job.refunded) {
         job.refunded = true;
         try {

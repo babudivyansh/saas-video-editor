@@ -80,6 +80,35 @@ export interface AdminAffiliatePayoutReadyData {
   trigger: "threshold" | "requested";
 }
 
+export interface ContactMessageData {
+  name: string;
+  email: string;
+  /** Already resolved to a display string by the route — this template
+   * stays dumb/data-in like every other template here, matching how
+   * planName/affiliateCode etc. arrive pre-resolved rather than as enums. */
+  subjectLabel: string;
+  message: string;
+}
+
+export function contactMessage(d: ContactMessageData): EmailDocument {
+  return {
+    subject: `Contact form: ${d.subjectLabel} — ${d.name}`,
+    preheader: `${d.name} (${d.email}) sent a message via the contact form.`,
+    blocks: [
+      { kind: "heading", text: "New contact form submission" },
+      {
+        kind: "kv",
+        rows: [
+          { label: "From", value: d.name },
+          { label: "Email", value: d.email },
+          { label: "Category", value: d.subjectLabel },
+        ],
+      },
+      { kind: "callout", tone: "neutral", title: "Message", body: d.message },
+    ],
+  };
+}
+
 export function affiliatePayoutReady(d: AdminAffiliatePayoutReadyData): EmailDocument {
   const who = d.affiliateName || d.affiliateEmail;
   const amount = formatRupees(d.availableAmount);
