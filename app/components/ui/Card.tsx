@@ -8,7 +8,7 @@ interface CardProps {
   interactive?: boolean;
   /** Wraps the card in a next/link when the whole card is clickable. */
   href?: string;
-  padding?: "none" | "sm" | "md";
+  padding?: "none" | "sm" | "md" | "lg";
   /** Static shadow-card elevation for a non-interactive card that should still
    * read as raised (e.g. a page-level content panel) — independent of
    * `interactive`, which is about the *hover* shadow/lift, not a resting one. */
@@ -27,7 +27,7 @@ const TINT: Record<CardTint, string> = {
   rose: "bg-tint-rose border-rose-100",
 };
 
-const PADDING = { none: "", sm: "p-4", md: "p-5" } as const;
+const PADDING = { none: "", sm: "p-4", md: "p-5", lg: "p-6" } as const;
 
 export function Card({ tint = "none", interactive, href, padding = "none", shadow, className = "", children }: CardProps) {
   const lift = interactive || href;

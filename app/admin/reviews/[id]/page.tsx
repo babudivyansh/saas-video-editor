@@ -8,6 +8,8 @@ import { ErrorCard } from "../../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
+import { Button } from "@/app/components/ui/Button";
+import { Card } from "@/app/components/ui/Card";
 
 interface ReviewDetail {
   id: string;
@@ -152,7 +154,7 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mt-4">
         <div className="lg:col-span-2 space-y-5">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <Card shadow padding="lg">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <span className="text-lg font-bold text-gray-900">{review.rating}★</span>
@@ -161,9 +163,9 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
                 {review.pinned && <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-violet-100 text-violet-700">Pinned</span>}
               </div>
               {!editing && (
-                <button onClick={() => setEditing(true)} className="text-xs font-semibold text-blue-600 hover:text-blue-800 border border-blue-200 rounded-lg px-2.5 py-1.5 hover:bg-blue-50">
+                <Button variant="secondary" size="sm" onClick={() => setEditing(true)} className="!text-blue-600 !border-blue-200 hover:!bg-blue-50">
                   Edit content
-                </button>
+                </Button>
               )}
             </div>
 
@@ -174,13 +176,12 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
                 <textarea value={editBody} onChange={(e) => setEditBody(e.target.value)} rows={6}
                   className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2" />
                 <div className="flex gap-2">
-                  <button onClick={() => saveEditMutation.mutate()} disabled={saveEditMutation.isPending} className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg disabled:opacity-50">
+                  <Button variant="primary" size="sm" onClick={() => saveEditMutation.mutate()} disabled={saveEditMutation.isPending}>
                     {saveEditMutation.isPending ? "Saving…" : "Save"}
-                  </button>
-                  <button onClick={() => { setEditing(false); setEditBody(review.body); setEditTitle(review.title ?? ""); }}
-                    className="text-xs font-semibold text-gray-500 border border-gray-200 rounded-lg px-4 py-2 hover:bg-gray-50">
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={() => { setEditing(false); setEditBody(review.body); setEditTitle(review.title ?? ""); }}>
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -199,10 +200,10 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
             {review.rejectionReason && (
               <p className="text-xs text-red-600 mt-3">Rejection reason: {review.rejectionReason}</p>
             )}
-          </div>
+          </Card>
 
           {review.attachments.length > 0 && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <Card shadow padding="lg">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Attachments</p>
               <div className="grid grid-cols-4 gap-2">
                 {review.attachments.map((a) => (
@@ -211,16 +212,16 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
                   </div>
                 ))}
               </div>
-            </div>
+            </Card>
           )}
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <Card shadow padding="lg">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Response from Clipiro</p>
               {!replyEditing && (
-                <button onClick={() => setReplyEditing(true)} className="text-xs font-semibold text-blue-600 hover:text-blue-800 border border-blue-200 rounded-lg px-2.5 py-1.5 hover:bg-blue-50">
+                <Button variant="secondary" size="sm" onClick={() => setReplyEditing(true)} className="!text-blue-600 !border-blue-200 hover:!bg-blue-50">
                   {review.reply ? "Edit reply" : "Add reply"}
-                </button>
+                </Button>
               )}
             </div>
             {replyEditing ? (
@@ -229,13 +230,12 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
                   placeholder="Write a public reply as Clipiro…"
                   className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2" />
                 <div className="flex gap-2">
-                  <button onClick={() => saveReplyMutation.mutate()} disabled={saveReplyMutation.isPending || !replyBody.trim()} className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg disabled:opacity-50">
+                  <Button variant="primary" size="sm" onClick={() => saveReplyMutation.mutate()} disabled={saveReplyMutation.isPending || !replyBody.trim()}>
                     {saveReplyMutation.isPending ? "Saving…" : "Save reply"}
-                  </button>
-                  <button onClick={() => { setReplyEditing(false); setReplyBody(review.reply?.body ?? ""); }}
-                    className="text-xs font-semibold text-gray-500 border border-gray-200 rounded-lg px-4 py-2 hover:bg-gray-50">
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={() => { setReplyEditing(false); setReplyBody(review.reply?.body ?? ""); }}>
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : review.reply ? (
@@ -243,15 +243,15 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
                 <p className="text-sm text-gray-700 whitespace-pre-line">{review.reply.body}</p>
                 <div className="flex items-center gap-3 mt-2">
                   <p className="text-xs text-gray-400">{dt(review.reply.editedAt ?? review.reply.createdAt)}{review.reply.editedAt ? " (edited)" : ""}</p>
-                  <button onClick={() => setConfirmDeleteReply(true)} disabled={deleteReplyMutation.isPending} className="text-xs font-semibold text-red-600 hover:text-red-800">Delete</button>
+                  <Button variant="link" onClick={() => setConfirmDeleteReply(true)} disabled={deleteReplyMutation.isPending} className="text-red-600">Delete</Button>
                 </div>
               </div>
             ) : (
               <p className="text-sm text-gray-400">No reply yet.</p>
             )}
-          </div>
+          </Card>
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <Card shadow padding="lg">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Moderation history</p>
             {history.length === 0 ? (
               <p className="text-sm text-gray-400">No moderation actions yet.</p>
@@ -265,11 +265,11 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
                 ))}
               </ul>
             )}
-          </div>
+          </Card>
         </div>
 
         <div className="space-y-5">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <Card shadow padding="lg">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Reviewer</p>
             <p className="font-semibold text-gray-900 text-sm">{review.user.name || review.user.email}</p>
             <p className="text-xs text-gray-400">{review.user.email}</p>
@@ -277,32 +277,32 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
             <Link href={`/admin/users/${review.user.id}`} className="inline-block mt-3 text-xs font-semibold text-blue-600 hover:text-blue-800">
               View user →
             </Link>
-          </div>
+          </Card>
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-2">
+          <Card shadow padding="lg" className="space-y-2">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Actions</p>
             {review.status !== "published" && (
-              <button disabled={busy} onClick={() => moderateMutation.mutate({ action: "approve" })} className="w-full text-xs font-semibold text-emerald-700 border border-emerald-200 rounded-lg px-3 py-2 hover:bg-emerald-50 disabled:opacity-50">Approve</button>
+              <Button variant="secondary" disabled={busy} onClick={() => moderateMutation.mutate({ action: "approve" })} className="w-full !text-emerald-700 !border-emerald-200 hover:!bg-emerald-50">Approve</Button>
             )}
             {review.status !== "rejected" && (
-              <button disabled={busy} onClick={() => setRejecting(true)} className="w-full text-xs font-semibold text-red-600 border border-red-200 rounded-lg px-3 py-2 hover:bg-red-50 disabled:opacity-50">Reject</button>
+              <Button variant="danger" disabled={busy} onClick={() => setRejecting(true)} className="w-full">Reject</Button>
             )}
             {review.status === "hidden" ? (
-              <button disabled={busy} onClick={() => moderateMutation.mutate({ action: "unhide" })} className="w-full text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50 disabled:opacity-50">Unhide</button>
+              <Button variant="secondary" disabled={busy} onClick={() => moderateMutation.mutate({ action: "unhide" })} className="w-full">Unhide</Button>
             ) : (
-              <button disabled={busy} onClick={() => moderateMutation.mutate({ action: "hide" })} className="w-full text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50 disabled:opacity-50">Hide</button>
+              <Button variant="secondary" disabled={busy} onClick={() => moderateMutation.mutate({ action: "hide" })} className="w-full">Hide</Button>
             )}
             {review.status === "published" && (
               review.pinned ? (
-                <button disabled={busy} onClick={() => moderateMutation.mutate({ action: "unpin" })} className="w-full text-xs font-semibold text-violet-700 border border-violet-200 rounded-lg px-3 py-2 hover:bg-violet-50 disabled:opacity-50">Unpin</button>
+                <Button variant="secondary" disabled={busy} onClick={() => moderateMutation.mutate({ action: "unpin" })} className="w-full !text-violet-700 !border-violet-200 hover:!bg-violet-50">Unpin</Button>
               ) : (
-                <button disabled={busy} onClick={() => moderateMutation.mutate({ action: "pin" })} className="w-full text-xs font-semibold text-violet-700 border border-violet-200 rounded-lg px-3 py-2 hover:bg-violet-50 disabled:opacity-50">Feature</button>
+                <Button variant="secondary" disabled={busy} onClick={() => moderateMutation.mutate({ action: "pin" })} className="w-full !text-violet-700 !border-violet-200 hover:!bg-violet-50">Feature</Button>
               )
             )}
             <div className="pt-2 border-t border-gray-50">
-              <button onClick={() => setConfirmDeleteReview(true)} className="w-full text-xs font-semibold text-red-600 border border-red-200 rounded-lg px-3 py-2 hover:bg-red-50">Delete review</button>
+              <Button variant="danger" onClick={() => setConfirmDeleteReview(true)} className="w-full">Delete review</Button>
             </div>
-          </div>
+          </Card>
         </div>
       </div>
 

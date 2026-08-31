@@ -7,6 +7,8 @@ import { useAuth } from "@/app/components/AuthContext";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useToast } from "@/app/components/ui/Toast";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
+import { Button } from "@/app/components/ui/Button";
+import { Card } from "@/app/components/ui/Card";
 import { MIN_PAYOUT_AMOUNT } from "@/lib/affiliate-constants";
 
 interface AffiliateRow {
@@ -214,7 +216,7 @@ function AffiliateContent() {
               </button>
             ))}
           </div>
-          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+          <Card shadow>
           <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -253,16 +255,16 @@ function AffiliateContent() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
                         {a.status === "active" && (
-                          <button onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "suspended" } })} className="text-xs text-yellow-600 hover:underline">Suspend</button>
+                          <Button variant="link" onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "suspended" } })} className="text-yellow-600">Suspend</Button>
                         )}
                         {a.status === "suspended" && (
-                          <button onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "active" } })} className="text-xs text-green-600 hover:underline">Activate</button>
+                          <Button variant="link" onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "active" } })} className="text-green-600">Activate</Button>
                         )}
                         {a.status === "banned" && (
-                          <button onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "active" } })} className="text-xs text-green-600 hover:underline">Reinstate</button>
+                          <Button variant="link" onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "active" } })} className="text-green-600">Reinstate</Button>
                         )}
                         {a.status !== "banned" && (
-                          <button onClick={() => setConfirmBan(a.id)} className="text-xs text-red-500 hover:underline">Ban</button>
+                          <Button variant="link" onClick={() => setConfirmBan(a.id)} className="text-red-500">Ban</Button>
                         )}
                       </div>
                     </td>
@@ -276,15 +278,16 @@ function AffiliateContent() {
           </table>
           </div>
           {affiliates.length < affiliateTotal && (
-            <button
+            <Button
+              variant="link"
               onClick={() => affiliatesQuery.fetchNextPage()}
               disabled={affiliatesQuery.isFetchingNextPage}
-              className="w-full py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-800 border-t border-gray-50 disabled:opacity-50"
+              className="w-full justify-center py-2.5 text-gray-500 hover:text-gray-800 border-t border-gray-50"
             >
               {affiliatesQuery.isFetchingNextPage ? "Loading…" : `Load more (${affiliates.length} of ${affiliateTotal})`}
-            </button>
+            </Button>
           )}
-          </div>
+          </Card>
         </>
       )}
 
@@ -299,7 +302,7 @@ function AffiliateContent() {
               </button>
             ))}
           </div>
-          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+          <Card shadow>
             <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -329,10 +332,10 @@ function AffiliateContent() {
                     <td className="px-4 py-3 text-xs text-gray-500">{new Date(c.availableAt).toLocaleDateString("en-IN")}</td>
                     <td className="px-4 py-3">
                       {c.status === "pending" && (
-                        <button onClick={() => commissionActionMutation.mutate({ id: c.id, action: "release" })} className="text-xs text-blue-600 hover:underline mr-2">Release</button>
+                        <Button variant="link" onClick={() => commissionActionMutation.mutate({ id: c.id, action: "release" })} className="text-blue-600 mr-2">Release</Button>
                       )}
                       {(c.status === "pending" || c.status === "available") && (
-                        <button onClick={() => setConfirmReject(c.id)} className="text-xs text-red-500 hover:underline">Reject</button>
+                        <Button variant="link" onClick={() => setConfirmReject(c.id)} className="text-red-500">Reject</Button>
                       )}
                     </td>
                   </tr>
@@ -344,15 +347,16 @@ function AffiliateContent() {
             </table>
             </div>
             {commissions.length < commissionTotal && (
-              <button
+              <Button
+                variant="link"
                 onClick={() => commissionsQuery.fetchNextPage()}
                 disabled={commissionsQuery.isFetchingNextPage}
-                className="w-full py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-800 border-t border-gray-50 disabled:opacity-50"
+                className="w-full justify-center py-2.5 text-gray-500 hover:text-gray-800 border-t border-gray-50"
               >
                 {commissionsQuery.isFetchingNextPage ? "Loading…" : `Load more (${commissions.length} of ${commissionTotal})`}
-              </button>
+              </Button>
             )}
-          </div>
+          </Card>
         </>
       )}
 
@@ -360,26 +364,22 @@ function AffiliateContent() {
       {tab === "payouts" && !loading && (
         <div className="space-y-4">
           <div className="flex items-center gap-3 flex-wrap">
-            <button
-              onClick={() => sweepMutation.mutate()}
-              disabled={sweepMutation.isPending}
-              className="px-4 py-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-all"
-            >
+            <Button variant="secondary" onClick={() => sweepMutation.mutate()} disabled={sweepMutation.isPending}>
               {sweepMutation.isPending ? "Running…" : "Run payout sweep now"}
-            </button>
+            </Button>
             <span className="text-xs text-gray-400">
               Flips pending commissions past their 30-day hold to available &amp; emails affiliates. Same sweep the daily cron runs.
             </span>
           </div>
           {payoutCandidates.length === 0 && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-gray-400 shadow-sm">
+            <Card shadow padding="lg" className="text-center text-gray-400">
               No affiliates have ₹{MIN_PAYOUT_AMOUNT}+ available for payout
-            </div>
+            </Card>
           )}
           {payoutCandidates.map(a => {
             const avail = a.commissionTotals.available;
             return (
-              <div key={a.id} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+              <Card key={a.id} shadow padding="md">
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div>
                     <p className="font-semibold text-gray-900 flex items-center gap-2">
@@ -398,14 +398,16 @@ function AffiliateContent() {
                       value={payoutRef[a.id] ?? ""}
                       onChange={e => setPayoutRef(p => ({ ...p, [a.id]: e.target.value }))}
                       className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-48" />
-                    <button onClick={() => markPaidMutation.mutate(a.id)}
+                    <Button
+                      variant="primary"
+                      onClick={() => markPaidMutation.mutate(a.id)}
                       disabled={markPaidMutation.isPending && markPaidMutation.variables === a.id}
-                      className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-all">
+                    >
                       Mark Paid
-                    </button>
+                    </Button>
                   </div>
                 </div>
-              </div>
+              </Card>
             );
           })}
         </div>
