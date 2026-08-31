@@ -48,10 +48,11 @@ vi.mock("@/lib/render-queue", () => ({
 }));
 
 vi.mock("@/utils/download", () => ({ downloadFile: vi.fn(async () => {}) }));
+const generateASS = vi.fn(() => {});
 vi.mock("@/utils/ffmpeg-render", () => ({
   runFFmpegArgs: vi.fn(async () => {}),
   styleIndexToSubtitleStyle: vi.fn(() => ({})),
-  generateASS: vi.fn(() => {}),
+  generateASS: (...a: unknown[]) => generateASS(...a),
 }));
 vi.mock("@/utils/s3-upload", () => ({ uploadFileToS3: vi.fn(async () => "https://cdn.example/out.mp4") }));
 const translateTranscript = vi.fn(async (w: unknown) => w);
@@ -220,13 +221,11 @@ describe("finishDubJob", () => {
   it("burns in forced-aligned captions and marks ready on the happy path", async () => {
     dubRow!.clip.hasCaptions = true;
     dubRow!.clip.transcriptJson = [{ word: "hello", start: 0, end: 200 }];
-    const ffmpeg = await import("@/utils/ffmpeg-render");
-    (ffmpeg.generateASS as ReturnType<typeof vi.fn>).mockClear();
 
     await finishDubJob({ projectId: "proj1", clipDubId: "dub1", userId: "u1", refId: "ref1" });
 
     expect(forcedAlign).toHaveBeenCalled();
-    expect(ffmpeg.generateASS).toHaveBeenCalledWith(
+    expect(generateASS).toHaveBeenCalledWith(
       [{ word: "hola", start: 0, end: 200 }],
       expect.anything(),
       expect.stringContaining("dub-sub.ass"),
@@ -241,12 +240,10 @@ describe("finishDubJob", () => {
     dubRow!.clip.hasCaptions = true;
     dubRow!.clip.transcriptJson = [{ word: "hello", start: 0, end: 200 }];
     forcedAlign.mockRejectedValueOnce(new Error("ElevenLabs forced-alignment error"));
-    const ffmpeg = await import("@/utils/ffmpeg-render");
-    (ffmpeg.generateASS as ReturnType<typeof vi.fn>).mockClear();
 
     await finishDubJob({ projectId: "proj1", clipDubId: "dub1", userId: "u1", refId: "ref1" });
 
-    expect(ffmpeg.generateASS).toHaveBeenCalledWith(
+    expect(generateASS).toHaveBeenCalledWith(
       [{ word: "hello", start: 0, end: 200 }],
       expect.anything(),
       expect.stringContaining("dub-sub.ass"),
@@ -255,6 +252,20 @@ describe("finishDubJob", () => {
       where: { id: "dub1" },
       data: { status: "ready", videoUrl: "https://cdn.example/out.mp4" },
     });
+  });
+
+  it("falls back to the heuristic timing when forcedAlign returns no usable words (empty array, not a throw)", async () => {
+    dubRow!.clip.hasCaptions = true;
+    dubRow!.clip.transcriptJson = [{ word: "hello", start: 0, end: 200 }];
+    forcedAlign.mockResolvedValueOnce([]);
+
+    await finishDubJob({ projectId: "proj1", clipDubId: "dub1", userId: "u1", refId: "ref1" });
+
+    expect(generateASS).toHaveBeenCalledWith(
+      [{ word: "hello", start: 0, end: 200 }],
+      expect.anything(),
+      expect.stringContaining("dub-sub.ass"),
+    );
   });
 
   it("renders without subtitles when translation itself throws, without failing the whole job", async () => {

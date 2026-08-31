@@ -207,12 +207,6 @@ export async function transcribeAudio(
 // Returns [] on no API key or no usable words, same degrade-gracefully
 // contract as transcribeAudio() — callers should fall back to whatever
 // timing they already had, not treat this as fatal.
-//
-// NOTE: this function is also added independently on the
-// feat/elevenlabs-forced-alignment branch (PR #198) — both branches touch
-// lib/autoclip-dub.ts's same function, so this was duplicated here rather
-// than one PR depending on the other merging first. Trivial to reconcile
-// (identical code) whichever merges second.
 export async function forcedAlign(audioBuffer: Buffer, text: string): Promise<WordTiming[]> {
   const apiKey = env.ELEVENLABS_API_KEY;
   if (!apiKey || !text.trim()) return [];
