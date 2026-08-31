@@ -48,6 +48,7 @@ export async function assetZipJob(payload: AssetZipPayload): Promise<void> {
       await redis.set(statusKey(jobId), JSON.stringify({
         status: "failed",
         error: `Selection too large to zip (${(totalBytes / 1024 ** 3).toFixed(1)}GB, max ${MAX_ZIP_TOTAL_BYTES / 1024 ** 3}GB) — download fewer files at once.`,
+        userId,
       }), "EX", ZIP_URL_TTL_SEC);
       return;
     }
@@ -77,10 +78,10 @@ export async function assetZipJob(payload: AssetZipPayload): Promise<void> {
     await uploadFileToS3(zipPath, zipKey, "application/zip");
 
     const url = await getAssetReadUrl(zipKey, ZIP_URL_TTL_SEC);
-    await redis.set(statusKey(jobId), JSON.stringify({ status: "ready", url, count: assets.length }), "EX", ZIP_URL_TTL_SEC);
+    await redis.set(statusKey(jobId), JSON.stringify({ status: "ready", url, count: assets.length, userId }), "EX", ZIP_URL_TTL_SEC);
   } catch (e) {
     logger.error("asset-zip", `zip job ${jobId} failed`, e);
-    await redis.set(statusKey(jobId), JSON.stringify({ status: "failed", error: "Failed to build the download archive." }), "EX", ZIP_URL_TTL_SEC).catch(() => {});
+    await redis.set(statusKey(jobId), JSON.stringify({ status: "failed", error: "Failed to build the download archive.", userId }), "EX", ZIP_URL_TTL_SEC).catch(() => {});
     throw e;
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -92,6 +93,10 @@ export interface AssetZipStatus {
   url?: string;
   count?: number;
   error?: string;
+  /** Set on "ready"/"failed" records so the status route can enforce that
+   * only the user who enqueued this zip can read it — the jobId being an
+   * unguessable UUID is not, on its own, an authorization check. */
+  userId?: string;
 }
 
 export async function getAssetZipStatus(jobId: string): Promise<AssetZipStatus> {
