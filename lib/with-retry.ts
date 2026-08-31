@@ -5,6 +5,19 @@ export interface RetryOptions {
   timeoutMs: number;
   /** Base delay for exponential backoff between attempts — default 500ms. */
   baseDelayMs?: number;
+  /**
+   * Classifies a thrown error as worth another attempt. Default: retry
+   * everything (unchanged behavior for every existing caller) — pass this
+   * when `fn` can throw something that will never succeed by retrying, e.g.
+   * a non-2xx HTTP response wrapped in a typed error by the caller.
+   */
+  isRetryable?: (err: unknown) => boolean;
+  /**
+   * Override the backoff delay for a specific error (e.g. honor a
+   * provider's `Retry-After` header) instead of the default exponential
+   * backoff. Return undefined to fall back to the default for that attempt.
+   */
+  retryDelayMs?: (err: unknown, attempt: number) => number | undefined;
 }
 
 export class RetryTimeoutError extends Error {
@@ -24,6 +37,7 @@ export class RetryTimeoutError extends Error {
 export async function withRetry<T>(fn: (signal: AbortSignal) => Promise<T>, opts: RetryOptions): Promise<T> {
   const maxAttempts = opts.maxAttempts ?? 3;
   const baseDelayMs = opts.baseDelayMs ?? 500;
+  const isRetryable = opts.isRetryable ?? (() => true);
   let lastErr: unknown;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -33,8 +47,9 @@ export async function withRetry<T>(fn: (signal: AbortSignal) => Promise<T>, opts
       return await fn(controller.signal);
     } catch (err) {
       lastErr = err;
-      if (attempt === maxAttempts) break;
-      await new Promise((r) => setTimeout(r, baseDelayMs * 2 ** (attempt - 1)));
+      if (attempt === maxAttempts || !isRetryable(err)) break;
+      const delay = opts.retryDelayMs?.(err, attempt) ?? baseDelayMs * 2 ** (attempt - 1);
+      await new Promise((r) => setTimeout(r, delay));
     } finally {
       clearTimeout(timer);
     }

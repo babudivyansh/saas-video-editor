@@ -574,6 +574,22 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
       },
     },
   }),
+  "contact-message": entry({
+    id: "contact-message",
+    title: "Contact form submission (internal)",
+    group: "admin",
+    category: "transactional",
+    trigger: "A visitor submits the /contact page form",
+    build: admin.contactMessage,
+    samples: {
+      default: {
+        name: "Aarav Sharma",
+        email: "aarav@example.com",
+        subjectLabel: "Technical support / account issues",
+        message: "Hi, I can't access my last render, could you help?",
+      },
+    },
+  }),
   "admin-affiliate-payout-ready": entry({
     id: "admin-affiliate-payout-ready",
     title: "Affiliate payout ready (internal)",

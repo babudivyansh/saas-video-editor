@@ -42,9 +42,10 @@ const CHANNELS = [
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({ name: "", email: "", subject: "support", message: "" });
+  const [honeypot, setHoneypot] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.email || !formData.message) {
       setStatus("error");
@@ -52,13 +53,21 @@ export default function ContactPage() {
     }
 
     setStatus("submitting");
-    // TODO: this does not send anything — there is no /api/contact route yet.
-    // The success state below is simulated. Until a real endpoint exists, the
-    // mailto links in the sidebar are the only working way to reach support.
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...formData, hp: honeypot }),
+      });
+      if (!res.ok) {
+        setStatus("error");
+        return;
+      }
       setStatus("success");
       setFormData({ name: "", email: "", subject: "support", message: "" });
-    }, 1500);
+    } catch {
+      setStatus("error");
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -211,6 +220,17 @@ export default function ContactPage() {
                         placeholder="Write your message here..."
                       />
                     </div>
+
+                    <input
+                      type="text"
+                      name="hp"
+                      tabIndex={-1}
+                      autoComplete="off"
+                      aria-hidden="true"
+                      value={honeypot}
+                      onChange={(e) => setHoneypot(e.target.value)}
+                      className="absolute left-[-9999px] h-0 w-0 opacity-0"
+                    />
 
                     <Button type="submit" size="lg" disabled={status === "submitting"} className="w-full">
                       {status === "submitting" ? "Sending…" : "Send message"}

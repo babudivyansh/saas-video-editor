@@ -31,7 +31,7 @@ describe("email registry", () => {
   const entries = Object.entries(EMAIL_REGISTRY);
 
   it("covers every send function in lib/email.ts", () => {
-    expect(entries).toHaveLength(42);
+    expect(entries).toHaveLength(43);
   });
 
   it("keys match each entry's declared id", () => {

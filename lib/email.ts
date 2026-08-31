@@ -26,9 +26,9 @@ import { signTrackToken } from "@/lib/reviews/email-track-token";
 import { sendTemplate } from "@/lib/email/send";
 import { APP_URL } from "@/lib/email/tokens";
 import type { SocialDigestAccount } from "@/lib/email/templates/social";
-import type { AdminDigestData } from "@/lib/email/templates/admin";
+import type { AdminDigestData, ContactMessageData } from "@/lib/email/templates/admin";
 
-export type { SocialDigestAccount, AdminDigestData };
+export type { SocialDigestAccount, AdminDigestData, ContactMessageData };
 
 /** Retained for sendOtpEmail's return type, which callers switch on. */
 export type DeliveryChannel = "email" | "sms" | "dev-console";
@@ -335,6 +335,10 @@ export async function sendSocialDigestEmail(
 
 export async function sendAdminDigestEmail(to: string, d: AdminDigestData): Promise<void> {
   await sendTemplate("admin-ops-digest", to, d);
+}
+
+export async function sendContactMessageEmail(to: string, d: ContactMessageData): Promise<void> {
+  await sendTemplate("contact-message", to, d);
 }
 
 export interface AdminAffiliatePayoutReadyData {

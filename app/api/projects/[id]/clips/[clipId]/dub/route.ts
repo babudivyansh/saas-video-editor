@@ -53,18 +53,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (cached !== null && cached < DUB_CREDIT_COST) {
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
+  const refId = `auto-clip-dub:${clipId}:${Date.now()}`;
   const spend = await spendCredits({
     userId: auth.userId,
     amount: DUB_CREDIT_COST,
     reason: "spend:auto-clip-dub",
-    refId: `auto-clip-dub:${clipId}:${Date.now()}`,
+    refId,
   });
   if (!spend.ok) {
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
 
   const dub = await prisma.clipDub.create({ data: { clipId, targetLang, status: "dubbing" } });
-  dubQueue.enqueue(dub.id, { projectId, clipDubId: dub.id });
+  dubQueue.enqueue(dub.id, { projectId, clipDubId: dub.id, userId: auth.userId, refId });
 
   return NextResponse.json({ dub, creditsRemaining: spend.balances.total }, { status: 201 });
 }
