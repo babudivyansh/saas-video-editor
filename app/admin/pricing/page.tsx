@@ -6,6 +6,7 @@ import { ErrorCard } from "../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { useToast } from "@/app/components/ui/Toast";
+import { Button } from "@/app/components/ui/Button";
 
 interface Plan {
   id: string;
@@ -134,7 +135,7 @@ export default function AdminPricingPage() {
                   <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer">
                     <input type="checkbox" checked={p.active} onChange={e => edit(p.id, { active: e.target.checked })} /> Active
                   </label>
-                  <button onClick={() => setConfirmDelete(p.id)} className="text-xs font-semibold text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">Deactivate</button>
+                  <Button variant="danger" size="sm" onClick={() => setConfirmDelete(p.id)}>Deactivate</Button>
                 </div>
               </div>
 
@@ -197,10 +198,9 @@ export default function AdminPricingPage() {
                   onChange={e => edit(p.id, { features: e.target.value.split("\n").map(s => s.trim()).filter(Boolean) })} />
               </div>
               <div className="flex justify-end mt-4">
-                <button onClick={() => saveMutation.mutate(p)} disabled={savingThis}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold px-5 py-2 rounded-xl transition-colors">
+                <Button variant="primary" onClick={() => saveMutation.mutate(p)} disabled={savingThis}>
                   {savingThis ? "Saving…" : "Save"}
-                </button>
+                </Button>
               </div>
             </div>
             );
@@ -266,10 +266,9 @@ export default function AdminPricingPage() {
               <textarea className={`${input} h-20 resize-y`} value={form.features} onChange={e => setForm({ ...form, features: e.target.value })} />
             </div>
             <div className="flex justify-end mt-4">
-              <button type="submit" disabled={creating}
-                className="bg-gray-900 hover:bg-gray-800 disabled:bg-gray-500 text-white text-sm font-semibold px-5 py-2 rounded-xl transition-colors">
+              <Button type="submit" variant="primary" disabled={creating}>
                 {creating ? "Creating…" : "Create Plan"}
-              </button>
+              </Button>
             </div>
           </form>
         </div>

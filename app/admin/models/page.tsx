@@ -9,6 +9,8 @@ import AdminShell from "../AdminShell";
 import { ErrorCard } from "../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
+import { Button } from "@/app/components/ui/Button";
+import { Card } from "@/app/components/ui/Card";
 
 interface ModelRow {
   id: string;
@@ -80,7 +82,7 @@ export default function AdminModelsPage() {
           <ModelTable title="Video models" unit="credits / second" rows={video} onPatch={(modelId, body) => patchModelMutation.mutate({ modelId, body })} />
 
           {pricing && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <Card shadow padding="lg">
               <h2 className="text-base font-bold text-gray-800 mb-1">AutoClip pricing</h2>
               <p className="text-xs text-gray-400 mb-4">Credits charged by the AutoClip pipeline — applies immediately, no deploy.</p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -100,7 +102,7 @@ export default function AdminModelsPage() {
                   </div>
                 ))}
               </div>
-            </div>
+            </Card>
           )}
         </div>
       )}
@@ -115,7 +117,7 @@ function ModelTable({
   onPatch: (modelId: string, body: Record<string, unknown>) => void;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <Card shadow padding="none">
       <div className="px-6 pt-5 pb-3">
         <h2 className="text-base font-bold text-gray-800">{title}</h2>
         <p className="text-xs text-gray-400">Cost unit: {unit} · overrides apply at generation time, instantly</p>
@@ -172,9 +174,9 @@ function ModelTable({
                   </td>
                   <td className="px-4 py-3">
                     {m.override ? (
-                      <button onClick={() => onPatch(m.id, { clear: true })} className="text-xs text-gray-400 hover:text-red-600 cursor-pointer">
+                      <Button variant="link" onClick={() => onPatch(m.id, { clear: true })} className="text-gray-400 hover:text-red-600">
                         Reset to default
-                      </button>
+                      </Button>
                     ) : (
                       <span className="text-xs text-gray-300">defaults</span>
                     )}
@@ -185,6 +187,6 @@ function ModelTable({
           </tbody>
         </table>
       </div>
-    </div>
+    </Card>
   );
 }

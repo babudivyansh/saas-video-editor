@@ -9,6 +9,8 @@ import AdminShell from "../AdminShell";
 import { ErrorCard } from "../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
 import { TypeBars } from "@/app/components/charts";
+import { Button } from "@/app/components/ui/Button";
+import { Card } from "@/app/components/ui/Card";
 
 interface Growth {
   cohorts: Array<{ month: string; signups: number; activated: number; paid: number }>;
@@ -63,15 +65,16 @@ export default function AdminAnalyticsPage() {
   return (
     <AdminShell title="Analytics">
       {/* Cohorts */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+      <Card shadow padding="lg">
         <div className="flex items-baseline justify-between gap-2 mb-1 flex-wrap">
           <h2 className="text-base font-bold text-gray-800">Signup cohorts — last 6 months</h2>
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => downloadCsv("cohorts.csv", ["month", "signups", "activated", "paid"], g.cohorts.map((c) => [c.month, c.signups, c.activated, c.paid]))}
-            className="text-xs font-semibold text-gray-500 hover:text-blue-600 border border-gray-200 rounded-lg px-3 py-1.5 cursor-pointer"
           >
             Export CSV
-          </button>
+          </Button>
         </div>
         <p className="text-xs text-gray-400 mb-4">Activation = made ≥1 generation (lifetime). Paid = made ≥1 purchase (lifetime).</p>
         <div className="overflow-x-auto">
@@ -101,11 +104,11 @@ export default function AdminAnalyticsPage() {
           </tbody>
         </table>
         </div>
-      </div>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">
         {/* Coupons */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <Card shadow padding="lg">
           <div className="flex items-baseline justify-between gap-2 mb-3 flex-wrap">
             <h2 className="text-base font-bold text-gray-800">Coupon impact</h2>
             <span className="text-xs text-gray-400">₹{Math.round(g.coupons.totalDiscountInPaise / 100).toLocaleString("en-IN")} total discount given</span>
@@ -115,10 +118,10 @@ export default function AdminAnalyticsPage() {
           ) : (
             <TypeBars items={g.coupons.top.map((c) => ({ type: `${c.code}${c.active ? "" : " (inactive)"}`, count: c.timesRedeemed, avgEngagementRate: null }))} />
           )}
-        </div>
+        </Card>
 
         {/* Affiliate funnel */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <Card shadow padding="lg">
           <h2 className="text-base font-bold text-gray-800 mb-3">Affiliate funnel</h2>
           <div className="grid grid-cols-2 gap-3 text-center mb-4">
             <div className="bg-gray-50 rounded-xl p-3">
@@ -139,7 +142,7 @@ export default function AdminAnalyticsPage() {
             ))}
             {Object.keys(g.affiliates.referrals).length === 0 && <p className="text-gray-400 text-sm">No referrals yet.</p>}
           </div>
-        </div>
+        </Card>
       </div>
     </AdminShell>
   );

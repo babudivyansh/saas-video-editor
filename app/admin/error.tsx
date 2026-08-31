@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import Link from "next/link";
 import { logger } from "@/lib/logger";
+import { Button } from "@/app/components/ui/Button";
 
 export default function AdminError({
   error,
@@ -25,18 +25,12 @@ export default function AdminError({
         <p className="mt-2 text-xs text-zinc-400 font-mono">Error ID: {error.digest}</p>
       )}
       <div className="mt-6 flex gap-3">
-        <button
-          onClick={reset}
-          className="px-5 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors"
-        >
+        <Button onClick={reset} variant="primary">
           Try again
-        </button>
-        <Link
-          href="/admin"
-          className="px-5 py-2.5 rounded-full border border-zinc-300 hover:border-zinc-400 text-zinc-600 hover:text-zinc-900 text-sm font-semibold transition-colors"
-        >
+        </Button>
+        <Button href="/admin" variant="secondary">
           Admin home
-        </Link>
+        </Button>
       </div>
     </main>
   );

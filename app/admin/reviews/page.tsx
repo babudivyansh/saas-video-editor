@@ -7,6 +7,9 @@ import { ErrorCard } from "../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useToast } from "@/app/components/ui/Toast";
+import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
+import { Button } from "@/app/components/ui/Button";
+import { Card } from "@/app/components/ui/Card";
 
 interface AdminReview {
   id: string;
@@ -48,6 +51,8 @@ export default function AdminReviewsPage() {
   const [searchInput, setSearchInput] = useState("");
   const search = useDebouncedValue(searchInput);
   const [page, setPage] = useState(1);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReasonText, setRejectReasonText] = useState("");
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin-reviews", tab, page, search],
@@ -75,13 +80,6 @@ export default function AdminReviewsPage() {
     onError: (e: Error) => showToast(e.message, "error"),
   });
 
-  function reject(id: string) {
-    const reason = window.prompt("Reason for rejecting this review (shown to the reviewer):");
-    if (reason === null) return;
-    if (!reason.trim()) { showToast("A reason is required to reject a review.", "error"); return; }
-    moderateMutation.mutate({ id, action: "reject", reason: reason.trim() });
-  }
-
   const reviews = data?.reviews ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
@@ -103,15 +101,9 @@ export default function AdminReviewsPage() {
           ))}
         </div>
         <div className="flex items-center gap-3">
-          <Link href="/admin/reviews/analytics" className="text-xs font-semibold text-gray-500 hover:text-gray-800 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50">
-            Analytics
-          </Link>
-          <Link href="/admin/reviews/reports" className="text-xs font-semibold text-gray-500 hover:text-gray-800 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50">
-            Reports
-          </Link>
-          <Link href="/admin/reviews/settings" className="text-xs font-semibold text-gray-500 hover:text-gray-800 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50">
-            Settings
-          </Link>
+          <Button href="/admin/reviews/analytics" variant="secondary" size="sm">Analytics</Button>
+          <Button href="/admin/reviews/reports" variant="secondary" size="sm">Reports</Button>
+          <Button href="/admin/reviews/settings" variant="secondary" size="sm">Settings</Button>
           <input
             value={searchInput}
             onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
@@ -130,7 +122,7 @@ export default function AdminReviewsPage() {
         <p className="text-sm text-gray-400 py-12 text-center">No reviews in this view.</p>
       ) : (
         <>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
+          <Card shadow className="mb-4">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -165,39 +157,33 @@ export default function AdminReviewsPage() {
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {r.status !== "published" && (
-                            <button disabled={busy} onClick={() => moderateMutation.mutate({ id: r.id, action: "approve" })}
-                              className="text-xs font-semibold text-emerald-700 border border-emerald-200 rounded-lg px-2.5 py-1.5 hover:bg-emerald-50 disabled:opacity-50">
+                            <Button variant="secondary" size="sm" disabled={busy} onClick={() => moderateMutation.mutate({ id: r.id, action: "approve" })} className="!text-emerald-700 !border-emerald-200 hover:!bg-emerald-50">
                               Approve
-                            </button>
+                            </Button>
                           )}
                           {r.status !== "rejected" && (
-                            <button disabled={busy} onClick={() => reject(r.id)}
-                              className="text-xs font-semibold text-red-600 border border-red-200 rounded-lg px-2.5 py-1.5 hover:bg-red-50 disabled:opacity-50">
+                            <Button variant="danger" size="sm" disabled={busy} onClick={() => { setRejectingId(r.id); setRejectReasonText(""); }}>
                               Reject
-                            </button>
+                            </Button>
                           )}
                           {r.status === "hidden" ? (
-                            <button disabled={busy} onClick={() => moderateMutation.mutate({ id: r.id, action: "unhide" })}
-                              className="text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-50">
+                            <Button variant="secondary" size="sm" disabled={busy} onClick={() => moderateMutation.mutate({ id: r.id, action: "unhide" })}>
                               Unhide
-                            </button>
+                            </Button>
                           ) : (
-                            <button disabled={busy} onClick={() => moderateMutation.mutate({ id: r.id, action: "hide" })}
-                              className="text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-50">
+                            <Button variant="secondary" size="sm" disabled={busy} onClick={() => moderateMutation.mutate({ id: r.id, action: "hide" })}>
                               Hide
-                            </button>
+                            </Button>
                           )}
                           {r.status === "published" && (
                             r.pinned ? (
-                              <button disabled={busy} onClick={() => moderateMutation.mutate({ id: r.id, action: "unpin" })}
-                                className="text-xs font-semibold text-violet-700 border border-violet-200 rounded-lg px-2.5 py-1.5 hover:bg-violet-50 disabled:opacity-50">
+                              <Button variant="secondary" size="sm" disabled={busy} onClick={() => moderateMutation.mutate({ id: r.id, action: "unpin" })} className="!text-violet-700 !border-violet-200 hover:!bg-violet-50">
                                 Unpin
-                              </button>
+                              </Button>
                             ) : (
-                              <button disabled={busy} onClick={() => moderateMutation.mutate({ id: r.id, action: "pin" })}
-                                className="text-xs font-semibold text-violet-700 border border-violet-200 rounded-lg px-2.5 py-1.5 hover:bg-violet-50 disabled:opacity-50">
+                              <Button variant="secondary" size="sm" disabled={busy} onClick={() => moderateMutation.mutate({ id: r.id, action: "pin" })} className="!text-violet-700 !border-violet-200 hover:!bg-violet-50">
                                 Feature
-                              </button>
+                              </Button>
                             )
                           )}
                         </div>
@@ -208,23 +194,44 @@ export default function AdminReviewsPage() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </Card>
 
           <div className="flex items-center justify-between text-sm text-gray-500">
             <span>Page {page} of {totalPages}</span>
             <div className="flex gap-2">
-              <button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+              <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
                 ← Prev
-              </button>
-              <button disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+              </Button>
+              <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
                 Next →
-              </button>
+              </Button>
             </div>
           </div>
         </>
       )}
+      <ConfirmDialog
+        open={!!rejectingId}
+        title="Reject review"
+        message="This reason is shown to the reviewer."
+        confirmLabel="Reject"
+        danger
+        confirmDisabled={!rejectReasonText.trim()}
+        onConfirm={async () => {
+          if (!rejectingId) return;
+          await moderateMutation.mutateAsync({ id: rejectingId, action: "reject", reason: rejectReasonText.trim() });
+          setRejectReasonText("");
+        }}
+        onClose={() => { setRejectingId(null); setRejectReasonText(""); }}
+      >
+        <textarea
+          value={rejectReasonText}
+          onChange={(e) => setRejectReasonText(e.target.value)}
+          rows={3}
+          autoFocus
+          placeholder="Reason for rejecting this review…"
+          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
+        />
+      </ConfirmDialog>
     </AdminShell>
   );
 }

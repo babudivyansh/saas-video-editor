@@ -5,6 +5,8 @@ import AdminShell from "../../AdminShell";
 import { ErrorCard } from "../../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
+import { Button } from "@/app/components/ui/Button";
+import { Card } from "@/app/components/ui/Card";
 
 interface AdminReport {
   id: string;
@@ -63,7 +65,7 @@ export default function AdminReviewReportsPage() {
             {reports.map((r) => {
               const busy = handleMutation.isPending && handleMutation.variables?.id === r.id;
               return (
-              <div key={r.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <Card key={r.id} shadow padding="md">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -77,17 +79,15 @@ export default function AdminReviewReportsPage() {
                     <p className="text-xs text-gray-400 mt-1">Reported by {r.user.name || r.user.email} · {dt(r.createdAt)}</p>
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
-                    <button disabled={busy} onClick={() => handleMutation.mutate({ id: r.id, action: "dismiss" })}
-                      className="text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50 disabled:opacity-50">
+                    <Button variant="secondary" size="sm" disabled={busy} onClick={() => handleMutation.mutate({ id: r.id, action: "dismiss" })}>
                       Dismiss
-                    </button>
-                    <button disabled={busy} onClick={() => handleMutation.mutate({ id: r.id, action: "resolve" })}
-                      className="text-xs font-semibold text-emerald-700 border border-emerald-200 rounded-lg px-3 py-2 hover:bg-emerald-50 disabled:opacity-50">
+                    </Button>
+                    <Button variant="secondary" size="sm" disabled={busy} onClick={() => handleMutation.mutate({ id: r.id, action: "resolve" })} className="!text-emerald-700 !border-emerald-200 hover:!bg-emerald-50">
                       Resolve
-                    </button>
+                    </Button>
                   </div>
                 </div>
-              </div>
+              </Card>
               );
             })}
           </div>

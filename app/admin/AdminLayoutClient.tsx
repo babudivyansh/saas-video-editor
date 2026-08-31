@@ -24,6 +24,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/app/components/AuthContext";
 import { NotificationBell } from "@/app/components/NotificationBell";
 import { ToastProvider } from "@/app/components/ui/Toast";
+import { Button } from "@/app/components/ui/Button";
 import { ADMIN_NAV } from "./nav-config";
 import { AdminTitleProvider, useAdminTitleValue } from "./admin-title";
 
@@ -94,10 +95,9 @@ function AdminGate({ email, onElevated }: { email: string; onElevated: () => voi
           For your security the admin console needs a fresh verification, even when you&apos;re already signed in.
         </p>
         {!sent ? (
-          <button onClick={sendCode} disabled={busy}
-            className="w-full text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl py-2.5 disabled:opacity-50 cursor-pointer">
+          <Button onClick={sendCode} disabled={busy} variant="primary" className="w-full">
             {busy ? "Sending…" : `Email a code to ${email}`}
-          </button>
+          </Button>
         ) : (
           <form onSubmit={verify} className="space-y-3">
             <input
@@ -109,13 +109,12 @@ function AdminGate({ email, onElevated }: { email: string; onElevated: () => voi
               aria-label="Verification code"
               className="w-full text-center text-2xl font-bold tracking-[0.5em] border border-gray-200 rounded-xl py-2.5"
             />
-            <button type="submit" disabled={busy || code.length !== 6}
-              className="w-full text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl py-2.5 disabled:opacity-50 cursor-pointer">
+            <Button type="submit" disabled={busy || code.length !== 6} variant="primary" className="w-full">
               {busy ? "Verifying…" : "Enter admin console"}
-            </button>
-            <button type="button" onClick={sendCode} disabled={busy} className="text-xs text-gray-400 hover:text-blue-600 cursor-pointer">
+            </Button>
+            <Button type="button" onClick={sendCode} disabled={busy} variant="link" className="text-gray-400 hover:text-blue-600">
               Resend code
-            </button>
+            </Button>
           </form>
         )}
         {msg && <p className="text-xs text-gray-500 mt-3">{msg}</p>}
@@ -202,13 +201,9 @@ function AdminSignIn({ error: initialError }: { error?: string | null }) {
               className="w-full text-sm border border-gray-200 rounded-xl px-3.5 py-2.5 outline-none focus:border-blue-500 transition-colors"
             />
           </div>
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl py-2.5 disabled:opacity-50 cursor-pointer mt-1"
-          >
+          <Button type="submit" disabled={busy} variant="primary" className="w-full mt-1">
             {busy ? "Signing in…" : "Sign in as Admin"}
-          </button>
+          </Button>
         </form>
       </div>
     </div>
