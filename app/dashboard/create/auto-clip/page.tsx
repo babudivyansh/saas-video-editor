@@ -1,6 +1,7 @@
 "use client";
 import { Suspense, useRef, useState, useEffect, useCallback, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import SubtitleStylePicker from "@/app/components/SubtitleStylePicker";
 import { ReframeAndCutsControls } from "@/app/components/auto-clip/ReframeAndCutsControls";
 import { LiteEditTab, type LiteEdits } from "@/app/components/auto-clip/LiteEditTab";
@@ -311,43 +312,30 @@ function EditInEditorButton({ projectId, clip, className }: { projectId: string;
 interface DubItem { id: string; targetLang: string; status: string; videoUrl: string | null }
 interface DubLang { code: string; label: string }
 
-function DubPanel({ projectId, clip, embedded }: { projectId: string; clip: ClipItem; embedded?: boolean }) {
+export function DubPanel({ projectId, clip, embedded }: { projectId: string; clip: ClipItem; embedded?: boolean }) {
   const [open, setOpen] = useState(!!embedded);
-  const [langs, setLangs] = useState<DubLang[]>([]);
-  const [dubs, setDubs] = useState<DubItem[]>([]);
   const [selected, setSelected] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const d = await apiFetch<{ dubs: DubItem[]; languages: DubLang[] }>(`/api/projects/${projectId}/clips/${clip.id}/dub`);
-      setDubs(d.dubs); setLangs(d.languages);
-      if (!selected && d.languages[0]) setSelected(d.languages[0].code);
-    } catch { /* ignore */ }
-  }, [projectId, clip.id, selected]);
+  const dubQuery = useQuery({
+    queryKey: ["auto-clip-dubs", projectId, clip.id],
+    queryFn: () => apiFetch<{ dubs: DubItem[]; languages: DubLang[] }>(`/api/projects/${projectId}/clips/${clip.id}/dub`),
+    enabled: open,
+    // Only keep polling while a dub is actually in flight — re-evaluated on
+    // every fetch, so it starts/stops itself as statuses change, rather than
+    // the previous setInterval keyed off a snapshot taken when it was set up.
+    refetchInterval: (query) => (query.state.data?.dubs?.some((d) => d.status === "dubbing") ? 4000 : false),
+  });
+  const langs = dubQuery.data?.languages ?? [];
+  const dubs = dubQuery.data?.dubs ?? [];
 
   useEffect(() => {
-    if (!open) return;
-    load();
-    const hasPending = dubs.some((d) => d.status === "dubbing");
-    if (!hasPending) return;
-    const t = setInterval(load, 4000);
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, load, dubs.length]);
+    if (!selected && langs[0]) setSelected(langs[0].code);
+  }, [langs, selected]);
 
-  async function startDub() {
-    setBusy(true); setErr(null);
-    try {
-      await apiFetch(`/api/projects/${projectId}/clips/${clip.id}/dub`, { method: "POST", body: JSON.stringify({ targetLang: selected }) });
-      await load();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Failed");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const startDubMutation = useMutation({
+    mutationFn: () => apiFetch(`/api/projects/${projectId}/clips/${clip.id}/dub`, { method: "POST", body: JSON.stringify({ targetLang: selected }) }),
+    onSuccess: () => dubQuery.refetch(),
+  });
 
   if (!open) {
     return <button onClick={() => setOpen(true)} className="w-full text-left text-[13px] font-medium py-2 px-3 rounded-lg text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors">Dub into another language</button>;
@@ -358,9 +346,9 @@ function DubPanel({ projectId, clip, embedded }: { projectId: string; clip: Clip
         <select value={selected} onChange={(e) => setSelected(e.target.value)} className="flex-1 rounded-lg border border-card-border px-2 py-1.5 text-xs bg-white">
           {langs.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
         </select>
-        <button onClick={startDub} disabled={busy} className="text-xs font-semibold py-1.5 px-3 rounded-lg grad-brand text-white shadow-glow disabled:opacity-50">{busy ? "…" : "Dub (1 credit)"}</button>
+        <button onClick={() => startDubMutation.mutate()} disabled={startDubMutation.isPending} className="text-xs font-semibold py-1.5 px-3 rounded-lg grad-brand text-white shadow-glow disabled:opacity-50">{startDubMutation.isPending ? "…" : "Dub (1 credit)"}</button>
       </div>
-      {err && <p className="text-[11px] text-red-600">{err}</p>}
+      {startDubMutation.isError && <p className="text-[11px] text-red-600">{startDubMutation.error instanceof Error ? startDubMutation.error.message : "Failed"}</p>}
       {dubs.length > 0 && (
         <ul className="space-y-1">
           {dubs.map((d) => (
@@ -379,46 +367,44 @@ function DubPanel({ projectId, clip, embedded }: { projectId: string; clip: Clip
 interface PublishAccount { id: string; provider: string; username: string | null; displayName: string | null }
 interface PublishItem { id: string; permalink: string | null; status: string; socialAccount: { provider: string; username: string | null } }
 
-function PublishPanel({ projectId, clip, embedded }: { projectId: string; clip: ClipItem; embedded?: boolean }) {
+export function PublishPanel({ projectId, clip, embedded }: { projectId: string; clip: ClipItem; embedded?: boolean }) {
   const [open, setOpen] = useState(!!embedded);
-  const [accounts, setAccounts] = useState<PublishAccount[]>([]);
-  const [publishes, setPublishes] = useState<PublishItem[]>([]);
   const [accountId, setAccountId] = useState("");
   const [permalink, setPermalink] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [needsReauth, setNeedsReauth] = useState(false);
   const [scheduledFor, setScheduledFor] = useState("");
   const [minSchedule] = useState(() => new Date(Date.now() + 5 * 60_000).toISOString().slice(0, 16));
 
+  const publishQuery = useQuery({
+    queryKey: ["auto-clip-publish", projectId, clip.id],
+    queryFn: () => apiFetch<{ accounts: PublishAccount[]; publishes: PublishItem[] }>(`/api/projects/${projectId}/clips/${clip.id}/publish`),
+    enabled: open,
+  });
+  const accounts = publishQuery.data?.accounts ?? [];
+  const publishes = publishQuery.data?.publishes ?? [];
+
   useEffect(() => {
-    if (!open) return;
-    apiFetch<{ accounts: PublishAccount[]; publishes: PublishItem[] }>(`/api/projects/${projectId}/clips/${clip.id}/publish`)
-      .then((d) => { setAccounts(d.accounts); setPublishes(d.publishes); if (!accountId && d.accounts[0]) setAccountId(d.accounts[0].id); })
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+    if (!accountId && accounts[0]) setAccountId(accounts[0].id);
+  }, [accounts, accountId]);
 
   const selectedAccount = accounts.find((a) => a.id === accountId);
   const isYoutube = selectedAccount?.provider === "youtube";
 
-  async function submit(body: { permalink?: string; scheduledFor?: string }) {
-    if (!accountId) return;
-    setBusy(true); setErr(null); setNeedsReauth(false);
-    try {
-      await apiFetch(`/api/projects/${projectId}/clips/${clip.id}/publish`, {
+  const publishMutation = useMutation({
+    mutationFn: (body: { permalink?: string; scheduledFor?: string }) =>
+      apiFetch(`/api/projects/${projectId}/clips/${clip.id}/publish`, {
         method: "POST",
         body: JSON.stringify({ socialAccountId: accountId, ...body }),
-      });
+      }),
+    onSuccess: () => {
       setPermalink("");
-      const d = await apiFetch<{ accounts: PublishAccount[]; publishes: PublishItem[] }>(`/api/projects/${projectId}/clips/${clip.id}/publish`);
-      setPublishes(d.publishes);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Failed");
-      if (e instanceof Error && /reconnect/i.test(e.message)) setNeedsReauth(true);
-    } finally {
-      setBusy(false);
-    }
+      publishQuery.refetch();
+    },
+  });
+  const err = publishMutation.error instanceof Error ? publishMutation.error.message : null;
+  const needsReauth = !!err && /reconnect/i.test(err);
+  function submit(body: { permalink?: string; scheduledFor?: string }) {
+    if (!accountId) return;
+    publishMutation.mutate(body);
   }
 
   if (!open) {
@@ -446,8 +432,8 @@ function PublishPanel({ projectId, clip, embedded }: { projectId: string; clip: 
                     <input type="datetime-local" value={scheduledFor} min={minSchedule} onChange={(e) => setScheduledFor(e.target.value)} className="w-full rounded-lg border border-card-border px-2 py-1.5 text-xs" />
                   </div>
                   {err && <p className="text-[11px] text-red-600">{err} {needsReauth && <a href="/dashboard/social-tracker" className="underline font-semibold">Reconnect →</a>}</p>}
-                  <button onClick={() => submit(scheduledFor ? { scheduledFor: new Date(scheduledFor).toISOString() } : {})} disabled={busy} className="w-full min-h-[40px] text-xs font-bold rounded-lg grad-brand text-white shadow-glow disabled:opacity-50">
-                    {busy ? "Working…" : scheduledFor ? "Schedule upload" : "Publish to YouTube"}
+                  <button onClick={() => submit(scheduledFor ? { scheduledFor: new Date(scheduledFor).toISOString() } : {})} disabled={publishMutation.isPending} className="w-full min-h-[40px] text-xs font-bold rounded-lg grad-brand text-white shadow-glow disabled:opacity-50">
+                    {publishMutation.isPending ? "Working…" : scheduledFor ? "Schedule upload" : "Publish to YouTube"}
                   </button>
                 </>
               ) : (
@@ -455,7 +441,7 @@ function PublishPanel({ projectId, clip, embedded }: { projectId: string; clip: 
                   <p className="text-[10px] text-ink-soft/70">Instagram/Facebook auto-publish needs a Meta app review this app hasn&apos;t completed — post it yourself, then paste the link here to track its performance.</p>
                   <input value={permalink} onChange={(e) => setPermalink(e.target.value)} placeholder="Paste the live post URL after posting manually" className="w-full rounded-lg border border-card-border px-2 py-1.5 text-xs" />
                   {err && <p className="text-[11px] text-red-600">{err}</p>}
-                  <button onClick={() => submit({ permalink: permalink || undefined })} disabled={busy} className="w-full min-h-[40px] text-xs font-bold rounded-lg grad-brand text-white shadow-glow disabled:opacity-50">{busy ? "…" : "Save link"}</button>
+                  <button onClick={() => submit({ permalink: permalink || undefined })} disabled={publishMutation.isPending} className="w-full min-h-[40px] text-xs font-bold rounded-lg grad-brand text-white shadow-glow disabled:opacity-50">{publishMutation.isPending ? "…" : "Save link"}</button>
                 </>
               )}
             </div>
@@ -751,13 +737,13 @@ function ClipWorkspace({
     outlineWidth: number | null; shadowDepth: number | null; borderStyle: number | null; alignment: number | null;
     animated: boolean | null;
   }
-  const [brandKits, setBrandKits] = useState<BrandKit[]>([]);
-  const [savingKit, setSavingKit] = useState(false);
+  const brandKitsQuery = useQuery({
+    queryKey: ["brand-kits"],
+    queryFn: () => apiFetch<{ kits: BrandKit[] }>("/api/brand-kits"),
+  });
+  const brandKits = brandKitsQuery.data?.kits ?? [];
   const [namingKit, setNamingKit] = useState(false);
   const [newKitName, setNewKitName] = useState("");
-  useEffect(() => {
-    apiFetch<{ kits: BrandKit[] }>("/api/brand-kits").then((d) => setBrandKits(d.kits ?? [])).catch(() => {});
-  }, []);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const override = (clip.subtitleStyleOverride as any) ?? {};
@@ -789,11 +775,9 @@ function ClipWorkspace({
     if (kit.alignment != null) setAlignment(kit.alignment);
     if (kit.animated != null) setAnimatedCaptions(kit.animated);
   }
-  async function handleSaveBrandKit() {
-    if (!newKitName.trim()) return;
-    setSavingKit(true);
-    try {
-      const { kit } = await apiFetch<{ kit: BrandKit }>("/api/brand-kits", {
+  const saveBrandKitMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<{ kit: BrandKit }>("/api/brand-kits", {
         method: "POST",
         body: JSON.stringify({
           name: newKitName.trim(),
@@ -802,11 +786,16 @@ function ClipWorkspace({
           outlineColor: hexToASS(outlineColor), shadowColor: hexToASS(shadowColor),
           outlineWidth, shadowDepth, borderStyle, alignment, animated: animatedCaptions,
         }),
-      });
-      setBrandKits((prev) => [kit, ...prev]);
+      }),
+    onSuccess: () => {
       setNamingKit(false);
       setNewKitName("");
-    } catch { /* best-effort */ } finally { setSavingKit(false); }
+      brandKitsQuery.refetch();
+    },
+  });
+  function handleSaveBrandKit() {
+    if (!newKitName.trim()) return;
+    saveBrandKitMutation.mutate();
   }
 
   // Audio cuts / reframe.
@@ -1078,8 +1067,8 @@ function ClipWorkspace({
                         </div>
                         {namingKit ? (
                           <div className="flex items-center gap-2">
-                            <input value={newKitName} onChange={(e) => setNewKitName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void handleSaveBrandKit(); }} placeholder="Name this style…" autoFocus className="flex-1 rounded-lg border border-card-border px-3 py-2 text-sm" />
-                            <Button onClick={() => void handleSaveBrandKit()} disabled={savingKit || !newKitName.trim()} size="sm">{savingKit ? "Saving…" : "Save"}</Button>
+                            <input value={newKitName} onChange={(e) => setNewKitName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleSaveBrandKit(); }} placeholder="Name this style…" autoFocus className="flex-1 rounded-lg border border-card-border px-3 py-2 text-sm" />
+                            <Button onClick={handleSaveBrandKit} disabled={saveBrandKitMutation.isPending || !newKitName.trim()} size="sm">{saveBrandKitMutation.isPending ? "Saving…" : "Save"}</Button>
                             <button type="button" onClick={() => { setNamingKit(false); setNewKitName(""); }} className="text-xs text-ink-soft/70 px-1">Cancel</button>
                           </div>
                         ) : (
