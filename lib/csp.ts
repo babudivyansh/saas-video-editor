@@ -8,12 +8,12 @@
 // Built per-request (see proxy.ts) rather than as static next.config.ts
 // headers, so a per-request nonce can be included in script-src — the
 // prerequisite for ever dropping 'unsafe-inline' there. Still Report-Only:
-// watch Sentry/browser console for violations in staging before flipping to
-// an enforcing header. 'unsafe-inline'/'unsafe-eval' stay for now even with
-// a nonce present — conforming browsers use the nonce and ignore
-// unsafe-inline in the same directive, so this doesn't weaken the policy for
-// them; it just avoids breaking anything that still needs the fallback
-// during the migration window.
+// watch app/api/csp-report's logged violations (and Sentry) for a clean
+// window before flipping to an enforcing header. 'unsafe-inline'/'unsafe-eval'
+// stay for now even with a nonce present — conforming browsers use the nonce
+// and ignore unsafe-inline in the same directive, so this doesn't weaken the
+// policy for them; it just avoids breaking anything that still needs the
+// fallback during the migration window.
 export function buildCsp(nonce: string): string {
   return [
     "default-src 'self'",
@@ -27,5 +27,6 @@ export function buildCsp(nonce: string): string {
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
+    "report-uri /api/csp-report",
   ].join("; ");
 }
