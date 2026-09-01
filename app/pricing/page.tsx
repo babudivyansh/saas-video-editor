@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { NextIntlClientProvider } from "next-intl";
+import { Modal } from "@/app/components/ui/Modal";
 import SiteNavbar from "@/app/components/SiteNavbar";
 import SiteFooter from "@/app/components/SiteFooter";
 import { useAuth } from "@/app/components/AuthContext";
@@ -9,15 +11,20 @@ import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 import {
   PURCHASABLE_TIER_ORDER, TIER_LABEL, type TierId,
   FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_AUTOCLIP_RUNS_PER_MONTH, STORAGE_LIMIT_GB,
+  TIER_MAX_DURATION_SECONDS, TRIAL_CREDITS,
 } from "@/lib/plans/tiers";
 import { IMAGE_MODELS, getImageModel } from "@/lib/models/imageModels";
-import { VIDEO_MODELS, getVideoModel } from "@/lib/models/videoModels";
+import { VIDEO_MODELS, getVideoModel, videoCreditsPerSecond } from "@/lib/models/videoModels";
 import { formatMoney, inferCurrencyFromLocale, type Currency } from "@/lib/currency-shared";
 import { PlanCard } from "@/app/components/billing/PlanCard";
 // Price maths and tier copy are shared with the billing PlansModal so the two
 // surfaces can't drift — the modal a signed-in customer buys through had been
 // left on the pre-audit design while this page was rebuilt.
-import { minorUnits, yearlySavePct } from "@/lib/plans/display";
+import { minorUnits, yearlySavePct, cheapestImageCost } from "@/lib/plans/display";
+
+// Both ends of the image-price range, derived rather than asserted — the FAQ
+// used to claim "1-8 credits" when the cheapest model is 2.
+const MAX_IMAGE_COST = Math.max(...IMAGE_MODELS.map(m => m.creditCost));
 
 // ── Icons ──────────────────────────────────────────────────────────────────
 function CheckIcon({ className = "" }: { className?: string }) {
@@ -93,7 +100,14 @@ function computeRecommendation(selections: CalcSelection[], subs: DbPlan[], term
     if (s.kind === "image") return sum + getImageModel(s.modelId).creditCost * s.qty;
     const m = getVideoModel(s.modelId);
     const dur = typeof m.defaultValues.duration === "number" ? m.defaultValues.duration : m.minDurationSeconds;
-    return sum + m.creditsPerSecond * dur * s.qty;
+    // videoCreditsPerSecond, not the flat base rate: Veo 3 DEFAULTS to audio on
+    // (13 cr/s, not 8) and Seedance to 720p, so the bare creditsPerSecond
+    // under-quoted the estimate by 38% on the model most people pick first.
+    const perSecond = videoCreditsPerSecond(m, {
+      resolution: m.defaultValues.resolution as string | undefined,
+      audio: m.defaultValues.audio === "on",
+    });
+    return sum + perSecond * dur * s.qty;
   }, 0);
 
   const requiredTierSets = active.map(s =>
@@ -106,6 +120,12 @@ function computeRecommendation(selections: CalcSelection[], subs: DbPlan[], term
 
   return { totalCredits, eligibleTiers, recommendedPlan };
 }
+
+// Modal.tsx reads useTranslations("Common") for its close-button label, and
+// /pricing sits outside the dashboard's NextIntlClientProvider tree (that is
+// mounted only under /dashboard, see app/components/AppShellLayout.tsx). Supply
+// just that namespace locally, the same way ReportReviewModal does on /reviews.
+const COMMON_MESSAGES = { Common: { cancel: "Cancel", confirm: "Confirm", close: "Close" } };
 
 const TERMS = [
   { months: 1,  label: "Monthly" },
@@ -140,6 +160,13 @@ const TOOLS = [
   { name: "AI Brainstormer", creator: true, pro: true, studio: true },
   // Pro+ while its provider cost is unverified — see lib/tool-costs.ts.
   { name: "Subtitle Remover", creator: false, pro: true, studio: true },
+  // Shipped features that had no row at all — including Auto Clips, the most
+  // expensive thing the product runs, and Clip Dubbing, which is pro-gated in
+  // lib/tool-costs.ts.
+  { name: "Auto Clips", creator: true, pro: true, studio: true },
+  { name: "Clip Dubbing (29+ languages)", creator: false, pro: true, studio: true },
+  { name: "Social Tracker", creator: true, pro: true, studio: true },
+  { name: "Asset library", creator: true, pro: true, studio: true },
 ];
 
 const FAQS = [
@@ -149,11 +176,13 @@ const FAQS = [
   },
   {
     q: "What is a credit?",
-    a: "Credits are spent on AI tools — the cost depends on the tool and model you pick (e.g. 1-8 credits for an image, 2 credits for a voiceover, and per-second pricing for video, including the AI Video Generator). Subscription credits refill each month and unused ones roll over, up to 2× your monthly allowance. Add-on credit packs never expire — they stay on your account even if your subscription lapses.",
+    a: `Credits are spent on AI tools — the cost depends on the tool and model you pick (e.g. ${cheapestImageCost}-${MAX_IMAGE_COST} credits for an image, 2 credits for a voiceover, and per-second pricing for video, including the AI Video Generator). Subscription credits refill each month and unused ones roll over, up to 2× your monthly allowance. Add-on credit packs never expire — they stay on your account even if your subscription lapses.`,
   },
   {
     q: "How long can each video be?",
-    a: "Videos can be up to 5 seconds long on Creator, up to 10 seconds on Pro, and up to 15 seconds on Studio — some models cap lower depending on the provider.",
+    // Derived: these were hardcoded at 5/10/15 while the server enforced 8/12/15,
+    // contradicting the plan cards on this same page.
+    a: `Videos can be up to ${TIER_MAX_DURATION_SECONDS.creator} seconds long on Creator, up to ${TIER_MAX_DURATION_SECONDS.pro} seconds on Pro, and up to ${TIER_MAX_DURATION_SECONDS.studio} seconds on Studio — some models cap lower depending on the provider.`,
   },
   {
     q: "Do longer terms cost less?",
@@ -177,7 +206,7 @@ const FAQS = [
   },
   {
     q: "Is there a free plan?",
-    a: "Yes — every account can use the free tools (audio balancer, MP3 converter, video compressor, downloaders) at no cost. The AI tools require credits, which come with any subscription plan.",
+    a: `Yes. Every account gets ${FREE_TIER_MONTHLY_BONUS_CREDITS} credits a month to spend on AI tools, plus ${FREE_TIER_AUTOCLIP_RUNS_PER_MONTH} watermarked Auto Clip runs, and the free tools (audio balancer, MP3 converter, video compressor, downloaders) never use credits at all. A paid plan adds a much larger monthly credit allowance, the premium models, longer videos and no watermark.`,
   },
   {
     q: "Do you support multiple languages for voiceovers?",
@@ -274,6 +303,7 @@ export default function PricingPage() {
   const [checkoutPlan, setCheckoutPlan] = useState<DbPlan | null>(null);
   const [checkoutTrial, setCheckoutTrial] = useState(false);
   const [successBanner, setSuccessBanner] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
   const [renewalWarningDismissed, setRenewalWarningDismissed] = useState(false);
 
   // Coupon state (scoped to the checkout modal)
@@ -401,6 +431,7 @@ export default function PricingPage() {
 
   const handlePay = () => {
     if (!checkoutPlan) return;
+    setCheckoutError("");
     startCheckout({
       planId: checkoutPlan.slug,
       addonIds: selectedAddons,
@@ -408,14 +439,17 @@ export default function PricingPage() {
       trial: checkoutTrial,
       currency,
       onSuccess: () => { window.location.href = "/pricing?success=1"; },
+      onError: setCheckoutError,
     });
   };
 
   const handleBuyPack = (pack: DbPlan) => {
+    setCheckoutError("");
     startCheckout({
       planId: pack.slug,
       currency,
       onSuccess: () => { window.location.href = "/pricing?success=1"; },
+      onError: setCheckoutError,
     });
   };
 
@@ -573,7 +607,7 @@ export default function PricingPage() {
                               : "bg-white text-brand ring-1 ring-brand-soft hover:bg-tint-blue"
                           }`}
                         >
-                          Or start a 7-day free trial
+                          Or try Pro free for 7 days — {TRIAL_CREDITS} credits included
                         </button>
                       )}
                       <p className={`text-center text-[11px] mt-2 ${idx === 1 ? "text-white/70" : "text-ink-soft"}`}>
@@ -751,27 +785,17 @@ export default function PricingPage() {
 
       {/* ── Checkout Modal ── */}
       {checkoutPlan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => !checkoutLoading && setCheckoutPlan(null)}
-          />
-
-          {/* Card */}
-          <div className="relative z-10 w-full max-w-3xl bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            {/* Close */}
-            <button
-              onClick={() => !checkoutLoading && setCheckoutPlan(null)}
-              disabled={checkoutLoading}
-              className="absolute top-4 right-4 z-10 p-1.5 rounded-full text-ink-soft hover:text-ink-soft hover:bg-gray-100 transition-all disabled:opacity-40"
-              aria-label="Close"
-            >
-              <XIcon className="w-5 h-5" />
-            </button>
-
-            {/* 2-column body */}
-            <div className="flex flex-col md:flex-row overflow-y-auto flex-1 min-h-0">
+        <NextIntlClientProvider locale="en" messages={COMMON_MESSAGES}>
+        <Modal
+          open
+          onClose={() => { if (!checkoutLoading) setCheckoutPlan(null); }}
+          title={`Checkout — ${checkoutPlan.name}`}
+          maxWidth="max-w-3xl"
+        >
+            {/* 2-column body. Negative margin cancels Modal's own p-5 so the
+                two panes run edge to edge, and overflow-hidden keeps the tinted
+                left pane inside the dialog's rounded corners. */}
+            <div className="flex flex-col md:flex-row overflow-y-auto flex-1 min-h-0 -m-5 overflow-hidden rounded-b-[var(--radius-card)]">
 
               {/* LEFT: plan info + add-ons */}
               <div className="flex-1 p-8 bg-surface overflow-y-auto">
@@ -961,6 +985,11 @@ export default function PricingPage() {
                   </div>
                 </div>
 
+                {checkoutError && (
+                  <p role="alert" className="mt-4 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                    {checkoutError}
+                  </p>
+                )}
                 <button
                   onClick={handlePay}
                   disabled={checkoutLoading}
@@ -985,8 +1014,8 @@ export default function PricingPage() {
                 </p>
               </div>
             </div>
-          </div>
-        </div>
+        </Modal>
+        </NextIntlClientProvider>
       )}
 
       {/* ── What each feature costs (live credit costs) ── */}
@@ -1047,7 +1076,7 @@ export default function PricingPage() {
                 <th className="text-center py-5 px-4 text-sm font-bold text-ink">Creator</th>
                 <th className="text-center py-5 px-4 text-sm font-bold text-brand bg-tint-blue/50">
                   Pro
-                  <span className="block text-xs font-normal text-white/70">Most popular</span>
+                  <span className="block text-xs font-normal text-brand">Most popular</span>
                 </th>
                 <th className="text-center py-5 px-4 text-sm font-bold text-ink">Studio</th>
               </tr>
@@ -1076,11 +1105,31 @@ export default function PricingPage() {
                 <td className="text-center py-4 px-4 bg-tint-blue/50"><CheckIcon className="w-5 h-5 text-brand mx-auto" /></td>
                 <td className="text-center py-4 px-4"><CheckIcon className="w-5 h-5 text-brand mx-auto" /></td>
               </tr>
-              <tr className="bg-white">
-                <td className="py-4 px-6 text-sm text-ink-soft">Support</td>
-                <td className="text-center py-4 px-4 text-sm text-ink-soft">Email</td>
-                <td className="text-center py-4 px-4 text-sm text-brand bg-tint-blue/50 font-medium">Priority</td>
-                <td className="text-center py-4 px-4 text-sm text-ink-soft">Dedicated</td>
+              {/* The Email/Priority/Dedicated support row is gone: nothing in the
+                  product implements support tiering, and lib/plans/display.ts had
+                  already dropped "Dedicated support" from the plan bullets for
+                  exactly that reason. Storage is a real, enforced difference. */}
+              <tr className="bg-white border-b border-gray-50">
+                <td className="py-4 px-6 text-sm text-ink-soft">Asset storage</td>
+                {PURCHASABLE_TIER_ORDER.map(t => (
+                  <td
+                    key={t}
+                    className={`text-center py-4 px-4 text-sm font-semibold ${t === "pro" ? "text-brand bg-tint-blue/50" : "text-ink"}`}
+                  >
+                    {STORAGE_LIMIT_GB[t]} GB
+                  </td>
+                ))}
+              </tr>
+              <tr className="bg-surface">
+                <td className="py-4 px-6 text-sm text-ink-soft">Max video length</td>
+                {PURCHASABLE_TIER_ORDER.map(t => (
+                  <td
+                    key={t}
+                    className={`text-center py-4 px-4 text-sm font-semibold ${t === "pro" ? "text-brand bg-tint-blue/50" : "text-ink"}`}
+                  >
+                    {TIER_MAX_DURATION_SECONDS[t]}s
+                  </td>
+                ))}
               </tr>
             </tbody>
 
@@ -1140,7 +1189,7 @@ export default function PricingPage() {
         <div className="bg-brand rounded-3xl p-12 text-center text-white shadow-2xl">
           <h2 className="text-3xl sm:text-4xl font-semibold mb-3">Still have questions?</h2>
           <p className="text-white/80 mb-8">
-            Our support team is available 24/7. Or start free — no credit card needed.
+            Email us any time and we&apos;ll get back to you within 24 hours. Or start free — no credit card needed.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             {user ? (

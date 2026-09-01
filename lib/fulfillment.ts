@@ -318,10 +318,21 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
     });
     if (user) {
       const planForEmail = await prisma.plan.findUnique({ where: { slug: planSlug } });
-      const creditsForEmail = planForEmail?.credits ?? credits;
       const isSubscription = (planForEmail?.kind ?? kind) === "subscription";
+      // The credits ACTUALLY granted by this payment, which is what the grant
+      // above returned. This used to read Plan.credits — the whole TERM total —
+      // so every annual buyer was told they had received 4,800 credits when 400
+      // had landed and the other 4,400 would arrive one month at a time.
+      const creditsForEmail = credits;
       // A subscription purchase is a plan upgrade; a one-time credit pack isn't.
       if (isSubscription) void markQuestComplete(uid, "upgraded-plan");
+      // Multi-month prepaid terms grant one month up front and refill monthly,
+      // so the receipt says where the balance of the term is.
+      const termMonths = planForEmail?.intervalMonths ?? 1;
+      const refill =
+        isSubscription && termMonths > 1 && planForEmail?.monthlyCredits
+          ? { monthlyCredits: planForEmail.monthlyCredits, remainingMonths: termMonths - 1 }
+          : undefined;
       await sendPurchaseConfirmationEmail({
         userEmail: user.email,
         userName: user.firstName ?? user.name ?? "",
@@ -330,6 +341,7 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
         amountInPaise,
         orderId: orderId ?? paymentId,
         isSubscription,
+        refill,
       });
     }
   } catch (err) {

@@ -179,6 +179,21 @@ export const autoclipCalibrationSchema = z
   })
   .strict();
 
+// ── Currency (FX rate + USD price book) ──────────────────────────────────────
+// PATCH /api/admin/currency. A null price-book entry clears the override for
+// that slug, dropping it back to the FX conversion.
+export const currencyConfigSchema = z
+  .object({
+    // Bounded to catch a fat-fingered rate before it reprices every pack:
+    // 88 is the shipped default, so this spans roughly half to double it.
+    inrPerUsd: z.number().min(40).max(200).optional(),
+    priceBook: z
+      .record(z.string().max(64), z.number().int().min(0).max(10_000_000).nullable())
+      .optional(),
+  })
+  .strict()
+  .refine((v) => v.inrPerUsd !== undefined || v.priceBook !== undefined, { message: "Nothing to update" });
+
 // ── Subscriptions ─────────────────────────────────────────────────────────────
 export const extendSchema = z
   .object({

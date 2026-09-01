@@ -12,7 +12,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/app/components/ui/Button";
-import { formatMoney } from "@/lib/currency-shared";
+import { formatMoney, type Currency } from "@/lib/currency-shared";
 import type { AuthUser } from "@/app/components/useAuthUser";
 
 interface Purchase {
@@ -32,6 +32,8 @@ interface Props {
   onChangePlan: () => void;
   onCancelClick: () => void;
   onResumed: () => void;
+  /** The viewer's selected currency, so this agrees with the plan cards. */
+  currency?: Currency;
 }
 
 function formatDate(iso: string | Date) {
@@ -48,7 +50,7 @@ function Row({ label, value, muted }: { label: string; value: React.ReactNode; m
 }
 
 export function ManageSubscriptionPanel({
-  user, token, purchases, onChangePlan, onCancelClick, onResumed,
+  user, token, purchases, onChangePlan, onCancelClick, onResumed, currency = "INR",
 }: Props) {
   const [resuming, setResuming] = useState(false);
   const [resumeError, setResumeError] = useState<string | null>(null);
@@ -56,8 +58,12 @@ export function ManageSubscriptionPanel({
 
   const cancelled = !!user?.subscriptionCancelledAt;
   const endsAt = user?.subscriptionEndsAt ? new Date(user.subscriptionEndsAt) : null;
-  const recurring = !!user?.plan && !!endsAt;
-  const priceInPaise = user?.plan?.priceInPaise ?? 0;
+  // "Recurring" means an actual Razorpay mandate, not merely having a plan: a
+  // legacy prepaid term lapses instead of renewing, so it has no next charge.
+  const recurring = !!user?.razorpaySubscriptionId && !!endsAt;
+  const priceMinor = currency === "USD"
+    ? (user?.plan?.usdPriceInCents ?? 0)
+    : (user?.plan?.priceInPaise ?? 0);
 
   async function resume() {
     setResuming(true);
@@ -106,9 +112,14 @@ export function ManageSubscriptionPanel({
               value={endsAt ? formatDate(endsAt) : "—"}
             />
             <Row
-              label={cancelled ? "Next charge" : "Next charge"}
-              value={cancelled ? "None — cancelled" : (priceInPaise ? formatMoney(priceInPaise, "INR") : "—")}
-              muted={cancelled}
+              label="Next charge"
+              value={
+                cancelled ? "None — cancelled"
+                  : !recurring ? "None — access ends on the date above"
+                  : priceMinor ? formatMoney(priceMinor, currency)
+                  : "—"
+              }
+              muted={cancelled || !recurring}
             />
             <Row label="Next credit refill" value={user?.nextRefillAt ? formatDate(user.nextRefillAt) : "—"} />
             <Row

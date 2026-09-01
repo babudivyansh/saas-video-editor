@@ -43,8 +43,43 @@ export default function AdminPricingPage() {
   const [form, setForm]         = useState({ ...EMPTY });
   const [err, setErr]           = useState("");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [fxDraft, setFxDraft] = useState("");
+  const [usdDraft, setUsdDraft] = useState<Record<string, string>>({});
 
   const headers = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` });
+
+  // USD prices and the FX rate behind them were unreachable from the admin
+  // panel entirely: lib/currency.ts's setters existed and were tested, but
+  // nothing called them, so every non-INR price was effectively hardcoded.
+  const currencyQuery = useQuery({
+    queryKey: ["admin-currency"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/currency", { headers: headers() });
+      if (!res.ok) throw new Error("Failed to load currency config");
+      return (await res.json()) as {
+        fx: { inrPerUsd: number };
+        priceBook: Record<string, number>;
+        plans: { slug: string; name: string; kind: string; usdPriceInCents: number; source: "price_book" | "fx" }[];
+      };
+    },
+    enabled: !!token && user?.role === "ADMIN",
+  });
+
+  const currencyMutation = useMutation({
+    mutationFn: async (body: { inrPerUsd?: number; priceBook?: Record<string, number | null> }) => {
+      const res = await fetch("/api/admin/currency", { method: "PATCH", headers: headers(), body: JSON.stringify(body) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error ?? "Save failed");
+      return d;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-currency"] });
+      setUsdDraft({});
+      setFxDraft("");
+      showToast("USD pricing saved — re-sync affected plans so Razorpay charges the new amount.", "success");
+    },
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin-plans"],
@@ -270,6 +305,83 @@ export default function AdminPricingPage() {
             </div>
             );
           })}
+
+          {/* ── USD pricing ── */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <h3 className="font-bold text-gray-900 mb-1">USD pricing</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              INR is the source of truth. A plan either has an explicit USD price (an anchored
+              figure like $15/$29/$59) or falls back to converting its rupee price at the FX rate
+              below, rounded to a clean .99. Changing either only affects NEW checkouts — Razorpay
+              Plans are immutable, so re-sync the affected plans above afterwards.
+            </p>
+
+            <div className="flex items-end gap-3 mb-5">
+              <div>
+                <label className="text-xs font-semibold text-gray-400 block mb-1" htmlFor="fx-rate">INR per 1 USD</label>
+                <input
+                  id="fx-rate"
+                  type="number"
+                  className={input}
+                  placeholder={String(currencyQuery.data?.fx.inrPerUsd ?? "")}
+                  value={fxDraft}
+                  onChange={(e) => setFxDraft(e.target.value)}
+                />
+              </div>
+              <Button
+                variant="secondary"
+                onClick={() => currencyMutation.mutate({ inrPerUsd: Number(fxDraft) })}
+                disabled={!fxDraft || currencyMutation.isPending}
+              >
+                Save rate
+              </Button>
+              <p className="text-[11px] text-gray-400 pb-2.5">
+                Currently {currencyQuery.data?.fx.inrPerUsd ?? "…"} — used only by plans with no explicit USD price.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              {(currencyQuery.data?.plans ?? []).map((p) => (
+                <div key={p.slug} className="flex flex-wrap items-center gap-3 border-t border-gray-50 pt-2">
+                  <span className="text-sm text-gray-700 flex-1 min-w-[160px]">{p.name}</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    p.source === "price_book" ? "bg-tint-blue text-brand" : "bg-gray-100 text-gray-500"
+                  }`}>
+                    {p.source === "price_book" ? "anchored" : "from FX"}
+                  </span>
+                  <span className="text-sm font-semibold text-gray-900 w-20 text-right">
+                    ${(p.usdPriceInCents / 100).toFixed(2)}
+                  </span>
+                  <input
+                    type="number"
+                    className={`${input} w-32`}
+                    placeholder="cents"
+                    aria-label={`USD price in cents for ${p.name}`}
+                    value={usdDraft[p.slug] ?? ""}
+                    onChange={(e) => setUsdDraft({ ...usdDraft, [p.slug]: e.target.value })}
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => currencyMutation.mutate({ priceBook: { [p.slug]: Number(usdDraft[p.slug]) } })}
+                    disabled={!usdDraft[p.slug] || currencyMutation.isPending}
+                  >
+                    Set
+                  </Button>
+                  {p.source === "price_book" && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => currencyMutation.mutate({ priceBook: { [p.slug]: null } })}
+                      disabled={currencyMutation.isPending}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
 
           {/* Create new plan */}
           <form onSubmit={createPlan} className="bg-white rounded-2xl border border-dashed border-gray-300 p-6">

@@ -9,6 +9,8 @@ export interface UserPlan {
   name: string;
   credits: number;
   priceInPaise: number;
+  /** USD minor units, computed server-side by /api/auth/me. */
+  usdPriceInCents: number;
   tier: TierId | null;
 }
 
@@ -52,6 +54,9 @@ export interface AuthUser {
   lastLoginAt: string | null;
   preferredLanguage: string;
   plan: UserPlan | null;
+  /** Set only for a true recurring Razorpay subscription; null for a legacy
+   *  prepaid term, which lapses rather than charging again. */
+  razorpaySubscriptionId: string | null;
   /** Effective plan tier resolved server-side (free for no/expired sub). */
   tier: TierId;
 }
