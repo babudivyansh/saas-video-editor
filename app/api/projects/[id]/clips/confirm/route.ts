@@ -6,7 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { createRenderQueue } from "@/lib/render-queue";
 import { logger } from "@/lib/logger";
-import { spendCredits, restoreSpend } from "@/lib/credits";
+import { spendCredits, restoreSpend, logToolGeneration } from "@/lib/credits";
+import { getToolConfig } from "@/lib/tool-config";
 import { renderJob, computeCreditCost, getAutoClipPricing, getAnalysisCreditsPaid, type RenderPayload, type Aspect } from "@/lib/autoclip-pipeline";
 
 const renderQueue = createRenderQueue<RenderPayload>("auto-clip-render", renderJob);
@@ -98,6 +99,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "This project has already been confirmed" }, { status: 409 });
   }
 
+  if (!(await getToolConfig("auto-clip")).enabled) {
+    await prisma.project.update({ where: { id: projectId }, data: { status: "pending_review" } });
+    return NextResponse.json({ error: "Auto Clips are temporarily disabled." }, { status: 503 });
+  }
+
   // Fast-path credit check via Redis cache.
   const cachedCredits = await redis.get(`credits:${auth.userId}`);
   const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
@@ -121,6 +127,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       { status: 402 },
     );
   }
+
+  // Analytics only. AutoClip bills through spendCredits (its refId is what the
+  // partial-failure refund restores against, so it can't go through
+  // chargeCredits), but Generation is what the admin AI-spend and margin
+  // dashboards aggregate — without this row the product's single most expensive
+  // feature reported zero credits and zero cost.
+  void logToolGeneration({
+    userId: auth.userId, toolSlug: "auto-clip", creditsCost: creditCost,
+    generationType: "video", refId: `auto-clip:${projectId}`,
+  });
 
   await prisma.$transaction([
     ...toKeep.map((e) => {

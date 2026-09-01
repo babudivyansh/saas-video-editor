@@ -169,6 +169,7 @@ export const autoclipPricingSchema = z
     perTwoMinutes: z.number().int().min(0).max(10_000).optional(),
     analysisPerHalfHour: z.number().int().min(0).max(10_000).optional(),
     rerender: z.number().int().min(0).max(10_000).optional(),
+    dubPerMinute: z.number().int().min(0).max(10_000).optional(),
   })
   .strict();
 

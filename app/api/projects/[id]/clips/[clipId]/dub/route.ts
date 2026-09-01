@@ -3,8 +3,13 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { env } from "@/lib/env";
-import { spendCredits } from "@/lib/credits";
-import { dubStartQueue, DUB_CREDIT_COST } from "@/lib/autoclip-dub";
+import { spendCredits, logToolGeneration } from "@/lib/credits";
+import { getUserTier } from "@/lib/auth";
+import { tierAtLeast } from "@/lib/plans/tiers";
+import { TOOL_COSTS } from "@/lib/tool-costs";
+import { getAutoClipPricing } from "@/lib/autoclip-pipeline";
+import { getToolConfig } from "@/lib/tool-config";
+import { dubStartQueue, computeDubCost } from "@/lib/autoclip-dub";
 import { DUB_LANGUAGES } from "@/utils/elevenlabs";
 
 // GET /api/projects/[id]/clips/[clipId]/dub — list dub jobs for a clip.
@@ -45,24 +50,51 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Invalid or unsupported targetLang" }, { status: 400 });
   }
 
+  if (!(await getToolConfig("clip-dub")).enabled) {
+    return NextResponse.json({ error: "Dubbing is temporarily disabled." }, { status: 503 });
+  }
+
+  // Pro+ while the ElevenLabs Dubbing per-minute rate is unconfirmed — the same
+  // mitigation subtitle-remover and face-swap use for an unknown provider cost.
+  const requiredTier = TOOL_COSTS["clip-dub"].requiredTier;
+  if (requiredTier && !tierAtLeast(await getUserTier(auth.userId), requiredTier)) {
+    return NextResponse.json(
+      { error: `Dubbing requires the ${requiredTier} plan or higher.`, requiredTier, upgradeUrl: "/pricing" },
+      { status: 403 },
+    );
+  }
+
+  // Billed per minute of clip, not per dub: a 3-minute dub and a 10-second one
+  // cost us very different amounts and used to charge the same flat 1 credit.
+  const pricing = await getAutoClipPricing();
+  const creditCost = computeDubCost(clip.durationSec, pricing.dubPerMinute);
+
   const cachedCredits = await redis.get(`credits:${auth.userId}`);
   const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
-  if (cached !== null && cached < DUB_CREDIT_COST) {
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
+  if (cached !== null && cached < creditCost) {
+    return NextResponse.json({ error: `Insufficient credits (need ${creditCost})` }, { status: 402 });
   }
   const refId = `auto-clip-dub:${clipId}:${Date.now()}`;
   const spend = await spendCredits({
     userId: auth.userId,
-    amount: DUB_CREDIT_COST,
+    amount: creditCost,
     reason: "spend:auto-clip-dub",
     refId,
   });
   if (!spend.ok) {
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
+    return NextResponse.json({ error: `Insufficient credits (need ${creditCost})` }, { status: 402 });
   }
+
+  // Ledger rows alone don't reach the AI-spend dashboards — those aggregate
+  // Generation. Without this the whole AutoClip surface was invisible to margin
+  // analytics while being the most expensive thing the product runs.
+  void logToolGeneration({
+    userId: auth.userId, toolSlug: "clip-dub", creditsCost: creditCost,
+    generationType: "audio", refId,
+  });
 
   const dub = await prisma.clipDub.create({ data: { clipId, targetLang, status: "dubbing", userId: auth.userId, refId } });
   dubStartQueue.enqueue(dub.id, { projectId, clipDubId: dub.id, userId: auth.userId, refId });
 
-  return NextResponse.json({ dub, creditsRemaining: spend.balances.total }, { status: 201 });
+  return NextResponse.json({ dub, creditCost, creditsRemaining: spend.balances.total }, { status: 201 });
 }

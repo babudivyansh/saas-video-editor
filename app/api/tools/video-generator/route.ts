@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser, getUserTier } from "@/lib/auth";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { env } from "@/lib/env";
-import { getVideoModel, videoCreditsPerSecond } from "@/lib/models/videoModels";
+import { getVideoModel, videoCreditsPerSecond, effectiveCostUsdPerSecond } from "@/lib/models/videoModels";
 import { falSubmit, falPollUntilDone, extractResultUrl } from "@/lib/fal";
 import { chargeCredits, refundCredits, markGenerationStatus, checkModelAccess, updateGenerationProgress } from "@/lib/credits";
 import { maxDurationForTier } from "@/lib/plans/tiers";
@@ -137,7 +137,7 @@ async function handlePOST(req: NextRequest) {
       modelId: modelEntry.id,
       generationType: "video",
       prompt,
-      estimatedCostUsd: modelEntry.costUsd * duration,
+      estimatedCostUsd: effectiveCostUsdPerSecond(modelEntry, { resolution, audio }) * duration,
     },
   });
   if (!charge.ok) {

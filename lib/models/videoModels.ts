@@ -9,9 +9,9 @@ import { VideoModelEntry } from "./types";
 // cap)] by the route; see lib/plans/tiers.ts's TIER_MAX_DURATION_SECONDS.
 // Every model (including Veo3) is gated purely by allowedTiers and billed
 // from the one standard credit pool — no per-model special-casing.
-// creditsPerSecond = ceil(costUsd(per second) * margin / 0.099), same revenue
-// floor as imageModels.ts (Studio Yearly ≈ $0.099/credit), margin 3x standard
-// / 4x flagship.
+// creditsPerSecond = ceil(costUsd(per second) * margin / REVENUE_FLOOR_USD_PER_CREDIT),
+// the same floor imageModels.ts uses — $0.0952, derived in lib/plans/tiers.ts.
+// Margin 3x standard / 4x flagship.
 //
 // `id` for Veo3 is kept exactly "veo3-fast" to match the value the frontend has always
 // initialized its model state to (and always sent, even before the backend honored it).
@@ -26,8 +26,8 @@ export const VIDEO_MODELS: readonly VideoModelEntry[] = [
     falEndpoint: "fal-ai/veo3/fast",
     // fal veo3/fast (2026-08 audit): $0.25/s audio-off (base), $0.40/s audio-on.
     costUsd: 0.25, // base = audio-off; audio-on ($0.40/s) is priced via audioCreditsPerSecond
-    creditsPerSecond: 8, // audio off: ceil(0.25*3/0.099)
-    audioCreditsPerSecond: 13, // audio on: ceil(0.40*3/0.099)
+    creditsPerSecond: 8, // audio off: ceil(0.25*3/0.0952)
+    audioCreditsPerSecond: 13, // audio on: ceil(0.40*3/0.0952)
     supportsAudio: true,
     minDurationSeconds: 5,
     maxDurationSeconds: 8, // provider ceiling for the "fast" tier
@@ -46,8 +46,11 @@ export const VIDEO_MODELS: readonly VideoModelEntry[] = [
     // fal bytedance/seedance-2.0 (2026-08 audit): 720p $0.3034/s, 1080p $0.682/s.
     falEndpoint: "bytedance/seedance-2.0/text-to-video",
     costUsd: 0.3034, // $/s at the default 720p
-    creditsPerSecond: 10, // 720p: ceil(0.3034*3/0.099)
-    resolutionCredits: { "720p": 10, "1080p": 21 }, // 1080p: ceil(0.682*3/0.099)
+    creditsPerSecond: 10, // 720p: ceil(0.3034*3/0.0952)
+    // 1080p raised 21 -> 22 by the 2026-09 audit: at the corrected floor, 21 cr/s
+    // billed 2.93x its $0.682/s cost, i.e. under the 3x policy minimum. Every
+    // other rate in both registries recomputes unchanged.
+    resolutionCredits: { "720p": 10, "1080p": 22 }, // 1080p: ceil(0.682*3/0.0952)
     minDurationSeconds: 4, // provider floor (4-15s, or "auto")
     maxDurationSeconds: 15,
     allowedTiers: ["pro", "studio"],
@@ -67,7 +70,7 @@ export const VIDEO_MODELS: readonly VideoModelEntry[] = [
     falEndpoint: "google/gemini-omni-flash",
     // fal google/gemini-omni-flash (2026-08 audit): ~$0.125/s at 720p (token-based).
     costUsd: 0.125,
-    creditsPerSecond: 4, // ceil(0.125*3/0.099)
+    creditsPerSecond: 4, // ceil(0.125*3/0.0952)
     minDurationSeconds: 2,
     maxDurationSeconds: 15, // ⚠️ verify: max duration not confirmed on fal
     allowedTiers: ["pro", "studio"],
@@ -88,7 +91,7 @@ export const VIDEO_MODELS: readonly VideoModelEntry[] = [
     // 1080p $0.25/s, plus $0.01 per input image (absorbed into the 3x margin).
     falEndpoint: "xai/grok-imagine-video/v1.5/image-to-video",
     costUsd: 0.14, // $/s at the default 720p
-    creditsPerSecond: 5, // 720p: ceil(0.14*3/0.099)
+    creditsPerSecond: 5, // 720p: ceil(0.14*3/0.0952)
     resolutionCredits: { "480p": 3, "720p": 5, "1080p": 8 },
     minDurationSeconds: 2,
     maxDurationSeconds: 15,
@@ -103,7 +106,7 @@ export const VIDEO_MODELS: readonly VideoModelEntry[] = [
   // endpoint are verified with the provider (2026-07 pricing audit): a
   // studio-exclusive flagship with an unconfirmed cost is exactly the
   // pre-duration-scaling ai-creator loss-maker pattern. Re-add the entry
-  // (studio-only, creditsPerSecond = ceil(costUsd*4/0.099)) once confirmed.
+  // (studio-only, creditsPerSecond = ceil(costUsd*4/0.0952)) once confirmed.
   // Unknown ids fall back to DEFAULT_VIDEO_MODEL_ID in getVideoModel, so any
   // stale client selection degrades safely to Veo 3.
   {
@@ -116,8 +119,8 @@ export const VIDEO_MODELS: readonly VideoModelEntry[] = [
     falEndpoint: "alibaba/happy-horse/text-to-video",
     // fal alibaba/happy-horse (2026-08 audit): 720p $0.14/s, 1080p $0.28/s.
     costUsd: 0.14, // $/s at the default 720p
-    creditsPerSecond: 5, // 720p: ceil(0.14*3/0.099)
-    resolutionCredits: { "720p": 5, "1080p": 9 }, // 1080p: ceil(0.28*3/0.099)
+    creditsPerSecond: 5, // 720p: ceil(0.14*3/0.0952)
+    resolutionCredits: { "720p": 5, "1080p": 9 }, // 1080p: ceil(0.28*3/0.0952)
     minDurationSeconds: 2,
     maxDurationSeconds: 15, // ⚠️ verify: max duration not confirmed on fal
     allowedTiers: ["pro", "studio"],
@@ -139,8 +142,8 @@ export const VIDEO_MODELS: readonly VideoModelEntry[] = [
     // fal wan-25-preview (2026-08 audit): 480p $0.05/s, 720p $0.10/s, 1080p $0.15/s.
     falEndpoint: "fal-ai/wan-25-preview/text-to-video",
     costUsd: 0.10, // $/s at the default 720p
-    creditsPerSecond: 4, // 720p: ceil(0.10*3/0.099)
-    resolutionCredits: { "480p": 2, "720p": 4, "1080p": 5 }, // 480p ceil(0.05*3/0.099), 1080p ceil(0.15*3/0.099)
+    creditsPerSecond: 4, // 720p: ceil(0.10*3/0.0952)
+    resolutionCredits: { "480p": 2, "720p": 4, "1080p": 5 }, // 480p ceil(0.05*3/0.0952), 1080p ceil(0.15*3/0.0952)
     minDurationSeconds: 5, // Wan 2.5 supports 5s / 10s
     maxDurationSeconds: 10, // provider ceiling — NOT 15s
     allowedTiers: ["creator", "pro", "studio"],
@@ -162,7 +165,7 @@ export const VIDEO_MODELS: readonly VideoModelEntry[] = [
     // already ~5x, so no per-resolution table needed.
     falEndpoint: "fal-ai/ltx-2.3/text-to-video",
     costUsd: 0.08, // conservative; real 1080p is $0.06/s
-    creditsPerSecond: 3, // ceil(0.08*3/0.099); ~5x at real cost
+    creditsPerSecond: 3, // ceil(0.08*3/0.0952); ~5x at real cost
     minDurationSeconds: 2,
     maxDurationSeconds: 20, // provider supports up to 20s (tier cap trims to <=15)
     allowedTiers: ["creator", "pro", "studio"],
@@ -204,6 +207,39 @@ export type VideoModelId = typeof VIDEO_MODELS[number]["id"];
 export function getVideoModel(id: string | undefined | null): VideoModelEntry {
   return VIDEO_MODELS.find((m) => m.id === id) ?? VIDEO_MODELS.find((m) => m.id === DEFAULT_VIDEO_MODEL_ID)!;
 }
+
+/**
+ * The effective PROVIDER COST per second for the options actually requested.
+ *
+ * `costUsd` on the entry is only the base (default-resolution, audio-off) rate,
+ * so logging it verbatim under-reported real spend by 38% on Veo 3 with audio
+ * and 55% on Seedance at 1080p — the two priciest things we sell. The per-option
+ * real costs live in the audit comment on each entry and are mirrored here so
+ * cost analytics track what we were actually billed.
+ */
+export function effectiveCostUsdPerSecond(
+  model: VideoModelEntry,
+  opts?: { resolution?: string; audio?: boolean },
+): number {
+  const byOption = REAL_COST_USD_PER_SECOND[model.id];
+  if (opts?.audio && model.supportsAudio && byOption?.audio != null) return byOption.audio;
+  const byRes = opts?.resolution ? byOption?.[opts.resolution] : undefined;
+  return byRes ?? model.costUsd;
+}
+
+/**
+ * Audited real fal $/s by resolution and audio flag (2026-08), for the models
+ * whose cost varies by option. Kept beside the registry rather than inside each
+ * entry so the shape of VideoModelEntry doesn't change; lib/models/pricing.test.ts
+ * holds the same figures and would fail if a credit rate stopped covering them.
+ */
+const REAL_COST_USD_PER_SECOND: Record<string, Record<string, number>> = {
+  "veo3-fast": { audio: 0.40 },
+  "seedance-2.0": { "720p": 0.3034, "1080p": 0.682 },
+  "grok-imagine-1.5": { "480p": 0.08, "720p": 0.14, "1080p": 0.25 },
+  "happyhorse-1.0": { "720p": 0.14, "1080p": 0.28 },
+  "wan-2.7": { "480p": 0.05, "720p": 0.10, "1080p": 0.15 },
+};
 
 /**
  * The effective credits-per-second for a model given the selected resolution and

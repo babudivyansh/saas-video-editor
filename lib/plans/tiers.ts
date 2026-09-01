@@ -104,6 +104,27 @@ export function formatBytes(bytes: number): string {
 
 // ── Credit-economy policy (2026-07 pricing audit) ───────────────────────────
 
+/**
+ * Revenue per credit at the CHEAPEST live SKU — the floor every model price is
+ * checked against (lib/models/pricing.test.ts).
+ *
+ * Derivation, from prisma/seed.ts and lib/currency.ts's FX default:
+ *   Studio Yearly = round(499900 x 12 x 0.67 / 100) x 100 = 4,019,200 paise
+ *   4,019,200 paise / (400 cr/mo x 12) = ₹8.373 per credit
+ *   ₹8.373 / 88 INR-per-USD                 = $0.0952 per credit
+ *
+ * This replaces a hardcoded $0.099, documented as "Studio Yearly ≈ ₹9.41/credit
+ * at ₹95/$1" — both figures went stale when the grants moved to 60/160/400 and
+ * the FX default moved to 88, leaving every margin ~4% thinner than the CI guard
+ * claimed. Keep this in step with whichever SKU is actually cheapest per credit;
+ * it is deliberately the floor, not an average, so a model that clears it clears
+ * it for every customer.
+ *
+ * NOTE: this is the LIST-price floor. Coupons cut it further, which is why
+ * lib/coupons.ts caps the discount a subscription cart can take.
+ */
+export const REVENUE_FLOOR_USD_PER_CREDIT = 0.0952;
+
 // Subscription credits roll over month to month, capped at this multiple of
 // the monthly grant. On refill: subscriptionCredits = min(current + grant,
 // cap × grant). Unused purchased (pack) credits never expire.

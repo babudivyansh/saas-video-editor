@@ -65,6 +65,12 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: vi.fn(async () => ({ bonusCredits: 0, subscriptionCredits: 0, purchasedCredits: credits })),
     },
     creditTransaction: { create: vi.fn(async () => ({})) },
+    // The route now honours the admin enable/disable switch for auto-clip
+    // (lib/tool-config reads it from Config); absent row = shipped defaults.
+    config: { findUnique: vi.fn(async () => null) },
+    // Analytics-only Generation row (logToolGeneration) — best-effort, but the
+    // mock needs the model to exist so it isn't silently swallowing a TypeError.
+    generation: { create: vi.fn(async () => ({ id: "gen-1" })) },
     // lib/credits spendCredits drains buckets via one raw CTE UPDATE inside a
     // callback transaction; model the whole balance as the purchased bucket.
     $queryRaw: vi.fn(async (...args: unknown[]) => {

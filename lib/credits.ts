@@ -481,6 +481,46 @@ export async function chargeCredits(params: ChargeCreditsParams): Promise<Charge
   return { ok: true, balance, generationId: loggedGenerationId };
 }
 
+/**
+ * Record a Generation row for a spend that did NOT go through chargeCredits.
+ *
+ * AutoClip and clip dubbing bill through spendCredits directly, because their
+ * refIds are meaningful (`auto-clip-analysis:<projectId>`, `auto-clip-dub:<id>`)
+ * and the whole partial-refund machinery restores against them — routing them
+ * through chargeCredits would mint a fresh Generation id as the refId and break
+ * that. But Generation is what the admin AI-spend and margin dashboards
+ * aggregate, so those features contributed exactly zero credits and zero cost to
+ * every cost report, despite AutoClip being the most expensive thing we run.
+ *
+ * This writes the analytics row and nothing else — it never touches a balance.
+ * Best-effort by design: analytics must never fail a paid operation.
+ */
+export async function logToolGeneration(params: {
+  userId: string;
+  toolSlug: string;
+  creditsCost: number;
+  generationType: "image" | "video" | "audio" | "utility";
+  /** The ledger refId of the spend this row describes, for cross-referencing. */
+  refId?: string;
+  estimatedCostUsd?: number;
+}): Promise<void> {
+  try {
+    await prisma.generation.create({
+      data: {
+        userId: params.userId,
+        toolSlug: params.toolSlug,
+        generationType: params.generationType,
+        creditsCost: params.creditsCost,
+        estimatedCostUsd: params.estimatedCostUsd ?? TOOL_COSTS[params.toolSlug]?.costUsd ?? null,
+        status: "completed",
+        prompt: params.refId ?? null,
+      },
+    });
+  } catch {
+    // Best-effort — see above.
+  }
+}
+
 export interface RefundCreditsParams {
   userId: string;
   amount: number;

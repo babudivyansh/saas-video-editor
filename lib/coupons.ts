@@ -6,6 +6,15 @@ import { prisma } from "@/lib/prisma";
 
 const RAZORPAY_MIN_PAISE = 100; // Razorpay rejects orders below ₹1.
 
+/**
+ * Hard ceiling on how much of a SUBSCRIPTION order a coupon can take off,
+ * whatever the coupon row says. See the rationale at the clamp site below.
+ * Deliberately permissive enough for the live launch coupons (30% and 40%) —
+ * it exists to bound the next one somebody creates in the admin panel, where
+ * couponCreateSchema otherwise allows anything up to 100%.
+ */
+export const MAX_SUBSCRIPTION_DISCOUNT_PCT = 40;
+
 export interface ValidateCouponArgs {
   code: string;
   userId: string;
@@ -86,15 +95,40 @@ export async function validateCoupon(args: ValidateCouponArgs): Promise<Validate
       ? Math.floor((args.amountInPaise * coupon.discountValue) / 100)
       : coupon.discountValue;
 
+  // Policy ceiling on subscription carts (2026-09 pricing audit). A plan's price
+  // per credit IS the margin on every generation that plan pays for, so a deep
+  // subscription discount reprices the whole credit economy for that customer —
+  // unlike a pack discount, which only ever moves one top-up.
+  //
+  // Worked example that motivated this: Studio Yearly lists at ₹8.37/credit
+  // ($0.0952, the floor the model registries are priced against). At 40% off it
+  // becomes $0.057, and the affiliate program's 20% first-payment commission
+  // takes it to ~$0.052 — at which Seedance 1080p bills 1.6x its provider cost
+  // before GPU, S3 and transcription are counted at all. Capping the discount
+  // keeps the worst realistic stack above 2x.
+  //
+  // This is a floor under the data, not a replacement for it: the launch coupons
+  // are also scoped to monthly SKUs via Coupon.planSlugs (prisma/seed.ts), which
+  // is what actually protects the yearly rows. This cap is what stops the next
+  // hand-made coupon from quietly undoing that.
+  if (cartGroup === "subscription") {
+    const ceiling = Math.floor((args.amountInPaise * MAX_SUBSCRIPTION_DISCOUNT_PCT) / 100);
+    discountInPaise = Math.min(discountInPaise, ceiling);
+  }
+
   // Never discount below the Razorpay minimum, and never go negative.
   const maxDiscount = Math.max(0, args.amountInPaise - RAZORPAY_MIN_PAISE);
   discountInPaise = Math.min(Math.max(0, discountInPaise), maxDiscount);
 
   const finalPaise = args.amountInPaise - discountInPaise;
+  // Label the discount the customer actually receives. Quoting the coupon's
+  // nominal value after the cap has trimmed it would show a saving the order
+  // total doesn't match.
+  const effectivePct = args.amountInPaise > 0 ? (discountInPaise / args.amountInPaise) * 100 : 0;
   const label =
     coupon.discountType === "percent"
-      ? `${coupon.discountValue}% off`
-      : `₹${Math.round(coupon.discountValue / 100).toLocaleString("en-IN")} off`;
+      ? `${Math.round(effectivePct)}% off`
+      : `₹${Math.round(discountInPaise / 100).toLocaleString("en-IN")} off`;
 
   return { ok: true, couponId: coupon.id, code: coupon.code, discountInPaise, finalPaise, label };
 }
