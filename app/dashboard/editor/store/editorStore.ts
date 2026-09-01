@@ -57,6 +57,18 @@ interface EditorState {
 
   // Lifecycle
   loadProject: (projectId: string, doc: TimelineDoc | null, editorVersion?: number) => void;
+  /**
+   * Attaches an id to the document already in memory. Unlike loadProject this
+   * keeps doc, history and saveState untouched — it exists for the deferred
+   * creation path, where the project row is only written once the user makes
+   * their first edit and the local document is the source of truth.
+   */
+  setProjectId: (projectId: string) => void;
+  /**
+   * Blank, not-yet-persisted document. Used when the editor is opened without
+   * a ?projectId — no project row exists until the first edit triggers one.
+   */
+  resetProject: () => void;
   markSaved: (state: SaveState) => void;
   setEditorVersion: (v: number) => void;
 
@@ -127,6 +139,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       doc: doc ? normalizeDoc(doc) : structuredClone(DEFAULT_DOC),
       history: emptyHistory(),
       editorVersion: editorVersion ?? 1,
+      selection: null,
+      playing: false,
+      currentTime: 0,
+      saveState: "saved",
+      focusTextClipId: null,
+    }),
+
+  setProjectId: (projectId) => set({ projectId }),
+
+  resetProject: () =>
+    set({
+      projectId: null,
+      doc: structuredClone(DEFAULT_DOC),
+      history: emptyHistory(),
+      editorVersion: 1,
       selection: null,
       playing: false,
       currentTime: 0,

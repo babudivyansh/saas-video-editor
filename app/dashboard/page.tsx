@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useTranslations } from "next-intl";
+import { useTranslations, useFormatter, useNow } from "next-intl";
 import { useAuth } from "@/app/components/AuthContext";
 import { useOnboarding } from "@/app/hooks/useOnboarding";
 import { FeatureHint } from "@/app/components/onboarding/FeatureHint";
@@ -21,6 +21,8 @@ const ProductTour = dynamic(
 import { PRIMARY_GOALS, GOAL_TO_QUEST } from "@/lib/onboarding-config";
 import { ProjectStatusBadge } from "@/app/components/dashboard/ProjectStatusBadge";
 import { QuestCard, type QuestData } from "@/app/components/dashboard/QuestCard";
+import { CardMenuButton } from "@/app/components/dashboard/CardMenuButton";
+import { useProjectActions } from "@/app/components/dashboard/useProjectActions";
 import { AutoClipPreview, CutCropPreview, VoiceChangerPreview, SubtitleRemoverPreview, AICreatorPreview } from "@/app/components/dashboard/toolPreviews";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
@@ -38,12 +40,15 @@ interface InProgressProject {
   progress: number;
   productType: string;
   createdAt: string;
+  updatedAt: string;
   clipCount: number;
 }
 
 interface DashboardSummary {
   stats: { totalProjects: number; activeProjects: number; completedProjects: number; totalClips: number };
   inProgress: InProgressProject[];
+  /** Everything the rail could show, so we know when to offer "view all". */
+  inProgressTotal: number;
   hasAnyProjects: boolean;
 }
 
@@ -129,6 +134,8 @@ export default function DashboardPage() {
 function DashboardPageInner() {
   const { user, token } = useAuth();
   const t = useTranslations("Dashboard");
+  const format = useFormatter();
+  const relativeNow = useNow({ updateInterval: 60_000 });
   const { showToast } = useToast();
   const { large: toolsLarge, small: toolsSmall } = useToolCards();
   const miniTools = useMiniTools();
@@ -214,6 +221,36 @@ function DashboardPageInner() {
     } catch { /* best-effort */ }
   }
 
+  // No react-query at this level, and the summary endpoint caches for 60s
+  // server-side, so both handlers patch local state rather than refetching.
+  // (The API also drops that cache on write, so a later reload agrees.)
+  const projectActions = useProjectActions({
+    labels: {
+      rename: t("renameProject"),
+      delete: t("deleteProject"),
+      renameTitle: t("renameProject"),
+      renameMessage: t("renameProjectMessage"),
+      renameConfirm: t("renameProjectConfirm"),
+      deleteTitle: t("deleteProjectTitle"),
+      deleteMessage: (title: string) => t("deleteProjectMessage", { title }),
+      deleteConfirm: t("deleteProject"),
+      deleted: t("projectDeleted"),
+      renamed: t("projectRenamed"),
+      failed: t("projectActionFailed"),
+    },
+    onDeleted: (id) =>
+      setSummary(s =>
+        s && {
+          ...s,
+          inProgress: s.inProgress.filter(p => p.id !== id),
+          inProgressTotal: Math.max(0, s.inProgressTotal - 1),
+          stats: { ...s.stats, activeProjects: Math.max(0, s.stats.activeProjects - 1) },
+        },
+      ),
+    onRenamed: (id, title) =>
+      setSummary(s => s && { ...s, inProgress: s.inProgress.map(p => (p.id === id ? { ...p, title } : p)) }),
+  });
+
   const firstName = user?.name?.split(" ")[0];
 
 
@@ -264,6 +301,7 @@ function DashboardPageInner() {
 
   return (
     <>
+        {projectActions.overlays}
         {welcomeOpen && (
           <WelcomeScreen
             firstName={firstName}
@@ -331,13 +369,30 @@ function DashboardPageInner() {
               {summary.inProgress.length > 0 && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                   {summary.inProgress.map(p => (
-                    <Card key={p.id} href={inProgressHref(p)} className="p-4 flex flex-col gap-2 hover:border-violet-200">
-                      <p className="text-sm font-semibold text-ink line-clamp-2">{p.title}</p>
-                      <p className="text-xs text-ink-soft">{t("clipCount", { count: p.clipCount })}</p>
+                    <Card key={p.id} href={inProgressHref(p)} className="group relative p-4 flex flex-col gap-2 hover:border-violet-200">
+                      <CardMenuButton
+                        label={t("projectActions")}
+                        onClick={(e) => projectActions.openMenu(e, { id: p.id, title: p.title })}
+                      />
+                      <p className="text-sm font-semibold text-ink line-clamp-2 pr-7">{p.title}</p>
+                      {/* Editor projects never produce Clip rows — their work
+                          lives in editorDoc — so a clip count there is always
+                          a meaningless "0 clips". Show when it was last
+                          touched instead. */}
+                      <p className="text-xs text-ink-soft">
+                        {p.productType === "editor"
+                          ? t("editedAgo", { relative: format.relativeTime(new Date(p.updatedAt), relativeNow) })
+                          : t("clipCount", { count: p.clipCount })}
+                      </p>
                       <div className="mt-auto pt-2"><ProjectStatusBadge status={p.status} /></div>
                     </Card>
                   ))}
                 </div>
+              )}
+              {summary.inProgressTotal > summary.inProgress.length && (
+                <Link href="/dashboard/clips" className="inline-block text-sm font-semibold text-brand hover:underline">
+                  {t("viewAllProjects", { count: summary.inProgressTotal })}
+                </Link>
               )}
             </div>
           )}

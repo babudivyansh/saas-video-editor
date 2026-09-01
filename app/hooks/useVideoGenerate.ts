@@ -1,5 +1,6 @@
 "use client";
 import { useState, useCallback, useRef, useEffect } from "react";
+import { discardDraftProject } from "@/lib/discard-draft-project";
 
 export type GenerateStatus = "idle" | "uploading" | "creating" | "rendering" | "completed" | "failed";
 
@@ -338,6 +339,7 @@ export function useVideoGenerate() {
     setStatus("uploading");
     setError(null);
     setVideoUrl(null);
+    let createdId: string | null = null;
     try {
       const uploadedVideoUrl = await uploadVideo(file, token);
       setStatus("creating");
@@ -346,6 +348,7 @@ export function useVideoGenerate() {
         uploadedVideoUrl,
         productType: "auto-clip",
       });
+      createdId = pid;
       setProjectId(pid);
       // This only kicks off analysis (transcribe + Gemini pick) — no clips are
       // rendered and no credits are charged yet. The page polls
@@ -372,6 +375,8 @@ export function useVideoGenerate() {
       });
       setStatus("rendering");
     } catch (err: unknown) {
+      // Only removes it if analysis never started — see discardDraftProject.
+      if (createdId) await discardDraftProject(createdId, token);
       setError(err instanceof Error ? err.message : "Unknown error");
       setStatus("failed");
     }
