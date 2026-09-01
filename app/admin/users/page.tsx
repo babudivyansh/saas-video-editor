@@ -11,7 +11,18 @@ import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
 import { CreditAdjust } from "./CreditAdjust";
 
-interface PlanRef { id: string; name: string; slug: string }
+interface PlanRef {
+  id: string;
+  name: string;
+  slug: string;
+  kind: string;
+  active: boolean;
+  priceInPaise: number;
+  credits: number;
+  monthlyCredits: number | null;
+  intervalMonths: number | null;
+  tier: string | null;
+}
 interface AdminUser {
   id: string;
   email: string;
@@ -39,6 +50,31 @@ function isExpired(iso: string | null) {
 
 const LIMIT = 50;
 
+const inr = (paise: number) => `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
+
+/** Price and credits in the option itself — picking "Studio (Yearly)" blind was
+ *  how a ₹40,192-equivalent entitlement got granted by a stray arrow key. */
+function planOptionLabel(p: PlanRef): string {
+  const credits = p.kind === "subscription" && p.monthlyCredits
+    ? `${p.monthlyCredits} cr/mo`
+    : `${p.credits} cr`;
+  return `${p.name} — ${inr(p.priceInPaise)} · ${credits}${p.active ? "" : " · INACTIVE"}`;
+}
+
+/** Spells out the consequences the admin is about to accept. */
+function planChangePreview(user: AdminUser | null, plan: PlanRef | null): string {
+  const who = user?.email ?? "this user";
+  if (!plan) {
+    return `Remove ${who}'s plan. Their subscription is cancelled at Razorpay, subscription credits are zeroed (purchased and bonus credits survive), and they rejoin the free tier's monthly credit drip.`;
+  }
+  if (plan.kind !== "subscription") {
+    return `Grant ${who} the ${plan.credits} credits from "${plan.name}". This is a one-off credit grant into the never-expiring purchased bucket — it does NOT give them a plan, a tier, or any entitlement.`;
+  }
+  const months = plan.intervalMonths ?? 1;
+  return `Put ${who} on "${plan.name}". They get ${plan.monthlyCredits ?? plan.credits} credits now, a ${months}-month term starting today, and the ${plan.tier ?? "—"} tier's entitlements${months > 1 ? ", with monthly refills for the rest of the term" : ""}. No payment is taken.`;
+}
+
+
 export default function AdminUsersPage() {
   const { token, user } = useAuth();
   const { showToast } = useToast();
@@ -53,6 +89,15 @@ export default function AdminUsersPage() {
   const [editMonthly, setEditMonthly]     = useState("");
   const [editName, setEditName]           = useState("");
   const [editEmail, setEditEmail]         = useState("");
+
+  // Staged plan change. The picker used to PATCH straight from onChange, so
+  // there was no confirmation on an action that grants credits and starts a
+  // billing term — and arrow-keying through the options fired one PATCH per
+  // option passed. Now a selection is only staged; applying it is a separate,
+  // explicit, reasoned step.
+  const [planChange, setPlanChange] = useState<{ userId: string; planId: string | null } | null>(null);
+  const [planConfirmOpen, setPlanConfirmOpen] = useState(false);
+  const [planReason, setPlanReason] = useState("");
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   // Granting ADMIN mints a second full admin — confirm before it fires, same
@@ -238,18 +283,33 @@ export default function AdminUsersPage() {
                                   <input type="date" className={inputCls} value={editSubEnd} onChange={e => setEditSubEnd(e.target.value)} />
                                 </div>
                                 <div>
-                                  <label className="text-[10px] font-semibold text-gray-400 block mb-1">Assign Plan</label>
+                                  <label className="text-[10px] font-semibold text-gray-400 block mb-1" htmlFor={`plan-${u.id}`}>Assign Plan</label>
                                   <select
-                                    value={u.plan?.id ?? ""}
-                                    onChange={e => patchMutation.mutate({ id: u.id, body: { planId: e.target.value || null } })}
+                                    id={`plan-${u.id}`}
+                                    value={planChange?.userId === u.id ? (planChange.planId ?? "") : (u.plan?.id ?? "")}
+                                    onChange={e => { setPlanChange({ userId: u.id, planId: e.target.value || null }); setPlanReason(""); }}
                                     disabled={savingThis}
                                     className={inputCls}
                                   >
-                                    <option value="">Free</option>
-                                    {plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                    <option value="">Free (no plan)</option>
+                                    <optgroup label="Subscriptions">
+                                      {plans.filter(p => p.kind === "subscription").map(p => (
+                                        <option key={p.id} value={p.id}>{planOptionLabel(p)}</option>
+                                      ))}
+                                    </optgroup>
+                                    <optgroup label="Credit packs (grants credits only)">
+                                      {plans.filter(p => p.kind !== "subscription").map(p => (
+                                        <option key={p.id} value={p.id}>{planOptionLabel(p)}</option>
+                                      ))}
+                                    </optgroup>
                                   </select>
                                 </div>
                                 <div className="flex gap-2 pb-0.5">
+                                  {planChange?.userId === u.id && (planChange.planId ?? null) !== (u.plan?.id ?? null) && (
+                                    <Button variant="secondary" size="sm" onClick={() => setPlanConfirmOpen(true)} disabled={savingThis}>
+                                      Apply plan change…
+                                    </Button>
+                                  )}
                                   <Button variant="primary" size="sm" onClick={() => saveExpanded(u)} disabled={savingThis}>
                                     {savingThis ? "Saving…" : "Save"}
                                   </Button>
@@ -299,6 +359,36 @@ export default function AdminUsersPage() {
         }}
         onClose={() => setConfirmPromoteId(null)}
       />
+      <ConfirmDialog
+        open={planConfirmOpen && planChange !== null}
+        title="Change this user's plan"
+        message={planChangePreview(
+          users.find(u => u.id === planChange?.userId) ?? null,
+          plans.find(p => p.id === planChange?.planId) ?? null,
+        )}
+        confirmLabel="Apply plan change"
+        confirmDisabled={planReason.trim().length < 3}
+        danger={planChange?.planId == null}
+        onConfirm={async () => {
+          if (!planChange) return;
+          await patchMutation.mutateAsync({
+            id: planChange.userId,
+            body: { planId: planChange.planId, reason: planReason.trim() },
+          });
+          setPlanChange(null);
+          setPlanReason("");
+        }}
+        onClose={() => setPlanConfirmOpen(false)}
+      >
+        <input
+          value={planReason}
+          onChange={(e) => setPlanReason(e.target.value)}
+          placeholder="Reason (required, recorded in the audit log)"
+          aria-label="Reason for the plan change"
+          className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-2"
+        />
+      </ConfirmDialog>
+
       <ConfirmDialog
         open={deleteConfirmId !== null}
         title="Delete user"

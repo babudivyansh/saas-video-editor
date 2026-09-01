@@ -30,9 +30,16 @@ export const userPatchSchema = z
     // gets the same explicit-confirm gate as the other high-blast-radius
     // actions below, not just an enum-validated dropdown value.
     confirm: z.literal(true).optional(),
+    // Audit-trail only, never persisted on the User row (stripped before the
+    // Prisma write). Required for a plan change — see the refine below.
+    reason: z.string().trim().max(500).optional(),
   })
   .strict()
   .refine((v) => Object.keys(v).length > 0, { message: "Nothing to update" })
+  .refine((v) => !("planId" in v) || (v.reason?.length ?? 0) >= 3, {
+    message: "A reason is required when changing a user's plan",
+    path: ["reason"],
+  })
   .refine((v) => v.role !== "ADMIN" || v.confirm === true, {
     message: "confirm is required when granting the ADMIN role",
     path: ["confirm"],
@@ -48,7 +55,7 @@ const planFields = {
   features: z.array(z.string().max(200)).max(20),
   active: z.boolean(),
   sortOrder: z.number().int().min(0).max(1000),
-  kind: z.enum(["pack", "subscription"]),
+  kind: z.enum(["pack", "subscription", "addon"]),
   intervalMonths: z.union([z.literal(1), z.literal(3), z.literal(6), z.literal(12)]).nullable(),
   monthlyCredits: credits.nullable(),
   tier: z.enum(["creator", "pro", "studio"]).nullable(),
@@ -94,6 +101,48 @@ export const planSyncSchema = z
     force: z.boolean().optional(),
   })
   .strict();
+
+/**
+ * Cross-field rules a Plan row has to satisfy to actually work. Nothing enforced
+ * these before, so /admin/pricing could save a subscription with no tier — which
+ * renders nowhere on /pricing and grants no entitlement, because getUserTier
+ * resolves a tier-less plan to "free" — or with a credits total that disagrees
+ * with monthlyCredits x intervalMonths, which is what the purchase receipt and
+ * the admin plan-assign grant both read.
+ *
+ * Returns an error message, or null when the shape is valid. Used on create
+ * (against the body) and on update (against the MERGED row), since a PATCH is
+ * partial and can't be judged on its own.
+ */
+export interface PlanShape {
+  kind: string;
+  intervalMonths?: number | null;
+  monthlyCredits?: number | null;
+  credits: number;
+  tier?: string | null;
+}
+
+export function validatePlanShape(p: PlanShape): string | null {
+  if (p.kind === "subscription") {
+    if (!p.tier) {
+      return "A subscription plan needs a tier — without one it never appears on /pricing and grants no entitlements.";
+    }
+    if (!p.intervalMonths) return "A subscription plan needs an interval in months.";
+    if (!p.monthlyCredits) return "A subscription plan needs a monthly credit allowance.";
+    const expected = p.monthlyCredits * p.intervalMonths;
+    if (p.credits !== expected) {
+      return `Total credits should equal monthly credits x interval (${p.monthlyCredits} x ${p.intervalMonths} = ${expected}), but this plan says ${p.credits}.`;
+    }
+    return null;
+  }
+  // Packs and add-ons are one-time credit grants: a tier or a monthly allowance
+  // on one is dead data that the tier gate and the refill cron both ignore.
+  if (p.tier) return "Only subscription plans carry a tier.";
+  if (p.intervalMonths || p.monthlyCredits) {
+    return "Only subscription plans have an interval or a monthly credit allowance.";
+  }
+  return null;
+}
 
 // ── Coupons ───────────────────────────────────────────────────────────────────
 const couponFields = {

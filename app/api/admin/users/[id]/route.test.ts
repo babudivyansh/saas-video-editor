@@ -110,9 +110,14 @@ vi.mock("@/lib/redis", () => ({
 
 const { PATCH } = await import("./route");
 
-const patch = (body: unknown, id = "u1") =>
+// Plan changes now require an audited reason (Stage 4), so the helper supplies
+// one by default; the schema test below overrides it to prove it is enforced.
+const patch = (body: Record<string, unknown>, id = "u1") =>
   PATCH(
-    new NextRequest("http://localhost/api/admin/users/u1", { method: "PATCH", body: JSON.stringify(body) }),
+    new NextRequest("http://localhost/api/admin/users/u1", {
+      method: "PATCH",
+      body: JSON.stringify("planId" in body && !("reason" in body) ? { ...body, reason: "audit test" } : body),
+    }),
     { params: Promise.resolve({ id }) },
   );
 
@@ -249,5 +254,27 @@ describe("schema", () => {
     const res = await patch({ credits: 99999 });
     expect(res.status).toBe(400);
     expect(user.credits).toBe(30);
+  });
+
+  it("refuses a plan change with no reason", async () => {
+    // Granting a plan hands over credits and starts a billing term; the audited
+    // credit-adjust endpoint has always required a reason for far less.
+    const res = await patch({ planId: "plan-pro", reason: "" });
+    expect(res.status).toBe(400);
+    expect(user.planId).toBeNull();
+    expect(ledger).toHaveLength(0);
+  });
+
+  it("refuses a plan REMOVAL with no reason too", async () => {
+    user.planId = "plan-pro";
+    const res = await patch({ planId: null, reason: "" });
+    expect(res.status).toBe(400);
+    expect(user.planId).toBe("plan-pro");
+  });
+
+  it("still allows an unrelated edit without a reason", async () => {
+    const res = await patch({ monthlyCredits: 42 });
+    expect(res.status).toBe(200);
+    expect(user.monthlyCredits).toBe(42);
   });
 });

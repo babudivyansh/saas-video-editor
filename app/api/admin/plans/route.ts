@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAdmin, parseBody } from "@/lib/admin/api";
 import { auditAdminAction, auditIp } from "@/lib/admin/audit";
-import { planCreateSchema } from "@/lib/admin/schemas";
+import { planCreateSchema, validatePlanShape } from "@/lib/admin/schemas";
 
 export const GET = withAdmin(async () => {
   const plans = await prisma.plan.findMany({ orderBy: { sortOrder: "asc" } });
@@ -14,6 +14,15 @@ export const POST = withAdmin(async (req, { admin }) => {
 
   const exists = await prisma.plan.findUnique({ where: { slug: body.slug } });
   if (exists) return NextResponse.json({ error: "A plan with that slug already exists" }, { status: 409 });
+
+  const shapeError = validatePlanShape({
+    kind: body.kind ?? "pack",
+    intervalMonths: body.intervalMonths ?? null,
+    monthlyCredits: body.monthlyCredits ?? null,
+    credits: body.credits,
+    tier: body.tier ?? null,
+  });
+  if (shapeError) return NextResponse.json({ error: shapeError }, { status: 400 });
 
   const plan = await prisma.plan.create({
     data: {

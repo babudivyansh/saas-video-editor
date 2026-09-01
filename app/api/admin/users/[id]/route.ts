@@ -14,6 +14,8 @@ export const PATCH = withAdmin<{ id: string }>(async (req, { admin, params }) =>
 
   const body = await parseBody(req, userPatchSchema);
   const data: Record<string, unknown> = {};
+  // Audit-only: never written to the User row.
+  const reason = body.reason;
 
   if ("monthlyCredits" in body) data.monthlyCredits = body.monthlyCredits;
   if ("role" in body) data.role = body.role;
@@ -187,6 +189,7 @@ export const PATCH = withAdmin<{ id: string }>(async (req, { admin, params }) =>
       ...(cancelSubscriptionId ? { razorpaySubscriptionCancelled: cancelSubscriptionId } : {}),
       balanceAfter: balances.total,
     },
+    reason,
     ip: auditIp(req),
   });
 
