@@ -9,6 +9,7 @@ import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { useToast } from "@/app/components/ui/Toast";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
+import { CreditAdjust } from "./CreditAdjust";
 
 interface PlanRef { id: string; name: string; slug: string }
 interface AdminUser {
@@ -48,7 +49,6 @@ export default function AdminUsersPage() {
 
   // Expanded action row
   const [expandedId, setExpandedId]       = useState<string | null>(null);
-  const [editCredits, setEditCredits]     = useState("");
   const [editSubEnd, setEditSubEnd]       = useState("");
   const [editMonthly, setEditMonthly]     = useState("");
   const [editName, setEditName]           = useState("");
@@ -104,7 +104,6 @@ export default function AdminUsersPage() {
   function openExpand(u: AdminUser) {
     if (expandedId === u.id) { setExpandedId(null); return; }
     setExpandedId(u.id);
-    setEditCredits(String(u.credits));
     setEditMonthly(String(u.monthlyCredits));
     setEditSubEnd(u.subscriptionEndsAt ? u.subscriptionEndsAt.split("T")[0] : "");
     setEditName(u.name ?? "");
@@ -113,8 +112,6 @@ export default function AdminUsersPage() {
 
   function saveExpanded(u: AdminUser) {
     const body: Record<string, unknown> = {};
-    const cr = parseInt(editCredits, 10);
-    if (!isNaN(cr) && cr !== u.credits) body.credits = cr;
     const mc = parseInt(editMonthly, 10);
     if (!isNaN(mc) && mc !== u.monthlyCredits) body.monthlyCredits = mc;
     if (editSubEnd !== (u.subscriptionEndsAt ? u.subscriptionEndsAt.split("T")[0] : "")) {
@@ -229,8 +226,8 @@ export default function AdminUsersPage() {
                                   <input type="email" className={inputCls} value={editEmail} onChange={e => setEditEmail(e.target.value)} />
                                 </div>
                                 <div>
-                                  <label className="text-[10px] font-semibold text-gray-400 block mb-1">Set Credits</label>
-                                  <input type="number" className={inputCls} value={editCredits} onChange={e => setEditCredits(e.target.value)} min={0} />
+                                  <label className="text-[10px] font-semibold text-gray-400 block mb-1">Credits</label>
+                                  <p className="text-sm font-bold text-gray-900 px-2.5 py-1.5">{u.credits}</p>
                                 </div>
                                 <div>
                                   <label className="text-[10px] font-semibold text-gray-400 block mb-1">Monthly Credits</label>
@@ -260,6 +257,9 @@ export default function AdminUsersPage() {
                                     Cancel
                                   </Button>
                                 </div>
+                              </div>
+                              <div className="mt-3 max-w-md">
+                                <CreditAdjust userId={u.id} headers={headers} invalidateKeys={[["admin-users"]]} />
                               </div>
                             </td>
                           </tr>

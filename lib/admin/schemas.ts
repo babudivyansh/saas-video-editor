@@ -12,9 +12,14 @@ const credits = z.number().int().min(0).max(1_000_000);
 const paise = z.number().int().min(0).max(10_000_000);
 
 // ── Users ─────────────────────────────────────────────────────────────────────
+// NOTE: no `credits` field. User.credits is a denormalized total of the three
+// bucket columns that lib/credits.ts recomputes on every spend, so setting it
+// to an absolute value here produced a balance the user could see but never
+// spend, with no CreditTransaction row behind it. Balance corrections go
+// through POST /api/admin/users/[id]/credits (delta + mandatory reason +
+// rate limit), which is bucket- and ledger-aware.
 export const userPatchSchema = z
   .object({
-    credits: credits.optional(),
     monthlyCredits: credits.optional(),
     role: z.enum(["USER", "ADMIN"]).optional(),
     planId: z.string().min(1).nullable().optional(),

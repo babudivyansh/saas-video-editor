@@ -80,11 +80,19 @@ function* walk(dir) {
   }
 }
 const MUTATION = /(credits|subscriptionCredits|purchasedCredits|bonusCredits)['"]?\s*:\s*\{\s*(increment|decrement)/;
+// Absolute assignment is just as damaging and used to slip straight past the
+// increment/decrement rule above: `data.credits = current + n` leaves the three
+// bucket columns untouched, and spendCredits recomputes the total from those
+// buckets — so the grant is unspendable, then silently vanishes. It also writes
+// no CreditTransaction row, which refunds (restoreSpend) depend on.
+const ABSOLUTE = /\.(credits|subscriptionCredits|purchasedCredits|bonusCredits)\s*=[^=]/;
+// Prisma's explicit set-to-value form, same problem.
+const PRISMA_SET = /(credits|subscriptionCredits|purchasedCredits|bonusCredits)['"]?\s*:\s*\{\s*set\b/;
 for (const dir of ["app", "lib", "utils"]) {
   for (const rel of walk(dir)) {
     if (rel === "lib/credits.ts") continue;
     const text = readFileSync(join(ROOT, rel), "utf8");
-    if (MUTATION.test(text)) {
+    if (MUTATION.test(text) || ABSOLUTE.test(text) || PRISMA_SET.test(text)) {
       console.error(`✗ ${rel}: raw credit-column mutation — use lib/credits.ts (spendCredits/grantCredits/restoreSpend/clawbackCredits).`);
       failed = true;
     }
