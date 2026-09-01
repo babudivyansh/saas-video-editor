@@ -14,6 +14,7 @@ import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { useToast } from "@/app/components/ui/Toast";
 import { Card } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
+import { CreditAdjust } from "../CreditAdjust";
 
 interface Detail {
   user: {
@@ -34,50 +35,6 @@ interface Detail {
 
 const inr = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
 const dt = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—");
-
-// Audited credit correction — grant or deduct with a mandatory reason.
-function CreditAdjust({ userId, headers }: { userId: string; headers: () => Record<string, string> }) {
-  const queryClient = useQueryClient();
-  const [delta, setDelta] = useState("");
-  const [reason, setReason] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
-
-  const adjustMutation = useMutation({
-    mutationFn: async () => {
-      const n = parseInt(delta, 10);
-      if (!Number.isInteger(n) || n === 0) throw new Error("Enter a non-zero integer (negative to deduct).");
-      const res = await fetch(`/api/admin/users/${userId}/credits`, {
-        method: "POST", headers: headers(), body: JSON.stringify({ delta: n, reason: reason.trim() }),
-      });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(d.issues?.[0]?.message ?? d.error ?? "Failed");
-      return d as { balance: number };
-    },
-    onSuccess: (d) => {
-      setMsg(`Done — balance is now ${d.balance}.`);
-      setDelta("");
-      setReason("");
-      queryClient.invalidateQueries({ queryKey: ["admin-user-detail", userId] });
-    },
-    onError: (e: Error) => setMsg(e.message),
-  });
-
-  return (
-    <div className="pt-2 border-t border-gray-50">
-      <p className="text-xs font-semibold text-gray-500 mb-1.5">Adjust credits (audited)</p>
-      <div className="flex gap-1.5">
-        <input value={delta} onChange={(e) => setDelta(e.target.value)} placeholder="±100" inputMode="numeric"
-          className="w-16 text-xs border border-gray-200 rounded-lg px-2 py-1.5" aria-label="Credit delta" />
-        <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (required)"
-          className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5" aria-label="Reason" />
-        <Button onClick={() => adjustMutation.mutate()} disabled={adjustMutation.isPending || reason.trim().length < 3} variant="primary" size="sm">
-          Apply
-        </Button>
-      </div>
-      {msg && <p className="text-[11px] text-gray-500 mt-1">{msg}</p>}
-    </div>
-  );
-}
 
 export default function AdminUserDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);

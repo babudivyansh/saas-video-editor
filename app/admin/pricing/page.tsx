@@ -22,6 +22,11 @@ interface Plan {
   intervalMonths: number | null;
   monthlyCredits: number | null;
   tier: string | null;
+  // Razorpay Plans are immutable, so these are the plan the customer is
+  // actually charged against. Null = this currency falls back to a one-time
+  // order at checkout: no auto-renewal, and a requested trial is dropped.
+  razorpayPlanIdInr: string | null;
+  razorpayPlanIdUsd: string | null;
 }
 
 const EMPTY = {
@@ -68,9 +73,19 @@ export default function AdminPricingPage() {
           intervalMonths: p.intervalMonths ?? null, monthlyCredits: p.monthlyCredits ?? null, tier: p.tier ?? null,
         }),
       });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Save failed");
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error ?? "Save failed");
+      return d as { resynced?: string[] };
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-plans"] }); showToast("Plan saved", "success"); },
+    onSuccess: (d) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-plans"] });
+      showToast(
+        d?.resynced?.length
+          ? `Plan saved — new Razorpay plan minted for ${d.resynced.length} currency/ies. Existing subscribers keep their old price.`
+          : "Plan saved",
+        "success",
+      );
+    },
     onError: (e: Error) => showToast(e.message, "error"),
   });
 
@@ -80,6 +95,33 @@ export default function AdminPricingPage() {
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Deactivate failed");
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-plans"] }); showToast("Plan deactivated", "success"); },
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
+
+  // Provisions the Razorpay Plan a subscription row needs for true recurring
+  // billing. Until this exists for a currency, checkout silently degrades to a
+  // one-time order for it.
+  const syncMutation = useMutation({
+    mutationFn: async ({ id, force }: { id: string; force?: boolean }) => {
+      const res = await fetch(`/api/admin/plans/${id}/sync-razorpay`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ force: force ?? false }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error ?? d.results?.find((r: { error?: string }) => r.error)?.error ?? "Sync failed");
+      return d as { results: Array<{ ok: boolean; currency: string; error?: string }> };
+    },
+    onSuccess: (d) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-plans"] });
+      const failed = d.results.filter((r) => !r.ok);
+      showToast(
+        failed.length
+          ? `Synced, but ${failed.map((r) => r.currency).join(", ")} failed.`
+          : "Synced with Razorpay",
+        failed.length ? "error" : "success",
+      );
+    },
     onError: (e: Error) => showToast(e.message, "error"),
   });
 
@@ -148,6 +190,11 @@ export default function AdminPricingPage() {
                   <label className="text-xs font-semibold text-gray-400 block mb-1">Price (paise)</label>
                   <input type="number" className={input} value={p.priceInPaise} onChange={e => edit(p.id, { priceInPaise: Number(e.target.value) })} />
                   <p className="text-[10px] text-gray-400 mt-1">= ₹{(p.priceInPaise / 100).toLocaleString("en-IN")}</p>
+                  {p.kind === "subscription" && (p.razorpayPlanIdInr || p.razorpayPlanIdUsd) && (
+                    <p className="text-[10px] text-amber-700 mt-1">
+                      Saving a new price mints a replacement Razorpay plan. Existing subscribers keep the price they bought at.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-400 block mb-1">Credits (total)</label>
@@ -191,6 +238,24 @@ export default function AdminPricingPage() {
                   </>
                 )}
               </div>
+
+              {p.kind === "subscription" && (
+                <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
+                  <span className="text-xs font-semibold text-gray-500">Razorpay recurring</span>
+                  {([["INR", p.razorpayPlanIdInr], ["USD", p.razorpayPlanIdUsd]] as const).map(([cur, planId]) => (
+                    <span
+                      key={cur}
+                      title={planId ?? "Not provisioned — checkout falls back to a one-time order for this currency (no auto-renewal, trial dropped)."}
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${planId ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-800"}`}
+                    >
+                      {cur}: {planId ? "synced" : "one-time only"}
+                    </span>
+                  ))}
+                  <Button variant="secondary" size="sm" onClick={() => syncMutation.mutate({ id: p.id })} disabled={syncMutation.isPending}>
+                    {syncMutation.isPending && syncMutation.variables?.id === p.id ? "Syncing…" : "Sync"}
+                  </Button>
+                </div>
+              )}
 
               <div className="mt-4">
                 <label className="text-xs font-semibold text-gray-400 block mb-1">Features (one per line)</label>
@@ -276,7 +341,7 @@ export default function AdminPricingPage() {
       <ConfirmDialog
         open={confirmDelete !== null}
         title="Deactivate plan"
-        message={`Deactivate "${plans.find(p => p.id === confirmDelete)?.name ?? ""}"? It stops being offered to new customers; existing subscribers are unaffected.`}
+        message={`Deactivate "${plans.find(p => p.id === confirmDelete)?.name ?? ""}"? It stops being offered to new customers and disappears from /pricing. Anyone already on it keeps their access — and anyone on it via Razorpay recurring keeps being charged until they cancel or an admin clears their plan.`}
         confirmLabel="Deactivate"
         danger
         onConfirm={async () => { if (confirmDelete) await deleteMutation.mutateAsync(confirmDelete); }}

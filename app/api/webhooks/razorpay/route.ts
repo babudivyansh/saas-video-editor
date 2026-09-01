@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { Prisma } from "@prisma/client";
 import { fulfillPayment, fulfillSubscriptionCharge, type FulfillNotes } from "@/lib/fulfillment";
 import { recordSubscriptionFailure, recordSubscriptionLifecycle } from "@/lib/dunning";
+import { cancelExistingSubscriptionForSwitch } from "@/lib/billing/subscription-switch";
 import { prisma } from "@/lib/prisma";
 import { grantCredits } from "@/lib/credits";
 import { logger } from "@/lib/logger";
@@ -95,6 +96,25 @@ export async function POST(req: NextRequest) {
         // after the first real charge would otherwise pull a paid term back to
         // 7 days from today.
         const extendsTerm = !user.subscriptionEndsAt || endsAt > user.subscriptionEndsAt;
+
+        // Plan-switch cutover. Checkout deliberately does NOT cancel the old
+        // subscription up front any more (abandoning the payment modal used to
+        // destroy a subscription the customer still had), so the old mandate is
+        // retired here — the first moment we know the replacement is actually
+        // live, and still before the update below drops the old id from the row.
+        // A failure is logged rather than fatal: the customer has paid, so
+        // withholding their new plan would be the worse outcome. The orphan is
+        // recoverable (the id is in the SubscriptionEvent trail and Razorpay's
+        // own dashboard); a dropped activation is not.
+        if (user.razorpaySubscriptionId && user.razorpaySubscriptionId !== sub.id) {
+          const switched = await cancelExistingSubscriptionForSwitch(userId, user.razorpaySubscriptionId);
+          if (!switched.ok) {
+            logger.error(
+              "webhook",
+              `activated ${sub.id} for ${userId} but could NOT cancel the superseded subscription ${user.razorpaySubscriptionId} — it may keep charging`,
+            );
+          }
+        }
 
         // Claim the event and do the work in one transaction. This was the only
         // fulfilment-affecting branch without an idempotency guard — Razorpay
