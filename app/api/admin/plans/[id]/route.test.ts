@@ -21,6 +21,9 @@ vi.mock("@/lib/billing/razorpay-plans", () => ({
 interface PlanRow {
   id: string; slug: string; name: string; kind: string; priceInPaise: number;
   razorpayPlanIdInr: string | null; razorpayPlanIdUsd: string | null;
+  // validatePlanShape now judges the MERGED row, so the fixture has to be a
+  // plan that would actually work in production.
+  credits: number; monthlyCredits: number | null; intervalMonths: number | null; tier: string | null;
 }
 let plan: PlanRow;
 
@@ -59,6 +62,7 @@ beforeEach(() => {
   plan = {
     id: "p1", slug: "sub_pro_1mo", name: "Pro (Monthly)", kind: "subscription",
     priceInPaise: 219900, razorpayPlanIdInr: "plan_old", razorpayPlanIdUsd: null,
+    credits: 160, monthlyCredits: 160, intervalMonths: 1, tier: "pro",
   };
   resyncMock.mockClear();
   resyncMock.mockResolvedValue([{ ok: true as const, currency: "INR" as const, razorpayPlanId: "plan_new", created: true }]);
@@ -96,7 +100,10 @@ describe("PATCH price changes", () => {
   });
 
   it("does not touch Razorpay for a pack price change (one-time orders)", async () => {
+    // A pack carries no tier/interval/monthly allowance — the shape rules reject
+    // one that does, so the fixture has to become a real pack.
     plan.kind = "pack";
+    plan.tier = null; plan.monthlyCredits = null; plan.intervalMonths = null; plan.credits = 30;
     const res = await patch({ priceInPaise: 69900 });
     expect(res.status).toBe(200);
     expect(resyncMock).not.toHaveBeenCalled();
@@ -109,6 +116,37 @@ describe("PATCH price changes", () => {
       { params: Promise.resolve({ id: "nope" }) },
     );
     expect(res.status).toBe(404);
+  });
+});
+
+describe("plan shape validation", () => {
+  it("refuses a subscription whose credits disagree with monthlyCredits x interval", async () => {
+    // This mismatch is what the purchase receipt and the admin plan-assign grant
+    // both read, so an inconsistent row misreports what a customer received.
+    const res = await patch({ credits: 999 });
+    expect(res.status).toBe(400);
+    expect(plan.credits).toBe(160);
+  });
+
+  it("refuses to strip the tier off a subscription", async () => {
+    // A tier-less subscription renders nowhere on /pricing and grants nothing,
+    // because getUserTier resolves it to "free".
+    const res = await patch({ tier: null });
+    expect(res.status).toBe(400);
+    expect(plan.tier).toBe("pro");
+  });
+
+  it("refuses a tier on a pack", async () => {
+    plan.kind = "pack";
+    plan.monthlyCredits = null; plan.intervalMonths = null; plan.credits = 30;
+    const res = await patch({ tier: "pro" });
+    expect(res.status).toBe(400);
+  });
+
+  it("accepts a coherent change to both sides at once", async () => {
+    const res = await patch({ monthlyCredits: 200, credits: 200 });
+    expect(res.status).toBe(200);
+    expect(plan.monthlyCredits).toBe(200);
   });
 });
 

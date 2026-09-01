@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAdmin, parseBody } from "@/lib/admin/api";
 import { auditAdminAction, auditIp } from "@/lib/admin/audit";
-import { planPatchSchema } from "@/lib/admin/schemas";
+import { planPatchSchema, validatePlanShape } from "@/lib/admin/schemas";
 import { resyncPricedCurrencies, storedPlanId, SYNC_CURRENCIES } from "@/lib/billing/razorpay-plans";
 
 export const PATCH = withAdmin<{ id: string }>(async (req, { admin, params }) => {
@@ -11,6 +11,18 @@ export const PATCH = withAdmin<{ id: string }>(async (req, { admin, params }) =>
 
   const before = await prisma.plan.findUnique({ where: { id } });
   if (!before) return NextResponse.json({ error: "Plan not found" }, { status: 404 });
+
+  // Judged on the merged result, not the patch alone: a PATCH that only moves
+  // monthlyCredits still has to leave the row internally consistent.
+  const merged = { ...before, ...data };
+  const shapeError = validatePlanShape({
+    kind: merged.kind,
+    intervalMonths: merged.intervalMonths,
+    monthlyCredits: merged.monthlyCredits,
+    credits: merged.credits,
+    tier: merged.tier,
+  });
+  if (shapeError) return NextResponse.json({ error: shapeError }, { status: 400 });
 
   // A price change on a plan that is already live on Razorpay has to re-mint the
   // Razorpay Plan, because Razorpay Plans are immutable. Without this, /pricing
