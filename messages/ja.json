@@ -79,6 +79,8 @@
     "xpSuffix": "+{xp} XP",
     "rankReward": "{level} — このランクに到達すると+{credits}ボーナスクレジットを獲得できます。",
     "allQuestsCompleteBanner": "すべてのクエストが完了しました！Clipiro Master に到達しました — アカウントにボーナスクレジットが追加されました。",
+    "toggleQuests": "オンボーディングクエストの表示・非表示",
+    "rankRewardToast": "🎉 {level} を達成 — ボーナスクレジット +{credits} を付与しました",
     "quests": {
       "joinCommunity": { "title": "コミュニティに参加", "desc": "Discordを接続してClipiroサーバーに参加しましょう。" },
       "firstClip": { "title": "最初のクリップを作成", "desc": "シンプルエディターで最初のクリップを作成しましょう。" },

@@ -79,6 +79,8 @@
     "xpSuffix": "+{xp} XP",
     "rankReward": "{level} — इस रैंक तक पहुँचें और +{credits} बोनस क्रेडिट पाएं।",
     "allQuestsCompleteBanner": "सभी क्वेस्ट पूरे हुए! आपने Clipiro Master हासिल किया — आपके अकाउंट में बोनस क्रेडिट जोड़े गए हैं।",
+    "toggleQuests": "ऑनबोर्डिंग क्वेस्ट दिखाएँ या छिपाएँ",
+    "rankRewardToast": "🎉 {level} अनलॉक हुआ — +{credits} बोनस क्रेडिट जोड़े गए",
     "quests": {
       "joinCommunity": { "title": "कम्युनिटी से जुड़ें", "desc": "अपना Discord कनेक्ट करें और Clipiro सर्वर से जुड़ें।" },
       "firstClip": { "title": "अपनी पहली क्लिप बनाएं", "desc": "सिंपल एडिटर में जाकर अपनी पहली क्लिप बनाएं।" },

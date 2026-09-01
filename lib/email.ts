@@ -151,6 +151,12 @@ export async function sendCreditsRefilledEmail(
   await sendTemplate("credits-refilled", to, { name, creditsAdded, newBalance });
 }
 
+export async function sendQuestRankRewardEmail(
+  to: string, name: string, level: string, creditsAdded: number, newBalance: number,
+): Promise<void> {
+  await sendTemplate("quest-rank-reward", to, { name, level, creditsAdded, newBalance });
+}
+
 export async function sendLowCreditsEmail(
   to: string, name: string, creditsLeft: number, estimatedVideos: number,
 ): Promise<void> {

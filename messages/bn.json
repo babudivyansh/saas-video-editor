@@ -79,6 +79,8 @@
     "xpSuffix": "+{xp} XP",
     "rankReward": "{level} — এই র‍্যাঙ্কে পৌঁছান এবং +{credits} বোনাস ক্রেডিট অর্জন করুন।",
     "allQuestsCompleteBanner": "সব কোয়েস্ট সম্পন্ন হয়েছে! আপনি Clipiro Master-এ পৌঁছেছেন — আপনার অ্যাকাউন্টে বোনাস ক্রেডিট যোগ হয়েছে।",
+    "toggleQuests": "অনবোর্ডিং কোয়েস্ট দেখান বা লুকান",
+    "rankRewardToast": "🎉 {level} আনলক হয়েছে — +{credits} বোনাস ক্রেডিট যোগ হয়েছে",
     "quests": {
       "joinCommunity": { "title": "কমিউনিটিতে যোগ দিন", "desc": "আপনার Discord কানেক্ট করে Clipiro সার্ভারে যোগ দিন।" },
       "firstClip": { "title": "আপনার প্রথম ক্লিপ তৈরি করুন", "desc": "সিম্পল এডিটর দিয়ে আপনার প্রথম ক্লিপ তৈরি করুন।" },

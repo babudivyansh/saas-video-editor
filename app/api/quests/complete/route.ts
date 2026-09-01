@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { QUEST_DEFINITIONS, TOTAL_XP, xpToLevel, earnedXpFor } from "@/lib/quest-config";
 import { markQuestComplete } from "@/lib/quests";
+import { unseenRankRewards } from "@/lib/quest-rewards";
 
 export async function POST(req: NextRequest) {
   const auth = await getAuthUser(req);
@@ -53,5 +54,9 @@ export async function POST(req: NextRequest) {
 
   await redis.set(`quests:${auth.userId}`, JSON.stringify(payload), "EX", 300);
 
-  return NextResponse.json(payload);
+  // Kept out of the cached blob for the same reason as in GET /api/quests.
+  return NextResponse.json({
+    ...payload,
+    newRankRewards: await unseenRankRewards(auth.userId),
+  });
 }

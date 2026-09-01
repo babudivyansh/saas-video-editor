@@ -79,6 +79,8 @@
     "xpSuffix": "+{xp} XP",
     "rankReward": "{level} — alcance este nível para ganhar +{credits} créditos bônus.",
     "allQuestsCompleteBanner": "Todas as missões concluídas! Você alcançou Clipiro Master — créditos bônus foram adicionados à sua conta.",
+    "toggleQuests": "Mostrar ou ocultar as missões de integração",
+    "rankRewardToast": "🎉 {level} desbloqueado — +{credits} créditos bônus adicionados",
     "quests": {
       "joinCommunity": { "title": "Junte-se à comunidade", "desc": "Conecte seu Discord e junte-se ao servidor do Clipiro." },
       "firstClip": { "title": "Crie seu primeiro clipe", "desc": "Use o editor simples para criar seu primeiro clipe." },

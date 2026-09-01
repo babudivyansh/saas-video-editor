@@ -34,10 +34,6 @@ export type Rank = typeof RANKS[number];
 // Ranks that grant a reward when first reached, in ascending threshold order.
 export const RANK_REWARDS = RANKS.filter(r => r.reward > 0);
 
-// Retained for backward-compat with any external callers; the all-complete
-// grant is now covered by the "Clipiro Master" rank reward instead.
-export const QUEST_COMPLETION_CREDITS = 5;
-
 /** Sum the xp of the given completed quest ids. Shared by the API routes and
  *  the reward logic so the number is computed one way everywhere. */
 export function earnedXpFor(completedIds: Iterable<string>): number {
