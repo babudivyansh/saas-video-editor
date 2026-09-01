@@ -50,7 +50,28 @@ export interface DubPayload {
  * ClipDub row (userId/refId columns), never from a real enqueue payload. */
 export type FinishDubPayload = DubPayload;
 
-export const DUB_CREDIT_COST = 1;
+/**
+ * Dubbing is billed per minute of clip, not per dub.
+ *
+ * It shipped at a flat 1 credit regardless of clip length, against an ElevenLabs
+ * Dubbing call whose cost scales with audio duration — the same shape as the
+ * pre-audit `ai-creator` price (flat 2cr against an uncapped $1-2 call) that the
+ * 2026-07 audit had already fixed by going duration-scaled and Pro-gating. A
+ * 3-minute dub and a 10-second one cost us very different amounts and charged
+ * the customer identically.
+ *
+ * The rate lives in the admin-editable AutoClip pricing config rather than here,
+ * for the same reason the rest of the AutoClip rates do: nobody in this file can
+ * responsibly invent a final price, but it should at least be a business
+ * decision made through an admin control instead of a code deploy. The default
+ * below is deliberately conservative and the feature is Pro-gated until the real
+ * ElevenLabs per-minute figure is confirmed — see TOOL_COSTS["clip-dub"].
+ */
+export function computeDubCost(durationSec: number, dubPerMinute: number): number {
+  // Always at least one minute's worth: a 4-second dub still spins up a full
+  // ElevenLabs job.
+  return Math.max(1, Math.ceil(Math.max(durationSec, 0) / 60) * dubPerMinute);
+}
 
 // Two separate queues (not one) so a stuck/slow finish phase for one dub
 // can't block a different dub's start phase, and so admin ops/heartbeats can

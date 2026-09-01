@@ -65,7 +65,7 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   // duration-scaled and gated to Pro+, like the video-generator models.
   "ai-creator": {
     creditCost: 25, // display price at the 5s default (5cr/s * 5s)
-    creditsPerSecond: 5, // ceil(0.14*3/0.099)
+    creditsPerSecond: 5, // ceil(0.14*3/0.0952)
     minDurationSeconds: 3,
     maxDurationSeconds: 15,
     defaultDurationSeconds: 5,
@@ -84,6 +84,41 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   // Gated pro+ until a real per-run figure is confirmed (same rationale as
   // subtitle-remover above).
   "face-swap":            { creditCost: 2, costUsd: null, costBasis: "fal-ai/face-swap, no reliable figure found — estimate ~$0.02-0.05/run", generationType: "image", requiredTier: "pro" },
+
+  // ── AutoClip (2026-09 pricing audit) ──────────────────────────────────────
+  // Both of these were missing entirely: the flagship feature and its newest
+  // add-on had no cost basis anywhere, so they contributed nothing to the admin
+  // AI-spend and margin dashboards even though AutoClip is the most expensive
+  // thing the product runs.
+  //
+  // auto-clip is genuinely multi-provider (STT + Gemini selection + GPU render +
+  // S3), and its real per-run cost varies by an order of magnitude with source
+  // length, so a single costUsd would be a lie — it stays null, like the other
+  // unconfirmed entries. creditCost here is display-only: real billing is
+  // duration- and clip-count-scaled through getAutoClipPricing (see
+  // computeCreditCost / computeAnalysisCost in lib/autoclip-pipeline.ts), and
+  // the value below is a representative 5-clip run.
+  "auto-clip": {
+    creditCost: 8, // representative: 5 clips + ~5 min output, at the default rates
+    costUsd: null,
+    costBasis: "ElevenLabs/Whisper STT + Gemini selection + GPU render + S3; scales with source length, no single per-run figure",
+    generationType: "video",
+  },
+  // TODO verify-before-ship: ElevenLabs Dubbing is billed per minute of audio and
+  // the exact rate could not be confirmed. Shipped at a flat 1 credit per dub
+  // regardless of clip length, which is the same shape as the pre-audit
+  // ai-creator price that turned out to be loss-making. Now duration-scaled
+  // (dubPerMinute in AUTOCLIP_PRICING_DEFAULTS, admin-editable) and gated pro+
+  // until the real figure is confirmed — pro-tier credit revenue gives enough
+  // margin buffer for an unknown per-minute cost, exactly the mitigation
+  // subtitle-remover and face-swap already use.
+  "clip-dub": {
+    creditCost: 2, // display price for a <=1 minute clip (dubPerMinute x 1)
+    costUsd: null,
+    costBasis: "ElevenLabs Dubbing API, billed per minute of audio — rate not yet confirmed",
+    generationType: "audio",
+    requiredTier: "pro",
+  },
 };
 
 // "Starting at" display price for the two multi-model tools — kept in sync

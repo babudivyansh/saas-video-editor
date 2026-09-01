@@ -4,9 +4,12 @@ import { ImageModelEntry } from "./types";
 // (app/api/tools/image-generator/route.ts and app/components/ImageGeneratorTool.tsx both
 // read this registry generically).
 //
-// creditCost is computed as ceil(costUsd * margin / 0.099), where $0.099/credit
-// is the revenue floor at the cheapest live plan (Studio Yearly ≈ ₹9.41/credit
-// at ₹95/$1), margin 3x standard / 4-5x flagship. A few entries deliberately
+// creditCost is computed as ceil(costUsd * margin / REVENUE_FLOOR_USD_PER_CREDIT),
+// the revenue-per-credit floor at the cheapest live SKU — $0.0952, derived and
+// documented in lib/plans/tiers.ts (Studio Yearly, ₹8.37/credit at 88 INR/USD).
+// The old "$0.099 / ₹9.41 at ₹95/$1" figure here went stale when the grants moved
+// to 60/160/400 and the FX default moved to 88. Margin is 3x standard / 4-5x
+// flagship. A few entries deliberately
 // keep a higher price than the formula would compute (see inline notes) —
 // don't cut revenue on an already-profitable model just because the formula
 // says you could charge less.
@@ -19,7 +22,7 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     category: "image",
     integration: "direct-gemini",
     costUsd: 0.04, // Google direct API
-    creditCost: 2, // ceil(0.04*3/0.099); default/free model, raised from 1
+    creditCost: 2, // ceil(0.04*3/0.0952); default/free model, raised from 1
     allowedTiers: ["free", "creator", "pro", "studio"],
     supportedParameters: ["prompt"],
     defaultValues: {},
@@ -87,7 +90,7 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     integration: "fal",
     falEndpoint: "fal-ai/nano-banana-2",
     costUsd: 0.08,
-    creditCost: 4, // ceil(0.08*4/0.099); raised from 2, was underpriced at 2.48x margin
+    creditCost: 4, // ceil(0.08*4/0.0952); raised from 2, was underpriced at 2.48x margin
     allowedTiers: ["pro", "studio"],
     supportedParameters: ["prompt", "aspectRatio"],
     defaultValues: { aspectRatio: "1:1" },
@@ -139,7 +142,7 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     integration: "fal",
     falEndpoint: "fal-ai/nano-banana-pro",
     costUsd: 0.15, // 1K output
-    creditCost: 8, // ceil(0.15*5/0.099); raised from 4, flagship, studio-exclusive
+    creditCost: 8, // ceil(0.15*5/0.0952); raised from 4, flagship, studio-exclusive
     allowedTiers: ["studio"],
     supportedParameters: ["prompt", "aspectRatio"],
     defaultValues: { aspectRatio: "1:1" },

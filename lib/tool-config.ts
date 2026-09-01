@@ -52,6 +52,11 @@ export const TOOL_DEFAULTS: ToolConfigMap = {
   "instagram-downloader":   { enabled: true, creditCost: TOOL_COSTS["instagram-downloader"].creditCost },
   "background-remover":     { enabled: true, creditCost: TOOL_COSTS["background-remover"].creditCost },
   "face-swap":              { enabled: true, creditCost: TOOL_COSTS["face-swap"].creditCost },
+  // AutoClip bills through getAutoClipPricing, not this map — these two entries
+  // exist so the feature has a published price and an admin enable/disable
+  // switch like every other tool. creditCost is display-only for both.
+  "auto-clip":              { enabled: true, creditCost: TOOL_COSTS["auto-clip"].creditCost },
+  "clip-dub":               { enabled: true, creditCost: TOOL_COSTS["clip-dub"].creditCost },
 };
 
 export const TOOL_SERVICE: Record<string, string> = {
@@ -68,7 +73,7 @@ export const TOOL_SERVICE: Record<string, string> = {
   "social-kpi-explain":    "Google Gemini",
   "cut-and-crop":     "FFmpeg (local)",
   "subtitle-remover": "FFmpeg (local)",
-  "image-generator":  "Google Gemini (Imagen)",
+  "image-generator":  "9 models — Gemini, Seedream, Flux, GPT Image…",
   "voiceover":        "ElevenLabs TTS",
   "vocal-remover":    "fal.ai Demucs",
   "ai-creator":       "fal.ai SadTalker",
@@ -76,11 +81,13 @@ export const TOOL_SERVICE: Record<string, string> = {
   "reddit-video":     "ElevenLabs + FFmpeg",
   "text-video":       "ElevenLabs + FFmpeg",
   "enhance-speech":   "ElevenLabs Isolation",
-  "video-generator":     "fal.ai Veo3",
+  "video-generator":     "8 models — Veo 3, Seedance, Wan, LTX…",
   "youtube-downloader":    "yt-dlp (YouTube)",
   "instagram-downloader":  "yt-dlp (Instagram)",
   "background-remover":    "fal.ai rembg",
   "face-swap":             "fal.ai face-swap",
+  "auto-clip":             "Whisper/ElevenLabs + Gemini + GPU render",
+  "clip-dub":              "ElevenLabs Dubbing",
 };
 
 async function loadFromDB(): Promise<ToolConfigMap> {

@@ -107,10 +107,17 @@ export interface AutoClipPricing {
   perTwoMinutes: number;
   analysisPerHalfHour: number;
   rerender: number;
+  /** Per MINUTE of dubbed clip — see computeDubCost in lib/autoclip-dub.ts. */
+  dubPerMinute: number;
 }
 
 export const AUTOCLIP_PRICING_DEFAULTS: AutoClipPricing = {
   perClip: 1, perTwoMinutes: 1, analysisPerHalfHour: 1, rerender: 1,
+  // Dubbing was a flat 1 credit per dub at any length. 2 credits per minute is a
+  // conservative placeholder, NOT a researched price — the real ElevenLabs
+  // Dubbing per-minute cost is still unconfirmed, which is why clip-dub is
+  // Pro-gated in lib/tool-costs.ts until it is.
+  dubPerMinute: 2,
 };
 
 export async function getAutoClipPricing(): Promise<AutoClipPricing> {

@@ -88,6 +88,7 @@ interface SeedCoupon {
   discountType: "percent" | "fixed";
   discountValue: number;
   appliesTo: "all" | "subscription" | "pack";
+  planSlugs?: string[];
   minAmountInPaise?: number;
   maxRedemptions?: number | null;
   perUserLimit?: number;
@@ -98,9 +99,19 @@ interface SeedCoupon {
 
 const LAUNCH = new Date(); LAUNCH.setDate(LAUNCH.getDate() + 30); // 30-day launch window
 
+// Monthly SKUs only. Yearly already carries a 33% discount, and its price per
+// credit (Studio Yearly = ₹8.37 ≈ $0.0952) IS the floor the whole model registry
+// is priced against — stacking another 30-40% on top took the credit economy to
+// ~$0.057, or ~$0.052 once the affiliate program's 20% first-payment commission
+// lands, at which the flagship video models bill under 2x their provider cost.
+// Monthly rows have far more headroom (Studio Monthly is ₹12.50/credit), so the
+// same coupon is safe there. See the 2026-09 pricing audit and the
+// MAX_SUBSCRIPTION_DISCOUNT_PCT backstop in lib/coupons.ts.
+const MONTHLY_SUB_SLUGS = ["sub_creator_1mo", "sub_pro_1mo", "sub_studio_1mo"];
+
 const COUPONS: SeedCoupon[] = [
-  { code: "LAUNCH30",   description: "Launch special — 30% off your first plan", discountType: "percent", discountValue: 30, appliesTo: "subscription", firstPurchaseOnly: true, perUserLimit: 1, featured: true, expiresAt: LAUNCH },
-  { code: "FOUNDERS50", description: "Founders deal — 40% off for the first 50 customers", discountType: "percent", discountValue: 40, appliesTo: "subscription", firstPurchaseOnly: true, perUserLimit: 1, maxRedemptions: 50, expiresAt: LAUNCH },
+  { code: "LAUNCH30",   description: "Launch special — 30% off your first monthly plan", discountType: "percent", discountValue: 30, appliesTo: "subscription", planSlugs: MONTHLY_SUB_SLUGS, firstPurchaseOnly: true, perUserLimit: 1, featured: true, expiresAt: LAUNCH },
+  { code: "FOUNDERS50", description: "Founders deal — 40% off for the first 50 customers", discountType: "percent", discountValue: 40, appliesTo: "subscription", planSlugs: MONTHLY_SUB_SLUGS, firstPurchaseOnly: true, perUserLimit: 1, maxRedemptions: 50, expiresAt: LAUNCH },
   { code: "TOPUP15",    description: "15% off any credit top-up pack", discountType: "percent", discountValue: 15, appliesTo: "pack" },
 ];
 
@@ -155,6 +166,7 @@ async function main() {
         discountType: c.discountType,
         discountValue: c.discountValue,
         appliesTo: c.appliesTo,
+        planSlugs: c.planSlugs ?? [],
         minAmountInPaise: c.minAmountInPaise ?? 0,
         maxRedemptions: c.maxRedemptions ?? null,
         perUserLimit: c.perUserLimit ?? 1,
@@ -169,6 +181,7 @@ async function main() {
         discountType: c.discountType,
         discountValue: c.discountValue,
         appliesTo: c.appliesTo,
+        planSlugs: c.planSlugs ?? [],
         minAmountInPaise: c.minAmountInPaise ?? 0,
         maxRedemptions: c.maxRedemptions ?? null,
         perUserLimit: c.perUserLimit ?? 1,

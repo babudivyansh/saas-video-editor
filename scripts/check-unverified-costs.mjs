@@ -32,9 +32,12 @@ const ALLOWLIST = {
   // models had their fal costs confirmed in the 2026-08 audit (per-resolution
   // rates now in resolutionCredits), so their markers were removed.
   "lib/models/videoModels.ts": 1,
-  // subtitle-remover: costUsd unknown → route-gated pro+ (face-swap is also
-  // costUsd:null + gated, but carries no marker).
-  "lib/tool-costs.ts": 1,
+  // Two markers, both mitigated the same way — costUsd unknown, so the tool is
+  // route-gated pro+ where the credit revenue absorbs the uncertainty:
+  //   1. subtitle-remover (per-frame OCR cost unconfirmed)
+  //   2. clip-dub (ElevenLabs Dubbing per-minute rate unconfirmed)
+  // face-swap is also costUsd:null + gated, but carries no marker.
+  "lib/tool-costs.ts": 2,
 };
 
 let failed = false;

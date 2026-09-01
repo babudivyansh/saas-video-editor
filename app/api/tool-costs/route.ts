@@ -26,6 +26,8 @@ const LABELS: Record<string, string> = {
   "instagram-downloader": "Instagram Downloader",
   "background-remover": "Background Remover",
   "face-swap": "AI Face Swap",
+  "auto-clip": "Auto Clips",
+  "clip-dub": "Clip Dubbing",
 };
 
 // image-generator/video-generator have multiple swappable models with wildly
@@ -39,6 +41,11 @@ const RANGES: Record<string, { min: number; max: number }> = {
   "video-generator": { min: Math.min(...VIDEO_COSTS), max: Math.max(...VIDEO_COSTS) },
   // Matches creditCostForDuration's clamp in app/api/tools/subtitle-remover/route.ts.
   "subtitle-remover": { min: 2, max: 20 },
+  // Both bill by duration rather than per run, so a single figure would be
+  // misleading on the public page. Ranges describe a typical short run through
+  // a long one at the default AutoClip rates.
+  "auto-clip": { min: 3, max: 40 },
+  "clip-dub": { min: 2, max: 12 },
 };
 
 export async function GET() {
