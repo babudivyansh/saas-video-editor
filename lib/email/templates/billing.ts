@@ -12,10 +12,15 @@ const PRICING_URL = `${APP_URL}/pricing`;
 export function purchaseConfirmation(p: {
   userName: string;
   planName: string;
+  /** Credits granted BY THIS PAYMENT — for a prepaid annual term that is one
+   *  month's allowance, not the term total. */
   creditsAdded: number;
   amountInPaise: number;
   orderId: string;
   isSubscription: boolean;
+  /** Set for multi-month prepaid terms, so the receipt can explain that the
+   *  remaining months arrive as monthly refills rather than looking short. */
+  refill?: { monthlyCredits: number; remainingMonths: number };
 }): EmailDocument {
   const amount = formatPaise(p.amountInPaise);
   return {
@@ -33,6 +38,12 @@ export function purchaseConfirmation(p: {
         rows: [
           { label: "Plan", value: p.planName },
           { label: "Credits added", value: `+${p.creditsAdded} credits`, tone: "success" },
+          ...(p.refill && p.refill.remainingMonths > 0
+            ? [{
+                label: "Then",
+                value: `+${p.refill.monthlyCredits} credits a month for ${plural(p.refill.remainingMonths, "more month")}`,
+              }]
+            : []),
           { label: "Amount paid", value: amount },
           { label: "Order ID", value: p.orderId, mono: true },
         ],

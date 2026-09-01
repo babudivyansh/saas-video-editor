@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getPlanPriceMinor } from "@/lib/currency";
 
 export async function GET(req: NextRequest) {
   const auth = await getAuthUser(req);
@@ -34,6 +35,9 @@ export async function GET(req: NextRequest) {
       dismissedHints: true,
       subscriptionEndsAt: true,
       subscriptionCancelledAt: true,
+      // Distinguishes a true recurring mandate from a legacy prepaid term. The
+      // billing UI promised a "next charge" for both; only the former has one.
+      razorpaySubscriptionId: true,
       nextRefillAt: true,
       monthlyCredits: true,
       // Lets the client hide the "start free trial" CTA for accounts that have
@@ -63,9 +67,16 @@ export async function GET(req: NextRequest) {
   const subActive = !!user.subscriptionEndsAt && user.subscriptionEndsAt > new Date();
   const tier = subActive && user.plan?.tier ? user.plan.tier : "free";
 
+  // Same USD figure /api/plans serves, computed server-side so the billing panel
+  // never does its own FX — it just picks the field for the selected currency.
+  const plan = user.plan
+    ? { ...user.plan, usdPriceInCents: await getPlanPriceMinor(user.plan.slug, user.plan.priceInPaise, "USD") }
+    : null;
+
   return NextResponse.json({
     user: {
       ...user,
+      plan,
       tier,
       creditBalances: {
         bonus: user.bonusCredits,

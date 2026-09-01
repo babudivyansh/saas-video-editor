@@ -130,7 +130,11 @@ export function PlansModal({ onPurchaseSuccess }: PlansModalProps) {
     startCheckout({
       planId: checkoutPlan.slug,
       addonIds: selectedAddons,
-      couponCode: appliedCoupon?.code,
+      // Coupons are INR-native and the server REJECTS a code sent with USD, so
+      // a coupon applied in rupees and then left over after a currency switch
+      // hard-failed checkout — with the coupon UI hidden on USD, the customer
+      // had no way to remove it.
+      couponCode: couponsAvailable ? appliedCoupon?.code : undefined,
       currency,
       onSuccess: () => {
         onPurchaseSuccess();
@@ -144,7 +148,9 @@ export function PlansModal({ onPurchaseSuccess }: PlansModalProps) {
       const pack = packs.find(p => p.slug === slug);
       return s + (pack ? minorUnits(pack, currency) : 0);
     }, 0);
-  const discountedTotalMinor = appliedCoupon
+  // discountInPaise is exactly that — paise. Subtracting it from a USD cents
+  // total showed a ~88x over-discount before the server refused the order.
+  const discountedTotalMinor = appliedCoupon && couponsAvailable
     ? Math.max(1, totalDueMinor - appliedCoupon.discountInPaise)
     : totalDueMinor;
 
@@ -187,7 +193,10 @@ export function PlansModal({ onPurchaseSuccess }: PlansModalProps) {
             term={term}
             onTermChange={setTerm}
             currency={currency}
-            onCurrencyChange={setCurrency}
+            // Switching currency invalidates any applied coupon: the discount is
+            // INR paise and the coupon UI is hidden on USD, so leaving it applied
+            // strands the customer with a total they can't correct.
+            onCurrencyChange={(c) => { setCurrency(c); clearCoupon(); }}
             selectedAddons={selectedAddons}
             onToggleAddon={toggleAddon}
             onSelectPlan={openCheckout}

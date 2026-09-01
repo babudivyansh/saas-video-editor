@@ -68,7 +68,7 @@ export function PlanCard({
 
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-1 flex-wrap">
-          <p className={`text-sm font-bold uppercase tracking-widest ${highlighted ? "text-white/70" : "text-gray-400"}`}>
+          <p className={`text-sm font-bold uppercase tracking-widest ${highlighted ? "text-white" : "text-gray-500"}`}>
             {baseTier}
           </p>
           {isCurrent && (
@@ -83,20 +83,20 @@ export function PlanCard({
         {/* The price, and nothing competing with it. The symbol is its own
             element so it reads as a symbol rather than another digit. */}
         <div className="flex items-start gap-0.5">
-          <span className={`text-xl font-bold mt-1.5 ${highlighted ? "text-white/70" : "text-gray-400"}`}>
+          <span className={`text-xl font-bold mt-1.5 ${highlighted ? "text-white" : "text-gray-500"}`}>
             {currency === "USD" ? "$" : "₹"}
           </span>
           <span className={`${compact ? "text-4xl" : "text-5xl"} font-black leading-none tracking-tight`}>
             {formatMoney(perMonth, currency).replace(/^[₹$]/, "")}
           </span>
-          <span className={`text-sm font-medium self-end mb-1 ml-1 ${highlighted ? "text-white/70" : "text-gray-400"}`}>
+          <span className={`text-sm font-medium self-end mb-1 ml-1 ${highlighted ? "text-white" : "text-gray-500"}`}>
             /month
           </span>
         </div>
 
         {/* One secondary line, only when yearly changes the story. */}
         {months > 1 && (
-          <p className={`text-xs mt-2 ${highlighted ? "text-white/85" : "text-gray-500"}`}>
+          <p className={`text-xs mt-2 ${highlighted ? "text-white" : "text-gray-500"}`}>
             Billed {formatMoney(total, currency)} yearly
             {savePct && (
               <span className={`font-bold ${highlighted ? "text-green-300" : "text-green-600"}`}>
@@ -118,11 +118,9 @@ export function PlanCard({
           const perRender = cheapestVideoCostPerRender(plan.tier);
           const images = Math.floor(plan.monthlyCredits / cheapestImageCost);
           return (
-            <p
-              className={`text-xs mt-1 ${highlighted ? "text-white/70" : "text-gray-400"}`}
-              title="Based on the lowest-cost model available on this plan; premium models cost more credits."
-            >
+            <p className={`text-xs mt-1 ${highlighted ? "text-white" : "text-gray-500"}`}>
               ≈ {images} images or {perRender ? Math.floor(plan.monthlyCredits / perRender) : 0} videos
+              <span className={highlighted ? "text-white/90" : "text-gray-500"}> on the cheapest model</span>
             </p>
           );
         })()}
@@ -133,15 +131,15 @@ export function PlanCard({
         return (
           <>
             {inherits && (
-              <p className={`text-xs font-bold mb-3 ${highlighted ? "text-white/70" : "text-gray-500"}`}>
+              <p className={`text-xs font-bold mb-3 ${highlighted ? "text-white" : "text-gray-500"}`}>
                 Everything in {inherits}, plus:
               </p>
             )}
             <ul className="space-y-3 mb-8 flex-1">
               {bullets.map((b) => (
                 <li key={b} className="flex items-start gap-2.5 text-sm">
-                  <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${highlighted ? "text-white/70" : "text-brand"}`} />
-                  <span className={highlighted ? "text-white/85" : "text-gray-700"}>{b}</span>
+                  <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${highlighted ? "text-white" : "text-brand"}`} />
+                  <span className={highlighted ? "text-white" : "text-gray-700"}>{b}</span>
                 </li>
               ))}
             </ul>

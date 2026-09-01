@@ -90,6 +90,7 @@ export interface PurchaseEmailData {
   amountInPaise: number;
   orderId: string;
   isSubscription: boolean;
+  refill?: { monthlyCredits: number; remainingMonths: number };
 }
 
 export async function sendPurchaseConfirmationEmail(data: PurchaseEmailData): Promise<void> {
@@ -100,6 +101,7 @@ export async function sendPurchaseConfirmationEmail(data: PurchaseEmailData): Pr
     amountInPaise: data.amountInPaise,
     orderId: data.orderId,
     isSubscription: data.isSubscription,
+    refill: data.refill,
   });
 }
 

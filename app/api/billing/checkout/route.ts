@@ -101,6 +101,17 @@ async function handlePOST(req: NextRequest) {
   // optional trial). Plans not yet synced fall back to the legacy one-time
   // order below, so rollout can happen plan-by-plan without breaking checkout.
   const razorpayPlanId = currency === "USD" ? basePlan.razorpayPlanIdUsd : basePlan.razorpayPlanIdInr;
+
+  // Trials only exist on the recurring flow. Falling through to the one-time
+  // order below would charge the full amount today, which is the opposite of
+  // what the customer was just shown.
+  if (body.trial === true && basePlan.kind === "subscription" && !razorpayPlanId) {
+    return NextResponse.json(
+      { error: "The free trial isn't available for this plan right now. You can still subscribe normally." },
+      { status: 409 },
+    );
+  }
+
   if (basePlan.kind === "subscription" && razorpayPlanId) {
     const user = await prisma.user.findUnique({
       where: { id: auth.userId },

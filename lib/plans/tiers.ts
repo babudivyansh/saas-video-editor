@@ -156,6 +156,13 @@ export const TIER_MAX_AUTOCLIP_SOURCE_SECONDS: Record<TierId, number> = {
 // Free-tier Auto Clip allowance: watermarked runs per rolling 30 days.
 export const FREE_TIER_AUTOCLIP_RUNS_PER_MONTH = 2;
 
+// Credits granted once when the 7-day Pro trial activates. Hard-capped and
+// deliberately NOT a subscription-bucket base for rollover — see the
+// subscription.activated handler in app/api/webhooks/razorpay/route.ts. Exported
+// so the pricing CTA can state the figure instead of offering an unquantified
+// "free trial".
+export const TRIAL_CREDITS = 25;
+
 // Monthly bonus-credit grant for users without an active subscription.
 // Bonus credits expire 30 days after the latest bonus grant.
 export const FREE_TIER_MONTHLY_BONUS_CREDITS = 10;

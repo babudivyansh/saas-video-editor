@@ -22,12 +22,15 @@ import { CreditRing } from "@/app/components/ui/CreditRing";
 import { StatTile } from "@/app/components/ui/StatTile";
 import { UsageBarChart } from "@/app/components/ui/UsageBarChart";
 import { formatDate, formatINR } from "@/lib/format";
+import { formatMoney, inferCurrencyFromLocale, type Currency } from "@/lib/currency-shared";
 
 interface DbPlan {
   id: string;
   slug: string;
   name: string;
   priceInPaise: number;
+  /** USD minor units, computed server-side per plan by /api/plans. */
+  usdPriceInCents: number;
   currency: string;
   credits: number;
   kind: string;
@@ -69,8 +72,10 @@ interface Purchase {
   plan: { name: string; slug: string } | null;
 }
 
-function formatPrice(paise: number) {
-  return `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
+/** A plan's price in the viewer's selected currency, using the USD figure
+ *  /api/plans already computed rather than any client-side FX. */
+function planPrice(plan: { priceInPaise: number; usdPriceInCents: number }, currency: Currency) {
+  return formatMoney(currency === "USD" ? plan.usdPriceInCents : plan.priceInPaise, currency);
 }
 
 function daysUntil(date: Date) {
@@ -142,6 +147,12 @@ export function BillingPanel({
   const [tab, setTabState] = useState<TabKey>(initialTab);
   const { user, token, refreshUser } = useAuth();
   const { startCheckout, activeId } = useRazorpayCheckout();
+  // Default from the browser locale, then let the customer override — same rule
+  // /pricing and PlansModal use. Set in an effect so SSR and client agree.
+  const [currency, setCurrency] = useState<Currency>("INR");
+  useEffect(() => {
+    setCurrency(inferCurrencyFromLocale(typeof navigator !== "undefined" ? navigator.language : null));
+  }, []);
   const fireReviewPrompt = useReviewPromptTrigger();
   const reviewPromptFiredRef = useRef(false);
 
@@ -261,7 +272,10 @@ export function BillingPanel({
     setError("");
     startCheckout({
       planId: slug,
-      couponCode: coupon.appliedCoupon?.code,
+      // Coupons are INR-native and the server rejects a code sent with USD, so
+      // only forward one on the currency it can actually apply to.
+      couponCode: currency === "INR" ? coupon.appliedCoupon?.code : undefined,
+      currency,
       onSuccess: () => { refreshUser(); onPurchaseSuccess(); },
       onError: setError,
     });
@@ -429,6 +443,7 @@ export function BillingPanel({
           onViewPlans={onOpenPlans}
           onManagePlan={onOpenManage}
           onGoToTopup={() => setTab("topup")}
+          currency={currency}
           onCancelClick={() => setCancelDialogOpen(true)}
         />
         </div>
@@ -449,6 +464,8 @@ export function BillingPanel({
       {tab === "topup" && (
         <div role="tabpanel" id="billing-panel-topup" aria-labelledby="billing-tab-topup">
         <TopupTab
+          currency={currency}
+          onCurrencyChange={setCurrency}
           hasActivePlan={hasActivePlan}
           packs={packs}
           addons={addons}
@@ -489,7 +506,7 @@ export function BillingPanel({
 }
 
 // ── Overview tab ─────────────────────────────────────────────────────────────
-function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, summary, onViewPlans, onManagePlan, onGoToTopup, onCancelClick }: {
+function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, summary, onViewPlans, onManagePlan, onGoToTopup, onCancelClick, currency }: {
   user: ReturnType<typeof useAuth>["user"];
   hasActivePlan: boolean;
   daysLeft: number;
@@ -501,6 +518,7 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
   onManagePlan: () => void;
   onGoToTopup: () => void;
   onCancelClick: () => void;
+  currency: Currency;
 }) {
   const expiringSoon = hasActivePlan && daysLeft <= 7;
   const memberSince = user?.createdAt ? formatDate(user.createdAt) : "—";
@@ -594,9 +612,12 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
             <StatTile label="Next refill" value={user?.nextRefillAt ? formatDate(user.nextRefillAt) : "—"} accent="fuchsia" />
           </div>
 
-          {!cancelled && user?.plan?.priceInPaise ? (
+          {/* Only a real Razorpay subscription charges again. A legacy prepaid
+              term has no mandate — it just lapses at subscriptionEndsAt — so
+              quoting a "next charge" for one was simply untrue. */}
+          {!cancelled && user?.plan?.priceInPaise && user?.razorpaySubscriptionId ? (
             <p className="text-xs text-ink-soft/70">
-              Next charge {formatINR(user.plan.priceInPaise)} on {user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "—"}.
+              Next charge {planPrice(user.plan, currency)} on {user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "—"}.
             </p>
           ) : null}
         </Card>
@@ -775,7 +796,7 @@ function AutoTopupToggle({ packs }: { packs: DbPlan[] }) {
 }
 
 // ── Top Up tab ───────────────────────────────────────────────────────────────
-function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onViewPlans, highlightSlug }: {
+function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onViewPlans, highlightSlug, currency, onCurrencyChange }: {
   hasActivePlan: boolean;
   packs: DbPlan[];
   addons: DbPlan[];
@@ -785,6 +806,8 @@ function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onVie
   onViewPlans: () => void;
   /** Pack named by ?autotopup= — the auto-top-up email's one-click target. */
   highlightSlug?: string | null;
+  currency: Currency;
+  onCurrencyChange: (c: Currency) => void;
 }) {
   if (!hasActivePlan) {
     return (
@@ -804,6 +827,20 @@ function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onVie
       <section>
         <div className="mb-5 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
+            <div className="inline-flex bg-gray-100 rounded-full p-1 float-right ml-3" role="group" aria-label="Currency">
+              {(["INR", "USD"] as const).map((c) => (
+                <button
+                  key={c}
+                  onClick={() => onCurrencyChange(c)}
+                  aria-pressed={currency === c}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+                    currency === c ? "bg-ink text-white shadow" : "text-ink-soft hover:text-ink"
+                  }`}
+                >
+                  {c === "INR" ? "₹ INR" : "$ USD"}
+                </button>
+              ))}
+            </div>
             <h2 className="text-lg font-extrabold text-ink">Top-up Credits</h2>
             <p className="text-sm text-ink-soft mt-0.5">One-time purchase · credits never expire · added to your account instantly.</p>
           </div>
@@ -865,7 +902,7 @@ function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onVie
                     <p className="text-sm font-bold text-ink">{pack.name}</p>
                     <p className="text-3xl font-black grad-text inline-block my-3">{pack.credits}</p>
                     <p className="text-xs text-ink-soft mb-4">credits · never expire</p>
-                    <p className="text-lg font-extrabold text-ink mb-5">{formatPrice(pack.priceInPaise)}</p>
+                    <p className="text-lg font-extrabold text-ink mb-5">{planPrice(pack, currency)}</p>
                     <Button variant="primary" size="md" onClick={() => onBuy(pack.slug)} disabled={!!activeId} className="mt-auto w-full">
                       {isLoading ? (<><Spinner /> Opening…</>) : "Buy now"}
                     </Button>
@@ -896,7 +933,7 @@ function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onVie
                     <p className="text-xs text-ink-soft mt-0.5">Unlock {addon.name} for your plan.</p>
                   </div>
                   <div className="flex-shrink-0 flex items-center gap-4">
-                    <p className="text-lg font-extrabold text-ink">{formatPrice(addon.priceInPaise)}</p>
+                    <p className="text-lg font-extrabold text-ink">{planPrice(addon, currency)}</p>
                     <Button variant="primary" size="md" onClick={() => onBuy(addon.slug)} disabled={!!activeId}>
                       {isLoading ? (<><Spinner /> Opening…</>) : `Unlock ${addon.name}`}
                     </Button>

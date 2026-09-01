@@ -160,3 +160,58 @@ describe("fulfillPayment crash recovery", () => {
     expect(db.users.get("user-1")!.credits).toBe(90); // unchanged
   });
 });
+
+// The purchase receipt used to quote Plan.credits — the whole TERM total — so
+// every annual buyer was told they had received 4,800 credits when 400 had
+// landed and the rest would arrive one month at a time.
+describe("purchase confirmation receipt", () => {
+  beforeEach(() => {
+    resetDb();
+    db.plans.set("sub_studio_12mo", {
+      id: "plan-year", slug: "sub_studio_12mo", kind: "subscription",
+      credits: 4800, name: "Studio (Yearly)", intervalMonths: 12, monthlyCredits: 400,
+    });
+  });
+
+  it("reports the credits actually granted, not the term total", async () => {
+    const { sendPurchaseConfirmationEmail } = await import("@/lib/email");
+    await fulfillPayment({
+      paymentId: "pay_year_1",
+      orderId: "order_year_1",
+      amountInPaise: 4019200,
+      notes: { userId: "user-1", planId: "sub_studio_12mo", kind: "subscription" },
+    });
+
+    expect(sendPurchaseConfirmationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ creditsAdded: 400, isSubscription: true }),
+    );
+  });
+
+  it("explains where the rest of a prepaid term's credits are", async () => {
+    const { sendPurchaseConfirmationEmail } = await import("@/lib/email");
+    await fulfillPayment({
+      paymentId: "pay_year_2",
+      orderId: "order_year_2",
+      amountInPaise: 4019200,
+      notes: { userId: "user-1", planId: "sub_studio_12mo", kind: "subscription" },
+    });
+
+    expect(sendPurchaseConfirmationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ refill: { monthlyCredits: 400, remainingMonths: 11 } }),
+    );
+  });
+
+  it("adds no refill line to a one-off pack", async () => {
+    const { sendPurchaseConfirmationEmail } = await import("@/lib/email");
+    await fulfillPayment({
+      paymentId: "pay_pack_1",
+      orderId: "order_pack_1",
+      amountInPaise: 159900,
+      notes: { userId: "user-1", planId: "pack_starter", kind: "pack" },
+    });
+
+    expect(sendPurchaseConfirmationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ creditsAdded: 60, isSubscription: false, refill: undefined }),
+    );
+  });
+});

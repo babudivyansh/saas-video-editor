@@ -6,6 +6,7 @@ import { recordSubscriptionFailure, recordSubscriptionLifecycle } from "@/lib/du
 import { cancelExistingSubscriptionForSwitch } from "@/lib/billing/subscription-switch";
 import { prisma } from "@/lib/prisma";
 import { grantCredits } from "@/lib/credits";
+import { TRIAL_CREDITS } from "@/lib/plans/tiers";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { evaluatePromptTrigger, recordPrompt } from "@/lib/reviews/prompt-triggers";
@@ -89,7 +90,7 @@ export async function POST(req: NextRequest) {
       if (plan && user) {
         const endsAt = new Date();
         endsAt.setDate(endsAt.getDate() + 7); // covers the trial window; extended for real on first charge
-        // Trial grant: exactly 25 credits, once per account, hard-capped —
+        // Trial grant: exactly TRIAL_CREDITS, once per account, hard-capped —
         // it does NOT establish a subscription bucket base for rollover.
         const grantTrial = isTrial && !user.trialUsedAt;
         // Only ever push the term outwards. A replayed activation arriving
@@ -154,7 +155,7 @@ export async function POST(req: NextRequest) {
 
             if (grantTrial) {
               await grantCredits({
-                userId, bucket: "subscription", amount: 25,
+                userId, bucket: "subscription", amount: TRIAL_CREDITS,
                 reason: "grant:trial", refId: sub.id, tx,
               });
             }
