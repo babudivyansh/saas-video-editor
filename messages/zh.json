@@ -79,6 +79,8 @@
     "xpSuffix": "+{xp} 经验值",
     "rankReward": "{level} — 达到此等级即可获得 +{credits} 奖励积分。",
     "allQuestsCompleteBanner": "所有任务已完成！您已达到 Clipiro Master — 奖励积分已添加到您的账户。",
+    "toggleQuests": "显示或隐藏新手任务",
+    "rankRewardToast": "🎉 已解锁 {level} — 已添加 {credits} 点奖励积分",
     "quests": {
       "joinCommunity": { "title": "加入社区", "desc": "连接您的Discord并加入Clipiro服务器。" },
       "firstClip": { "title": "创建您的第一个片段", "desc": "使用简易编辑器创建您的第一个片段。" },

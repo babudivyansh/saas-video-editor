@@ -138,8 +138,10 @@ model User {
   purchases           Purchase[]
   creditTransactions  CreditTransaction[]
   quests              UserQuest[]
-  questRewardClaimed  Boolean              @default(false)
   claimedRankRewards  String[]             @default([])
+  // Last time the user was shown their rank-reward credit grants, so the
+  // dashboard toasts each one exactly once.
+  rankRewardsSeenAt   DateTime?
   affiliate           Affiliate?
   referral            Referral?            @relation("ReferredByAffiliate")
   socialAccounts      SocialAccount[]

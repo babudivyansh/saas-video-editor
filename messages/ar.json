@@ -79,6 +79,8 @@
     "xpSuffix": "+{xp} نقطة خبرة",
     "rankReward": "{level} — اصل إلى هذه الرتبة لتحصل على +{credits} رصيدًا إضافيًا.",
     "allQuestsCompleteBanner": "تم إكمال جميع المهام! لقد وصلت إلى Clipiro Master — تمت إضافة أرصدة إضافية إلى حسابك.",
+    "toggleQuests": "إظهار مهام الإعداد أو إخفاؤها",
+    "rankRewardToast": "🎉 تم فتح {level} — تمت إضافة +{credits} رصيد إضافي",
     "quests": {
       "joinCommunity": { "title": "انضم إلى المجتمع", "desc": "اربط حساب Discord الخاص بك وانضم إلى سيرفر Clipiro." },
       "firstClip": { "title": "أنشئ أول مقطع لك", "desc": "استخدم المحرر البسيط لإنشاء أول مقطع لك." },

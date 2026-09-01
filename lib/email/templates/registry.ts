@@ -260,6 +260,18 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     build: credits.creditsRefilled,
     samples: { default: { name: "Divyansh", creditsAdded: 500, newBalance: 542 } },
   }),
+  "quest-rank-reward": entry({
+    id: "quest-rank-reward",
+    title: "Onboarding rank reward",
+    group: "credits",
+    category: "creditAlerts",
+    trigger: "A user crosses an onboarding quest rank and is granted bonus credits",
+    build: credits.questRankReward,
+    samples: {
+      default: { name: "Divyansh", level: "Pro Creator", creditsAdded: 10, newBalance: 52 },
+      "top rank": { name: "Divyansh", level: "Clipiro Master", creditsAdded: 20, newBalance: 71 },
+    },
+  }),
   "low-credits": entry({
     id: "low-credits",
     title: "Low credits warning",

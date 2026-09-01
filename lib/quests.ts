@@ -4,6 +4,7 @@ import { logger } from "./logger";
 import { trackOnboardingEvent } from "./onboarding-analytics";
 import { RANK_REWARDS, earnedXpFor } from "./quest-config";
 import { grantCredits } from "./credits";
+import { sendQuestRankRewardEmail } from "./email";
 
 export async function markQuestComplete(userId: string, questId: string) {
   try {
@@ -26,7 +27,7 @@ export async function markQuestComplete(userId: string, questId: string) {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { claimedRankRewards: true },
+      select: { claimedRankRewards: true, email: true, name: true },
     });
     if (!user) return;
 
@@ -36,7 +37,7 @@ export async function markQuestComplete(userId: string, questId: string) {
 
     for (const rank of newlyEarned) {
       // Quest rewards are bonus credits: 30-day expiry, spent first.
-      await grantCredits({
+      const balances = await grantCredits({
         userId,
         bucket: "bonus",
         amount: rank.reward,
@@ -44,6 +45,23 @@ export async function markQuestComplete(userId: string, questId: string) {
         bonusExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       });
       claimed.add(rank.level);
+
+      // These grants used to be completely silent — no toast, no email — so a
+      // user could earn every rank reward and have all of it expire unnoticed.
+      // Failure to send must not roll back a grant that already happened.
+      if (user.email) {
+        try {
+          await sendQuestRankRewardEmail(
+            user.email,
+            user.name ?? "",
+            rank.level,
+            rank.reward,
+            balances.total,
+          );
+        } catch (err) {
+          logger.error("quests", "rank reward email failed", { userId, level: rank.level, err });
+        }
+      }
     }
     await prisma.user.update({
       where: { id: userId },
