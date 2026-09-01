@@ -7,6 +7,7 @@ import { ReframeAndCutsControls } from "@/app/components/auto-clip/ReframeAndCut
 import { LiteEditTab, type LiteEdits } from "@/app/components/auto-clip/LiteEditTab";
 import { CaptionTemplatePicker, TranslateCaptions } from "@/app/components/auto-clip/CaptionTemplatePicker";
 import { CAPTION_TEMPLATES } from "@/lib/caption-templates";
+import { discardDraftProject } from "@/lib/discard-draft-project";
 import { UrlImportField } from "@/app/components/auto-clip/UrlImportField";
 import { ScorePerformanceBanner } from "@/app/components/auto-clip/ScorePerformanceBanner";
 import { Switch } from "@/app/components/ui/Switch";
@@ -1653,24 +1654,30 @@ function AutoClipFlow() {
     if (!token) return;
     if (!file && pickedAsset) {
       setImportError(null);
+      let createdId: string | null = null;
       try {
         const created = await apiFetch<{ project: { id: string } }>("/api/projects", { method: "POST", body: JSON.stringify({ title: pickedAsset.name, uploadedVideoUrl: pickedAsset.url, productType: "auto-clip" }) });
+        createdId = created.project.id;
         await generateAutoClipForProject({
-          projectId: created.project.id, token, minDuration, maxDuration, clipCount, aspectRatio, instructions,
+          projectId: createdId, token, minDuration, maxDuration, clipCount, aspectRatio, instructions,
           captionStyleIndex: captionsOn ? captionStyleIndex : -1,
           reframingPreset, removeSilence, silenceThresholdMs, removeFillers,
           smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions,
         });
       } catch (e) {
+        // If analysis never started, the project is an empty shell — drop it
+        // rather than leaving a "0 clips" draft on the dashboard.
+        if (createdId) await discardDraftProject(createdId, token);
         setImportError(e instanceof Error ? e.message : "Couldn't start from that asset");
       }
       return;
     }
     if (!file && importedUrl) {
       setImportError(null);
+      let projectId: string | null = null;
       try {
         const created = await apiFetch<{ project: { id: string } }>("/api/projects", { method: "POST", body: JSON.stringify({ title: importedTitle ?? "Imported video", productType: "auto-clip" }) });
-        const projectId = created.project.id;
+        projectId = created.project.id;
         await apiFetch(`/api/projects/${projectId}/import-url`, { method: "POST", body: JSON.stringify({ url: importedUrl }) });
         await generateAutoClipForProject({
           projectId, token, minDuration, maxDuration, clipCount, aspectRatio, instructions,
@@ -1679,6 +1686,10 @@ function AutoClipFlow() {
           smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions,
         });
       } catch (e) {
+        // A URL that fails to import is the most common way this path breaks,
+        // and it used to leave a draft named after the source video behind on
+        // every retry.
+        if (projectId) await discardDraftProject(projectId, token);
         setImportError(e instanceof Error ? e.message : "Import failed");
       }
       return;

@@ -5,6 +5,9 @@ import { ProjectStatusBadge } from "@/app/components/dashboard/ProjectStatusBadg
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
 import { EmptyState } from "@/app/components/ui/EmptyState";
+import { ToastProvider } from "@/app/components/ui/Toast";
+import { CardMenuButton } from "@/app/components/dashboard/CardMenuButton";
+import { useProjectActions } from "@/app/components/dashboard/useProjectActions";
 
 interface ProjectRow {
   id: string;
@@ -57,12 +60,43 @@ function matchesFilter(p: ProjectRow, filter: FilterId): boolean {
 
 // AutoClip project history (P1.5) — GET /api/projects already returned past
 // projects, this is just the missing UI surface for browsing back into them.
+// ToastProvider is not global in this app — each page that needs toasts wraps
+// itself (see app/dashboard/social-tracker/layout.tsx).
 export default function ClipsLibraryPage() {
+  return (
+    <ToastProvider>
+      <ClipsLibraryPageInner />
+    </ToastProvider>
+  );
+}
+
+function ClipsLibraryPageInner() {
   const [projects, setProjects] = useState<ProjectRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterId>("all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
+
+  // This page was entirely read-only — no way to rename or remove a project
+  // anywhere in the app except the separate My Videos list.
+  const projectActions = useProjectActions({
+    labels: {
+      rename: "Rename",
+      delete: "Delete",
+      renameTitle: "Rename",
+      renameMessage: "Give this project a new name.",
+      renameConfirm: "Save",
+      deleteTitle: "Delete project?",
+      deleteMessage: (title) => `“${title}” and everything in it will be permanently deleted. This cannot be undone.`,
+      deleteConfirm: "Delete",
+      deleted: "Project deleted",
+      renamed: "Project renamed",
+      failed: "That didn't work. Please try again.",
+    },
+    onDeleted: (id) => setProjects((prev) => (prev ? prev.filter((p) => p.id !== id) : prev)),
+    onRenamed: (id, title) =>
+      setProjects((prev) => (prev ? prev.map((p) => (p.id === id ? { ...p, title } : p)) : prev)),
+  });
 
   useEffect(() => {
     const token = getStoredToken();
@@ -174,8 +208,12 @@ export default function ClipsLibraryPage() {
             <Card
               key={p.id}
               href={`/dashboard/create/auto-clip?project=${p.id}`}
-              className="group hover:border-violet-200"
+              className="group relative hover:border-violet-200"
             >
+              <CardMenuButton
+                label="Project actions"
+                onClick={(e) => projectActions.openMenu(e, { id: p.id, title: p.title })}
+              />
               {/* Cover */}
               <div className={`relative h-24 bg-gradient-to-br ${COVER_GRADIENTS[i % COVER_GRADIENTS.length]} flex items-end p-3 overflow-hidden`}>
                 <div className="absolute -top-6 -right-6 w-20 h-20 rounded-full bg-white/15 blur-xl pointer-events-none" />
@@ -203,6 +241,7 @@ export default function ClipsLibraryPage() {
           ))}
         </div>
       )}
+      {projectActions.overlays}
     </div>
   );
 }

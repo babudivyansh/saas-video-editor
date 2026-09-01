@@ -24,6 +24,10 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, waitFor } from "@testing-library/react";
 
 const loadProject = vi.hoisted(() => vi.fn());
+const resetProject = vi.hoisted(() => vi.fn());
+// Mirrors the real store singleton, which the page now reads via getState() to
+// decide whether a hydrate would clobber a document it already holds.
+const storeState = vi.hoisted(() => ({ projectId: null as string | null }));
 const auth = vi.hoisted(() => ({
   value: { user: undefined as unknown, token: null as string | null, openAuthModal: vi.fn() },
 }));
@@ -34,9 +38,11 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
   useSearchParams: () => search.value,
 }));
-vi.mock("./store/editorStore", () => ({
-  useEditorStore: (selector: (s: unknown) => unknown) => selector({ loadProject }),
-}));
+vi.mock("./store/editorStore", () => {
+  const useEditorStore = (selector: (s: unknown) => unknown) => selector({ loadProject, resetProject });
+  useEditorStore.getState = () => storeState;
+  return { useEditorStore };
+});
 vi.mock("./EditorShell", () => ({ default: () => <div data-testid="editor-shell" /> }));
 
 const { default: EditorPage } = await import("./page");
@@ -46,6 +52,8 @@ const makeUser = (credits: number) => ({ id: "user-1", email: "u@example.com", c
 
 beforeEach(() => {
   loadProject.mockClear();
+  resetProject.mockClear();
+  storeState.projectId = null;
   search.value = new URLSearchParams("projectId=proj-1");
   auth.value = { user: makeUser(10), token: "tok-1", openAuthModal: vi.fn() };
   global.fetch = vi.fn(async () => ({
@@ -124,5 +132,35 @@ describe("editor project hydration vs account refresh (P0-1)", () => {
     auth.value = { user: makeUser(10), token: "tok-1", openAuthModal: vi.fn() };
     rerender(<EditorPage />);
     await waitFor(() => expect(loadProject).toHaveBeenCalledTimes(1));
+  });
+});
+
+// Deferred project creation: opening the editor must not write a project row.
+// It used to POST one on page load, so every visit left an empty "Untitled
+// project" draft in the user's dashboard.
+describe("opening the editor without a project", () => {
+  it("creates nothing and starts a blank unsaved document", async () => {
+    search.value = new URLSearchParams();
+
+    render(<EditorPage />);
+
+    await waitFor(() => expect(resetProject).toHaveBeenCalledTimes(1));
+    expect(loadProject).not.toHaveBeenCalled();
+    // No project fetch or create of any kind.
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("does not re-hydrate a project the store already holds", async () => {
+    // This is the guard that protects the deferred-creation path: after the
+    // first edit writes the row and stamps ?projectId= into the URL, a
+    // re-hydrate here would call loadProject and destroy the very edit that
+    // created the project.
+    storeState.projectId = "proj-1";
+
+    render(<EditorPage />);
+
+    await waitFor(() => expect(document.querySelector("[data-testid='editor-shell']")).toBeTruthy());
+    expect(loadProject).not.toHaveBeenCalled();
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });

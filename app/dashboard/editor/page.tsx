@@ -1,7 +1,13 @@
 "use client";
 
 // Browser video editor entry. Full-screen (no ToolsSidebar). Loads the project
-// named by ?projectId=, or creates a fresh "editor" project on first visit.
+// named by ?projectId=, or opens an unsaved blank document.
+//
+// Opening without a ?projectId deliberately creates NOTHING. This used to POST
+// a draft project titled "Untitled project" on page load, so merely visiting
+// the editor — including via the dashboard's "Open Editor" button — left an
+// empty row that then filled the user's "Continue where you left off" rail.
+// useAutosave writes the project on the first actual edit instead.
 
 import React, { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -15,6 +21,7 @@ function EditorPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const loadProject = useEditorStore((s) => s.loadProject);
+  const resetProject = useEditorStore((s) => s.resetProject);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
 
@@ -53,21 +60,25 @@ function EditorPageContent() {
     (async () => {
       try {
         if (projectId) {
+          // Already holding this project in memory — this is our own
+          // deferred-creation replace() landing (useAutosave writes the row on
+          // the first edit and then rewrites the URL). Re-fetching here would
+          // call loadProject and destroy the very edit that created it.
+          if (useEditorStore.getState().projectId === projectId) {
+            setState("ready");
+            return;
+          }
           const res = await fetch(`/api/projects/${projectId}`, { headers });
           if (!res.ok) throw new Error("Project not found");
           const { project } = await res.json();
           loadProject(project.id, (project.editorDoc as TimelineDoc) ?? null, project.editorVersion);
           setState("ready");
         } else {
-          const res = await fetch("/api/projects", {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ title: "Untitled project", productType: "editor" }),
-          });
-          if (!res.ok) throw new Error("Could not create project");
-          const { project } = await res.json();
-          router.replace(`/dashboard/editor?projectId=${project.id}`);
-          loadProject(project.id, null);
+          // No project yet, and deliberately none created: opening the editor
+          // used to POST an "Untitled project" draft before the user touched
+          // anything, so every visit left an empty row in their dashboard.
+          // useAutosave creates it on the first actual edit instead.
+          resetProject();
           setState("ready");
         }
       } catch (e) {

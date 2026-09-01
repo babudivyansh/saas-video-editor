@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { MAX_DOC_BYTES } from "@/lib/editor/types";
+import { invalidateDashboardSummary } from "@/lib/dashboard-summary-cache";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await getAuthUser(req);
@@ -74,10 +75,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       );
     }
     const project = await prisma.project.findUnique({ where: { id } });
+    // Editing bumps updatedAt, which is what the resume rail orders by.
+    await invalidateDashboardSummary(auth.userId);
     return NextResponse.json({ project });
   }
 
   const project = await prisma.project.update({ where: { id }, data });
+  await invalidateDashboardSummary(auth.userId);
   return NextResponse.json({ project });
 }
 
@@ -90,5 +94,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   await prisma.project.delete({ where: { id } });
+  // Without this the 60s-cached summary serves the deleted card straight back
+  // on the next load, which reads as the delete having silently failed.
+  await invalidateDashboardSummary(auth.userId);
   return NextResponse.json({ success: true });
 }

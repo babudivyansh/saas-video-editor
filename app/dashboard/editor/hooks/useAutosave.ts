@@ -24,19 +24,55 @@ export function useAutosave() {
   const saveState = useEditorStore((s) => s.saveState);
   const markSaved = useEditorStore((s) => s.markSaved);
   const setEditorVersion = useEditorStore((s) => s.setEditorVersion);
+  const setProjectId = useEditorStore((s) => s.setProjectId);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Guards the deferred create below: two autosave ticks must never each POST
+  // a project. Creating one project per edit burst is precisely the bug this
+  // whole path exists to remove.
+  const creating = useRef(false);
 
   useEffect(() => {
     // "conflict" deliberately does not re-trigger here — see file header.
-    if (!projectId || saveState !== "dirty") return;
+    if (saveState !== "dirty") return;
     if (timer.current) clearTimeout(timer.current);
 
     timer.current = setTimeout(async () => {
       markSaved("saving");
       try {
         const token = localStorage.getItem("token");
+
+        // Deferred creation: the editor opens with no project at all, and the
+        // row is written here, on the first real edit. Opening the editor used
+        // to POST a "Untitled project" draft immediately, so every visit left
+        // an empty project behind in the user's dashboard.
+        let id = useEditorStore.getState().projectId;
+        if (!id) {
+          if (creating.current) return; // a create is already in flight
+          creating.current = true;
+          try {
+            const createRes = await fetch("/api/projects", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ title: "Untitled project", productType: "editor" }),
+            });
+            if (!createRes.ok) throw new Error("create failed");
+            const { project } = await createRes.json();
+            id = project.id as string;
+            setProjectId(id);
+            // Keeps a reload pointing at this project instead of starting a
+            // second one. Uses the history API rather than router.replace so
+            // this hook needs no router context (and so no App Router
+            // navigation is triggered mid-save). Should the change still reach
+            // useSearchParams, the page's hydration effect short-circuits when
+            // the store already holds this id, so the doc is never clobbered.
+            window.history.replaceState(null, "", `/dashboard/editor?projectId=${id}`);
+          } finally {
+            creating.current = false;
+          }
+        }
+
         const expectedVersion = useEditorStore.getState().editorVersion;
-        const res = await fetch(`/api/projects/${projectId}`, {
+        const res = await fetch(`/api/projects/${id}`, {
           method: "PATCH",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
           body: JSON.stringify({ editorDoc: useEditorStore.getState().doc, expectedVersion }),
@@ -62,7 +98,7 @@ export function useAutosave() {
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [doc, projectId, saveState, markSaved, setEditorVersion]);
+  }, [doc, projectId, saveState, markSaved, setEditorVersion, setProjectId]);
 }
 
 /**
