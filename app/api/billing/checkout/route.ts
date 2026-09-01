@@ -7,7 +7,6 @@ import { getPlanPriceMinor, type Currency } from "@/lib/currency";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { withRateLimit } from "@/lib/with-rate-limit";
-import { cancelExistingSubscriptionForSwitch } from "@/lib/billing/subscription-switch";
 
 const razorpay = new Razorpay({
   key_id: env.RAZORPAY_KEY_ID,
@@ -105,24 +104,19 @@ async function handlePOST(req: NextRequest) {
   if (basePlan.kind === "subscription" && razorpayPlanId) {
     const user = await prisma.user.findUnique({
       where: { id: auth.userId },
-      select: { trialUsedAt: true, razorpaySubscriptionId: true },
+      select: { trialUsedAt: true },
     });
     // Trial: Pro-tier only, once per account, requested explicitly by the client.
     const wantsTrial = body.trial === true && basePlan.tier === "pro" && !user?.trialUsedAt;
 
-    // A user already on a subscription who buys another one (upgrade,
-    // downgrade, or an early renewal) must have the old subscription
-    // cancelled at Razorpay before the new one is created — otherwise it
-    // keeps auto-charging, orphaned, after the activation webhook overwrites
-    // this user's subscription link. This is an immediate cutover: the new
-    // plan starts today and unused time on the old one isn't credited.
-    const switchResult = await cancelExistingSubscriptionForSwitch(
-      auth.userId,
-      user?.razorpaySubscriptionId ?? null,
-    );
-    if (!switchResult.ok) {
-      return NextResponse.json({ error: switchResult.error }, { status: switchResult.status });
-    }
+    // NOTE: the old subscription is NOT cancelled here. Cancelling before the
+    // customer has paid meant that abandoning the Razorpay modal killed the
+    // subscription they already had — auto-renewal silently gone, with
+    // subscriptionCancelledAt unset so the billing UI still said "Renews on".
+    // The cutover now happens in the subscription.activated webhook, which
+    // only fires once the NEW subscription is actually live and still runs
+    // before that handler overwrites razorpaySubscriptionId (the orphaned
+    // auto-charging mandate this guards against).
 
     let subscription;
     try {

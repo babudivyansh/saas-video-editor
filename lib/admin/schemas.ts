@@ -86,6 +86,15 @@ export const planPatchSchema = z
   .strict()
   .refine((v) => Object.keys(v).length > 0, { message: "Nothing to update" });
 
+// POST /api/admin/plans/[id]/sync-razorpay — provisions (or re-mints, with
+// force) the immutable Razorpay Plan a subscription row bills against.
+export const planSyncSchema = z
+  .object({
+    currencies: z.array(z.enum(["INR", "USD"])).min(1).max(2).optional(),
+    force: z.boolean().optional(),
+  })
+  .strict();
+
 // ── Coupons ───────────────────────────────────────────────────────────────────
 const couponFields = {
   code: z.string().trim().toUpperCase().pipe(z.string().regex(/^[A-Z0-9_-]{3,32}$/, "3–32 chars (A–Z, 0–9, - or _)")),
