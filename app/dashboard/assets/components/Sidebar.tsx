@@ -16,6 +16,10 @@ interface SidebarProps {
   onFolderDelete: (id: string) => void;
   onFolderDrop: (folderId: string, assetId: string) => void;
   tags: Tag[];
+  /** Rename a tag everywhere it is used. Optional so the sidebar stays usable
+   *  in contexts that only browse. */
+  onTagRename?: (tag: Tag) => void;
+  onTagDelete?: (tag: Tag) => void;
   activeTag?: string;
   onTagSelect: (name?: string) => void;
 }
@@ -49,7 +53,7 @@ function NavRow({ active, icon, label, count, onClick, onDrop }: {
 
 export function Sidebar({
   view, onViewChange, folders, activeFolderId, onFolderSelect, onFolderCreate, onFolderRename, onFolderDelete, onFolderDrop,
-  tags, activeTag, onTagSelect,
+  tags, activeTag, onTagSelect, onTagRename, onTagDelete,
 }: SidebarProps) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -132,15 +136,29 @@ export function Sidebar({
           <span className="text-[10px] font-bold text-ink-soft uppercase tracking-widest px-1 mb-1.5 block">Tags</span>
           <div className="flex flex-wrap gap-1.5 px-1">
             {tags.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => onTagSelect(activeTag === t.name ? undefined : t.name)}
-                className={`text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors cursor-pointer ${
-                  activeTag === t.name ? "grad-brand text-white" : "bg-white border border-card-border text-ink-soft hover:bg-tint-violet"
-                }`}
-              >
-                {t.name}
-              </button>
+              <span key={t.id} className="group/tag relative inline-flex">
+                <button
+                  onClick={() => onTagSelect(activeTag === t.name ? undefined : t.name)}
+                  onDoubleClick={() => onTagRename?.(t)}
+                  title={`${t.assetCount} file${t.assetCount === 1 ? "" : "s"} — double-click to rename`}
+                  className={`text-[11px] font-semibold pl-2.5 pr-5 py-1 rounded-full transition-colors cursor-pointer ${
+                    activeTag === t.name ? "grad-brand text-white" : "bg-white border border-card-border text-ink-soft hover:bg-tint-violet"
+                  }`}
+                >
+                  {t.name}
+                </button>
+                {onTagDelete && (
+                  <button
+                    onClick={() => onTagDelete(t)}
+                    aria-label={`Delete tag ${t.name}`}
+                    className={`absolute right-1 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full text-[9px] leading-none opacity-0 group-hover/tag:opacity-100 transition-opacity cursor-pointer ${
+                      activeTag === t.name ? "text-white/70 hover:text-white" : "text-ink-soft/50 hover:text-rose-600"
+                    }`}
+                  >
+                    ✕
+                  </button>
+                )}
+              </span>
             ))}
           </div>
         </div>

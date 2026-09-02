@@ -69,7 +69,7 @@ export interface AssetStats {
 }
 
 export type KindFilter = "all" | AssetKind;
-export type SortOption = "date" | "oldest" | "name" | "size";
+export type SortOption = "date" | "oldest" | "name" | "size" | "duration";
 
 export interface AssetListFilters {
   kind: KindFilter;
