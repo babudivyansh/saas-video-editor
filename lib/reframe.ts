@@ -79,11 +79,12 @@ export interface CropKeyframe { tSec: number; x: number; y: number; w: number; h
 const MAX_POLL_MS = 5 * 60 * 1000; // Rekognition on a long video can take minutes
 const POLL_INTERVAL_MS = 3000;
 
-export function parseS3Url(url: string): { bucket: string; key: string } | null {
-  const m = /^https:\/\/([^.]+)\.s3\.[^/]+\.amazonaws\.com\/(.+)$/.exec(url);
-  if (!m) return null;
-  return { bucket: m[1], key: decodeURIComponent(m[2]) };
-}
+// Moved to lib/s3-url.ts (a leaf module) so callers that only need to turn a
+// URL back into a key don't inherit this module's AWS/env dependencies.
+// Imported for this module's own use and re-exported so existing importers
+// keep working.
+import { parseS3Url } from "@/lib/s3-url";
+export { parseS3Url };
 
 // Runs AWS Rekognition Video face detection for the whole source video and
 // returns every detected face sample. Requires the IAM credentials already

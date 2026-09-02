@@ -65,6 +65,8 @@ import { getFaceTimeline } from "@/lib/asd";
 import { freshSourceUrl } from "@/lib/source-url";
 import { loadFaceTimeline, saveFaceTimeline } from "@/lib/face-timeline-store";
 import { calibrateScore, getViralityWeights, type SubScores } from "@/lib/virality-score";
+import { parseS3Url } from "@/lib/s3-url";
+import { adoptExistingS3Object } from "@/lib/asset-service";
 import { computeBrollWindow, pickBroll, planBrollWindows, type BrollCue } from "@/lib/broll";
 import { TARGET_RES } from "@/lib/reframe";
 import os from "os";
@@ -1339,6 +1341,56 @@ function watermarkFilterChain(): string {
   );
 }
 
+/**
+ * Record both directions of a finished clip's provenance:
+ *  - the rendered mp4 becomes an Asset in the user's library, tagged with the
+ *    clip and project it came from (Asset.sourceClipId / sourceProjectId);
+ *  - the clip points at the project's source media (Clip.sourceAssetId), so
+ *    "which upload produced this?" is one hop rather than a URL string match.
+ *
+ * Adoption goes through adoptExistingS3Object, which dedups on (userId,
+ * s3Key) — a re-render overwrites the same key, so this stays idempotent and
+ * never bills the user twice for one object.
+ */
+async function linkClipProvenance(
+  projectId: string,
+  clip: Clip,
+  videoUrl: string,
+  durationSec: number,
+): Promise<void> {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { userId: true, sourceAssetId: true },
+  });
+  if (!project) return;
+
+  const loc = parseS3Url(videoUrl);
+  if (loc) {
+    const { asset } = await adoptExistingS3Object({
+      userId: project.userId,
+      s3Key: loc.key,
+      mimeType: "video/mp4",
+      name: clip.title || `AutoClip ${clip.index + 1}`,
+      duration: durationSec,
+      sourceFeature: "autoclip",
+      sourceProjectId: projectId,
+      sourceClipId: clip.id,
+      // Derived from source bytes this user already passed through moderation;
+      // re-running Rekognition on every rendered clip would burn worker slots
+      // for no additional signal.
+      skipModeration: true,
+    });
+    void asset;
+  }
+
+  if (project.sourceAssetId && !clip.sourceAssetId) {
+    await prisma.clip.update({
+      where: { id: clip.id },
+      data: { sourceAssetId: project.sourceAssetId },
+    });
+  }
+}
+
 async function renderOneClip(
   projectId: string,
   clip: Clip,
@@ -1674,10 +1726,35 @@ async function renderOneClip(
         } as unknown as Prisma.InputJsonValue,
       },
     });
+
+    // Provenance. Until now nothing the pipeline produced ever entered the
+    // asset library — every adopt call site in the codebase was an *input* —
+    // so "autoclip" was a declared sourceFeature that no code ever wrote, and
+    // a finished clip had no traversable link back to the video it came from.
+    // Both directions are recorded here.
+    //
+    // Deliberately best-effort and after the status flip: the user's clip is
+    // already rendered and playable, and a library-adoption failure must never
+    // turn a successful render into a failed one.
+    await linkClipProvenance(projectId, clip, videoUrl, finalDurationSec).catch((e) => {
+      logger.warn("auto-clip", "clip provenance linking failed", {
+        clipId: clip.id,
+        reason: (e as Error).message,
+      });
+    });
+
     return { ok: true };
   } catch (err) {
     logger.error("auto-clip", `clip ${clip.index} failed for ${projectId}`, err);
-    await prisma.clip.update({ where: { id: clip.id }, data: { status: "failed" } }).catch(() => {});
+    // Record WHY, not just that it failed. Without this the UI can only say
+    // "Failed to render" — Project has carried a user-facing failureReason for
+    // a while; Clip now does too.
+    await prisma.clip
+      .update({
+        where: { id: clip.id },
+        data: { status: "failed", failureReason: userFacingFailure(err) },
+      })
+      .catch(() => {});
     return { ok: false };
   } finally {
     // One directory to remove, rather than a list of files to keep in sync
