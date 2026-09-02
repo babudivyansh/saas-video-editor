@@ -289,14 +289,18 @@ interface GeminiSegment {
   mood: MoodTag;
   brollQuery: string | null;
   brollOffsetSec: number | null;
-  reasoning: string;
-  hookExplanation: string;
-  retentionPrediction: string;
-  audience: string;
-  platform: string;
-  suggestedPostingTime: string;
-  hashtags: string[];
-  suggestedCaption: string;
+  // Nullable on purpose: null means the model did not produce this field, and
+  // that has to survive all the way to the UI. These used to be filled with
+  // stand-in sentences and persisted, which made an unanalyzed clip look
+  // exactly like an analyzed one.
+  reasoning: string | null;
+  hookExplanation: string | null;
+  retentionPrediction: string | null;
+  audience: string | null;
+  platform: string | null;
+  suggestedPostingTime: string | null;
+  hashtags: string[] | null;
+  suggestedCaption: string | null;
   /**
    * Words the speaker leans on, as indexes into the clip's own word list.
    * Loudness alone can't find these — a calmly delivered key term carries the
@@ -470,6 +474,9 @@ ${sharedRules}`;
     brollCues?: { word?: string; query?: string }[];
   }>;
   const clampSub = (n: unknown) => Math.max(0, Math.min(99, Math.round(typeof n === "number" ? n : 50)));
+  /** A trimmed non-empty string, or null. Never a stand-in sentence. */
+  const textOrNull = (v: unknown): string | null =>
+    typeof v === "string" && v.trim() ? v.trim() : null;
 
   const mapped = raw
     .filter((c) => typeof c.start === "number" && typeof c.end === "number" && c.end > c.start)
@@ -486,14 +493,20 @@ ${sharedRules}`;
       hook: clampSub(c.hook), pacing: clampSub(c.pacing), payoff: clampSub(c.payoff), engagement: clampSub(c.engagement),
       mood: (MOODS as readonly string[]).includes(c.mood ?? "") ? (c.mood as MoodTag) : "neutral",
       brollQuery, brollOffsetSec,
-      reasoning: (typeof c.reasoning === "string" && c.reasoning.trim()) ? c.reasoning.trim() : "Highly engaging highlight from the source video.",
-      hookExplanation: (typeof c.hookExplanation === "string" && c.hookExplanation.trim()) ? c.hookExplanation.trim() : "Strong dynamic start.",
-      retentionPrediction: (typeof c.retentionPrediction === "string" && c.retentionPrediction.trim()) ? c.retentionPrediction.trim() : "High potential retention.",
-      audience: (typeof c.audience === "string" && c.audience.trim()) ? c.audience.trim() : "General social media audience.",
-      platform: (typeof c.platform === "string" && c.platform.trim()) ? c.platform.trim() : "YouTube Shorts, Instagram Reels",
-      suggestedPostingTime: (typeof c.suggestedPostingTime === "string" && c.suggestedPostingTime.trim()) ? c.suggestedPostingTime.trim() : "5:00 PM local time",
-      hashtags: Array.isArray(c.hashtags) ? c.hashtags.map(String) : ["#highlight", "#viral"],
-      suggestedCaption: (typeof c.suggestedCaption === "string" && c.suggestedCaption.trim()) ? c.suggestedCaption.trim() : "Check out this amazing moment!",
+      // Absent analysis stays absent. These fields used to fall back to
+      // invented sentences — "Strong dynamic start.", "5:00 PM local time",
+      // #highlight #viral — which were then PERSISTED into scoreBreakdown.
+      // Once stored, a clip the model never described was indistinguishable
+      // from one it did, for every consumer from then on. The UI can say "not
+      // available" honestly; it cannot un-say a confident fabrication.
+      reasoning: textOrNull(c.reasoning),
+      hookExplanation: textOrNull(c.hookExplanation),
+      retentionPrediction: textOrNull(c.retentionPrediction),
+      audience: textOrNull(c.audience),
+      platform: textOrNull(c.platform),
+      suggestedPostingTime: textOrNull(c.suggestedPostingTime),
+      hashtags: Array.isArray(c.hashtags) ? c.hashtags.map(String) : null,
+      suggestedCaption: textOrNull(c.suggestedCaption),
       // Resolved to word indexes later, once the clip's word slice is known —
       // the model returns words, not positions, because asking an LLM for
       // array indexes into a transcript it only saw as text is unreliable.

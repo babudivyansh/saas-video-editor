@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
+import { withRateLimit } from "@/lib/with-rate-limit";
 import { prisma } from "@/lib/prisma";
 
 // Poll target for the Auto Clip results grid: the project status + every clip
@@ -10,7 +11,7 @@ import { prisma } from "@/lib/prisma";
 // endpoint every 2.5s until the project finishes — putting a full word-level
 // transcript for every clip in that response would multiply the poll by
 // hundreds of KB for data only one open drawer can use.
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
@@ -61,3 +62,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     ...(detail ? { detail } : {}),
   });
 }
+
+// The results page polls this every 2.5s while a project is rendering, so the
+// limit sits well above that cadence — high enough that normal polling never
+// trips it, low enough that it is no longer an unbounded read. It was the only
+// clip route with no limit at all, which made it both an abuse and a cost
+// vector on the busiest endpoint in the feature.
+export const GET = withRateLimit(handleGET, {
+  limit: 240,
+  windowSec: 60,
+  keyBy: "user",
+  name: "auto-clip:poll",
+});
