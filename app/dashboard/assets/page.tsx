@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/AuthContext";
 import { Button } from "@/app/components/ui/Button";
 import { ToastProvider, useToast } from "@/app/components/ui/Toast";
@@ -47,6 +48,7 @@ function IcUpload() {
 }
 
 function AssetsPageInner() {
+  const router = useRouter();
   const { user, openAuthModal, token } = useAuth();
   const { showToast } = useToast();
 
@@ -362,6 +364,7 @@ function AssetsPageInner() {
       <ContextMenu open={contextMenu.open} x={contextMenu.x} y={contextMenu.y} onClose={contextMenu.close}>
         {contextMenu.data && (
           <>
+            <ContextMenuItem onClick={() => { router.push(`/dashboard/assets/${contextMenu.data!.id}`); contextMenu.close(); }}>Open detail</ContextMenuItem>
             <ContextMenuItem onClick={() => { copyUrl(contextMenu.data!.url); contextMenu.close(); }}>Copy URL</ContextMenuItem>
             <ContextMenuItem onClick={() => { setRenamingId(contextMenu.data!.id); setRenameVal(contextMenu.data!.name); contextMenu.close(); }}>Rename</ContextMenuItem>
             <ContextMenuItem onClick={() => { mutations.toggleFavorite.mutate({ id: contextMenu.data!.id, isFavorite: !contextMenu.data!.isFavorite }); contextMenu.close(); }}>

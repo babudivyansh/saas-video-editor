@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { deleteS3Object } from "@/utils/s3-upload";
 import { serializeOneAsset } from "@/lib/asset-serialize";
+import { getAssetRelated } from "@/lib/related-content";
 import { auditAssetAction } from "@/lib/asset-audit";
 import { trackOnboardingEvent } from "@/lib/onboarding-analytics";
 
@@ -11,6 +12,28 @@ async function getOwnedAsset(id: string, userId: string) {
   const asset = await prisma.asset.findUnique({ where: { id } });
   if (!asset || asset.userId !== userId) return null;
   return asset;
+}
+
+async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await getAuthUser(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+  const asset = await prisma.asset.findFirst({
+    where: { id, userId: auth.userId },
+    include: {
+      folder: { select: { id: true, name: true, color: true } },
+      tags: { include: { tag: { select: { id: true, name: true } } } },
+    },
+  });
+  if (!asset) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const [serialized, related] = await Promise.all([
+    serializeOneAsset(asset),
+    getAssetRelated(asset.id, auth.userId),
+  ]);
+
+  return NextResponse.json({ asset: serialized, related });
 }
 
 interface PatchBody {
@@ -101,5 +124,6 @@ async function handleDELETE(req: NextRequest, { params }: { params: Promise<{ id
   return NextResponse.json({ status: "deleted" });
 }
 
+export const GET = withRateLimit(handleGET, { limit: 120, windowSec: 60, keyBy: "user", name: "assets:get" });
 export const PATCH = withRateLimit(handlePATCH, { limit: 60, windowSec: 60, keyBy: "user", name: "assets:patch" });
 export const DELETE = withRateLimit(handleDELETE, { limit: 60, windowSec: 60, keyBy: "user", name: "assets:delete" });
