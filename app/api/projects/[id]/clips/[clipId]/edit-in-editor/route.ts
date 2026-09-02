@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { parseS3Url } from "@/lib/reframe";
-import { getS3ObjectSize } from "@/utils/s3-upload";
+import { parseS3Url } from "@/lib/s3-url";
+import { adoptExistingS3Object } from "@/lib/asset-service";
+import { serializeOneAsset } from "@/lib/asset-serialize";
 import type { TimelineDoc, VideoClip, TextClip, Aspect } from "@/lib/editor/types";
 import type { WordTiming } from "@/utils/elevenlabs";
 
@@ -62,18 +63,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const loc = parseS3Url(clip.videoUrl);
   if (!loc) return NextResponse.json({ error: "Could not resolve clip's storage location" }, { status: 500 });
 
-  const size = await getS3ObjectSize(loc.key).catch(() => 0);
-  const asset = await prisma.asset.create({
-    data: {
-      userId: auth.userId,
-      name: clip.title || `AutoClip ${clip.index + 1}`,
-      s3Key: loc.key,
-      url: clip.videoUrl,
-      mimeType: "video/mp4",
-      kind: "video",
-      size,
-      duration: clip.durationSec,
-    },
+  // Adopt through the shared service rather than creating the row by hand.
+  // The hand-rolled create bypassed dedup, so hitting "Advanced editor" twice
+  // on the same clip produced a second Asset row for the same S3 object —
+  // double-counted against the user's storage quota, and shown twice in their
+  // library. adoptExistingS3Object dedups on (userId, s3Key) and records the
+  // provenance the raw create never set.
+  const { asset } = await adoptExistingS3Object({
+    userId: auth.userId,
+    s3Key: loc.key,
+    mimeType: "video/mp4",
+    name: clip.title || `AutoClip ${clip.index + 1}`,
+    duration: clip.durationSec,
+    sourceFeature: "autoclip",
+    sourceProjectId: projectId,
+    sourceClipId: clip.id,
+    // Already moderated on the way in as the project's source; the render is
+    // derived from bytes this user already passed through moderation.
+    skipModeration: true,
   });
 
   const aspect: Aspect = (["9:16", "1:1", "16:9"] as const).includes(clip.aspectRatio as Aspect)
@@ -106,6 +113,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       productType: "editor",
       editorDoc: editorDoc as unknown as object,
       status: "draft",
+      sourceAssetId: asset.id,
     },
   });
 
@@ -116,5 +124,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // until the client explicitly registers it, otherwise PreviewStage's
   // <video src={...}> resolves to "" on first mount (React console error,
   // and no visible video) until a manual reload.
-  return NextResponse.json({ editorProjectId: editorProject.id, asset });
+  return NextResponse.json({ editorProjectId: editorProject.id, asset: await serializeOneAsset(asset) });
 }

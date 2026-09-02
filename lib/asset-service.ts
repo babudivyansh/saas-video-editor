@@ -177,6 +177,8 @@ interface AdoptCommonOpts {
   mimeType: string;
   sourceFeature: SourceFeature;
   sourceProjectId?: string | null;
+  /** Set when this asset IS the rendered output of a clip. */
+  sourceClipId?: string | null;
   sourceJobId?: string | null;
   duration?: number | null;
   width?: number | null;
@@ -193,7 +195,7 @@ interface AdoptCommonOpts {
 export async function adoptUploadedBytes(
   opts: AdoptCommonOpts & { bytes: Buffer },
 ): Promise<AdoptResult> {
-  const { userId, bytes, mimeType, name, sourceFeature, sourceProjectId, sourceJobId, duration, width, height } = opts;
+  const { userId, bytes, mimeType, name, sourceFeature, sourceProjectId, sourceClipId, sourceJobId, duration, width, height } = opts;
   assertAllowedMime(mimeType);
   const tier = await assertFileSizeAllowed(userId, bytes.length);
 
@@ -247,6 +249,7 @@ export async function adoptUploadedBytes(
         height: height ?? undefined,
         sourceFeature,
         sourceProjectId: sourceProjectId ?? undefined,
+        sourceClipId: sourceClipId ?? undefined,
         sourceJobId: sourceJobId ?? undefined,
       },
     });
@@ -279,7 +282,7 @@ export async function adoptUploadedBytes(
 export async function adoptExistingS3Object(
   opts: AdoptCommonOpts & { s3Key: string; size?: number; skipModeration?: boolean },
 ): Promise<AdoptResult> {
-  const { userId, s3Key, mimeType, name, sourceFeature, sourceProjectId, sourceJobId, duration, width, height, skipModeration } = opts;
+  const { userId, s3Key, mimeType, name, sourceFeature, sourceProjectId, sourceClipId, sourceJobId, duration, width, height, skipModeration } = opts;
   assertAllowedMime(mimeType);
 
   // One physical object should back at most one Asset per user — if this key
@@ -313,6 +316,7 @@ export async function adoptExistingS3Object(
         height: height ?? undefined,
         sourceFeature,
         sourceProjectId: sourceProjectId ?? undefined,
+        sourceClipId: sourceClipId ?? undefined,
         sourceJobId: sourceJobId ?? undefined,
         ...(skipModeration ? { moderationStatus: "skipped" } : {}),
       },

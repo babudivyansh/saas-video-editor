@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { MAX_DOC_BYTES } from "@/lib/editor/types";
 import { invalidateDashboardSummary } from "@/lib/dashboard-summary-cache";
+import { parseS3Url } from "@/lib/s3-url";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await getAuthUser(req);
@@ -48,6 +49,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // from the previous file.
   if ("uploadedVideoUrl" in data && data.uploadedVideoUrl !== existing.uploadedVideoUrl) {
     data.faceTimeline = null;
+
+    // Bind the project to the Asset row backing this URL. The client uploads
+    // through /api/upload (which adopts the bytes into the library) and then
+    // PATCHes the resulting URL onto the project, so by the time we get here
+    // the Asset almost always exists — we just never recorded which one it
+    // was, leaving "what did this upload produce?" unanswerable. Resolving by
+    // s3Key, scoped to the caller, means a user can't bind someone else's
+    // asset by guessing a URL.
+    data.sourceAssetId = null;
+    if (typeof data.uploadedVideoUrl === "string" && data.uploadedVideoUrl) {
+      const loc = parseS3Url(data.uploadedVideoUrl);
+      if (loc) {
+        const sourceAsset = await prisma.asset.findFirst({
+          where: { userId: auth.userId, s3Key: loc.key },
+          select: { id: true },
+        });
+        if (sourceAsset) data.sourceAssetId = sourceAsset.id;
+      }
+    }
   }
 
   // Optimistic concurrency, scoped to editor-doc saves only (autosave is the
