@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
-import { deleteS3Object, getAssetReadUrl } from "@/utils/s3-upload";
+import { deleteS3Object } from "@/utils/s3-upload";
+import { serializeOneAsset } from "@/lib/asset-serialize";
 import { auditAssetAction } from "@/lib/asset-audit";
 import { trackOnboardingEvent } from "@/lib/onboarding-analytics";
 
@@ -71,8 +72,7 @@ async function handlePATCH(req: NextRequest, { params }: { params: Promise<{ id:
     trackOnboardingEvent(auth.userId, "asset_renamed", { assetId: id });
   }
 
-  const readUrl = await getAssetReadUrl(updated.s3Key);
-  return NextResponse.json({ asset: { ...updated, url: readUrl } });
+  return NextResponse.json({ asset: await serializeOneAsset(updated) });
 }
 
 // First DELETE archives (soft-delete); calling DELETE again on an

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { completeMultipartUpload, getS3ObjectSize, deleteS3Object } from "@/utils/s3-upload";
 import { getOwnedPendingUpload } from "@/lib/pending-upload";
+import { serializeOneAsset } from "@/lib/asset-serialize";
 import {
   adoptExistingS3Object,
   assertFileSizeAllowed,
@@ -99,7 +100,7 @@ async function handlePOST(req: NextRequest) {
     // asset-cleanup cron can find and delete the now-orphaned finalized S3
     // object (matches the single-shot /api/upload orphan-safety contract).
     await prisma.pendingUpload.delete({ where: { id: pending.id } }).catch(() => {});
-    return NextResponse.json({ asset: result.asset });
+    return NextResponse.json({ asset: await serializeOneAsset(result.asset) });
   } catch (e) {
     if (e instanceof AssetLimitError) {
       // Already validated above against the real size, so reaching this

@@ -23,7 +23,9 @@ const bodySchema = z.object({
   keepOriginal: z.boolean().default(true),
 }).strict();
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await getAuthUser(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   return NextResponse.json({ languages: CAPTION_LANGUAGES });
 }
 

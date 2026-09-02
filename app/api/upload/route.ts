@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/auth";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { ALLOWED_UPLOAD_MIME } from "@/lib/plans/tiers";
 import { extensionForMime, sanitizeS3Key, uploadBufferToS3 } from "@/utils/s3-upload";
+import { serializeOneAsset } from "@/lib/asset-serialize";
 import {
   adoptUploadedBytes,
   adoptExistingS3Object,
@@ -110,10 +111,19 @@ async function handlePOST(req: NextRequest) {
       // JSON.stringify dropped it and the project was created with a null
       // source — i.e. re-using any video you'd uploaded before broke AutoClip
       // entirely.
-      return NextResponse.json({ duplicate: true, url: result.url, key: result.key, asset: result.asset });
+      return NextResponse.json({
+        duplicate: true,
+        url: result.url,
+        key: result.key,
+        asset: await serializeOneAsset(result.asset),
+      });
     }
 
-    return NextResponse.json({ url: result.url, key: result.key, asset: result.asset });
+    return NextResponse.json({
+      url: result.url,
+      key: result.key,
+      asset: await serializeOneAsset(result.asset),
+    });
   } catch (e) {
     if (e instanceof AssetLimitError) {
       return NextResponse.json(

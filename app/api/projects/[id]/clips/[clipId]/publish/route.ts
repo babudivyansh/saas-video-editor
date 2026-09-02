@@ -29,6 +29,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const project = await prisma.project.findFirst({ where: { id: projectId, userId: auth.userId } });
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // The clip must belong to *this* project. Without this check, owning any
+  // project at all is enough to read another tenant's publish links, post ids
+  // and metrics by passing their clipId. The POST below already scopes it.
+  const clip = await prisma.clip.findFirst({ where: { id: clipId, projectId }, select: { id: true } });
+  if (!clip) return NextResponse.json({ error: "Clip not found" }, { status: 404 });
+
   const [accounts, publishes] = await Promise.all([
     prisma.socialAccount.findMany({
       where: { userId: auth.userId, status: "active" },

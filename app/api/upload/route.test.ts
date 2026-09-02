@@ -23,6 +23,9 @@ const existingAsset = {
   kind: "video",
   size: 123,
   checksum: "deadbeef",
+  // Prisma always returns the generated timestamps; the fixture must too.
+  createdAt: new Date("2026-01-01T00:00:00.000Z"),
+  updatedAt: new Date("2026-01-01T00:00:00.000Z"),
 };
 vi.mock("@/lib/prisma", () => ({
   prisma: {
