@@ -21,6 +21,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const project = await prisma.project.findFirst({ where: { id: projectId, userId: auth.userId } });
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Scope the clip to this project before reading its dubs — otherwise any
+  // project owner could pass a foreign clipId and read that tenant's dub
+  // video URLs. The POST below already does this.
+  const clip = await prisma.clip.findFirst({ where: { id: clipId, projectId }, select: { id: true } });
+  if (!clip) return NextResponse.json({ error: "Clip not found" }, { status: 404 });
+
   const dubs = await prisma.clipDub.findMany({ where: { clipId }, orderBy: { createdAt: "desc" } });
   return NextResponse.json({ dubs, languages: DUB_LANGUAGES });
 }

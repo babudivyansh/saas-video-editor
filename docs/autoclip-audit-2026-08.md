@@ -384,7 +384,15 @@ Highest-leverage performance changes, in order: per-clip parallel jobs (near-lin
 
 **Scalability.** Queue architecture is sound (durable, retrying, priority-mapped to tier). The constraints are: worker slots blocked by Rekognition polling (§3.5); unbounded JSON columns for `faceTimeline` and `transcriptJson` (§3.7); `os.tmpdir()` disk pressure with no per-job isolation or quota — two concurrent 6-hour sources plus intermediates can fill a disk and take down every job on the box; and a single Gemini call whose token count grows linearly with source length (§3.6). None require re-architecture; all four are contained fixes.
 
-**Security.** The good: ownership is verified on **every** clip route (`findFirst({ id, userId })`) with no gaps found; upload has a MIME allowlist with an explicit stored-XSS rationale; credits use atomic bucket-aware spends with idempotent refIds; the reframe enums are properly sanitized at the trust boundary and — notably — invalid values are *dropped* rather than defaulted, so a bad client can't silently overwrite a user's setting.
+**Security.** *(Corrected 2026-09-02: the "no gaps found" claim below was wrong.
+Two clip routes verified only the **project**, then queried by `clipId` alone —
+`GET .../clips/[clipId]/publish` and `GET .../clips/[clipId]/dub` — so any user
+owning a single project could read another tenant's publish permalinks, post ids,
+metrics and dub video URLs. Fixed and pinned by regression tests in
+`publish/route.test.ts` and `dub/route.test.ts`. Ownership audits must check the
+**leaf** id, not just its parent.)*
+
+The good: ownership is verified on most clip routes (`findFirst({ id, userId })`); upload has a MIME allowlist with an explicit stored-XSS rationale; credits use atomic bucket-aware spends with idempotent refIds; the reframe enums are properly sanitized at the trust boundary and — notably — invalid values are *dropped* rather than defaulted, so a bad client can't silently overwrite a user's setting.
 
 The gaps: unvalidated `subtitleStyleOverride` and unbounded `transcript` payloads reaching the ASS writer (§3.12); no rate limit on `style`/`transcript`/`rerender` (§3.3), which is both an abuse and a cost vector; auth token in `localStorage` (`useVideoGenerate.ts:8`), so any XSS is a full account takeover — a repo-wide issue, not AutoClip's, but AutoClip is a high-traffic surface for it; and rendered clips go to S3 at predictable keys (`renders/{projectId}/clip-{index}.mp4`, `:937`) — `projectId` is a UUID so it's not enumerable, but these are permanent unsigned URLs for what may be unreleased content, while the Asset path elsewhere in the codebase has already moved to signed URLs. Align them.
 

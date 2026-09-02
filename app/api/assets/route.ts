@@ -3,19 +3,7 @@ import { getAuthUser, getUserTier } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { storageLimitBytesForTier, maxUploadBytesForTier } from "@/lib/plans/tiers";
-import { getAssetReadUrl } from "@/utils/s3-upload";
-
-async function resolveAssetUrls<T extends { s3Key: string; thumbnailS3Key: string | null }>(
-  assets: T[],
-): Promise<Array<T & { url: string; thumbnailUrl: string | null }>> {
-  return Promise.all(
-    assets.map(async (a) => ({
-      ...a,
-      url: await getAssetReadUrl(a.s3Key),
-      thumbnailUrl: a.thumbnailS3Key ? await getAssetReadUrl(a.thumbnailS3Key) : null,
-    })),
-  );
-}
+import { serializeAssets } from "@/lib/asset-serialize";
 
 async function handleGET(req: NextRequest) {
   const auth = await getAuthUser(req);
@@ -95,11 +83,7 @@ async function handleGET(req: NextRequest) {
   const items = hasMore ? assets.slice(0, limit) : assets;
   const nextCursor = hasMore ? items[items.length - 1].id : null;
 
-  const resolved = await resolveAssetUrls(items);
-  return NextResponse.json({
-    assets: resolved.map((a) => ({ ...a, tags: a.tags.map((t) => t.tag) })),
-    nextCursor,
-  });
+  return NextResponse.json({ assets: await serializeAssets(items), nextCursor });
 }
 
 export const GET = withRateLimit(handleGET, { limit: 120, windowSec: 60, keyBy: "user", name: "assets:list" });

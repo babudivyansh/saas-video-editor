@@ -20,7 +20,13 @@ vi.mock("@/lib/pending-upload", () => ({
 const assetStore = new Map<string, Record<string, unknown>>();
 const aggregateImpl = vi.fn(async () => ({ _sum: { size: 0 } }));
 const assetCreateImpl = vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
-  const row = { id: "a1", ...data };
+  // Real Prisma echoes back DB-generated defaults alongside the input.
+  const row = {
+    id: "a1",
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+    ...data,
+  };
   assetStore.set(row.id as string, row);
   return row;
 });
