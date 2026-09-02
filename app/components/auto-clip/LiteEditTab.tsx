@@ -79,9 +79,25 @@ export function LiteEditTab({
     setPreviewing(true);
     setError(null);
     try {
+      // The whole point of this button is "see it before you pay for it", but
+      // it used to POST an empty body — so the server rendered from the SAVED
+      // clip and the user previewed the state they already had, not the edits
+      // they were about to buy. Send the pending values.
+      const pending: LiteEdits = {
+        v: 1,
+        ...(speed !== 1 ? { speed } : {}),
+        ...(music ? { music } : {}),
+        ...(fadeIn > 0 || fadeOut > 0
+          ? { transition: { ...(fadeIn > 0 ? { fadeInSec: fadeIn } : {}), ...(fadeOut > 0 ? { fadeOutSec: fadeOut } : {}) } }
+          : {}),
+      };
       const res = await fetch(`/api/projects/${projectId}/clips/${clipId}/preview-frames`, {
         method: "POST",
-        headers: authHeaders(),
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          liteEdits: pending,
+          ...(trimmed ? { startSec: trimStart, endSec: trimEnd } : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Preview failed");

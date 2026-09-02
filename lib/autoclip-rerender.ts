@@ -90,11 +90,20 @@ export function sanitizeCaptionWord(word: string): string {
   return word.replace(/[{}\\]/g, "").replace(/[\r\n]+/g, " ").slice(0, 120);
 }
 
+// `.strict()` here silently destroyed data. The schema listed only
+// {word,start,end}, so saving a corrected transcript stripped the `speaker`
+// label off every word — permanently, since the edit overwrites the stored
+// transcript and diarization is only produced at transcription time. Fixing
+// one typo cost the whole speaker track, with nothing to warn the user.
+//
+// speaker is carried through rather than accepted-and-dropped. It stays
+// optional because Whisper/fal transcripts never set it.
 export const transcriptSchema = z.array(
   z.object({
     word: z.string(),
     start: z.number().min(0).max(24 * 3600 * 1000),
     end: z.number().min(0).max(24 * 3600 * 1000),
+    speaker: z.string().max(64).optional(),
   }).strict(),
 ).max(20_000);
 

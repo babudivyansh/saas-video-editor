@@ -548,7 +548,20 @@ model ClipPublish {
   socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
   providerPostId  String? // set once the user links the live post/permalink
   permalink       String?
-  status          String        @default("pending") // pending | linked | failed
+  // pending          — created, nothing confirmed yet
+  // linked           — a permalink is attached and metrics can be pulled
+  // failed           — the attempt failed; see failureReason
+  // awaiting_manual  — scheduled time reached for a provider we can't push to,
+  //                    so the user posts it and pastes the link back
+  // expired          — a scheduled publish went past its lateness window
+  // The last two are written by lib/clip-scheduler.ts and were undocumented,
+  // which is why the UI rendered one of them raw as "Awaiting_manual".
+  status          String        @default("pending") // pending | linked | failed | awaiting_manual | expired
+  /** Why a publish failed, in words a creator can act on. This used to be
+   *  stuffed into metricsJson, which is owned by the metrics refresh — so the
+   *  reason was overwritten on the next sync and, worse, a failed publish
+   *  looked to score-performance like a post with no views. */
+  failureReason   String?
   metricsJson     Json? // cached NormalizedPost-shaped snapshot, refreshed by lib/social/refresh-queue.ts
   scheduledFor    DateTime?
   publishedAt     DateTime?
