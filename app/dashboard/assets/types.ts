@@ -1,5 +1,6 @@
 export type AssetKind = "video" | "audio" | "image";
 export type ModerationStatus = "pending" | "clean" | "flagged" | "skipped" | "not_configured";
+export type AssetStatus = "processing" | "ready" | "failed";
 
 export interface AssetTagRef {
   id: string;
@@ -26,6 +27,16 @@ export interface Asset {
   isFavorite: boolean;
   archivedAt: string | null;
   moderationStatus: ModerationStatus;
+  /**
+   * processing | ready | failed — orthogonal to moderationStatus. The library
+   * never declared this, so an asset stuck mid-processing or outright failed
+   * rendered as a perfectly normal, usable card.
+   */
+  status: AssetStatus;
+  /** Which feature funneled this into the library. */
+  sourceFeature: string;
+  sourceProjectId: string | null;
+  sourceClipId: string | null;
   folder: AssetFolderRef | null;
   tags: AssetTagRef[];
   createdAt: string;
@@ -58,7 +69,7 @@ export interface AssetStats {
 }
 
 export type KindFilter = "all" | AssetKind;
-export type SortOption = "date" | "oldest" | "name" | "size";
+export type SortOption = "date" | "oldest" | "name" | "size" | "duration";
 
 export interface AssetListFilters {
   kind: KindFilter;

@@ -44,6 +44,8 @@ export interface SerializedAsset {
   /** Which feature funneled this into the library (provenance, not a permission). */
   sourceFeature: string;
   sourceProjectId: string | null;
+  /** Set when this asset IS the rendered output of a clip. */
+  sourceClipId: string | null;
   folder: SerializedFolder | null;
   tags: SerializedTag[];
   createdAt: string;
@@ -108,6 +110,7 @@ export function serializeAsset(
     status: asset.status,
     sourceFeature: asset.sourceFeature,
     sourceProjectId: asset.sourceProjectId,
+    sourceClipId: asset.sourceClipId,
     folder: asset.folder ?? null,
     tags: (asset.tags ?? []).map((t) => t.tag),
     createdAt: toIso(asset.createdAt),

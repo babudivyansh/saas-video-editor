@@ -406,9 +406,17 @@ model Project {
   // 409 rather than silently overwriting it. See app/api/projects/[id]/route.ts.
   editorVersion        Int      @default(1)
   clips                Clip[]
+  // The source media as a real Asset row. uploadedVideoUrl above stays — too
+  // many call sites read it — but it is a bare URL string with no ownership
+  // or lifecycle, so it can't answer "what else came from this upload?".
+  sourceAssetId        String?
+  sourceAsset          Asset?   @relation("ProjectSourceAsset", fields: [sourceAssetId], references: [id], onDelete: SetNull)
+  // Assets that entered the library through this project.
+  sourceAssets         Asset[]  @relation("ProjectSourceAssets")
 
   @@index([userId])
   @@index([userId, status])
+  @@index([sourceAssetId])
 }
 
 // An individual clip produced by Auto Clip. The pick job creates one row per
@@ -474,11 +482,26 @@ model Clip {
   audioPeaks            Json?
   // Which backend actually encoded this clip ("cpu" | "gpu"), for ops.
   renderTarget          String?
+  // Starred by the user in the clips library.
+  isFavorite            Boolean       @default(false)
+  // Why this clip's render failed, in words written for a creator. The
+  // pipeline only set status:"failed", so the UI could say nothing beyond
+  // "Failed to render". Project already carries this; Clip now mirrors it.
+  failureReason         String?
+  // The source media this clip was cut from. Denormalized from the project so
+  // a clip can answer "where did I come from?" without a second hop.
+  sourceAssetId         String?
+  sourceAsset           Asset?        @relation("ClipSourceAsset", fields: [sourceAssetId], references: [id], onDelete: SetNull)
+  // Assets rendered OUT of this clip (the clip's own mp4, editor hand-offs).
+  derivedAssets         Asset[]       @relation("ClipDerivedAssets")
   dubs                  ClipDub[]
   publishes             ClipPublish[]
 
   @@index([projectId])
   @@index([projectId, status])
+  // Every clip list orders by score desc — this was an unindexed sort.
+  @@index([projectId, score])
+  @@index([sourceAssetId])
 }
 
 // A dubbed-audio variant of a Clip in another language (P2.2). Captions stay
@@ -525,7 +548,20 @@ model ClipPublish {
   socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
   providerPostId  String? // set once the user links the live post/permalink
   permalink       String?
-  status          String        @default("pending") // pending | linked | failed
+  // pending          — created, nothing confirmed yet
+  // linked           — a permalink is attached and metrics can be pulled
+  // failed           — the attempt failed; see failureReason
+  // awaiting_manual  — scheduled time reached for a provider we can't push to,
+  //                    so the user posts it and pastes the link back
+  // expired          — a scheduled publish went past its lateness window
+  // The last two are written by lib/clip-scheduler.ts and were undocumented,
+  // which is why the UI rendered one of them raw as "Awaiting_manual".
+  status          String        @default("pending") // pending | linked | failed | awaiting_manual | expired
+  /** Why a publish failed, in words a creator can act on. This used to be
+   *  stuffed into metricsJson, which is owned by the metrics refresh — so the
+   *  reason was overwritten on the next sync and, worse, a failed publish
+   *  looked to score-performance like a post with no views. */
+  failureReason   String?
   metricsJson     Json? // cached NormalizedPost-shaped snapshot, refreshed by lib/social/refresh-queue.ts
   scheduledFor    DateTime?
   publishedAt     DateTime?
@@ -635,9 +671,20 @@ model Asset {
   // feature funneled it into the library, so the library and the picker can
   // show provenance without restricting where the asset may be reused. All
   // uploads created before this existed default to "upload".
-  sourceFeature   String  @default("upload") // upload | autoclip | url-import | editor | ai-creator | video-generator | text-video | avatar | stock
-  sourceProjectId String? // Project.id when the media entered via a project flow
-  sourceJobId     String? // Generation.id / render job id when applicable
+  // These were plain String columns with no foreign key, so nothing resolved
+  // them and nothing stopped them dangling. They are real relations now: the
+  // Related Content panels in Assets and Clips read the graph through them.
+  sourceFeature   String   @default("upload") // upload | autoclip | url-import | editor | ai-creator | video-generator | text-video | avatar | stock
+  sourceProjectId String? // Project this media entered through
+  sourceProject   Project? @relation("ProjectSourceAssets", fields: [sourceProjectId], references: [id], onDelete: SetNull)
+  // Set when this asset IS a rendered clip, so a clip's output can be traced
+  // back to the clip that produced it (and vice versa via derivedAssets).
+  sourceClipId    String?
+  sourceClip      Clip?    @relation("ClipDerivedAssets", fields: [sourceClipId], references: [id], onDelete: SetNull)
+  // A real Generation.id, or null. Never a process-local uuid — the AI Creator
+  // route used to write a randomUUID() keyed to an in-memory Map, which was
+  // unresolvable the moment the process restarted.
+  sourceJobId     String?
   // Processing lifecycle, orthogonal to moderationStatus (which stays a
   // best-effort async side task and never gates usability). Only a long
   // server-side import (URL import sizing/probing) sets "processing"; almost
@@ -649,11 +696,16 @@ model Asset {
 
   auditLogs AssetAuditLog[]
 
+  // Back-relations for the two places an Asset is pointed AT as a source.
+  projectsUsingAsSource Project[] @relation("ProjectSourceAsset")
+  clipsUsingAsSource    Clip[]    @relation("ClipSourceAsset")
+
   @@unique([userId, checksum])
   @@index([userId, createdAt])
   @@index([userId, kind])
   @@index([userId, archivedAt])
   @@index([userId, sourceProjectId])
+  @@index([userId, sourceClipId])
   @@index([folderId])
 }
 

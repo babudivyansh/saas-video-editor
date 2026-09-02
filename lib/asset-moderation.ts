@@ -20,7 +20,7 @@ import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { createRenderQueue } from "@/lib/render-queue";
-import { generateVideoThumbnail } from "@/lib/asset-thumbnail";
+import { generateVideoThumbnail, generateImageThumbnail } from "@/lib/asset-thumbnail";
 import { auditAssetAction } from "@/lib/asset-audit";
 import { extensionForMime } from "@/utils/s3-upload";
 
@@ -73,6 +73,18 @@ export async function assetModerationJob(payload: AssetModerationPayload): Promi
   try {
     let scanKey = s3Key;
     let thumbnailS3Key: string | null = null;
+    // Real pixel dimensions, measured server-side. These were client-probed
+    // only, so anything that didn't volunteer them left the columns null
+    // permanently — and images were never probed at all.
+    let dimensions: { width: number | null; height: number | null } | null = null;
+
+    if (kind === "image") {
+      const result = await generateImageThumbnail(userId, assetId, s3Key);
+      thumbnailS3Key = result.thumbnailS3Key;
+      if (result.width && result.height) dimensions = { width: result.width, height: result.height };
+      // The original is still what gets scanned — a downscaled JPEG can lose
+      // exactly the detail moderation is looking for.
+    }
 
     if (kind === "video") {
       thumbnailS3Key = await generateVideoThumbnail(userId, assetId, s3Key, extensionForMime(mimeType));
@@ -95,6 +107,7 @@ export async function assetModerationJob(payload: AssetModerationPayload): Promi
         moderationStatus: flagged ? "flagged" : "clean",
         moderationLabels: { labels, malwareScan } as unknown as Prisma.InputJsonValue,
         ...(thumbnailS3Key ? { thumbnailS3Key } : {}),
+        ...(dimensions ?? {}),
       },
     });
 

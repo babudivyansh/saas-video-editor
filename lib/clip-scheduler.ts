@@ -126,8 +126,13 @@ export async function publishDueClips(limit = 25): Promise<SchedulerResult> {
 }
 
 async function markFailed(id: string, reason: string): Promise<void> {
+  // metricsJson belongs to the social-metrics refresh (lib/social/refresh-queue
+  // owns it, and score-performance reads `views` out of it). Writing a failure
+  // reason into it meant a failed publish looked to those consumers like a post
+  // with no metrics, and the next refresh would overwrite the reason anyway.
+  // failureReason has its own column now.
   await prisma.clipPublish.update({
     where: { id },
-    data: { status: "failed", metricsJson: { failureReason: reason } },
+    data: { status: "failed", failureReason: reason },
   }).catch(() => {});
 }

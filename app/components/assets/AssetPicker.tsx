@@ -133,6 +133,7 @@ export function AssetPicker({ open, onClose, accept, onSelect, title = "Choose m
   const [cursor, setCursor] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<{ message: string; isLimitError: boolean } | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Debounce the search box so every keystroke doesn't fire a request.
@@ -143,10 +144,20 @@ export function AssetPicker({ open, onClose, accept, onSelect, title = "Choose m
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { assets: rows, nextCursor } = await listPickerAssets({ kind: activeKind, q: query, sort });
-    setAssets(rows);
-    setCursor(nextCursor);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const { assets: rows, nextCursor } = await listPickerAssets({ kind: activeKind, q: query, sort });
+      setAssets(rows);
+      setCursor(nextCursor);
+    } catch (e) {
+      // Previously a failed list silently rendered as "no assets", which reads
+      // as "you have nothing" rather than "we couldn't load anything".
+      setLoadError(e instanceof Error ? e.message : "Couldn't load your assets");
+      setAssets([]);
+      setCursor(null);
+    } finally {
+      setLoading(false);
+    }
   }, [activeKind, query, sort]);
 
   useEffect(() => {
@@ -160,6 +171,7 @@ export function AssetPicker({ open, onClose, accept, onSelect, title = "Choose m
   useEffect(() => {
     if (open) return;
     setUploadError(null);
+    setLoadError(null);
     setQueryInput("");
     setQuery("");
   }, [open]);
@@ -167,10 +179,15 @@ export function AssetPicker({ open, onClose, accept, onSelect, title = "Choose m
   async function loadMore() {
     if (!cursor) return;
     setLoadingMore(true);
-    const { assets: rows, nextCursor } = await listPickerAssets({ kind: activeKind, q: query, sort, cursor });
-    setAssets((prev) => [...prev, ...rows]);
-    setCursor(nextCursor);
-    setLoadingMore(false);
+    try {
+      const { assets: rows, nextCursor } = await listPickerAssets({ kind: activeKind, q: query, sort, cursor });
+      setAssets((prev) => [...prev, ...rows]);
+      setCursor(nextCursor);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : "Couldn't load more assets");
+    } finally {
+      setLoadingMore(false);
+    }
   }
 
   function handleTileSelect(asset: PickerAsset) {
@@ -245,6 +262,15 @@ export function AssetPicker({ open, onClose, accept, onSelect, title = "Choose m
             </Button>
           </div>
         </div>
+
+        {loadError && (
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-tint-rose border border-rose-100 px-3.5 py-2.5">
+            <p className="text-xs text-rose-700">{loadError}</p>
+            <Button variant="secondary" size="sm" onClick={() => void load()} className="flex-shrink-0">
+              Retry
+            </Button>
+          </div>
+        )}
 
         {uploadError && (
           <div className="flex items-center justify-between gap-3 rounded-xl bg-tint-rose border border-rose-100 px-3.5 py-2.5">

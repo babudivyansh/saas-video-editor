@@ -18,6 +18,11 @@ import { useVideoGenerate, getStoredToken, type GenerateStatus } from "@/app/hoo
 import { registerAsset, type AssetRow } from "@/app/dashboard/editor/components/panels/shared/assetData";
 import { useInsufficientCredits } from "@/app/components/billing/CreditModalContext";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
+import {
+  RelatedSection, RelatedRail, RelatedList, RelatedEmpty, RelatedLoading,
+  SourceWindowBar, fmtDuration,
+} from "@/app/components/related/RelatedContent";
+import type { ClipRelated } from "@/lib/related-content";
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 function IcFilm() {
@@ -87,7 +92,10 @@ const WARNING_COPY: Record<string, string> = {
 // ── Shared types ─────────────────────────────────────────────────────────────
 interface ScoreBreakdown {
   hook: number; pacing: number; payoff: number; engagement: number;
-  audio: number; speechRate: number; composite: number;
+  // Measured off the rendered clip's own audio by lib/virality-score.ts and
+  // folded into the composite. `silence` was computed and stored but never
+  // declared here, so it was invisible to the UI that shows the others.
+  audio: number; speechRate: number; silence?: number; composite: number;
 }
 export interface ClipItem {
   id: string;
@@ -114,14 +122,30 @@ export interface ClipItem {
   rerenderCount: number;
 }
 interface ScoreBreakdownWithInsights extends ScoreBreakdown {
-  reasoning?: string;
-  hookExplanation?: string;
-  retentionPrediction?: string;
-  audience?: string;
-  platform?: string;
-  suggestedPostingTime?: string;
-  hashtags?: string[];
-  suggestedCaption?: string;
+  // All nullable: the pipeline no longer substitutes invented text when the
+  // model returns nothing, so null here genuinely means "not available".
+  reasoning?: string | null;
+  hookExplanation?: string | null;
+  retentionPrediction?: string | null;
+  audience?: string | null;
+  platform?: string | null;
+  suggestedPostingTime?: string | null;
+  hashtags?: string[] | null;
+  suggestedCaption?: string | null;
+}
+
+/** One "Label — value" row that says so when there is no value. */
+function InsightRow({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <span className="text-ink-soft">{label}</span>
+      {value ? (
+        <span className="text-ink font-semibold text-right">{value}</span>
+      ) : (
+        <span className="text-ink-soft/40 italic text-right">Not available</span>
+      )}
+    </div>
+  );
 }
 
 // Every "Apply" in the workspace re-renders the clip. The first re-render of
@@ -163,6 +187,21 @@ const ASPECTS: { value: "9:16" | "16:9" | "1:1"; label: string; box: string }[] 
   { value: "16:9", label: "16:9", box: "w-4 h-[9px]" },
   { value: "1:1", label: "1:1", box: "w-[13px] h-[13px]" },
 ];
+
+// The scheduler writes statuses the UI never knew about — "awaiting_manual"
+// and "expired" — and a bare `capitalize` rendered the first of those as
+// "Awaiting_manual". Unknown values still fall through to something readable
+// rather than a raw enum.
+const PUBLISH_STATUS_LABELS: Record<string, string> = {
+  pending: "Pending",
+  linked: "Linked",
+  failed: "Failed",
+  awaiting_manual: "Ready to post",
+  expired: "Expired",
+};
+function publishStatusLabel(status: string): string {
+  return PUBLISH_STATUS_LABELS[status] ?? status.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
 
 // A one-line reason a creator can act on, distilled from the AI breakdown.
 function clipReason(clip: ClipItem): string {
@@ -251,49 +290,7 @@ function trimError(edit: ReviewEdit): string | null {
   return null;
 }
 
-// ── Per-clip actions (ready clips): re-render, edit-in-editor, dub, publish ───
-function RerenderPanel({ projectId, clip, onQueued }: { projectId: string; clip: ClipItem; onQueued: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [start, setStart] = useState(clip.startSec);
-  const [end, setEnd] = useState(clip.endSec);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function submit() {
-    setBusy(true); setErr(null);
-    try {
-      await apiFetch(`/api/projects/${projectId}/clips/${clip.id}/rerender`, {
-        method: "POST",
-        body: JSON.stringify({ startSec: start, endSec: end }),
-      });
-      setOpen(false);
-      onQueued();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (!open) {
-    return <button onClick={() => setOpen(true)} className="w-full text-left text-[13px] font-medium py-2 px-3 rounded-lg text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors">Re-render range</button>;
-  }
-  return (
-    <div className="w-full space-y-2 rounded-xl border border-card-border p-3">
-      <div className="flex items-center gap-2">
-        <input type="number" step={0.5} value={start} onChange={(e) => setStart(Number(e.target.value))} className="w-full rounded-lg border border-card-border px-2 py-1.5 text-xs" />
-        <span className="text-ink-soft/40">—</span>
-        <input type="number" step={0.5} value={end} onChange={(e) => setEnd(Number(e.target.value))} className="w-full rounded-lg border border-card-border px-2 py-1.5 text-xs" />
-      </div>
-      {err && <p className="text-[11px] text-red-600">{err}</p>}
-      <div className="flex gap-2">
-        <button onClick={submit} disabled={busy} className="flex-1 text-xs font-semibold py-1.5 rounded-lg grad-brand text-white shadow-glow disabled:opacity-50">{busy ? "…" : "Re-render (1 credit)"}</button>
-        <button onClick={() => setOpen(false)} className="text-xs font-semibold py-1.5 px-2 rounded-lg border border-card-border text-ink-soft">Cancel</button>
-      </div>
-    </div>
-  );
-}
-
+// ── Per-clip actions (ready clips): edit-in-editor, dub, publish ─────────────
 function EditInEditorButton({ projectId, clip, className }: { projectId: string; clip: ClipItem; className?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -454,7 +451,7 @@ export function PublishPanel({ projectId, clip, embedded }: { projectId: string;
           {publishes.map((p) => (
             <li key={p.id} className="text-[11px] text-ink-soft flex items-center justify-between gap-2">
               <span className="truncate">{p.socialAccount.provider} — {p.socialAccount.username ?? "linked"}</span>
-              {p.permalink ? <a href={p.permalink} target="_blank" rel="noreferrer" className="text-brand font-semibold shrink-0">View</a> : <span className="capitalize text-ink-soft/60 shrink-0">{p.status}</span>}
+              {p.permalink ? <a href={p.permalink} target="_blank" rel="noreferrer" className="text-brand font-semibold shrink-0">View</a> : <span className="text-ink-soft/60 shrink-0">{publishStatusLabel(p.status)}</span>}
             </li>
           ))}
         </ul>
@@ -579,6 +576,7 @@ function ClipCard({ projectId, clip, onChanged, onOpen }: {
         {/* Band + duration (non-interactive, under the open button) */}
         <span className="absolute top-2.5 left-2.5 z-10 inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-bold shadow-sm pointer-events-none" style={{ background: "rgba(255,255,255,.94)", color: band.text }}>
           <span aria-hidden>{band.icon}</span>{band.label}
+          {clip.score != null && <span className="opacity-60 tabular-nums">{clip.score}</span>}
         </span>
         <span className="absolute top-2.5 right-2.5 z-10 px-1.5 py-0.5 rounded-md text-[11px] font-semibold text-white pointer-events-none" style={{ background: "rgba(15,23,42,.6)" }}>{fmtTime(clip.durationSec)}</span>
 
@@ -655,6 +653,7 @@ function ReviewClipCard({ clip, edit, onChange, onOpen }: {
       >
         <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-bold shadow-sm" style={{ background: "rgba(255,255,255,.94)", color: band.text }}>
           <span aria-hidden>{band.icon}</span>{band.label}
+          {clip.score != null && <span className="opacity-60 tabular-nums">{clip.score}</span>}
         </span>
         <span className="absolute top-2.5 right-2.5 px-1.5 py-0.5 rounded-md text-[11px] font-semibold text-white" style={{ background: "rgba(15,23,42,.6)" }}>{fmtTime(Math.max(0, edit.endSec - edit.startSec))}</span>
         <span className="ac-reveal absolute inset-x-0 bottom-0 h-[64%] pointer-events-none" style={{ background: "linear-gradient(to top, rgba(9,14,26,.92), rgba(9,14,26,0))" }} />
@@ -704,18 +703,108 @@ function ReviewClipCard({ clip, edit, onChange, onOpen }: {
   );
 }
 
-type WorkspaceTab = "edit" | "captions" | "reframe" | "insights" | "transcript" | "publish";
+type WorkspaceTab = "edit" | "captions" | "reframe" | "insights" | "transcript" | "publish" | "related";
+
+// ── Related panel (clip workspace) ───────────────────────────────────────────
+// The workspace previously showed a finished clip in total isolation: no source
+// filename, no position in the source, no way back, and no acknowledgement that
+// the other clips from the same run existed at all.
+function RelatedForClip({
+  related,
+  onOpenSibling,
+}: {
+  related: ClipRelated;
+  onOpenSibling: (clipId: string) => void;
+}) {
+  const { source, siblingClips, derived } = related;
+  const hasDerived =
+    derived.dubs.length > 0 || derived.publishes.length > 0 || derived.editorProjects.length > 0;
+
+  return (
+    <>
+      <RelatedSection title="From this source">
+        {source ? (
+          <div className="space-y-2.5 px-3 py-3 rounded-xl bg-surface">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-ink truncate">
+                {source.asset?.name ?? source.project.title}
+              </span>
+              <span className="text-[10px] text-ink-soft/60 shrink-0">
+                {source.project.clipCount} clip{source.project.clipCount === 1 ? "" : "s"}
+              </span>
+            </div>
+            <SourceWindowBar
+              startSec={source.window.startSec}
+              endSec={source.window.endSec}
+              sourceDurationSec={source.window.sourceDurationSec}
+            />
+          </div>
+        ) : (
+          <RelatedEmpty message="We couldn't trace this clip back to its source video." />
+        )}
+      </RelatedSection>
+
+      <RelatedSection title="Other clips from this video" count={siblingClips.length}>
+        {siblingClips.length > 0 ? (
+          <RelatedRail
+            items={siblingClips.map((c) => ({
+              id: c.id,
+              title: c.title || `Clip ${c.index + 1}`,
+              meta: fmtDuration(c.durationSec),
+              thumbnailUrl: c.thumbnailUrl,
+              score: c.score,
+              onClick: () => onOpenSibling(c.id),
+            }))}
+          />
+        ) : (
+          <RelatedEmpty message="This was the only clip from this video." />
+        )}
+      </RelatedSection>
+
+      <RelatedSection title="Made from this clip">
+        {hasDerived ? (
+          <RelatedList
+            items={[
+              ...derived.editorProjects.map((p) => ({
+                id: p.id,
+                title: p.title,
+                meta: "Editor project",
+                href: `/dashboard/editor?projectId=${p.id}`,
+              })),
+              ...derived.dubs.map((d) => ({
+                id: d.id,
+                title: `Dubbed — ${d.targetLang.toUpperCase()}`,
+                meta: d.status,
+              })),
+              ...derived.publishes.map((p) => ({
+                id: p.id,
+                title: p.provider ? `Published to ${p.provider}` : "Published",
+                meta: p.status,
+                href: p.permalink ?? undefined,
+                external: true,
+              })),
+            ]}
+          />
+        ) : (
+          <RelatedEmpty message="Nothing made from this clip yet — dub, publish or open it in the editor." />
+        )}
+      </RelatedSection>
+    </>
+  );
+}
 
 // ── Clip Workspace (ready clips) — full-screen, video hero + contextual tools ─
 function ClipWorkspace({
   projectId, clip, transcriptionFailed, initialTab, expandOrigin,
-  index, total, onPrev, onNext, onClose, onChanged,
+  index, total, onPrev, onNext, onClose, onChanged, onOpenSibling,
 }: {
   projectId: string; clip: ClipItem; transcriptionFailed: boolean;
   initialTab: WorkspaceTab; expandOrigin: string;
   index: number; total: number;
   onPrev: () => void; onNext: () => void;
   onClose: () => void; onChanged: () => void;
+  /** Jump the workspace to another clip from the same run. */
+  onOpenSibling: (clipId: string) => void;
 }) {
   const [tab, setTab] = useState<WorkspaceTab>(initialTab);
   const [panelOpen, setPanelOpen] = useState(true);
@@ -813,7 +902,11 @@ function ClipWorkspace({
   const [trackingSpeed, setTrackingSpeed] = useState((silence.trackingSpeed as number) ?? 50);
 
   // Transcript (fetched on open — clips list omits transcriptJson).
-  interface WordTimingInfo { word: string; start: number; end: number }
+  // `speaker` is carried even though nothing here renders it: the save
+  // overwrites the stored transcript, so any field the client drops is gone
+  // for good. Diarization is only produced at transcription time and cannot be
+  // recovered by re-saving.
+  interface WordTimingInfo { word: string; start: number; end: number; speaker?: string }
   const transcriptQuery = useQuery({
     queryKey: ["auto-clip-transcript", projectId, clip.id],
     queryFn: () => apiFetch<{ detail?: { transcriptJson: WordTimingInfo[] | null } }>(`/api/projects/${projectId}/clips?clipId=${encodeURIComponent(clip.id)}`),
@@ -830,6 +923,14 @@ function ClipWorkspace({
     setLocalWords(transcriptQuery.data.detail?.transcriptJson ?? []);
   }
   const transcriptLoading = transcriptQuery.isLoading;
+
+  // Related content — the source this clip was cut from, its siblings, and
+  // anything made from it since. Fetched only when the tab is opened.
+  const relatedQuery = useQuery({
+    queryKey: ["auto-clip-related", projectId, clip.id],
+    queryFn: () => apiFetch<{ related: ClipRelated }>(`/api/projects/${projectId}/clips/${clip.id}/related`),
+    enabled: tab === "related",
+  });
 
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
@@ -870,6 +971,20 @@ function ClipWorkspace({
     } finally { setSaving(false); }
   }
 
+  async function handleChangeAspect(aspectRatio: "9:16" | "16:9" | "1:1") {
+    if (aspectRatio === clip.aspectRatio) return;
+    setSaving(true); setSaveErr(null);
+    try {
+      await apiFetch(`/api/projects/${projectId}/clips/${clip.id}/rerender`, {
+        method: "POST",
+        body: JSON.stringify({ aspectRatio }),
+      });
+      onChanged();
+    } catch (e: unknown) {
+      setSaveErr(e instanceof Error ? e.message : "An error occurred");
+    } finally { setSaving(false); }
+  }
+
   async function handleSaveTranscript() {
     setSaving(true); setSaveErr(null);
     try {
@@ -881,21 +996,35 @@ function ClipWorkspace({
   }
 
   const bd = clip.scoreBreakdown as unknown as ScoreBreakdownWithInsights | null;
-  const caption = bd?.suggestedCaption ?? "Check out this amazing clip!";
-  const hashtags = Array.isArray(bd?.hashtags) ? bd.hashtags.join(" ") : "#highlight #viral";
+  // No invented copy. If the model produced nothing there is nothing to
+  // suggest, and offering a generic "Check out this amazing clip!" as though
+  // it were written for this video is worse than offering nothing at all.
+  const caption = bd?.suggestedCaption ?? null;
+  const hashtags = Array.isArray(bd?.hashtags) ? bd.hashtags.join(" ") : "";
+  const hasPostCopy = !!caption || !!hashtags;
   function copySocial() {
-    navigator.clipboard.writeText(`${caption}\n\n${hashtags}`);
+    navigator.clipboard.writeText([caption, hashtags].filter(Boolean).join("\n\n"));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
+
+  // Every sub-score the pipeline actually stores, including the three measured
+  // post-render that this panel never showed.
+  const SUB_SCORES: [string, number | undefined][] = [
+    ["Hook", bd?.hook], ["Engagement", bd?.engagement],
+    ["Pacing", bd?.pacing], ["Payoff", bd?.payoff],
+    ["Audio", bd?.audio], ["Speech rate", bd?.speechRate],
+    ["Silence", bd?.silence],
+  ];
 
   const band = scoreBand(clip.score);
   const isRendering = clip.status === "rendering" || clip.status === "queued";
   const TABS: { id: WorkspaceTab; label: string }[] = [
     { id: "edit", label: "Edit" }, { id: "captions", label: "Captions" }, { id: "reframe", label: "Reframe" },
-    { id: "insights", label: "Insights" }, { id: "transcript", label: "Transcript" }, { id: "publish", label: "Publish" },
+    { id: "insights", label: "Insights" }, { id: "transcript", label: "Transcript" },
+    { id: "related", label: "Related" }, { id: "publish", label: "Publish" },
   ];
-  const panelTitle: Record<WorkspaceTab, string> = { edit: "Edit", captions: "Captions", reframe: "Reframe & Audio", insights: "Insights", transcript: "Transcript", publish: "Publish" };
+  const panelTitle: Record<WorkspaceTab, string> = { edit: "Edit", captions: "Captions", reframe: "Reframe & Audio", insights: "Insights", transcript: "Transcript", related: "Related", publish: "Publish" };
 
   return (
     <div className="fixed inset-0 z-50 ac-expand" style={{ background: "var(--surface)", transformOrigin: expandOrigin }}>
@@ -907,7 +1036,10 @@ function ClipWorkspace({
           </button>
           <div className="w-px h-6 bg-card-border" />
           <span className="text-sm font-bold text-ink truncate max-w-[38ch]">{clip.title || `Clip ${clip.index + 1}`}</span>
-          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: band.bg, color: band.text }}><span aria-hidden>{band.icon}</span>{band.label}</span>
+          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: band.bg, color: band.text }}>
+            <span aria-hidden>{band.icon}</span>{band.label}
+            {clip.score != null && <span className="opacity-60 tabular-nums" title="Virality score out of 99">{clip.score}</span>}
+          </span>
           <div className="flex-1" />
           <span className="hidden md:block text-xs text-ink-soft/70">Esc to close</span>
           <a href={`/api/projects/${projectId}/clips/${clip.id}/download`} download className="text-[13px] font-semibold px-3.5 py-2 rounded-lg border border-card-border bg-white text-ink hover:bg-tint-blue transition-colors">Download</a>
@@ -1106,6 +1238,30 @@ function ClipWorkspace({
 
                 {tab === "reframe" && (
                   <div className="ac-panel-in space-y-5">
+                    <div>
+                      <h4 className="text-[12px] font-bold text-ink-soft uppercase tracking-wider mb-1">Aspect ratio</h4>
+                      <p className="text-[12.5px] text-ink-soft mb-2.5">Re-frames and re-renders this clip for a different placement.</p>
+                      <div className="flex gap-1.5">
+                        {ASPECTS.map((a) => (
+                          <button
+                            key={a.value}
+                            type="button"
+                            disabled={saving || a.value === clip.aspectRatio}
+                            onClick={() => handleChangeAspect(a.value)}
+                            className={`flex-1 flex items-center justify-center gap-1.5 min-h-[38px] rounded-xl text-[12px] font-bold transition-colors disabled:cursor-default ${
+                              a.value === clip.aspectRatio
+                                ? "grad-brand text-white shadow-glow"
+                                : "border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
+                            }`}
+                          >
+                            <span className={`${a.box} border-2 border-current rounded-[2px]`} />
+                            {a.label}
+                          </button>
+                        ))}
+                      </div>
+                      <RerenderCostNote clip={clip} />
+                    </div>
+                    <div className="h-px bg-card-border" />
                     <ReframeAndCutsControls
                       smartAutoReframe={smartAutoReframe} setSmartAutoReframe={setSmartAutoReframe}
                       reframingPreset={reframingPreset} setReframingPreset={setReframingPreset}
@@ -1132,9 +1288,16 @@ function ClipWorkspace({
                   ) : (
                     <div className="ac-panel-in space-y-4">
                       <div className="rounded-2xl p-4" style={{ background: band.bg, border: `1px solid ${band.border}` }}>
-                        <p className="text-[12px] font-bold uppercase tracking-wider mb-1.5" style={{ color: band.text }}>{band.icon} {band.label}</p>
+                        <p className="text-[12px] font-bold uppercase tracking-wider mb-1.5" style={{ color: band.text }}>
+                          {band.icon} {band.label}
+                          {clip.score != null && <span className="opacity-60 tabular-nums"> · {clip.score}/99</span>}
+                        </p>
                         <p className="text-[13.5px] font-bold text-ink mb-1">Why this clip works</p>
-                        <p className="text-[12.5px] text-ink-soft leading-relaxed">{bd?.reasoning || "Highly engaging highlight from the source video."}</p>
+                        {bd?.reasoning ? (
+                          <p className="text-[12.5px] text-ink-soft leading-relaxed">{bd.reasoning}</p>
+                        ) : (
+                          <p className="text-[12.5px] text-ink-soft/60 italic leading-relaxed">The AI didn&apos;t return an explanation for this clip.</p>
+                        )}
                       </div>
                       <button onClick={() => setDetailOpen((o) => !o)} className="flex items-center justify-between w-full">
                         <span className="text-[12px] font-bold text-ink-soft uppercase tracking-wider">Detailed insights</span>
@@ -1143,30 +1306,59 @@ function ClipWorkspace({
                       {detailOpen && (
                         <div className="ac-panel-in space-y-4">
                           <div className="grid grid-cols-2 gap-2.5">
-                            {[["Hook", bd?.hook], ["Engagement", bd?.engagement], ["Pacing", bd?.pacing], ["Payoff", bd?.payoff]].map(([label, val]) => (
-                              <div key={label as string} className="rounded-xl border border-card-border px-3 py-2.5">
-                                <span className="text-[11px] text-ink-soft font-semibold block">{label as string}</span>
-                                <span className="text-base font-extrabold text-ink">{(val as number) ?? 50}</span><span className="text-[11px] text-ink-soft/60"> / 99</span>
+                            {SUB_SCORES.map(([label, val]) => (
+                              <div key={label} className="rounded-xl border border-card-border px-3 py-2.5">
+                                <span className="text-[11px] text-ink-soft font-semibold block">{label}</span>
+                                {typeof val === "number" ? (
+                                  <>
+                                    <span className="text-base font-extrabold text-ink">{val}</span>
+                                    <span className="text-[11px] text-ink-soft/60"> / 99</span>
+                                  </>
+                                ) : (
+                                  <span className="text-base font-extrabold text-ink-soft/40">—</span>
+                                )}
                               </div>
                             ))}
                           </div>
                           <div className="space-y-2.5 text-[12.5px]">
-                            <div className="flex justify-between gap-3"><span className="text-ink-soft">Audience</span><span className="text-ink font-semibold text-right">{bd?.audience || "General audience"}</span></div>
+                            <InsightRow label="Audience" value={bd?.audience} />
                             <div className="h-px bg-card-border" />
-                            <div className="flex justify-between gap-3"><span className="text-ink-soft">Platform fit</span><span className="text-ink font-semibold text-right">{bd?.platform || "Shorts, Reels"}</span></div>
+                            <InsightRow label="Platform fit" value={bd?.platform} />
                             <div className="h-px bg-card-border" />
-                            <div className="flex justify-between gap-3"><span className="text-ink-soft">Best time to post</span><span className="text-ink font-semibold text-right">{bd?.suggestedPostingTime || "5:00 PM local"}</span></div>
+                            <InsightRow label="Best time to post" value={bd?.suggestedPostingTime} />
+                            {bd?.hookExplanation && (
+                              <>
+                                <div className="h-px bg-card-border" />
+                                <InsightRow label="Why the hook works" value={bd.hookExplanation} />
+                              </>
+                            )}
+                            {bd?.retentionPrediction && (
+                              <>
+                                <div className="h-px bg-card-border" />
+                                <InsightRow label="Retention outlook" value={bd.retentionPrediction} />
+                              </>
+                            )}
+                            {clip.brollQuery && (
+                              <>
+                                <div className="h-px bg-card-border" />
+                                <InsightRow label="B-roll searched for" value={clip.brollQuery} />
+                              </>
+                            )}
                           </div>
+                          {hasPostCopy && (
                           <div className="rounded-xl border border-dashed border-card-border p-3 space-y-2">
                             <div className="flex items-center justify-between">
                               <span className="text-[11px] font-bold text-ink-soft uppercase tracking-wider">Suggested post copy</span>
                               <button onClick={copySocial} className="text-[12px] font-bold text-brand hover:underline">{copied ? "✓ Copied!" : "Copy"}</button>
                             </div>
-                            <p className="text-[12.5px] text-ink italic">&quot;{caption}&quot;</p>
-                            <div className="flex gap-1.5 flex-wrap">
-                              {(bd?.hashtags ?? ["#highlight", "#viral"]).map((h) => <span key={h} className="px-2 py-0.5 rounded-md text-[10.5px] font-bold" style={{ background: "var(--tint-blue)", color: "#3730a3" }}>{h}</span>)}
-                            </div>
+                            {caption && <p className="text-[12.5px] text-ink italic">&quot;{caption}&quot;</p>}
+                            {bd?.hashtags && bd.hashtags.length > 0 && (
+                              <div className="flex gap-1.5 flex-wrap">
+                                {bd.hashtags.map((h) => <span key={h} className="px-2 py-0.5 rounded-md text-[10.5px] font-bold" style={{ background: "var(--tint-blue)", color: "#3730a3" }}>{h}</span>)}
+                              </div>
+                            )}
                           </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1183,7 +1375,16 @@ function ClipWorkspace({
                       )}
                       {localWords.map((w, idx) => (
                         <div key={idx} className="flex items-center gap-1 bg-white px-2 py-1 rounded-md border border-card-border shadow-sm text-xs">
-                          <input type="text" value={w.word} onChange={(e) => { const next = [...localWords]; next[idx] = { ...next[idx], word: e.target.value }; setLocalWords(next); }} className="w-16 bg-transparent focus:outline-none border-b border-transparent focus:border-brand font-semibold" />
+                          {/* Sized to its content instead of a fixed w-16, which truncated any word
+                              longer than about six characters — in a field whose entire
+                              purpose is reading and correcting words. */}
+                          <input
+                            type="text"
+                            value={w.word}
+                            size={Math.max(3, Math.min(w.word.length + 1, 24))}
+                            onChange={(e) => { const next = [...localWords]; next[idx] = { ...next[idx], word: e.target.value }; setLocalWords(next); }}
+                            className="min-w-[2.5rem] max-w-[12rem] bg-transparent focus:outline-none border-b border-transparent focus:border-brand font-semibold"
+                          />
                           <span className="text-[9px] text-ink-soft/60 font-mono">{(w.start / 1000).toFixed(1)}s</span>
                         </div>
                       ))}
@@ -1191,6 +1392,21 @@ function ClipWorkspace({
                     {saveErr && <p className="text-xs text-red-600">{saveErr}</p>}
                     <Button onClick={handleSaveTranscript} disabled={saving || transcriptLoading || localWords.length === 0} className="w-full">{saving ? "Saving & Rendering…" : "Save transcript changes"}</Button>
                     <RerenderCostNote clip={clip} />
+                  </div>
+                )}
+
+                {tab === "related" && (
+                  <div className="ac-panel-in space-y-5">
+                    {relatedQuery.isLoading && <RelatedLoading />}
+                    {relatedQuery.error && (
+                      <p className="text-xs text-red-600">Couldn&apos;t load related content.</p>
+                    )}
+                    {relatedQuery.data && (
+                      <RelatedForClip
+                        related={relatedQuery.data.related}
+                        onOpenSibling={onOpenSibling}
+                      />
+                    )}
                   </div>
                 )}
 
@@ -1232,13 +1448,15 @@ export function autoClipPollIntervalMs(data: { project: ProjectMeta; clips: Clip
 const DEFAULT_PROJECT_META: ProjectMeta = { status: "rendering", warnings: null, failureReason: null, captionStyleIndex: null, uploadedVideoUrl: null };
 const EMPTY_CLIPS: ClipItem[] = [];
 
-export function ClipsResults({ projectId, status, error, expectedCount, fileName, onReset }: {
+export function ClipsResults({ projectId, status, error, expectedCount, fileName, onReset, initialClipId }: {
   projectId: string | null;
   status: GenerateStatus;
   error: string | null;
   expectedCount: number;
   fileName: string | null;
   onReset: () => void;
+  /** Deep link target — opens this clip's workspace once the clip exists. */
+  initialClipId?: string | null;
 }) {
   const clipsQuery = useQuery({
     queryKey: ["auto-clip-project", projectId],
@@ -1264,10 +1482,19 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
 
   // Workspace / review-workspace selection.
   const [openId, setOpenId] = useState<string | null>(null);
+  // A deep link arrives before the clips do, so the open is deferred until the
+  // clip actually exists — and consumed once, so closing the workspace doesn't
+  // immediately reopen it.
+  const [deepLinkConsumed, setDeepLinkConsumed] = useState(false);
   const [openTab, setOpenTab] = useState<WorkspaceTab>("edit");
   const [openOrigin, setOpenOrigin] = useState("50% 50%");
 
   const [sort, setSort] = useState<SortKey>("score");
+
+  if (initialClipId && !deepLinkConsumed && clips.some((c) => c.id === initialClipId)) {
+    setDeepLinkConsumed(true);
+    setOpenId(initialClipId);
+  }
 
   const projectStatus = project.status;
 
@@ -1281,7 +1508,13 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
   const ready = clips.filter((c) => c.status === "ready").length;
   const total = clips.length || expectedCount;
   const failedHard = status === "failed" || (projectStatus === "failed" && clips.length > 0 && clips.every((c) => c.status === "failed")) || (projectStatus === "failed" && clips.length === 0);
-  const analyzing = clips.length === 0 && !failedHard;
+  // A completed project with zero clips used to satisfy `analyzing` and sit on
+  // "Finding your strongest moments…" forever — while polling had already
+  // stopped, so it would never resolve on its own. That is a real outcome (the
+  // model found nothing worth cutting, or every pick was dropped at review),
+  // and it needs to be said rather than hidden behind a spinner.
+  const settledEmpty = clips.length === 0 && (projectStatus === "completed" || projectStatus === "pending_review");
+  const analyzing = clips.length === 0 && !failedHard && !settledEmpty;
   const pendingReview = projectStatus === "pending_review";
   const allDone = projectStatus === "completed";
 
@@ -1354,6 +1587,23 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
   const transcriptionFailed = project.warnings?.includes("transcription_failed") ?? false;
 
   // ── Processing (upload + analysis) — honest, single state ──
+  if (settledEmpty) {
+    return (
+      <div className="max-w-lg mx-auto text-center py-20 px-6 space-y-4">
+        <div className="w-14 h-14 mx-auto rounded-2xl grad-brand flex items-center justify-center text-white"><IcFilm /></div>
+        <h2 className="text-xl font-extrabold text-ink">No clips came out of this video</h2>
+        <p className="text-sm text-ink-soft leading-relaxed">
+          The AI didn&apos;t find a segment worth cutting — that usually means the
+          source is very short, mostly silence, or has no clear standalone moment.
+          Try a longer video, or one with more spoken content.
+        </p>
+        <div className="flex items-center justify-center gap-2 pt-1">
+          <Button variant="secondary" onClick={onReset}>Try another video</Button>
+        </div>
+      </div>
+    );
+  }
+
   if (analyzing || status === "uploading") {
     const heading = failedHard ? "Something went wrong" : status === "uploading" ? "Uploading your video…" : "Finding your strongest moments";
     return (
@@ -1486,6 +1736,7 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
           onNext={() => { const n = sortedClips[(openIdx + 1) % sortedClips.length]; if (n) setOpenId(n.id); }}
           onClose={() => setOpenId(null)}
           onChanged={() => clipsQuery.refetch()}
+          onOpenSibling={(clipId) => setOpenId(clipId)}
         />
       )}
 
@@ -1531,7 +1782,10 @@ function ReviewWorkspace({ clip, edit, sourceVideoUrl, expandOrigin, index, tota
           <button onClick={onClose} className="inline-flex items-center gap-2 min-h-[40px] px-3.5 rounded-lg border border-card-border bg-white text-ink text-[13px] font-semibold hover:bg-tint-blue transition-colors"><IcChevronLeft /> Back to clips</button>
           <div className="w-px h-6 bg-card-border" />
           <span className="text-sm font-bold text-ink truncate max-w-[38ch]">{clip.title || `Clip ${clip.index + 1}`}</span>
-          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: band.bg, color: band.text }}><span aria-hidden>{band.icon}</span>{band.label}</span>
+          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: band.bg, color: band.text }}>
+            <span aria-hidden>{band.icon}</span>{band.label}
+            {clip.score != null && <span className="opacity-60 tabular-nums" title="Virality score out of 99">{clip.score}</span>}
+          </span>
           <div className="flex-1" />
           <span className="hidden md:block text-xs text-ink-soft/70">Esc to close</span>
         </div>
@@ -1597,6 +1851,8 @@ function AutoClipFlow() {
   const router = useRouter();
   const params = useSearchParams();
   const resumeProjectId = params.get("project");
+  // Set by Related Content links from the Assets library.
+  const deepLinkClipId = params.get("clip");
 
   const [file, setFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
@@ -1722,7 +1978,7 @@ function AutoClipFlow() {
   if (showOverlay) {
     return (
       <div className="h-full overflow-y-auto" style={{ background: "var(--surface)" }}>
-        <ClipsResults projectId={activeProjectId} status={resumeProjectId ? "rendering" : genStatus} error={genError} expectedCount={clipCount} fileName={file?.name ?? importedTitle ?? pickedAsset?.name ?? null} onReset={handleReset} />
+        <ClipsResults projectId={activeProjectId} status={resumeProjectId ? "rendering" : genStatus} error={genError} expectedCount={clipCount} fileName={file?.name ?? importedTitle ?? pickedAsset?.name ?? null} onReset={handleReset} initialClipId={deepLinkClipId} />
       </div>
     );
   }

@@ -52,12 +52,22 @@ async function handleGET(req: NextRequest) {
   // shared AssetPicker so a feature can never select an asset still mid
   // processing.
   const status = searchParams.get("status") ?? undefined;
+  // The library deliberately still shows flagged assets, behind an "Under
+  // review" tile — but a feature picker must never offer one, and until now
+  // nothing stopped it: the picker filtered on status alone.
+  const excludeFlagged = searchParams.get("excludeFlagged") === "true";
 
+  // Every sort ends in `id`. Cursor pagination over a non-unique key is
+  // non-deterministic on ties: paging by name across several files called
+  // "clip.mp4", or by size across identically-sized exports, silently skipped
+  // rows and repeated others. Postgres has no stable tiebreak of its own here,
+  // so the unique column has to be part of the sort.
   const orderBy =
-    sort === "name" ? { name: "asc" as const } :
-    sort === "size" ? { size: "desc" as const } :
-    sort === "oldest" ? { createdAt: "asc" as const } :
-    { createdAt: "desc" as const };
+    sort === "name" ? [{ name: "asc" as const }, { id: "asc" as const }] :
+    sort === "size" ? [{ size: "desc" as const }, { id: "asc" as const }] :
+    sort === "duration" ? [{ duration: "desc" as const }, { id: "asc" as const }] :
+    sort === "oldest" ? [{ createdAt: "asc" as const }, { id: "asc" as const }] :
+    [{ createdAt: "desc" as const }, { id: "asc" as const }];
 
   const assets = await prisma.asset.findMany({
     where: {
@@ -69,6 +79,7 @@ async function handleGET(req: NextRequest) {
       ...(folderId === "none" ? { folderId: null } : folderId ? { folderId } : {}),
       ...(tag ? { tags: { some: { tag: { name: tag } } } } : {}),
       ...(status ? { status } : {}),
+      ...(excludeFlagged ? { moderationStatus: { not: "flagged" } } : {}),
     },
     include: {
       folder: { select: { id: true, name: true, color: true } },

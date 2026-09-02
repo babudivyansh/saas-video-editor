@@ -81,9 +81,17 @@ async function handlePOST(req: NextRequest, { params }: { params: Promise<{ id: 
       duration: result.durationSec,
       sourceFeature: "url-import",
       sourceProjectId: projectId,
-    }).catch((e) => {
-      logger.warn("url-import", "best-effort asset adoption failed", { reason: (e as Error).message, projectId });
-    });
+    })
+      .then(({ asset }) =>
+        // Point the project at its source asset so Related Content can answer
+        // "what did this upload produce?" in both directions. Still
+        // best-effort: the project already has uploadedVideoUrl above, so a
+        // failure here costs provenance, never the import itself.
+        prisma.project.update({ where: { id: projectId }, data: { sourceAssetId: asset.id } }),
+      )
+      .catch((e) => {
+        logger.warn("url-import", "best-effort asset adoption failed", { reason: (e as Error).message, projectId });
+      });
 
     return NextResponse.json({
       url: result.url, title: result.title, durationSec: result.durationSec, bytes: result.bytes,

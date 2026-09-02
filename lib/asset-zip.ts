@@ -39,7 +39,15 @@ export async function assetZipJob(payload: AssetZipPayload): Promise<void> {
 
   try {
     const assets = await prisma.asset.findMany({
-      where: { id: { in: assetIds.slice(0, MAX_ZIP_ASSETS) }, userId },
+      // Moderation-flagged assets are hidden behind an "Under review" tile in
+      // the library, but nothing stopped them being bundled into a zip — the
+      // filter was id + owner only, so a bulk download handed back exactly the
+      // content that had been withheld.
+      where: {
+        id: { in: assetIds.slice(0, MAX_ZIP_ASSETS) },
+        userId,
+        moderationStatus: { not: "flagged" },
+      },
       select: { id: true, name: true, s3Key: true, size: true },
     });
 
