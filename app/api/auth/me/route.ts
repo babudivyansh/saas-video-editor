@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getPlanPriceMinor } from "@/lib/currency";
+import { effectivePlan } from "@/lib/plans/effective-plan";
 
 export async function GET(req: NextRequest) {
   const auth = await getAuthUser(req);
@@ -64,8 +65,9 @@ export async function GET(req: NextRequest) {
   // Effective plan tier, resolved with the same rule as getUserTier() so the
   // client can size things like the video-duration cap (TIER_MAX_DURATION_SECONDS)
   // to exactly what the server will bill. "free" for no/expired subscription.
-  const subActive = !!user.subscriptionEndsAt && user.subscriptionEndsAt > new Date();
-  const tier = subActive && user.plan?.tier ? user.plan.tier : "free";
+  // Previously an inline copy of getUserTier. Two definitions of "effective
+  // tier" is one too many — this is the shared one.
+  const { tier } = effectivePlan(user);
 
   // Same USD figure /api/plans serves, computed server-side so the billing panel
   // never does its own FX — it just picks the field for the selected currency.

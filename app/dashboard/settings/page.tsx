@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/app/components/AuthContext";
+import { planDisplayName } from "@/lib/plans/effective-plan";
 import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
 import { Card } from "@/app/components/ui/Card";
 import { StatTile } from "@/app/components/ui/StatTile";
@@ -89,7 +90,7 @@ export default function SettingsGeneralPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatTile label={t("credits")} value={user?.credits ?? 0} accent="violet" />
-        <StatTile label={t("plan")} value={user?.plan?.name ?? t("freePlanFallback")} accent="blue" />
+        <StatTile label={t("plan")} value={planDisplayName(user, { free: t("freePlanFallback") })} accent="blue" />
         <StatTile label={t("filesStored")} value={assetStats?.count ?? "…"} accent="fuchsia" />
         <StatTile label={t("memberSince")} value={user?.createdAt ? new Date(user.createdAt).toLocaleDateString(locale, { month: "short", year: "numeric" }) : "…"} accent="emerald" />
       </div>

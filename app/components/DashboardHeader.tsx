@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import ClipiroLogo from "@/app/components/ClipiroLogo";
+import { effectivePlan, planDisplayName } from "@/lib/plans/effective-plan";
 import { NavDropdown, DropdownItem, type NavItem } from "@/app/components/NavDropdown";
 import SidebarAccount from "@/app/components/SidebarAccount";
 import { NotificationBell } from "@/app/components/NotificationBell";
@@ -276,9 +277,14 @@ export default function DashboardHeader() {
   const { nav: railNav, bottomNav: railBottomNav } = useDashboardNavItems();
   const createItems = useCreateItems();
 
-  const hasActivePlan =
-    !!user?.subscriptionEndsAt && new Date(user.subscriptionEndsAt) > new Date();
-  const planName = hasActivePlan ? user?.plan?.name ?? t("proPlanFallback") : t("freePlanFallback");
+  // Same helper the server gates entitlements with, so the chip can never say
+  // one thing while getUserTier says another.
+  const planState = effectivePlan(user);
+  const hasActivePlan = planState.isActive;
+  const planName = planDisplayName(user, {
+    free: t("freePlanFallback"),
+    activeFallback: t("proPlanFallback"),
+  });
 
   // Affiliate Program points at the user's own affiliate dashboard
   // (/dashboard/referral) instead of the public marketing page — this header

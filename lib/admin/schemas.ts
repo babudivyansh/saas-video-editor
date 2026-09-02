@@ -18,12 +18,40 @@ const paise = z.number().int().min(0).max(10_000_000);
 // spend, with no CreditTransaction row behind it. Balance corrections go
 // through POST /api/admin/users/[id]/credits (delta + mandatory reason +
 // rate limit), which is bucket- and ledger-aware.
+/**
+ * A subscription end date, accepting either a full timestamp or the
+ * `YYYY-MM-DD` the admin date input produces.
+ *
+ * A bare `z.coerce.date()` parses "2026-10-03" as midnight **UTC**, which is
+ * 05:30 the same morning in IST — so an admin setting today's date created a
+ * subscription that had already expired, and the user's dashboard showed Free
+ * immediately. A date-only value means "through the end of that day", so it is
+ * pushed to 23:59:59.999 UTC, which is past midnight everywhere from UTC-11 to
+ * UTC+14 on the intended date.
+ */
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+export const subscriptionEndsAtSchema = z
+  .union([z.string(), z.date()])
+  .nullable()
+  .optional()
+  .transform((v, ctx) => {
+    if (v === null || v === undefined) return v;
+    if (v instanceof Date) return v;
+    if (DATE_ONLY.test(v)) return new Date(`${v}T23:59:59.999Z`);
+    const parsed = new Date(v);
+    if (Number.isNaN(parsed.getTime())) {
+      ctx.addIssue({ code: "custom", message: "Invalid date" });
+      return z.NEVER;
+    }
+    return parsed;
+  });
+
 export const userPatchSchema = z
   .object({
     monthlyCredits: credits.optional(),
     role: z.enum(["USER", "ADMIN"]).optional(),
     planId: z.string().min(1).nullable().optional(),
-    subscriptionEndsAt: z.coerce.date().nullable().optional(),
+    subscriptionEndsAt: subscriptionEndsAtSchema,
     name: z.string().max(100).optional(),
     email: z.string().trim().toLowerCase().pipe(z.email()).optional(),
     // Required only when granting ADMIN — mints a second full admin, so it
