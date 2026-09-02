@@ -18,6 +18,11 @@ import { useVideoGenerate, getStoredToken, type GenerateStatus } from "@/app/hoo
 import { registerAsset, type AssetRow } from "@/app/dashboard/editor/components/panels/shared/assetData";
 import { useInsufficientCredits } from "@/app/components/billing/CreditModalContext";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
+import {
+  RelatedSection, RelatedRail, RelatedList, RelatedEmpty, RelatedLoading,
+  SourceWindowBar, fmtDuration,
+} from "@/app/components/related/RelatedContent";
+import type { ClipRelated } from "@/lib/related-content";
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 function IcFilm() {
@@ -704,18 +709,108 @@ function ReviewClipCard({ clip, edit, onChange, onOpen }: {
   );
 }
 
-type WorkspaceTab = "edit" | "captions" | "reframe" | "insights" | "transcript" | "publish";
+type WorkspaceTab = "edit" | "captions" | "reframe" | "insights" | "transcript" | "publish" | "related";
+
+// ── Related panel (clip workspace) ───────────────────────────────────────────
+// The workspace previously showed a finished clip in total isolation: no source
+// filename, no position in the source, no way back, and no acknowledgement that
+// the other clips from the same run existed at all.
+function RelatedForClip({
+  related,
+  onOpenSibling,
+}: {
+  related: ClipRelated;
+  onOpenSibling: (clipId: string) => void;
+}) {
+  const { source, siblingClips, derived } = related;
+  const hasDerived =
+    derived.dubs.length > 0 || derived.publishes.length > 0 || derived.editorProjects.length > 0;
+
+  return (
+    <>
+      <RelatedSection title="From this source">
+        {source ? (
+          <div className="space-y-2.5 px-3 py-3 rounded-xl bg-surface">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-ink truncate">
+                {source.asset?.name ?? source.project.title}
+              </span>
+              <span className="text-[10px] text-ink-soft/60 shrink-0">
+                {source.project.clipCount} clip{source.project.clipCount === 1 ? "" : "s"}
+              </span>
+            </div>
+            <SourceWindowBar
+              startSec={source.window.startSec}
+              endSec={source.window.endSec}
+              sourceDurationSec={source.window.sourceDurationSec}
+            />
+          </div>
+        ) : (
+          <RelatedEmpty message="We couldn't trace this clip back to its source video." />
+        )}
+      </RelatedSection>
+
+      <RelatedSection title="Other clips from this video" count={siblingClips.length}>
+        {siblingClips.length > 0 ? (
+          <RelatedRail
+            items={siblingClips.map((c) => ({
+              id: c.id,
+              title: c.title || `Clip ${c.index + 1}`,
+              meta: fmtDuration(c.durationSec),
+              thumbnailUrl: c.thumbnailUrl,
+              score: c.score,
+              onClick: () => onOpenSibling(c.id),
+            }))}
+          />
+        ) : (
+          <RelatedEmpty message="This was the only clip from this video." />
+        )}
+      </RelatedSection>
+
+      <RelatedSection title="Made from this clip">
+        {hasDerived ? (
+          <RelatedList
+            items={[
+              ...derived.editorProjects.map((p) => ({
+                id: p.id,
+                title: p.title,
+                meta: "Editor project",
+                href: `/dashboard/editor?projectId=${p.id}`,
+              })),
+              ...derived.dubs.map((d) => ({
+                id: d.id,
+                title: `Dubbed — ${d.targetLang.toUpperCase()}`,
+                meta: d.status,
+              })),
+              ...derived.publishes.map((p) => ({
+                id: p.id,
+                title: p.provider ? `Published to ${p.provider}` : "Published",
+                meta: p.status,
+                href: p.permalink ?? undefined,
+                external: true,
+              })),
+            ]}
+          />
+        ) : (
+          <RelatedEmpty message="Nothing made from this clip yet — dub, publish or open it in the editor." />
+        )}
+      </RelatedSection>
+    </>
+  );
+}
 
 // ── Clip Workspace (ready clips) — full-screen, video hero + contextual tools ─
 function ClipWorkspace({
   projectId, clip, transcriptionFailed, initialTab, expandOrigin,
-  index, total, onPrev, onNext, onClose, onChanged,
+  index, total, onPrev, onNext, onClose, onChanged, onOpenSibling,
 }: {
   projectId: string; clip: ClipItem; transcriptionFailed: boolean;
   initialTab: WorkspaceTab; expandOrigin: string;
   index: number; total: number;
   onPrev: () => void; onNext: () => void;
   onClose: () => void; onChanged: () => void;
+  /** Jump the workspace to another clip from the same run. */
+  onOpenSibling: (clipId: string) => void;
 }) {
   const [tab, setTab] = useState<WorkspaceTab>(initialTab);
   const [panelOpen, setPanelOpen] = useState(true);
@@ -831,6 +926,14 @@ function ClipWorkspace({
   }
   const transcriptLoading = transcriptQuery.isLoading;
 
+  // Related content — the source this clip was cut from, its siblings, and
+  // anything made from it since. Fetched only when the tab is opened.
+  const relatedQuery = useQuery({
+    queryKey: ["auto-clip-related", projectId, clip.id],
+    queryFn: () => apiFetch<{ related: ClipRelated }>(`/api/projects/${projectId}/clips/${clip.id}/related`),
+    enabled: tab === "related",
+  });
+
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
 
@@ -893,9 +996,10 @@ function ClipWorkspace({
   const isRendering = clip.status === "rendering" || clip.status === "queued";
   const TABS: { id: WorkspaceTab; label: string }[] = [
     { id: "edit", label: "Edit" }, { id: "captions", label: "Captions" }, { id: "reframe", label: "Reframe" },
-    { id: "insights", label: "Insights" }, { id: "transcript", label: "Transcript" }, { id: "publish", label: "Publish" },
+    { id: "insights", label: "Insights" }, { id: "transcript", label: "Transcript" },
+    { id: "related", label: "Related" }, { id: "publish", label: "Publish" },
   ];
-  const panelTitle: Record<WorkspaceTab, string> = { edit: "Edit", captions: "Captions", reframe: "Reframe & Audio", insights: "Insights", transcript: "Transcript", publish: "Publish" };
+  const panelTitle: Record<WorkspaceTab, string> = { edit: "Edit", captions: "Captions", reframe: "Reframe & Audio", insights: "Insights", transcript: "Transcript", related: "Related", publish: "Publish" };
 
   return (
     <div className="fixed inset-0 z-50 ac-expand" style={{ background: "var(--surface)", transformOrigin: expandOrigin }}>
@@ -1194,6 +1298,21 @@ function ClipWorkspace({
                   </div>
                 )}
 
+                {tab === "related" && (
+                  <div className="ac-panel-in space-y-5">
+                    {relatedQuery.isLoading && <RelatedLoading />}
+                    {relatedQuery.error && (
+                      <p className="text-xs text-red-600">Couldn&apos;t load related content.</p>
+                    )}
+                    {relatedQuery.data && (
+                      <RelatedForClip
+                        related={relatedQuery.data.related}
+                        onOpenSibling={onOpenSibling}
+                      />
+                    )}
+                  </div>
+                )}
+
                 {tab === "publish" && (
                   <div className="ac-panel-in space-y-4">
                     <PublishPanel projectId={projectId} clip={clip} embedded />
@@ -1232,13 +1351,15 @@ export function autoClipPollIntervalMs(data: { project: ProjectMeta; clips: Clip
 const DEFAULT_PROJECT_META: ProjectMeta = { status: "rendering", warnings: null, failureReason: null, captionStyleIndex: null, uploadedVideoUrl: null };
 const EMPTY_CLIPS: ClipItem[] = [];
 
-export function ClipsResults({ projectId, status, error, expectedCount, fileName, onReset }: {
+export function ClipsResults({ projectId, status, error, expectedCount, fileName, onReset, initialClipId }: {
   projectId: string | null;
   status: GenerateStatus;
   error: string | null;
   expectedCount: number;
   fileName: string | null;
   onReset: () => void;
+  /** Deep link target — opens this clip's workspace once the clip exists. */
+  initialClipId?: string | null;
 }) {
   const clipsQuery = useQuery({
     queryKey: ["auto-clip-project", projectId],
@@ -1264,10 +1385,19 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
 
   // Workspace / review-workspace selection.
   const [openId, setOpenId] = useState<string | null>(null);
+  // A deep link arrives before the clips do, so the open is deferred until the
+  // clip actually exists — and consumed once, so closing the workspace doesn't
+  // immediately reopen it.
+  const [deepLinkConsumed, setDeepLinkConsumed] = useState(false);
   const [openTab, setOpenTab] = useState<WorkspaceTab>("edit");
   const [openOrigin, setOpenOrigin] = useState("50% 50%");
 
   const [sort, setSort] = useState<SortKey>("score");
+
+  if (initialClipId && !deepLinkConsumed && clips.some((c) => c.id === initialClipId)) {
+    setDeepLinkConsumed(true);
+    setOpenId(initialClipId);
+  }
 
   const projectStatus = project.status;
 
@@ -1486,6 +1616,7 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
           onNext={() => { const n = sortedClips[(openIdx + 1) % sortedClips.length]; if (n) setOpenId(n.id); }}
           onClose={() => setOpenId(null)}
           onChanged={() => clipsQuery.refetch()}
+          onOpenSibling={(clipId) => setOpenId(clipId)}
         />
       )}
 
@@ -1597,6 +1728,8 @@ function AutoClipFlow() {
   const router = useRouter();
   const params = useSearchParams();
   const resumeProjectId = params.get("project");
+  // Set by Related Content links from the Assets library.
+  const deepLinkClipId = params.get("clip");
 
   const [file, setFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
@@ -1722,7 +1855,7 @@ function AutoClipFlow() {
   if (showOverlay) {
     return (
       <div className="h-full overflow-y-auto" style={{ background: "var(--surface)" }}>
-        <ClipsResults projectId={activeProjectId} status={resumeProjectId ? "rendering" : genStatus} error={genError} expectedCount={clipCount} fileName={file?.name ?? importedTitle ?? pickedAsset?.name ?? null} onReset={handleReset} />
+        <ClipsResults projectId={activeProjectId} status={resumeProjectId ? "rendering" : genStatus} error={genError} expectedCount={clipCount} fileName={file?.name ?? importedTitle ?? pickedAsset?.name ?? null} onReset={handleReset} initialClipId={deepLinkClipId} />
       </div>
     );
   }
