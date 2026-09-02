@@ -78,7 +78,17 @@ export function AssetCard({
 
       {/* Thumbnail */}
       <div className="relative aspect-video bg-gray-50 flex items-center justify-center overflow-hidden">
-        {flagged ? (
+        {asset.status === "failed" ? (
+          <div className="w-full h-full bg-tint-rose flex flex-col items-center justify-center gap-1 px-3 text-center text-rose-700">
+            <span className="text-[11px] font-bold">Couldn&apos;t be processed</span>
+            <span className="text-[10px] text-rose-600/80">This file can&apos;t be used. Try uploading it again.</span>
+          </div>
+        ) : asset.status === "processing" ? (
+          <div className="w-full h-full bg-tint-blue flex flex-col items-center justify-center gap-2 text-ink-soft">
+            <span className="w-4 h-4 rounded-full border-2 border-brand border-t-transparent animate-spin" />
+            <span className="text-[10px] font-semibold">Processing…</span>
+          </div>
+        ) : flagged ? (
           <div className="w-full h-full bg-gray-100 flex flex-col items-center justify-center gap-1 text-gray-400">
             <IcFlag />
             <span className="text-[10px] font-semibold">Under review</span>

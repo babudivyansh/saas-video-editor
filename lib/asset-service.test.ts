@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Prisma } from "@prisma/client";
 
 // Global Asset Library — core service tests. Mirrors the mocking convention
 // established in app/api/upload/route.test.ts: mock the I/O boundaries
@@ -10,18 +11,20 @@ let tier: "free" | "creator" | "pro" | "studio" = "free";
 
 const assetStore = new Map<string, Record<string, unknown>>();
 let nextId = 1;
-const findFirstImpl = vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
+async function findFirstDefault({ where }: { where: Record<string, unknown> }) {
   for (const row of assetStore.values()) {
     const matches = Object.entries(where).every(([k, v]) => row[k] === v);
     if (matches) return row;
   }
   return null;
-});
-const createImpl = vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+}
+const findFirstImpl = vi.fn(findFirstDefault);
+async function createDefault({ data }: { data: Record<string, unknown> }) {
   const row = { id: `a${nextId++}`, createdAt: new Date(), updatedAt: new Date(), ...data };
   assetStore.set(row.id as string, row);
   return row;
-});
+}
+const createImpl = vi.fn(createDefault);
 const aggregateImpl = vi.fn(async () => ({ _sum: { size: 0 } }));
 const pendingCreateImpl = vi.fn(async () => ({ id: "pending1" }));
 const pendingDeleteImpl = vi.fn(async () => ({}));
@@ -88,6 +91,10 @@ beforeEach(() => {
   assetStore.clear();
   nextId = 1;
   vi.clearAllMocks();
+  // clearAllMocks resets call history, not implementations — a test that
+  // overrides these would otherwise poison every test after it.
+  findFirstImpl.mockImplementation(findFirstDefault);
+  createImpl.mockImplementation(createDefault);
 });
 
 describe("adoptUploadedBytes", () => {
@@ -174,6 +181,61 @@ describe("adoptUploadedBytes", () => {
     ).rejects.toThrow("Upload failed");
     expect(deleteS3Object).toHaveBeenCalledTimes(1);
     expect(pendingDeleteImpl).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("adoptUploadedBytes — concurrent duplicate", () => {
+  // findFirst-then-create is check-then-act against @@unique([userId, checksum]).
+  // Two simultaneous uploads of the same file both miss the check, and the
+  // loser hits the constraint. That is a duplicate, not a failure — the user's
+  // file is safely in the library, so telling them "Upload failed" is both
+  // wrong and alarming.
+  it("returns the winning row instead of failing when the unique index rejects the insert", async () => {
+    const bytes = Buffer.from("racing bytes");
+
+    // Simulate the race: the pre-check sees nothing, the insert loses, and the
+    // post-conflict lookup finds the row the winner just wrote.
+    const winner = {
+      id: "winner-1",
+      userId: "u1",
+      s3Key: "uploads/u1/winner.png",
+      kind: "image",
+      size: bytes.length,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    let lookups = 0;
+    findFirstImpl.mockImplementation(async () => {
+      lookups += 1;
+      return lookups === 1 ? null : winner; // miss, then find the winner
+    });
+    createImpl.mockRejectedValueOnce(
+      Object.assign(new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+        code: "P2002",
+        clientVersion: "test",
+      })),
+    );
+
+    const result = await adoptUploadedBytes({
+      userId: "u1", bytes, mimeType: "image/png", name: "race.png", sourceFeature: "upload",
+    });
+
+    expect(result.duplicate).toBe(true);
+    expect(result.asset.id).toBe("winner-1");
+    // Our now-redundant object must not be left orphaned in S3.
+    expect(deleteS3Object).toHaveBeenCalled();
+  });
+
+  it("still fails loudly when the insert breaks for some other reason", async () => {
+    findFirstImpl.mockResolvedValue(null);
+    createImpl.mockRejectedValueOnce(new Error("connection reset"));
+
+    await expect(
+      adoptUploadedBytes({
+        userId: "u1", bytes: Buffer.from("x"), mimeType: "image/png", name: "x.png", sourceFeature: "upload",
+      }),
+    ).rejects.toThrow("Upload failed");
+    expect(deleteS3Object).toHaveBeenCalled();
   });
 });
 

@@ -22,6 +22,14 @@ export interface PickerAsset {
 export type PickerKind = "all" | "video" | "audio" | "image";
 export type PickerSort = "date" | "oldest" | "name" | "size";
 
+/** Raised when the asset list itself can't be fetched. */
+export class AssetLoadError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AssetLoadError";
+  }
+}
+
 export class AssetUploadError extends Error {
   constructor(
     message: string,
@@ -61,8 +69,10 @@ export async function listPickerAssets(opts: {
 }): Promise<{ assets: PickerAsset[]; nextCursor: string | null }> {
   const params = new URLSearchParams({
     kind: opts.kind,
-    // Never show an asset the picker's caller can't actually use yet.
+    // Never show an asset the picker's caller can't actually use yet —
+    // neither one still processing, nor one withheld by moderation.
     status: "ready",
+    excludeFlagged: "true",
     limit: String(opts.limit ?? 30),
   });
   if (opts.q) params.set("q", opts.q);
@@ -70,7 +80,15 @@ export async function listPickerAssets(opts: {
   if (opts.cursor) params.set("cursor", opts.cursor);
 
   const res = await fetch(`/api/assets?${params.toString()}`, { headers: authHeaders() });
-  if (!res.ok) return { assets: [], nextCursor: null };
+  if (!res.ok) {
+    // Returning an empty list on a failed request told the user they had no
+    // assets, which is a different and much more alarming statement than "we
+    // couldn't reach the server". Let the caller show an error instead.
+    const body = await res.json().catch(() => null);
+    throw new AssetLoadError(
+      (body as { error?: string } | null)?.error ?? `Couldn't load your assets (${res.status})`,
+    );
+  }
   const data = await res.json().catch(() => ({}));
   return { assets: data.assets ?? [], nextCursor: data.nextCursor ?? null };
 }

@@ -27,10 +27,21 @@ interface CompleteBody {
 
 // POST /api/upload/multipart/complete — step 3, after every part has
 // uploaded. Note: unlike the single-shot /api/upload path, this does NOT
-// dedup by checksum (the full bytes never pass through this server for a
-// multipart upload) — duplicate detection is scoped to single-shot uploads
-// only, a deliberate, documented gap rather than an expensive re-download
-// just to hash a large file that's unlikely to be a near-duplicate anyway.
+// dedup by checksum, so a >25MB file uploaded twice is stored and billed
+// twice. That is a known, deliberate gap. Two ways out were considered and
+// rejected:
+//
+//   - Re-download the finalized object to hash it. Correct, but it means
+//     pulling every large upload back out of S3 purely to compute a hash —
+//     a real cost and latency regression on exactly the biggest files.
+//   - Ask S3 for the checksum. S3 will only produce a FULL_OBJECT checksum
+//     for multipart uploads with the CRC algorithms; SHA-1/SHA-256 are
+//     COMPOSITE only (a hash of part hashes), which depends on part
+//     boundaries and does not match the whole-object SHA-256 hex the
+//     single-shot path stores. Storing it would give a second, incompatible
+//     checksum space that only ever dedups multipart against multipart.
+//
+// So the gap stands until there's a reason to pay for one of those.
 //
 // Security fix (Upload Limits Audit §6/P1): the client-declared `size` from
 // the multipart/create step is NEVER trusted here for entitlement — after

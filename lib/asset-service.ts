@@ -21,7 +21,7 @@
 // computed or looked up server-side.
 
 import { randomUUID, createHash } from "crypto";
-import type { Asset } from "@prisma/client";
+import { Prisma, type Asset } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getUserTier } from "@/lib/auth";
 import {
@@ -254,6 +254,22 @@ export async function adoptUploadedBytes(
       },
     });
   } catch (e) {
+    // The findFirst/create above is check-then-act against a unique index, so
+    // two concurrent uploads of the same file both miss the check and one hits
+    // the constraint. That is a duplicate, not a failure — the user's file is
+    // safely in the library, so return the winning row instead of telling them
+    // the upload broke.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002" && checksum) {
+      const winner = await prisma.asset.findFirst({ where: { userId, checksum } });
+      if (winner) {
+        // Our own S3 object is now redundant — the winner's bytes are identical.
+        await deleteS3Object(key).catch(() => {});
+        await prisma.pendingUpload.delete({ where: { id: pending.id } }).catch(() => {});
+        const readUrl = await getAssetReadUrl(winner.s3Key);
+        return { asset: { ...winner, url: readUrl }, url: readUrl, key: winner.s3Key, duplicate: true };
+      }
+    }
+
     // DB insert failed after a successful S3 PUT — compensating delete so this
     // doesn't join the set of silently orphaned objects.
     await deleteS3Object(key).catch(() => {});
