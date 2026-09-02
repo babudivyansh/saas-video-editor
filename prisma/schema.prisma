@@ -482,6 +482,8 @@ model Clip {
   audioPeaks            Json?
   // Which backend actually encoded this clip ("cpu" | "gpu"), for ops.
   renderTarget          String?
+  // Starred by the user in the clips library.
+  isFavorite            Boolean       @default(false)
   // Why this clip's render failed, in words written for a creator. The
   // pipeline only set status:"failed", so the UI could say nothing beyond
   // "Failed to render". Project already carries this; Clip now mirrors it.
