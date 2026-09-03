@@ -46,7 +46,7 @@ export default function PropertiesPanel() {
     <>
       {/* Backdrop — overlay mode only (below xl), dismisses the panel */}
       {isCompact && open && (
-        <div className="fixed inset-0 z-30 bg-black/30 xl:hidden" onClick={() => setOpen(false)} />
+        <div data-testid="editor-panel-backdrop" className="fixed inset-0 z-30 bg-black/30 xl:hidden" onClick={() => setOpen(false)} />
       )}
 
       {/* Manual toggle — overlay mode only, mirrors SidebarTabs' toggle on the opposite edge */}
