@@ -6,6 +6,7 @@ import { auditAdminAction, auditIp } from "@/lib/admin/audit";
 import { userPatchSchema } from "@/lib/admin/schemas";
 import { grantCredits, getBalances, setSubscriptionCredits, type CreditBucket } from "@/lib/credits";
 import { cancelExistingSubscriptionForSwitch } from "@/lib/billing/subscription-switch";
+import { invalidateAllSessions } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -249,9 +250,15 @@ export const DELETE = withAdmin<{ id: string }>(async (req, { admin, params }) =
     return NextResponse.json({ error: "Could not delete this user — they may have related records that couldn't be cleared." }, { status: 409 });
   }
 
-  // Clean up Redis session and credit cache
+  // Clean up Redis session and credit cache.
+  //
+  // This deleted `session:${id}` (singular) while sessions have been stored
+  // under `sessions:${userId}` since the multi-session migration — so deleting
+  // a user left every one of their JWTs live until natural expiry, up to seven
+  // days. Going through the exported helper instead of rebuilding the key by
+  // hand means it cannot drift again; sessionsKey stays private on purpose.
   await Promise.allSettled([
-    redis.del(`session:${id}`),
+    invalidateAllSessions(id),
     redis.del(`credits:${id}`),
   ]);
 

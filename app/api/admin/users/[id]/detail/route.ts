@@ -4,6 +4,7 @@ import { redis } from "@/lib/redis";
 import { withAdmin, parseBody } from "@/lib/admin/api";
 import { auditAdminAction, auditIp } from "@/lib/admin/audit";
 import { adminNotesSchema } from "@/lib/admin/schemas";
+import { listSessions } from "@/lib/auth";
 
 // GET  /api/admin/users/[id]/detail — everything an admin needs about one user
 // on a single page: profile/subscription, recent purchases, credit ledger
@@ -24,7 +25,7 @@ export const GET = withAdmin<{ id: string }>(async (_req, { params }) => {
   });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-  const [purchases, generations, socialAccounts, affiliate, loginEvents, sessionToken, generationTotals] =
+  const [purchases, generations, socialAccounts, affiliate, loginEvents, sessions, generationTotals] =
     await Promise.all([
       prisma.purchase.findMany({
         where: { userId: id },
@@ -52,7 +53,9 @@ export const GET = withAdmin<{ id: string }>(async (_req, { params }) => {
         take: 15,
         select: { ip: true, device: true, country: true, createdAt: true },
       }),
-      redis.get(`session:${id}`),
+      // Was reading the singular `session:${id}`, which nothing writes, so this
+      // panel reported "no active session" for every user regardless.
+      listSessions(id),
       prisma.generation.aggregate({ _sum: { creditsCost: true }, _count: true, where: { userId: id } }),
     ]);
 
@@ -64,7 +67,8 @@ export const GET = withAdmin<{ id: string }>(async (_req, { params }) => {
     socialAccounts,
     affiliate,
     loginEvents,
-    hasActiveSession: !!sessionToken,
+    hasActiveSession: sessions.length > 0,
+    activeSessionCount: sessions.length,
   });
 });
 

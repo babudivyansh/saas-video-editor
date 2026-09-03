@@ -1,5 +1,5 @@
 "use client";
-import { useState, Fragment } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminShell from "../AdminShell";
 import { ErrorCard } from "../dashboard/ui";
@@ -10,6 +10,7 @@ import { useToast } from "@/app/components/ui/Toast";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
 import { CreditAdjust } from "./CreditAdjust";
+import { buildUserPatchBody, toDateInputValue } from "./patch-body";
 
 interface PlanRef {
   id: string;
@@ -90,6 +91,22 @@ export default function AdminUsersPage() {
   const [editName, setEditName]           = useState("");
   const [editEmail, setEditEmail]         = useState("");
 
+  // Which inputs the admin has actually typed in, this expansion.
+  //
+  // Save used to decide what to send by diffing the edit buffer against the
+  // row — but the row can change underneath an open editor. Applying a plan
+  // refetches the list, so `u.subscriptionEndsAt` became a future date while
+  // `editSubEnd` still held the pre-change value; the diff then read as an
+  // edit and Save sent `subscriptionEndsAt: null`, clearing the term the plan
+  // had just set while leaving planId in place. That is the exact state where
+  // the admin panel shows a plan and the user's dashboard shows Free.
+  //
+  // A field is now sent only if it was genuinely edited, so a stale buffer can
+  // no longer overwrite a column nobody touched.
+  const [touched, setTouched] = useState<Set<string>>(new Set());
+  const markTouched = (field: string) =>
+    setTouched(prev => (prev.has(field) ? prev : new Set(prev).add(field)));
+
   // Staged plan change. The picker used to PATCH straight from onChange, so
   // there was no confirmation on an action that grants credits and starts a
   // billing term — and arrow-keying through the options fired one PATCH per
@@ -146,32 +163,60 @@ export default function AdminUsersPage() {
     onError: (e: Error) => { showToast(e.message, "error"); setDeleteConfirmId(null); },
   });
 
+  function seedEditBuffer(u: AdminUser) {
+    setEditMonthly(String(u.monthlyCredits));
+    setEditSubEnd(toDateInputValue(u.subscriptionEndsAt));
+    setEditName(u.name ?? "");
+    setEditEmail(u.email);
+    setTouched(new Set());
+  }
+
   function openExpand(u: AdminUser) {
     if (expandedId === u.id) { setExpandedId(null); return; }
     setExpandedId(u.id);
-    setEditMonthly(String(u.monthlyCredits));
-    setEditSubEnd(u.subscriptionEndsAt ? u.subscriptionEndsAt.split("T")[0] : "");
-    setEditName(u.name ?? "");
-    setEditEmail(u.email);
+    seedEditBuffer(u);
   }
 
   function saveExpanded(u: AdminUser) {
-    const body: Record<string, unknown> = {};
-    const mc = parseInt(editMonthly, 10);
-    if (!isNaN(mc) && mc !== u.monthlyCredits) body.monthlyCredits = mc;
-    if (editSubEnd !== (u.subscriptionEndsAt ? u.subscriptionEndsAt.split("T")[0] : "")) {
-      body.subscriptionEndsAt = editSubEnd || null;
-    }
-    const trimName = editName.trim();
-    if (trimName !== (u.name ?? "")) body.name = trimName;
-    const trimEmail = editEmail.trim().toLowerCase();
-    if (trimEmail && trimEmail !== u.email) body.email = trimEmail;
+    // The rule lives in ./patch-body so it can be tested without mounting this
+    // page — see patch-body.test.ts for why it exists.
+    const body = buildUserPatchBody(
+      {
+        monthlyCredits: u.monthlyCredits,
+        subscriptionEndsAt: u.subscriptionEndsAt,
+        name: u.name,
+        email: u.email,
+      },
+      { monthlyCredits: editMonthly, subscriptionEndsAt: editSubEnd, name: editName, email: editEmail },
+      touched,
+    );
     if (Object.keys(body).length > 0) patchMutation.mutate({ id: u.id, body });
     setExpandedId(null);
   }
 
   const users = data?.users ?? [];
   const plans = data?.plans ?? [];
+
+  // Applying a plan refetches the list, so an open editor's inputs would keep
+  // showing the pre-change values — the admin sets a plan, sees "Sub Ends At"
+  // still blank, and reasonably assumes it didn't work. Re-seed untouched
+  // fields when the underlying row changes; anything the admin has typed in is
+  // left alone so a background refetch can't discard their input.
+  const expandedRow = users.find(u => u.id === expandedId);
+  const expandedSubEnd = expandedRow?.subscriptionEndsAt ?? null;
+  const expandedMonthly = expandedRow?.monthlyCredits ?? null;
+  useEffect(() => {
+    if (!expandedRow) return;
+    if (!touched.has("subscriptionEndsAt")) {
+      setEditSubEnd(toDateInputValue(expandedSubEnd));
+    }
+    if (!touched.has("monthlyCredits") && expandedMonthly !== null) {
+      setEditMonthly(String(expandedMonthly));
+    }
+    // Keyed on the row's own values, not the object identity, so a refetch
+    // that changed nothing doesn't churn state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedId, expandedSubEnd, expandedMonthly]);
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
   const inputCls = "bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
@@ -227,7 +272,25 @@ export default function AdminUsersPage() {
                           </td>
                           <td className="py-3 px-3 font-semibold text-gray-900">{u.credits}</td>
                           <td className="py-3 px-3 text-gray-500">{u.monthlyCredits > 0 ? u.monthlyCredits : "—"}</td>
-                          <td className="py-3 px-3 text-gray-600 text-xs">{u.plan?.name ?? "Free"}</td>
+                          {/* Showed `plan.name` with no expiry check, so an account whose
+                              subscription term was missing or past looked identical to a
+                              paying one — the admin had no way to see that the user's own
+                              dashboard was saying "Free". Follows the user-detail page's
+                              existing "· inactive" convention. */}
+                          <td className="py-3 px-3 text-xs">
+                            {u.plan?.name ? (
+                              <span className={subExpired ? "text-gray-400" : "text-gray-600"}>
+                                {u.plan.name}
+                                {subExpired && (
+                                  <span className="ml-1.5 text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full align-middle">
+                                    inactive
+                                  </span>
+                                )}
+                              </span>
+                            ) : (
+                              <span className="text-gray-600">Free</span>
+                            )}
+                          </td>
                           <td className={`py-3 px-3 text-xs ${subExpired ? "text-gray-300" : "text-gray-600"}`}>
                             {fmtDate(u.subscriptionEndsAt)}
                           </td>
@@ -264,11 +327,11 @@ export default function AdminUsersPage() {
                               <div className="flex flex-wrap items-end gap-4">
                                 <div>
                                   <label className="text-[10px] font-semibold text-gray-400 block mb-1">Display Name</label>
-                                  <input type="text" className={inputCls} value={editName} onChange={e => setEditName(e.target.value)} placeholder="e.g. John Doe" />
+                                  <input type="text" className={inputCls} value={editName} onChange={e => { setEditName(e.target.value); markTouched("name"); }} placeholder="e.g. John Doe" />
                                 </div>
                                 <div>
                                   <label className="text-[10px] font-semibold text-gray-400 block mb-1">Email</label>
-                                  <input type="email" className={inputCls} value={editEmail} onChange={e => setEditEmail(e.target.value)} />
+                                  <input type="email" className={inputCls} value={editEmail} onChange={e => { setEditEmail(e.target.value); markTouched("email"); }} />
                                 </div>
                                 <div>
                                   <label className="text-[10px] font-semibold text-gray-400 block mb-1">Credits</label>
@@ -276,11 +339,11 @@ export default function AdminUsersPage() {
                                 </div>
                                 <div>
                                   <label className="text-[10px] font-semibold text-gray-400 block mb-1">Monthly Credits</label>
-                                  <input type="number" className={inputCls} value={editMonthly} onChange={e => setEditMonthly(e.target.value)} min={0} />
+                                  <input type="number" className={inputCls} value={editMonthly} onChange={e => { setEditMonthly(e.target.value); markTouched("monthlyCredits"); }} min={0} />
                                 </div>
                                 <div>
                                   <label className="text-[10px] font-semibold text-gray-400 block mb-1">Sub Ends At</label>
-                                  <input type="date" className={inputCls} value={editSubEnd} onChange={e => setEditSubEnd(e.target.value)} />
+                                  <input type="date" className={inputCls} value={editSubEnd} onChange={e => { setEditSubEnd(e.target.value); markTouched("subscriptionEndsAt"); }} />
                                 </div>
                                 <div>
                                   <label className="text-[10px] font-semibold text-gray-400 block mb-1" htmlFor={`plan-${u.id}`}>Assign Plan</label>

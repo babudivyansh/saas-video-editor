@@ -12,8 +12,10 @@ import { NextRequest } from "next/server";
 // prisma mock, so an absolute `credits` write would show up as buckets that
 // don't add up to the total.
 
+const invalidateAllSessions = vi.fn(async () => {});
 vi.mock("@/lib/auth", () => ({
   requireAdmin: vi.fn(async () => ({ userId: "admin-1", email: "admin@test.co" })),
+  invalidateAllSessions: (...args: unknown[]) => invalidateAllSessions(...(args as [])),
 }));
 
 const cancelMock = vi.fn(async () => ({ ok: true as const }));

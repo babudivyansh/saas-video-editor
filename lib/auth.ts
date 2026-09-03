@@ -6,6 +6,7 @@ import { prisma } from "./prisma";
 import { env } from "@/lib/env";
 import { describeDevice } from "@/lib/device";
 import { getClientIp } from "@/lib/rate-limit";
+import { effectivePlan } from "@/lib/plans/effective-plan";
 import type { TierId } from "@/lib/plans/tiers";
 
 const JWT_SECRET = env.JWT_SECRET;
@@ -353,7 +354,7 @@ export async function getUserTier(userId: string): Promise<TierId> {
     where: { id: userId },
     select: { subscriptionEndsAt: true, plan: { select: { tier: true } } },
   });
-  const active = !!user?.subscriptionEndsAt && user.subscriptionEndsAt > new Date();
-  if (!active || !user?.plan?.tier) return "free";
-  return user.plan.tier as TierId;
+  // The rule itself lives in lib/plans/effective-plan.ts so this and the
+  // /api/auth/me payload and the dashboard header cannot drift apart again.
+  return effectivePlan(user).tier;
 }
