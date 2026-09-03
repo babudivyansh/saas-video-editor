@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/app/components/AuthContext";
 import AuthModal from "@/app/components/AuthModal";
 import QueryProvider from "@/app/components/QueryProvider";
 import WebVitals from "@/app/components/analytics/WebVitals";
 
-const plusJakarta = Plus_Jakarta_Sans({
-  variable: "--font-plus-jakarta",
+// Geist replaces Plus Jakarta Sans as the UI face for the emerald design
+// system: a neutral grotesk reads as more restrained at the large heading
+// sizes the new system leans on. Geist Mono was already here, so the two are a
+// matched pair.
+const geistSans = Geist({
+  variable: "--font-geist-sans",
   subsets: ["latin"],
 });
 
@@ -67,7 +71,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${plusJakarta.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-zinc-950 text-zinc-100">
         {/* Renders nothing; reports Core Web Vitals to our own endpoint. */}
         <WebVitals />

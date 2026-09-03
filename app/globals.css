@@ -35,9 +35,29 @@
   font-weight: 400;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   THEME TOKENS
+
+   Two themes live here. `:root` is the original light system, unchanged.
+   `.theme-emerald` is the dark emerald system, and a subtree opts into it by
+   carrying that class — see the block further down for why it works and how it
+   goes away.
+
+   Every token below is reached through `var()` in `@theme inline`, which is
+   what makes per-subtree theming possible at all: `@theme inline` resolves the
+   reference at the element's position in the cascade, not at `:root`. (The
+   editor proves this already — see dashboard/editor/editor-theme.css, whose
+   tokens are scoped to `.clipiro-editor`.) The one thing that does NOT work
+   that way is a literal inside `@theme inline`, which bakes into the utility;
+   that is why elevation is indirected through `--elev-*` rather than declared
+   as a literal `--shadow-card`.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* The page canvas behind <body>. Dark in both themes — see the `html` rule. */
+  --canvas: #050908;
 
   /* Brand palette — light theme, blue accent (restored) */
   --brand: #335cff;
@@ -62,16 +82,237 @@
   --tint-emerald: #ecfdf5;
   --tint-rose: #fff1f2;
 
+  /* Matching hairlines for the tints above. Previously each consumer reached
+     for a stock `border-blue-100` / `border-violet-100`; those are near-white
+     and unusable on a dark ground, so the pairing is a token now. */
+  --tint-blue-border: #dbeafe;
+  --tint-violet-border: #ede9fe;
+  --tint-fuchsia-border: #fae8ff;
+  --tint-amber-border: #fef3c7;
+  --tint-emerald-border: #d1fae5;
+  --tint-rose-border: #ffe4e6;
+
+  /* Semantic aliases — the names new code should use. Under `:root` they point
+     at the light values so a migrated component renders correctly on an
+     unmigrated page; `.theme-emerald` re-points them at the dark ramp. */
+  --panel: #ffffff;
+  --panel-raised: #f9fafb;
+  --bg: #ffffff;
+  --surface-1: #ffffff;
+  --surface-2: #ffffff;
+  --surface-3: #f9fafb;
+  --fg: var(--ink);
+  --fg-muted: var(--ink-soft);
+  --fg-subtle: #64748b;
+  --line: var(--card-border);
+  --line-strong: #d1d5db;
+  --primary: var(--brand);
+  --primary-hover: var(--brand-deep);
+  --primary-press: var(--brand-dark);
+  --on-primary: #ffffff;
+  --emerald-brand: #059669;
+  --emerald-bright: #10b981;
+
+  --success: #16a34a;
+  --warning: #d97706;
+  --error: #dc2626;
+  --info: #2563eb;
+
+  /* Elevation. Indirected so a scope can restyle it — a literal declared
+     inside `@theme inline` cannot be overridden per-subtree. */
+  --elev-card: 0 1px 2px rgba(14, 18, 27, 0.06), 0 8px 24px rgba(14, 18, 27, 0.08);
+  --elev-card-hover: 0 2px 4px rgba(14, 18, 27, 0.08), 0 16px 40px rgba(14, 18, 27, 0.12);
+  --elev-glow: 0 8px 30px rgba(51, 92, 255, 0.28);
+  --elev-glow-hover: 0 10px 36px rgba(124, 58, 237, 0.32);
+
   /* Canonical brand gradient — single source for fills, text, and hero */
   --gradient-brand: linear-gradient(135deg, var(--brand) 0%, var(--accent-violet) 55%, var(--accent-fuchsia) 100%);
+
+  /* Ambient lighting. Flat on light surfaces; the emerald theme gives these
+     real values so a hero or feature panel can be lit without every component
+     hand-rolling its own radial gradient. */
+  --gradient-ambient: none;
+  --gradient-panel: none;
+  --glow-primary: none;
+  --glow-emerald: none;
+  --grid-line: transparent;
+
+  /* Motion */
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 150ms;
+  --dur-card: 200ms;
+  --dur-section: 400ms;
+}
+
+/* ── The emerald theme ──────────────────────────────────────────────────────
+   Roughly 80% near-black, 15% emerald, 5% lime. Lime is the single primary
+   action per screen, never a status colour — status stays green/amber/red/blue
+   so "done", "careful" and "broken" keep meaning something.
+
+   Applied per-subtree during the migration (app shell, marketing shell, each
+   page family as it lands) so an unmigrated surface simply stays light rather
+   than rendering dark tokens under light utility classes. When
+   scripts/check-theme-debt.mjs reaches zero, these values move up into `:root`
+   and the class disappears. */
+.theme-emerald {
+  color-scheme: dark;
+
+  --background: #050908;
+  --foreground: #f5f7f4;
+
+  --bg: #050908;
+  --bg-deep: #020504;
+  --surface-1: #080d0b;
+  --surface-2: #0b1210;
+  --surface-3: #101815;
+  --panel: #0b1210;
+  --panel-raised: #101815;
+
+  --fg: #f5f7f4;
+  /* #9AA49F is 7.4:1 on the card ground; #7E8A85 is 5.2:1. The brief's
+     #69736E measured 3.5:1 and fails AA as text on every surface here, so the
+     muted ramp stops at #7E8A85 rather than going a step darker. */
+  --fg-muted: #9aa49f;
+  --fg-subtle: #7e8a85;
+
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.14);
+
+  --primary: #c8ff55;
+  --primary-hover: #d6ff7a;
+  --primary-press: #b4ef3c;
+  /* Never white. #071006 on lime is 16.5:1; white on lime is 1.6:1. */
+  --on-primary: #071006;
+  --emerald-brand: #00a968;
+  --emerald-bright: #20d68a;
+
+  --success: #20d68a;
+  --warning: #f5b544;
+  --error: #ff6b6b;
+  --info: #4ea8ff;
+
+  /* Legacy names, re-pointed. This is what flips ~2,290 existing
+     `text-ink` / `text-ink-soft` / `border-card-border` / `bg-surface` /
+     `bg-tint-*` usages to correct dark values with no file edits. */
+  --ink: var(--fg);
+  --ink-soft: var(--fg-muted);
+  --surface: var(--bg);
+  --card-border: var(--line);
+  --brand: var(--primary);
+  --brand-dark: var(--primary-press);
+  --brand-deep: var(--emerald-bright);
+  --brand-soft: color-mix(in oklab, var(--primary) 14%, var(--surface-2));
+
+  /* The old violet/fuchsia pair collapses onto the emerald ramp so every
+     gradient that referenced them stays inside one hue family. */
+  --accent-violet: var(--emerald-bright);
+  --accent-fuchsia: var(--primary);
+  --accent-pink: var(--emerald-brand);
+
+  /* Tints become tinted dark surfaces. Opaque via color-mix rather than alpha,
+     so the existing opacity modifiers on the tint utilities still composite predictably and
+     stacked cards don't show through each other.
+     `tint-blue` goes NEUTRAL on purpose: its 111 usages are overwhelmingly
+     "make this chip slightly different", not "signal blue", and tinting it
+     emerald would make it indistinguishable from tint-emerald. */
+  --tint-blue: var(--surface-3);
+  --tint-violet: color-mix(in oklab, var(--primary) 6%, var(--surface-2));
+  --tint-fuchsia: color-mix(in oklab, var(--primary) 11%, var(--surface-2));
+  --tint-amber: color-mix(in oklab, var(--warning) 10%, var(--surface-2));
+  --tint-emerald: color-mix(in oklab, var(--emerald-bright) 13%, var(--surface-2));
+  --tint-rose: color-mix(in oklab, var(--error) 10%, var(--surface-2));
+
+  --tint-blue-border: var(--line);
+  --tint-violet-border: color-mix(in oklab, var(--primary) 22%, transparent);
+  --tint-fuchsia-border: color-mix(in oklab, var(--primary) 28%, transparent);
+  --tint-amber-border: color-mix(in oklab, var(--warning) 24%, transparent);
+  --tint-emerald-border: color-mix(in oklab, var(--emerald-bright) 26%, transparent);
+  --tint-rose-border: color-mix(in oklab, var(--error) 24%, transparent);
+
+  --gradient-brand: linear-gradient(135deg, var(--emerald-brand) 0%, var(--emerald-bright) 45%, var(--primary) 100%);
+  --gradient-ambient: radial-gradient(900px 620px at 50% 118%, rgba(32, 214, 138, 0.34), transparent 62%),
+    radial-gradient(700px 460px at 82% 8%, rgba(0, 169, 104, 0.18), transparent 60%),
+    linear-gradient(168deg, #061210 0%, #04100c 44%, #051a12 100%);
+  --gradient-panel: radial-gradient(560px 400px at 78% 34%, rgba(0, 169, 104, 0.22), transparent 64%),
+    linear-gradient(150deg, #071310 0%, #040e0b 100%);
+  --glow-primary: 0 8px 34px rgba(200, 255, 85, 0.20);
+  --glow-emerald: 0 0 60px rgba(0, 180, 100, 0.10);
+  --grid-line: rgba(255, 255, 255, 0.026);
+
+  /* Elevation on a near-black ground. Tailwind's own shadows are
+     rgba(0,0,0,.05–.25) and are mathematically invisible here, so each level
+     carries a faint white hairline — that, not the drop shadow, is what
+     separates a card from the page in a dark UI. */
+  --elev-card: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.6), 0 8px 24px rgba(0, 0, 0, 0.45);
+  --elev-card-hover: 0 0 0 1px rgba(255, 255, 255, 0.09), 0 2px 4px rgba(0, 0, 0, 0.6), 0 16px 40px rgba(0, 0, 0, 0.55);
+  --elev-glow: 0 0 0 1px rgba(200, 255, 85, 0.25), 0 8px 30px rgba(200, 255, 85, 0.18);
+  --elev-glow-hover: 0 0 0 1px rgba(200, 255, 85, 0.40), 0 10px 36px rgba(200, 255, 85, 0.28);
+
+  /* Tailwind's stock shadow scale, re-tuned. 187 existing `shadow-sm/lg/xl/2xl`
+     usages would otherwise render as nothing at all. */
+  --tw-elev-2xs: 0 1px 0 rgba(255, 255, 255, 0.04);
+  --tw-elev-xs: 0 1px 0 rgba(255, 255, 255, 0.04);
+  --tw-elev-sm: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.5);
+  --tw-elev-md: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 4px 12px rgba(0, 0, 0, 0.5);
+  --tw-elev-lg: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 12px 32px rgba(0, 0, 0, 0.55);
+  --tw-elev-xl: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 20px 48px rgba(0, 0, 0, 0.6);
+  --tw-elev-2xl: 0 0 0 1px rgba(255, 255, 255, 0.10), 0 32px 80px rgba(0, 0, 0, 0.7);
+
+  /* Stock gray ramp, inverted. A scheduled bridge, not a destination: ~1,650
+     `text-gray-900` / `bg-gray-50` / `border-gray-200` sites read correctly
+     immediately, and check-theme-debt.mjs ratchets them to zero, at which
+     point this block is deleted. Class names lie while it exists —
+     `text-gray-900` renders near-white — which is exactly why it is on a
+     ratchet and not left to good intentions. */
+  --color-gray-50: #101815;
+  --color-gray-100: #16211d;
+  --color-gray-200: #1e2a26;
+  --color-gray-300: #2a3833;
+  --color-gray-400: #7e8a85;
+  --color-gray-500: #9aa49f;
+  --color-gray-600: #b4bdb8;
+  --color-gray-700: #d2d8d4;
+  --color-gray-800: #e6eae7;
+  --color-gray-900: #f5f7f4;
+  --color-gray-950: #fbfcfa;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-plus-jakarta);
+  --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
+  /* ── Semantic names — use these in new code ── */
+  --color-bg: var(--bg);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  /* `panel` is "the surface a card paints itself with" — white on a light
+     page, surface-2 in the emerald theme. It is the migration target for the
+     opaque `bg-white` sites. */
+  --color-panel: var(--panel);
+  --color-panel-raised: var(--panel-raised);
+
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-press: var(--primary-press);
+  --color-on-primary: var(--on-primary);
+  --color-emerald-brand: var(--emerald-brand);
+  --color-emerald-bright: var(--emerald-bright);
+
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --color-info: var(--info);
+
+  /* ── Legacy names. Still correct in both themes; being retired gradually. ── */
   --color-brand: var(--brand);
   --color-brand-dark: var(--brand-dark);
   --color-brand-deep: var(--brand-deep);
@@ -90,12 +331,38 @@
   --color-tint-amber: var(--tint-amber);
   --color-tint-emerald: var(--tint-emerald);
   --color-tint-rose: var(--tint-rose);
+  --color-tint-blue-border: var(--tint-blue-border);
+  --color-tint-violet-border: var(--tint-violet-border);
+  --color-tint-fuchsia-border: var(--tint-fuchsia-border);
+  --color-tint-amber-border: var(--tint-amber-border);
+  --color-tint-emerald-border: var(--tint-emerald-border);
+  --color-tint-rose-border: var(--tint-rose-border);
 
-  --shadow-card: 0 1px 2px rgba(14, 18, 27, 0.06), 0 8px 24px rgba(14, 18, 27, 0.08);
-  --shadow-card-hover: 0 2px 4px rgba(14, 18, 27, 0.08), 0 16px 40px rgba(14, 18, 27, 0.12);
-  --shadow-glow: 0 8px 30px rgba(51, 92, 255, 0.28);
-  --shadow-glow-hover: 0 10px 36px rgba(124, 58, 237, 0.32);
+  /* ── Elevation ── */
+  --shadow-card: var(--elev-card);
+  --shadow-card-hover: var(--elev-card-hover);
+  --shadow-glow: var(--elev-glow);
+  --shadow-glow-hover: var(--elev-glow-hover);
+
+  --shadow-2xs: var(--tw-elev-2xs, 0 1px rgba(0, 0, 0, 0.05));
+  --shadow-xs: var(--tw-elev-xs, 0 1px 2px rgba(0, 0, 0, 0.05));
+  --shadow-sm: var(--tw-elev-sm, 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06));
+  --shadow-md: var(--tw-elev-md, 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.06));
+  --shadow-lg: var(--tw-elev-lg, 0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05));
+  --shadow-xl: var(--tw-elev-xl, 0 20px 25px rgba(0, 0, 0, 0.1), 0 8px 10px rgba(0, 0, 0, 0.04));
+  --shadow-2xl: var(--tw-elev-2xl, 0 25px 50px rgba(0, 0, 0, 0.25));
+
+  /* ── Geometry. Small controls stay modest; panels get generous. ── */
+  --radius-control: 10px;
+  --radius-field: 12px;
   --radius-card: 24px;
+  --radius-panel: 18px;
+  --radius-feature: 24px;
+  --radius-showcase: 32px;
+  --radius-hero: 40px;
+
+  /* ── Motion ── */
+  --ease-emerald: var(--ease-out-quint);
 }
 
 /* ── Vibrant-gradient utilities (dashboard redesign) ───────────────────── */
@@ -104,12 +371,51 @@
   background-image: var(--gradient-brand);
 }
 @utility grad-text {
-  /* Gradient-clipped headings. Keep usages inline-block with short text —
-     background-clip:text drops the fallback color entirely. */
+  /* Gradient-clipped headings. Keep usages inline-block with short text.
+     `color` is declared FIRST and only zeroed out where the clip is actually
+     supported: with an unconditional `color: transparent` any context that
+     doesn't paint the background — forced-colors mode, some print paths — got
+     invisible text rather than a fallback colour. */
+  color: var(--primary);
   background-image: var(--gradient-brand);
   -webkit-background-clip: text;
   background-clip: text;
-  color: transparent;
+}
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .grad-text {
+    color: transparent;
+  }
+}
+@media (forced-colors: active) {
+  .grad-text {
+    color: CanvasText;
+    background-image: none;
+  }
+}
+
+/* ── Emerald atmosphere ────────────────────────────────────────────────────
+   Deliberately few, and inert outside `.theme-emerald` (the tokens they read
+   are `none` under `:root`). The reference this system is drawn from works
+   because the green is surrounded by darkness — so these are for the hero, the
+   occasional feature panel and the final CTA, not for every card. */
+@utility bg-ambient {
+  background-image: var(--gradient-ambient);
+}
+@utility bg-panel-lit {
+  background-image: var(--gradient-panel);
+}
+@utility glow-primary {
+  box-shadow: var(--glow-primary);
+}
+@utility glow-emerald {
+  box-shadow: var(--glow-emerald);
+}
+@utility bg-grid {
+  /* Very low-contrast grid, for behind an AI/product visual. Not a page
+     background. */
+  background-image: linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 44px 44px;
 }
 @utility grad-hero {
   /* Hero banner: brand gradient with two soft radial highlights layered on */
@@ -148,10 +454,67 @@
   filter: none;
 }
 
+/* The outermost canvas, behind everything. It is deliberately NOT
+   `var(--background)`: during the migration a light page and a migrated dark
+   one both sit on this, and it already matches what `<body>` has painted since
+   before the migration, so overscroll/rubber-band looks the same as today
+   rather than flashing white. Ends up equal to `--bg` once the emerald theme
+   is the default. */
+html {
+  background: var(--canvas);
+}
+
 body {
-  background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-plus-jakarta), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ── Dark-surface essentials ───────────────────────────────────────────────
+   Scoped to `.theme-emerald` so an unmigrated light page is untouched. */
+
+/* Chrome paints autofilled inputs pale yellow with near-black text, which on a
+   dark form reads as a rendering fault. There is no way to set the background
+   directly — the inset shadow trick is the only one that works — and the long
+   transition keeps it from flashing back on blur. */
+.theme-emerald input:-webkit-autofill,
+.theme-emerald input:-webkit-autofill:hover,
+.theme-emerald input:-webkit-autofill:focus,
+.theme-emerald textarea:-webkit-autofill,
+.theme-emerald select:-webkit-autofill {
+  -webkit-text-fill-color: var(--fg);
+  -webkit-box-shadow: 0 0 0 1000px var(--surface-2) inset;
+  caret-color: var(--fg);
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+.theme-emerald ::selection {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+/* Light-on-dark scrollbars. `color-scheme: dark` on the theme already fixes
+   the default bars in Chrome and Firefox; this is for the WebKit custom track
+   only, and mirrors what the editor does inside its own scope. */
+.theme-emerald {
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+  scrollbar-width: thin;
+}
+.theme-emerald ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.theme-emerald ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.theme-emerald ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.theme-emerald ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
+  background-clip: content-box;
 }
 
 /* ── Landing-page animation utilities ──────────────────────────────────── */
