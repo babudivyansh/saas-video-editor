@@ -259,7 +259,7 @@ function VoicePickerModal({
                       <button
                         onClick={(e) => { e.stopPropagation(); onLike(v.slug); }}
                         className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                          isLiked ? "text-red-500 bg-red-50 hover:bg-red-100" : "text-gray-300 hover:text-gray-500 hover:bg-gray-100"
+                          isLiked ? "text-red-500 bg-red-50 hover:bg-red-100" : "text-fg-subtle hover:text-gray-500 hover:bg-gray-100"
                         }`}
                         aria-label={isLiked ? "Unlike" : "Like"}
                       >
@@ -716,7 +716,7 @@ export default function VoiceoverTool() {
             )}
             {history.length === 0 && !busy ? (
               <div className="h-full min-h-[380px] flex flex-col items-center justify-center text-center">
-                <div className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-300 mb-4">
+                <div className="w-20 h-20 rounded-2xl bg-surface-3 flex items-center justify-center text-gray-300 mb-4">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-9 h-9"><path d="M3 10v4M7 6v12M11 3v18M15 7v10M19 10v4M23 11v2" /></svg>
                 </div>
                 <p className="text-[16px] font-extrabold text-gray-800">No Output Yet</p>

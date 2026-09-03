@@ -262,7 +262,7 @@ function BrowseStep({ plansLoading, subs, packs, term, onTermChange, currency, o
               key={c}
               onClick={() => onCurrencyChange(c)}
               className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
-                currency === c ? "bg-gray-900 text-white shadow" : "text-fg-muted hover:text-fg"
+                currency === c ? "bg-fg text-bg shadow" : "text-fg-muted hover:text-fg"
               }`}
             >
               {c === "INR" ? "₹ INR" : "$ USD"}
@@ -479,7 +479,7 @@ function CheckoutStep({
                   <button
                     onClick={onApplyCoupon}
                     disabled={couponApplying || !couponInput.trim()}
-                    className="px-3 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-40 transition-colors"
+                    className="px-3 py-2 rounded-lg bg-fg text-bg text-sm font-semibold hover:bg-gray-800 disabled:opacity-40 transition-colors"
                   >
                     {couponApplying ? "…" : "Apply"}
                   </button>

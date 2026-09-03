@@ -724,7 +724,7 @@ export default function AICreatorWizard() {
                 <div className="relative">
                   <button
                     disabled
-                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-gray-100 bg-gray-50 text-sm font-semibold text-gray-300 cursor-not-allowed"
+                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-line bg-surface-3 text-sm font-semibold text-fg-subtle cursor-not-allowed"
                   >
                     <IcUploadArrow />
                     Clone Your Voice

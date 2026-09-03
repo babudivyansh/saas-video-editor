@@ -51,7 +51,7 @@ export default function PageHero({
   const textStack = (
     <div className="flex max-w-[820px] flex-col items-start gap-5">
       {badge && (
-        <span className="inline-flex items-center gap-2 rounded-full border border-card-border bg-white px-3.5 py-1.5 text-[11.5px] font-semibold text-ink-soft">
+        <span className="inline-flex items-center gap-2 rounded-full border border-card-border bg-panel px-3.5 py-1.5 text-[11.5px] font-semibold text-ink-soft">
           <svg className="h-3.5 w-3.5 text-brand" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
             <path
               fillRule="evenodd"

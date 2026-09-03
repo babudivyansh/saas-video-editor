@@ -27,15 +27,15 @@ export default function FounderSection() {
             {/* Message */}
             <div className="flex-1 text-center md:text-left">
               <span className="text-xs font-bold uppercase tracking-widest text-brand-deep">A note from the founder</span>
-              <blockquote className="mt-3 text-lg leading-relaxed text-gray-700 md:text-xl">
+              <blockquote className="mt-3 text-lg leading-relaxed text-fg md:text-xl">
                 &ldquo;I built Clipiro because creators spend hours editing what AI can do in minutes. Our mission is
                 simple: give every creator a studio-grade editor that turns one long video into a week of viral
                 content — so you can focus on ideas, not timelines.&rdquo;
               </blockquote>
               <div className="mt-5 flex flex-col items-center gap-3 md:flex-row md:justify-between">
                 <div>
-                  <p className="font-bold text-gray-900">Divyansh Verma</p>
-                  <p className="text-sm text-gray-500">Founder &amp; CEO, Clipiro</p>
+                  <p className="font-bold text-fg">Divyansh Verma</p>
+                  <p className="text-sm text-fg-muted">Founder &amp; CEO, Clipiro</p>
                 </div>
                 <div className="flex items-center gap-2">
                   {SOCIALS.map((s) => (
@@ -45,7 +45,7 @@ export default function FounderSection() {
                       aria-label={s.label}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 transition-colors hover:border-brand hover:text-brand-deep"
+                      className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-panel text-fg-muted transition-colors hover:border-brand hover:text-brand-deep"
                     >
                       {s.icon}
                     </a>

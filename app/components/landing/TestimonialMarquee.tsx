@@ -51,13 +51,13 @@ export default function TestimonialMarquee({ reviews }: TestimonialMarqueeProps)
         {doubled.map((review, i) => (
           <div
             key={`${review.id}-${i}`}
-            className="flex w-80 flex-shrink-0 items-center gap-3 rounded-2xl border border-card-border bg-white px-4 py-3 shadow-card"
+            className="flex w-80 flex-shrink-0 items-center gap-3 rounded-2xl border border-card-border bg-panel px-4 py-3 shadow-card"
           >
             {review.author.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={review.author.avatarUrl} alt="" className="h-9 w-9 flex-shrink-0 rounded-full object-cover" />
             ) : (
-              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full grad-brand text-xs font-bold text-white">
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full grad-brand text-xs font-bold text-on-primary">
                 {initials(review.author.name)}
               </div>
             )}

@@ -850,7 +850,7 @@ export default function VideoGeneratorTool() {
                   <a
                     href={videoUrl}
                     download={downloadName}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold transition-colors"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-fg hover:bg-fg-muted text-bg text-sm font-semibold transition-colors"
                   >
                     <IcDownload /> Download
                   </a>

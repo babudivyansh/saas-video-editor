@@ -81,7 +81,7 @@ function ImageDropZone({
             <button
               type="button"
               onClick={onClear}
-              className="absolute top-2 right-2 w-6 h-6 rounded-full bg-gray-900/70 hover:bg-gray-900 text-white flex items-center justify-center transition-colors"
+              className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/70 hover:bg-black/850 text-white flex items-center justify-center transition-colors"
             >
               <IcX />
             </button>

@@ -135,6 +135,8 @@
   --gradient-panel: none;
   --glow-primary: none;
   --glow-emerald: none;
+  /* Wide hero glow, consumed by a radial-gradient in the landing hero. */
+  --glow-hero: transparent;
   --grid-line: transparent;
 
   /* Motion */
@@ -237,6 +239,7 @@
     linear-gradient(150deg, #071310 0%, #040e0b 100%);
   --glow-primary: 0 8px 34px rgba(200, 255, 85, 0.20);
   --glow-emerald: 0 0 60px rgba(0, 180, 100, 0.10);
+  --glow-hero: rgba(0, 169, 104, 0.22);
   --grid-line: rgba(255, 255, 255, 0.026);
 
   /* Elevation on a near-black ground. Tailwind's own shadows are
@@ -423,35 +426,6 @@
     radial-gradient(1200px 400px at 85% -20%, rgba(255, 255, 255, 0.22), transparent 60%),
     radial-gradient(800px 300px at 10% 120%, rgba(217, 70, 239, 0.35), transparent 60%),
     var(--gradient-brand);
-}
-
-/* ── Flat-brand marketing surfaces ─────────────────────────────────────────
-   The public site fills buttons, badges and chips with the solid brand blue —
-   matching the navbar's "Start Free" button — instead of the
-   blue → violet → fuchsia gradient, which stays the dashboard's identity.
-
-   Opt-in via a `flat-brand` class on each marketing page root (MarketingShell
-   applies it for every page built on it) rather than by changing `grad-brand`
-   itself, so /dashboard, /admin and the editor cannot shift by accident.
-
-   `grad-text` is deliberately NOT overridden — gradient stat numbers stay as
-   an accent. `grad-hero` IS flattened: as a full-bleed CTA panel its violet
-   and fuchsia stops dominated the section rather than accenting it. */
-.flat-brand {
-  /* The default hover glow is violet-tinted, which reads as a colour shift
-     under a flat blue button. */
-  --shadow-glow-hover: 0 10px 36px rgba(51, 92, 255, 0.32);
-}
-.flat-brand .grad-brand,
-.flat-brand .grad-hero {
-  background-image: none;
-  background-color: var(--brand);
-}
-.flat-brand .grad-brand:hover {
-  background-color: var(--brand-dark);
-  /* Cancels Button primary's `hover:brightness-105`, which would lighten the
-     fill and fight the darker hover the navbar button already establishes. */
-  filter: none;
 }
 
 /* The outermost canvas, behind everything. It is deliberately NOT

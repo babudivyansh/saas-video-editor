@@ -341,7 +341,7 @@ export default function ImageGeneratorTool() {
                   <img src={referencePreview} alt="reference" className="w-full h-full object-cover rounded-xl border border-gray-200" />
                   <button
                     onClick={() => setReferencePreview(null)}
-                    className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-gray-800 text-white flex items-center justify-center cursor-pointer"
+                    className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-black/80 text-white flex items-center justify-center cursor-pointer"
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-2.5 h-2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
                   </button>

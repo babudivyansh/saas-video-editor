@@ -39,22 +39,22 @@ export default async function ReviewsPage() {
   ]);
 
   return (
-    <div className="flat-brand min-h-screen bg-white text-gray-900 font-sans">
+    <div className="theme-emerald min-h-screen bg-bg text-fg font-sans">
       <JsonLd data={softwareAppSchema} />
       <JsonLd data={faqSchema} />
       <JsonLd data={breadcrumbSchema} />
       <SiteNavbar solid />
       <main>
-        <section className="border-b border-gray-100 bg-gray-50/60">
+        <section className="border-b border-line bg-gray-50/60">
           <div className="mx-auto w-full max-w-screen-2xl px-4 py-16 text-center md:px-12 lg:px-[120px]">
             <div className="flex justify-center">
               <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Reviews" }]} />
             </div>
             <span className="mt-4 block text-xs font-bold uppercase tracking-widest text-brand">Reviews</span>
-            <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-extrabold leading-tight text-gray-900 md:text-6xl">
+            <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-extrabold leading-tight text-fg md:text-6xl">
               What creators say about Clipiro
             </h1>
-            <p className="mx-auto mt-5 max-w-2xl text-lg text-gray-600">
+            <p className="mx-auto mt-5 max-w-2xl text-lg text-fg-muted">
               Real, verified reviews from people using Clipiro to turn long videos into viral clips.
             </p>
             <div className="mt-6">
@@ -68,12 +68,12 @@ export default async function ReviewsPage() {
         </section>
 
         <section className="mx-auto w-full max-w-3xl px-4 py-16 md:px-12">
-          <h2 className="text-3xl font-extrabold text-gray-900 text-center mb-10">Frequently asked questions</h2>
+          <h2 className="text-3xl font-extrabold text-fg text-center mb-10">Frequently asked questions</h2>
           <div className="space-y-3">
             {REVIEWS_FAQS.map((faq) => (
-              <div key={faq.question} className="bg-white border border-gray-100 rounded-xl p-6">
-                <p className="font-semibold text-gray-900 text-sm">{faq.question}</p>
-                <p className="text-sm text-gray-600 leading-relaxed mt-2">{faq.answer}</p>
+              <div key={faq.question} className="bg-panel border border-line rounded-xl p-6">
+                <p className="font-semibold text-fg text-sm">{faq.question}</p>
+                <p className="text-sm text-fg-muted leading-relaxed mt-2">{faq.answer}</p>
               </div>
             ))}
           </div>

@@ -110,7 +110,7 @@ export function NavDropdown({
     >
       <button
         onClick={() => setOpen((p) => !p)}
-        className="flex items-center gap-1 text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors px-3 py-2 rounded-lg hover:bg-gray-50"
+        className="flex items-center gap-1 text-sm font-semibold text-fg hover:text-fg transition-colors px-3 py-2 rounded-lg hover:bg-surface-2"
       >
         {label}
         <ChevronIcon className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
@@ -118,7 +118,7 @@ export function NavDropdown({
 
       {/* Always mounted so both open and close animate — see file header. */}
       <div
-        className={`${positionClass} origin-top rounded-[var(--radius-card)] border border-card-border bg-white shadow-xl z-50 overflow-hidden transition-all duration-200 ease-out ${
+        className={`${positionClass} origin-top rounded-[var(--radius-card)] border border-card-border bg-panel shadow-xl z-50 overflow-hidden transition-all duration-200 ease-out ${
           open ? "opacity-100 scale-100 translate-y-0 visible" : "opacity-0 scale-95 -translate-y-1 invisible pointer-events-none"
         }`}
         style={{ width, maxWidth: "calc(100vw - 1.5rem)" }}

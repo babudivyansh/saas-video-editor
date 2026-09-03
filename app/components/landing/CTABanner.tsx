@@ -28,14 +28,14 @@ export default function CTABanner() {
                 {user ? (
                   <Link
                     href="/dashboard"
-                    className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 text-base font-bold text-brand-deep shadow-lg transition-transform duration-200 hover:scale-[1.02]"
+                    className="inline-flex items-center gap-2 rounded-full bg-panel px-8 py-4 text-base font-bold text-brand-deep shadow-lg transition-transform duration-200 hover:scale-[1.02]"
                   >
                     Go to Dashboard
                   </Link>
                 ) : (
                   <button
                     onClick={() => openAuthModal("register")}
-                    className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 text-base font-bold text-brand-deep shadow-lg transition-transform duration-200 hover:scale-[1.02] cursor-pointer"
+                    className="inline-flex items-center gap-2 rounded-full bg-panel px-8 py-4 text-base font-bold text-brand-deep shadow-lg transition-transform duration-200 hover:scale-[1.02] cursor-pointer"
                   >
                     Start Free
                   </button>

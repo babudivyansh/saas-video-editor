@@ -63,7 +63,7 @@ export default async function HomePage() {
   return (
     <>
       <JsonLd data={jsonLd} />
-      <div className="flat-brand min-h-screen bg-white text-gray-900 font-sans">
+      <div className="theme-emerald min-h-screen bg-bg text-fg font-sans">
         <SiteNavbar />
         <main>
           <Hero reviewSummary={reviewSummary} />

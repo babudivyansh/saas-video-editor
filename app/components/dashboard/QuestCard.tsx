@@ -271,7 +271,7 @@ export function QuestCard({ questData, hasUser, onDiscordQuest }: QuestCardProps
                       </svg>
                     </span>
                   ) : (
-                    <span className="text-gray-300 group-hover:text-brand transition-colors mt-0.5 flex-shrink-0"><IcChevron /></span>
+                    <span className="text-fg-subtle group-hover:text-brand transition-colors mt-0.5 flex-shrink-0"><IcChevron /></span>
                   )}
                 </>
               );

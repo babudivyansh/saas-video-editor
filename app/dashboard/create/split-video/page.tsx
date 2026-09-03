@@ -247,7 +247,7 @@ function Header({
                 </span>
                 <span className="text-sm font-semibold" style={{ color: i === stepIndex ? "#111827" : "#9ca3af" }}>{s.label}</span>
               </div>
-              {i < STEPS.length - 1 && <span className="text-gray-300 mx-1"><IcChevron /></span>}
+              {i < STEPS.length - 1 && <span className="text-fg-subtle mx-1"><IcChevron /></span>}
             </div>
           ))}
         </nav>

@@ -81,7 +81,7 @@ export default function AffiliateProgramPage() {
         <section className="mx-auto w-full max-w-screen-xl px-5 sm:px-6 py-16 md:px-12 lg:px-20">
           <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
             {BENEFITS.map((b) => (
-              <div key={b.label} className="rounded-2xl border border-brand-soft bg-white p-6 text-center">
+              <div key={b.label} className="rounded-2xl border border-brand-soft bg-panel p-6 text-center">
                 <p className="text-3xl font-semibold tracking-tight text-ink md:text-4xl">{b.value}</p>
                 <p className="mt-1 text-sm text-ink-soft">{b.label}</p>
               </div>
@@ -99,7 +99,7 @@ export default function AffiliateProgramPage() {
           </div>
           <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-3">
             {STEPS.map((s) => (
-              <div key={s.num} className="rounded-2xl border border-card-border bg-white p-7 shadow-sm">
+              <div key={s.num} className="rounded-2xl border border-card-border bg-panel p-7 shadow-sm">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-soft text-sm font-semibold text-brand-deep">
                   {s.num}
                 </div>
@@ -123,7 +123,7 @@ export default function AffiliateProgramPage() {
           </div>
           <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2">
             {REQUIREMENTS.map((r) => (
-              <div key={r.title} className="flex gap-4 rounded-2xl border border-card-border bg-white p-6 shadow-sm">
+              <div key={r.title} className="flex gap-4 rounded-2xl border border-card-border bg-panel p-6 shadow-sm">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 h-5 w-5 flex-shrink-0 text-brand-deep">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
@@ -139,7 +139,7 @@ export default function AffiliateProgramPage() {
         {/* Do's and don'ts */}
         <section className="mx-auto w-full max-w-screen-xl px-5 sm:px-6 pb-16 md:px-12 lg:px-20">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div className="rounded-2xl border border-card-border bg-white p-7 shadow-sm">
+            <div className="rounded-2xl border border-card-border bg-panel p-7 shadow-sm">
               <h3 className="text-base font-bold text-ink">Approved promotion</h3>
               <ul className="mt-4 space-y-3">
                 {DOS.map((item) => (
@@ -150,7 +150,7 @@ export default function AffiliateProgramPage() {
                 ))}
               </ul>
             </div>
-            <div className="rounded-2xl border border-card-border bg-white p-7 shadow-sm">
+            <div className="rounded-2xl border border-card-border bg-panel p-7 shadow-sm">
               <h3 className="text-base font-bold text-ink">Not allowed</h3>
               <ul className="mt-4 space-y-3">
                 {DONTS.map((item) => (

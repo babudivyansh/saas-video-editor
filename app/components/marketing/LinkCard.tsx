@@ -31,7 +31,7 @@ export default function LinkCard({
     <li>
       <Link
         href={href}
-        className="group flex h-full flex-col rounded-2xl border border-card-border bg-white p-6 transition-all duration-200 hover:border-brand/40 hover:shadow-[0_6px_24px_-8px_rgba(51,92,255,0.22)]"
+        className="group flex h-full flex-col rounded-2xl border border-card-border bg-panel p-6 transition-all duration-200 hover:border-brand/40 hover:shadow-[0_6px_24px_-8px_rgba(51,92,255,0.22)]"
       >
         {(meta || icon !== null) && (
           <div className="mb-4 flex items-start justify-between gap-3">

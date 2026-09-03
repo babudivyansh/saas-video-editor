@@ -100,7 +100,7 @@ export default function AboutPage() {
       >
         <ul className="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-4">
           {STATS.map((s) => (
-            <li key={s.label} className="rounded-2xl border border-card-border bg-white p-8 text-center">
+            <li key={s.label} className="rounded-2xl border border-card-border bg-panel p-8 text-center">
               <p className="grad-text inline-block text-4xl font-semibold tracking-tight md:text-5xl">{s.value}</p>
               <p className="mt-3 text-[13px] font-medium text-ink-soft">{s.label}</p>
             </li>
@@ -111,7 +111,7 @@ export default function AboutPage() {
       <Section eyebrow="Values" title="The core principles behind Clipiro">
         <ul className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-3">
           {VALUES.map((v) => (
-            <li key={v.title} className="flex h-full flex-col rounded-2xl border border-card-border bg-white p-6">
+            <li key={v.title} className="flex h-full flex-col rounded-2xl border border-card-border bg-panel p-6">
               <span className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-tint-blue">{v.icon}</span>
               <h3 className="mb-2 text-[17px] font-semibold leading-[1.3] tracking-tight text-ink">{v.title}</h3>
               <p className="text-[14px] leading-[1.6] text-ink-soft">{v.desc}</p>
@@ -162,10 +162,10 @@ function PipelineMockup() {
   return (
     <div
       aria-hidden="true"
-      className="relative aspect-[4/5] w-full max-w-[420px] rounded-[var(--radius-card)] border border-card-border bg-white p-4 shadow-card"
+      className="relative aspect-[4/5] w-full max-w-[420px] rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card"
     >
       <div className="flex h-full w-full flex-col overflow-hidden rounded-2xl border border-card-border bg-surface">
-        <div className="flex h-10 items-center justify-between border-b border-card-border bg-white px-3">
+        <div className="flex h-10 items-center justify-between border-b border-card-border bg-panel px-3">
           <div className="flex gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
             <span className="h-2.5 w-2.5 rounded-full bg-yellow-400" />
@@ -175,7 +175,7 @@ function PipelineMockup() {
         </div>
 
         <div className="flex flex-1 flex-col gap-4 p-4">
-          <div className="flex items-center gap-3 rounded-xl border border-card-border bg-white p-3">
+          <div className="flex items-center gap-3 rounded-xl border border-card-border bg-panel p-3">
             <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg border border-card-border bg-surface text-ink-soft">
               <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm12.553 2.236A1 1 0 0014 9v2a1 1 0 00.553.894l2 1A1 1 0 0018 12V8a1 1 0 00-1.447-.894l-2 1z" />
@@ -195,7 +195,7 @@ function PipelineMockup() {
 
           <div className="flex flex-1 flex-col justify-between rounded-xl border border-card-border bg-tint-blue p-3">
             <div className="flex items-center justify-between">
-              <span className="rounded-full border border-brand/10 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand">
+              <span className="rounded-full border border-brand/10 bg-panel px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand">
                 Viral shorts generated
               </span>
               <span className="text-[10px] font-medium text-ink-soft">100% completed</span>
@@ -204,7 +204,7 @@ function PipelineMockup() {
               {clips.map((clip) => (
                 <div
                   key={clip.label}
-                  className="flex items-center justify-between rounded-lg border border-card-border bg-white p-2"
+                  className="flex items-center justify-between rounded-lg border border-card-border bg-panel p-2"
                 >
                   <div className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />

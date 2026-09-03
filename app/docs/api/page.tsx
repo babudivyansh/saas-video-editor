@@ -17,7 +17,7 @@ function H2({ children }: { children: React.ReactNode }) {
 
 function Code({ children }: { children: string }) {
   return (
-    <pre className="mt-3 overflow-x-auto rounded-xl bg-ink p-4 text-xs leading-relaxed text-gray-100">
+    <pre className="mt-3 overflow-x-auto rounded-xl bg-surface-3 border border-card-border p-4 text-xs leading-relaxed text-fg">
       <code>{children}</code>
     </pre>
   );

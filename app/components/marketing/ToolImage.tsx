@@ -29,7 +29,7 @@ export default function ToolImage({
   priority?: boolean;
 }) {
   return (
-    <div className="overflow-hidden rounded-[var(--radius-card)] border border-card-border bg-white shadow-card transition-all duration-200 hover:shadow-card-hover motion-safe:hover:-translate-y-1">
+    <div className="overflow-hidden rounded-[var(--radius-card)] border border-card-border bg-panel shadow-card transition-all duration-200 hover:shadow-card-hover motion-safe:hover:-translate-y-1">
       <Image
         src={src}
         alt={alt}

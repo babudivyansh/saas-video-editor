@@ -242,7 +242,7 @@ function TrimmedPreviewPlayer({ sourceVideoUrl, startSec, endSec, aspectRatio, c
   }, [startSec, endSec, playing]);
 
   return (
-    <div className={`relative bg-gray-900 ${className ?? ""}`} style={{ aspectRatio: arCss(aspectRatio) }}>
+    <div className={`relative bg-black ${className ?? ""}`} style={{ aspectRatio: arCss(aspectRatio) }}>
       {playing && sourceVideoUrl ? (
         <video
           ref={videoRef}

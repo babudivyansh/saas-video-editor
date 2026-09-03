@@ -115,7 +115,7 @@ export function ClipScrubber({
         ))}
 
         {playheadSec != null && (
-          <div className="absolute inset-y-0 w-px bg-gray-900 pointer-events-none" style={{ left: `${pct(playheadSec)}%` }} />
+          <div className="absolute inset-y-0 w-px bg-fg pointer-events-none" style={{ left: `${pct(playheadSec)}%` }} />
         )}
       </div>
 

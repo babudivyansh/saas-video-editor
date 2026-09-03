@@ -82,7 +82,7 @@ const PILLARS: Pillar[] = [
 
 function PillarCard({ pillar }: { pillar: Pillar }) {
   return (
-    <div className="group flex h-full flex-col overflow-hidden rounded-[20px] border border-card-border bg-white shadow-card transition-all duration-200 hover:-translate-y-1 hover:shadow-card-hover">
+    <div className="group flex h-full flex-col overflow-hidden rounded-[20px] border border-card-border bg-panel shadow-card transition-all duration-200 hover:-translate-y-1 hover:shadow-card-hover">
       {/* Illustration band — sized to the image's own aspect ratio so the
           whole picture shows, instead of a fixed height that crops it. */}
       <div
