@@ -62,7 +62,7 @@ export function ChartFrame({
 
   return (
     <figure
-      className={`rounded-[var(--radius-card)] border border-card-border bg-white p-4 shadow-card ${className}`}
+      className={`rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card ${className}`}
     >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">

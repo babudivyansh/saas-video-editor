@@ -62,7 +62,7 @@ export function ExportButtons({ accountId, exports }: ExportButtonsProps) {
         ))}
       </div>
       {error && (
-        <p role="alert" className="mt-2 text-sm text-red-600">
+        <p role="alert" className="mt-2 text-sm text-error">
           {error}
         </p>
       )}

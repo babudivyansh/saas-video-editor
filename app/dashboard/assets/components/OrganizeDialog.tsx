@@ -69,7 +69,7 @@ export function OrganizeDialog({ asset, folders, allTags, onClose, onSave, savin
             id="organize-folder"
             value={folderId ?? ""}
             onChange={(e) => setFolderId(e.target.value || null)}
-            className="w-full text-sm bg-white border border-card-border rounded-xl px-3 py-2 text-ink outline-none focus:border-brand cursor-pointer"
+            className="w-full text-sm bg-panel border border-card-border rounded-xl px-3 py-2 text-ink outline-none focus:border-brand cursor-pointer"
           >
             <option value="">Unfiled</option>
             {folders.map((f) => (
@@ -116,7 +116,7 @@ export function OrganizeDialog({ asset, folders, allTags, onClose, onSave, savin
             }}
             placeholder={tags.length >= 30 ? "Tag limit reached" : "Add a tag and press Enter…"}
             disabled={tags.length >= 30}
-            className="w-full text-sm bg-white border border-card-border rounded-xl px-3 py-2 text-ink placeholder:text-ink-soft/50 outline-none focus:border-brand disabled:opacity-60"
+            className="w-full text-sm bg-panel border border-card-border rounded-xl px-3 py-2 text-ink placeholder:text-ink-soft/50 outline-none focus:border-brand disabled:opacity-60"
           />
 
           {suggestions.length > 0 && (

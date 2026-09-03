@@ -116,7 +116,7 @@ export default function InstagramDownloaderPage() {
   }
 
   return (
-    <div className="min-h-full bg-slate-50">
+    <div className="min-h-full bg-surface-2">
       <div className="mx-auto w-full max-w-2xl px-4 sm:px-6 py-8">
           {/* Header */}
           <div className="flex items-center gap-3 mb-1">
@@ -127,20 +127,20 @@ export default function InstagramDownloaderPage() {
               <IcInstagram />
             </div>
             <div>
-              <h1 className="text-[22px] font-extrabold text-gray-900 tracking-tight leading-tight">
+              <h1 className="text-[22px] font-extrabold text-fg tracking-tight leading-tight">
                 Instagram Downloader
               </h1>
-              <p className="text-[13px] text-gray-400">Free · No watermark · Reels, Posts & IGTV</p>
+              <p className="text-[13px] text-fg-subtle">Free · No watermark · Reels, Posts & IGTV</p>
             </div>
           </div>
 
-          <p className="text-[13.5px] text-gray-500 mt-3 mb-7">
+          <p className="text-[13.5px] text-fg-muted mt-3 mb-7">
             Paste a link to any public Instagram reel, post, or IGTV video to download it in high quality, or extract the audio as MP3.
           </p>
 
           {/* URL Input */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 mb-5">
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">
+          <div className="bg-panel rounded-2xl border border-line shadow-sm p-5 mb-5">
+            <label className="text-xs font-semibold text-fg-muted uppercase tracking-wide mb-2 block">
               Instagram URL
             </label>
             <div className="flex gap-2">
@@ -150,7 +150,7 @@ export default function InstagramDownloaderPage() {
                 onChange={e => { setUrl(e.target.value); setInfo(null); setError(""); }}
                 onKeyDown={e => e.key === "Enter" && fetchInfo()}
                 placeholder="https://www.instagram.com/reel/..."
-                className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-transparent placeholder-gray-300"
+                className="flex-1 bg-surface-2 border border-line rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-transparent placeholder-gray-300"
               />
               <button
                 onClick={fetchInfo}
@@ -171,7 +171,7 @@ export default function InstagramDownloaderPage() {
             </div>
 
             {error && (
-              <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">
+              <p className="mt-3 text-sm text-error bg-error/10 border border-red-100 rounded-xl px-4 py-2.5">
                 {error}
               </p>
             )}
@@ -179,39 +179,39 @@ export default function InstagramDownloaderPage() {
 
           {/* Post Info + Download Options */}
           {info && (
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-panel rounded-2xl border border-line shadow-sm overflow-hidden">
               {/* Thumbnail + meta */}
-              <div className="flex gap-4 p-5 border-b border-gray-100">
+              <div className="flex gap-4 p-5 border-b border-line">
                 {info.thumbnail && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={info.thumbnail}
                     alt={info.title}
-                    className="w-20 h-20 object-cover rounded-xl flex-shrink-0 bg-gray-100"
+                    className="w-20 h-20 object-cover rounded-xl flex-shrink-0 bg-surface-3"
                   />
                 )}
                 <div className="flex-1 min-w-0 flex flex-col justify-center">
-                  <h2 className="text-[15px] font-bold text-gray-900 leading-snug line-clamp-2">
+                  <h2 className="text-[15px] font-bold text-fg leading-snug line-clamp-2">
                     {info.title}
                   </h2>
                   <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1.5">
-                    {info.author && <span className="text-xs text-gray-500">@{info.author}</span>}
+                    {info.author && <span className="text-xs text-fg-muted">@{info.author}</span>}
                     {info.duration > 0 && (
                       <>
                         <span className="w-1 h-1 rounded-full bg-gray-300" />
-                        <span className="text-xs text-gray-400">{formatDuration(info.duration)}</span>
+                        <span className="text-xs text-fg-subtle">{formatDuration(info.duration)}</span>
                       </>
                     )}
                     {info.viewCount > 0 && (
                       <>
                         <span className="w-1 h-1 rounded-full bg-gray-300" />
-                        <span className="text-xs text-gray-400">{formatCount(info.viewCount, "views")}</span>
+                        <span className="text-xs text-fg-subtle">{formatCount(info.viewCount, "views")}</span>
                       </>
                     )}
                     {info.likeCount > 0 && (
                       <>
                         <span className="w-1 h-1 rounded-full bg-gray-300" />
-                        <span className="text-xs text-gray-400">{formatCount(info.likeCount, "likes")}</span>
+                        <span className="text-xs text-fg-subtle">{formatCount(info.likeCount, "likes")}</span>
                       </>
                     )}
                   </div>
@@ -220,7 +220,7 @@ export default function InstagramDownloaderPage() {
 
               {/* Download buttons */}
               <div className="p-5">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                <p className="text-xs font-semibold text-fg-subtle uppercase tracking-wide mb-3">
                   Choose Format
                 </p>
                 <div className="flex flex-wrap gap-2.5">
@@ -235,7 +235,7 @@ export default function InstagramDownloaderPage() {
                         className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all disabled:opacity-50 disabled:cursor-wait ${
                           isAudio
                             ? "bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
-                            : "bg-gray-50 border-gray-200 text-gray-800 hover:bg-gray-100 hover:border-gray-300"
+                            : "bg-surface-2 border-line text-fg hover:bg-surface-3 hover:border-line-strong"
                         }`}
                       >
                         {busy ? (
@@ -251,7 +251,7 @@ export default function InstagramDownloaderPage() {
                     );
                   })}
                 </div>
-                <p className="text-xs text-gray-400 mt-4">
+                <p className="text-xs text-fg-subtle mt-4">
                   Only public posts and reels can be downloaded. Do not close this tab while downloading.
                 </p>
               </div>
@@ -260,9 +260,9 @@ export default function InstagramDownloaderPage() {
 
           {/* Tips */}
           {!info && !loading && (
-            <div className="mt-2 bg-white rounded-2xl border border-gray-100 p-5">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Supported URLs</p>
-              <div className="space-y-1.5 text-xs text-gray-500">
+            <div className="mt-2 bg-panel rounded-2xl border border-line p-5">
+              <p className="text-xs font-semibold text-fg-subtle uppercase tracking-wide mb-3">Supported URLs</p>
+              <div className="space-y-1.5 text-xs text-fg-muted">
                 {[
                   "https://www.instagram.com/reel/...",
                   "https://www.instagram.com/p/...",

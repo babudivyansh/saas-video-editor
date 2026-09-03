@@ -31,7 +31,7 @@ export function GoalsStrip({ goals, href = "/dashboard/social-tracker/settings" 
         {goals.map((goal) => (
           <li
             key={goal.goalId}
-            className="rounded-[var(--radius-card)] border border-card-border bg-white p-3.5 shadow-card"
+            className="rounded-[var(--radius-card)] border border-card-border bg-panel p-3.5 shadow-card"
           >
             <div className="mb-1.5 flex items-baseline justify-between gap-2">
               <span className="truncate text-xs font-semibold text-ink">{goal.label}</span>

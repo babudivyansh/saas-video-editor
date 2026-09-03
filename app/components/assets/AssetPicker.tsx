@@ -84,7 +84,7 @@ function AssetTile({ asset, onSelect }: { asset: PickerAsset; onSelect: (a: Pick
     <button
       type="button"
       onClick={() => onSelect(asset)}
-      className="group flex flex-col rounded-[var(--radius-card)] border border-card-border bg-white overflow-hidden text-left transition-all hover:shadow-card-hover hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+      className="group flex flex-col rounded-[var(--radius-card)] border border-card-border bg-panel overflow-hidden text-left transition-all hover:shadow-card-hover hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
     >
       <div className="relative aspect-video bg-tint-blue overflow-hidden">
         {asset.kind === "image" ? (
@@ -290,7 +290,7 @@ export function AssetPicker({ open, onClose, accept, onSelect, title = "Choose m
                 aria-pressed={activeKind === k}
                 onClick={() => setActiveKind(k)}
                 className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors cursor-pointer ${
-                  activeKind === k ? "grad-brand text-white" : "bg-surface text-ink-soft hover:text-ink border border-card-border"
+                  activeKind === k ? "grad-brand text-on-primary" : "bg-surface text-ink-soft hover:text-ink border border-card-border"
                 }`}
               >
                 {KIND_LABEL[k]}

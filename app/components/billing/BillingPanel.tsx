@@ -103,11 +103,11 @@ function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
     completed: "bg-tint-emerald text-green-700",
     pending: "bg-tint-blue text-brand",
-    failed: "bg-red-50 text-red-600",
-    refunded: "bg-gray-100 text-gray-500",
+    failed: "bg-error/10 text-error",
+    refunded: "bg-surface-3 text-fg-muted",
   };
   return (
-    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${map[status] ?? "bg-gray-100 text-gray-500"}`}>
+    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${map[status] ?? "bg-surface-3 text-fg-muted"}`}>
       {status}
     </span>
   );
@@ -313,7 +313,7 @@ export function BillingPanel({
     return (
       <div className="space-y-6" aria-busy="true" aria-live="polite">
         <span className="sr-only">Loading your billing details…</span>
-        <div className="flex gap-1 border-b border-gray-100 -mb-1">
+        <div className="flex gap-1 border-b border-line -mb-1">
           {TABS.map(t => (
             <span key={t.key} className="px-4 py-2.5 text-sm font-semibold text-ink-soft/40">{t.label}</span>
           ))}
@@ -402,7 +402,7 @@ export function BillingPanel({
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-800 rounded-2xl px-5 py-3.5 text-sm font-medium">
+        <div className="bg-error/10 border border-error/40 text-red-800 rounded-2xl px-5 py-3.5 text-sm font-medium">
           {error}
         </div>
       )}
@@ -410,7 +410,7 @@ export function BillingPanel({
       {/* ── Tabs ── */}
       {/* A real tablist: these were plain buttons in a div, so nothing was
           announced as a tab and arrow keys did nothing. */}
-      <div role="tablist" aria-label="Billing sections" className="flex gap-1 border-b border-gray-100 -mb-1 overflow-x-auto">
+      <div role="tablist" aria-label="Billing sections" className="flex gap-1 border-b border-line -mb-1 overflow-x-auto">
         {TABS.map((t, i) => (
           <button
             key={t.key}
@@ -538,12 +538,12 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
                 </span>
                 <span className="text-sm font-semibold text-ink truncate">{user?.plan?.name ?? "Subscription"}</span>
                 {cancelled && (
-                  <span className="inline-block bg-gray-100 text-ink-soft text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wide">
+                  <span className="inline-block bg-surface-3 text-ink-soft text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wide">
                     Cancelled
                   </span>
                 )}
               </div>
-              <p className={`text-sm font-medium ${expiringSoon ? "text-red-600" : "text-ink-soft"}`}>
+              <p className={`text-sm font-medium ${expiringSoon ? "text-error" : "text-ink-soft"}`}>
                 {renewalLabel(daysLeft, cancelled)}
               </p>
               <p className="text-xs text-ink-soft/70 mt-1">Member since {memberSince}</p>
@@ -555,7 +555,7 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
                   </svg>
                 </button>
                 {!cancelled && (
-                  <button onClick={onCancelClick} className="text-xs text-ink-soft/60 hover:text-red-600 font-medium transition-colors cursor-pointer">
+                  <button onClick={onCancelClick} className="text-xs text-ink-soft/60 hover:text-error font-medium transition-colors cursor-pointer">
                     Cancel subscription
                   </button>
                 )}
@@ -767,7 +767,7 @@ function AutoTopupToggle({ packs }: { packs: DbPlan[] }) {
             ? `We'll email you a one-click link to buy ${selected?.name ?? "a pack"} whenever your balance drops below 10 credits.`
             : "Get a one-click reminder to top up whenever your balance runs low — never get blocked mid-render."}
         </p>
-        {error && <p role="alert" className="text-xs text-red-600 mt-1.5">{error}</p>}
+        {error && <p role="alert" className="text-xs text-error mt-1.5">{error}</p>}
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
         {enabled && (
@@ -788,7 +788,7 @@ function AutoTopupToggle({ packs }: { packs: DbPlan[] }) {
           disabled={saving}
           className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${enabled ? "bg-green-500" : "bg-ink-soft/30"}`}
         >
-          <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${enabled ? "translate-x-5" : ""}`} />
+          <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-panel shadow transition-transform ${enabled ? "translate-x-5" : ""}`} />
         </button>
       </div>
     </Card>
@@ -827,7 +827,7 @@ function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onVie
       <section>
         <div className="mb-5 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
-            <div className="inline-flex bg-gray-100 rounded-full p-1 float-right ml-3" role="group" aria-label="Currency">
+            <div className="inline-flex bg-surface-3 rounded-full p-1 float-right ml-3" role="group" aria-label="Currency">
               {(["INR", "USD"] as const).map((c) => (
                 <button
                   key={c}
@@ -858,20 +858,20 @@ function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onVie
                     onChange={e => coupon.setCouponInput(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); coupon.apply(); } }}
                     placeholder="Coupon code"
-                    className="w-36 bg-white border border-card-border rounded-full px-3.5 py-2 text-sm font-semibold uppercase tracking-wide outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
+                    className="w-36 bg-panel border border-card-border rounded-full px-3.5 py-2 text-sm font-semibold uppercase tracking-wide outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
                   />
                   <Button variant="secondary" size="md" onClick={coupon.apply} disabled={coupon.applying || !coupon.couponInput.trim()}>
                     {coupon.applying ? "…" : "Apply"}
                   </Button>
                 </div>
-                {coupon.error && <p className="text-xs text-red-600 mt-1.5 text-right">{coupon.error}</p>}
+                {coupon.error && <p className="text-xs text-error mt-1.5 text-right">{coupon.error}</p>}
               </div>
             )}
           </div>
         </div>
 
         {coupon.appliedCoupon && (
-          <p className="text-xs text-green-600 -mt-2 mb-4">Discount applies at checkout to the pack you buy.</p>
+          <p className="text-xs text-success -mt-2 mb-4">Discount applies at checkout to the pack you buy.</p>
         )}
 
         {packs.length === 0 ? (
@@ -889,12 +889,12 @@ function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onVie
               return (
                 <div
                   key={pack.id}
-                  className={`relative bg-white rounded-[var(--radius-card)] border transition-all flex flex-col overflow-hidden hover:shadow-card-hover hover:-translate-y-0.5 ${
+                  className={`relative bg-panel rounded-[var(--radius-card)] border transition-all flex flex-col overflow-hidden hover:shadow-card-hover hover:-translate-y-0.5 ${
                     isPopular ? "border-violet-300 shadow-glow" : "border-card-border hover:border-violet-200"
                   }`}
                 >
                   {isPopular && (
-                    <div className="grad-brand text-white text-[10px] font-bold text-center py-1 tracking-widest uppercase">
+                    <div className="grad-brand text-on-primary text-[10px] font-bold text-center py-1 tracking-widest uppercase">
                       {isTarget ? "Your top-up" : "Most Popular"}
                     </div>
                   )}
@@ -989,7 +989,7 @@ function HistoryTab({ purchases, purchasesLoaded }: { purchases: Purchase[]; pur
                   onClick={() => setFilter(f.key)}
                   aria-pressed={filter === f.key}
                   className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
-                    filter === f.key ? "bg-white text-ink shadow-sm" : "text-ink-soft hover:text-ink"
+                    filter === f.key ? "bg-panel text-ink shadow-sm" : "text-ink-soft hover:text-ink"
                   }`}
                 >
                   {f.label}

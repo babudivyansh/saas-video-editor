@@ -59,7 +59,7 @@ export function KpiCard({
   }
   return (
     <div
-      className="rounded-[var(--radius-card)] border border-card-border bg-white p-4 shadow-card transition-shadow hover:shadow-card-hover"
+      className="rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card transition-shadow hover:shadow-card-hover"
       data-metric={metric}
     >
       <p className="text-xs font-medium tracking-wide text-ink-soft">{label}</p>
@@ -118,7 +118,7 @@ function UnavailableCard({ label, reason }: { label: string; reason?: string }) 
 
 function CollectingCard({ label }: { label: string }) {
   return (
-    <div className="rounded-[var(--radius-card)] border border-card-border bg-white p-4 shadow-card">
+    <div className="rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card">
       <p className="text-xs font-medium tracking-wide text-ink-soft">{label}</p>
       <p className="mt-1 text-2xl font-extrabold text-ink-soft/60" aria-hidden="true">
         —
@@ -208,7 +208,7 @@ export function DeltaChip({ pct, invert = false }: { pct: number; invert?: boole
   return (
     <span
       className={`inline-flex items-center gap-0.5 text-xs font-semibold ${
-        flat ? "text-ink-soft" : good ? "text-emerald-600" : "text-red-600"
+        flat ? "text-ink-soft" : good ? "text-emerald-600" : "text-error"
       }`}
     >
       <span aria-hidden="true">{flat ? "→" : rising ? "↑" : "↓"}</span>

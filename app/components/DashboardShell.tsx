@@ -53,7 +53,11 @@ function ShellChrome({ children }: { children: React.ReactNode }) {
     // mobile, so the shell sits 50-120px taller than what is actually visible
     // and the document picks up a second scrollbar underneath this one. dvh
     // tracks the real viewport.
-    <div className="flex h-[100dvh] flex-col overflow-hidden bg-surface">
+    // `theme-emerald` turns the dark token set on for everything inside the
+    // dashboard chrome. It is applied per-shell during the migration rather
+    // than at :root so an unmigrated surface elsewhere simply stays light —
+    // see app/globals.css.
+    <div className="theme-emerald flex h-[100dvh] flex-col overflow-hidden bg-surface text-ink">
       <DashboardHeader />
       <div className="flex flex-1 overflow-hidden">
         <ToolsSidebar active={isBillingOpen ? "billing" : activeIdFor(pathname)} />

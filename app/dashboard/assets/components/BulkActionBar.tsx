@@ -72,7 +72,7 @@ export function BulkActionBar({
                   >
                     <input autoFocus value={tagInput} onChange={(e) => setTagInput(e.target.value)} placeholder="tag name"
                       className="text-sm text-ink border border-card-border rounded-lg px-2 py-1.5 w-32 outline-none focus:border-violet-300" />
-                    <button type="submit" className="text-xs font-semibold text-white grad-brand rounded-lg px-3 cursor-pointer">Add</button>
+                    <button type="submit" className="text-xs font-semibold text-on-primary grad-brand rounded-lg px-3 cursor-pointer">Add</button>
                   </form>
                 )}
               </Dropdown>

@@ -91,7 +91,7 @@ export function ReviewsPageClient({ initialItems, initialSummary, initialNextCur
 
   return (
     <div className="space-y-8">
-      <div className="rounded-[var(--radius-card)] border border-card-border bg-white p-6">
+      <div className="rounded-[var(--radius-card)] border border-card-border bg-panel p-6">
         <RatingSummary summary={summary} />
       </div>
 

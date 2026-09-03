@@ -137,13 +137,13 @@ export default function ApiKeysPage() {
       {freshKey && (
         <Card tint="amber" padding="md" className="mb-6">
           <div className="flex items-start gap-2 mb-3">
-            <span className="text-amber-600 mt-0.5"><IcWarning /></span>
+            <span className="text-warning mt-0.5"><IcWarning /></span>
             <div>
               <p className="text-sm font-bold text-ink">{t("copyWarningTitle")}</p>
               <p className="text-xs text-ink-soft mt-0.5">{t("copyWarningDesc")}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 bg-white border border-card-border rounded-xl px-4 py-3">
+          <div className="flex items-center gap-2 bg-panel border border-card-border rounded-xl px-4 py-3">
             <code className="flex-1 text-xs font-mono text-ink break-all">{freshKey}</code>
             <button onClick={copyKey} className="flex-shrink-0 text-ink-soft hover:text-ink transition-colors" aria-label={t("copyKey")}>
               {copied ? <IcCheck /> : <IcCopy />}
@@ -161,7 +161,7 @@ export default function ApiKeysPage() {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder={t("keyNamePlaceholder")}
-              className="w-full bg-white border border-card-border rounded-xl px-4 py-2.5 text-sm text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
+              className="w-full bg-panel border border-card-border rounded-xl px-4 py-2.5 text-sm text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
               autoFocus
             />
           </div>
@@ -181,12 +181,12 @@ export default function ApiKeysPage() {
             <select
               value={newExpiry}
               onChange={(e) => setNewExpiry(e.target.value)}
-              className="text-sm border border-card-border rounded-xl px-3 py-2 bg-white text-ink outline-none focus:border-violet-300"
+              className="text-sm border border-card-border rounded-xl px-3 py-2 bg-panel text-ink outline-none focus:border-violet-300"
             >
               {EXPIRY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && <p className="text-xs text-error">{error}</p>}
           <div className="flex gap-2">
             <Button onClick={handleCreate} disabled={!newName.trim() || newScopes.length === 0} size="sm">{t("create")}</Button>
             <Button type="button" variant="secondary" size="sm" onClick={() => { setCreating(false); setNewName(""); setError(null); }}>{t("cancel")}</Button>
@@ -224,7 +224,7 @@ export default function ApiKeysPage() {
                         <button onClick={() => { setRenamingId(k.id); setRenameVal(k.name); }} className="text-ink-soft/50 hover:text-brand opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" aria-label={t("rename")}>
                           <IcEdit />
                         </button>
-                        {expired && <span className="text-[10px] font-bold uppercase tracking-wide text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">{t("expired")}</span>}
+                        {expired && <span className="text-[10px] font-bold uppercase tracking-wide text-error bg-error/10 px-1.5 py-0.5 rounded-full">{t("expired")}</span>}
                       </div>
                     )}
                     <p className="text-xs text-ink-soft font-mono mt-0.5">{k.keyPrefix}… · {k.scopes.join(", ")}</p>
@@ -232,7 +232,7 @@ export default function ApiKeysPage() {
                       {t("keyMeta", { created: fmtDate(k.createdAt), lastUsed: fmtDate(k.lastUsedAt), count: k.requestCount, expires: fmtDate(k.expiresAt) })}
                     </p>
                   </div>
-                  <button onClick={() => handleRevoke(k.id)} className="flex-shrink-0 text-xs font-semibold text-red-600 hover:underline">
+                  <button onClick={() => handleRevoke(k.id)} className="flex-shrink-0 text-xs font-semibold text-error hover:underline">
                     {t("revoke")}
                   </button>
                 </div>

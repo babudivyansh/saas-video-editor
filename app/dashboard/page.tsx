@@ -109,7 +109,7 @@ function useMiniTools() {
       { icon: <IcImage />, label: t("imageGenerator"), href: "/dashboard/tools/image-generator", chip: "bg-tint-blue text-brand" },
       { icon: <IcUser />, label: t("aiFaceSwap"), href: "/dashboard/tools/face-swap", chip: "bg-tint-violet text-accent-violet" },
       { icon: <IcMic />, label: t("voiceoverGenerator"), href: "/dashboard/tools/voiceover", chip: "bg-tint-fuchsia text-accent-fuchsia" },
-      { icon: <IcEraser />, label: t("backgroundRemover"), href: "/dashboard/tools/background-remover", chip: "bg-tint-amber text-amber-500" },
+      { icon: <IcEraser />, label: t("backgroundRemover"), href: "/dashboard/tools/background-remover", chip: "bg-tint-amber text-warning" },
       { icon: <IcVideo />, label: t("veo3Generator"), href: "/dashboard/tools/video-generator", chip: "bg-tint-emerald text-emerald-500" },
       { icon: <IcYoutube />, label: t("youtubeDownloader"), href: "/dashboard/tools/youtube-downloader", chip: "bg-tint-rose text-accent-pink" },
     ],
@@ -401,7 +401,7 @@ function DashboardPageInner() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Free Tools */}
               <Card tint="emerald" href="/dashboard/tools/free" className="flex items-center gap-3 px-5 py-4">
-                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                <div className="w-10 h-10 rounded-xl bg-panel flex items-center justify-center flex-shrink-0 shadow-sm">
                   <svg className="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4l7.07 17 2.51-7.39L21 11.07z" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </div>
                 <div className="flex-1 min-w-0">
@@ -417,7 +417,7 @@ function DashboardPageInner() {
 
               {/* Editor */}
               <Card tint="blue" href="/dashboard/editor" className="flex items-center gap-3 px-5 py-4">
-                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                <div className="w-10 h-10 rounded-xl bg-panel flex items-center justify-center flex-shrink-0 shadow-sm">
                   <svg className="w-4 h-4 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="2.18" strokeLinecap="round" strokeLinejoin="round"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M17 7h5M2 17h5M17 17h5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </div>
                 <div className="flex-1 min-w-0">
@@ -477,12 +477,12 @@ function DashboardPageInner() {
                 <Link
                   key={i}
                   href={tool.href}
-                  className="flex flex-col items-center justify-center gap-2 px-2 py-4 rounded-[var(--radius-card)] border border-card-border bg-white hover:border-violet-200 hover:shadow-card transition-all group"
+                  className="flex flex-col items-center justify-center gap-2 px-2 py-4 rounded-[var(--radius-card)] border border-card-border bg-panel hover:border-violet-200 hover:shadow-card transition-all group"
                 >
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110 ${tool.chip}`}>
                     {tool.icon}
                   </div>
-                  <span className="text-[11px] font-medium text-gray-700 text-center leading-tight">{tool.label}</span>
+                  <span className="text-[11px] font-medium text-fg text-center leading-tight">{tool.label}</span>
                 </Link>
               ))}
             </div>

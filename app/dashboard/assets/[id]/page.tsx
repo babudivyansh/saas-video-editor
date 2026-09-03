@@ -103,7 +103,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
         <a
           href={asset.url}
           download={asset.name}
-          className="shrink-0 min-h-[40px] px-4 rounded-xl grad-brand text-white text-[13px] font-bold shadow-glow flex items-center"
+          className="shrink-0 min-h-[40px] px-4 rounded-xl grad-brand text-on-primary text-[13px] font-bold shadow-glow flex items-center"
         >
           Download
         </a>

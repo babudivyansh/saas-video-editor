@@ -145,7 +145,7 @@ export function LiteEditTab({
               disabled={busy}
               onClick={() => setSpeed(s)}
               className={`rounded-lg border py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-40 ${
-                speed === s ? "grad-brand text-white shadow-glow border-transparent" : "bg-white border-card-border text-ink-soft hover:bg-tint-blue"
+                speed === s ? "grad-brand text-on-primary shadow-glow border-transparent" : "bg-panel border-card-border text-ink-soft hover:bg-tint-blue"
               }`}
             >
               {s}×
@@ -162,7 +162,7 @@ export function LiteEditTab({
       <div>
         <h4 className="text-xs font-bold text-ink uppercase tracking-wider mb-2">Music bed</h4>
         {music ? (
-          <div className="rounded-lg border border-card-border p-3 space-y-2 bg-white">
+          <div className="rounded-lg border border-card-border p-3 space-y-2 bg-panel">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-semibold text-ink truncate">{music.title ?? "Selected track"}</p>
               <button type="button" onClick={() => setMusic(undefined)} className="text-[11px] text-ink-soft hover:text-ink">Remove</button>
@@ -174,7 +174,7 @@ export function LiteEditTab({
               <input
                 type="range" min={0} max={0.6} step={0.02} value={music.volume} disabled={busy}
                 onChange={(e) => setMusic({ ...music, volume: Number(e.target.value) })}
-                className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand"
+                className="w-full h-1 bg-surface-3 rounded-lg appearance-none cursor-pointer accent-brand"
               />
             </div>
             <div className="flex items-center justify-between">
@@ -205,7 +205,7 @@ export function LiteEditTab({
             {results.length > 0 && (
               <ul className="space-y-1 max-h-40 overflow-y-auto">
                 {results.map((r) => (
-                  <li key={r.id} className="flex items-center justify-between gap-2 text-xs border border-card-border rounded-lg px-2 py-1.5 bg-white">
+                  <li key={r.id} className="flex items-center justify-between gap-2 text-xs border border-card-border rounded-lg px-2 py-1.5 bg-panel">
                     <span className="truncate">{r.title ?? "Untitled"}</span>
                     <button
                       type="button"
@@ -236,7 +236,7 @@ export function LiteEditTab({
               <input
                 type="range" min={0} max={1.5} step={0.1} value={value} disabled={busy}
                 onChange={(e) => set(Number(e.target.value))}
-                className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand"
+                className="w-full h-1 bg-surface-3 rounded-lg appearance-none cursor-pointer accent-brand"
               />
             </div>
           ))}
@@ -266,7 +266,7 @@ export function LiteEditTab({
         )}
       </div>
 
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs text-error">{error}</p>}
 
       <div className="space-y-1.5">
         <Button onClick={() => void apply()} disabled={busy} className="w-full">

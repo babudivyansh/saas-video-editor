@@ -15,7 +15,7 @@ function IcCopy() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentC
 function IcCheck() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M5 13l4 4L19 7" /></svg>; }
 function IcSpinner() { return <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />; }
 
-const inputCls = "w-full bg-white border border-card-border rounded-xl px-4 py-3 text-sm text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all";
+const inputCls = "w-full bg-panel border border-card-border rounded-xl px-4 py-3 text-sm text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all";
 const labelCls = "text-xs font-semibold text-ink-soft uppercase tracking-wide block mb-1.5";
 
 export default function ProfileSettingsPage() {
@@ -171,7 +171,7 @@ export default function ProfileSettingsPage() {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={user.avatarUrl} alt="avatar" className="w-16 h-16 rounded-full object-cover shadow-sm" />
           ) : (
-            <div className="w-16 h-16 rounded-full grad-brand flex items-center justify-center text-white text-2xl font-extrabold">
+            <div className="w-16 h-16 rounded-full grad-brand flex items-center justify-center text-on-primary text-2xl font-extrabold">
               {(user?.name?.[0] ?? user?.email?.[0] ?? "?").toUpperCase()}
             </div>
           )}
@@ -179,7 +179,7 @@ export default function ProfileSettingsPage() {
             onClick={() => fileInputRef.current?.click()}
             disabled={uploadingAvatar}
             title={t("changeAvatar")}
-            className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white shadow border border-card-border flex items-center justify-center text-ink-soft hover:text-brand transition-colors cursor-pointer"
+            className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-panel shadow border border-card-border flex items-center justify-center text-ink-soft hover:text-brand transition-colors cursor-pointer"
           >
             {uploadingAvatar ? <div className="w-3 h-3 border-2 border-brand border-t-transparent rounded-full animate-spin" /> : <IcCamera />}
           </button>
@@ -198,7 +198,7 @@ export default function ProfileSettingsPage() {
       <Card padding="md">
         <label className={labelCls}>{t("uid")}</label>
         <div className="flex items-center gap-2 bg-surface border border-card-border rounded-xl px-4 py-3">
-          <span className="text-xs text-gray-500 font-mono flex-1 truncate">{user?.id ?? "—"}</span>
+          <span className="text-xs text-fg-muted font-mono flex-1 truncate">{user?.id ?? "—"}</span>
           <button onClick={copyUid} title={t("copyUid")} className="text-ink-soft/60 hover:text-brand transition-colors cursor-pointer">
             {uidCopied ? <IcCheck /> : <IcCopy />}
           </button>
@@ -227,7 +227,7 @@ export default function ProfileSettingsPage() {
         <label className={labelCls}>{t("gender")}</label>
         <div className="flex items-center gap-5 mt-2">
           {GENDERS.map((g) => (
-            <label key={g.value} className="flex items-center gap-2 text-sm text-gray-800 cursor-pointer">
+            <label key={g.value} className="flex items-center gap-2 text-sm text-fg cursor-pointer">
               <input type="radio" name="gender" checked={gender === g.value} onChange={() => saveChoice("gender", g.value)} disabled={savingChoice === "gender"} className="accent-brand" />
               {g.label}
             </label>
@@ -245,7 +245,7 @@ export default function ProfileSettingsPage() {
               onClick={() => saveChoice("intendedUse", o.value)}
               disabled={savingChoice === "intendedUse"}
               className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                intendedUse === o.value ? "grad-brand text-white shadow-glow" : "bg-white border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
+                intendedUse === o.value ? "grad-brand text-on-primary shadow-glow" : "bg-panel border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
               }`}
             >
               {o.label}
@@ -259,7 +259,7 @@ export default function ProfileSettingsPage() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <p className="text-sm font-semibold text-ink">{t("restartTourTitle")}</p>
-            <p className="text-xs text-gray-400 mt-0.5">{t("restartTourDesc")}</p>
+            <p className="text-xs text-fg-subtle mt-0.5">{t("restartTourDesc")}</p>
           </div>
           <Button variant="secondary" onClick={handleRestartOnboarding} disabled={restarting}>
             {restarting ? <><IcSpinner /> {t("restarting")}</> : t("restartTour")}

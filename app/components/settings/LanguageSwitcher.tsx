@@ -92,7 +92,7 @@ export function LanguageSwitcher() {
       <button
         ref={buttonRef}
         onClick={toggle}
-        className="flex-shrink-0 flex items-center gap-1.5 text-xs font-semibold text-ink bg-gray-50 border border-card-border rounded-full px-3 py-1.5 hover:bg-tint-blue transition-colors cursor-pointer"
+        className="flex-shrink-0 flex items-center gap-1.5 text-xs font-semibold text-ink bg-surface-2 border border-card-border rounded-full px-3 py-1.5 hover:bg-tint-blue transition-colors cursor-pointer"
       >
         {current.name}
         <IcChevron />
@@ -101,7 +101,7 @@ export function LanguageSwitcher() {
         <div
           ref={panelRef}
           style={{ position: "fixed", top: position.top, right: position.right }}
-          className="w-48 max-h-80 overflow-y-auto py-1.5 rounded-2xl border border-card-border bg-white shadow-xl z-[100]"
+          className="w-48 max-h-80 overflow-y-auto py-1.5 rounded-2xl border border-card-border bg-panel shadow-xl z-[100]"
         >
           {SUPPORTED_LOCALES.map((l) => (
             <button

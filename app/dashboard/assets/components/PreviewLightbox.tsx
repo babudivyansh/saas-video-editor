@@ -80,10 +80,10 @@ export function PreviewLightbox({ asset, onClose, onPrev, onNext }: PreviewLight
             {/* eslint-disable-next-line @next/next/no-img-element */}
             {asset.kind === "image" && <img src={asset.url} alt={asset.name} className="w-full max-h-[60vh] object-contain" />}
 
-            <button onClick={onPrev} aria-label="Previous asset" className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 flex items-center justify-center hover:bg-white transition-colors cursor-pointer">
+            <button onClick={onPrev} aria-label="Previous asset" className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-bg/90 flex items-center justify-center hover:bg-panel transition-colors cursor-pointer">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </button>
-            <button onClick={onNext} aria-label="Next asset" className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 flex items-center justify-center hover:bg-white transition-colors cursor-pointer">
+            <button onClick={onNext} aria-label="Next asset" className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-bg/90 flex items-center justify-center hover:bg-panel transition-colors cursor-pointer">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </button>
           </div>
@@ -92,14 +92,14 @@ export function PreviewLightbox({ asset, onClose, onPrev, onNext }: PreviewLight
           <div className="flex items-center gap-2">
             <Link
               href={`/dashboard/assets/${asset.id}`}
-              className="min-h-[36px] px-3.5 rounded-xl border border-card-border bg-white text-ink text-xs font-semibold hover:bg-tint-blue transition-colors flex items-center"
+              className="min-h-[36px] px-3.5 rounded-xl border border-card-border bg-panel text-ink text-xs font-semibold hover:bg-tint-blue transition-colors flex items-center"
             >
               Open detail
             </Link>
             <a
               href={asset.url}
               download={asset.name}
-              className="min-h-[36px] px-3.5 rounded-xl border border-card-border bg-white text-ink text-xs font-semibold hover:bg-tint-blue transition-colors flex items-center"
+              className="min-h-[36px] px-3.5 rounded-xl border border-card-border bg-panel text-ink text-xs font-semibold hover:bg-tint-blue transition-colors flex items-center"
             >
               Download
             </a>

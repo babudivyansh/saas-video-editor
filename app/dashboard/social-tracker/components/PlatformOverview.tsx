@@ -48,7 +48,7 @@ export function PlatformOverview({ accounts }: { accounts: PlatformAccount[] }) 
           return (
             <article
               key={a.id}
-              className="rounded-[var(--radius-card)] border border-card-border bg-white p-4 shadow-card"
+              className="rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card"
             >
               <div className="flex items-start gap-3">
                 <span

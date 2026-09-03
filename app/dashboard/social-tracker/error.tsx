@@ -26,7 +26,7 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="rounded-[var(--radius-card)] border border-card-border bg-white p-10 text-center shadow-card">
+    <div className="rounded-[var(--radius-card)] border border-card-border bg-panel p-10 text-center shadow-card">
       <h2 className="text-base font-semibold text-ink">Couldn&apos;t load your analytics</h2>
       <p className="mx-auto mt-1 max-w-md text-sm text-ink-soft">
         This is on our side, not yours — your connected accounts and their history are unaffected.

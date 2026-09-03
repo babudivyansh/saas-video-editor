@@ -32,8 +32,8 @@ interface Project {
 const STATUS_STYLES: Record<string, string> = {
   completed: "bg-tint-emerald text-green-700",
   rendering: "bg-tint-violet text-accent-violet",
-  failed: "bg-red-100 text-red-600",
-  draft: "bg-gray-100 text-gray-500",
+  failed: "bg-red-100 text-error",
+  draft: "bg-surface-3 text-fg-muted",
 };
 
 function VideoCard({ project, token, onDelete }: { project: Project; token: string; onDelete: (id: string) => void }) {
@@ -65,8 +65,8 @@ function VideoCard({ project, token, onDelete }: { project: Project; token: stri
   const thumb = project.backgroundUrl ? project.backgroundUrl.replace("/video.mp4", "/thumbnail.webp") : null;
 
   return (
-    <div className="bg-white rounded-[var(--radius-card)] border border-card-border overflow-hidden transition-all hover:shadow-card-hover hover:-translate-y-0.5">
-      <div className="relative bg-gray-50" style={{ paddingBottom: "56.25%" }}>
+    <div className="bg-panel rounded-[var(--radius-card)] border border-card-border overflow-hidden transition-all hover:shadow-card-hover hover:-translate-y-0.5">
+      <div className="relative bg-surface-2" style={{ paddingBottom: "56.25%" }}>
         {thumb ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={thumb} alt={project.title} className="absolute inset-0 w-full h-full object-cover" />
@@ -101,7 +101,7 @@ function VideoCard({ project, token, onDelete }: { project: Project; token: stri
           {project.status === "completed" && project.videoUrl ? (
             <>
               <a href={project.videoUrl} download
-                className="flex-1 flex items-center justify-center gap-1.5 grad-brand hover:brightness-105 text-white text-xs font-semibold py-2 rounded-full transition-all">
+                className="flex-1 flex items-center justify-center gap-1.5 grad-brand hover:brightness-105 text-on-primary text-xs font-semibold py-2 rounded-full transition-all">
                 <IcDownload /> Download
               </a>
               <button onClick={handleCopy} title="Copy link"
@@ -120,7 +120,7 @@ function VideoCard({ project, token, onDelete }: { project: Project; token: stri
             </div>
           )}
           <button onClick={handleDelete} disabled={deleting} title="Delete"
-            className="w-8 h-8 flex items-center justify-center rounded-lg border border-card-border hover:bg-red-50 hover:border-red-200 hover:text-red-500 text-ink-soft/60 transition-colors flex-shrink-0 cursor-pointer">
+            className="w-8 h-8 flex items-center justify-center rounded-lg border border-card-border hover:bg-error/10 hover:border-error/40 hover:text-error text-ink-soft/60 transition-colors flex-shrink-0 cursor-pointer">
             {deleting ? <IcSpinner /> : <IcTrash />}
           </button>
         </div>
@@ -170,8 +170,8 @@ export default function MyVideosPage() {
           <button key={f.id} onClick={() => setFilter(f.id)}
             className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors cursor-pointer ${
               filter === f.id
-                ? "grad-brand text-white shadow-glow"
-                : "bg-white border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
+                ? "grad-brand text-on-primary shadow-glow"
+                : "bg-panel border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
             }`}>
             {f.label}
             {f.id === "all" && <span className="ml-1.5 text-[10px] opacity-70">{projects.length}</span>}

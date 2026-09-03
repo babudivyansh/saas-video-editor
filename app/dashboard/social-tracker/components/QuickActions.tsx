@@ -126,7 +126,7 @@ export function QuickActions({ accountIds, disabledReason }: QuickActionsProps) 
       </div>
 
       {exportError && (
-        <p role="alert" className="text-xs text-red-600">
+        <p role="alert" className="text-xs text-error">
           {exportError}
         </p>
       )}
@@ -135,7 +135,7 @@ export function QuickActions({ accountIds, disabledReason }: QuickActionsProps) 
       <p
         role="status"
         aria-live="polite"
-        className={`text-xs ${status.kind === "error" ? "text-red-600" : "text-ink-soft"}`}
+        className={`text-xs ${status.kind === "error" ? "text-error" : "text-ink-soft"}`}
       >
         {status.kind === "done" || status.kind === "error" ? status.message : disabledReason ?? ""}
       </p>

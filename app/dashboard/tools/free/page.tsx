@@ -24,13 +24,13 @@ export default function FreeToolsPage() {
           <Link
             key={i}
             href={t.href}
-            className="rounded-2xl border border-gray-200 bg-white p-5 hover:shadow-md hover:border-gray-300 transition-all"
+            className="rounded-2xl border border-line bg-panel p-5 hover:shadow-md hover:border-line-strong transition-all"
           >
             <div className={`w-10 h-10 rounded-xl ${t.iconBg} flex items-center justify-center text-white mb-4`}>
               {t.icon}
             </div>
-            <h3 className="text-[15px] font-bold text-gray-900 leading-tight">{t.title}</h3>
-            <p className="text-[13px] text-gray-500 mt-1.5 leading-relaxed">{t.desc}</p>
+            <h3 className="text-[15px] font-bold text-fg leading-tight">{t.title}</h3>
+            <p className="text-[13px] text-fg-muted mt-1.5 leading-relaxed">{t.desc}</p>
           </Link>
         ))}
       </div>

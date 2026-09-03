@@ -63,8 +63,8 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
                   href={href}
                   className={`relative flex flex-shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors ${
                     active
-                      ? danger ? "bg-red-50 text-red-600" : "bg-tint-violet text-brand"
-                      : danger ? "text-red-500/80 hover:bg-red-50 hover:text-red-600" : "text-ink-soft hover:bg-tint-blue hover:text-ink"
+                      ? danger ? "bg-error/10 text-error" : "bg-tint-violet text-brand"
+                      : danger ? "text-red-500/80 hover:bg-error/10 hover:text-error" : "text-ink-soft hover:bg-tint-blue hover:text-ink"
                   }`}
                 >
                   {active && <span className={`hidden xl:block absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${danger ? "bg-red-500" : "grad-brand"}`} />}

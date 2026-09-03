@@ -146,7 +146,7 @@ export default function YouTubeDownloaderPage() {
   }, [job.status, job.jobId, token, fireReviewPrompt]);
 
   return (
-    <div className="min-h-full bg-slate-50">
+    <div className="min-h-full bg-surface-2">
       <div className="mx-auto w-full max-w-2xl px-4 sm:px-6 py-8">
           {/* Header */}
           <div className="flex items-center gap-3 mb-1">
@@ -154,20 +154,20 @@ export default function YouTubeDownloaderPage() {
               <IcYoutube />
             </div>
             <div>
-              <h1 className="text-[22px] font-extrabold text-gray-900 tracking-tight leading-tight">
+              <h1 className="text-[22px] font-extrabold text-fg tracking-tight leading-tight">
                 YouTube Downloader
               </h1>
-              <p className="text-[13px] text-gray-400">Free · No watermark · MP4 & MP3</p>
+              <p className="text-[13px] text-fg-subtle">Free · No watermark · MP4 & MP3</p>
             </div>
           </div>
 
-          <p className="text-[13.5px] text-gray-500 mt-3 mb-7">
+          <p className="text-[13.5px] text-fg-muted mt-3 mb-7">
             Paste any YouTube URL to download the video in your preferred quality, or extract the audio as MP3.
           </p>
 
           {/* URL Input */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 mb-5">
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">
+          <div className="bg-panel rounded-2xl border border-line shadow-sm p-5 mb-5">
+            <label className="text-xs font-semibold text-fg-muted uppercase tracking-wide mb-2 block">
               YouTube URL
             </label>
             <div className="flex gap-2">
@@ -177,7 +177,7 @@ export default function YouTubeDownloaderPage() {
                 onChange={e => { setUrl(e.target.value); setInfo(null); setError(""); }}
                 onKeyDown={e => e.key === "Enter" && fetchInfo()}
                 placeholder="https://www.youtube.com/watch?v=..."
-                className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent placeholder-gray-300"
+                className="flex-1 bg-surface-2 border border-line rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent placeholder-gray-300"
               />
               <button
                 onClick={fetchInfo}
@@ -196,21 +196,21 @@ export default function YouTubeDownloaderPage() {
               </button>
             </div>
             {!user && (
-              <p className="mt-2 text-xs text-gray-400 text-center">You&apos;ll be asked to sign in to download.</p>
+              <p className="mt-2 text-xs text-fg-subtle text-center">You&apos;ll be asked to sign in to download.</p>
             )}
 
             {error && (
-              <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">
+              <p className="mt-3 text-sm text-error bg-error/10 border border-red-100 rounded-xl px-4 py-2.5">
                 {error}
               </p>
             )}
             {job.status === "error" && job.error && (
-              <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">
+              <p className="mt-3 text-sm text-error bg-error/10 border border-red-100 rounded-xl px-4 py-2.5">
                 {job.error}
               </p>
             )}
             {job.status === "cancelled" && (
-              <p className="mt-3 text-sm text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+              <p className="mt-3 text-sm text-fg-muted bg-surface-2 border border-line rounded-xl px-4 py-2.5">
                 Cancelled — your credit was refunded.
               </p>
             )}
@@ -218,29 +218,29 @@ export default function YouTubeDownloaderPage() {
 
           {/* Video Info + Download Options */}
           {info && (
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-panel rounded-2xl border border-line shadow-sm overflow-hidden">
               {/* Thumbnail + meta */}
-              <div className="flex gap-4 p-5 border-b border-gray-100">
+              <div className="flex gap-4 p-5 border-b border-line">
                 {info.thumbnail && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={info.thumbnail}
                     alt={info.title}
-                    className="w-36 h-20 object-cover rounded-xl flex-shrink-0 bg-gray-100"
+                    className="w-36 h-20 object-cover rounded-xl flex-shrink-0 bg-surface-3"
                   />
                 )}
                 <div className="flex-1 min-w-0 flex flex-col justify-center">
-                  <h2 className="text-[15px] font-bold text-gray-900 leading-snug line-clamp-2">
+                  <h2 className="text-[15px] font-bold text-fg leading-snug line-clamp-2">
                     {info.title}
                   </h2>
                   <div className="flex items-center gap-3 mt-1.5">
-                    <span className="text-xs text-gray-500">{info.author}</span>
+                    <span className="text-xs text-fg-muted">{info.author}</span>
                     <span className="w-1 h-1 rounded-full bg-gray-300" />
-                    <span className="text-xs text-gray-400">{formatDuration(info.duration)}</span>
+                    <span className="text-xs text-fg-subtle">{formatDuration(info.duration)}</span>
                     {info.viewCount > 0 && (
                       <>
                         <span className="w-1 h-1 rounded-full bg-gray-300" />
-                        <span className="text-xs text-gray-400">{formatViews(info.viewCount)}</span>
+                        <span className="text-xs text-fg-subtle">{formatViews(info.viewCount)}</span>
                       </>
                     )}
                   </div>
@@ -249,7 +249,7 @@ export default function YouTubeDownloaderPage() {
 
               {/* Download buttons */}
               <div className="p-5">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                <p className="text-xs font-semibold text-fg-subtle uppercase tracking-wide mb-3">
                   Choose Format
                 </p>
                 <div className="flex flex-wrap gap-2.5">
@@ -264,7 +264,7 @@ export default function YouTubeDownloaderPage() {
                         className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all disabled:opacity-50 disabled:cursor-wait ${
                           isAudio
                             ? "bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
-                            : "bg-gray-50 border-gray-200 text-gray-800 hover:bg-gray-100 hover:border-gray-300"
+                            : "bg-surface-2 border-line text-fg hover:bg-surface-3 hover:border-line-strong"
                         }`}
                       >
                         {busy ? (
@@ -282,18 +282,18 @@ export default function YouTubeDownloaderPage() {
                 </div>
                 {job.status === "processing" && (
                   <div className="mt-3 flex items-center gap-3">
-                    <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                    <div className="flex-1 h-1.5 rounded-full bg-surface-3 overflow-hidden">
                       <div className="h-full bg-red-500 transition-all duration-300" style={{ width: `${job.progress}%` }} />
                     </div>
                     <button
                       onClick={() => void job.cancel()}
-                      className="text-xs font-medium text-gray-400 hover:text-red-600 transition-colors flex-shrink-0"
+                      className="text-xs font-medium text-fg-subtle hover:text-error transition-colors flex-shrink-0"
                     >
                       Cancel
                     </button>
                   </div>
                 )}
-                <p className="text-xs text-gray-400 mt-4">
+                <p className="text-xs text-fg-subtle mt-4">
                   Large videos may take a moment to download. Do not close this tab while downloading.
                 </p>
               </div>
@@ -302,9 +302,9 @@ export default function YouTubeDownloaderPage() {
 
           {/* Tips */}
           {!info && !loading && (
-            <div className="mt-2 bg-white rounded-2xl border border-gray-100 p-5">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Supported URLs</p>
-              <div className="space-y-1.5 text-xs text-gray-500">
+            <div className="mt-2 bg-panel rounded-2xl border border-line p-5">
+              <p className="text-xs font-semibold text-fg-subtle uppercase tracking-wide mb-3">Supported URLs</p>
+              <div className="space-y-1.5 text-xs text-fg-muted">
                 {[
                   "https://www.youtube.com/watch?v=...",
                   "https://youtu.be/...",

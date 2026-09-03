@@ -111,8 +111,8 @@ export function NotificationBell({ className = "" }: { className?: string }) {
     >
       {({ close }) => (
         <div className="max-h-96 overflow-y-auto">
-          <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-gray-100">
-            <p className="text-sm font-bold text-gray-900">Notifications</p>
+          <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-line">
+            <p className="text-sm font-bold text-fg">Notifications</p>
             {items.some((n) => !n.readAt) && (
               <button onClick={markAllRead} className="text-xs font-semibold text-blue-600 hover:text-blue-800 cursor-pointer">
                 Mark all read
@@ -120,9 +120,9 @@ export function NotificationBell({ className = "" }: { className?: string }) {
             )}
           </div>
           {!loaded ? (
-            <p className="text-sm text-gray-400 px-3.5 py-6 text-center">Loading…</p>
+            <p className="text-sm text-fg-subtle px-3.5 py-6 text-center">Loading…</p>
           ) : items.length === 0 ? (
-            <p className="text-sm text-gray-400 px-3.5 py-6 text-center">No notifications yet.</p>
+            <p className="text-sm text-fg-subtle px-3.5 py-6 text-center">No notifications yet.</p>
           ) : (
             items.map((n) => (
               <DropdownItem
@@ -132,9 +132,9 @@ export function NotificationBell({ className = "" }: { className?: string }) {
                 <span className="flex items-start gap-2 w-full text-left">
                   {!n.readAt && <span className="w-1.5 h-1.5 rounded-full bg-blue-600 mt-1.5 flex-shrink-0" />}
                   <span className={`min-w-0 flex-1 ${n.readAt ? "opacity-60" : ""}`}>
-                    <span className="block text-sm font-semibold text-gray-900">{n.title}</span>
-                    {n.body && <span className="block text-xs text-gray-500 mt-0.5 line-clamp-2">{n.body}</span>}
-                    <span className="block text-[11px] text-gray-400 mt-0.5">{timeAgo(n.createdAt)}</span>
+                    <span className="block text-sm font-semibold text-fg">{n.title}</span>
+                    {n.body && <span className="block text-xs text-fg-muted mt-0.5 line-clamp-2">{n.body}</span>}
+                    <span className="block text-[11px] text-fg-subtle mt-0.5">{timeAgo(n.createdAt)}</span>
                   </span>
                 </span>
               </DropdownItem>

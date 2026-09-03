@@ -43,8 +43,8 @@ function StatusOverlay({ clip }: { clip: ClipRow }) {
 
   if (clip.status === "failed") {
     return (
-      <div className="absolute inset-0 bg-white/85 flex flex-col items-center justify-center gap-1 px-3 text-center">
-        <span className="text-[11px] font-bold text-red-600">Render failed</span>
+      <div className="absolute inset-0 bg-bg/85 flex flex-col items-center justify-center gap-1 px-3 text-center">
+        <span className="text-[11px] font-bold text-error">Render failed</span>
         {/* Clip.failureReason exists now — previously the UI could only ever
             say "Failed to render" with no explanation. */}
         {clip.failureReason && (
@@ -56,16 +56,16 @@ function StatusOverlay({ clip }: { clip: ClipRow }) {
 
   if (clip.status === "pending_review") {
     return (
-      <div className="absolute inset-0 bg-white/85 flex items-center justify-center">
+      <div className="absolute inset-0 bg-bg/85 flex items-center justify-center">
         <span className="text-[11px] font-bold text-ink-soft">Awaiting review</span>
       </div>
     );
   }
 
   return (
-    <div className="absolute inset-0 bg-white/85 flex flex-col items-center justify-center gap-2 px-4">
+    <div className="absolute inset-0 bg-bg/85 flex flex-col items-center justify-center gap-2 px-4">
       <span className="text-[11px] font-bold text-ink-soft">Rendering {clip.progress}%</span>
-      <div className="h-1 w-full bg-gray-200 rounded-full overflow-hidden">
+      <div className="h-1 w-full bg-surface-3 rounded-full overflow-hidden">
         <div className="h-full grad-brand rounded-full transition-all" style={{ width: `${clip.progress}%` }} />
       </div>
     </div>
@@ -84,7 +84,7 @@ export function ClipCard({
   const title = clip.title || `Clip ${clip.index + 1}`;
 
   return (
-    <div className="group relative rounded-[var(--radius-card)] border border-card-border bg-white overflow-hidden hover:border-violet-200 transition-colors">
+    <div className="group relative rounded-[var(--radius-card)] border border-card-border bg-panel overflow-hidden hover:border-violet-200 transition-colors">
       <CardMenuButton label="Clip actions" onClick={onMenu} />
 
       <Link
@@ -131,7 +131,7 @@ export function ClipCard({
             aria-pressed={clip.isFavorite}
             className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
               clip.isFavorite
-                ? "text-amber-500 bg-tint-amber"
+                ? "text-warning bg-tint-amber"
                 : "text-ink-soft/40 hover:text-ink-soft hover:bg-tint-blue"
             }`}
           >

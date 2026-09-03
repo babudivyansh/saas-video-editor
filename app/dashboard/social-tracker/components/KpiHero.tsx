@@ -35,7 +35,7 @@ export function KpiHero({ metrics }: { metrics: HeroMetric[] }) {
         {metrics.map((m) => (
           <article
             key={m.key}
-            className="rounded-[var(--radius-card)] border border-card-border bg-white p-5 shadow-card"
+            className="rounded-[var(--radius-card)] border border-card-border bg-panel p-5 shadow-card"
           >
             <p className="text-[11px] font-bold uppercase tracking-widest text-ink-soft">{m.label}</p>
 
@@ -87,7 +87,7 @@ function Delta({ pct, invert }: { pct: number | null; invert?: boolean }) {
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${
-        good ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+        good ? "bg-emerald-50 text-emerald-700" : "bg-error/10 text-red-700"
       }`}
     >
       <span aria-hidden="true">{pct > 0 ? "↑" : "↓"}</span>

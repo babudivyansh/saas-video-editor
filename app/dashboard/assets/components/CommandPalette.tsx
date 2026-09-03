@@ -79,7 +79,7 @@ export function CommandPalette({ open, onClose, assets, onOpenAsset, onUpload, o
           <motion.div
             initial={{ opacity: 0, scale: 0.96, y: -8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: -8 }}
             transition={{ duration: 0.15 }}
-            className="w-full max-w-lg mx-4 bg-white rounded-2xl shadow-2xl border border-card-border overflow-hidden"
+            className="w-full max-w-lg mx-4 bg-panel rounded-2xl shadow-2xl border border-card-border overflow-hidden"
           >
             <input
               autoFocus

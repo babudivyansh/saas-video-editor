@@ -48,7 +48,7 @@ export default async function ReportsPage({
           {accounts.map((account) => (
             <div
               key={account.id}
-              className="rounded-[var(--radius-card)] border border-card-border bg-white p-4 shadow-card"
+              className="rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card"
             >
               <p className="mb-3 font-semibold text-ink">{accountLabel(account)}</p>
               <ExportButtons accountId={account.id} exports={EXPORTS} />

@@ -104,7 +104,7 @@ export function StackedBarChart({ height = 200, onPointSelect, ...frame }: Stack
         </p>
 
         {focusedDate && (
-          <div className="pointer-events-none absolute right-2 top-0 rounded-lg border border-card-border bg-white px-2.5 py-1.5 text-xs shadow-card">
+          <div className="pointer-events-none absolute right-2 top-0 rounded-lg border border-card-border bg-panel px-2.5 py-1.5 text-xs shadow-card">
             <p className="font-semibold text-ink">{fmtDateLong(focusedDate)}</p>
             {frame.series.map((s) => (
               <p key={s.key} className="text-ink-soft">

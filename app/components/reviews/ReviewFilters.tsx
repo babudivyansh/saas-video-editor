@@ -48,7 +48,7 @@ export function ReviewFilters({
         trigger={({ toggle }) => (
           <button
             onClick={toggle}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink bg-white border border-card-border rounded-full px-4 py-2 hover:bg-tint-blue transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink bg-panel border border-card-border rounded-full px-4 py-2 hover:bg-tint-blue transition-colors cursor-pointer"
           >
             {SORT_LABEL[sort]} <IcChevron />
           </button>
@@ -69,7 +69,7 @@ export function ReviewFilters({
         trigger={({ toggle }) => (
           <button
             onClick={toggle}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink bg-white border border-card-border rounded-full px-4 py-2 hover:bg-tint-blue transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink bg-panel border border-card-border rounded-full px-4 py-2 hover:bg-tint-blue transition-colors cursor-pointer"
           >
             {feature ? FEATURE_USED_OPTIONS.find((o) => o.value === feature)?.label : "Feature"} <IcChevron />
           </button>
@@ -91,7 +91,7 @@ export function ReviewFilters({
         trigger={({ toggle }) => (
           <button
             onClick={toggle}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink bg-white border border-card-border rounded-full px-4 py-2 hover:bg-tint-blue transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink bg-panel border border-card-border rounded-full px-4 py-2 hover:bg-tint-blue transition-colors cursor-pointer"
           >
             {rating ? `${rating} star${rating === 1 ? "" : "s"}` : "Rating"} <IcChevron />
           </button>

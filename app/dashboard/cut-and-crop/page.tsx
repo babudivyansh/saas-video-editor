@@ -491,12 +491,12 @@ export default function CutAndCropPage() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col min-w-0 h-full overflow-hidden bg-white">
+    <div className="flex flex-col min-w-0 h-full overflow-hidden bg-panel">
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
-        <header className="flex items-center gap-3 px-6 h-12 flex-shrink-0 border-b border-gray-100 bg-white">
+        <header className="flex items-center gap-3 px-6 h-12 flex-shrink-0 border-b border-line bg-panel">
           {/* Title */}
-          <span className="text-[15px] font-semibold text-gray-800">Cut &amp; Crop</span>
+          <span className="text-[15px] font-semibold text-fg">Cut &amp; Crop</span>
 
           <div className="flex-1" />
 
@@ -504,12 +504,12 @@ export default function CutAndCropPage() {
           <div className="flex items-center gap-2">
             {/* Exporting indicator */}
             {job.status === "processing" && (
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <div className="w-3.5 h-3.5 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin" />
+              <div className="flex items-center gap-2 text-sm text-fg-muted">
+                <div className="w-3.5 h-3.5 border-2 border-line border-t-blue-600 rounded-full animate-spin" />
                 <span className="font-medium text-xs">{job.progress}%</span>
                 <button
                   onClick={() => void job.cancel()}
-                  className="text-xs font-medium text-gray-400 hover:text-red-600 transition-colors"
+                  className="text-xs font-medium text-fg-subtle hover:text-error transition-colors"
                 >
                   Cancel
                 </button>
@@ -519,7 +519,7 @@ export default function CutAndCropPage() {
             {/* Error toast */}
             {(preflightError || (job.status === "error" && job.error)) && (
               <span
-                className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-1.5 max-w-[280px] truncate"
+                className="text-xs text-error bg-error/10 border border-red-100 rounded-xl px-3 py-1.5 max-w-[280px] truncate"
                 title={preflightError ?? job.error ?? undefined}
               >
                 {preflightError ?? job.error}
@@ -532,7 +532,7 @@ export default function CutAndCropPage() {
             )}
 
             {job.status === "cancelled" && (
-              <span className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5">
+              <span className="text-xs text-fg-muted bg-surface-2 border border-line rounded-xl px-3 py-1.5">
                 Cancelled — credit refunded
               </span>
             )}
@@ -674,24 +674,24 @@ export default function CutAndCropPage() {
           </div>
 
           {/* ── Timeline panel ─────────────────────────────────────────── */}
-          <div className="flex-shrink-0 bg-white border-t border-gray-100">
+          <div className="flex-shrink-0 bg-panel border-t border-line">
 
             {/* Controls bar */}
-            <div className="flex items-center gap-1 px-4 py-2 border-b border-gray-100">
+            <div className="flex items-center gap-1 px-4 py-2 border-b border-line">
               {/* Transport */}
               <div className="flex items-center gap-0.5">
                 <button
                   onClick={() => seekRel(-10)}
                   disabled={!activeClip}
                   title="Back 10s"
-                  className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-colors"
+                  className="w-8 h-8 flex items-center justify-center rounded-xl text-fg-muted hover:bg-surface-3 disabled:opacity-30 transition-colors"
                 >
                   <IconBack10 />
                 </button>
                 <button
                   onClick={togglePlay}
                   disabled={!activeClip}
-                  className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-700 hover:bg-gray-100 disabled:opacity-30 transition-colors"
+                  className="w-8 h-8 flex items-center justify-center rounded-xl text-fg hover:bg-surface-3 disabled:opacity-30 transition-colors"
                 >
                   {isPlaying ? <IconPause /> : <IconPlay />}
                 </button>
@@ -699,33 +699,33 @@ export default function CutAndCropPage() {
                   onClick={() => seekRel(10)}
                   disabled={!activeClip}
                   title="Forward 10s"
-                  className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-colors"
+                  className="w-8 h-8 flex items-center justify-center rounded-xl text-fg-muted hover:bg-surface-3 disabled:opacity-30 transition-colors"
                 >
                   <IconFwd10 />
                 </button>
                 <button
                   onClick={toggleMute}
                   title={muted ? "Unmute" : "Mute"}
-                  className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 transition-colors"
+                  className="w-8 h-8 flex items-center justify-center rounded-xl text-fg-muted hover:bg-surface-3 transition-colors"
                 >
                   {muted ? <IconMute /> : <IconVolume />}
                 </button>
               </div>
 
               {/* Time */}
-              <span className="text-xs font-mono text-gray-400 ml-1 select-none tabular-nums">
+              <span className="text-xs font-mono text-fg-subtle ml-1 select-none tabular-nums">
                 {fmt(currentTime)} / {fmt(totalDuration)}
               </span>
 
               {/* Divider */}
-              <div className="w-px h-5 bg-gray-200 mx-2" />
+              <div className="w-px h-5 bg-surface-3 mx-2" />
 
               {/* Undo / redo */}
               <button
                 onClick={undo}
                 disabled={past.length === 0}
                 title="Undo (Ctrl+Z)"
-                className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-colors"
+                className="w-8 h-8 flex items-center justify-center rounded-xl text-fg-muted hover:bg-surface-3 disabled:opacity-30 transition-colors"
               >
                 <IconUndo />
               </button>
@@ -733,29 +733,29 @@ export default function CutAndCropPage() {
                 onClick={redo}
                 disabled={future.length === 0}
                 title="Redo (Ctrl+Shift+Z)"
-                className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-colors"
+                className="w-8 h-8 flex items-center justify-center rounded-xl text-fg-muted hover:bg-surface-3 disabled:opacity-30 transition-colors"
               >
                 <IconRedo />
               </button>
 
               {/* Divider */}
-              <div className="w-px h-5 bg-gray-200 mx-2" />
+              <div className="w-px h-5 bg-surface-3 mx-2" />
 
               {/* Edit tools */}
               <button
                 onClick={splitAtPlayhead}
                 disabled={!activeClip}
                 title="Split at playhead"
-                className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-colors"
+                className="w-8 h-8 flex items-center justify-center rounded-xl text-fg-muted hover:bg-surface-3 disabled:opacity-30 transition-colors"
               >
                 <IconScissors />
               </button>
-              <div className="flex items-center gap-1 rounded-xl px-2 h-8 text-gray-500 hover:bg-gray-100 cursor-pointer">
+              <div className="flex items-center gap-1 rounded-xl px-2 h-8 text-fg-muted hover:bg-surface-3 cursor-pointer">
                 <IconCrop />
                 <select
                   value={crop}
                   onChange={e => setCrop(e.target.value as CropAspect)}
-                  className="appearance-none bg-transparent text-xs font-medium text-gray-600 outline-none cursor-pointer"
+                  className="appearance-none bg-transparent text-xs font-medium text-fg-muted outline-none cursor-pointer"
                 >
                   <option value="original">Original</option>
                   <option value="9:16">9:16</option>
@@ -766,14 +766,14 @@ export default function CutAndCropPage() {
               <button
                 onClick={() => setRotation(r => (r === 270 ? 0 : (r + 90) as 0 | 90 | 180 | 270))}
                 title={`Rotate (currently ${rotation}°)`}
-                className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors ${rotation !== 0 ? "bg-blue-50 text-blue-600" : "text-gray-500 hover:bg-gray-100"}`}
+                className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors ${rotation !== 0 ? "bg-blue-50 text-blue-600" : "text-fg-muted hover:bg-surface-3"}`}
               >
                 <IconRotate />
               </button>
               <button
                 onClick={() => setFlipH(v => !v)}
                 title="Flip horizontal"
-                className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors ${flipH ? "bg-blue-50 text-blue-600" : "text-gray-500 hover:bg-gray-100"}`}
+                className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors ${flipH ? "bg-blue-50 text-blue-600" : "text-fg-muted hover:bg-surface-3"}`}
               >
                 <IconFlip />
               </button>
@@ -781,7 +781,7 @@ export default function CutAndCropPage() {
                 onClick={() => activeClip && removeClip(activeClip.id)}
                 disabled={!activeClip}
                 title="Delete clip"
-                className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-500 hover:bg-red-50 hover:text-red-500 disabled:opacity-30 transition-colors"
+                className="w-8 h-8 flex items-center justify-center rounded-xl text-fg-muted hover:bg-error/10 hover:text-error disabled:opacity-30 transition-colors"
               >
                 <IconTrash />
               </button>
@@ -789,19 +789,19 @@ export default function CutAndCropPage() {
               {/* Right side */}
               <div className="ml-auto flex items-center gap-3">
                 {/* Zoom */}
-                <div className="flex items-center gap-1.5 text-gray-400">
-                  <button onClick={() => setZoom(z => Math.max(20, z - 10))} className="hover:text-gray-600 transition-colors"><IconZoomOut /></button>
+                <div className="flex items-center gap-1.5 text-fg-subtle">
+                  <button onClick={() => setZoom(z => Math.max(20, z - 10))} className="hover:text-fg-muted transition-colors"><IconZoomOut /></button>
                   <input
                     type="range" min={20} max={100} value={zoom}
                     onChange={e => setZoom(parseInt(e.target.value, 10))}
                     className="w-20 accent-blue-600 h-1"
                   />
-                  <button onClick={() => setZoom(z => Math.min(100, z + 10))} className="hover:text-gray-600 transition-colors"><IconZoomIn /></button>
+                  <button onClick={() => setZoom(z => Math.min(100, z + 10))} className="hover:text-fg-muted transition-colors"><IconZoomIn /></button>
                 </div>
                 {/* Add */}
                 <button
                   onClick={onAddVideo}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-gray-200 text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-line text-fg-muted text-xs font-semibold hover:bg-surface-2 transition-colors"
                 >
                   <IconPlus /> Add clip
                 </button>
@@ -821,7 +821,7 @@ export default function CutAndCropPage() {
               />
 
               {clips.length === 0 ? (
-                <div className="flex items-center justify-center h-14 rounded-xl border-2 border-dashed border-gray-200 text-xs text-gray-400 select-none">
+                <div className="flex items-center justify-center h-14 rounded-xl border-2 border-dashed border-line text-xs text-fg-subtle select-none">
                   Add a video to get started
                 </div>
               ) : (
@@ -845,7 +845,7 @@ export default function CutAndCropPage() {
                           className={`relative h-9 rounded-xl select-none cursor-pointer transition-all ${
                             isActive
                               ? "bg-blue-50 ring-1 ring-blue-300"
-                              : "bg-gray-100 ring-1 ring-gray-200 hover:bg-gray-200/70"
+                              : "bg-surface-3 ring-1 ring-line hover:bg-gray-200/70"
                           }`}
                           style={{ width: `${widthPct}%`, minWidth: 180 }}
                         >
@@ -880,13 +880,13 @@ export default function CutAndCropPage() {
                           )}
 
                           {/* Label */}
-                          <span className="absolute inset-0 flex items-center justify-center text-[11px] font-medium text-gray-700 truncate px-5 pointer-events-none">
+                          <span className="absolute inset-0 flex items-center justify-center text-[11px] font-medium text-fg truncate px-5 pointer-events-none">
                             {clip.name.replace(/\.[^.]+$/, "")}
                           </span>
                         </div>
 
                         {/* Duration */}
-                        <span className="text-[10px] text-gray-400 font-mono whitespace-nowrap tabular-nums w-10 flex-shrink-0">
+                        <span className="text-[10px] text-fg-subtle font-mono whitespace-nowrap tabular-nums w-10 flex-shrink-0">
                           {fmt(clip.trimEnd - clip.trimStart)}
                         </span>
 
@@ -894,7 +894,7 @@ export default function CutAndCropPage() {
                         <button
                           onClick={() => removeClip(clip.id)}
                           title="Remove"
-                          className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
+                          className="w-6 h-6 flex items-center justify-center rounded-lg text-fg-subtle hover:text-error hover:bg-error/10 transition-colors flex-shrink-0"
                         >
                           <IconTrash />
                         </button>

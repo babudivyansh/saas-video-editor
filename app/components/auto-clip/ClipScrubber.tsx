@@ -74,7 +74,7 @@ export function ClipScrubber({
     <div className="space-y-1.5">
       <div
         ref={trackRef}
-        className={`relative h-16 rounded-lg bg-gray-100 overflow-hidden select-none ${disabled ? "opacity-50" : "cursor-pointer"}`}
+        className={`relative h-16 rounded-lg bg-surface-3 overflow-hidden select-none ${disabled ? "opacity-50" : "cursor-pointer"}`}
         onPointerDown={(e) => {
           if (disabled || dragging) return;
           onSeek?.(secAtClientX(e.clientX));

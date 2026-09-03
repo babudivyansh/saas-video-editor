@@ -95,7 +95,7 @@ export function ManageSubscriptionPanel({
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <span className="text-sm font-bold text-ink">{user?.plan?.name ?? "Subscription"}</span>
             {cancelled ? (
-              <span className="bg-gray-100 text-ink-soft text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
+              <span className="bg-surface-3 text-ink-soft text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
                 Cancelling
               </span>
             ) : (
@@ -157,7 +157,7 @@ export function ManageSubscriptionPanel({
           ) : (
             <button
               onClick={onCancelClick}
-              className="w-full text-center text-xs text-ink-soft/70 hover:text-red-600 font-medium transition-colors cursor-pointer py-2"
+              className="w-full text-center text-xs text-ink-soft/70 hover:text-error font-medium transition-colors cursor-pointer py-2"
             >
               Cancel subscription
             </button>

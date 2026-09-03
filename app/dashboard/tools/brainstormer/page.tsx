@@ -4,7 +4,7 @@ export const metadata = { title: "AI Brainstormer – Clipiro" };
 
 export default function BrainstormerPage() {
   return (
-    <div className="min-h-full bg-slate-50">
+    <div className="min-h-full bg-surface-2">
       <BrainstormerTool />
     </div>
   );

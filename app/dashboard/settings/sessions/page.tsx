@@ -102,7 +102,7 @@ export default function SessionsSettingsPage() {
                   <button
                     onClick={() => terminateOne(s.sessionId)}
                     disabled={terminating === s.sessionId}
-                    className="flex-shrink-0 text-xs font-semibold text-red-600 hover:underline cursor-pointer disabled:opacity-50"
+                    className="flex-shrink-0 text-xs font-semibold text-error hover:underline cursor-pointer disabled:opacity-50"
                   >
                     {terminating === s.sessionId ? <IcSpinner /> : t("signOut")}
                   </button>

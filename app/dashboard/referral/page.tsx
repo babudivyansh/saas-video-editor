@@ -103,9 +103,9 @@ export default function ReferralPage() {
   const available = stats?.availableAmount ?? 0;
 
   return (
-    <div className="flex flex-col min-w-0 h-full bg-gray-50">
+    <div className="flex flex-col min-w-0 h-full bg-surface-2">
         {/* Header */}
-        <div className="bg-white border-b border-gray-100 px-8 py-5">
+        <div className="bg-panel border-b border-line px-8 py-5">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-yellow-50 flex items-center justify-center flex-shrink-0">
               <svg viewBox="0 0 24 24" fill="none" stroke="#ca8a04" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
@@ -117,8 +117,8 @@ export default function ReferralPage() {
               </svg>
             </div>
             <div>
-              <h1 className="text-lg font-bold text-gray-900">Affiliate Program</h1>
-              <p className="text-sm text-gray-500">Earn 20% commission on every friend&apos;s first payment</p>
+              <h1 className="text-lg font-bold text-fg">Affiliate Program</h1>
+              <p className="text-sm text-fg-muted">Earn 20% commission on every friend&apos;s first payment</p>
             </div>
           </div>
         </div>
@@ -144,7 +144,7 @@ export default function ReferralPage() {
 
           {/* Not enrolled yet */}
           {stats && !stats.enrolled && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm">
+            <div className="bg-panel rounded-2xl border border-line p-8 shadow-sm">
               <EmptyState
                 icon={<IcGift />}
                 title="You're not enrolled yet"
@@ -157,10 +157,10 @@ export default function ReferralPage() {
           {/* Enrolled: referral link */}
           {stats?.enrolled && (
             <>
-              <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-                <p className="text-sm font-semibold text-gray-700 mb-3">Your referral link</p>
+              <div className="bg-panel rounded-2xl border border-line p-6 shadow-sm">
+                <p className="text-sm font-semibold text-fg mb-3">Your referral link</p>
                 <div className="flex items-center gap-3">
-                  <div className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-600 font-mono truncate select-all">
+                  <div className="flex-1 bg-surface-2 border border-line rounded-xl px-4 py-3 text-sm text-fg-muted font-mono truncate select-all">
                     {referralLink}
                   </div>
                   <button
@@ -176,7 +176,7 @@ export default function ReferralPage() {
                     )}
                   </button>
                 </div>
-                <p className="text-xs text-gray-400 mt-2">Code: <span className="font-mono font-semibold text-gray-600">{stats.code}</span></p>
+                <p className="text-xs text-fg-subtle mt-2">Code: <span className="font-mono font-semibold text-fg-muted">{stats.code}</span></p>
               </div>
 
               {/* Stats grid */}
@@ -189,20 +189,20 @@ export default function ReferralPage() {
                 ].map(stat => (
                   <div
                     key={stat.label}
-                    className={`bg-white rounded-2xl border p-5 text-center shadow-sm ${stat.highlight ? "border-green-300" : "border-gray-100"}`}
+                    className={`bg-panel rounded-2xl border p-5 text-center shadow-sm ${stat.highlight ? "border-green-300" : "border-line"}`}
                   >
-                    <p className={`text-2xl font-extrabold mb-1 ${stat.highlight ? "text-green-600" : "text-gray-800"}`}>{stat.value}</p>
-                    <p className="text-xs text-gray-400 font-medium">{stat.label}</p>
+                    <p className={`text-2xl font-extrabold mb-1 ${stat.highlight ? "text-success" : "text-fg"}`}>{stat.value}</p>
+                    <p className="text-xs text-fg-subtle font-medium">{stat.label}</p>
                   </div>
                 ))}
               </div>
 
               {/* Payout section */}
-              <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+              <div className="bg-panel rounded-2xl border border-line p-6 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-semibold text-gray-800">Request Payout</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
+                    <p className="text-sm font-semibold text-fg">Request Payout</p>
+                    <p className="text-xs text-fg-muted mt-0.5">
                       Minimum ₹{MIN_PAYOUT_AMOUNT}. Payouts are processed manually, typically within a few business days of request.
                       {available < MIN_PAYOUT_AMOUNT && ` You need ₹${(MIN_PAYOUT_AMOUNT - available).toFixed(2)} more.`}
                     </p>
@@ -223,8 +223,8 @@ export default function ReferralPage() {
           )}
 
           {/* How it works */}
-          <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-            <h3 className="text-sm font-bold text-gray-800 mb-4">How it works</h3>
+          <div className="bg-panel rounded-2xl border border-line p-6 shadow-sm">
+            <h3 className="text-sm font-bold text-fg mb-4">How it works</h3>
             <div className="flex flex-col gap-4">
               {STEPS.map((step, i) => (
                 <div key={i} className="flex items-start gap-4">
@@ -235,15 +235,15 @@ export default function ReferralPage() {
                     {step.num}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-gray-800">{step.title}</p>
-                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{step.desc}</p>
+                    <p className="text-sm font-semibold text-fg">{step.title}</p>
+                    <p className="text-xs text-fg-muted mt-0.5 leading-relaxed">{step.desc}</p>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          <p className="text-xs text-gray-400 text-center pb-4">
+          <p className="text-xs text-fg-subtle text-center pb-4">
             Commissions are held for 30 days after payment before becoming available for payout. <a href="/affiliate-tos" className="underline">Full terms</a>
           </p>
         </div>

@@ -48,7 +48,7 @@ export function Heatmap({
 
   if (cells.length === 0) {
     return (
-      <figure className="rounded-[var(--radius-card)] border border-card-border bg-white p-4 shadow-card">
+      <figure className="rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card">
         <figcaption className="text-sm font-semibold text-ink">{title}</figcaption>
         <p className="py-10 text-center text-sm text-ink-soft">
           Not enough posting history yet — publish a few more times and a pattern will appear.
@@ -58,7 +58,7 @@ export function Heatmap({
   }
 
   return (
-    <figure className="rounded-[var(--radius-card)] border border-card-border bg-white p-4 shadow-card">
+    <figure className="rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card">
       <figcaption className="text-sm font-semibold text-ink">{title}</figcaption>
       {subtitle && <p className="mt-0.5 mb-3 text-xs text-ink-soft">{subtitle}</p>}
 

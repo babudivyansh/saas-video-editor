@@ -38,7 +38,7 @@ export default async function SocialTrackerV2Layout({
         <div className="flex items-center gap-3">
           <span
             aria-hidden="true"
-            className="grad-brand flex h-11 w-11 items-center justify-center rounded-2xl text-white"
+            className="grad-brand flex h-11 w-11 items-center justify-center rounded-2xl text-on-primary"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 3v18h18" strokeLinecap="round" />

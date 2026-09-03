@@ -146,7 +146,7 @@ export function AccountSettingsList({
                 key={p}
                 className={`flex flex-col gap-3 rounded-[var(--radius-card)] border p-4 ${
                   configured
-                    ? "border-card-border bg-white shadow-card"
+                    ? "border-card-border bg-panel shadow-card"
                     : // Visibly inert, but still present: the platform exists,
                       // this deployment just cannot reach it yet.
                       "border-dashed border-card-border bg-surface"
@@ -202,7 +202,7 @@ export function AccountSettingsList({
             {accounts.map((a) => (
               <li
                 key={a.id}
-                className="space-y-3 rounded-[var(--radius-card)] border border-card-border bg-white p-4 shadow-card"
+                className="space-y-3 rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">
@@ -294,7 +294,7 @@ function TimezoneField({
         value={account.timezone ?? "UTC"}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-full border border-card-border bg-white px-3 py-1 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        className="rounded-full border border-card-border bg-panel px-3 py-1 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
       >
         {zones.map((z) => (
           <option key={z} value={z}>

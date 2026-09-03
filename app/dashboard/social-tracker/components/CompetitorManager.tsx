@@ -79,7 +79,7 @@ export function CompetitorManager({
   return (
     <section
       aria-labelledby="competitors-heading"
-      className="rounded-[var(--radius-card)] border border-card-border bg-white p-4 shadow-card"
+      className="rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card"
     >
       <h2 id="competitors-heading" className="text-sm font-semibold text-ink">
         Tracked profiles
@@ -126,7 +126,7 @@ export function CompetitorManager({
               id="competitor-provider"
               value={provider}
               onChange={(e) => setProvider(e.target.value)}
-              className="rounded-xl border border-card-border bg-white px-3 py-2 text-sm text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              className="rounded-xl border border-card-border bg-panel px-3 py-2 text-sm text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
             >
               {PROVIDERS.map((p) => (
                 <option key={p.value} value={p.value}>{p.label}</option>

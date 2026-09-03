@@ -66,7 +66,7 @@ export function UrlImportField({ onImported, disabled }: UrlImportFieldProps) {
   }
 
   return (
-    <div className="rounded-xl border border-card-border bg-white p-4 space-y-3">
+    <div className="rounded-xl border border-card-border bg-panel p-4 space-y-3">
       <div>
         <p className="text-sm font-semibold text-ink">Or paste a link</p>
         <p className="text-xs text-ink-soft mt-0.5">YouTube, Vimeo, Loom, Google Drive or Dropbox.</p>
@@ -96,7 +96,7 @@ export function UrlImportField({ onImported, disabled }: UrlImportFieldProps) {
         </div>
       )}
 
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs text-error">{error}</p>}
     </div>
   );
 }

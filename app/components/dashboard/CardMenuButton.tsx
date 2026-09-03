@@ -19,7 +19,7 @@ export function CardMenuButton({ onClick, label }: CardMenuButtonProps) {
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-white/90 border border-card-border shadow-sm flex items-center justify-center text-gray-600 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-white transition-opacity cursor-pointer"
+      className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-white/90 border border-card-border shadow-sm flex items-center justify-center text-fg-muted opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-panel transition-opacity cursor-pointer"
     >
       <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
         <circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" />
