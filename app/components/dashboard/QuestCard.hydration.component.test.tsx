@@ -28,12 +28,29 @@ const data: QuestData = {
 
 let errorSpy: ReturnType<typeof vi.spyOn>;
 
+// Roots created by hydrate(), torn down after each test.
+//
+// hydrateRoot used to be called and never unmounted. React's scheduler keeps a
+// pending setImmediate (performWorkUntilDeadline) for a live root, and once
+// Vitest tears down the jsdom environment at the end of the file that callback
+// fires against a window that no longer exists — "ReferenceError: window is not
+// defined", reported as an unhandled error rather than a test failure. Every
+// test still passed, so the whole run failed with a green suite, intermittently
+// and on PRs that had nothing to do with this component.
+const roots: Array<{ container: HTMLElement; root: ReturnType<typeof hydrateRoot> }> = [];
+
 beforeEach(() => {
   localStorage.clear();
   errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
 afterEach(() => {
+  // Unmount inside act() so React drains its queued work now, while jsdom is
+  // still around, instead of leaving it for the environment teardown.
+  for (const { container, root } of roots.splice(0)) {
+    act(() => root.unmount());
+    container.remove();
+  }
   errorSpy.mockRestore();
 });
 
@@ -41,9 +58,11 @@ function hydrate(html: string) {
   const container = document.createElement("div");
   container.innerHTML = html;
   document.body.appendChild(container);
+  let root!: ReturnType<typeof hydrateRoot>;
   act(() => {
-    hydrateRoot(container, <QuestCard questData={data} hasUser onDiscordQuest={vi.fn()} />);
+    root = hydrateRoot(container, <QuestCard questData={data} hasUser onDiscordQuest={vi.fn()} />);
   });
+  roots.push({ container, root });
   return container;
 }
 
