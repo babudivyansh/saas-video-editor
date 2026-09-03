@@ -70,11 +70,11 @@ function ImageDropZone({
 
   return (
     <div className="flex-1">
-      <p className="text-[13px] font-semibold text-gray-900 mb-0.5">{label}</p>
-      <p className="text-[12px] text-gray-400 mb-2">{sublabel}</p>
+      <p className="text-[13px] font-semibold text-fg mb-0.5">{label}</p>
+      <p className="text-[12px] text-fg-subtle mb-2">{sublabel}</p>
 
       {slot.file && slot.preview ? (
-        <div className="relative rounded-xl overflow-hidden border border-gray-200 bg-gray-50 aspect-square">
+        <div className="relative rounded-xl overflow-hidden border border-line bg-surface-2 aspect-square">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={slot.preview} alt={label} className="w-full h-full object-cover" />
           {!disabled && (
@@ -112,7 +112,7 @@ function ImageDropZone({
           >
             <span className="text-indigo-400"><IcUpload /></span>
             <span className="text-[12px] font-medium text-indigo-500">Click or drag to upload</span>
-            <span className="text-[11px] text-gray-400">PNG, JPG, WEBP</span>
+            <span className="text-[11px] text-fg-subtle">PNG, JPG, WEBP</span>
           </button>
         </>
       )}
@@ -244,28 +244,28 @@ export default function FaceSwapTool() {
 
   return (
     <div className="mx-auto w-full max-w-[1440px] px-8 pb-10">
-      <div className="rounded-[28px] bg-gray-50 border border-gray-100 flex items-start justify-center p-8" style={{ minHeight: "calc(100vh - 132px)" }}>
-        <div className="w-full max-w-[680px] bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mt-4">
+      <div className="rounded-[28px] bg-surface-2 border border-line flex items-start justify-center p-8" style={{ minHeight: "calc(100vh - 132px)" }}>
+        <div className="w-full max-w-[680px] bg-panel rounded-2xl border border-line shadow-sm p-6 mt-4">
 
           {/* Header */}
-          <div className="flex items-center gap-3 pb-4 border-b border-gray-100">
-            <div className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 flex-shrink-0">
+          <div className="flex items-center gap-3 pb-4 border-b border-line">
+            <div className="w-10 h-10 rounded-full border border-line flex items-center justify-center text-fg-muted flex-shrink-0">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
                 <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
               </svg>
             </div>
             <div>
-              <h2 className="font-bold text-gray-900 text-[17px] leading-tight">Face Swap</h2>
-              <p className="text-[13px] text-gray-500 mt-0.5">Swap faces between two images using AI</p>
+              <h2 className="font-bold text-fg text-[17px] leading-tight">Face Swap</h2>
+              <p className="text-[13px] text-fg-muted mt-0.5">Swap faces between two images using AI</p>
             </div>
           </div>
 
           {/* Result view */}
           {job.status === "done" && resultUrl ? (
             <div className="mt-5 space-y-4">
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Result</p>
+              <p className="text-[11px] font-bold text-fg-subtle uppercase tracking-wide">Result</p>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={resultUrl} alt="Face swap result" className="w-full rounded-xl border border-gray-100 object-contain max-h-[500px]" />
+              <img src={resultUrl} alt="Face swap result" className="w-full rounded-xl border border-line object-contain max-h-[500px]" />
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
@@ -277,7 +277,7 @@ export default function FaceSwapTool() {
                 <button
                   type="button"
                   onClick={reset}
-                  className="inline-flex items-center justify-center gap-2 border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-semibold py-3 rounded-xl transition-colors"
+                  className="inline-flex items-center justify-center gap-2 border border-line hover:bg-surface-2 text-fg text-sm font-semibold py-3 rounded-xl transition-colors"
                 >
                   Swap Again
                 </button>
@@ -307,8 +307,8 @@ export default function FaceSwapTool() {
 
               {/* Prompt */}
               <div className="mt-5">
-                <label className="text-[13px] font-semibold text-gray-900">
-                  Prompt <span className="text-gray-400 font-normal">(optional)</span>
+                <label className="text-[13px] font-semibold text-fg">
+                  Prompt <span className="text-fg-subtle font-normal">(optional)</span>
                 </label>
                 <textarea
                   value={prompt}
@@ -316,7 +316,7 @@ export default function FaceSwapTool() {
                   disabled={busy}
                   placeholder="Describe any adjustments or style changes..."
                   rows={3}
-                  className="mt-1.5 w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none disabled:opacity-50"
+                  className="mt-1.5 w-full bg-surface-2 border border-line rounded-xl px-4 py-3 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none disabled:opacity-50"
                 />
               </div>
 
@@ -327,25 +327,25 @@ export default function FaceSwapTool() {
                   checked={cleanUp}
                   onChange={e => setCleanUp(e.target.checked)}
                   disabled={busy}
-                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  className="w-4 h-4 rounded border-line-strong text-blue-600 focus:ring-blue-500 cursor-pointer"
                 />
-                <span className="text-[13px] text-gray-700 font-medium">Clean up result</span>
+                <span className="text-[13px] text-fg font-medium">Clean up result</span>
               </label>
 
               {/* Progress */}
               {busy && (
                 <div className="mt-4">
                   <div className="flex items-center justify-between text-sm mb-1.5">
-                    <span className="text-gray-600">Swapping faces…</span>
-                    <span className="text-gray-400">{Math.round(job.progress)}%</span>
+                    <span className="text-fg-muted">Swapping faces…</span>
+                    <span className="text-fg-subtle">{Math.round(job.progress)}%</span>
                   </div>
-                  <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                  <div className="h-2 rounded-full bg-surface-3 overflow-hidden">
                     <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${job.progress}%` }} />
                   </div>
                   <button
                     type="button"
                     onClick={() => void job.cancel()}
-                    className="mt-2 text-xs font-medium text-gray-400 hover:text-red-600 transition-colors"
+                    className="mt-2 text-xs font-medium text-fg-subtle hover:text-error transition-colors"
                   >
                     Cancel
                   </button>
@@ -353,15 +353,15 @@ export default function FaceSwapTool() {
               )}
 
               {job.status === "error" && job.error && (
-                <p className="mt-3 text-sm text-red-500 text-center">{job.error}</p>
+                <p className="mt-3 text-sm text-error text-center">{job.error}</p>
               )}
 
               {job.status === "cancelled" && (
-                <p className="mt-3 text-sm text-gray-500 text-center">Cancelled — your credit was refunded.</p>
+                <p className="mt-3 text-sm text-fg-muted text-center">Cancelled — your credit was refunded.</p>
               )}
 
               {!user && (
-                <p className="mt-3 text-xs text-gray-400 text-center">You&apos;ll be asked to sign in to generate.</p>
+                <p className="mt-3 text-xs text-fg-subtle text-center">You&apos;ll be asked to sign in to generate.</p>
               )}
 
               {/* Generate button */}

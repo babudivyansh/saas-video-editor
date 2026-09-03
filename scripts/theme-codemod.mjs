@@ -54,7 +54,10 @@ const CONTENT_DENY = [
   "app/dashboard/create/text-video/page.tsx",
   "app/dashboard/create/reddit-video/page.tsx",
   "app/dashboard/create/streamer-video/page.tsx",
-  "app/components/dashboard/toolPreviews.tsx", // hand-drawn fake UI — redraw, don't map
+  // NOTE: app/components/dashboard/toolPreviews.tsx was on this list, but it
+  // draws CLIPIRO's own UI, not a third-party app's — so it should follow the
+  // theme like everything else. Only the WhatsApp/Telegram/iMessage/Reddit
+  // renderings above are genuinely product output.
 ];
 
 // ── Rules ──────────────────────────────────────────────────────────────────

@@ -180,15 +180,15 @@ function EditorContent() {
   const stepLabel = ["Script", "Voice", "Background & Music", "Captions & Export"];
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col">
-      <nav className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
-        <Link href="/dashboard" className="text-sm text-zinc-400 hover:text-white">← Dashboard</Link>
+    <div className="min-h-screen bg-bg flex flex-col">
+      <nav className="flex items-center justify-between px-6 py-4 border-b border-line">
+        <Link href="/dashboard" className="text-sm text-fg-muted hover:text-white">← Dashboard</Link>
         <h1 className="text-sm font-medium text-white">{title || "New video"}</h1>
         <div className="flex gap-2">
           {stepLabel.map((l, i) => (
             <span
               key={l}
-              className={`text-xs px-2 py-1 rounded ${step === i + 1 ? "bg-violet-600 text-white" : "text-zinc-600"}`}
+              className={`text-xs px-2 py-1 rounded ${step === i + 1 ? "bg-violet-600 text-white" : "text-fg-subtle"}`}
             >
               {i + 1}. {l}
             </span>
@@ -202,18 +202,18 @@ function EditorContent() {
           <div className="flex flex-col gap-5">
             <h2 className="text-xl font-semibold text-white">What&apos;s your video about?</h2>
             <div>
-              <label className="block text-sm text-zinc-400 mb-1">Topic / prompt</label>
+              <label className="block text-sm text-fg-muted mb-1">Topic / prompt</label>
               <textarea
                 value={topic} onChange={e => setTopic(e.target.value)} rows={3}
                 placeholder="e.g. 5 mind-blowing facts about black holes"
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white text-sm resize-none focus:outline-none focus:border-violet-500"
+                className="w-full bg-surface-2 border border-line rounded-xl px-4 py-3 text-white text-sm resize-none focus:outline-none focus:border-violet-500"
               />
             </div>
             <div>
-              <label className="block text-sm text-zinc-400 mb-1">Style</label>
+              <label className="block text-sm text-fg-muted mb-1">Style</label>
               <select
                 value={style} onChange={e => setStyle(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500"
+                className="w-full bg-surface-2 border border-line rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500"
               >
                 {STYLE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -232,22 +232,22 @@ function EditorContent() {
           <div className="flex flex-col gap-5">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-white">Review & choose voice</h2>
-              <button onClick={() => setStep(1)} className="text-xs text-zinc-500 hover:text-white">← Edit script</button>
+              <button onClick={() => setStep(1)} className="text-xs text-fg-subtle hover:text-white">← Edit script</button>
             </div>
             <div>
-              <label className="block text-sm text-zinc-400 mb-1">Script</label>
+              <label className="block text-sm text-fg-muted mb-1">Script</label>
               <textarea
                 value={script} onChange={e => setScript(e.target.value)} rows={8}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white text-sm resize-none focus:outline-none focus:border-violet-500"
+                className="w-full bg-surface-2 border border-line rounded-xl px-4 py-3 text-white text-sm resize-none focus:outline-none focus:border-violet-500"
               />
             </div>
             <div>
-              <label className="block text-sm text-zinc-400 mb-1">Voice</label>
+              <label className="block text-sm text-fg-muted mb-1">Voice</label>
               <div className="grid grid-cols-3 gap-2">
                 {VOICE_IDS.map(v => (
                   <button
                     key={v.id} onClick={() => setVoiceId(v.id)}
-                    className={`py-2 rounded-lg text-sm transition-colors ${voiceId === v.id ? "bg-violet-600 text-white" : "bg-zinc-900 border border-zinc-700 text-zinc-300 hover:border-zinc-500"}`}
+                    className={`py-2 rounded-lg text-sm transition-colors ${voiceId === v.id ? "bg-violet-600 text-white" : "bg-surface-2 border border-line text-fg-muted hover:border-zinc-500"}`}
                   >
                     {v.name}
                   </button>
@@ -268,15 +268,15 @@ function EditorContent() {
           <div className="flex flex-col gap-5">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-white">Background & Music</h2>
-              <button onClick={() => setStep(2)} className="text-xs text-zinc-500 hover:text-white">← Edit voice</button>
+              <button onClick={() => setStep(2)} className="text-xs text-fg-subtle hover:text-white">← Edit voice</button>
             </div>
             <div>
-              <label className="block text-sm text-zinc-400 mb-1">Background video</label>
+              <label className="block text-sm text-fg-muted mb-1">Background video</label>
               <div className="grid grid-cols-3 gap-2">
                 {BG_VIDEOS.map(v => (
                   <button
                     key={v.url} onClick={() => setBgVideo(v.url)}
-                    className={`py-2 rounded-lg text-sm transition-colors ${bgVideo === v.url ? "bg-violet-600 text-white" : "bg-zinc-900 border border-zinc-700 text-zinc-300 hover:border-zinc-500"}`}
+                    className={`py-2 rounded-lg text-sm transition-colors ${bgVideo === v.url ? "bg-violet-600 text-white" : "bg-surface-2 border border-line text-fg-muted hover:border-zinc-500"}`}
                   >
                     {v.label}
                   </button>
@@ -286,20 +286,20 @@ function EditorContent() {
                 type="text" placeholder="Or paste a URL to your own S3 video"
                 value={BG_VIDEOS.some(v => v.url === bgVideo) ? "" : bgVideo}
                 onChange={e => setBgVideo(e.target.value)}
-                className="mt-2 w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500"
+                className="mt-2 w-full bg-surface-2 border border-line rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500"
               />
             </div>
             <div>
-              <label className="block text-sm text-zinc-400 mb-1">Background music URL (optional)</label>
+              <label className="block text-sm text-fg-muted mb-1">Background music URL (optional)</label>
               <input
                 type="text" placeholder="https://…/music.mp3"
                 value={musicUrl} onChange={e => setMusicUrl(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500"
+                className="w-full bg-surface-2 border border-line rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500"
               />
             </div>
             {audioUrl && (
               <div>
-                <p className="text-xs text-zinc-500 mb-1">Preview voiceover</p>
+                <p className="text-xs text-fg-subtle mb-1">Preview voiceover</p>
                 <audio controls src={audioUrl} className="w-full" />
               </div>
             )}
@@ -317,37 +317,37 @@ function EditorContent() {
           <div className="flex flex-col gap-5">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-white">Caption style & Export</h2>
-              <button onClick={() => setStep(3)} className="text-xs text-zinc-500 hover:text-white">← Background</button>
+              <button onClick={() => setStep(3)} className="text-xs text-fg-subtle hover:text-white">← Background</button>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm text-zinc-400 mb-1">Font</label>
+                <label className="block text-sm text-fg-muted mb-1">Font</label>
                 <select
                   value={fontName} onChange={e => setFontName(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-500"
+                  className="w-full bg-surface-2 border border-line rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-500"
                 >
                   {["Outfit", "Arial", "Impact", "Georgia", "Montserrat"].map(f => <option key={f}>{f}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm text-zinc-400 mb-1">Font size</label>
+                <label className="block text-sm text-fg-muted mb-1">Font size</label>
                 <input
                   type="number" min={40} max={120} value={fontSize} onChange={e => setFontSize(Number(e.target.value))}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-500"
+                  className="w-full bg-surface-2 border border-line rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-500"
                 />
               </div>
               <div>
-                <label className="block text-sm text-zinc-400 mb-1">Highlight color</label>
+                <label className="block text-sm text-fg-muted mb-1">Highlight color</label>
                 <div className="flex gap-2 items-center">
                   <input type="color" value={highlightColor} onChange={e => setHighlightColor(e.target.value)} className="h-9 w-14 rounded cursor-pointer" />
-                  <span className="text-sm text-zinc-400">{highlightColor}</span>
+                  <span className="text-sm text-fg-muted">{highlightColor}</span>
                 </div>
               </div>
               <div>
-                <label className="block text-sm text-zinc-400 mb-1">Base color</label>
+                <label className="block text-sm text-fg-muted mb-1">Base color</label>
                 <div className="flex gap-2 items-center">
                   <input type="color" value={baseColor} onChange={e => setBaseColor(e.target.value)} className="h-9 w-14 rounded cursor-pointer" />
-                  <span className="text-sm text-zinc-400">{baseColor}</span>
+                  <span className="text-sm text-fg-muted">{baseColor}</span>
                 </div>
               </div>
             </div>
@@ -369,7 +369,7 @@ function EditorContent() {
             >
               {exporting ? "Exporting… (this may take a minute)" : "Export video →"}
             </button>
-            {!audioUrl && <p className="text-xs text-zinc-500 text-center">Go back and generate a voiceover first.</p>}
+            {!audioUrl && <p className="text-xs text-fg-subtle text-center">Go back and generate a voiceover first.</p>}
           </div>
         )}
       </main>
@@ -379,7 +379,7 @@ function EditorContent() {
 
 export default function EditorPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-screen text-zinc-500">Loading editor…</div>}>
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen text-fg-subtle">Loading editor…</div>}>
       <EditorContent />
     </Suspense>
   );

@@ -123,7 +123,7 @@ function VoiceAvatar({ voice, size = 36 }: { voice: Voice; size?: number }) {
 
 function Tag({ label }: { label: string }) {
   return (
-    <span className="inline-flex items-center rounded-full border border-slate-200 px-2.5 py-0.5 text-[11px] text-slate-500 font-medium bg-white">
+    <span className="inline-flex items-center rounded-full border border-line px-2.5 py-0.5 text-[11px] text-fg-muted font-medium bg-panel">
       {label}
     </span>
   );
@@ -177,15 +177,15 @@ function VoicePickerModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={handleDone}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col" style={{ maxHeight: "85vh" }} onClick={e => e.stopPropagation()}>
+      <div className="bg-panel rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col" style={{ maxHeight: "85vh" }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 sm:px-7 pt-6 pb-4">
-          <h2 className="text-2xl font-bold text-slate-900">Select AI Voice</h2>
-          <button onClick={handleDone} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"><IcX /></button>
+          <h2 className="text-2xl font-bold text-fg">Select AI Voice</h2>
+          <button onClick={handleDone} className="p-1.5 rounded-lg text-fg-subtle hover:text-fg hover:bg-surface-3 transition-colors"><IcX /></button>
         </div>
         <div className="px-4 sm:px-7 pb-4">
-          <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
-            <span className="text-slate-400"><IcSearch /></span>
-            <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Search name, tag, etc." className="flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400" />
+          <div className="flex items-center gap-3 rounded-xl border border-line bg-panel px-4 py-3">
+            <span className="text-fg-subtle"><IcSearch /></span>
+            <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Search name, tag, etc." className="flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle" />
           </div>
         </div>
         <div className="overflow-y-auto flex-1 px-4 sm:px-7 pb-4">
@@ -194,14 +194,14 @@ function VoicePickerModal({
               const isSel = selected === voice.slug;
               const isPlaying = playingSlug === voice.slug;
               return (
-                <div key={voice.slug} onClick={() => setSelected(voice.slug)} className={`relative rounded-xl border-2 p-4 cursor-pointer transition-all ${isSel ? "border-slate-900 bg-white" : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"}`}>
+                <div key={voice.slug} onClick={() => setSelected(voice.slug)} className={`relative rounded-xl border-2 p-4 cursor-pointer transition-all ${isSel ? "border-slate-900 bg-panel" : "border-line bg-panel hover:border-slate-300 hover:shadow-sm"}`}>
                   <div className="flex items-start gap-3 mb-2">
                     <VoiceAvatar voice={voice} size={40} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-bold text-slate-900 leading-tight">{voice.name}</p>
-                      <p className="text-[11px] text-slate-500 mt-1 leading-snug line-clamp-2">{voice.desc}</p>
+                      <p className="text-[13px] font-bold text-fg leading-tight">{voice.name}</p>
+                      <p className="text-[11px] text-fg-muted mt-1 leading-snug line-clamp-2">{voice.desc}</p>
                     </div>
-                    <button onClick={e => { e.stopPropagation(); playPreview(voice.slug); }} className="flex-shrink-0 w-8 h-8 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-600 hover:bg-slate-50 transition-colors mt-0.5">
+                    <button onClick={e => { e.stopPropagation(); playPreview(voice.slug); }} className="flex-shrink-0 w-8 h-8 rounded-full border border-line bg-panel flex items-center justify-center text-fg-muted hover:bg-surface-2 transition-colors mt-0.5">
                       {isPlaying ? <IcStop /> : <IcPlay />}
                     </button>
                   </div>
@@ -211,11 +211,11 @@ function VoicePickerModal({
                 </div>
               );
             })}
-            {filtered.length === 0 && <div className="col-span-3 py-12 text-center text-sm text-slate-400">No voices match &ldquo;{query}&rdquo;</div>}
+            {filtered.length === 0 && <div className="col-span-3 py-12 text-center text-sm text-fg-subtle">No voices match &ldquo;{query}&rdquo;</div>}
           </div>
         </div>
         <div className="px-7 py-4 border-t border-slate-100 flex justify-end">
-          <button onClick={handleDone} className="inline-flex items-center gap-3 px-8 py-3 rounded-xl bg-[#335CFF] hover:opacity-90 text-white text-sm font-semibold transition-opacity">
+          <button onClick={handleDone} className="inline-flex items-center gap-3 px-8 py-3 rounded-xl bg-brand hover:opacity-90 text-white text-sm font-semibold transition-opacity">
             Done <span className="text-xs text-white/60 font-normal">Esc</span>
           </button>
         </div>
@@ -269,20 +269,20 @@ function RecentGenerationsPanel({ token, refreshKey }: { token: string | null; r
   const statusStyle: Record<string, string> = {
     completed: "bg-green-100 text-green-700",
     failed: "bg-red-100 text-red-700",
-    refunded: "bg-gray-100 text-gray-500",
-    cancelled: "bg-gray-100 text-gray-500",
+    refunded: "bg-surface-3 text-fg-muted",
+    cancelled: "bg-surface-3 text-fg-muted",
     pending: "bg-blue-100 text-blue-700",
   };
 
   return (
-    <div className="mt-2 pt-3 border-t border-gray-100">
-      <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-2">Recent generations</p>
+    <div className="mt-2 pt-3 border-t border-line">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-fg-subtle mb-2">Recent generations</p>
       <ul className="space-y-1.5">
         {items.map(g => (
           <li key={g.id} className="flex items-center justify-between gap-2 text-xs">
-            <span className="text-gray-500">{timeAgo(g.createdAt)}</span>
-            <span className="text-gray-400">{g.creditsCost} credits</span>
-            <span className={`px-1.5 py-0.5 rounded-full font-semibold ${statusStyle[g.status] ?? "bg-gray-100 text-gray-500"}`}>
+            <span className="text-fg-muted">{timeAgo(g.createdAt)}</span>
+            <span className="text-fg-subtle">{g.creditsCost} credits</span>
+            <span className={`px-1.5 py-0.5 rounded-full font-semibold ${statusStyle[g.status] ?? "bg-surface-3 text-fg-muted"}`}>
               {g.status}
             </span>
           </li>
@@ -478,7 +478,7 @@ export default function AICreatorWizard() {
 
   if (!available) {
     return (
-      <div className="flex flex-col h-full min-w-0 bg-white items-center justify-center px-6">
+      <div className="flex flex-col h-full min-w-0 bg-panel items-center justify-center px-6">
         <EmptyState
           icon={<IcGrid />}
           title="AI Creator isn't available right now"
@@ -490,10 +490,10 @@ export default function AICreatorWizard() {
   }
 
   return (
-    <div className="flex flex-col h-full min-w-0 bg-white">
+    <div className="flex flex-col h-full min-w-0 bg-panel">
       {/* Top header */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100">
-        <div className="flex items-center gap-2 text-gray-800">
+      <div className="flex items-center justify-between px-6 py-3 border-b border-line">
+        <div className="flex items-center gap-2 text-fg">
           <IcGrid />
           <span className="text-[15px] font-semibold">AI Video</span>
         </div>
@@ -514,13 +514,13 @@ export default function AICreatorWizard() {
                     i === stepIdx
                       ? "bg-blue-600 text-white"
                       : i < stepIdx
-                      ? "bg-gray-200 text-gray-600"
-                      : "bg-gray-100 text-gray-400"
+                      ? "bg-surface-3 text-fg-muted"
+                      : "bg-surface-3 text-fg-subtle"
                   }`}
                 >
                   {i + 1}
                 </span>
-                <span className={`hidden sm:inline text-[13px] font-medium ${i === stepIdx ? "text-gray-900" : "text-gray-400"}`}>
+                <span className={`hidden sm:inline text-[13px] font-medium ${i === stepIdx ? "text-fg" : "text-fg-subtle"}`}>
                   {stepLabels[s]}
                 </span>
               </button>
@@ -535,7 +535,7 @@ export default function AICreatorWizard() {
           className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
             nextEnabled && !generating
               ? "bg-blue-600 hover:bg-blue-700 text-white"
-              : "bg-gray-100 text-gray-400 cursor-not-allowed"
+              : "bg-surface-3 text-fg-subtle cursor-not-allowed"
           }`}
         >
           {isLastStep ? (
@@ -550,17 +550,17 @@ export default function AICreatorWizard() {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 overflow-y-auto md:overflow-hidden bg-gray-50 p-4 md:p-6">
-        <div className="md:h-full max-w-5xl mx-auto bg-white rounded-2xl border border-gray-200 overflow-hidden flex flex-col md:flex-row">
+      <div className="flex-1 overflow-y-auto md:overflow-hidden bg-surface-2 p-4 md:p-6">
+        <div className="md:h-full max-w-5xl mx-auto bg-panel rounded-2xl border border-line overflow-hidden flex flex-col md:flex-row">
           {/* ── LEFT PREVIEW PANEL ── */}
-          <div className="flex-1 bg-gray-100 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-gray-200 p-4 md:p-8 min-h-[240px] md:min-h-0">
+          <div className="flex-1 bg-surface-3 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-line p-4 md:p-8 min-h-[240px] md:min-h-0">
             {step === "upload-video" && (
               videoPreviewUrl ? (
                 <video src={videoPreviewUrl} className="max-h-full max-w-full rounded-xl object-contain" controls muted />
               ) : (
                 <div className="flex flex-col items-center gap-3 text-center">
                   <IcFilm />
-                  <p className="text-sm text-gray-400 font-medium">No video selected</p>
+                  <p className="text-sm text-fg-subtle font-medium">No video selected</p>
                 </div>
               )
             )}
@@ -574,7 +574,7 @@ export default function AICreatorWizard() {
                     <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-purple-400 to-blue-500 flex items-center justify-center text-white text-4xl font-bold shadow-lg">
                       {avatarChoice.type === "nano-banana" ? "NB" : "FS"}
                     </div>
-                    <p className="text-sm font-semibold text-gray-700">
+                    <p className="text-sm font-semibold text-fg">
                       {avatarChoice.type === "nano-banana" ? "Nano Banana" : "Face Swap"}
                     </p>
                   </div>
@@ -582,7 +582,7 @@ export default function AICreatorWizard() {
               ) : (
                 <div className="flex flex-col items-center gap-3 text-center">
                   <IcPerson />
-                  <p className="text-sm text-gray-400 font-medium">No avatar selected</p>
+                  <p className="text-sm text-fg-subtle font-medium">No avatar selected</p>
                 </div>
               )
             )}
@@ -596,14 +596,14 @@ export default function AICreatorWizard() {
                   <IcWave />
                 </div>
                 <div>
-                  <p className="text-base font-bold text-gray-900">
+                  <p className="text-base font-bold text-fg">
                     {selectedVoice ? selectedVoice.name : "Original Voice"}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-fg-muted mt-1">
                     {selectedVoice ? selectedVoice.desc : "Keep the original audio from your video"}
                   </p>
                 </div>
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-gray-100 text-xs text-gray-600 font-medium">
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-surface-3 text-xs text-fg-muted font-medium">
                   {voiceSlug === "original" ? "✓ No voice change" : `✓ ${selectedVoice?.name}`}
                 </span>
               </div>
@@ -618,7 +618,7 @@ export default function AICreatorWizard() {
                 <input ref={videoFileInputRef} type="file" accept="video/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) onVideoFile(f); e.target.value = ""; }} />
                 <button
                   onClick={() => videoFileInputRef.current?.click()}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-semibold text-gray-700 transition-colors shadow-sm"
+                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-line bg-panel hover:bg-surface-2 text-sm font-semibold text-fg transition-colors shadow-sm"
                 >
                   <IcUploadArrow />
                   Upload Video
@@ -626,14 +626,14 @@ export default function AICreatorWizard() {
                 <button
                   onClick={() => setVideoPickerOpen(true)}
                   disabled={assetLoading}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-semibold text-gray-700 transition-colors shadow-sm disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-line bg-panel hover:bg-surface-2 text-sm font-semibold text-fg transition-colors shadow-sm disabled:opacity-50"
                 >
                   {assetLoading ? "Loading…" : "Choose from Assets"}
                 </button>
                 <AssetPicker open={videoPickerOpen} onClose={() => setVideoPickerOpen(false)} accept={["video"]} onSelect={onVideoAssetPicked} title="Choose a video" />
 
-                <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 mt-2">
-                  <p className="text-xs font-semibold text-gray-600 mb-2">Tips for best results:</p>
+                <div className="rounded-xl border border-line bg-surface-2 p-4 mt-2">
+                  <p className="text-xs font-semibold text-fg-muted mb-2">Tips for best results:</p>
                   <ul className="space-y-1.5">
                     {["Use high-quality, well-lit footage", "Vertical (9:16) works best for short-form", "Keep videos under 3 minutes"].map(tip => (
                       <li key={tip} className="flex items-start gap-1.5 text-xs text-blue-600">
@@ -669,7 +669,7 @@ export default function AICreatorWizard() {
                       className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border text-sm font-semibold transition-all shadow-sm ${
                         isSelected
                           ? "border-blue-500 bg-blue-50 text-blue-700"
-                          : "border-gray-200 bg-white hover:bg-gray-50 text-gray-700"
+                          : "border-line bg-panel hover:bg-surface-2 text-fg"
                       }`}
                     >
                       {opt.icon}
@@ -680,7 +680,7 @@ export default function AICreatorWizard() {
                 <button
                   onClick={() => setAvatarPickerOpen(true)}
                   disabled={assetLoading}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-semibold text-gray-700 transition-all shadow-sm disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-line bg-panel hover:bg-surface-2 text-sm font-semibold text-fg transition-all shadow-sm disabled:opacity-50"
                 >
                   {assetLoading ? "Loading…" : "Choose from Assets"}
                 </button>
@@ -696,7 +696,7 @@ export default function AICreatorWizard() {
                   className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border text-sm font-semibold transition-all shadow-sm ${
                     voiceSlug === "original"
                       ? "border-blue-500 bg-blue-50 text-blue-700"
-                      : "border-gray-200 bg-white hover:bg-gray-50 text-gray-700"
+                      : "border-line bg-panel hover:bg-surface-2 text-fg"
                   }`}
                 >
                   <IcWave />
@@ -704,9 +704,9 @@ export default function AICreatorWizard() {
                 </button>
 
                 <div className="flex items-center gap-2 my-1">
-                  <div className="flex-1 h-px bg-gray-200" />
-                  <span className="text-xs text-gray-400">or</span>
-                  <div className="flex-1 h-px bg-gray-200" />
+                  <div className="flex-1 h-px bg-surface-3" />
+                  <span className="text-xs text-fg-subtle">or</span>
+                  <div className="flex-1 h-px bg-surface-3" />
                 </div>
 
                 <button
@@ -714,7 +714,7 @@ export default function AICreatorWizard() {
                   className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border text-sm font-semibold transition-all shadow-sm ${
                     voiceSlug !== "original"
                       ? "border-blue-500 bg-blue-50 text-blue-700"
-                      : "border-gray-200 bg-white hover:bg-gray-50 text-gray-700"
+                      : "border-line bg-panel hover:bg-surface-2 text-fg"
                   }`}
                 >
                   <IcVolume />
@@ -736,7 +736,7 @@ export default function AICreatorWizard() {
 
                 {/* Error / progress */}
                 {job.status === "error" && job.error && (
-                  <div className="flex items-center justify-between gap-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">
+                  <div className="flex items-center justify-between gap-2 text-xs text-error bg-error/10 rounded-lg px-3 py-2">
                     <span>{job.error}</span>
                     <button onClick={() => void handleGenerate()} className="font-semibold underline underline-offset-2 hover:text-red-800 flex-shrink-0">
                       Retry
@@ -744,21 +744,21 @@ export default function AICreatorWizard() {
                   </div>
                 )}
                 {job.status === "cancelled" && (
-                  <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                  <p className="text-xs text-fg-muted bg-surface-2 border border-line rounded-lg px-3 py-2">
                     Cancelled — your credit was refunded.
                   </p>
                 )}
                 {generating && (
                   <div className="space-y-1">
-                    <div className="flex justify-between text-xs text-gray-500">
+                    <div className="flex justify-between text-xs text-fg-muted">
                       <span>Generating…</span><span>{job.progress}%</span>
                     </div>
-                    <div className="w-full bg-gray-100 rounded-full h-1.5">
+                    <div className="w-full bg-surface-3 rounded-full h-1.5">
                       <div className="bg-blue-600 h-1.5 rounded-full transition-all duration-500" style={{ width: `${job.progress}%` }} />
                     </div>
                     <button
                       onClick={() => void job.cancel()}
-                      className="text-xs font-medium text-gray-400 hover:text-red-600 transition-colors"
+                      className="text-xs font-medium text-fg-subtle hover:text-error transition-colors"
                     >
                       Cancel
                     </button>
@@ -772,7 +772,7 @@ export default function AICreatorWizard() {
                 )}
                 {done && resultUrl && (
                   <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2.5">
-                    <span className="text-green-600 text-sm">✓</span>
+                    <span className="text-success text-sm">✓</span>
                     <p className="text-xs text-green-700 font-medium flex-1">Done! Video downloaded.</p>
                     <a href={resultUrl} download="ai-creator-video.mp4" className="text-xs text-blue-600 font-medium hover:underline">Download again</a>
                   </div>

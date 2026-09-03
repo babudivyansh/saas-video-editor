@@ -189,17 +189,17 @@ export default function BackgroundRemoverTool() {
 
   return (
     <div className="mx-auto w-full max-w-[1440px] px-4 md:px-8 pb-10">
-      <div className="rounded-[28px] bg-gray-50 border border-gray-100 flex items-start justify-center p-4 md:p-8" style={{ minHeight: "calc(100vh - 132px)" }}>
-        <div className="w-full max-w-[600px] bg-white rounded-2xl border border-gray-200 shadow-sm p-5 mt-4">
+      <div className="rounded-[28px] bg-surface-2 border border-line flex items-start justify-center p-4 md:p-8" style={{ minHeight: "calc(100vh - 132px)" }}>
+        <div className="w-full max-w-[600px] bg-panel rounded-2xl border border-line shadow-sm p-5 mt-4">
 
           {/* Header */}
-          <div className="flex items-start gap-3 pb-4 border-b border-gray-100">
-            <div className="w-11 h-11 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 flex-shrink-0">
+          <div className="flex items-start gap-3 pb-4 border-b border-line">
+            <div className="w-11 h-11 rounded-full border border-line flex items-center justify-center text-fg-muted flex-shrink-0">
               <IcImage />
             </div>
             <div className="min-w-0">
-              <h2 className="font-bold text-gray-900 text-[17px] leading-tight">Remove Background</h2>
-              <p className="text-sm text-gray-500 mt-0.5">Upload an image to remove the background.</p>
+              <h2 className="font-bold text-fg text-[17px] leading-tight">Remove Background</h2>
+              <p className="text-sm text-fg-muted mt-0.5">Upload an image to remove the background.</p>
             </div>
           </div>
 
@@ -222,12 +222,12 @@ export default function BackgroundRemoverTool() {
                 className="mt-4 w-full rounded-xl border transition-colors flex flex-col items-center justify-center text-center px-6 py-12"
                 style={{ borderColor: dragging ? "#93c5fd" : "#e5e7eb", background: dragging ? "#eff6ff" : "#fafafa" }}
               >
-                <div className="w-14 h-14 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 mb-3">
+                <div className="w-14 h-14 rounded-full bg-panel border border-line flex items-center justify-center text-fg-subtle mb-3">
                   <IcCloud />
                 </div>
-                <p className="text-[15px] font-semibold text-gray-900">Upload image/video</p>
-                <p className="text-sm text-gray-400 mt-1">Drag and drop or click to browse</p>
-                <p className="text-xs text-gray-400 mt-2">.png, .jpg, .jpeg, .webp, .gif • Max 10 MB</p>
+                <p className="text-[15px] font-semibold text-fg">Upload image/video</p>
+                <p className="text-sm text-fg-subtle mt-1">Drag and drop or click to browse</p>
+                <p className="text-xs text-fg-subtle mt-2">.png, .jpg, .jpeg, .webp, .gif • Max 10 MB</p>
               </button>
             </>
           )}
@@ -236,16 +236,16 @@ export default function BackgroundRemoverTool() {
           {stage !== "idle" && file && (
             <div className="mt-4 space-y-4">
               {/* File info bar */}
-              <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-2.5">
-                <div className="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-400 flex-shrink-0">
+              <div className="flex items-center gap-3 bg-surface-2 rounded-xl px-4 py-2.5">
+                <div className="w-8 h-8 rounded-lg bg-panel border border-line flex items-center justify-center text-fg-subtle flex-shrink-0">
                   <IcImage />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-semibold text-gray-900 truncate">{truncate(file.name)}</p>
-                  <p className="text-xs text-gray-400">{fmtMB(file.size)}</p>
+                  <p className="text-[13px] font-semibold text-fg truncate">{truncate(file.name)}</p>
+                  <p className="text-xs text-fg-subtle">{fmtMB(file.size)}</p>
                 </div>
                 {!busy && (
-                  <button type="button" onClick={clearFile} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
+                  <button type="button" onClick={clearFile} className="text-fg-subtle hover:text-fg-muted flex-shrink-0">
                     <IcX />
                   </button>
                 )}
@@ -255,8 +255,8 @@ export default function BackgroundRemoverTool() {
               <div className={`grid gap-3 ${stage === "done" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
                 {/* Original */}
                 <div>
-                  {stage === "done" && <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Original</p>}
-                  <div className="rounded-xl overflow-hidden border border-gray-100 bg-gray-50">
+                  {stage === "done" && <p className="text-[11px] font-bold text-fg-subtle uppercase tracking-wide mb-1.5">Original</p>}
+                  <div className="rounded-xl overflow-hidden border border-line bg-surface-2">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={preview!} alt="Original" className="w-full object-contain max-h-64" />
                   </div>
@@ -265,7 +265,7 @@ export default function BackgroundRemoverTool() {
                 {/* Result */}
                 {stage === "done" && resultUrl && (
                   <div>
-                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Background Removed</p>
+                    <p className="text-[11px] font-bold text-fg-subtle uppercase tracking-wide mb-1.5">Background Removed</p>
                     <CheckerBg>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={resultUrl} alt="Result" className="w-full object-contain max-h-64" />
@@ -278,10 +278,10 @@ export default function BackgroundRemoverTool() {
               {busy && (
                 <div>
                   <div className="flex items-center justify-between text-sm mb-1">
-                    <span className="text-gray-600">Removing background…</span>
-                    <span className="text-gray-400">{Math.round(job.progress)}%</span>
+                    <span className="text-fg-muted">Removing background…</span>
+                    <span className="text-fg-subtle">{Math.round(job.progress)}%</span>
                   </div>
-                  <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                  <div className="h-2 rounded-full bg-surface-3 overflow-hidden">
                     <div
                       className="h-full bg-blue-500 transition-all duration-300"
                       style={{ width: `${job.progress}%` }}
@@ -291,19 +291,19 @@ export default function BackgroundRemoverTool() {
               )}
 
               {pickError && (
-                <p className="text-sm text-red-500 text-center">{pickError}</p>
+                <p className="text-sm text-error text-center">{pickError}</p>
               )}
 
               {stage === "error" && job.error && (
-                <p className="text-sm text-red-500 text-center">{job.error}</p>
+                <p className="text-sm text-error text-center">{job.error}</p>
               )}
 
               {stage === "cancelled" && (
-                <p className="text-sm text-gray-500 text-center">Cancelled — your credit was refunded.</p>
+                <p className="text-sm text-fg-muted text-center">Cancelled — your credit was refunded.</p>
               )}
 
               {!user && stage !== "processing" && (
-                <p className="text-xs text-gray-400 text-center">You&apos;ll be asked to sign in to process.</p>
+                <p className="text-xs text-fg-subtle text-center">You&apos;ll be asked to sign in to process.</p>
               )}
             </div>
           )}
@@ -332,7 +332,7 @@ export default function BackgroundRemoverTool() {
                 <button
                   type="button"
                   onClick={() => void job.cancel()}
-                  className="w-full text-center text-xs font-medium text-gray-400 hover:text-red-600 transition-colors"
+                  className="w-full text-center text-xs font-medium text-fg-subtle hover:text-error transition-colors"
                 >
                   Cancel
                 </button>
@@ -343,7 +343,7 @@ export default function BackgroundRemoverTool() {
               <button
                 type="button"
                 onClick={handleDownload}
-                className="w-full inline-flex items-center justify-center gap-2 border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-semibold py-3 rounded-xl transition-colors"
+                className="w-full inline-flex items-center justify-center gap-2 border border-line hover:bg-surface-2 text-fg text-sm font-semibold py-3 rounded-xl transition-colors"
               >
                 <IcDownload /> Download PNG
               </button>

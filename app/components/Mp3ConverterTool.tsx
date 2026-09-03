@@ -211,17 +211,17 @@ export default function Mp3ConverterTool() {
 
   return (
     <div className="mx-auto w-full max-w-[1440px] px-4 md:px-8 pb-10">
-      <div className="rounded-[28px] bg-gray-50 border border-gray-100 flex items-center justify-center p-4 md:p-8" style={{ minHeight: "calc(100vh - 132px)" }}>
-        <div className="w-full max-w-[560px] bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+      <div className="rounded-[28px] bg-surface-2 border border-line flex items-center justify-center p-4 md:p-8" style={{ minHeight: "calc(100vh - 132px)" }}>
+        <div className="w-full max-w-[560px] bg-panel rounded-2xl border border-line shadow-sm p-5">
 
           {/* Header */}
-          <div className="flex items-start gap-3 pb-4 border-b border-gray-100">
-            <div className="w-11 h-11 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 flex-shrink-0">
+          <div className="flex items-start gap-3 pb-4 border-b border-line">
+            <div className="w-11 h-11 rounded-full border border-line flex items-center justify-center text-fg-muted flex-shrink-0">
               <IcMp3 />
             </div>
             <div className="min-w-0">
-              <h2 className="font-bold text-gray-900 text-[17px] leading-tight">Convert to MP3</h2>
-              <p className="text-sm text-gray-500 mt-1">Upload an audio or video file to convert to MP3.</p>
+              <h2 className="font-bold text-fg text-[17px] leading-tight">Convert to MP3</h2>
+              <p className="text-sm text-fg-muted mt-1">Upload an audio or video file to convert to MP3.</p>
             </div>
           </div>
 
@@ -238,12 +238,12 @@ export default function Mp3ConverterTool() {
                 className="mt-4 w-full rounded-xl border transition-colors flex flex-col items-center justify-center text-center px-6 py-10"
                 style={{ borderColor: dragging ? "#93c5fd" : "#e5e7eb", background: dragging ? "#eff6ff" : "#ffffff" }}
               >
-                <div className="w-12 h-12 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-400 mb-3">
+                <div className="w-12 h-12 rounded-full bg-surface-2 border border-line flex items-center justify-center text-fg-subtle mb-3">
                   <IcCloud />
                 </div>
-                <p className="text-[15px] font-semibold text-gray-900">Upload audio or video</p>
-                <p className="text-sm text-gray-400 mt-1">Drag and drop or click to browse</p>
-                <p className="text-xs text-gray-400 mt-2">.mp3, .wav, .aac, .mp4, .mov, .mkv, .webm • Max {uploadMaxSizeLabel ?? "500 MB"}</p>
+                <p className="text-[15px] font-semibold text-fg">Upload audio or video</p>
+                <p className="text-sm text-fg-subtle mt-1">Drag and drop or click to browse</p>
+                <p className="text-xs text-fg-subtle mt-2">.mp3, .wav, .aac, .mp4, .mov, .mkv, .webm • Max {uploadMaxSizeLabel ?? "500 MB"}</p>
               </button>
             </>
           )}
@@ -251,14 +251,14 @@ export default function Mp3ConverterTool() {
           {/* Uploaded file card */}
           {stage !== "idle" && file && (
             <div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 flex items-center gap-3">
-              <span className="text-green-600 flex-shrink-0"><IcCheck /></span>
-              <span className="w-8 h-8 rounded-lg bg-white border border-green-200 flex items-center justify-center text-gray-500 flex-shrink-0"><IcDoc /></span>
+              <span className="text-success flex-shrink-0"><IcCheck /></span>
+              <span className="w-8 h-8 rounded-lg bg-panel border border-green-200 flex items-center justify-center text-fg-muted flex-shrink-0"><IcDoc /></span>
               <div className="min-w-0 flex-1">
-                <p className="text-[14px] font-semibold text-gray-900 truncate">{truncate(file.name)}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{fmtMB(file.size)} • Uploaded successfully</p>
+                <p className="text-[14px] font-semibold text-fg truncate">{truncate(file.name)}</p>
+                <p className="text-xs text-fg-muted mt-0.5">{fmtMB(file.size)} • Uploaded successfully</p>
               </div>
               {!busy && (
-                <button type="button" onClick={clearFile} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
+                <button type="button" onClick={clearFile} className="text-fg-subtle hover:text-fg-muted flex-shrink-0">
                   <IcX />
                 </button>
               )}
@@ -268,7 +268,7 @@ export default function Mp3ConverterTool() {
           {/* Quality selector */}
           {stage !== "idle" && (
             <div className="mt-5">
-              <p className="text-sm font-semibold text-gray-900 mb-2">MP3 Quality</p>
+              <p className="text-sm font-semibold text-fg mb-2">MP3 Quality</p>
               <div className="grid grid-cols-5 gap-2">
                 {QUALITY_OPTIONS.map(opt => {
                   const active = quality === opt.id;
@@ -287,7 +287,7 @@ export default function Mp3ConverterTool() {
                       }}
                     >
                       <p className="text-[12px] font-semibold" style={{ color: active ? "#2563eb" : "#374151" }}>{opt.label}</p>
-                      <p className="text-[10px] text-gray-400 leading-tight mt-0.5">{opt.sub}</p>
+                      <p className="text-[10px] text-fg-subtle leading-tight mt-0.5">{opt.sub}</p>
                     </button>
                   );
                 })}
@@ -295,21 +295,21 @@ export default function Mp3ConverterTool() {
             </div>
           )}
 
-          {stage === "error" && job.error && <p className="mt-3 text-sm text-red-500 text-center">{job.error}</p>}
+          {stage === "error" && job.error && <p className="mt-3 text-sm text-error text-center">{job.error}</p>}
 
           {/* Converting progress */}
           {stage === "processing" && (
             <div className="mt-5">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">
+                <span className="text-fg-muted">
                   Converting to MP3 with {QUALITY_OPTIONS.find(q => q.id === quality)?.label} quality…
                 </span>
-                {realtime > 0 && <span className="text-gray-400">~{realtime.toFixed(1)}x real time</span>}
+                {realtime > 0 && <span className="text-fg-subtle">~{realtime.toFixed(1)}x real time</span>}
               </div>
-              <div className="mt-2 h-2 rounded-full bg-gray-100 overflow-hidden">
+              <div className="mt-2 h-2 rounded-full bg-surface-3 overflow-hidden">
                 <div className="h-full bg-blue-500 transition-all duration-150" style={{ width: `${job.progress}%` }} />
               </div>
-              <p className="text-xs text-gray-500 mt-1">{Math.round(job.progress)}% complete</p>
+              <p className="text-xs text-fg-muted mt-1">{Math.round(job.progress)}% complete</p>
             </div>
           )}
 
@@ -321,12 +321,12 @@ export default function Mp3ConverterTool() {
               </div>
               <div className="mt-2 space-y-1 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Original size:</span>
-                  <span className="font-medium text-gray-900">{fmtMB(file.size)}</span>
+                  <span className="text-fg-muted">Original size:</span>
+                  <span className="font-medium text-fg">{fmtMB(file.size)}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Output size:</span>
-                  <span className="font-medium text-gray-900">{fmtMB(outputBlob.size)}</span>
+                  <span className="text-fg-muted">Output size:</span>
+                  <span className="font-medium text-fg">{fmtMB(outputBlob.size)}</span>
                 </div>
               </div>
             </div>
@@ -368,7 +368,7 @@ export default function Mp3ConverterTool() {
               <button
                 type="button"
                 onClick={convertAgain}
-                className="inline-flex items-center justify-center gap-2 text-gray-700 text-sm font-semibold py-3 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors"
+                className="inline-flex items-center justify-center gap-2 text-fg text-sm font-semibold py-3 rounded-xl border border-line hover:bg-surface-2 transition-colors"
               >
                 Convert Again
               </button>

@@ -9,7 +9,7 @@ function BrandIcon() {
 
 function MailIcon() {
   return (
-    <svg className="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <svg className="w-4 h-4 text-fg-subtle" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
       <polyline points="22,6 12,13 2,6" />
     </svg>
@@ -18,7 +18,7 @@ function MailIcon() {
 
 function PhoneIcon() {
   return (
-    <svg className="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <svg className="w-4 h-4 text-fg-subtle" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" />
     </svg>
   );
@@ -26,7 +26,7 @@ function PhoneIcon() {
 
 function UserIcon() {
   return (
-    <svg className="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <svg className="w-4 h-4 text-fg-subtle" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
       <circle cx="12" cy="7" r="4" />
     </svg>
@@ -35,7 +35,7 @@ function UserIcon() {
 
 function LockIcon() {
   return (
-    <svg className="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <svg className="w-4 h-4 text-fg-subtle" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
       <path d="M7 11V7a5 5 0 0 1 10 0v4" />
     </svg>
@@ -62,7 +62,7 @@ function GoogleIcon() {
 }
 
 const inputClass =
-  "w-full pl-10 pr-4 py-3 border border-gray-200 hover:border-gray-300 focus:border-brand focus:ring-2 focus:ring-brand/10 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none bg-white transition-all";
+  "w-full pl-10 pr-4 py-3 border border-line hover:border-line-strong focus:border-brand focus:ring-2 focus:ring-brand/10 rounded-xl text-sm text-fg placeholder-fg-subtle focus:outline-none bg-panel transition-all";
 
 // Panels of the horizontal login slider, in the order they're laid out. "otp"
 // is the email/SMS code; "totp" is the second factor from an authenticator app
@@ -154,7 +154,7 @@ function DigitBoxes({
           value={digit}
           onChange={e => handleChange(idx, e.target.value)}
           onKeyDown={e => handleKeyDown(idx, e)}
-          className="w-11 h-12 text-center text-xl font-bold border-2 border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 bg-white transition-all"
+          className="w-11 h-12 text-center text-xl font-bold border-2 border-line rounded-xl text-fg focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 bg-panel transition-all"
         />
       ))}
     </div>
@@ -168,8 +168,8 @@ function PrimaryBtn({ enabled, loading, children }: { enabled: boolean; loading?
       disabled={!enabled || loading}
       className={`w-full font-semibold py-3 rounded-full text-sm transition-all flex items-center justify-center gap-2 ${
         enabled && !loading
-          ? "bg-brand hover:bg-brand-dark active:scale-[0.99] text-white shadow-md shadow-brand/30"
-          : "bg-gray-100 text-gray-400 cursor-not-allowed"
+          ? "bg-brand hover:bg-brand-dark active:scale-[0.99] text-on-primary shadow-md shadow-brand/30"
+          : "bg-surface-3 text-fg-subtle cursor-not-allowed"
       }`}
     >
       {children}
@@ -501,7 +501,7 @@ export default function AuthForm({
   const identifierIsEmail = detectMethod(identifier) === "email";
 
   const errorBlock = error && (
-    <div className="flex items-start gap-2 text-red-600 text-sm bg-red-50 border border-red-100 rounded-xl px-3.5 py-2.5">
+    <div className="flex items-start gap-2 text-error text-sm bg-error/10 border border-error/30 rounded-xl px-3.5 py-2.5">
       <svg className="w-4 h-4 mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
       </svg>
@@ -524,12 +524,12 @@ export default function AuthForm({
   // ── Register ────────────────────────────────────────────────────────────────
   if (mode === "register") {
     return (
-      <div className="flex-1 bg-white px-8 py-8">
+      <div className="flex-1 bg-panel px-8 py-8">
         {/* Header */}
         <div className="flex flex-col items-center text-center mb-7">
           <BrandIcon />
-          <h1 className="mt-4 text-[22px] font-bold text-gray-900 tracking-tight">Create your account</h1>
-          <p className="mt-1 text-sm text-gray-500">Start making viral videos with AI today.</p>
+          <h1 className="mt-4 text-[22px] font-bold text-fg tracking-tight">Create your account</h1>
+          <p className="mt-1 text-sm text-fg-muted">Start making viral videos with AI today.</p>
         </div>
 
         <form onSubmit={handleRegister} className="space-y-3">
@@ -588,9 +588,9 @@ export default function AuthForm({
               className={inputClass}
             />
             {reg.phone.trim() === "" ? (
-              <p className="mt-1 text-xs text-gray-400">Required — used for sign-in and account security</p>
+              <p className="mt-1 text-xs text-fg-subtle">Required — used for sign-in and account security</p>
             ) : !isValidPhone(reg.phone) ? (
-              <p className="mt-1 text-xs text-red-600">Enter a valid phone number (7–15 digits)</p>
+              <p className="mt-1 text-xs text-error">Enter a valid phone number (7–15 digits)</p>
             ) : null}
           </div>
 
@@ -606,13 +606,13 @@ export default function AuthForm({
                 className={inputClass.replace("pl-10", "pl-4")}
               />
               {checkingCode ? (
-                <p className="mt-1 text-xs text-gray-400">Checking…</p>
+                <p className="mt-1 text-xs text-fg-subtle">Checking…</p>
               ) : codeCheck && !codeCheck.valid ? (
-                <p className="mt-1 text-xs text-amber-600">
+                <p className="mt-1 text-xs text-warning">
                   {referralRejectMessages[codeCheck.reason ?? "invalid"] ?? referralRejectMessages.invalid}
                 </p>
               ) : codeCheck?.valid && reg.referralCode.trim() ? (
-                <p className="mt-1 text-xs text-green-600">Referral code applied ✓</p>
+                <p className="mt-1 text-xs text-success">Referral code applied ✓</p>
               ) : null}
             </div>
           ) : (
@@ -659,21 +659,21 @@ export default function AuthForm({
         </form>
 
         <div className="flex items-center gap-3 my-5">
-          <div className="flex-1 h-px bg-gray-100" />
-          <span className="text-xs text-gray-400 font-medium">or</span>
-          <div className="flex-1 h-px bg-gray-100" />
+          <div className="flex-1 h-px bg-surface-3" />
+          <span className="text-xs text-fg-subtle font-medium">or</span>
+          <div className="flex-1 h-px bg-surface-3" />
         </div>
 
         <button
           type="button"
           onClick={() => window.location.href = "/api/auth/google"}
-          className="w-full flex items-center justify-center gap-2.5 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 active:bg-gray-100 rounded-full py-3 text-sm font-medium text-gray-700 transition-all shadow-sm"
+          className="w-full flex items-center justify-center gap-2.5 border border-line hover:border-line-strong hover:bg-surface-2 active:bg-surface-3 rounded-full py-3 text-sm font-medium text-fg transition-all shadow-sm"
         >
           <GoogleIcon />
           Continue with Google
         </button>
 
-        <p className="text-center text-[13px] text-gray-500 mt-5">
+        <p className="text-center text-[13px] text-fg-muted mt-5">
           Already have an account?{" "}
           <button type="button" onClick={toggleMode} className="text-brand-deep font-semibold hover:underline bg-transparent border-none p-0 cursor-pointer">
             Sign in
@@ -693,7 +693,7 @@ export default function AuthForm({
   const panelStyle = { width: `${panelWidth}%` };
 
   return (
-    <div className="flex-1 bg-white overflow-hidden">
+    <div className="flex-1 bg-panel overflow-hidden">
       <div
         className="flex"
         style={{
@@ -706,8 +706,8 @@ export default function AuthForm({
         <div className="px-8 py-8 flex-shrink-0" style={panelStyle}>
           <div className="flex flex-col items-center text-center mb-7">
             <BrandIcon />
-            <h1 className="mt-4 text-[22px] font-bold text-gray-900 tracking-tight">Welcome back</h1>
-            <p className="mt-1 text-sm text-gray-500">Sign in to your Clipiro account</p>
+            <h1 className="mt-4 text-[22px] font-bold text-fg tracking-tight">Welcome back</h1>
+            <p className="mt-1 text-sm text-fg-muted">Sign in to your Clipiro account</p>
           </div>
 
           <form onSubmit={handleIdentifierContinue} className="space-y-3">
@@ -733,21 +733,21 @@ export default function AuthForm({
           </form>
 
           <div className="flex items-center gap-3 my-5">
-            <div className="flex-1 h-px bg-gray-100" />
-            <span className="text-xs text-gray-400 font-medium">or</span>
-            <div className="flex-1 h-px bg-gray-100" />
+            <div className="flex-1 h-px bg-surface-3" />
+            <span className="text-xs text-fg-subtle font-medium">or</span>
+            <div className="flex-1 h-px bg-surface-3" />
           </div>
 
           <button
             type="button"
             onClick={() => window.location.href = withNextParam("/api/auth/google", next)}
-            className="w-full flex items-center justify-center gap-2.5 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 active:bg-gray-100 rounded-full py-3 text-sm font-medium text-gray-700 transition-all shadow-sm"
+            className="w-full flex items-center justify-center gap-2.5 border border-line hover:border-line-strong hover:bg-surface-2 active:bg-surface-3 rounded-full py-3 text-sm font-medium text-fg transition-all shadow-sm"
           >
             <GoogleIcon />
             Continue with Google
           </button>
 
-          <p className="text-center text-[13px] text-gray-500 mt-5">
+          <p className="text-center text-[13px] text-fg-muted mt-5">
             Don&apos;t have an account?{" "}
             <button type="button" onClick={toggleMode} className="text-brand-deep font-semibold hover:underline bg-transparent border-none p-0 cursor-pointer">
               Sign up free
@@ -759,9 +759,9 @@ export default function AuthForm({
         <div className="px-8 py-8 flex-shrink-0" style={panelStyle}>
           <div className="flex flex-col items-center text-center mb-7">
             <BrandIcon />
-            <h1 className="mt-4 text-[22px] font-bold text-gray-900 tracking-tight">Enter password</h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Signing in as <span className="font-semibold text-gray-700">{identifier}</span>
+            <h1 className="mt-4 text-[22px] font-bold text-fg tracking-tight">Enter password</h1>
+            <p className="mt-1 text-sm text-fg-muted">
+              Signing in as <span className="font-semibold text-fg">{identifier}</span>
             </p>
           </div>
 
@@ -800,7 +800,7 @@ export default function AuthForm({
                 setForgotSent(false);
                 goToStep("forgot-password");
               }}
-              className="text-sm text-gray-400 hover:text-gray-600 transition-colors bg-transparent border-none p-0 cursor-pointer"
+              className="text-sm text-fg-subtle hover:text-fg-muted transition-colors bg-transparent border-none p-0 cursor-pointer"
             >
               Forgot password?
             </button>
@@ -810,7 +810,7 @@ export default function AuthForm({
             <button
               type="button"
               onClick={() => goToStep("identifier")}
-              className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors"
+              className="flex items-center gap-1.5 text-sm text-fg-subtle hover:text-fg-muted transition-colors"
             >
               <BackArrow />
               Back
@@ -822,12 +822,12 @@ export default function AuthForm({
         <div className="px-8 py-8 flex-shrink-0 flex flex-col" style={panelStyle}>
           <div className="flex flex-col items-center text-center mb-7">
             <BrandIcon />
-            <h1 className="mt-4 text-[22px] font-bold text-gray-900 tracking-tight">
+            <h1 className="mt-4 text-[22px] font-bold text-fg tracking-tight">
               {identifierIsEmail ? "Check your email" : "Verify your phone"}
             </h1>
-            <p className="mt-1 text-sm text-gray-500 leading-relaxed">
+            <p className="mt-1 text-sm text-fg-muted leading-relaxed">
               We sent a 6-digit code to{" "}
-              <span className="font-semibold text-gray-700">{identifier}</span>
+              <span className="font-semibold text-fg">{identifier}</span>
             </p>
           </div>
 
@@ -841,7 +841,7 @@ export default function AuthForm({
             <DigitBoxes digits={otpDigits} onChange={setOtpDigits} focused={loginStep === "otp"} />
 
             {loginStep === "otp" && error && (
-              <div className="flex items-start gap-2 text-red-600 text-sm bg-red-50 border border-red-100 rounded-xl px-3.5 py-2.5 text-center justify-center">
+              <div className="flex items-start gap-2 text-error text-sm bg-error/10 border border-error/30 rounded-xl px-3.5 py-2.5 text-center justify-center">
                 {error}
               </div>
             )}
@@ -864,7 +864,7 @@ export default function AuthForm({
             <button
               type="button"
               onClick={() => goToStep("password")}
-              className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors bg-transparent border-none p-0 cursor-pointer"
+              className="flex items-center gap-1.5 text-sm text-fg-subtle hover:text-fg-muted transition-colors bg-transparent border-none p-0 cursor-pointer"
             >
               <BackArrow />
               Back
@@ -876,8 +876,8 @@ export default function AuthForm({
         <div className="px-8 py-8 flex-shrink-0 flex flex-col" style={panelStyle}>
           <div className="flex flex-col items-center text-center mb-7">
             <BrandIcon />
-            <h1 className="mt-4 text-[22px] font-bold text-gray-900 tracking-tight">Two-factor authentication</h1>
-            <p className="mt-1 text-sm text-gray-500 leading-relaxed">
+            <h1 className="mt-4 text-[22px] font-bold text-fg tracking-tight">Two-factor authentication</h1>
+            <p className="mt-1 text-sm text-fg-muted leading-relaxed">
               {useRecoveryCode
                 ? "Enter one of the recovery codes you saved when you turned on 2FA."
                 : "Enter the 6-digit code from your authenticator app."}
@@ -892,7 +892,7 @@ export default function AuthForm({
                 value={recoveryCode}
                 onChange={e => setRecoveryCode(e.target.value.toUpperCase())}
                 placeholder="XXXXX-XXXXX"
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-center text-lg font-mono tracking-[0.2em] text-gray-900 placeholder-gray-300 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 bg-white transition-all"
+                className="w-full px-4 py-3 border-2 border-line rounded-xl text-center text-lg font-mono tracking-[0.2em] text-fg placeholder-gray-300 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 bg-panel transition-all"
               />
             ) : (
               <DigitBoxes
@@ -903,7 +903,7 @@ export default function AuthForm({
             )}
 
             {loginStep === "totp" && error && (
-              <div className="flex items-start gap-2 text-red-600 text-sm bg-red-50 border border-red-100 rounded-xl px-3.5 py-2.5 text-center justify-center">
+              <div className="flex items-start gap-2 text-error text-sm bg-error/10 border border-error/30 rounded-xl px-3.5 py-2.5 text-center justify-center">
                 {error}
               </div>
             )}
@@ -930,7 +930,7 @@ export default function AuthForm({
             <button
               type="button"
               onClick={() => { setTicket(null); goToStep("password"); }}
-              className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors bg-transparent border-none p-0 cursor-pointer"
+              className="flex items-center gap-1.5 text-sm text-fg-subtle hover:text-fg-muted transition-colors bg-transparent border-none p-0 cursor-pointer"
             >
               <BackArrow />
               Back
@@ -945,17 +945,17 @@ export default function AuthForm({
               <div className="w-14 h-14 rounded-full bg-tint-blue flex items-center justify-center mx-auto">
                 <MailIcon />
               </div>
-              <h1 className="mt-4 text-[22px] font-bold text-gray-900 tracking-tight">Check your email</h1>
-              <p className="mt-2 text-sm text-gray-500 leading-relaxed">
-                If <span className="font-semibold text-gray-700">{forgotEmail}</span> is registered, we&apos;ve sent a password reset link. Check your inbox (and spam folder).
+              <h1 className="mt-4 text-[22px] font-bold text-fg tracking-tight">Check your email</h1>
+              <p className="mt-2 text-sm text-fg-muted leading-relaxed">
+                If <span className="font-semibold text-fg">{forgotEmail}</span> is registered, we&apos;ve sent a password reset link. Check your inbox (and spam folder).
               </p>
-              <p className="mt-1 text-xs text-gray-400">The link expires in 15 minutes.</p>
+              <p className="mt-1 text-xs text-fg-subtle">The link expires in 15 minutes.</p>
 
               <div className="flex justify-center mt-6">
                 <button
                   type="button"
                   onClick={() => goToStep("password")}
-                  className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors bg-transparent border-none p-0 cursor-pointer"
+                  className="flex items-center gap-1.5 text-sm text-fg-subtle hover:text-fg-muted transition-colors bg-transparent border-none p-0 cursor-pointer"
                 >
                   <BackArrow />
                   Back to login
@@ -966,8 +966,8 @@ export default function AuthForm({
             <>
               <div className="flex flex-col items-center text-center mb-7">
                 <BrandIcon />
-                <h1 className="mt-4 text-[22px] font-bold text-gray-900 tracking-tight">Forgot password?</h1>
-                <p className="mt-1 text-sm text-gray-500">Enter your email and we&apos;ll send you a reset link.</p>
+                <h1 className="mt-4 text-[22px] font-bold text-fg tracking-tight">Forgot password?</h1>
+                <p className="mt-1 text-sm text-fg-muted">Enter your email and we&apos;ll send you a reset link.</p>
               </div>
 
               <form onSubmit={handleForgotPassword} className="space-y-3">
@@ -994,7 +994,7 @@ export default function AuthForm({
                 <button
                   type="button"
                   onClick={() => goToStep("password")}
-                  className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors bg-transparent border-none p-0 cursor-pointer"
+                  className="flex items-center gap-1.5 text-sm text-fg-subtle hover:text-fg-muted transition-colors bg-transparent border-none p-0 cursor-pointer"
                 >
                   <BackArrow />
                   Back

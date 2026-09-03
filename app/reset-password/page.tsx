@@ -74,8 +74,8 @@ function ResetForm() {
             <path d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <p className="text-zinc-100 font-semibold">Password updated!</p>
-        <p className="text-zinc-400 text-sm">Redirecting you to login…</p>
+        <p className="text-fg font-semibold">Password updated!</p>
+        <p className="text-fg-muted text-sm">Redirecting you to login…</p>
       </div>
     );
   }
@@ -83,25 +83,25 @@ function ResetForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-zinc-300 mb-1.5">New password</label>
+        <label className="block text-sm font-medium text-fg-muted mb-1.5">New password</label>
         <input
           type="password"
           value={password}
           onChange={e => setPassword(e.target.value)}
           placeholder="At least 8 characters"
           required
-          className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-colors"
+          className="w-full rounded-xl border border-line bg-surface-3 px-4 py-2.5 text-sm text-fg placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-colors"
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-zinc-300 mb-1.5">Confirm password</label>
+        <label className="block text-sm font-medium text-fg-muted mb-1.5">Confirm password</label>
         <input
           type="password"
           value={confirm}
           onChange={e => setConfirm(e.target.value)}
           placeholder="Repeat new password"
           required
-          className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-colors"
+          className="w-full rounded-xl border border-line bg-surface-3 px-4 py-2.5 text-sm text-fg placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-colors"
         />
       </div>
 
@@ -117,7 +117,7 @@ function ResetForm() {
         {loading ? "Updating…" : "Set new password"}
       </button>
 
-      <p className="text-center text-sm text-zinc-500">
+      <p className="text-center text-sm text-fg-subtle">
         <Link href="/login" className="text-blue-400 hover:underline">Back to login</Link>
       </p>
     </form>
@@ -126,17 +126,17 @@ function ResetForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <main className="min-h-screen bg-zinc-950 flex items-center justify-center px-4">
+    <main className="theme-emerald min-h-screen bg-bg text-fg flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-2.5 mb-8">
           <BoltIcon />
-          <span className="text-lg font-bold text-zinc-100">Clipiro</span>
+          <span className="text-lg font-bold text-fg">Clipiro</span>
         </div>
 
-        <h1 className="text-2xl font-bold text-zinc-100 mb-1">Set new password</h1>
-        <p className="text-zinc-400 text-sm mb-8">Choose a strong password for your account.</p>
+        <h1 className="text-2xl font-bold text-fg mb-1">Set new password</h1>
+        <p className="text-fg-muted text-sm mb-8">Choose a strong password for your account.</p>
 
-        <Suspense fallback={<div className="animate-pulse h-40 rounded-xl bg-zinc-800" />}>
+        <Suspense fallback={<div className="animate-pulse h-40 rounded-xl bg-surface-3" />}>
           <ResetForm />
         </Suspense>
       </div>

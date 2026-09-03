@@ -53,11 +53,11 @@ const PATTERNS = {
 
 // Exact expected counts. Lower these as each stage lands; never raise them.
 const BUDGET = {
-  "raw-gray": 1172,
-  "bg-white": 192,
-  "raw-slate": 101,
-  "raw-zinc": 102,
-  "brand-hex": 75,
+  "raw-gray": 318,
+  "bg-white": 35,
+  "raw-slate": 16,
+  "raw-zinc": 22,
+  "brand-hex": 52,
   "legacy-light": 0,
 };
 

@@ -6,10 +6,10 @@ function BoltIcon() {
 
 export default function NotFound() {
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-center px-4">
+    <main className="theme-emerald min-h-screen bg-bg text-fg flex flex-col items-center justify-center px-4">
       <div className="flex flex-col items-center text-center max-w-md">
         <BoltIcon />
-        <p className="mt-6 text-7xl font-black text-zinc-800 select-none">404</p>
+        <p className="mt-6 text-7xl font-black text-surface-3 select-none">404</p>
         <h1 className="mt-2 text-2xl font-bold text-zinc-100">Page not found</h1>
         <p className="mt-3 text-zinc-400 text-sm leading-relaxed">
           The page you&apos;re looking for doesn&apos;t exist or has been moved.

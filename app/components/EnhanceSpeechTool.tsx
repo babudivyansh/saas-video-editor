@@ -17,7 +17,7 @@ function IcLink() {
 
 function IcCloud() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-gray-400">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-fg-subtle">
       <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z" />
     </svg>
   );
@@ -33,7 +33,7 @@ function IcX() {
 
 function IcAudio() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-[#335CFF]">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-brand">
       <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
     </svg>
   );
@@ -169,21 +169,21 @@ export default function EnhanceSpeechTool() {
   const stage = file ? (job.status === "idle" ? "ready" : job.status) : "idle";
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-start justify-center p-4 md:p-8">
-      <div className="w-full max-w-lg bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+    <div className="min-h-screen bg-surface-2 flex items-start justify-center p-4 md:p-8">
+      <div className="w-full max-w-lg bg-panel rounded-2xl shadow-sm border border-line overflow-hidden">
 
         {/* Header */}
         <div className="p-6 pb-5 flex items-start gap-3">
-          <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+          <div className="w-9 h-9 rounded-full bg-surface-3 flex items-center justify-center flex-shrink-0 mt-0.5">
             <IcLink />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-gray-900 leading-tight">Enhance Speech</h1>
-            <p className="text-sm text-[#335CFF] mt-0.5">Upload a video or audio file to enhance the audio clarity.</p>
+            <h1 className="text-lg font-bold text-fg leading-tight">Enhance Speech</h1>
+            <p className="text-sm text-brand mt-0.5">Upload a video or audio file to enhance the audio clarity.</p>
           </div>
         </div>
 
-        <hr className="border-gray-100" />
+        <hr className="border-line" />
 
         {/* Body */}
         <div className="p-6 space-y-4">
@@ -193,7 +193,7 @@ export default function EnhanceSpeechTool() {
             !file ? (
               <div
                 className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center cursor-pointer transition-colors ${
-                  dragging ? "border-[#335CFF] bg-blue-50" : "border-gray-200 hover:border-gray-300 bg-gray-50"
+                  dragging ? "border-brand bg-blue-50" : "border-line hover:border-line-strong bg-surface-2"
                 }`}
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={e => { e.preventDefault(); setDragging(true); }}
@@ -201,25 +201,25 @@ export default function EnhanceSpeechTool() {
                 onDrop={onDrop}
               >
                 <input ref={fileInputRef} type="file" accept="audio/*,video/*" className="hidden" onChange={onFileChange} />
-                <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                <div className="w-14 h-14 rounded-full bg-surface-3 flex items-center justify-center mb-4">
                   <IcCloud />
                 </div>
-                <p className="text-sm font-semibold text-gray-800 mb-1">Upload audio/video</p>
-                <p className="text-sm text-[#335CFF] font-medium mb-3">Drag and drop or click to browse</p>
-                <p className="text-xs text-gray-400 text-center leading-relaxed">
+                <p className="text-sm font-semibold text-fg mb-1">Upload audio/video</p>
+                <p className="text-sm text-brand font-medium mb-3">Drag and drop or click to browse</p>
+                <p className="text-xs text-fg-subtle text-center leading-relaxed">
                   .mp3, .wav, .m4a, .ogg, .aac, .mp4, .mov, .avi, .webm • Max 50 MB
                 </p>
               </div>
             ) : (
-              <div className="border border-gray-200 rounded-xl p-4 flex items-center gap-3 bg-gray-50">
+              <div className="border border-line rounded-xl p-4 flex items-center gap-3 bg-surface-2">
                 <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
                   <IcAudio />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">{file.name}</p>
-                  <p className="text-xs text-gray-400">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
+                  <p className="text-sm font-medium text-fg truncate">{file.name}</p>
+                  <p className="text-xs text-fg-subtle">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
                 </div>
-                <button onClick={removeFile} className="text-gray-400 hover:text-gray-600 transition-colors p-1">
+                <button onClick={removeFile} className="text-fg-subtle hover:text-fg-muted transition-colors p-1">
                   <IcX />
                 </button>
               </div>
@@ -228,13 +228,13 @@ export default function EnhanceSpeechTool() {
 
           {/* File chip during processing / complete */}
           {(stage === "processing" || stage === "done") && file && (
-            <div className="border border-gray-200 rounded-xl p-4 flex items-center gap-3 bg-gray-50">
+            <div className="border border-line rounded-xl p-4 flex items-center gap-3 bg-surface-2">
               <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
                 <IcAudio />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-800 truncate">{file.name}</p>
-                <p className="text-xs text-gray-400">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
+                <p className="text-sm font-medium text-fg truncate">{file.name}</p>
+                <p className="text-xs text-fg-subtle">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
               </div>
             </div>
           )}
@@ -242,19 +242,19 @@ export default function EnhanceSpeechTool() {
           {/* Progress bar */}
           {stage === "processing" && (
             <div className="space-y-1.5">
-              <div className="flex justify-between text-xs text-gray-500">
+              <div className="flex justify-between text-xs text-fg-muted">
                 <span>Enhancing…</span>
                 <span>{job.progress}%</span>
               </div>
-              <div className="w-full bg-gray-100 rounded-full h-2">
+              <div className="w-full bg-surface-3 rounded-full h-2">
                 <div
-                  className="bg-[#335CFF] h-2 rounded-full transition-all duration-300"
+                  className="bg-brand h-2 rounded-full transition-all duration-300"
                   style={{ width: `${job.progress}%` }}
                 />
               </div>
               <button
                 onClick={() => void job.cancel()}
-                className="text-xs font-medium text-gray-400 hover:text-red-600 transition-colors"
+                className="text-xs font-medium text-fg-subtle hover:text-error transition-colors"
               >
                 Cancel
               </button>
@@ -263,14 +263,14 @@ export default function EnhanceSpeechTool() {
 
           {/* Error */}
           {pickError && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{pickError}</p>
+            <p className="text-sm text-error bg-error/10 rounded-lg px-3 py-2">{pickError}</p>
           )}
           {stage === "error" && job.error && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{job.error}</p>
+            <p className="text-sm text-error bg-error/10 rounded-lg px-3 py-2">{job.error}</p>
           )}
 
           {stage === "cancelled" && (
-            <p className="text-sm text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+            <p className="text-sm text-fg-muted bg-surface-2 rounded-lg px-3 py-2">
               Cancelled — your credit was refunded.
             </p>
           )}
@@ -278,11 +278,11 @@ export default function EnhanceSpeechTool() {
           {/* Complete */}
           {stage === "done" && downloadUrl && (
             <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-3">
-              <svg className="w-5 h-5 text-green-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-success shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <p className="text-sm text-green-700 font-medium flex-1">Done! Audio downloaded.</p>
-              <a href={downloadUrl} download={downloadName} className="text-xs text-[#335CFF] font-medium hover:underline">
+              <a href={downloadUrl} download={downloadName} className="text-xs text-brand font-medium hover:underline">
                 Download again
               </a>
             </div>

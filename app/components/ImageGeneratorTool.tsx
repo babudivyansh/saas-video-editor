@@ -80,21 +80,21 @@ function ModelDropdown({ value, onChange }: { value: string; onChange: (v: strin
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(o => { if (o) setSearch(""); return !o; })}
-        className="flex items-center gap-2 w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[13.5px] font-medium text-gray-900 hover:border-gray-300 transition-colors cursor-pointer"
+        className="flex items-center gap-2 w-full rounded-xl border border-line bg-panel px-3.5 py-2.5 text-[13.5px] font-medium text-fg hover:border-line-strong transition-colors cursor-pointer"
       >
         <span className="flex-1 text-left">{selected.displayName}</span>
-        <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 rounded-md px-1.5 py-0.5 whitespace-nowrap">{creditLabel(selected.creditCost)}</span>
+        <span className="text-[10px] font-semibold text-fg-muted bg-surface-3 rounded-md px-1.5 py-0.5 whitespace-nowrap">{creditLabel(selected.creditCost)}</span>
         <IcChevron />
       </button>
       {open && (
-        <div className="absolute left-0 top-full mt-1 z-30 w-full bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden">
-          <div className="p-2 border-b border-gray-100">
+        <div className="absolute left-0 top-full mt-1 z-30 w-full bg-panel rounded-xl border border-line shadow-xl overflow-hidden">
+          <div className="p-2 border-b border-line">
             <input
               autoFocus
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search models..."
-              className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12.5px] outline-none focus:border-blue-400"
+              className="w-full rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] outline-none focus:border-blue-400"
               onClick={e => e.stopPropagation()}
             />
           </div>
@@ -103,15 +103,15 @@ function ModelDropdown({ value, onChange }: { value: string; onChange: (v: strin
               <button
                 key={m.id}
                 onClick={() => { onChange(m.id); setOpen(false); setSearch(""); }}
-                className="w-full flex items-center gap-2 px-3.5 py-2.5 text-[13.5px] text-left hover:bg-gray-50 transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-3.5 py-2.5 text-[13.5px] text-left hover:bg-surface-2 transition-colors cursor-pointer"
               >
                 {value === m.id ? <span className="text-blue-600"><IcCheck /></span> : <span className="w-3.5 h-3.5" />}
-                <span className="flex-1 font-medium text-gray-900">{m.displayName}</span>
-                <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 rounded-md px-1.5 py-0.5 whitespace-nowrap">{creditLabel(m.creditCost)}</span>
+                <span className="flex-1 font-medium text-fg">{m.displayName}</span>
+                <span className="text-[10px] font-semibold text-fg-subtle bg-surface-3 rounded-md px-1.5 py-0.5 whitespace-nowrap">{creditLabel(m.creditCost)}</span>
               </button>
             ))}
             {filtered.length === 0 && (
-              <p className="px-3.5 py-3 text-[12.5px] text-gray-400 text-center">No models found</p>
+              <p className="px-3.5 py-3 text-[12.5px] text-fg-subtle text-center">No models found</p>
             )}
           </div>
         </div>
@@ -134,20 +134,20 @@ function RatioDropdown({ value, onChange }: { value: string; onChange: (v: strin
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-[13.5px] font-medium text-gray-900 hover:border-gray-300 transition-colors cursor-pointer whitespace-nowrap"
+        className="flex items-center gap-1.5 rounded-xl border border-line bg-panel px-3 py-2.5 text-[13.5px] font-medium text-fg hover:border-line-strong transition-colors cursor-pointer whitespace-nowrap"
       >
         {value} <IcChevron />
       </button>
       {open && (
-        <div className="absolute left-0 top-full mt-1 z-30 w-32 bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden">
+        <div className="absolute left-0 top-full mt-1 z-30 w-32 bg-panel rounded-xl border border-line shadow-xl overflow-hidden">
           {RATIOS.map(r => (
             <button
               key={r}
               onClick={() => { onChange(r); setOpen(false); }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-left hover:bg-gray-50 transition-colors cursor-pointer"
+              className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-left hover:bg-surface-2 transition-colors cursor-pointer"
             >
               {value === r ? <span className="text-blue-600"><IcCheck /></span> : <span className="w-3.5 h-3.5" />}
-              <span className="font-medium text-gray-900">{r}</span>
+              <span className="font-medium text-fg">{r}</span>
             </button>
           ))}
         </div>
@@ -321,24 +321,24 @@ export default function ImageGeneratorTool() {
           {/* Controls row */}
           <div className="flex items-end gap-3 mb-4">
             <div className="flex-1">
-              <p className="text-[12px] font-semibold text-gray-500 mb-1.5">Model</p>
+              <p className="text-[12px] font-semibold text-fg-muted mb-1.5">Model</p>
               <ModelDropdown value={model} onChange={setModel} />
             </div>
             <div>
-              <p className="text-[12px] font-semibold text-gray-500 mb-1.5">Ratio</p>
+              <p className="text-[12px] font-semibold text-fg-muted mb-1.5">Ratio</p>
               <RatioDropdown value={ratio} onChange={setRatio} />
             </div>
             <div>
               <div className="flex items-center gap-1 mb-1.5">
-                <p className="text-[12px] font-semibold text-gray-500">Reference</p>
-                <span className="text-gray-400 cursor-help" title="Adding a reference image means your prompt will edit that image">
+                <p className="text-[12px] font-semibold text-fg-muted">Reference</p>
+                <span className="text-fg-subtle cursor-help" title="Adding a reference image means your prompt will edit that image">
                   <IcInfo />
                 </span>
               </div>
               {referencePreview ? (
                 <div className="relative w-[42px] h-[42px]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={referencePreview} alt="reference" className="w-full h-full object-cover rounded-xl border border-gray-200" />
+                  <img src={referencePreview} alt="reference" className="w-full h-full object-cover rounded-xl border border-line" />
                   <button
                     onClick={() => setReferencePreview(null)}
                     className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-black/80 text-white flex items-center justify-center cursor-pointer"
@@ -349,7 +349,7 @@ export default function ImageGeneratorTool() {
               ) : (
                 <button
                   onClick={() => fileRef.current?.click()}
-                  className="w-[42px] h-[42px] rounded-xl border-2 border-dashed border-gray-300 hover:border-gray-400 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors cursor-pointer"
+                  className="w-[42px] h-[42px] rounded-xl border-2 border-dashed border-line-strong hover:border-gray-400 text-fg-subtle hover:text-fg-muted flex items-center justify-center transition-colors cursor-pointer"
                 >
                   <IcImage />
                 </button>
@@ -360,12 +360,12 @@ export default function ImageGeneratorTool() {
           {/* Dynamic per-model parameters */}
           {supports("negativePrompt") && (
             <div className="mb-4">
-              <p className="text-[12px] font-semibold text-gray-500 mb-1.5">Negative Prompt</p>
+              <p className="text-[12px] font-semibold text-fg-muted mb-1.5">Negative Prompt</p>
               <input
                 value={negativePrompt}
                 onChange={e => setNegativePrompt(e.target.value)}
                 placeholder="Things to avoid in the image..."
-                className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+                className="w-full rounded-xl border border-line px-3.5 py-2.5 text-[13px] text-fg placeholder:text-fg-subtle outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
               />
             </div>
           )}
@@ -374,7 +374,7 @@ export default function ImageGeneratorTool() {
             <div className="mb-4">
               <button
                 onClick={() => setShowAdvanced(a => !a)}
-                className="flex items-center gap-1 text-[12px] font-semibold text-gray-500 hover:text-gray-700 cursor-pointer"
+                className="flex items-center gap-1 text-[12px] font-semibold text-fg-muted hover:text-fg cursor-pointer"
               >
                 Advanced <IcChevron />
               </button>
@@ -382,37 +382,37 @@ export default function ImageGeneratorTool() {
                 <div className="mt-2 flex gap-3">
                   {supports("seed") && (
                     <div className="flex-1">
-                      <p className="text-[11px] text-gray-400 mb-1">Seed</p>
+                      <p className="text-[11px] text-fg-subtle mb-1">Seed</p>
                       <input
                         type="number"
                         value={seed}
                         onChange={e => setSeed(e.target.value)}
                         placeholder="Random"
-                        className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12.5px] outline-none focus:border-blue-400"
+                        className="w-full rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] outline-none focus:border-blue-400"
                       />
                     </div>
                   )}
                   {supports("guidanceScale") && (
                     <div className="flex-1">
-                      <p className="text-[11px] text-gray-400 mb-1">Guidance</p>
+                      <p className="text-[11px] text-fg-subtle mb-1">Guidance</p>
                       <input
                         type="number"
                         value={guidanceScale}
                         onChange={e => setGuidanceScale(e.target.value)}
                         placeholder="Default"
-                        className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12.5px] outline-none focus:border-blue-400"
+                        className="w-full rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] outline-none focus:border-blue-400"
                       />
                     </div>
                   )}
                   {supports("steps") && (
                     <div className="flex-1">
-                      <p className="text-[11px] text-gray-400 mb-1">Steps</p>
+                      <p className="text-[11px] text-fg-subtle mb-1">Steps</p>
                       <input
                         type="number"
                         value={steps}
                         onChange={e => setSteps(e.target.value)}
                         placeholder="Default"
-                        className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12.5px] outline-none focus:border-blue-400"
+                        className="w-full rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] outline-none focus:border-blue-400"
                       />
                     </div>
                   )}
@@ -422,19 +422,19 @@ export default function ImageGeneratorTool() {
           )}
 
           {/* Preview area */}
-          <div className="rounded-2xl border border-gray-200 bg-gray-50 mb-4 overflow-hidden" style={{ minHeight: 340 }}>
+          <div className="rounded-2xl border border-line bg-surface-2 mb-4 overflow-hidden" style={{ minHeight: 340 }}>
             {generating ? (
               <div className="flex flex-col items-center justify-center h-full min-h-[340px] gap-4">
-                <div className="w-14 h-14 rounded-full bg-white border border-gray-200 flex items-center justify-center shadow-sm">
+                <div className="w-14 h-14 rounded-full bg-panel border border-line flex items-center justify-center shadow-sm">
                   <Spinner className="w-6 h-6 text-blue-500" />
                 </div>
                 <div className="text-center">
-                  <p className="text-[14px] font-bold text-gray-800">Generating your image…</p>
-                  <p className="text-[12.5px] text-gray-400 mt-1">Using {modelName}</p>
+                  <p className="text-[14px] font-bold text-fg">Generating your image…</p>
+                  <p className="text-[12.5px] text-fg-subtle mt-1">Using {modelName}</p>
                 </div>
                 <button
                   onClick={() => void job.cancel()}
-                  className="text-[12px] font-medium text-gray-400 hover:text-red-600 transition-colors cursor-pointer"
+                  className="text-[12px] font-medium text-fg-subtle hover:text-error transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -456,11 +456,11 @@ export default function ImageGeneratorTool() {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-full min-h-[340px] gap-3 text-center px-8">
-                <div className="w-14 h-14 rounded-full bg-white border border-gray-200 flex items-center justify-center shadow-sm text-gray-400">
+                <div className="w-14 h-14 rounded-full bg-panel border border-line flex items-center justify-center shadow-sm text-fg-subtle">
                   <IcSparkle />
                 </div>
                 <div>
-                  <p className="text-[15px] font-bold text-gray-900">Ready to create something amazing?</p>
+                  <p className="text-[15px] font-bold text-fg">Ready to create something amazing?</p>
                   <p className="text-[13px] text-blue-500 mt-1">Enter a prompt below and let AI bring your ideas to life</p>
                 </div>
               </div>
@@ -469,9 +469,9 @@ export default function ImageGeneratorTool() {
 
           {/* Prompt */}
           <div className="flex items-center gap-1.5 mb-2">
-            <p className="text-[13.5px] font-bold text-gray-900">Prompt</p>
+            <p className="text-[13.5px] font-bold text-fg">Prompt</p>
             <Tooltip content="Be specific: subject, style, lighting, and mood all help. Try the Enhance button below to expand a short idea.">
-              <span className="text-gray-400 cursor-help"><IcInfo /></span>
+              <span className="text-fg-subtle cursor-help"><IcInfo /></span>
             </Tooltip>
           </div>
           <div className="relative">
@@ -481,13 +481,13 @@ export default function ImageGeneratorTool() {
               onKeyDown={onKeyDown}
               placeholder="Describe the image you want to create..."
               rows={6}
-              className="w-full rounded-xl border border-gray-200 px-4 py-3 text-[13.5px] leading-relaxed text-gray-900 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition resize-none pb-10"
+              className="w-full rounded-xl border border-line px-4 py-3 text-[13.5px] leading-relaxed text-fg placeholder:text-fg-subtle outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition resize-none pb-10"
             />
             {/* Enhance Prompt */}
             <button
               onClick={enhancePrompt}
               disabled={!prompt.trim() || enhancing}
-              className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-2.5 py-1.5 text-[12px] font-semibold text-gray-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-lg border border-line bg-panel hover:bg-surface-2 px-2.5 py-1.5 text-[12px] font-semibold text-fg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               {enhancing && <Spinner className="w-3 h-3" />}
               Enhance Prompt
@@ -495,10 +495,10 @@ export default function ImageGeneratorTool() {
             </button>
           </div>
 
-          {error && <p className="text-[12px] text-red-500 mt-2">{error}</p>}
-          {job.status === "error" && job.error && <p className="text-[12px] text-red-500 mt-2">{job.error}</p>}
+          {error && <p className="text-[12px] text-error mt-2">{error}</p>}
+          {job.status === "error" && job.error && <p className="text-[12px] text-error mt-2">{job.error}</p>}
           {job.status === "cancelled" && (
-            <p className="text-[12px] text-gray-400 mt-2">Cancelled — your credit was refunded.</p>
+            <p className="text-[12px] text-fg-subtle mt-2">Cancelled — your credit was refunded.</p>
           )}
 
           {/* Generate button */}
@@ -508,7 +508,7 @@ export default function ImageGeneratorTool() {
             className={`mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl py-3 text-[14px] font-bold transition-colors ${
               prompt.trim() && !generating
                 ? "bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
-                : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                : "bg-surface-3 text-fg-subtle cursor-not-allowed"
             }`}
           >
             {generating ? <><Spinner /> Generating…</> : "Generate Image"}
@@ -517,14 +517,14 @@ export default function ImageGeneratorTool() {
             )}
           </button>
           {!user && (
-            <p className="text-[12px] text-gray-400 mt-2 text-center">You&apos;ll be asked to sign in to generate.</p>
+            <p className="text-[12px] text-fg-subtle mt-2 text-center">You&apos;ll be asked to sign in to generate.</p>
           )}
         </div>
 
         {/* ── Right panel: Recent Generations ─────────────────────── */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[15px] font-bold text-gray-900">Recent Generations</h2>
+            <h2 className="text-[15px] font-bold text-fg">Recent Generations</h2>
             {generations.length > 0 && (
               <button
                 onClick={() => persistGenerations([])}
@@ -539,7 +539,7 @@ export default function ImageGeneratorTool() {
             /* Empty placeholders (dashed boxes like crayo) */
             <div className="grid grid-cols-3 gap-2">
               {Array.from({ length: 9 }).map((_, i) => (
-                <div key={i} className="aspect-square rounded-xl border-2 border-dashed border-gray-200 bg-gray-50" />
+                <div key={i} className="aspect-square rounded-xl border-2 border-dashed border-line bg-surface-2" />
               ))}
             </div>
           ) : (
@@ -548,7 +548,7 @@ export default function ImageGeneratorTool() {
                 <button
                   key={g.id}
                   onClick={() => setLightbox(g)}
-                  className="aspect-square rounded-xl overflow-hidden border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all cursor-pointer relative group"
+                  className="aspect-square rounded-xl overflow-hidden border border-line hover:border-line-strong hover:shadow-md transition-all cursor-pointer relative group"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={g.imageUrl} alt={g.prompt} className="w-full h-full object-cover" />
@@ -559,7 +559,7 @@ export default function ImageGeneratorTool() {
               ))}
               {/* Filler placeholders to keep grid shape */}
               {generations.length < 9 && Array.from({ length: Math.max(0, 9 - generations.length) }).map((_, i) => (
-                <div key={`ph-${i}`} className="aspect-square rounded-xl border-2 border-dashed border-gray-200 bg-gray-50" />
+                <div key={`ph-${i}`} className="aspect-square rounded-xl border-2 border-dashed border-line bg-surface-2" />
               ))}
             </div>
           )}

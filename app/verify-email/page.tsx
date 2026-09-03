@@ -38,8 +38,8 @@ function VerifyBody() {
   if (status === "verifying") {
     return (
       <div className="text-center space-y-3">
-        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-zinc-400 text-sm">Verifying your email…</p>
+        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-fg-muted text-sm">Verifying your email…</p>
       </div>
     );
   }
@@ -60,7 +60,7 @@ function VerifyBody() {
           <path d="M5 13l4 4L19 7" />
         </svg>
       </div>
-      <p className="text-zinc-100 font-semibold">Email verified!</p>
+      <p className="text-fg font-semibold">Email verified!</p>
       <Link href="/dashboard" className="text-blue-400 hover:underline text-sm">Go to Dashboard</Link>
     </div>
   );
@@ -68,15 +68,15 @@ function VerifyBody() {
 
 export default function VerifyEmailPage() {
   return (
-    <main className="min-h-screen bg-zinc-950 flex items-center justify-center px-4">
+    <main className="theme-emerald min-h-screen bg-bg text-fg flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-2.5 mb-8">
           <BoltIcon />
-          <span className="text-lg font-bold text-zinc-100">Clipiro</span>
+          <span className="text-lg font-bold text-fg">Clipiro</span>
         </div>
-        <h1 className="text-2xl font-bold text-zinc-100 mb-1">Verify your email</h1>
-        <p className="text-zinc-400 text-sm mb-8">Confirming this is really you.</p>
-        <Suspense fallback={<div className="animate-pulse h-24 rounded-xl bg-zinc-800" />}>
+        <h1 className="text-2xl font-bold text-fg mb-1">Verify your email</h1>
+        <p className="text-fg-muted text-sm mb-8">Confirming this is really you.</p>
+        <Suspense fallback={<div className="animate-pulse h-24 rounded-xl bg-surface-3" />}>
           <VerifyBody />
         </Suspense>
       </div>

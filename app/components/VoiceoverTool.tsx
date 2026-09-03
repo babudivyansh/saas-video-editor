@@ -85,7 +85,7 @@ function VoiceAvatar({ voice, size = 40 }: { voice: Voice; size?: number }) {
 // ── Tag pill ─────────────────────────────────────────────────────────────────
 function Tag({ label }: { label: string }) {
   return (
-    <span className="inline-flex items-center rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] text-gray-500 font-medium">
+    <span className="inline-flex items-center rounded-full border border-line px-2.5 py-0.5 text-[11px] text-fg-muted font-medium">
       {label}
     </span>
   );
@@ -207,14 +207,14 @@ function VoicePickerModal({
     >
       <audio ref={previewRef} />
       <div
-        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-[780px] flex flex-col"
+        className="relative bg-panel rounded-2xl shadow-2xl w-full max-w-[780px] flex flex-col"
         style={{ maxHeight: "82vh" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
-          <h2 className="text-[17px] font-extrabold text-gray-900">Select AI Voice</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer">
+        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-line flex-shrink-0">
+          <h2 className="text-[17px] font-extrabold text-fg">Select AI Voice</h2>
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg transition-colors cursor-pointer">
             <IcX />
           </button>
         </div>
@@ -222,13 +222,13 @@ function VoicePickerModal({
         {/* Search */}
         <div className="px-6 py-3 flex-shrink-0">
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><IcSearch /></span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle"><IcSearch /></span>
             <input
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search name, tag, etc."
-              className="w-full rounded-xl border border-gray-200 pl-9 pr-4 py-2.5 text-[13.5px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+              className="w-full rounded-xl border border-line pl-9 pr-4 py-2.5 text-[13.5px] text-fg placeholder:text-fg-subtle outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
             />
           </div>
         </div>
@@ -236,7 +236,7 @@ function VoicePickerModal({
         {/* Voice grid */}
         <div className="overflow-y-auto flex-1 px-6 pb-2">
           {sorted.length === 0 ? (
-            <p className="text-[13px] text-gray-400 text-center py-8">No voices match your search.</p>
+            <p className="text-[13px] text-fg-subtle text-center py-8">No voices match your search.</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pb-2">
               {sorted.map((v) => {
@@ -251,7 +251,7 @@ function VoicePickerModal({
                     onClick={() => onSelect(v.slug)}
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(v.slug); }}}
                     className={`relative rounded-2xl border-2 p-4 text-left transition-all cursor-pointer ${
-                      isActive ? "border-blue-500 bg-blue-50/40" : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50/50"
+                      isActive ? "border-blue-500 bg-blue-50/40" : "border-line bg-panel hover:border-line-strong hover:bg-gray-50/50"
                     }`}
                   >
                     {/* Like + Play buttons */}
@@ -259,7 +259,7 @@ function VoicePickerModal({
                       <button
                         onClick={(e) => { e.stopPropagation(); onLike(v.slug); }}
                         className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                          isLiked ? "text-red-500 bg-red-50 hover:bg-red-100" : "text-fg-subtle hover:text-gray-500 hover:bg-gray-100"
+                          isLiked ? "text-error bg-error/10 hover:bg-red-100" : "text-fg-subtle hover:text-fg-muted hover:bg-surface-3"
                         }`}
                         aria-label={isLiked ? "Unlike" : "Like"}
                       >
@@ -273,7 +273,7 @@ function VoicePickerModal({
                             ? "text-blue-600 bg-blue-100 hover:bg-blue-200"
                             : loadingSlug === v.slug
                               ? "text-blue-400 bg-blue-50"
-                              : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                              : "text-fg-subtle hover:text-fg hover:bg-surface-3"
                         }`}
                         aria-label="Preview voice"
                       >
@@ -289,12 +289,12 @@ function VoicePickerModal({
                     <div className="flex items-center gap-3 mb-2.5 pr-16">
                       <VoiceAvatar voice={v} size={38} />
                       <div className="min-w-0">
-                        <p className="text-[13.5px] font-bold text-gray-900 truncate">{v.name}</p>
+                        <p className="text-[13.5px] font-bold text-fg truncate">{v.name}</p>
                       </div>
                     </div>
 
                     {/* Description */}
-                    <p className="text-[11.5px] text-gray-500 leading-relaxed line-clamp-2 mb-2.5">{v.desc}</p>
+                    <p className="text-[11.5px] text-fg-muted leading-relaxed line-clamp-2 mb-2.5">{v.desc}</p>
 
                     {/* Tags */}
                     <div className="flex flex-wrap gap-1">
@@ -310,7 +310,7 @@ function VoicePickerModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end flex-shrink-0">
+        <div className="px-6 py-4 border-t border-line flex items-center justify-end flex-shrink-0">
           <button
             onClick={onClose}
             className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-[13.5px] font-bold px-6 py-2.5 rounded-xl transition-colors cursor-pointer"
@@ -347,17 +347,17 @@ function SettingsPopover({
   }, [onClose]);
 
   return (
-    <div ref={ref} className="absolute right-0 top-12 z-30 w-80 rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl">
+    <div ref={ref} className="absolute right-0 top-12 z-30 w-80 rounded-2xl border border-line bg-panel p-5 shadow-2xl">
       <div className="flex items-center justify-between mb-4">
-        <p className="text-[14px] font-bold text-gray-900">Voice Settings</p>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-700 cursor-pointer"><IcX /></button>
+        <p className="text-[14px] font-bold text-fg">Voice Settings</p>
+        <button onClick={onClose} className="text-fg-subtle hover:text-fg cursor-pointer"><IcX /></button>
       </div>
 
       {/* Exaggeration */}
       <div className="mb-4">
         <div className="flex items-center justify-between mb-1.5">
-          <label className="text-[13px] font-semibold text-gray-700">Exaggeration</label>
-          <span className="text-[12px] font-medium text-gray-500 tabular-nums">{pct(exaggeration)}</span>
+          <label className="text-[13px] font-semibold text-fg">Exaggeration</label>
+          <span className="text-[12px] font-medium text-fg-muted tabular-nums">{pct(exaggeration)}</span>
         </div>
         <input type="range" min={0} max={1} step={0.01} value={exaggeration}
           onChange={(e) => setExaggeration(Number(e.target.value))}
@@ -368,27 +368,27 @@ function SettingsPopover({
       {/* Stability */}
       <div className="mb-1.5">
         <div className="flex items-center justify-between mb-1.5">
-          <label className="text-[13px] font-semibold text-gray-700">Stability</label>
-          <span className="text-[12px] font-medium text-gray-500 tabular-nums">{pct(stability)}</span>
+          <label className="text-[13px] font-semibold text-fg">Stability</label>
+          <span className="text-[12px] font-medium text-fg-muted tabular-nums">{pct(stability)}</span>
         </div>
         <input type="range" min={0} max={1} step={0.01} value={stability}
           onChange={(e) => setStability(Number(e.target.value))}
           className="w-full accent-blue-600 cursor-pointer h-1.5"
         />
-        <p className="text-[11px] text-gray-400 mt-1.5">Lower values create more varied speech</p>
+        <p className="text-[11px] text-fg-subtle mt-1.5">Lower values create more varied speech</p>
       </div>
 
       {/* Similarity */}
       <div className="mt-4">
         <div className="flex items-center justify-between mb-1.5">
-          <label className="text-[13px] font-semibold text-gray-700">Similarity</label>
-          <span className="text-[12px] font-medium text-gray-500 tabular-nums">{pct(similarity)}</span>
+          <label className="text-[13px] font-semibold text-fg">Similarity</label>
+          <span className="text-[12px] font-medium text-fg-muted tabular-nums">{pct(similarity)}</span>
         </div>
         <input type="range" min={0} max={1} step={0.01} value={similarity}
           onChange={(e) => setSimilarity(Number(e.target.value))}
           className="w-full accent-blue-600 cursor-pointer h-1.5"
         />
-        <p className="text-[11px] text-gray-400 mt-1.5">Higher values sound more like the original voice</p>
+        <p className="text-[11px] text-fg-subtle mt-1.5">Higher values sound more like the original voice</p>
       </div>
     </div>
   );
@@ -403,7 +403,7 @@ function PlayerCard({
   const v = voiceBySlug(item.voiceSlug);
   const pctBar = isActive && item.durationMs > 0 ? Math.min(100, (progress / (item.durationMs / 1000)) * 100) : 0;
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-3.5 hover:border-gray-300 transition-colors">
+    <div className="rounded-xl border border-line bg-panel p-3.5 hover:border-line-strong transition-colors">
       <div className="flex items-center gap-3">
         <button
           onClick={onToggle}
@@ -414,25 +414,25 @@ function PlayerCard({
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-[13.5px] font-semibold text-gray-900 truncate">{item.title}</p>
-            <span className="text-[11px] text-gray-400 font-medium flex-shrink-0">{fmtTime(item.durationMs / 1000)}</span>
+            <p className="text-[13.5px] font-semibold text-fg truncate">{item.title}</p>
+            <span className="text-[11px] text-fg-subtle font-medium flex-shrink-0">{fmtTime(item.durationMs / 1000)}</span>
           </div>
           <div className="flex items-center gap-1.5 mt-1">
             <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: v.color }} />
-            <span className="text-[11.5px] text-gray-500">{v.name}</span>
+            <span className="text-[11.5px] text-fg-muted">{v.name}</span>
           </div>
         </div>
         <a
           href={item.audioUrl}
           download={`${item.title || "voiceover"}.mp3`}
-          className="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex items-center justify-center flex-shrink-0 transition-colors"
+          className="w-8 h-8 rounded-lg text-fg-subtle hover:text-fg hover:bg-surface-3 flex items-center justify-center flex-shrink-0 transition-colors"
           aria-label="Download"
           onClick={(e) => e.stopPropagation()}
         >
           <IcDownload />
         </a>
       </div>
-      <div className="mt-3 h-1 rounded-full bg-gray-100 overflow-hidden">
+      <div className="mt-3 h-1 rounded-full bg-surface-3 overflow-hidden">
         <div className="h-full bg-blue-500 transition-[width] duration-150" style={{ width: `${pctBar}%` }} />
       </div>
     </div>
@@ -596,22 +596,22 @@ export default function VoiceoverTool() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,460px)] gap-6 items-start">
         {/* ── Left: editor ───────────────────────────────────────────── */}
-        <div className="rounded-2xl border border-gray-200 bg-white p-5">
+        <div className="rounded-2xl border border-line bg-panel p-5">
           {/* Voice selector row */}
           <div className="flex items-center gap-2 mb-5">
             <button
               onClick={() => { setPickerOpen(true); setSettingsOpen(false); }}
-              className="flex-1 flex items-center gap-2.5 rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 hover:border-gray-300 transition-colors cursor-pointer"
+              className="flex-1 flex items-center gap-2.5 rounded-xl border border-line bg-panel px-3.5 py-2.5 hover:border-line-strong transition-colors cursor-pointer"
             >
               <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: voice.color }} />
-              <span className="text-[14px] font-semibold text-gray-900">{voice.name}</span>
-              <span className="text-[12px] text-gray-400">· {voice.gender} · {voice.age}</span>
-              <span className="ml-auto text-gray-400"><IcSwap /></span>
+              <span className="text-[14px] font-semibold text-fg">{voice.name}</span>
+              <span className="text-[12px] text-fg-subtle">· {voice.gender} · {voice.age}</span>
+              <span className="ml-auto text-fg-subtle"><IcSwap /></span>
             </button>
             <div className="relative">
               <button
                 onClick={() => { setSettingsOpen((o) => !o); }}
-                className="w-10 h-10 rounded-xl border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-gray-300 flex items-center justify-center transition-colors cursor-pointer"
+                className="w-10 h-10 rounded-xl border border-line text-fg-muted hover:text-fg hover:border-line-strong flex items-center justify-center transition-colors cursor-pointer"
                 aria-label="Voice settings"
               >
                 <IcGear />
@@ -628,24 +628,24 @@ export default function VoiceoverTool() {
           </div>
 
           {/* Title */}
-          <label className="block text-[14px] font-bold text-gray-900 mb-1.5">Type your title here</label>
+          <label className="block text-[14px] font-bold text-fg mb-1.5">Type your title here</label>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Enter a title for your voiceover"
             maxLength={120}
-            className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-[14px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition mb-5"
+            className="w-full rounded-xl border border-line px-3.5 py-2.5 text-[14px] text-fg placeholder:text-fg-subtle outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition mb-5"
           />
 
           {/* Script */}
           <div className="flex items-center justify-between mb-1.5">
             <div className="flex items-center gap-1.5">
-              <label className="text-[14px] font-bold text-gray-900">Type your script here</label>
+              <label className="text-[14px] font-bold text-fg">Type your script here</label>
               <Tooltip content="Add punctuation for natural pauses — commas and periods control pacing more than any voice setting.">
-                <span className="text-gray-400 cursor-help"><IcInfo /></span>
+                <span className="text-fg-subtle cursor-help"><IcInfo /></span>
               </Tooltip>
             </div>
-            <span className="text-[12px] text-gray-400 font-medium tabular-nums">{chars} · {fmtTime(estSec)}</span>
+            <span className="text-[12px] text-fg-subtle font-medium tabular-nums">{chars} · {fmtTime(estSec)}</span>
           </div>
           <textarea
             value={script}
@@ -653,17 +653,17 @@ export default function VoiceoverTool() {
             onKeyDown={onKeyDown}
             placeholder="Enter text here"
             rows={11}
-            className="w-full rounded-xl border border-gray-200 px-3.5 py-3 text-[14px] leading-relaxed text-gray-900 placeholder:text-gray-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition resize-none"
+            className="w-full rounded-xl border border-line px-3.5 py-3 text-[14px] leading-relaxed text-fg placeholder:text-fg-subtle outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition resize-none"
           />
           {chars > MAX_CHARS && (
-            <p className="text-[12px] text-red-500 mt-1.5">Script exceeds the {MAX_CHARS.toLocaleString()} character limit.</p>
+            <p className="text-[12px] text-error mt-1.5">Script exceeds the {MAX_CHARS.toLocaleString()} character limit.</p>
           )}
-          {error && <p className="text-[12.5px] text-red-500 mt-2">{error}</p>}
+          {error && <p className="text-[12.5px] text-error mt-2">{error}</p>}
           {job.status === "error" && job.error && (
-            <p className="text-[12.5px] text-red-500 mt-2">{job.error}</p>
+            <p className="text-[12.5px] text-error mt-2">{job.error}</p>
           )}
           {job.status === "cancelled" && (
-            <p className="text-[12.5px] text-gray-400 mt-2">Cancelled — your credit was refunded.</p>
+            <p className="text-[12.5px] text-fg-subtle mt-2">Cancelled — your credit was refunded.</p>
           )}
 
           {/* Generate */}
@@ -671,7 +671,7 @@ export default function VoiceoverTool() {
             onClick={() => void generate()}
             disabled={!canGenerate}
             className={`mt-5 w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-[14px] font-bold transition-colors ${
-              canGenerate ? "bg-blue-600 hover:bg-blue-700 text-white cursor-pointer" : "bg-gray-100 text-gray-400 cursor-not-allowed"
+              canGenerate ? "bg-blue-600 hover:bg-blue-700 text-white cursor-pointer" : "bg-surface-3 text-fg-subtle cursor-not-allowed"
             }`}
           >
             {busy ? (
@@ -686,22 +686,22 @@ export default function VoiceoverTool() {
           {busy && (
             <button
               onClick={() => void job.cancel()}
-              className="mt-1.5 w-full text-center text-[12px] font-medium text-gray-400 hover:text-red-600 transition-colors cursor-pointer"
+              className="mt-1.5 w-full text-center text-[12px] font-medium text-fg-subtle hover:text-error transition-colors cursor-pointer"
             >
               Cancel
             </button>
           )}
           {!user && (
-            <p className="text-[12px] text-gray-400 mt-2 text-center">You&apos;ll be asked to sign in to generate.</p>
+            <p className="text-[12px] text-fg-subtle mt-2 text-center">You&apos;ll be asked to sign in to generate.</p>
           )}
         </div>
 
         {/* ── Right: recent voiceovers ───────────────────────────────── */}
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 min-h-[520px] flex flex-col">
+        <div className="rounded-2xl border border-line bg-panel p-5 min-h-[520px] flex flex-col">
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="text-[15px] font-bold text-gray-900">Recent Voiceovers</h2>
-              <p className="text-[12.5px] text-gray-400 mt-0.5">Select and download a script to generate voiceover</p>
+              <h2 className="text-[15px] font-bold text-fg">Recent Voiceovers</h2>
+              <p className="text-[12.5px] text-fg-subtle mt-0.5">Select and download a script to generate voiceover</p>
             </div>
             {history.length > 0 && (
               <button onClick={() => persistHistory([])} className="text-[12.5px] font-semibold text-blue-600 hover:text-blue-700 cursor-pointer">Clear all</button>
@@ -710,7 +710,7 @@ export default function VoiceoverTool() {
 
           <div className="mt-4 flex-1">
             {busy && history.length === 0 && (
-              <div className="rounded-xl border border-gray-200 bg-white p-4 flex items-center gap-3 text-gray-500">
+              <div className="rounded-xl border border-line bg-panel p-4 flex items-center gap-3 text-fg-muted">
                 <Spinner className="w-5 h-5" /> <span className="text-[13.5px]">Generating your narration…</span>
               </div>
             )}
@@ -719,8 +719,8 @@ export default function VoiceoverTool() {
                 <div className="w-20 h-20 rounded-2xl bg-surface-3 flex items-center justify-center text-gray-300 mb-4">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-9 h-9"><path d="M3 10v4M7 6v12M11 3v18M15 7v10M19 10v4M23 11v2" /></svg>
                 </div>
-                <p className="text-[16px] font-extrabold text-gray-800">No Output Yet</p>
-                <p className="text-[13px] text-gray-400 mt-1">First, generate a narration.</p>
+                <p className="text-[16px] font-extrabold text-fg">No Output Yet</p>
+                <p className="text-[13px] text-fg-subtle mt-1">First, generate a narration.</p>
               </div>
             ) : (
               <div className="space-y-2.5">

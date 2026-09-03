@@ -74,7 +74,7 @@ function VoiceAvatar({ voice, size = 36 }: { voice: Voice; size?: number }) {
 // ── Tag pill ─────────────────────────────────────────────────────────────────
 function Tag({ label }: { label: string }) {
   return (
-    <span className="inline-flex items-center rounded-full border border-slate-200 px-2.5 py-0.5 text-[11px] text-slate-500 font-medium bg-white">
+    <span className="inline-flex items-center rounded-full border border-line px-2.5 py-0.5 text-[11px] text-fg-muted font-medium bg-panel">
       {label}
     </span>
   );
@@ -148,28 +148,28 @@ function VoicePickerModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={handleDone}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col"
+        className="bg-panel rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col"
         style={{ maxHeight: "85vh" }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-7 pt-6 pb-4">
-          <h2 className="text-2xl font-bold text-slate-900">Select AI Voice</h2>
-          <button onClick={handleDone} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
+          <h2 className="text-2xl font-bold text-fg">Select AI Voice</h2>
+          <button onClick={handleDone} className="p-1.5 rounded-lg text-fg-subtle hover:text-fg hover:bg-surface-3 transition-colors">
             <IcX />
           </button>
         </div>
 
         {/* Search */}
         <div className="px-4 sm:px-7 pb-4">
-          <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
-            <span className="text-slate-400"><IcSearch /></span>
+          <div className="flex items-center gap-3 rounded-xl border border-line bg-panel px-4 py-3">
+            <span className="text-fg-subtle"><IcSearch /></span>
             <input
               autoFocus
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="Search name, tag, etc."
-              className="flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+              className="flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle"
             />
           </div>
         </div>
@@ -186,20 +186,20 @@ function VoicePickerModal({
                   onClick={() => setSelected(voice.slug)}
                   className={`relative rounded-xl border-2 p-4 cursor-pointer transition-all ${
                     isSelected
-                      ? "border-slate-900 bg-white"
-                      : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
+                      ? "border-slate-900 bg-panel"
+                      : "border-line bg-panel hover:border-slate-300 hover:shadow-sm"
                   }`}
                 >
                   {/* Top row: avatar + name + play btn */}
                   <div className="flex items-start gap-3 mb-2">
                     <VoiceAvatar voice={voice} size={40} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-bold text-slate-900 leading-tight">{voice.name}</p>
-                      <p className="text-[11px] text-slate-500 mt-1 leading-snug line-clamp-2">{voice.desc}</p>
+                      <p className="text-[13px] font-bold text-fg leading-tight">{voice.name}</p>
+                      <p className="text-[11px] text-fg-muted mt-1 leading-snug line-clamp-2">{voice.desc}</p>
                     </div>
                     <button
                       onClick={e => { e.stopPropagation(); playPreview(voice.slug); }}
-                      className="flex-shrink-0 w-8 h-8 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-600 hover:bg-slate-50 transition-colors mt-0.5"
+                      className="flex-shrink-0 w-8 h-8 rounded-full border border-line bg-panel flex items-center justify-center text-fg-muted hover:bg-surface-2 transition-colors mt-0.5"
                       title="Preview voice"
                     >
                       {isPlaying ? <IcStop /> : <IcPlay />}
@@ -216,7 +216,7 @@ function VoicePickerModal({
               );
             })}
             {filtered.length === 0 && (
-              <div className="col-span-3 py-12 text-center text-sm text-slate-400">
+              <div className="col-span-3 py-12 text-center text-sm text-fg-subtle">
                 No voices match &ldquo;{query}&rdquo;
               </div>
             )}
@@ -227,7 +227,7 @@ function VoicePickerModal({
         <div className="px-4 sm:px-7 py-4 border-t border-slate-100 flex justify-end">
           <button
             onClick={handleDone}
-            className="inline-flex items-center gap-3 px-8 py-3 rounded-xl bg-[#335CFF] hover:opacity-90 text-white text-sm font-semibold transition-opacity"
+            className="inline-flex items-center gap-3 px-8 py-3 rounded-xl bg-brand hover:opacity-90 text-white text-sm font-semibold transition-opacity"
           >
             Done
             <span className="text-xs text-white/60 font-normal">Esc</span>
@@ -377,16 +377,16 @@ export default function VoiceChangerTool() {
 
       <div className="flex items-start justify-center min-h-[calc(100vh-120px)] px-4 py-10">
         <div className="w-full max-w-[520px]">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="bg-panel rounded-2xl border border-line shadow-sm overflow-hidden">
 
             {/* Card header */}
             <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100">
-              <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600">
+              <div className="w-9 h-9 rounded-xl bg-surface-3 flex items-center justify-center text-fg-muted">
                 <IcMic />
               </div>
               <div>
-                <h1 className="text-sm font-semibold text-slate-800 leading-tight">AI Voice Changer</h1>
-                <p className="text-xs text-slate-400 mt-0.5">Transform any voice in audio or video files</p>
+                <h1 className="text-sm font-semibold text-fg leading-tight">AI Voice Changer</h1>
+                <p className="text-xs text-fg-subtle mt-0.5">Transform any voice in audio or video files</p>
               </div>
             </div>
 
@@ -394,37 +394,37 @@ export default function VoiceChangerTool() {
 
               {/* Target Voice */}
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                <label className="block text-xs font-semibold text-fg-muted uppercase tracking-wide mb-2">
                   Target Voice
                 </label>
                 <button
                   onClick={() => setShowPicker(true)}
-                  className="w-full flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 hover:bg-slate-50 transition-colors text-left"
+                  className="w-full flex items-center gap-3 rounded-xl border border-line bg-panel px-4 py-3 hover:bg-surface-2 transition-colors text-left"
                 >
                   <VoiceAvatar voice={selectedVoice} size={32} />
-                  <span className="flex-1 text-sm font-medium text-slate-700">{selectedVoice.name}</span>
-                  <span className="text-slate-400"><IcSwap /></span>
+                  <span className="flex-1 text-sm font-medium text-fg">{selectedVoice.name}</span>
+                  <span className="text-fg-subtle"><IcSwap /></span>
                 </button>
               </div>
 
               {/* Upload File */}
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                <label className="block text-xs font-semibold text-fg-muted uppercase tracking-wide mb-2">
                   Upload File
                 </label>
 
                 {audioFile ? (
-                  <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                    <div className="w-8 h-8 rounded-lg bg-[#335CFF]/10 flex items-center justify-center text-[#335CFF] flex-shrink-0">
+                  <div className="flex items-center gap-3 rounded-xl border border-line bg-surface-2 px-4 py-3">
+                    <div className="w-8 h-8 rounded-lg bg-[#335CFF]/10 flex items-center justify-center text-brand flex-shrink-0">
                       <IcMic />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-700 truncate">{audioFile.name}</p>
-                      <p className="text-[11px] text-slate-400">{(audioFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                      <p className="text-sm font-medium text-fg truncate">{audioFile.name}</p>
+                      <p className="text-[11px] text-fg-subtle">{(audioFile.size / 1024 / 1024).toFixed(2)} MB</p>
                     </div>
                     <button
                       onClick={() => { setAudioFile(null); job.reset(); }}
-                      className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors"
+                      className="p-1 rounded-md text-fg-subtle hover:text-fg-muted hover:bg-slate-200 transition-colors"
                     >
                       <IcX />
                     </button>
@@ -440,15 +440,15 @@ export default function VoiceChangerTool() {
                       handleFileChange(e.dataTransfer.files[0] ?? null);
                     }}
                     className={`rounded-xl border-2 border-dashed px-6 py-8 flex flex-col items-center gap-3 cursor-pointer transition-colors ${
-                      dragging ? "border-[#335CFF] bg-blue-50" : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100"
+                      dragging ? "border-brand bg-blue-50" : "border-line bg-surface-2 hover:border-slate-300 hover:bg-surface-3"
                     }`}
                   >
-                    <div className="text-slate-400"><IcCloud /></div>
+                    <div className="text-fg-subtle"><IcCloud /></div>
                     <div className="text-center">
-                      <p className="text-sm font-semibold text-slate-700">Upload audio/video</p>
-                      <p className="text-xs text-slate-400 mt-1">Drag and drop or click to browse</p>
+                      <p className="text-sm font-semibold text-fg">Upload audio/video</p>
+                      <p className="text-xs text-fg-subtle mt-1">Drag and drop or click to browse</p>
                     </div>
-                    <p className="text-[11px] text-slate-400 text-center leading-relaxed">
+                    <p className="text-[11px] text-fg-subtle text-center leading-relaxed">
                       .mp3, .wav, .m4a, .ogg, .aac, .mp4, .mov, .avi, .webm &bull; Max {MAX_MB_LABEL}
                     </p>
                   </div>
@@ -471,14 +471,14 @@ export default function VoiceChangerTool() {
                   onChange={e => setRemoveNoise(e.target.checked)}
                   className="w-4 h-4 rounded border-slate-300 accent-[#335CFF] cursor-pointer"
                 />
-                <span className="text-sm text-slate-600">Remove background noise</span>
+                <span className="text-sm text-fg-muted">Remove background noise</span>
               </label>
 
               {/* Speed */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Speed</label>
-                  <span className="text-xs font-medium text-slate-600 tabular-nums">{speed.toFixed(2)}x</span>
+                  <label className="text-xs font-semibold text-fg-muted uppercase tracking-wide">Speed</label>
+                  <span className="text-xs font-medium text-fg-muted tabular-nums">{speed.toFixed(2)}x</span>
                 </div>
                 <input
                   type="range"
@@ -495,15 +495,15 @@ export default function VoiceChangerTool() {
               {job.status === "processing" && (
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs text-slate-500">Changing voice…</span>
-                    <span className="text-xs font-medium text-slate-600">{job.progress}%</span>
+                    <span className="text-xs text-fg-muted">Changing voice…</span>
+                    <span className="text-xs font-medium text-fg-muted">{job.progress}%</span>
                   </div>
-                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-[#335CFF] rounded-full transition-all duration-300" style={{ width: `${job.progress}%` }} />
+                  <div className="h-1.5 bg-surface-3 rounded-full overflow-hidden">
+                    <div className="h-full bg-brand rounded-full transition-all duration-300" style={{ width: `${job.progress}%` }} />
                   </div>
                   <button
                     onClick={() => void job.cancel()}
-                    className="mt-2 text-xs font-medium text-slate-400 hover:text-red-600 transition-colors"
+                    className="mt-2 text-xs font-medium text-fg-subtle hover:text-error transition-colors"
                   >
                     Cancel
                   </button>
@@ -512,7 +512,7 @@ export default function VoiceChangerTool() {
 
               {/* Error */}
               {job.status === "error" && job.error && (
-                <div className="flex items-center justify-between gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <div className="flex items-center justify-between gap-2 text-xs text-error bg-error/10 border border-error/40 rounded-lg px-3 py-2">
                   <span>{job.error}</span>
                   <button onClick={() => void handleSubmit()} className="font-semibold underline underline-offset-2 hover:text-red-800 flex-shrink-0">
                     Retry
@@ -521,7 +521,7 @@ export default function VoiceChangerTool() {
               )}
 
               {job.status === "cancelled" && (
-                <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                <p className="text-xs text-fg-muted bg-surface-2 border border-line rounded-lg px-3 py-2">
                   Cancelled — your credit was refunded.
                 </p>
               )}
@@ -529,16 +529,16 @@ export default function VoiceChangerTool() {
               {/* Before/after comparison + download */}
               {job.status === "done" && downloadUrl && (
                 <div className="space-y-2">
-                  <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50">
+                  <div className="inline-flex rounded-lg border border-line p-0.5 bg-surface-2">
                     <button
                       onClick={() => setCompareView("before")}
-                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${compareView === "before" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${compareView === "before" ? "bg-panel text-fg shadow-sm" : "text-fg-muted"}`}
                     >
                       Before
                     </button>
                     <button
                       onClick={() => setCompareView("after")}
-                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${compareView === "after" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${compareView === "after" ? "bg-panel text-fg shadow-sm" : "text-fg-muted"}`}
                     >
                       After
                     </button>
@@ -565,7 +565,7 @@ export default function VoiceChangerTool() {
               <button
                 onClick={handleSubmit}
                 disabled={!audioFile || job.status === "processing"}
-                className="w-full rounded-xl bg-[#335CFF] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold py-3 transition-opacity flex items-center justify-center gap-2"
+                className="w-full rounded-xl bg-brand hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold py-3 transition-opacity flex items-center justify-center gap-2"
               >
                 {job.status === "processing" ? (
                   <>
@@ -579,7 +579,7 @@ export default function VoiceChangerTool() {
               </button>
 
               {user && (
-                <p className="text-center text-[11px] text-slate-400">
+                <p className="text-center text-[11px] text-fg-subtle">
                   Uses {VOICE_CHANGER_CREDIT_COST} credit{VOICE_CHANGER_CREDIT_COST !== 1 ? "s" : ""} &bull; You have {user.credits} credit{user.credits !== 1 ? "s" : ""}
                 </p>
               )}

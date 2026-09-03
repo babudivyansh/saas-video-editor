@@ -9,7 +9,7 @@ import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
 // ── Icons ─────────────────────────────────────────────────────────────────────
 function IcCloud() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-gray-400">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-fg-subtle">
       <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z" />
     </svg>
   );
@@ -25,7 +25,7 @@ function IcX() {
 
 function IcMusic() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-[#335CFF]">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-brand">
       <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
     </svg>
   );
@@ -200,15 +200,15 @@ export default function VocalRemoverTool() {
   const stage = file ? job.status === "idle" ? "ready" : job.status : "idle";
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+    <div className="min-h-screen bg-surface-2 p-4 md:p-8">
       <div className="max-w-5xl mx-auto flex flex-col lg:flex-row gap-5">
 
         {/* ── Left panel ── */}
-        <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="flex-1 bg-panel rounded-2xl border border-line shadow-sm overflow-hidden">
           <div className="p-6 space-y-4">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">AI Vocal Remover</h1>
-              <p className="text-sm text-red-500 mt-1 leading-relaxed">
+              <h1 className="text-xl font-bold text-fg">AI Vocal Remover</h1>
+              <p className="text-sm text-error mt-1 leading-relaxed">
                 Upload your audio or video file and our AI will remove the vocals, leaving you with an instrumental track.
               </p>
             </div>
@@ -218,7 +218,7 @@ export default function VocalRemoverTool() {
               !file ? (
                 <div
                   className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center cursor-pointer transition-colors ${
-                    dragging ? "border-[#335CFF] bg-blue-50" : "border-gray-200 hover:border-gray-300 bg-gray-50"
+                    dragging ? "border-brand bg-blue-50" : "border-line hover:border-line-strong bg-surface-2"
                   }`}
                   onClick={() => fileInputRef.current?.click()}
                   onDragOver={e => { e.preventDefault(); setDragging(true); }}
@@ -226,25 +226,25 @@ export default function VocalRemoverTool() {
                   onDrop={onDrop}
                 >
                   <input ref={fileInputRef} type="file" accept="audio/*,video/*" className="hidden" onChange={onFileChange} />
-                  <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                  <div className="w-14 h-14 rounded-full bg-surface-3 flex items-center justify-center mb-4">
                     <IcCloud />
                   </div>
-                  <p className="text-sm font-semibold text-gray-800 mb-1">Upload audio/video</p>
-                  <p className="text-sm text-[#335CFF] font-medium mb-3">Drag and drop or click to browse</p>
-                  <p className="text-xs text-gray-400 text-center leading-relaxed">
+                  <p className="text-sm font-semibold text-fg mb-1">Upload audio/video</p>
+                  <p className="text-sm text-brand font-medium mb-3">Drag and drop or click to browse</p>
+                  <p className="text-xs text-fg-subtle text-center leading-relaxed">
                     .mp3, .wav, .ogg, .flac, .m4a, .aac, .mp4, .mov, .avi, .webm • Max 50 MB
                   </p>
                 </div>
               ) : (
-                <div className="border border-gray-200 rounded-xl p-4 flex items-center gap-3 bg-gray-50">
+                <div className="border border-line rounded-xl p-4 flex items-center gap-3 bg-surface-2">
                   <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
                     <IcMusic />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{file.name}</p>
-                    <p className="text-xs text-gray-400">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
+                    <p className="text-sm font-medium text-fg truncate">{file.name}</p>
+                    <p className="text-xs text-fg-subtle">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
                   </div>
-                  <button onClick={removeFile} className="text-gray-400 hover:text-gray-600 transition-colors p-1">
+                  <button onClick={removeFile} className="text-fg-subtle hover:text-fg-muted transition-colors p-1">
                     <IcX />
                   </button>
                 </div>
@@ -253,13 +253,13 @@ export default function VocalRemoverTool() {
 
             {/* File chip during processing / complete */}
             {(stage === "processing" || stage === "done") && file && (
-              <div className="border border-gray-200 rounded-xl p-4 flex items-center gap-3 bg-gray-50">
+              <div className="border border-line rounded-xl p-4 flex items-center gap-3 bg-surface-2">
                 <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
                   <IcMusic />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">{file.name}</p>
-                  <p className="text-xs text-gray-400">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
+                  <p className="text-sm font-medium text-fg truncate">{file.name}</p>
+                  <p className="text-xs text-fg-subtle">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
                 </div>
               </div>
             )}
@@ -267,16 +267,16 @@ export default function VocalRemoverTool() {
             {/* Progress bar */}
             {stage === "processing" && (
               <div className="space-y-1.5">
-                <div className="flex justify-between text-xs text-gray-500">
+                <div className="flex justify-between text-xs text-fg-muted">
                   <span>Removing vocals…</span>
                   <span>{job.progress}%</span>
                 </div>
-                <div className="w-full bg-gray-100 rounded-full h-2">
-                  <div className="bg-[#335CFF] h-2 rounded-full transition-all duration-300" style={{ width: `${job.progress}%` }} />
+                <div className="w-full bg-surface-3 rounded-full h-2">
+                  <div className="bg-brand h-2 rounded-full transition-all duration-300" style={{ width: `${job.progress}%` }} />
                 </div>
                 <button
                   onClick={() => void job.cancel()}
-                  className="text-xs font-medium text-gray-400 hover:text-red-600 transition-colors"
+                  className="text-xs font-medium text-fg-subtle hover:text-error transition-colors"
                 >
                   Cancel
                 </button>
@@ -285,14 +285,14 @@ export default function VocalRemoverTool() {
 
             {/* Error */}
             {pickError && (
-              <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{pickError}</p>
+              <p className="text-sm text-error bg-error/10 rounded-lg px-3 py-2">{pickError}</p>
             )}
             {stage === "error" && job.error && (
-              <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{job.error}</p>
+              <p className="text-sm text-error bg-error/10 rounded-lg px-3 py-2">{job.error}</p>
             )}
 
             {stage === "cancelled" && (
-              <p className="text-sm text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+              <p className="text-sm text-fg-muted bg-surface-2 rounded-lg px-3 py-2">
                 Cancelled — your credit was refunded.
               </p>
             )}
@@ -320,13 +320,13 @@ export default function VocalRemoverTool() {
         </div>
 
         {/* ── Right panel ── */}
-        <div className="w-full lg:w-80 lg:flex-shrink-0 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <div className="w-full lg:w-80 lg:flex-shrink-0 bg-panel rounded-2xl border border-line shadow-sm overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-line">
             <div>
-              <p className="text-sm font-bold text-gray-900">Recent Vocal Removals</p>
-              <p className="text-xs text-gray-400 mt-0.5">Select and upload the clip to remove vocal</p>
+              <p className="text-sm font-bold text-fg">Recent Vocal Removals</p>
+              <p className="text-xs text-fg-subtle mt-0.5">Select and upload the clip to remove vocal</p>
             </div>
-            <button className="text-xs font-semibold text-[#335CFF] hover:underline flex-shrink-0">View All</button>
+            <button className="text-xs font-semibold text-brand hover:underline flex-shrink-0">View All</button>
           </div>
 
           <div className="flex-1 flex flex-col items-center justify-center p-6">
@@ -334,19 +334,19 @@ export default function VocalRemoverTool() {
               /* Empty state */
               <div className="flex flex-col items-center text-center gap-3">
                 <SadMuffin />
-                <p className="text-base font-semibold text-gray-800">No Output Yet</p>
-                <p className="text-sm text-[#335CFF]">First, Remove Vocals!</p>
+                <p className="text-base font-semibold text-fg">No Output Yet</p>
+                <p className="text-sm text-brand">First, Remove Vocals!</p>
               </div>
             ) : (
               /* Result state */
               <div className="w-full space-y-4">
-                <div className="bg-gray-50 rounded-xl p-3 flex items-center gap-2.5 border border-gray-100">
+                <div className="bg-surface-2 rounded-xl p-3 flex items-center gap-2.5 border border-line">
                   <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
                     <IcMusic />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-gray-800 truncate">{downloadName}</p>
-                    <p className="text-[10px] text-gray-400">Instrumental track</p>
+                    <p className="text-xs font-medium text-fg truncate">{downloadName}</p>
+                    <p className="text-[10px] text-fg-subtle">Instrumental track</p>
                   </div>
                 </div>
 

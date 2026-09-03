@@ -157,23 +157,23 @@ export default function SubtitleRemoverTool() {
   const isComplete = job.status === "done";
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-start justify-center p-4 sm:p-8">
-      <div className="w-full max-w-lg bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+    <div className="min-h-screen bg-surface-2 flex items-start justify-center p-4 sm:p-8">
+      <div className="w-full max-w-lg bg-panel rounded-2xl shadow-sm border border-line overflow-hidden">
         {/* Header */}
         <div className="p-6 pb-5">
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Subtitle Remover</h1>
-          <p className="text-[#335CFF] text-sm font-medium">
+          <h1 className="text-2xl font-bold text-fg mb-1">Subtitle Remover</h1>
+          <p className="text-brand text-sm font-medium">
             Remove hardcoded subtitles from videos using AI
           </p>
         </div>
 
-        <hr className="border-gray-100" />
+        <hr className="border-line" />
 
         {/* Body */}
         <div className="p-6 space-y-5">
           {/* Upload zone */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-fg mb-2">
               Input Video
             </label>
 
@@ -181,8 +181,8 @@ export default function SubtitleRemoverTool() {
               <div
                 className={`relative border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center cursor-pointer transition-colors ${
                   dragging
-                    ? "border-[#335CFF] bg-blue-50"
-                    : "border-gray-200 hover:border-gray-300 bg-gray-50"
+                    ? "border-brand bg-blue-50"
+                    : "border-line hover:border-line-strong bg-surface-2"
                 }`}
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -198,7 +198,7 @@ export default function SubtitleRemoverTool() {
                 />
                 {/* Upload arrow icon */}
                 <svg
-                  className="w-10 h-10 text-gray-400 mb-3"
+                  className="w-10 h-10 text-fg-subtle mb-3"
                   fill="none"
                   stroke="currentColor"
                   strokeWidth={1.5}
@@ -210,25 +210,25 @@ export default function SubtitleRemoverTool() {
                     d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
                   />
                 </svg>
-                <p className="text-sm font-medium text-gray-700">Click to upload video</p>
-                <p className="text-xs text-gray-400 mt-1">MP4, MOV, WEBM &bull; Max {MAX_MB_LABEL}</p>
+                <p className="text-sm font-medium text-fg">Click to upload video</p>
+                <p className="text-xs text-fg-subtle mt-1">MP4, MOV, WEBM &bull; Max {MAX_MB_LABEL}</p>
               </div>
             ) : (
-              <div className="border border-gray-200 rounded-xl p-4 flex items-center gap-3 bg-gray-50">
+              <div className="border border-line rounded-xl p-4 flex items-center gap-3 bg-surface-2">
                 {/* Video file icon */}
                 <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
-                  <svg className="w-5 h-5 text-[#335CFF]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-brand" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M12 18.75H4.5a2.25 2.25 0 01-2.25-2.25V7.5A2.25 2.25 0 014.5 5.25H12a2.25 2.25 0 012.25 2.25v9a2.25 2.25 0 01-2.25 2.25z" />
                   </svg>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">{file.name}</p>
-                  <p className="text-xs text-gray-400">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
+                  <p className="text-sm font-medium text-fg truncate">{file.name}</p>
+                  <p className="text-xs text-fg-subtle">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
                 </div>
                 {job.status !== "processing" && !isComplete && (
                   <button
                     onClick={removeFile}
-                    className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+                    className="text-fg-subtle hover:text-fg-muted transition-colors p-1"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -242,19 +242,19 @@ export default function SubtitleRemoverTool() {
           {/* Progress bar */}
           {job.status === "processing" && (
             <div className="space-y-1.5">
-              <div className="flex justify-between text-xs text-gray-500">
+              <div className="flex justify-between text-xs text-fg-muted">
                 <span>Removing subtitles…</span>
                 <span>{job.progress}%</span>
               </div>
-              <div className="w-full bg-gray-100 rounded-full h-2">
+              <div className="w-full bg-surface-3 rounded-full h-2">
                 <div
-                  className="bg-[#335CFF] h-2 rounded-full transition-all duration-300"
+                  className="bg-brand h-2 rounded-full transition-all duration-300"
                   style={{ width: `${job.progress}%` }}
                 />
               </div>
               <button
                 onClick={() => void job.cancel()}
-                className="text-xs font-medium text-gray-400 hover:text-red-600 transition-colors"
+                className="text-xs font-medium text-fg-subtle hover:text-error transition-colors"
               >
                 Cancel
               </button>
@@ -263,7 +263,7 @@ export default function SubtitleRemoverTool() {
 
           {/* Error */}
           {(errorMsg || (job.status === "error" && job.error)) && (
-            <div className="flex items-center justify-between gap-2 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
+            <div className="flex items-center justify-between gap-2 text-sm text-error bg-error/10 rounded-lg px-3 py-2">
               <span>{errorMsg || job.error}</span>
               {job.status === "error" && (
                 <button onClick={() => void handleRemove()} className="text-xs font-semibold underline underline-offset-2 hover:text-red-800 flex-shrink-0">
@@ -274,7 +274,7 @@ export default function SubtitleRemoverTool() {
           )}
 
           {job.status === "cancelled" && (
-            <p className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+            <p className="text-sm text-fg-muted bg-surface-2 border border-line rounded-lg px-3 py-2">
               Cancelled — your credit was refunded.
             </p>
           )}
@@ -283,40 +283,40 @@ export default function SubtitleRemoverTool() {
           {isComplete && downloadUrl && (
             <>
               <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-3">
-                <svg className="w-5 h-5 text-green-600 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-success shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <p className="text-sm text-green-700 font-medium flex-1">Done! File downloaded.</p>
                 <a
                   href={downloadUrl}
                   download={downloadName}
-                  className="text-xs text-[#335CFF] font-medium hover:underline"
+                  className="text-xs text-brand font-medium hover:underline"
                 >
                   Download again
                 </a>
               </div>
 
               {job.meta?.regionsDetected === 0 ? (
-                <p className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                <p className="text-sm text-fg-muted bg-surface-2 border border-line rounded-lg px-3 py-2">
                   No on-screen text was detected in this video, so nothing was changed.
                 </p>
               ) : (
                 <div className="space-y-2">
                   {typeof job.meta?.regionsDetected === "number" && (
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-fg-subtle">
                       {job.meta.regionsDetected} text region{job.meta.regionsDetected === 1 ? "" : "s"} detected and removed.
                     </p>
                   )}
-                  <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
+                  <div className="inline-flex rounded-lg border border-line p-0.5 bg-surface-2">
                     <button
                       onClick={() => setCompareView("before")}
-                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${compareView === "before" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${compareView === "before" ? "bg-panel text-fg shadow-sm" : "text-fg-muted"}`}
                     >
                       Before
                     </button>
                     <button
                       onClick={() => setCompareView("after")}
-                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${compareView === "after" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${compareView === "after" ? "bg-panel text-fg shadow-sm" : "text-fg-muted"}`}
                     >
                       After
                     </button>
@@ -326,7 +326,7 @@ export default function SubtitleRemoverTool() {
                       key={compareView}
                       src={compareView === "before" ? originalPreviewUrl : downloadUrl}
                       controls
-                      className="w-full rounded-xl border border-gray-200 bg-black"
+                      className="w-full rounded-xl border border-line bg-black"
                     />
                   )}
                 </div>
