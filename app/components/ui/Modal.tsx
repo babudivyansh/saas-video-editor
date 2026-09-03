@@ -86,7 +86,7 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", v
     <AnimatePresence>
       {open && (
         <motion.div
-          className={`fixed inset-0 z-[100] flex bg-black/40 backdrop-blur-sm ${
+          className={`fixed inset-0 z-[100] flex bg-black/70 backdrop-blur-sm ${
             isDrawer ? "justify-end" : "items-center justify-center p-4"
           }`}
           initial={{ opacity: 0 }}
@@ -104,8 +104,8 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", v
             tabIndex={-1}
             className={
               isDrawer
-                ? `w-full ${maxWidth} h-full bg-white shadow-xl border-l border-card-border outline-none overflow-y-auto`
-                : `w-full ${maxWidth} bg-white rounded-[var(--radius-card)] shadow-xl border border-card-border outline-none max-h-[90vh] overflow-y-auto`
+                ? `w-full ${maxWidth} h-full bg-panel shadow-xl border-l border-card-border outline-none overflow-y-auto`
+                : `w-full ${maxWidth} bg-panel rounded-[var(--radius-card)] shadow-xl border border-card-border outline-none max-h-[90vh] overflow-y-auto`
             }
             initial={isDrawer ? { x: "100%" } : { opacity: 0, scale: 0.96, y: 8 }}
             animate={isDrawer ? { x: 0 } : { opacity: 1, scale: 1, y: 0 }}
@@ -114,7 +114,7 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", v
           >
             {title && (
               <div className={`flex items-center justify-between px-5 py-4 border-b border-card-border ${
-                isDrawer ? "sticky top-0 bg-white z-10" : ""
+                isDrawer ? "sticky top-0 bg-panel z-10" : ""
               }`}>
                 <div className="flex items-center gap-2 min-w-0">
                   {onBack && (

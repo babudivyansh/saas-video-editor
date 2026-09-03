@@ -18,7 +18,7 @@ interface CardProps {
 }
 
 const TINT: Record<CardTint, string> = {
-  none: "bg-white border-card-border",
+  none: "bg-panel border-card-border",
   blue: "bg-tint-blue border-blue-100",
   violet: "bg-tint-violet border-violet-100",
   fuchsia: "bg-tint-fuchsia border-fuchsia-100",

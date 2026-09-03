@@ -7,10 +7,10 @@ interface StatTileProps {
 }
 
 const ACCENT: Record<StatAccent, string> = {
-  blue: "bg-tint-blue border-blue-100",
-  violet: "bg-tint-violet border-violet-100",
-  fuchsia: "bg-tint-fuchsia border-fuchsia-100",
-  emerald: "bg-tint-emerald border-emerald-100",
+  blue: "bg-tint-blue border-tint-blue-border",
+  violet: "bg-tint-violet border-tint-violet-border",
+  fuchsia: "bg-tint-fuchsia border-tint-fuchsia-border",
+  emerald: "bg-tint-emerald border-tint-emerald-border",
 };
 
 export function StatTile({ label, value, accent = "blue" }: StatTileProps) {

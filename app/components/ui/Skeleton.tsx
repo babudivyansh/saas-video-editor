@@ -3,12 +3,12 @@
 // jump when real content arrives.
 
 export function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-[var(--radius-card)] bg-gray-100 ${className}`} />;
+  return <div className={`animate-pulse rounded-[var(--radius-card)] bg-surface-3 ${className}`} />;
 }
 
 export function SkeletonCard() {
   return (
-    <div className="flex flex-col bg-white rounded-[var(--radius-card)] border border-card-border overflow-hidden">
+    <div className="flex flex-col bg-panel rounded-[var(--radius-card)] border border-card-border overflow-hidden">
       <Skeleton className="aspect-video rounded-none" />
       <div className="px-3 py-2.5 space-y-2">
         <Skeleton className="h-3 w-3/4" />
