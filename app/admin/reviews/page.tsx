@@ -34,7 +34,7 @@ const STATUS_BADGE: Record<AdminReview["status"], string> = {
   pending: "bg-amber-100 text-amber-700",
   published: "bg-emerald-100 text-emerald-700",
   rejected: "bg-red-100 text-red-700",
-  hidden: "bg-gray-200 text-gray-600",
+  hidden: "bg-surface-3 text-fg-muted",
 };
 
 function fmt(iso: string) {
@@ -87,13 +87,13 @@ export default function AdminReviewsPage() {
   return (
     <AdminShell title="Reviews">
       <div className="flex items-center justify-between mb-5 gap-4 flex-wrap">
-        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+        <div className="flex items-center gap-1 bg-surface-3 rounded-xl p-1">
           {STATUS_TABS.map((t) => (
             <button
               key={t}
               onClick={() => { setTab(t); setPage(1); }}
               className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold capitalize transition-colors ${
-                tab === t ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-800"
+                tab === t ? "bg-panel text-fg shadow-sm" : "text-fg-muted hover:text-fg"
               }`}
             >
               {t}
@@ -108,25 +108,25 @@ export default function AdminReviewsPage() {
             value={searchInput}
             onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
             placeholder="Search title or body…"
-            className="w-64 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+            className="w-64 bg-panel border border-line rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 shadow-sm"
           />
-          <span className="text-sm text-gray-400">{total} review{total !== 1 ? "s" : ""}</span>
+          <span className="text-sm text-fg-subtle">{total} review{total !== 1 ? "s" : ""}</span>
         </div>
       </div>
 
       {isError ? (
         <ErrorCard onRetry={refetch} />
       ) : isLoading ? (
-        <p className="text-sm text-gray-400">Loading reviews…</p>
+        <p className="text-sm text-fg-subtle">Loading reviews…</p>
       ) : reviews.length === 0 ? (
-        <p className="text-sm text-gray-400 py-12 text-center">No reviews in this view.</p>
+        <p className="text-sm text-fg-subtle py-12 text-center">No reviews in this view.</p>
       ) : (
         <>
           <Card shadow className="mb-4">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                  <tr className="border-b border-line text-left text-xs font-semibold text-fg-subtle uppercase tracking-wide">
                     <th className="py-3.5 px-5">Review</th>
                     <th className="py-3.5 px-3">Rating</th>
                     <th className="py-3.5 px-3">Status</th>
@@ -140,20 +140,20 @@ export default function AdminReviewsPage() {
                   {reviews.map((r) => {
                     const busy = moderateMutation.isPending && moderateMutation.variables?.id === r.id;
                     return (
-                    <tr key={r.id} className="border-b border-gray-50 last:border-0">
+                    <tr key={r.id} className="border-b border-line last:border-0">
                       <td className="py-3 px-5 max-w-sm">
-                        <Link href={`/admin/reviews/${r.id}`} className="font-semibold text-gray-900 hover:text-blue-600 line-clamp-1">
+                        <Link href={`/admin/reviews/${r.id}`} className="font-semibold text-fg hover:text-brand line-clamp-1">
                           {r.title || r.body.slice(0, 60)}
                         </Link>
-                        <p className="text-xs text-gray-400">{r.user.name || r.user.email}{r.verifiedCustomer ? " · Verified" : ""}{r.pinned ? " · Pinned" : ""}</p>
+                        <p className="text-xs text-fg-subtle">{r.user.name || r.user.email}{r.verifiedCustomer ? " · Verified" : ""}{r.pinned ? " · Pinned" : ""}</p>
                       </td>
-                      <td className="py-3 px-3 font-semibold text-gray-900">{r.rating}★</td>
+                      <td className="py-3 px-3 font-semibold text-fg">{r.rating}★</td>
                       <td className="py-3 px-3">
                         <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${STATUS_BADGE[r.status]}`}>{r.status}</span>
                       </td>
-                      <td className="py-3 px-3 text-gray-600">{r.spamScore ?? "—"}</td>
-                      <td className="py-3 px-3 text-gray-600">{r.reportCount || "—"}</td>
-                      <td className="py-3 px-3 text-gray-400 text-xs whitespace-nowrap">{fmt(r.createdAt)}</td>
+                      <td className="py-3 px-3 text-fg-muted">{r.spamScore ?? "—"}</td>
+                      <td className="py-3 px-3 text-fg-muted">{r.reportCount || "—"}</td>
+                      <td className="py-3 px-3 text-fg-subtle text-xs whitespace-nowrap">{fmt(r.createdAt)}</td>
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {r.status !== "published" && (
@@ -196,7 +196,7 @@ export default function AdminReviewsPage() {
             </div>
           </Card>
 
-          <div className="flex items-center justify-between text-sm text-gray-500">
+          <div className="flex items-center justify-between text-sm text-fg-muted">
             <span>Page {page} of {totalPages}</span>
             <div className="flex gap-2">
               <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
@@ -229,7 +229,7 @@ export default function AdminReviewsPage() {
           rows={3}
           autoFocus
           placeholder="Reason for rejecting this review…"
-          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
+          className="w-full text-sm border border-line rounded-lg px-3 py-2"
         />
       </ConfirmDialog>
     </AdminShell>

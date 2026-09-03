@@ -90,32 +90,32 @@ export default function AdminSubscriptionsPage() {
     <AdminShell title="Subscriptions">
       <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
         <Card shadow className="px-6 py-4">
-          <p className="text-3xl font-extrabold text-gray-900">{total}</p>
-          <p className="text-xs text-gray-400 mt-0.5">Active Subscribers</p>
+          <p className="text-3xl font-extrabold text-fg">{total}</p>
+          <p className="text-xs text-fg-subtle mt-0.5">Active Subscribers</p>
         </Card>
         <input
           value={searchInput}
           onChange={e => { setSearchInput(e.target.value); setPage(1); }}
           placeholder="Search by email or name…"
-          className="w-72 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+          className="w-72 bg-panel border border-line rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 shadow-sm"
         />
       </div>
 
       {isError ? (
         <ErrorCard onRetry={refetch} />
       ) : isLoading ? (
-        <p className="text-sm text-gray-400">Loading subscriptions…</p>
+        <p className="text-sm text-fg-subtle">Loading subscriptions…</p>
       ) : subs.length === 0 ? (
         <Card shadow className="p-12 text-center">
-          <p className="text-sm font-semibold text-gray-600">{search ? "No matching subscribers" : "No active subscribers"}</p>
-          <p className="text-xs text-gray-400 mt-1">{search ? "Try a different search." : "Users with active subscriptions will appear here."}</p>
+          <p className="text-sm font-semibold text-fg-muted">{search ? "No matching subscribers" : "No active subscribers"}</p>
+          <p className="text-xs text-fg-subtle mt-1">{search ? "Try a different search." : "Users with active subscriptions will appear here."}</p>
         </Card>
       ) : (
         <Card shadow>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                <tr className="border-b border-line text-left text-xs font-semibold text-fg-subtle uppercase tracking-wide">
                   <th className="py-3.5 px-5">User</th>
                   <th className="py-3.5 px-3">Plan</th>
                   <th className="py-3.5 px-3">Expires</th>
@@ -133,22 +133,22 @@ export default function AdminSubscriptionsPage() {
                   const busy = actingId === s.id;
                   const months = parseInt(extendMonths[s.id] ?? "1", 10) || 1;
                   return (
-                    <tr key={s.id} className={`border-b border-gray-50 last:border-0 ${expiring ? "bg-yellow-50/40" : ""}`}>
+                    <tr key={s.id} className={`border-b border-line last:border-0 ${expiring ? "bg-yellow-50/40" : ""}`}>
                       <td className="py-3 px-5">
-                        <p className="font-semibold text-gray-900">{s.name || s.email}</p>
-                        {s.name && <p className="text-xs text-gray-400">{s.email}</p>}
+                        <p className="font-semibold text-fg">{s.name || s.email}</p>
+                        {s.name && <p className="text-xs text-fg-subtle">{s.email}</p>}
                       </td>
-                      <td className="py-3 px-3 text-xs text-gray-600">{s.plan?.name ?? "—"}</td>
-                      <td className="py-3 px-3 text-xs text-gray-600">{fmt(s.subscriptionEndsAt)}</td>
+                      <td className="py-3 px-3 text-xs text-fg-muted">{s.plan?.name ?? "—"}</td>
+                      <td className="py-3 px-3 text-xs text-fg-muted">{fmt(s.subscriptionEndsAt)}</td>
                       <td className="py-3 px-3">
-                        <span className={`text-xs font-bold ${expiring ? "text-yellow-600" : "text-gray-600"}`}>
+                        <span className={`text-xs font-bold ${expiring ? "text-yellow-600" : "text-fg-muted"}`}>
                           {days < 0 ? "expired" : `${days}d`}
                           {expiring && " ⚠️"}
                         </span>
                       </td>
-                      <td className="py-3 px-3 text-gray-600">{s.monthlyCredits}</td>
-                      <td className="py-3 px-3 text-xs text-gray-400">{fmt(s.nextRefillAt)}</td>
-                      <td className="py-3 px-3 font-semibold text-gray-900">{s.credits} cr</td>
+                      <td className="py-3 px-3 text-fg-muted">{s.monthlyCredits}</td>
+                      <td className="py-3 px-3 text-xs text-fg-subtle">{fmt(s.nextRefillAt)}</td>
+                      <td className="py-3 px-3 font-semibold text-fg">{s.credits} cr</td>
                       <td className="py-3 px-3">
                         <div className="flex flex-col gap-1.5">
                           <Button
@@ -165,7 +165,7 @@ export default function AdminSubscriptionsPage() {
                               min={1} max={24}
                               value={extendMonths[s.id] ?? "1"}
                               onChange={e => setExtendMonths(prev => ({ ...prev, [s.id]: e.target.value }))}
-                              className="w-12 bg-gray-50 border border-gray-200 rounded-md text-xs px-1.5 py-1 text-center focus:outline-none"
+                              className="w-12 bg-surface-2 border border-line rounded-md text-xs px-1.5 py-1 text-center focus:outline-none"
                             />
                             <Button
                               onClick={() => { setActingId(s.id); adjustMutation.mutate({ userId: s.id, opts: { months } }); }}
@@ -193,7 +193,7 @@ export default function AdminSubscriptionsPage() {
             </table>
           </div>
           {total > LIMIT && (
-            <div className="flex items-center justify-between px-5 py-3 border-t border-gray-50 text-xs text-gray-500">
+            <div className="flex items-center justify-between px-5 py-3 border-t border-line text-xs text-fg-muted">
               <span>
                 Page {page} of {Math.max(1, Math.ceil(total / LIMIT))} · {total} subscribers
               </span>

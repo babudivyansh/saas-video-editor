@@ -14,7 +14,7 @@ import {
 import AdminShell from "./AdminShell";
 import { useAuth } from "@/app/components/AuthContext";
 import {
-  ChartContainer, CountUp, DeltaChip, ErrorCard, HealthDot, Leaderboard, Skeleton,
+  PALETTE, ChartContainer, CountUp, DeltaChip, ErrorCard, HealthDot, Leaderboard, Skeleton,
   compact, inr, pct, timeAgo,
 } from "./dashboard/ui";
 import { Donut, Gauge, GrowthLineChart, HBars, RevenueAreaChart, SparkArea } from "./dashboard/charts";
@@ -166,16 +166,16 @@ function Kpi({
   delta?: number | null; sub?: string; spark?: Spark[]; tooltip?: string;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 transition-shadow hover:shadow-md" title={tooltip}>
-      <div className="flex items-center gap-1.5 text-gray-400 mb-1.5">
+    <div className="bg-panel rounded-2xl border border-line shadow-sm p-4 transition-shadow hover:shadow-md" title={tooltip}>
+      <div className="flex items-center gap-1.5 text-fg-subtle mb-1.5">
         <span aria-hidden>{icon}</span>
         <span className="text-[11px] font-semibold">{label}</span>
         {delta !== undefined && <span className="ml-auto"><DeltaChip pct={delta} /></span>}
       </div>
-      <p className="text-xl font-extrabold text-gray-900 leading-none">
+      <p className="text-xl font-extrabold text-fg leading-none">
         {value == null ? "—" : <CountUp value={value} format={format} />}
       </p>
-      {sub && <p className="text-[10px] text-gray-400 mt-1">{sub}</p>}
+      {sub && <p className="text-[10px] text-fg-subtle mt-1">{sub}</p>}
       {spark && <div className="mt-2 -mb-1"><SparkArea data={spark} /></div>}
     </div>
   );
@@ -183,10 +183,10 @@ function Kpi({
 
 function PlaceholderKpi({ label }: { label: string }) {
   return (
-    <div className="bg-gray-50/70 rounded-2xl border border-dashed border-gray-200 p-4">
-      <p className="text-[11px] font-semibold text-gray-400 mb-1.5">{label}</p>
-      <p className="text-xl font-extrabold text-gray-300 leading-none">—</p>
-      <p className="text-[10px] text-gray-400 mt-1">needs instrumentation</p>
+    <div className="bg-surface-2/70 rounded-2xl border border-dashed border-line p-4">
+      <p className="text-[11px] font-semibold text-fg-subtle mb-1.5">{label}</p>
+      <p className="text-xl font-extrabold text-fg-subtle leading-none">—</p>
+      <p className="text-[10px] text-fg-subtle mt-1">needs instrumentation</p>
     </div>
   );
 }
@@ -344,7 +344,7 @@ export default function AdminDashboardPage() {
                 csv={{ filename: "models.csv", rows: ai.data.topModels.map((m) => ({ model: m.modelId ?? "-", generations: m.generations, credits: m.creditsCost, costUsd: m.costUsd, errorPct: m.errorRatePct })) }}>
                 <HBars items={ai.data.topModels.map((m) => ({ label: m.modelId ?? "other", value: m.generations }))} />
                 {ai.data.topModels.some((m) => (m.errorRatePct ?? 0) > 10) && (
-                  <p className="text-[10px] text-red-600 mt-2">⚠ Some models exceed 10% error rate — details on the AI tab of Analytics.</p>
+                  <p className="text-[10px] text-error mt-2">⚠ Some models exceed 10% error rate — details on the AI tab of Analytics.</p>
                 )}
               </ChartContainer>
               <ChartContainer title="Generation success" subtitle={`${compact(ai.data.totalGenerations)} generations in range`}>
@@ -364,12 +364,12 @@ export default function AdminDashboardPage() {
                     <HealthDot ok={infra.data.db} label={`Postgres ${infra.data.db ? "reachable" : "DOWN"}`} />
                     <HealthDot ok={infra.data.redis} label={`Redis ${infra.data.redis ? "reachable" : "DOWN / write-locked"}`} />
                     <HealthDot ok={(infra.data.renderQueue?.failed ?? 0) === 0} label={`Render queue: ${infra.data.renderQueue ? `${infra.data.renderQueue.failed ?? 0} failed / ${infra.data.renderQueue.active ?? 0} active` : "not available"}`} />
-                    <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t border-gray-50">
-                      <div><p className="text-sm font-bold text-gray-900">{infra.data.process.rssMb}</p><p className="text-[10px] text-gray-400">RSS MB</p></div>
-                      <div><p className="text-sm font-bold text-gray-900">{infra.data.process.heapUsedMb}</p><p className="text-[10px] text-gray-400">Heap MB</p></div>
-                      <div><p className="text-sm font-bold text-gray-900">{infra.data.process.uptimeHours}</p><p className="text-[10px] text-gray-400">Uptime h</p></div>
+                    <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t border-line">
+                      <div><p className="text-sm font-bold text-fg">{infra.data.process.rssMb}</p><p className="text-[10px] text-fg-subtle">RSS MB</p></div>
+                      <div><p className="text-sm font-bold text-fg">{infra.data.process.heapUsedMb}</p><p className="text-[10px] text-fg-subtle">Heap MB</p></div>
+                      <div><p className="text-sm font-bold text-fg">{infra.data.process.uptimeHours}</p><p className="text-[10px] text-fg-subtle">Uptime h</p></div>
                     </div>
-                    <p className="text-[10px] text-gray-400">Host CPU/disk needs an infra agent.</p>
+                    <p className="text-[10px] text-fg-subtle">Host CPU/disk needs an infra agent.</p>
                   </div>
                 ) : (
                   <Skeleton h="h-40" />
@@ -394,8 +394,8 @@ export default function AdminDashboardPage() {
               <Kpi icon={<Zap size={13} />} label="Posts synced" value={social.data.postsSynced} format={compact} />
               <Kpi icon={<RefreshCcw size={13} />} label="Syncs today" value={social.data.syncsToday.ok} format={compact} sub={`${social.data.syncsToday.fail} failed`} />
               <Kpi icon={<ShieldAlert size={13} />} label="Need re-auth" value={social.data.needsReauth} format={compact} sub={social.data.needsReauth > 0 ? "action needed" : "all healthy"} />
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-                <p className="text-[11px] font-semibold text-gray-400 mb-2">Platform share</p>
+              <div className="bg-panel rounded-2xl border border-line shadow-sm p-4">
+                <p className="text-[11px] font-semibold text-fg-subtle mb-2">Platform share</p>
                 {(() => {
                   const byProvider = new Map<string, number>();
                   for (const r of social.data!.accounts) byProvider.set(r.provider, (byProvider.get(r.provider) ?? 0) + r._count);
@@ -404,12 +404,12 @@ export default function AdminDashboardPage() {
                     <div className="space-y-1">
                       {[...byProvider.entries()].map(([p, count], i) => (
                         <div key={p} className="flex items-center gap-1.5 text-[10px]">
-                          <span className="w-2 h-2 rounded-full" style={{ background: ["#2563eb", "#0d9488", "#d97706", "#7c3aed"][i % 4] }} aria-hidden />
-                          <span className="text-gray-500 capitalize flex-1">{p}</span>
-                          <span className="font-semibold text-gray-700">{Math.round((count / total) * 100)}%</span>
+                          <span className="w-2 h-2 rounded-full" style={{ background: PALETTE[i % PALETTE.length] }} aria-hidden />
+                          <span className="text-fg-muted capitalize flex-1">{p}</span>
+                          <span className="font-semibold text-fg">{Math.round((count / total) * 100)}%</span>
                         </div>
                       ))}
-                      {byProvider.size === 0 && <p className="text-[10px] text-gray-400">No accounts yet.</p>}
+                      {byProvider.size === 0 && <p className="text-[10px] text-fg-subtle">No accounts yet.</p>}
                     </div>
                   );
                 })()}
@@ -431,7 +431,7 @@ export default function AdminDashboardPage() {
                     { label: "Consumed", value: revenue.data.creditsConsumed },
                   ]}
                 />
-                <p className="text-[11px] text-gray-500 mt-2">AOV {inr(revenue.data.aovInPaise)} · ARPU {inr(o?.arpuInPaise ?? null)} · LTV needs cohort tracking</p>
+                <p className="text-[11px] text-fg-muted mt-2">AOV {inr(revenue.data.aovInPaise)} · ARPU {inr(o?.arpuInPaise ?? null)} · LTV needs cohort tracking</p>
               </ChartContainer>
               <ChartContainer title="Affiliate commissions" subtitle="All time, by status">
                 <HBars items={revenue.data.affiliate.map((a) => ({ label: a.status, value: Math.round(a.amount) }))} valueFmt={(n) => `₹${compact(n)}`} />
@@ -461,7 +461,7 @@ export default function AdminDashboardPage() {
             <ChartContainer title="AI cost by provider" subtitle={`$${ai.data.trackedCost.totalUsd.toFixed(2)} tracked provider spend (${range}d)`}
               csv={{ filename: "cost-by-provider.csv", rows: ai.data.costByProvider.map((c) => ({ provider: c.provider, costUsd: c.costUsd.toFixed(4), generations: c.generations })) }}>
               <HBars items={ai.data.costByProvider.map((c) => ({ label: c.provider, value: Number(c.costUsd.toFixed(2)) }))} valueFmt={(n) => `$${n}`} />
-              <p className="text-[10px] text-gray-400 mt-2">
+              <p className="text-[10px] text-fg-subtle mt-2">
                 Avg ${ai.data.trackedCost.generations > 0 ? (ai.data.trackedCost.totalUsd / ai.data.trackedCost.generations).toFixed(3) : "—"}/generation ·
                 {" "}{compact(ai.data.trackedCost.creditsCost)} credits burned
               </p>
@@ -504,7 +504,7 @@ export default function AdminDashboardPage() {
               <div className="space-y-5">
                 <Leaderboard title="Top countries" items={top.data.countries.map((c) => ({ label: c.label, value: `${c.count} logins` }))} />
                 <Leaderboard title="Devices / browsers" items={top.data.devices.map((d) => ({ label: d.label, value: `${d.count}` }))} />
-                <p className="text-[10px] text-gray-400 px-1">
+                <p className="text-[10px] text-fg-subtle px-1">
                   Login analytics accrue since {top.data.loginDataSince ? new Date(top.data.loginDataSince).toLocaleDateString("en-IN") : "the latest deploy"} — earlier logins weren’t recorded.
                 </p>
               </div>
@@ -525,14 +525,14 @@ export default function AdminDashboardPage() {
               <ol className="space-y-0.5 max-h-96 overflow-y-auto pr-1">
                 {activity.data.events.map((e, i) => (
                   <li key={`${e.at}-${i}`}>
-                    <a href={e.href ?? "#"} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-gray-50">
+                    <a href={e.href ?? "#"} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-surface-2">
                       <ActivityIcon kind={e.kind} />
-                      <span className="flex-1 text-xs text-gray-700 truncate">{e.title}</span>
-                      <span className="text-[10px] text-gray-400 flex-shrink-0">{timeAgo(e.at)}</span>
+                      <span className="flex-1 text-xs text-fg truncate">{e.title}</span>
+                      <span className="text-[10px] text-fg-subtle flex-shrink-0">{timeAgo(e.at)}</span>
                     </a>
                   </li>
                 ))}
-                {activity.data.events.length === 0 && <p className="text-xs text-gray-400 py-4">No recent activity.</p>}
+                {activity.data.events.length === 0 && <p className="text-xs text-fg-subtle py-4">No recent activity.</p>}
               </ol>
             </ChartContainer>
           )}
@@ -548,25 +548,25 @@ export default function AdminDashboardPage() {
             <ChartContainer title="Operations" subtitle="Queues, workers and storage — full controls on the Operations page. Email/webhook queues don’t exist (emails send synchronously).">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div>
-                  <p className="text-[11px] font-semibold text-gray-400 mb-2">Render queue</p>
+                  <p className="text-[11px] font-semibold text-fg-subtle mb-2">Render queue</p>
                   {infra.data?.renderQueue ? (
                     <div className="grid grid-cols-5 gap-1 text-center">
                       {Object.entries(infra.data.renderQueue).map(([k, v]) => (
                         <div key={k}>
-                          <p className={`text-sm font-bold ${k === "failed" && v > 0 ? "text-red-600" : "text-gray-900"}`}>{v}</p>
-                          <p className="text-[9px] text-gray-400 capitalize">{k}</p>
+                          <p className={`text-sm font-bold ${k === "failed" && v > 0 ? "text-error" : "text-fg"}`}>{v}</p>
+                          <p className="text-[9px] text-fg-subtle capitalize">{k}</p>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-gray-400">Queue not available.</p>
+                    <p className="text-xs text-fg-subtle">Queue not available.</p>
                   )}
-                  <a href="/admin/ops" className="inline-block text-[11px] font-semibold text-blue-600 mt-2">
+                  <a href="/admin/ops" className="inline-block text-[11px] font-semibold text-brand mt-2">
                     {ops.data.failedJobs.length > 0 ? `Manage ${ops.data.failedJobs.length} failed job(s) →` : "Open Operations →"}
                   </a>
                 </div>
                 <div>
-                  <p className="text-[11px] font-semibold text-gray-400 mb-2">Workers</p>
+                  <p className="text-[11px] font-semibold text-fg-subtle mb-2">Workers</p>
                   <div className="space-y-1.5">
                     {Object.entries(ops.data.heartbeats).map(([name, beat]) => (
                       <HealthDot key={name} ok={!!beat} label={`${name}${beat ? ` · beat ${timeAgo(beat)}` : " · no heartbeat"}`} />
@@ -574,13 +574,13 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
                 <div>
-                  <p className="text-[11px] font-semibold text-gray-400 mb-2">Storage — largest tables</p>
+                  <p className="text-[11px] font-semibold text-fg-subtle mb-2">Storage — largest tables</p>
                   <table className="w-full text-[11px]">
                     <tbody>
                       {ops.data.tableSizes.slice(0, 5).map((t) => (
                         <tr key={t.table}>
-                          <td className="py-0.5 font-mono text-gray-500">{t.table}</td>
-                          <td className="py-0.5 text-right font-semibold text-gray-700">{t.size}</td>
+                          <td className="py-0.5 font-mono text-fg-muted">{t.table}</td>
+                          <td className="py-0.5 text-right font-semibold text-fg">{t.size}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -635,11 +635,11 @@ function useOps(refreshKey: number) {
 function ActivityIcon({ kind }: { kind: string }) {
   const cls = "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0";
   switch (kind) {
-    case "user": return <span className={`${cls} bg-blue-50 text-blue-600`}><UserPlus size={12} /></span>;
-    case "purchase": return <span className={`${cls} bg-emerald-50 text-emerald-600`}><CreditCard size={12} /></span>;
-    case "refund": return <span className={`${cls} bg-red-50 text-red-600`}><RefreshCcw size={12} /></span>;
-    case "generation_failed": return <span className={`${cls} bg-amber-50 text-amber-600`}><Zap size={12} /></span>;
+    case "user": return <span className={`${cls} bg-tint-blue text-brand`}><UserPlus size={12} /></span>;
+    case "purchase": return <span className={`${cls} bg-emerald-50 text-success`}><CreditCard size={12} /></span>;
+    case "refund": return <span className={`${cls} bg-error/10 text-error`}><RefreshCcw size={12} /></span>;
+    case "generation_failed": return <span className={`${cls} bg-amber-50 text-warning`}><Zap size={12} /></span>;
     case "coupon": return <span className={`${cls} bg-violet-50 text-violet-600`}><Ticket size={12} /></span>;
-    default: return <span className={`${cls} bg-gray-50 text-gray-500`}><ShieldAlert size={12} /></span>;
+    default: return <span className={`${cls} bg-surface-2 text-fg-muted`}><ShieldAlert size={12} /></span>;
   }
 }

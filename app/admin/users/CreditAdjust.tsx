@@ -52,18 +52,18 @@ export function CreditAdjust({ userId, headers, invalidateKeys }: Props) {
   });
 
   return (
-    <div className="pt-2 border-t border-gray-50">
-      <p className="text-xs font-semibold text-gray-500 mb-1.5">Adjust credits (audited)</p>
+    <div className="pt-2 border-t border-line">
+      <p className="text-xs font-semibold text-fg-muted mb-1.5">Adjust credits (audited)</p>
       <div className="flex gap-1.5">
         <input value={delta} onChange={(e) => setDelta(e.target.value)} placeholder="±100" inputMode="numeric"
-          className="w-16 text-xs border border-gray-200 rounded-lg px-2 py-1.5" aria-label="Credit delta" />
+          className="w-16 text-xs border border-line rounded-lg px-2 py-1.5" aria-label="Credit delta" />
         <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (required)"
-          className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5" aria-label="Reason" />
+          className="flex-1 text-xs border border-line rounded-lg px-2 py-1.5" aria-label="Reason" />
         <Button onClick={() => adjustMutation.mutate()} disabled={adjustMutation.isPending || reason.trim().length < 3} variant="primary" size="sm">
           Apply
         </Button>
       </div>
-      {msg && <p className="text-[11px] text-gray-500 mt-1">{msg}</p>}
+      {msg && <p className="text-[11px] text-fg-muted mt-1">{msg}</p>}
     </div>
   );
 }

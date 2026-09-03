@@ -4,10 +4,10 @@
 file only says which system a given surface belongs to, so a new one doesn't
 start by accident.
 
-The four parallel systems this file used to describe are now two and a half. The
-2026-09 emerald migration unified the marketing site, the dashboard, the tool
-pages, auth, billing, settings and the error pages onto one dark token set, and
-re-accented the editor to match.
+The four parallel systems this file used to describe are now one, plus the
+editor. The 2026-09 emerald migration unified the marketing site, the dashboard,
+the tool pages, auth, billing, settings, the error pages and the admin panel
+onto one dark token set, and re-accented the editor to match.
 
 ## Default for new work: the emerald tokens
 
@@ -21,7 +21,7 @@ re-accented the editor to match.
   See `docs/DESIGN_SYSTEM.md` §1 for why that is per-subtree rather than at
   `:root`, and what has to be true before the class can go away.
 - **Dark-first. There is no light mode**, and the light values still in `:root`
-  are scaffolding for the un-migrated admin panel, not a supported theme.
+  are migration scaffolding, not a supported theme.
 
 ## Deliberate, scoped exceptions
 
@@ -32,13 +32,14 @@ namespace. **Stay inside that set for anything rendered in the editor shell, and
 don't extend it outward.** Its timeline video track is lime rather than emerald
 on purpose — the accent is emerald and the audio track is already mint.
 
-**Admin** (`app/admin/**`) — **not migrated.** Still the light system plus its
-own chart set in `app/admin/dashboard/charts.tsx`. Internal-only, desktop-first.
-Stay inside that set for new admin surfaces. Two things to know before migrating
-it: the chart palette in `app/admin/dashboard/ui.tsx` is documented as validated
-against a *light* background, so it has to be re-validated rather than remapped;
-and its Recharts `<Tooltip contentStyle>` defaults to a white inline background
-in eight places.
+**Admin** (`app/admin/**`) — migrated. It keeps its own Recharts chart set in
+`app/admin/dashboard/charts.tsx` + `ui.tsx`, which is where the chart parameters
+live: see `docs/DESIGN_SYSTEM.md` §12 before changing a palette, a grid colour or
+a tooltip. Two things there are load-bearing — the categorical `PALETTE` was
+re-validated against the dark surface rather than remapped (it passes unchanged,
+and categorical hues are deliberately not brand colours), and every Recharts
+`<Tooltip>` must pass the shared style objects, because Recharts writes a white
+background as an inline style that no stylesheet can reach.
 
 **Email, PDF reports, OG images** (`lib/email/**`, `lib/social/reports/**`,
 `app/**/opengraph-image.tsx`) — **permanently light.** These render into email
@@ -60,5 +61,5 @@ is budgeted at 0 and gates removing the migration scaffolding.
 
 ## When you're not sure
 
-Editor shell → editor tokens. `app/admin/**` → admin set. Everything else →
-emerald. A genuinely new visual context is worth a conversation, not a fifth set.
+Editor shell → editor tokens. Everything else → emerald.
+A genuinely new visual context is worth a conversation, not a third set.

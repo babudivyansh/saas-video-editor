@@ -20,9 +20,11 @@ Two themes coexist:
 | `.theme-emerald` | the dark emerald system |
 
 A subtree opts in by carrying `theme-emerald`. It is applied at the shell level
-(`DashboardShell`, `MarketingShell`, each auth page root) rather than at `:root`,
-so a surface that has not been migrated — today that is `app/admin/**` — keeps
-the light theme instead of rendering dark tokens under light utility classes.
+(`DashboardShell`, `MarketingShell`, `AdminLayoutClient`, each auth page root)
+rather than at `:root`. Every surface is migrated now, so the remaining reason
+to keep the class is the un-migrated LIGHT values still sitting in `:root` — a
+new page that forgets the class renders light rather than rendering dark tokens
+under light utility classes.
 
 **Why per-subtree theming works at all:** `@theme inline` resolves its `var()`
 at the element's position in the cascade, not at `:root`. So
@@ -275,6 +277,32 @@ per file, not the finish: read the diff.
 | Surface | State |
 |---|---|
 | Marketing, dashboard, tools, auth, billing, settings, error pages | migrated |
+| Admin (`app/admin/**`) | migrated — see §12 for its charts |
 | Editor (`app/dashboard/editor/**`) | own `--editor-*` tokens, re-accented to emerald |
-| Admin (`app/admin/**`) | **not migrated** — still the light system |
 | Email / PDF / OG images | **stay light**, permanently |
+
+---
+
+## 12. Charts
+
+`app/admin/dashboard/ui.tsx` owns the chart parameters.
+
+- **`PALETTE`** — the categorical hues. Re-validated against the dark chart
+  surface `#0b1210` with the dataviz validator; all five checks pass unchanged,
+  so the hues were kept rather than remapped. **They are deliberately not brand
+  colours** — a categorical palette wants hue spread for identity, and painting
+  it emerald would collapse the series into each other.
+- **`BRAND`** — the single-series colour, so this one *does* follow the brand.
+  `#00a968`, not the UI emerald `#20d68a`: that is L 0.774, outside the
+  0.48–0.67 mark band.
+- **`TOOLTIP_STYLE` / `TOOLTIP_ITEM_STYLE` / `TOOLTIP_LABEL_STYLE`** — pass all
+  three to every Recharts `<Tooltip>`. Recharts writes its tooltip background as
+  a **white inline style**, and a stylesheet cannot reach an inline style, so a
+  tooltip without these is a white card floating on the dark dashboard.
+- Grid and axis ticks read `var(--line)` and `var(--fg-subtle)`. Never a literal.
+
+Re-run the validator before changing any of these:
+
+```bash
+node <dataviz-skill>/scripts/validate_palette.js "#hex,#hex,…" --mode dark --surface "#0b1210"
+```

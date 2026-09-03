@@ -57,7 +57,7 @@ export default function AdminAnalyticsPage() {
   if (isLoading || !g) {
     return (
       <AdminShell title="Analytics">
-        <div className="animate-pulse space-y-4"><div className="h-48 bg-gray-100 rounded-2xl" /><div className="h-48 bg-gray-100 rounded-2xl" /></div>
+        <div className="animate-pulse space-y-4"><div className="h-48 bg-surface-3 rounded-2xl" /><div className="h-48 bg-surface-3 rounded-2xl" /></div>
       </AdminShell>
     );
   }
@@ -67,7 +67,7 @@ export default function AdminAnalyticsPage() {
       {/* Cohorts */}
       <Card shadow padding="lg">
         <div className="flex items-baseline justify-between gap-2 mb-1 flex-wrap">
-          <h2 className="text-base font-bold text-gray-800">Signup cohorts — last 6 months</h2>
+          <h2 className="text-base font-bold text-fg">Signup cohorts — last 6 months</h2>
           <Button
             variant="secondary"
             size="sm"
@@ -76,11 +76,11 @@ export default function AdminAnalyticsPage() {
             Export CSV
           </Button>
         </div>
-        <p className="text-xs text-gray-400 mb-4">Activation = made ≥1 generation (lifetime). Paid = made ≥1 purchase (lifetime).</p>
+        <p className="text-xs text-fg-subtle mb-4">Activation = made ≥1 generation (lifetime). Paid = made ≥1 purchase (lifetime).</p>
         <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-[11px] uppercase tracking-wide text-gray-400 text-left">
+            <tr className="text-[11px] uppercase tracking-wide text-fg-subtle text-left">
               <th className="font-semibold pb-2">Cohort</th>
               <th className="font-semibold pb-2 text-right">Signups</th>
               <th className="font-semibold pb-2 text-right">Activated</th>
@@ -91,16 +91,16 @@ export default function AdminAnalyticsPage() {
           </thead>
           <tbody>
             {g.cohorts.map((c) => (
-              <tr key={c.month} className="border-t border-gray-50">
-                <td className="py-2 font-semibold text-gray-800">{c.month}</td>
-                <td className="py-2 text-right text-gray-700">{c.signups}</td>
-                <td className="py-2 text-right text-gray-700">{c.activated}</td>
-                <td className="py-2 text-right text-gray-500">{c.signups > 0 ? `${((c.activated / c.signups) * 100).toFixed(0)}%` : "—"}</td>
-                <td className="py-2 text-right text-gray-700">{c.paid}</td>
-                <td className="py-2 text-right text-gray-500">{c.signups > 0 ? `${((c.paid / c.signups) * 100).toFixed(1)}%` : "—"}</td>
+              <tr key={c.month} className="border-t border-line">
+                <td className="py-2 font-semibold text-fg">{c.month}</td>
+                <td className="py-2 text-right text-fg">{c.signups}</td>
+                <td className="py-2 text-right text-fg">{c.activated}</td>
+                <td className="py-2 text-right text-fg-muted">{c.signups > 0 ? `${((c.activated / c.signups) * 100).toFixed(0)}%` : "—"}</td>
+                <td className="py-2 text-right text-fg">{c.paid}</td>
+                <td className="py-2 text-right text-fg-muted">{c.signups > 0 ? `${((c.paid / c.signups) * 100).toFixed(1)}%` : "—"}</td>
               </tr>
             ))}
-            {g.cohorts.length === 0 && <tr><td colSpan={6} className="py-6 text-center text-gray-400 text-sm">No signups in the window.</td></tr>}
+            {g.cohorts.length === 0 && <tr><td colSpan={6} className="py-6 text-center text-fg-subtle text-sm">No signups in the window.</td></tr>}
           </tbody>
         </table>
         </div>
@@ -110,11 +110,11 @@ export default function AdminAnalyticsPage() {
         {/* Coupons */}
         <Card shadow padding="lg">
           <div className="flex items-baseline justify-between gap-2 mb-3 flex-wrap">
-            <h2 className="text-base font-bold text-gray-800">Coupon impact</h2>
-            <span className="text-xs text-gray-400">₹{Math.round(g.coupons.totalDiscountInPaise / 100).toLocaleString("en-IN")} total discount given</span>
+            <h2 className="text-base font-bold text-fg">Coupon impact</h2>
+            <span className="text-xs text-fg-subtle">₹{Math.round(g.coupons.totalDiscountInPaise / 100).toLocaleString("en-IN")} total discount given</span>
           </div>
           {g.coupons.top.length === 0 ? (
-            <p className="text-sm text-gray-400">No redemptions yet.</p>
+            <p className="text-sm text-fg-subtle">No redemptions yet.</p>
           ) : (
             <TypeBars items={g.coupons.top.map((c) => ({ type: `${c.code}${c.active ? "" : " (inactive)"}`, count: c.timesRedeemed, avgEngagementRate: null }))} />
           )}
@@ -122,25 +122,25 @@ export default function AdminAnalyticsPage() {
 
         {/* Affiliate funnel */}
         <Card shadow padding="lg">
-          <h2 className="text-base font-bold text-gray-800 mb-3">Affiliate funnel</h2>
+          <h2 className="text-base font-bold text-fg mb-3">Affiliate funnel</h2>
           <div className="grid grid-cols-2 gap-3 text-center mb-4">
-            <div className="bg-gray-50 rounded-xl p-3">
-              <p className="text-xl font-extrabold text-gray-900">{g.affiliates.count}</p>
-              <p className="text-xs text-gray-400">Affiliates</p>
+            <div className="bg-surface-2 rounded-xl p-3">
+              <p className="text-xl font-extrabold text-fg">{g.affiliates.count}</p>
+              <p className="text-xs text-fg-subtle">Affiliates</p>
             </div>
-            <div className="bg-gray-50 rounded-xl p-3">
-              <p className="text-xl font-extrabold text-gray-900">{g.affiliates.conversionPct != null ? `${g.affiliates.conversionPct.toFixed(1)}%` : "—"}</p>
-              <p className="text-xs text-gray-400">Referral → paid conversion</p>
+            <div className="bg-surface-2 rounded-xl p-3">
+              <p className="text-xl font-extrabold text-fg">{g.affiliates.conversionPct != null ? `${g.affiliates.conversionPct.toFixed(1)}%` : "—"}</p>
+              <p className="text-xs text-fg-subtle">Referral → paid conversion</p>
             </div>
           </div>
           <div className="space-y-1.5 text-sm">
             {Object.entries(g.affiliates.referrals).map(([status, count]) => (
               <div key={status} className="flex justify-between">
-                <span className="text-gray-500 capitalize">{status.replace("_", " ")}</span>
-                <span className="font-semibold text-gray-800">{count}</span>
+                <span className="text-fg-muted capitalize">{status.replace("_", " ")}</span>
+                <span className="font-semibold text-fg">{count}</span>
               </div>
             ))}
-            {Object.keys(g.affiliates.referrals).length === 0 && <p className="text-gray-400 text-sm">No referrals yet.</p>}
+            {Object.keys(g.affiliates.referrals).length === 0 && <p className="text-fg-subtle text-sm">No referrals yet.</p>}
           </div>
         </Card>
       </div>

@@ -44,10 +44,10 @@ const STATUS_COLORS: Record<string, string> = {
   suspended: "bg-yellow-100 text-yellow-700",
   banned: "bg-red-100 text-red-700",
   pending: "bg-yellow-100 text-yellow-700",
-  available: "bg-blue-100 text-blue-700",
+  available: "bg-tint-violet text-brand",
   paid: "bg-green-100 text-green-700",
   rejected: "bg-red-100 text-red-700",
-  signed_up: "bg-gray-100 text-gray-600",
+  signed_up: "bg-surface-3 text-fg-muted",
   converted: "bg-green-100 text-green-700",
   flagged: "bg-orange-100 text-orange-700",
 };
@@ -184,10 +184,10 @@ function AffiliateContent() {
   return (
     <>
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
+      <div className="flex gap-1 mb-6 bg-surface-3 p-1 rounded-xl w-fit">
         {(["affiliates", "commissions", "payouts"] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={`px-5 py-2 rounded-lg text-sm font-semibold capitalize transition-all ${tab === t ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+            className={`px-5 py-2 rounded-lg text-sm font-semibold capitalize transition-all ${tab === t ? "bg-panel text-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}>
             {t}
             {t === "payouts" && payoutCandidates.length > 0 && (
               <span className="ml-1.5 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">{payoutCandidates.length}</span>
@@ -196,7 +196,7 @@ function AffiliateContent() {
         ))}
       </div>
 
-      {loading && <p className="text-gray-400 text-sm">Loading...</p>}
+      {loading && <p className="text-fg-subtle text-sm">Loading...</p>}
 
       {/* Affiliates tab */}
       {tab === "affiliates" && !loading && (
@@ -207,11 +207,11 @@ function AffiliateContent() {
               value={affiliateSearchInput}
               onChange={e => setAffiliateSearchInput(e.target.value)}
               placeholder="Search by code, name, or email…"
-              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-64"
+              className="border border-line rounded-lg px-3 py-1.5 text-sm w-64"
             />
             {["all", "active", "suspended", "banned"].map(s => (
               <button key={s} onClick={() => setAffiliateStatusFilter(s)}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${affiliateStatusFilter === s ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${affiliateStatusFilter === s ? "bg-fg text-bg" : "bg-surface-3 text-fg-muted hover:bg-surface-3"}`}>
                 {s}
               </button>
             ))}
@@ -220,7 +220,7 @@ function AffiliateContent() {
           <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              <tr className="bg-surface-2 text-left text-xs font-semibold text-fg-muted uppercase tracking-wide">
                 <th className="px-5 py-3">Affiliate</th>
                 <th className="px-4 py-3">Code</th>
                 <th className="px-4 py-3">Status</th>
@@ -231,40 +231,40 @@ function AffiliateContent() {
                 <th className="px-4 py-3">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-line">
               {affiliates.map(a => {
                 const converted = a.convertedReferrals;
                 return (
-                  <tr key={a.id} className="hover:bg-gray-50">
+                  <tr key={a.id} className="hover:bg-surface-2">
                     <td className="px-5 py-3">
-                      <p className="font-medium text-gray-900">{a.user.name ?? "—"}</p>
-                      <p className="text-xs text-gray-400">{a.user.email}</p>
+                      <p className="font-medium text-fg">{a.user.name ?? "—"}</p>
+                      <p className="text-xs text-fg-subtle">{a.user.email}</p>
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-600">{a.code}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-fg-muted">{a.code}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[a.status] ?? ""}`}>{a.status}</span>
                     </td>
                     <td className="px-4 py-3">
                       <input type="number" defaultValue={(a.commissionRate * 100).toFixed(0)} min={0} max={100}
-                        className="w-16 border border-gray-200 rounded px-2 py-1 text-xs"
+                        className="w-16 border border-line rounded px-2 py-1 text-xs"
                         onBlur={e => updateAffiliateMutation.mutate({ id: a.id, data: { commissionRate: parseFloat(e.target.value) / 100 } })} />%
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{a.referralCount} ({converted} converted)</td>
-                    <td className="px-4 py-3 text-gray-800 font-medium">₹{a.totalEarned.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-gray-800">₹{a.totalPaid.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-fg-muted">{a.referralCount} ({converted} converted)</td>
+                    <td className="px-4 py-3 text-fg font-medium">₹{a.totalEarned.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-fg">₹{a.totalPaid.toFixed(2)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
                         {a.status === "active" && (
                           <Button variant="link" onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "suspended" } })} className="text-yellow-600">Suspend</Button>
                         )}
                         {a.status === "suspended" && (
-                          <Button variant="link" onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "active" } })} className="text-green-600">Activate</Button>
+                          <Button variant="link" onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "active" } })} className="text-success">Activate</Button>
                         )}
                         {a.status === "banned" && (
-                          <Button variant="link" onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "active" } })} className="text-green-600">Reinstate</Button>
+                          <Button variant="link" onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "active" } })} className="text-success">Reinstate</Button>
                         )}
                         {a.status !== "banned" && (
-                          <Button variant="link" onClick={() => setConfirmBan(a.id)} className="text-red-500">Ban</Button>
+                          <Button variant="link" onClick={() => setConfirmBan(a.id)} className="text-error">Ban</Button>
                         )}
                       </div>
                     </td>
@@ -272,7 +272,7 @@ function AffiliateContent() {
                 );
               })}
               {affiliates.length === 0 && (
-                <tr><td colSpan={8} className="px-5 py-8 text-center text-gray-400">No affiliates yet</td></tr>
+                <tr><td colSpan={8} className="px-5 py-8 text-center text-fg-subtle">No affiliates yet</td></tr>
               )}
             </tbody>
           </table>
@@ -282,7 +282,7 @@ function AffiliateContent() {
               variant="link"
               onClick={() => affiliatesQuery.fetchNextPage()}
               disabled={affiliatesQuery.isFetchingNextPage}
-              className="w-full justify-center py-2.5 text-gray-500 hover:text-gray-800 border-t border-gray-50"
+              className="w-full justify-center py-2.5 text-fg-muted hover:text-fg border-t border-line"
             >
               {affiliatesQuery.isFetchingNextPage ? "Loading…" : `Load more (${affiliates.length} of ${affiliateTotal})`}
             </Button>
@@ -297,7 +297,7 @@ function AffiliateContent() {
           <div className="flex gap-2 mb-4">
             {["all", "pending", "available", "paid", "rejected"].map(s => (
               <button key={s} onClick={() => setStatusFilter(s)}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${statusFilter === s ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${statusFilter === s ? "bg-fg text-bg" : "bg-surface-3 text-fg-muted hover:bg-surface-3"}`}>
                 {s}
               </button>
             ))}
@@ -306,7 +306,7 @@ function AffiliateContent() {
             <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                <tr className="bg-surface-2 text-left text-xs font-semibold text-fg-muted uppercase tracking-wide">
                   <th className="px-5 py-3">Affiliate</th>
                   <th className="px-4 py-3">Referred User</th>
                   <th className="px-4 py-3">Base (₹)</th>
@@ -316,32 +316,32 @@ function AffiliateContent() {
                   <th className="px-4 py-3">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-line">
                 {filteredCommissions.map(c => (
-                  <tr key={c.id} className="hover:bg-gray-50">
+                  <tr key={c.id} className="hover:bg-surface-2">
                     <td className="px-5 py-3">
-                      <p className="font-mono text-xs text-gray-600">{c.affiliate.code}</p>
-                      <p className="text-xs text-gray-400">{c.affiliate.user.email}</p>
+                      <p className="font-mono text-xs text-fg-muted">{c.affiliate.code}</p>
+                      <p className="text-xs text-fg-subtle">{c.affiliate.user.email}</p>
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-600">{c.referral.referredUser.email}</td>
-                    <td className="px-4 py-3 text-gray-800">₹{c.baseAmount.toFixed(2)}</td>
-                    <td className="px-4 py-3 font-semibold text-gray-900">₹{c.amount.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-xs text-fg-muted">{c.referral.referredUser.email}</td>
+                    <td className="px-4 py-3 text-fg">₹{c.baseAmount.toFixed(2)}</td>
+                    <td className="px-4 py-3 font-semibold text-fg">₹{c.amount.toFixed(2)}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[c.status] ?? ""}`}>{c.status}</span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">{new Date(c.availableAt).toLocaleDateString("en-IN")}</td>
+                    <td className="px-4 py-3 text-xs text-fg-muted">{new Date(c.availableAt).toLocaleDateString("en-IN")}</td>
                     <td className="px-4 py-3">
                       {c.status === "pending" && (
-                        <Button variant="link" onClick={() => commissionActionMutation.mutate({ id: c.id, action: "release" })} className="text-blue-600 mr-2">Release</Button>
+                        <Button variant="link" onClick={() => commissionActionMutation.mutate({ id: c.id, action: "release" })} className="text-brand mr-2">Release</Button>
                       )}
                       {(c.status === "pending" || c.status === "available") && (
-                        <Button variant="link" onClick={() => setConfirmReject(c.id)} className="text-red-500">Reject</Button>
+                        <Button variant="link" onClick={() => setConfirmReject(c.id)} className="text-error">Reject</Button>
                       )}
                     </td>
                   </tr>
                 ))}
                 {filteredCommissions.length === 0 && (
-                  <tr><td colSpan={7} className="px-5 py-8 text-center text-gray-400">No commissions found</td></tr>
+                  <tr><td colSpan={7} className="px-5 py-8 text-center text-fg-subtle">No commissions found</td></tr>
                 )}
               </tbody>
             </table>
@@ -351,7 +351,7 @@ function AffiliateContent() {
                 variant="link"
                 onClick={() => commissionsQuery.fetchNextPage()}
                 disabled={commissionsQuery.isFetchingNextPage}
-                className="w-full justify-center py-2.5 text-gray-500 hover:text-gray-800 border-t border-gray-50"
+                className="w-full justify-center py-2.5 text-fg-muted hover:text-fg border-t border-line"
               >
                 {commissionsQuery.isFetchingNextPage ? "Loading…" : `Load more (${commissions.length} of ${commissionTotal})`}
               </Button>
@@ -367,12 +367,12 @@ function AffiliateContent() {
             <Button variant="secondary" onClick={() => sweepMutation.mutate()} disabled={sweepMutation.isPending}>
               {sweepMutation.isPending ? "Running…" : "Run payout sweep now"}
             </Button>
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-fg-subtle">
               Flips pending commissions past their 30-day hold to available &amp; emails affiliates. Same sweep the daily cron runs.
             </span>
           </div>
           {payoutCandidates.length === 0 && (
-            <Card shadow padding="lg" className="text-center text-gray-400">
+            <Card shadow padding="lg" className="text-center text-fg-subtle">
               No affiliates have ₹{MIN_PAYOUT_AMOUNT}+ available for payout
             </Card>
           )}
@@ -382,7 +382,7 @@ function AffiliateContent() {
               <Card key={a.id} shadow padding="md">
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div>
-                    <p className="font-semibold text-gray-900 flex items-center gap-2">
+                    <p className="font-semibold text-fg flex items-center gap-2">
                       {a.user.name ?? "—"}
                       {a.payoutRequestedAt && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
@@ -390,14 +390,14 @@ function AffiliateContent() {
                         </span>
                       )}
                     </p>
-                    <p className="text-sm text-gray-500">{a.user.email} · <span className="font-mono">{a.code}</span></p>
-                    <p className="text-lg font-bold text-green-600 mt-1">₹{avail.toFixed(2)} available</p>
+                    <p className="text-sm text-fg-muted">{a.user.email} · <span className="font-mono">{a.code}</span></p>
+                    <p className="text-lg font-bold text-success mt-1">₹{avail.toFixed(2)} available</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <input type="text" placeholder="UPI / Wise txn ID"
                       value={payoutRef[a.id] ?? ""}
                       onChange={e => setPayoutRef(p => ({ ...p, [a.id]: e.target.value }))}
-                      className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-48" />
+                      className="border border-line rounded-lg px-3 py-2 text-sm w-48" />
                     <Button
                       variant="primary"
                       onClick={() => markPaidMutation.mutate(a.id)}
@@ -435,7 +435,7 @@ function AffiliateContent() {
           placeholder="Reason (optional)"
           value={banReasonText}
           onChange={(e) => setBanReasonText(e.target.value)}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line rounded-lg px-3 py-2 text-sm"
         />
       </ConfirmDialog>
 
@@ -461,7 +461,7 @@ function AffiliateContent() {
           placeholder="Reason (optional)"
           value={rejectReasonText}
           onChange={(e) => setRejectReasonText(e.target.value)}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line rounded-lg px-3 py-2 text-sm"
         />
       </ConfirmDialog>
     </>

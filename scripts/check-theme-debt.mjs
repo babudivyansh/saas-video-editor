@@ -21,14 +21,12 @@ const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 // Surfaces excluded from the migration entirely. These are NOT debt:
 //   - editor/**   already dark, owns the separate --editor-* token set
-//   - admin/**    out of scope for this migration (counted informationally)
 //   - *-image.tsx Satori-rendered social cards on their own background
 const EXCLUDED = [
   "app/dashboard/editor",
   "app/opengraph-image.tsx",
   "app/twitter-image.tsx",
 ];
-const INFORMATIONAL = ["app/admin"];
 
 const PATTERNS = {
   // Stock Tailwind gray ramp used as a colour. Bridged by the inverted ramp in
@@ -45,7 +43,9 @@ const PATTERNS = {
   // remain are the Reddit card's own dark-mode swatch in create/reddit-video,
   // which is product output rather than chrome.
   "raw-zinc": /\b(?:bg|text|border|ring|divide|placeholder|from|to|via)-zinc-\d{2,3}\b/g,
-  // Literal old-brand hexes in UI code.
+  // Literal old-brand hexes in UI code. One is legitimate and permanent:
+  // #7c3aed is also PALETTE[3] in app/admin/dashboard/ui.tsx, a validated
+  // categorical chart hue that happens to collide with the retired accent.
   "brand-hex": /#(?:335cff|7c3aed|d946ef)\b/gi,
   // The migration scaffold itself. MUST reach 0 before the .legacy-light block
   // is deleted from globals.css — that deletion is the last step of the
@@ -59,7 +59,7 @@ const BUDGET = {
   "bg-white": 5,
   "raw-slate": 16,
   "raw-zinc": 2,
-  "brand-hex": 52,
+  "brand-hex": 53,
   "legacy-light": 0,
 };
 
@@ -75,8 +75,7 @@ function walk(dir, out = []) {
 }
 
 const files = walk(join(ROOT, "app"));
-const inScope = files.filter((f) => !INFORMATIONAL.some((p) => f.rel.startsWith(p + "/")));
-const outOfScope = files.filter((f) => INFORMATIONAL.some((p) => f.rel.startsWith(p + "/")));
+const inScope = files;
 
 function census(fileList) {
   const totals = Object.fromEntries(Object.keys(PATTERNS).map((k) => [k, 0]));
@@ -94,7 +93,6 @@ function census(fileList) {
 }
 
 const { totals, worst } = census(inScope);
-const outTotals = census(outOfScope).totals;
 
 let failed = false;
 
@@ -123,14 +121,6 @@ if (!failed) {
     .map(([k, v]) => `${k}=${v}`)
     .join("  ");
   console.log(`✓ theme debt on budget — ${line}`);
-  console.log(
-    `  (out of scope, informational: app/admin ` +
-      Object.entries(outTotals)
-        .filter(([, v]) => v)
-        .map(([k, v]) => `${k}=${v}`)
-        .join(" ") +
-      `)`,
-  );
 }
 
 process.exit(failed ? 1 : 0);

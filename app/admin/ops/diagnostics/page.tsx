@@ -25,8 +25,8 @@ function Badge({ ok, label }: { ok: boolean; label: string }) {
 function RawJson({ data }: { data: unknown }) {
   return (
     <details className="mt-3">
-      <summary className="text-xs font-semibold text-gray-400 hover:text-gray-600 cursor-pointer">Raw report</summary>
-      <pre className="mt-2 text-[11px] text-gray-600 bg-gray-50 border border-gray-100 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap break-words max-h-96 overflow-y-auto">
+      <summary className="text-xs font-semibold text-fg-subtle hover:text-fg-muted cursor-pointer">Raw report</summary>
+      <pre className="mt-2 text-[11px] text-fg-muted bg-surface-2 border border-line rounded-xl p-3 overflow-x-auto whitespace-pre-wrap break-words max-h-96 overflow-y-auto">
         {JSON.stringify(data, null, 2)}
       </pre>
     </details>
@@ -39,8 +39,8 @@ function RawJson({ data }: { data: unknown }) {
 function Card({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
     <UiCard shadow padding="md">
-      <h2 className="text-sm font-bold text-gray-800 mb-1">{title}</h2>
-      <p className="text-xs text-gray-400 mb-3">{subtitle}</p>
+      <h2 className="text-sm font-bold text-fg mb-1">{title}</h2>
+      <p className="text-xs text-fg-subtle mb-3">{subtitle}</p>
       {children}
     </UiCard>
   );
@@ -78,21 +78,21 @@ function RenderCapabilityProbe({ headers }: { headers: () => Record<string, stri
       <Button variant="primary" size="sm" onClick={run} disabled={busy}>
         {busy ? "Running probe…" : "Run capability probe"}
       </Button>
-      {error && <p className="text-xs text-red-600 mt-3">{error}</p>}
+      {error && <p className="text-xs text-error mt-3">{error}</p>}
       {report && (
         <div className="mt-4 space-y-3">
           <div className="flex items-center gap-2">
             <Badge ok={report.decision.startsWith("VIABLE")} label={report.decision} />
           </div>
           <div>
-            <p className="text-[11px] font-semibold text-gray-500 mb-1">Bundled binary — {report.bundled.path}</p>
+            <p className="text-[11px] font-semibold text-fg-muted mb-1">Bundled binary — {report.bundled.path}</p>
             <div className="flex flex-wrap gap-1.5">
               <Badge ok={report.bundled.usable} label={report.bundled.usable ? "usable" : "not usable"} />
               <Badge ok={(report.bundled.missingFilters?.length ?? 0) === 0} label={`${report.bundled.missingFilters?.length ?? 0} missing filter(s)`} />
               {report.bundled.smokeTests.map((s) => <Badge key={s.name} ok={s.passed} label={s.name} />)}
             </div>
           </div>
-          <p className="text-[11px] text-gray-500">
+          <p className="text-[11px] text-fg-muted">
             {report.systemCandidates.length} system candidate(s) checked
             {report.viableSystemCandidate ? ` — viable: ${report.viableSystemCandidate}` : " — none viable"}.
           </p>
@@ -128,17 +128,17 @@ function RenderReproduce({ headers }: { headers: () => Record<string, string> })
     <Card title="Reproduce a real render failure" subtitle="Re-renders one specific project's real filtergraph exactly as the render job does — read-only, never writes to the project, never charges credits. Scrubs URLs/paths/the project id from the output.">
       <div className="flex gap-2">
         <input value={projectId} onChange={(e) => setProjectId(e.target.value)} placeholder="Project ID"
-          className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 font-mono" />
+          className="flex-1 text-sm border border-line rounded-lg px-3 py-2 font-mono" />
         <Button variant="primary" size="sm" onClick={run} disabled={busy || !projectId.trim()}>
           {busy ? "Rendering…" : "Reproduce"}
         </Button>
       </div>
-      {error && <p className="text-xs text-red-600 mt-3">{error}</p>}
+      {error && <p className="text-xs text-error mt-3">{error}</p>}
       {result && (
         <div className="mt-4 space-y-2">
           <Badge ok={result.result.startsWith("SUCCESS")} label={result.result} />
           {result.errorLines.length > 0 && (
-            <pre className="text-[11px] text-red-700 bg-red-50 border border-red-100 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap break-words">
+            <pre className="text-[11px] text-red-700 bg-error/10 border border-red-100 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap break-words">
               {result.errorLines.join("\n")}
             </pre>
           )}
@@ -174,19 +174,19 @@ function TranscriptionDiagnostics({ headers }: { headers: () => Record<string, s
       <Button variant="primary" size="sm" onClick={run} disabled={busy}>
         {busy ? "Probing…" : "Run probe"}
       </Button>
-      {error && <p className="text-xs text-red-600 mt-3">{error}</p>}
+      {error && <p className="text-xs text-error mt-3">{error}</p>}
       {report && (
         <div className="mt-4 space-y-3">
           <Badge ok={report.requestGate.ok} label={report.verdict} />
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-left text-[10px] uppercase tracking-wide text-gray-400">
+              <tr className="text-left text-[10px] uppercase tracking-wide text-fg-subtle">
                 <th className="pb-1">Provider</th><th className="pb-1">Configured</th><th className="pb-1">Shape</th><th className="pb-1">Live auth</th>
               </tr>
             </thead>
             <tbody>
               {report.providers.map((p) => (
-                <tr key={p.provider} className="border-t border-gray-50">
+                <tr key={p.provider} className="border-t border-line">
                   <td className="py-1.5 font-mono">{p.provider}</td>
                   <td className="py-1.5">{p.configured ? "yes" : "no"}</td>
                   <td className="py-1.5">{p.credentialShapeValid ? "valid" : "—"}</td>
@@ -251,7 +251,7 @@ function AutoClipCalibration({ headers }: { headers: () => Record<string, string
         </Button>
       </div>
       {result && (
-        <p className="text-xs text-gray-500 mt-3">
+        <p className="text-xs text-fg-muted mt-3">
           {result.updated ? `Updated from ${result.sampleSize} samples.` : `Not updated — ${result.reason ?? "insufficient data"}.`}
         </p>
       )}
@@ -284,7 +284,7 @@ function S3AccessLoggingProbe({ headers }: { headers: () => Record<string, strin
           {report.enabled === null ? (
             <>
               <Badge ok={false} label="COULD NOT VERIFY" />
-              <p className="text-xs text-gray-500">{report.error}</p>
+              <p className="text-xs text-fg-muted">{report.error}</p>
             </>
           ) : (
             <Badge ok={report.enabled} label={report.enabled ? `LOGGING ON → ${report.targetBucket}` : "LOGGING OFF"} />
@@ -302,8 +302,8 @@ export default function AdminOpsDiagnosticsPage() {
 
   return (
     <AdminShell title="Incident Tools">
-      <Link href="/admin/ops" className="text-xs font-semibold text-gray-400 hover:text-gray-700">← Back to Operations</Link>
-      <p className="text-sm text-gray-500 mt-2 mb-4">
+      <Link href="/admin/ops" className="text-xs font-semibold text-fg-subtle hover:text-fg">← Back to Operations</Link>
+      <p className="text-sm text-fg-muted mt-2 mb-4">
         SEV-1/P0 incident-response probes. Each is read-only or report-only — see the linked route file for the full rationale behind why it exists.
       </p>
       <div className="grid grid-cols-1 gap-5">

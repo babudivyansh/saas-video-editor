@@ -79,22 +79,22 @@ export default function AdminReviewSettingsPage() {
 
   return (
     <AdminShell title="Review Settings">
-      <Link href="/admin/reviews" className="text-xs font-semibold text-gray-500 hover:text-gray-800">← Back to Reviews</Link>
+      <Link href="/admin/reviews" className="text-xs font-semibold text-fg-muted hover:text-fg">← Back to Reviews</Link>
 
       {isError ? (
         <div className="mt-4"><ErrorCard onRetry={refetch} /></div>
       ) : (
-        <Card shadow className="mt-4 max-w-xl divide-y divide-gray-50">
+        <Card shadow className="mt-4 max-w-xl divide-y divide-line">
           {isLoading || !settings ? (
-            <p className="text-sm text-gray-400 p-6">Loading…</p>
+            <p className="text-sm text-fg-subtle p-6">Loading…</p>
           ) : (
             FIELDS.map((f) => {
               const savingThis = saveMutation.isPending && saveMutation.variables?.key === f.key;
               return (
               <div key={f.key} className="flex items-center justify-between gap-4 px-6 py-4">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-900">{f.label}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{f.hint}</p>
+                  <p className="text-sm font-semibold text-fg">{f.label}</p>
+                  <p className="text-xs text-fg-subtle mt-0.5">{f.hint}</p>
                 </div>
                 {f.type === "boolean" ? (
                   <Switch
@@ -112,7 +112,7 @@ export default function AdminReviewSettingsPage() {
                       if (!isNaN(n) && n !== settings[f.key]) saveMutation.mutate({ key: f.key, value: n });
                     }}
                     disabled={savingThis}
-                    className="w-24 text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-24 text-sm border border-line rounded-lg px-2.5 py-1.5 text-right focus:outline-none focus:ring-2 focus:ring-primary/40"
                   />
                 )}
               </div>

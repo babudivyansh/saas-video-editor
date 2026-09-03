@@ -97,7 +97,7 @@ export default function AdminPurchasesPage() {
   const plans = data?.plans ?? [];
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
   const totalRevenue = purchases.reduce((s, p) => s + p.amountInPaise, 0);
-  const inputCls = "bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm";
+  const inputCls = "bg-panel border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 shadow-sm";
 
   return (
     <AdminShell title="Purchases">
@@ -130,12 +130,12 @@ export default function AdminPurchasesPage() {
       {!isLoading && !isError && (
         <div className="flex gap-4 mb-5">
           <Card shadow padding="md">
-            <p className="text-2xl font-extrabold text-gray-900">{total}</p>
-            <p className="text-xs text-gray-400 mt-0.5">Transactions</p>
+            <p className="text-2xl font-extrabold text-fg">{total}</p>
+            <p className="text-xs text-fg-subtle mt-0.5">Transactions</p>
           </Card>
           <Card shadow padding="md">
-            <p className="text-2xl font-extrabold text-blue-600">₹{Math.round(totalRevenue / 100).toLocaleString("en-IN")}</p>
-            <p className="text-xs text-gray-400 mt-0.5">Revenue (this page)</p>
+            <p className="text-2xl font-extrabold text-brand">₹{Math.round(totalRevenue / 100).toLocaleString("en-IN")}</p>
+            <p className="text-xs text-fg-subtle mt-0.5">Revenue (this page)</p>
           </Card>
         </div>
       )}
@@ -143,11 +143,11 @@ export default function AdminPurchasesPage() {
       {isError ? (
         <ErrorCard onRetry={refetch} />
       ) : isLoading ? (
-        <p className="text-sm text-gray-400">Loading purchases…</p>
+        <p className="text-sm text-fg-subtle">Loading purchases…</p>
       ) : purchases.length === 0 ? (
         <Card shadow className="p-12 text-center">
-          <p className="text-sm font-semibold text-gray-600">No purchases found</p>
-          <p className="text-xs text-gray-400 mt-1">Try adjusting your filters.</p>
+          <p className="text-sm font-semibold text-fg-muted">No purchases found</p>
+          <p className="text-xs text-fg-subtle mt-1">Try adjusting your filters.</p>
         </Card>
       ) : (
         <>
@@ -155,7 +155,7 @@ export default function AdminPurchasesPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                  <tr className="border-b border-line text-left text-xs font-semibold text-fg-subtle uppercase tracking-wide">
                     <th className="py-3.5 px-5">User</th>
                     <th className="py-3.5 px-3">Plan</th>
                     <th className="py-3.5 px-3">Kind</th>
@@ -168,37 +168,37 @@ export default function AdminPurchasesPage() {
                 </thead>
                 <tbody>
                   {purchases.map(p => (
-                    <tr key={p.id} className="border-b border-gray-50 last:border-0">
+                    <tr key={p.id} className="border-b border-line last:border-0">
                       <td className="py-3 px-5">
-                        <p className="font-semibold text-gray-700">{p.user?.name || p.user?.email || "—"}</p>
-                        {p.user?.name && <p className="text-xs text-gray-400">{p.user.email}</p>}
+                        <p className="font-semibold text-fg">{p.user?.name || p.user?.email || "—"}</p>
+                        {p.user?.name && <p className="text-xs text-fg-subtle">{p.user.email}</p>}
                       </td>
-                      <td className="py-3 px-3 text-gray-600 text-xs">{p.plan?.name ?? "—"}</td>
+                      <td className="py-3 px-3 text-fg-muted text-xs">{p.plan?.name ?? "—"}</td>
                       <td className="py-3 px-3">
                         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
-                          p.plan?.kind === "subscription" ? "bg-blue-100 text-blue-700" :
+                          p.plan?.kind === "subscription" ? "bg-tint-violet text-brand" :
                           p.plan?.kind === "addon"        ? "bg-purple-100 text-purple-700" :
-                          "bg-gray-100 text-gray-600"}`}>
+                          "bg-surface-3 text-fg-muted"}`}>
                           {p.plan?.kind ?? "—"}
                         </span>
                       </td>
-                      <td className="py-3 px-3 font-semibold text-gray-900">₹{Math.round(p.amountInPaise / 100).toLocaleString("en-IN")}</td>
-                      <td className="py-3 px-3 text-gray-600">+{p.credits}</td>
+                      <td className="py-3 px-3 font-semibold text-fg">₹{Math.round(p.amountInPaise / 100).toLocaleString("en-IN")}</td>
+                      <td className="py-3 px-3 text-fg-muted">+{p.credits}</td>
                       <td className="py-3 px-3">
                         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${
                           p.status === "captured" ? "text-green-700 bg-green-100" :
                           p.status === "failed"   ? "text-red-700 bg-red-100" :
-                          "text-gray-600 bg-gray-100"}`}>
+                          "text-fg-muted bg-surface-3"}`}>
                           {p.status}
                         </span>
                       </td>
-                      <td className="py-3 px-3 text-gray-400 text-xs whitespace-nowrap">{fmt(p.createdAt)}</td>
+                      <td className="py-3 px-3 text-fg-subtle text-xs whitespace-nowrap">{fmt(p.createdAt)}</td>
                       <td className="py-3 px-3">
                         {p.status !== "refunded" && (
                           <Button
                             variant="link"
                             onClick={() => { setRefundingId(p.id); setRefundReason(""); }}
-                            className="text-red-600"
+                            className="text-error"
                           >
                             Refund
                           </Button>
@@ -211,7 +211,7 @@ export default function AdminPurchasesPage() {
             </div>
           </Card>
 
-          <div className="flex items-center justify-between text-sm text-gray-500">
+          <div className="flex items-center justify-between text-sm text-fg-muted">
             <span>Page {page} of {totalPages} ({total} total)</span>
             <div className="flex gap-2">
               <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>← Prev</Button>
@@ -244,7 +244,7 @@ export default function AdminPurchasesPage() {
           value={refundReason}
           onChange={(e) => setRefundReason(e.target.value)}
           placeholder="Reason (required, min 3 characters)"
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line rounded-lg px-3 py-2 text-sm"
         />
       </ConfirmDialog>
     </AdminShell>

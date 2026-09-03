@@ -35,7 +35,7 @@ const DENY_PATHS = [
   "app/opengraph-image.tsx",      // Satori social cards, own background
   "app/twitter-image.tsx",
   "app/dashboard/editor",         // already dark, owns the --editor-* token set
-  "app/admin",                    // out of scope for this migration
+  // app/admin came off this list when the admin panel was migrated too.
   "design-system",                // vendored, already eslint-ignored
   "ds-bundle",
   ".ds-sync",
@@ -99,6 +99,7 @@ const RULES = {
   "text-zinc-600": "text-fg-subtle",
 
   // Lines
+  "border-gray-50": "border-line",
   "border-gray-100": "border-line",
   "border-gray-200": "border-line",
   "border-gray-300": "border-line-strong",

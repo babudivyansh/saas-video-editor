@@ -59,19 +59,19 @@ export default function AdminToolsPage() {
 
   return (
     <AdminShell title="Tools">
-      <p className="text-sm text-gray-500 mb-6">
+      <p className="text-sm text-fg-muted mb-6">
         Enable/disable tools in real-time and override their credit cost. Changes take effect within 60 seconds (Redis cache).
       </p>
       {isError ? (
         <ErrorCard onRetry={refetch} />
       ) : isLoading ? (
-        <p className="text-sm text-gray-400">Loading tools…</p>
+        <p className="text-sm text-fg-subtle">Loading tools…</p>
       ) : (
         <Card shadow>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                <tr className="border-b border-line text-left text-xs font-semibold text-fg-subtle uppercase tracking-wide">
                   <th className="py-3.5 px-5">Tool</th>
                   <th className="py-3.5 px-3">API Service</th>
                   <th className="py-3.5 px-3">Status</th>
@@ -83,15 +83,15 @@ export default function AdminToolsPage() {
                 {tools.map(t => {
                   const busy = patchMutation.isPending && patchMutation.variables?.slug === t.slug;
                   return (
-                    <tr key={t.slug} className={`border-b border-gray-50 last:border-0 ${!t.enabled ? "opacity-50" : ""}`}>
+                    <tr key={t.slug} className={`border-b border-line last:border-0 ${!t.enabled ? "opacity-50" : ""}`}>
                       <td className="py-3 px-5">
-                        <span className="font-mono text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">{t.slug}</span>
+                        <span className="font-mono text-xs bg-surface-3 text-fg px-2 py-0.5 rounded">{t.slug}</span>
                       </td>
-                      <td className="py-3 px-3 text-gray-500 text-xs">{t.service}</td>
+                      <td className="py-3 px-3 text-fg-muted text-xs">{t.service}</td>
                       <td className="py-3 px-3">
                         {t.enabled
                           ? <span className="text-[10px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">ENABLED</span>
-                          : <span className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full">DISABLED</span>}
+                          : <span className="text-[10px] font-bold text-error bg-red-100 px-2 py-0.5 rounded-full">DISABLED</span>}
                       </td>
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-2">
@@ -100,7 +100,7 @@ export default function AdminToolsPage() {
                             min={0}
                             value={editCost[t.slug] ?? String(t.creditCost)}
                             onChange={e => setEditCost(prev => ({ ...prev, [t.slug]: e.target.value }))}
-                            className="w-20 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-20 bg-surface-2 border border-line rounded-lg px-2.5 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary/40"
                           />
                           <Button onClick={() => saveCost(t.slug)} disabled={busy} variant="secondary" size="sm">
                             {busy ? "…" : "Set"}

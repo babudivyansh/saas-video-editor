@@ -9,12 +9,12 @@ import {
 } from "recharts";
 import AdminShell from "../../AdminShell";
 import { useAuth } from "@/app/components/AuthContext";
-import { BRAND, PALETTE, ChartContainer, ErrorCard, Skeleton } from "../../dashboard/ui";
+import { BRAND, PALETTE, TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE, TOOLTIP_STYLE, ChartContainer, ErrorCard, Skeleton } from "../../dashboard/ui";
 import { Donut, HBars } from "../../dashboard/charts";
 import { featureUsedLabel } from "@/lib/reviews/constants";
 
-const GRID = "#f3f4f6";
-const AXIS_TICK = { fontSize: 10, fill: "#9ca3af" } as const;
+const GRID = "var(--line)";
+const AXIS_TICK = { fontSize: 10, fill: "var(--fg-subtle)" } as const;
 const RANGES = [7, 30, 90, 365] as const;
 
 interface Analytics {
@@ -53,9 +53,9 @@ const TRIGGER_LABEL: Record<string, string> = {
 
 function KpiTile({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="bg-gray-50 rounded-xl p-4 text-center">
-      <p className="text-2xl font-extrabold text-gray-900">{value}</p>
-      <p className="text-xs text-gray-400 mt-0.5">{label}</p>
+    <div className="bg-surface-2 rounded-xl p-4 text-center">
+      <p className="text-2xl font-extrabold text-fg">{value}</p>
+      <p className="text-xs text-fg-subtle mt-0.5">{label}</p>
     </div>
   );
 }
@@ -84,13 +84,13 @@ export default function AdminReviewsAnalyticsPage() {
   return (
     <AdminShell title="Review Analytics">
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <Link href="/admin/reviews" className="text-xs font-semibold text-gray-500 hover:text-gray-800">← Back to Reviews</Link>
-        <div className="inline-flex bg-gray-100 rounded-xl p-1">
+        <Link href="/admin/reviews" className="text-xs font-semibold text-fg-muted hover:text-fg">← Back to Reviews</Link>
+        <div className="inline-flex bg-surface-3 rounded-xl p-1">
           {RANGES.map((r) => (
             <button
               key={r}
               onClick={() => setRange(r)}
-              className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-colors ${range === r ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-800"}`}
+              className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-colors ${range === r ? "bg-panel text-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}
             >
               {r}d
             </button>
@@ -125,7 +125,7 @@ export default function AdminReviewsAnalyticsPage() {
                     <CartesianGrid stroke={GRID} vertical={false} />
                     <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={32} />
                     <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} allowDecimals={false} width={28} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 12, border: "1px solid #f3f4f6" }} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} />
                     <Area type="monotone" dataKey="count" name="Submissions" stroke={BRAND} strokeWidth={2} fill={BRAND} fillOpacity={0.08} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -142,7 +142,7 @@ export default function AdminReviewsAnalyticsPage() {
                     <CartesianGrid stroke={GRID} vertical={false} />
                     <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={32} />
                     <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} domain={[0, 5]} width={24} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 12, border: "1px solid #f3f4f6" }} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} />
                     <Line type="monotone" dataKey="avg" name="Avg rating" stroke={PALETTE[3]} strokeWidth={2} dot={false} connectNulls />
                   </LineChart>
                 </ResponsiveContainer>
@@ -185,7 +185,7 @@ export default function AdminReviewsAnalyticsPage() {
                     <CartesianGrid stroke={GRID} vertical={false} />
                     <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={32} />
                     <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} allowDecimals={false} width={28} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 12, border: "1px solid #f3f4f6" }} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} />
                     <Bar dataKey="helpful" name="Helpful" fill={BRAND} radius={[3, 3, 0, 0]} />
                     <Bar dataKey="notHelpful" name="Not helpful" fill={PALETTE[4]} radius={[3, 3, 0, 0]} />
                   </BarChart>
@@ -212,7 +212,7 @@ export default function AdminReviewsAnalyticsPage() {
                     <CartesianGrid stroke={GRID} vertical={false} />
                     <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={32} />
                     <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} allowDecimals={false} width={28} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 12, border: "1px solid #f3f4f6" }} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} />
                     <Area type="monotone" dataKey="count" name="Impressions" stroke={PALETTE[2]} strokeWidth={2} fill={PALETTE[2]} fillOpacity={0.08} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -222,12 +222,12 @@ export default function AdminReviewsAnalyticsPage() {
 
           <ChartContainer title="Review-prompt funnel" subtitle="Per trigger: how many popups were shown, dismissed, and converted to a submitted review">
             {data.promptFunnel.length === 0 ? (
-              <p className="text-xs text-gray-400 py-6 text-center">No prompts shown in range.</p>
+              <p className="text-xs text-fg-subtle py-6 text-center">No prompts shown in range.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-[11px] uppercase tracking-wide text-gray-400">
+                    <tr className="text-left text-[11px] uppercase tracking-wide text-fg-subtle">
                       <th className="pb-2 pr-4 font-semibold">Trigger</th>
                       <th className="pb-2 pr-4 font-semibold text-right">Shown</th>
                       <th className="pb-2 pr-4 font-semibold text-right">Dismissed</th>
@@ -236,15 +236,15 @@ export default function AdminReviewsAnalyticsPage() {
                       <th className="pb-2 font-semibold text-right">Conversion rate</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-line">
                     {data.promptFunnel.map((row) => (
                       <tr key={row.trigger}>
-                        <td className="py-2 pr-4 font-semibold text-gray-800">{TRIGGER_LABEL[row.trigger] ?? row.trigger}</td>
-                        <td className="py-2 pr-4 text-right text-gray-600">{row.shown}</td>
-                        <td className="py-2 pr-4 text-right text-gray-600">{row.dismissed}</td>
-                        <td className="py-2 pr-4 text-right text-gray-600">{row.dismissalRate}%</td>
-                        <td className="py-2 pr-4 text-right text-gray-600">{row.converted}</td>
-                        <td className="py-2 text-right font-semibold text-gray-800">{row.conversionRate}%</td>
+                        <td className="py-2 pr-4 font-semibold text-fg">{TRIGGER_LABEL[row.trigger] ?? row.trigger}</td>
+                        <td className="py-2 pr-4 text-right text-fg-muted">{row.shown}</td>
+                        <td className="py-2 pr-4 text-right text-fg-muted">{row.dismissed}</td>
+                        <td className="py-2 pr-4 text-right text-fg-muted">{row.dismissalRate}%</td>
+                        <td className="py-2 pr-4 text-right text-fg-muted">{row.converted}</td>
+                        <td className="py-2 text-right font-semibold text-fg">{row.conversionRate}%</td>
                       </tr>
                     ))}
                   </tbody>
@@ -260,11 +260,11 @@ export default function AdminReviewsAnalyticsPage() {
                 ["Email 2 — Gentle reminder", data.emailDripStats.stage2],
                 ["Email 3 — Final reminder", data.emailDripStats.stage3],
               ] as const).map(([label, stage]) => (
-                <div key={label} className="bg-gray-50 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-gray-500">{label}</p>
-                  <p className="text-2xl font-extrabold text-gray-900 mt-1">{stage.sent}</p>
-                  <p className="text-[11px] text-gray-400">sent</p>
-                  <div className="mt-2 flex items-center justify-center gap-3 text-xs text-gray-600">
+                <div key={label} className="bg-surface-2 rounded-xl p-4">
+                  <p className="text-xs font-semibold text-fg-muted">{label}</p>
+                  <p className="text-2xl font-extrabold text-fg mt-1">{stage.sent}</p>
+                  <p className="text-[11px] text-fg-subtle">sent</p>
+                  <div className="mt-2 flex items-center justify-center gap-3 text-xs text-fg-muted">
                     <span>{stage.openRate}% opened</span>
                     <span>·</span>
                     <span>{stage.clickRate}% clicked</span>
@@ -276,13 +276,13 @@ export default function AdminReviewsAnalyticsPage() {
 
           <ChartContainer title="Churn correlation" subtitle="Correlational only, not causal — a small/skewed sample can be misleading">
             <div className="grid grid-cols-2 gap-4 text-center">
-              <div className="bg-gray-50 rounded-xl p-4">
-                <p className="text-2xl font-extrabold text-gray-900">{data.churnCorrelation.avgRatingRetained.toFixed(1)}★</p>
-                <p className="text-xs text-gray-400 mt-0.5">Active subscribers ({data.churnCorrelation.sampleSizeRetained} reviews)</p>
+              <div className="bg-surface-2 rounded-xl p-4">
+                <p className="text-2xl font-extrabold text-fg">{data.churnCorrelation.avgRatingRetained.toFixed(1)}★</p>
+                <p className="text-xs text-fg-subtle mt-0.5">Active subscribers ({data.churnCorrelation.sampleSizeRetained} reviews)</p>
               </div>
-              <div className="bg-gray-50 rounded-xl p-4">
-                <p className="text-2xl font-extrabold text-gray-900">{data.churnCorrelation.avgRatingChurned.toFixed(1)}★</p>
-                <p className="text-xs text-gray-400 mt-0.5">Churned/cancelled ({data.churnCorrelation.sampleSizeChurned} reviews)</p>
+              <div className="bg-surface-2 rounded-xl p-4">
+                <p className="text-2xl font-extrabold text-fg">{data.churnCorrelation.avgRatingChurned.toFixed(1)}★</p>
+                <p className="text-xs text-fg-subtle mt-0.5">Churned/cancelled ({data.churnCorrelation.sampleSizeChurned} reviews)</p>
               </div>
             </div>
           </ChartContainer>

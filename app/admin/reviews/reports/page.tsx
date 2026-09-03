@@ -51,15 +51,15 @@ export default function AdminReviewReportsPage() {
 
   return (
     <AdminShell title="Review Reports">
-      <Link href="/admin/reviews" className="text-xs font-semibold text-gray-500 hover:text-gray-800">← Back to Reviews</Link>
+      <Link href="/admin/reviews" className="text-xs font-semibold text-fg-muted hover:text-fg">← Back to Reviews</Link>
 
       <div className="mt-4">
         {isError ? (
           <ErrorCard onRetry={refetch} />
         ) : isLoading ? (
-          <p className="text-sm text-gray-400">Loading…</p>
+          <p className="text-sm text-fg-subtle">Loading…</p>
         ) : reports.length === 0 ? (
-          <p className="text-sm text-gray-400 py-12 text-center">No open reports. Nice and quiet.</p>
+          <p className="text-sm text-fg-subtle py-12 text-center">No open reports. Nice and quiet.</p>
         ) : (
           <div className="space-y-3">
             {reports.map((r) => {
@@ -70,13 +70,13 @@ export default function AdminReviewReportsPage() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-amber-100 text-amber-700">{r.reason.replace("_", " ")}</span>
-                      <Link href={`/admin/reviews/${r.review.id}`} className="text-xs font-semibold text-blue-600 hover:text-blue-800">
+                      <Link href={`/admin/reviews/${r.review.id}`} className="text-xs font-semibold text-brand hover:text-brand-deep">
                         View review ({r.review.rating}★, {r.review.status})
                       </Link>
                     </div>
-                    <p className="text-sm text-gray-700 line-clamp-2">{r.review.title || r.review.body}</p>
-                    {r.details && <p className="text-xs text-gray-500 mt-1">Reporter note: {r.details}</p>}
-                    <p className="text-xs text-gray-400 mt-1">Reported by {r.user.name || r.user.email} · {dt(r.createdAt)}</p>
+                    <p className="text-sm text-fg line-clamp-2">{r.review.title || r.review.body}</p>
+                    {r.details && <p className="text-xs text-fg-muted mt-1">Reporter note: {r.details}</p>}
+                    <p className="text-xs text-fg-subtle mt-1">Reported by {r.user.name || r.user.email} · {dt(r.createdAt)}</p>
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
                     <Button variant="secondary" size="sm" disabled={busy} onClick={() => handleMutation.mutate({ id: r.id, action: "dismiss" })}>
