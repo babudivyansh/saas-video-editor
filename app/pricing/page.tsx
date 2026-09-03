@@ -521,7 +521,7 @@ export default function PricingPage() {
                 {t.label}
                 {t.months === 12 && savePct != null && (
                   <span className={`ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
-                    term === 12 ? "bg-green-400 text-green-900" : "bg-green-100 text-green-700"
+                    term === 12 ? "bg-success text-bg" : "bg-tint-emerald text-success"
                   }`}>
                     SAVE {savePct}%
                   </span>
@@ -603,14 +603,14 @@ export default function PricingPage() {
                           onClick={() => openCheckout(plan, true)}
                           className={`w-full font-semibold py-2.5 mt-2.5 rounded-full text-sm transition-all ${
                             idx === 1
-                              ? "bg-white/25 text-white ring-1 ring-white/30 hover:bg-white/40"
+                              ? "bg-on-primary/20 text-on-primary ring-1 ring-on-primary/25 hover:bg-on-primary/30"
                               : "bg-panel text-brand ring-1 ring-brand-soft hover:bg-tint-blue"
                           }`}
                         >
                           Or try Pro free for 7 days — {TRIAL_CREDITS} credits included
                         </button>
                       )}
-                      <p className={`text-center text-[11px] mt-2 ${idx === 1 ? "text-white/70" : "text-ink-soft"}`}>
+                      <p className={`text-center text-[11px] mt-2 ${idx === 1 ? "text-on-primary/70" : "text-ink-soft"}`}>
                         ✓ 48-hour money-back guarantee
                       </p>
                     </>
@@ -927,10 +927,10 @@ export default function PricingPage() {
                     {appliedCoupon ? (
                       <div className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
                         <div className="min-w-0">
-                          <p className="text-xs font-bold text-green-700 truncate">🎟 {appliedCoupon.code} applied</p>
+                          <p className="text-xs font-bold text-success truncate">🎟 {appliedCoupon.code} applied</p>
                           <p className="text-[11px] text-success">{appliedCoupon.label}</p>
                         </div>
-                        <button onClick={clearCoupon} className="text-xs text-green-700 hover:text-green-900 underline flex-shrink-0">Remove</button>
+                        <button onClick={clearCoupon} className="text-xs text-success hover:text-emerald-bright hover:text-green-900 underline flex-shrink-0">Remove</button>
                       </div>
                     ) : (
                       <div>
@@ -1039,7 +1039,7 @@ export default function PricingPage() {
                   {t.service && <p className="text-[11px] text-ink-soft truncate">{t.service}</p>}
                 </div>
                 <span className={`flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${
-                  t.creditCost === 0 ? "bg-green-100 text-green-700" : t.creditCost >= 20 ? "bg-purple-100 text-purple-700" : "bg-tint-blue text-brand"
+                  t.creditCost === 0 ? "bg-tint-emerald text-success" : t.creditCost >= 20 ? "bg-tint-violet text-brand" : "bg-tint-blue text-brand"
                 }`}>
                   {t.creditCostMin != null && t.creditCostMax != null && t.creditCostMax > t.creditCostMin
                     ? `${t.creditCostMin}–${t.creditCostMax} credits`
@@ -1188,7 +1188,7 @@ export default function PricingPage() {
       <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
         <div className="bg-brand rounded-3xl p-12 text-center text-on-primary shadow-2xl">
           <h2 className="text-3xl sm:text-4xl font-semibold mb-3">Still have questions?</h2>
-          <p className="text-white/80 mb-8">
+          <p className="text-on-primary/75 mb-8">
             Email us any time and we&apos;ll get back to you within 24 hours. Or start free — no credit card needed.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -1209,7 +1209,7 @@ export default function PricingPage() {
             )}
             <a
               href="mailto:support@clipiro.com"
-              className="inline-flex items-center justify-center gap-2 border-2 border-white/40 text-white font-bold px-8 py-3.5 rounded-full hover:bg-white/10 transition-colors"
+              className="inline-flex items-center justify-center gap-2 border-2 border-on-primary/40 text-on-primary font-bold px-8 py-3.5 rounded-full hover:bg-white/10 transition-colors"
             >
               Contact Support
             </a>

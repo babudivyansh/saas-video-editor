@@ -359,7 +359,7 @@ function AssetsPageInner() {
                 <IcUpload />
               </div>
               <p className="text-sm text-ink-soft mt-1">Drop files here or <span className="text-brand font-semibold">browse</span></p>
-              <p className="text-xs text-ink-soft/60">
+              <p className="text-xs text-ink-soft">
                 Supports video, audio, and images{stats ? ` up to ${fmtSize(stats.maxUploadBytes)} per file` : ""}
               </p>
             </div>
@@ -554,7 +554,7 @@ function AssetsPageInner() {
           <button
             type="button"
             onClick={cancelZipDownload}
-            className="text-ink-soft/60 hover:text-ink hover:bg-tint-blue rounded-full w-6 h-6 flex items-center justify-center transition-colors cursor-pointer"
+            className="text-ink-soft hover:text-ink hover:bg-tint-blue rounded-full w-6 h-6 flex items-center justify-center transition-colors cursor-pointer"
             aria-label="Cancel download"
           >
             ✕

@@ -46,7 +46,7 @@ function NavRow({ active, icon, label, count, onClick, onDrop }: {
     >
       {icon}
       <span className="flex-1 truncate">{label}</span>
-      {count !== undefined && <span className={`text-[10px] font-bold ${active ? "text-white/80" : "text-ink-soft/60"}`}>{count}</span>}
+      {count !== undefined && <span className={`text-[10px] font-bold ${active ? "text-brand/90" : "text-ink-soft/60"}`}>{count}</span>}
     </button>
   );
 }
@@ -127,7 +127,7 @@ export function Sidebar({
               className="w-full text-sm border border-violet-400 rounded-xl px-3 py-2 outline-none"
             />
           )}
-          {folders.length === 0 && !creating && <p className="text-xs text-ink-soft/60 px-3">No folders yet.</p>}
+          {folders.length === 0 && !creating && <p className="text-xs text-ink-soft px-3">No folders yet.</p>}
         </div>
       </div>
 

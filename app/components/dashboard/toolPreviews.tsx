@@ -413,7 +413,7 @@ export function RedditPreview() {
         ))}
       </div>
       <div className="w-1/2 rounded-lg overflow-hidden border border-line bg-gradient-to-b from-sky-300 to-blue-600 relative">
-        <div className="absolute top-2 left-2 right-2 bg-white/90 rounded p-1.5">
+        <div className="absolute top-2 left-2 right-2 bg-panel/95 rounded p-1.5">
           <p className="text-[7px] font-bold text-fg">r/AskReddit</p>
           <p className="text-[7px] text-fg-muted leading-tight mt-0.5">What scientific breakthrough are we closer to than people realize?</p>
         </div>
