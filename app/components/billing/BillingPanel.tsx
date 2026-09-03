@@ -101,7 +101,7 @@ function Spinner() {
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
-    completed: "bg-tint-emerald text-green-700",
+    completed: "bg-tint-emerald text-success",
     pending: "bg-tint-blue text-brand",
     failed: "bg-error/10 text-error",
     refunded: "bg-surface-3 text-fg-muted",
@@ -315,7 +315,7 @@ export function BillingPanel({
         <span className="sr-only">Loading your billing details…</span>
         <div className="flex gap-1 border-b border-line -mb-1">
           {TABS.map(t => (
-            <span key={t.key} className="px-4 py-2.5 text-sm font-semibold text-ink-soft/40">{t.label}</span>
+            <span key={t.key} className="px-4 py-2.5 text-sm font-semibold text-ink-soft">{t.label}</span>
           ))}
         </div>
         <Card className="p-6 space-y-5">
@@ -366,7 +366,7 @@ export function BillingPanel({
 
       {/* Success / error banners */}
       {success && (
-        <div className="bg-tint-emerald border border-green-200 text-green-800 rounded-2xl px-5 py-3.5 text-sm font-medium flex items-center gap-2">
+        <div className="bg-tint-emerald border border-tint-emerald-border text-success rounded-2xl px-5 py-3.5 text-sm font-medium flex items-center gap-2">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4 flex-shrink-0">
             <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -374,7 +374,7 @@ export function BillingPanel({
         </div>
       )}
       {cancelSuccess && (
-        <div className="bg-tint-emerald border border-green-200 text-green-800 rounded-2xl px-5 py-3.5 text-sm font-medium flex items-center gap-2">
+        <div className="bg-tint-emerald border border-tint-emerald-border text-success rounded-2xl px-5 py-3.5 text-sm font-medium flex items-center gap-2">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4 flex-shrink-0">
             <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -484,7 +484,7 @@ export function BillingPanel({
         </div>
       )}
 
-      <p className="text-center text-xs text-ink-soft/60 pb-6">
+      <p className="text-center text-xs text-ink-soft pb-6">
         Payments powered by Razorpay · Secure &amp; encrypted
       </p>
 
@@ -533,7 +533,7 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
           <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2 flex-wrap">
-                <span className="inline-block bg-tint-emerald text-green-700 text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wide">
+                <span className="inline-block bg-tint-emerald text-success text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wide">
                   Active Plan
                 </span>
                 <span className="text-sm font-semibold text-ink truncate">{user?.plan?.name ?? "Subscription"}</span>
@@ -546,7 +546,7 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
               <p className={`text-sm font-medium ${expiringSoon ? "text-error" : "text-ink-soft"}`}>
                 {renewalLabel(daysLeft, cancelled)}
               </p>
-              <p className="text-xs text-ink-soft/70 mt-1">Member since {memberSince}</p>
+              <p className="text-xs text-ink-soft mt-1">Member since {memberSince}</p>
               <div className="flex items-center gap-4 mt-2">
                 <button onClick={onManagePlan} className="inline-flex items-center gap-1 text-xs text-brand hover:text-brand-dark font-medium transition-colors cursor-pointer">
                   Manage plan
@@ -555,7 +555,7 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
                   </svg>
                 </button>
                 {!cancelled && (
-                  <button onClick={onCancelClick} className="text-xs text-ink-soft/60 hover:text-error font-medium transition-colors cursor-pointer">
+                  <button onClick={onCancelClick} className="text-xs text-ink-soft hover:text-error font-medium transition-colors cursor-pointer">
                     Cancel subscription
                   </button>
                 )}
@@ -575,7 +575,7 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
                       total, so which credits you were about to lose was
                       invisible. */}
                   {user?.creditBalances && balance > 0 && (
-                    <p className="text-xs text-ink-soft/70 mt-1">
+                    <p className="text-xs text-ink-soft mt-1">
                       {[
                         user.creditBalances.subscription > 0 && `${user.creditBalances.subscription} monthly`,
                         user.creditBalances.purchased > 0 && `${user.creditBalances.purchased} top-up`,
@@ -584,7 +584,7 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
                     </p>
                   )}
                   {generationsThisMonth > 0 && (
-                    <p className="text-xs text-ink-soft/70 mt-0.5">
+                    <p className="text-xs text-ink-soft mt-0.5">
                       {generationsThisMonth} generation{generationsThisMonth === 1 ? "" : "s"} in the last 30 days
                     </p>
                   )}
@@ -616,7 +616,7 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
               term has no mandate — it just lapses at subscriptionEndsAt — so
               quoting a "next charge" for one was simply untrue. */}
           {!cancelled && user?.plan?.priceInPaise && user?.razorpaySubscriptionId ? (
-            <p className="text-xs text-ink-soft/70">
+            <p className="text-xs text-ink-soft">
               Next charge {planPrice(user.plan, currency)} on {user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "—"}.
             </p>
           ) : null}
@@ -655,14 +655,14 @@ function UsageTab({ summary, history, historyCursor, historyLoadingMore, onLoadM
       <Card className="p-6">
         <h2 className="text-base font-extrabold text-ink mb-4">Top models</h2>
         {!summary || summary.byModel.length === 0 ? (
-          <p className="text-sm text-ink-soft/70 py-4 text-center">No usage yet — generate something to see a breakdown here.</p>
+          <p className="text-sm text-ink-soft py-4 text-center">No usage yet — generate something to see a breakdown here.</p>
         ) : (
           <div className="space-y-2">
             {summary.byModel.slice(0, 8).map(m => (
               <div key={`${m.toolSlug}-${m.modelId ?? "none"}`} className="flex items-center justify-between py-2 px-3 bg-surface rounded-lg">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-ink truncate">{m.displayName}</p>
-                  <p className="text-xs text-ink-soft/70">{m.count} generation{m.count === 1 ? "" : "s"}</p>
+                  <p className="text-xs text-ink-soft">{m.count} generation{m.count === 1 ? "" : "s"}</p>
                 </div>
                 <p className="text-sm font-bold text-ink flex-shrink-0">{m.creditsCost} cr</p>
               </div>
@@ -674,7 +674,7 @@ function UsageTab({ summary, history, historyCursor, historyLoadingMore, onLoadM
       <Card className="p-6">
         <h2 className="text-base font-extrabold text-ink mb-4">History</h2>
         {history.length === 0 ? (
-          <p className="text-sm text-ink-soft/70 py-4 text-center">No generations yet.</p>
+          <p className="text-sm text-ink-soft py-4 text-center">No generations yet.</p>
         ) : (
           <>
             <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -682,7 +682,7 @@ function UsageTab({ summary, history, historyCursor, historyLoadingMore, onLoadM
                 <div key={g.id} className="flex items-center justify-between py-2.5 px-4 bg-surface rounded-xl">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-ink truncate">{g.displayName}</p>
-                    <p className="text-xs text-ink-soft/70">{formatDate(g.createdAt)}</p>
+                    <p className="text-xs text-ink-soft">{formatDate(g.createdAt)}</p>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <StatusBadge status={g.status} />
@@ -760,7 +760,7 @@ function AutoTopupToggle({ packs }: { packs: DbPlan[] }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <p className="font-bold text-ink text-sm">Auto top-up</p>
-          {enabled && <span className="text-[10px] font-bold bg-tint-emerald text-green-700 px-2 py-0.5 rounded-full uppercase tracking-wide">On</span>}
+          {enabled && <span className="text-[10px] font-bold bg-tint-emerald text-success px-2 py-0.5 rounded-full uppercase tracking-wide">On</span>}
         </div>
         <p className="text-xs text-ink-soft mt-1">
           {enabled
@@ -786,7 +786,7 @@ function AutoTopupToggle({ packs }: { packs: DbPlan[] }) {
           aria-label="Auto top-up"
           onClick={() => update(enabled ? null : (packs[0]?.slug ?? null))}
           disabled={saving}
-          className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${enabled ? "bg-green-500" : "bg-ink-soft/30"}`}
+          className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${enabled ? "bg-success" : "bg-line-strong"}`}
         >
           <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-panel shadow transition-transform ${enabled ? "translate-x-5" : ""}`} />
         </button>
@@ -846,9 +846,9 @@ function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onVie
           </div>
           <div className="flex-shrink-0">
             {coupon.appliedCoupon ? (
-              <div className="flex items-center gap-2 bg-tint-emerald border border-green-200 rounded-full px-3 py-2">
-                <span className="text-xs font-bold text-green-700">🎟 {coupon.appliedCoupon.code} · {coupon.appliedCoupon.label}</span>
-                <button onClick={coupon.clear} className="text-xs text-green-700 hover:text-green-900 underline cursor-pointer">Remove</button>
+              <div className="flex items-center gap-2 bg-tint-emerald border border-tint-emerald-border rounded-full px-3 py-2">
+                <span className="text-xs font-bold text-success">🎟 {coupon.appliedCoupon.code} · {coupon.appliedCoupon.label}</span>
+                <button onClick={coupon.clear} className="text-xs text-success hover:text-emerald-bright hover:text-emerald-bright underline cursor-pointer">Remove</button>
               </div>
             ) : (
               <div>
@@ -875,7 +875,7 @@ function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onVie
         )}
 
         {packs.length === 0 ? (
-          <p className="text-sm text-ink-soft/60 py-6 text-center">No credit packs are available right now.</p>
+          <p className="text-sm text-ink-soft py-6 text-center">No credit packs are available right now.</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {packs.map((pack, i) => {
@@ -1025,18 +1025,18 @@ function HistoryTab({ purchases, purchasesLoaded }: { purchases: Purchase[]; pur
             <div key={p.id} className="flex items-center justify-between py-3 px-4 bg-surface rounded-xl">
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-ink truncate">{p.plan?.name ?? "Credit Pack"}</p>
-                <p className="text-xs text-ink-soft/70">{formatDate(p.createdAt)} · +{p.credits} credits</p>
+                <p className="text-xs text-ink-soft">{formatDate(p.createdAt)} · +{p.credits} credits</p>
               </div>
               <div className="flex items-center gap-3 flex-shrink-0">
                 <div className="text-right">
                   <p className="text-sm font-bold text-ink">{formatINR(p.amountInPaise)}</p>
-                  <span className="text-[10px] font-semibold text-green-700 bg-tint-emerald px-2 py-0.5 rounded-full capitalize">{p.status}</span>
+                  <span className="text-[10px] font-semibold text-success bg-tint-emerald px-2 py-0.5 rounded-full capitalize">{p.status}</span>
                 </div>
                 <Link
                   href={`/dashboard/profile/receipt/${p.id}`}
                   target="_blank"
                   title="View receipt"
-                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-card-border hover:bg-tint-blue hover:text-brand text-ink-soft/60 transition-colors"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-card-border hover:bg-tint-blue hover:text-brand text-ink-soft transition-colors"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
                     <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1z" />

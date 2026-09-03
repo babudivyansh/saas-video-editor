@@ -6,12 +6,11 @@ import SiteNavbar from "@/app/components/SiteNavbar";
  * Outer shell for every public marketing page: emerald page surface, navbar,
  * footer.
  *
- * `theme-emerald` opts the subtree into the dark token set (see globals.css).
- * It is applied here rather than at :root so surfaces that have not been
- * migrated yet keep the light theme instead of rendering dark tokens under
- * light utility classes.
+ * The dark token set comes from `theme-emerald` on <body> (app/layout.tsx),
+ * not from here — portalled surfaces mount to document.body and would escape a
+ * per-shell scope.
  *
- * This replaced `flat-brand`, which existed only to flatten the old
+ * This shell replaced `flat-brand`, which existed only to flatten the old
  * blue-to-fuchsia gradient down to a solid brand blue on marketing while the
  * dashboard kept the gradient. The emerald system has one accent family, so
  * there is nothing left to fork.
@@ -25,7 +24,7 @@ export default function MarketingShell({
   as?: "main" | "article";
 }) {
   return (
-    <div className="theme-emerald min-h-screen bg-bg text-fg">
+    <div className="min-h-screen bg-bg text-fg">
       <SiteNavbar solid />
       <Tag>{children}</Tag>
       <SiteFooter />

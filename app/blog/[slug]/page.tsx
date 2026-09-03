@@ -79,7 +79,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
   const faqSchema = post.faqs.length > 0 ? buildFaqPageSchema(post.faqs) : null;
 
   return (
-    <div className="theme-emerald min-h-screen bg-bg text-fg font-sans">
+    <div className="min-h-screen bg-bg text-fg font-sans">
       <JsonLd data={blogPostingSchema} />
       <JsonLd data={breadcrumbSchema} />
       {faqSchema && <JsonLd data={faqSchema} />}

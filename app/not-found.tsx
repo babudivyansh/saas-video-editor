@@ -6,7 +6,7 @@ function BoltIcon() {
 
 export default function NotFound() {
   return (
-    <main className="theme-emerald min-h-screen bg-bg text-fg flex flex-col items-center justify-center px-4">
+    <main className="min-h-screen bg-bg text-fg flex flex-col items-center justify-center px-4">
       <div className="flex flex-col items-center text-center max-w-md">
         <BoltIcon />
         <p className="mt-6 text-7xl font-black text-surface-3 select-none">404</p>

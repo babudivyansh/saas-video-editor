@@ -44,7 +44,7 @@ export default async function ReviewDetailPage({ params }: PageProps) {
   ]);
 
   return (
-    <div className="theme-emerald min-h-screen bg-bg text-fg font-sans">
+    <div className="min-h-screen bg-bg text-fg font-sans">
       <JsonLd data={reviewSchema} />
       <JsonLd data={breadcrumbSchema} />
       <SiteNavbar solid />

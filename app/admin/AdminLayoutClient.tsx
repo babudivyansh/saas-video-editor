@@ -87,7 +87,7 @@ function AdminGate({ email, onElevated }: { email: string; onElevated: () => voi
   }
 
   return (
-    <div className="theme-emerald flex h-screen items-center justify-center bg-bg text-fg px-4">
+    <div className="flex h-screen items-center justify-center bg-bg text-fg px-4">
       <div className="bg-panel rounded-2xl border border-line shadow-sm p-8 w-full max-w-sm text-center">
         <span className="bg-brand text-on-primary rounded-xl w-10 h-10 inline-flex items-center justify-center font-extrabold mb-4">C</span>
         <h1 className="text-lg font-bold text-fg mb-1">Admin sign-in</h1>
@@ -158,7 +158,7 @@ function AdminSignIn({ error: initialError }: { error?: string | null }) {
   }
 
   return (
-    <div className="theme-emerald flex h-screen items-center justify-center bg-bg text-fg px-4">
+    <div className="flex h-screen items-center justify-center bg-bg text-fg px-4">
       <div className="bg-panel rounded-2xl border border-line shadow-sm p-8 w-full max-w-sm text-center">
         <span className="bg-brand text-on-primary rounded-xl w-10 h-10 inline-flex items-center justify-center font-extrabold mb-4">C</span>
         <h1 className="text-lg font-bold text-fg mb-1">Admin Portal</h1>
@@ -244,7 +244,7 @@ function Shell({ email, onSignOut, children }: { email: string; onSignOut: () =>
   );
 
   return (
-    <div className="theme-emerald flex h-screen overflow-hidden bg-bg text-fg">
+    <div className="flex h-screen overflow-hidden bg-bg text-fg">
       {/* Sidebar (desktop) */}
       <aside className="hidden xl:flex w-56 flex-shrink-0 bg-panel border-r border-line flex-col">
         <Link href="/dashboard" className="flex items-center gap-2 px-5 h-16 border-b border-line">
@@ -309,7 +309,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
 
   if (isLoading || (user && user.role === "ADMIN" && elevated === null)) {
     return (
-      <div className="theme-emerald flex h-screen items-center justify-center bg-bg text-fg-subtle gap-3">
+      <div className="flex h-screen items-center justify-center bg-bg text-fg-subtle gap-3">
         <IcSpinner /> <span className="text-sm">Checking access…</span>
       </div>
     );

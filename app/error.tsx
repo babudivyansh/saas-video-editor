@@ -28,7 +28,7 @@ export default function GlobalError({
   }, [error]);
 
   return (
-    <main className="theme-emerald min-h-screen bg-bg text-fg flex flex-col items-center justify-center px-4">
+    <main className="min-h-screen bg-bg text-fg flex flex-col items-center justify-center px-4">
       <div className="flex flex-col items-center text-center max-w-md">
         <BoltIcon />
         <h1 className="mt-6 text-2xl font-bold text-fg">Something went wrong</h1>

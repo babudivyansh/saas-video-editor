@@ -24,7 +24,7 @@ export default async function HelpArticlePage({ params }: { params: Promise<{ sl
   const related = HELP_ARTICLES.filter((a) => a.category === article.category && a.slug !== article.slug).slice(0, 2);
 
   return (
-    <div className="theme-emerald min-h-screen bg-bg text-fg font-sans">
+    <div className="min-h-screen bg-bg text-fg font-sans">
       <SiteNavbar solid />
       <main>
         <article className="mx-auto w-full max-w-3xl px-4 py-16 md:px-6">

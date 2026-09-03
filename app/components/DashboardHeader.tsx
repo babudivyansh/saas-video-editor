@@ -418,7 +418,7 @@ export default function DashboardHeader() {
               data-tour="plan-chip"
               className={`hidden xl:inline-flex items-center text-[11px] font-bold uppercase tracking-wider rounded-full px-2.5 py-1 transition-colors cursor-pointer ${
                 hasActivePlan
-                  ? "bg-tint-emerald text-green-700 hover:bg-emerald-100"
+                  ? "bg-tint-emerald text-success hover:bg-tint-fuchsia"
                   : "bg-surface-3 text-ink-soft hover:bg-surface-3"
               }`}
             >
@@ -564,7 +564,7 @@ export default function DashboardHeader() {
               <div className="flex items-center justify-between px-3 py-2">
                 <span
                   className={`inline-flex items-center text-[11px] font-bold uppercase tracking-wider rounded-full px-2.5 py-1 ${
-                    hasActivePlan ? "bg-tint-emerald text-green-700" : "bg-surface-3 text-ink-soft"
+                    hasActivePlan ? "bg-tint-emerald text-success" : "bg-surface-3 text-ink-soft"
                   }`}
                 >
                   {planName}

@@ -42,7 +42,7 @@ function LoginPageContent() {
   };
 
   return (
-    <main className="theme-emerald relative min-h-screen flex items-center justify-center p-4 bg-bg text-fg">
+    <main className="relative min-h-screen flex items-center justify-center p-4 bg-bg text-fg">
       <BlurredBackground />
 
       <div className="relative z-10 w-full max-w-[760px] min-h-[520px] flex rounded-2xl shadow-2xl overflow-hidden bg-panel">

@@ -39,7 +39,7 @@ export default async function ReviewsPage() {
   ]);
 
   return (
-    <div className="theme-emerald min-h-screen bg-bg text-fg font-sans">
+    <div className="min-h-screen bg-bg text-fg font-sans">
       <JsonLd data={softwareAppSchema} />
       <JsonLd data={faqSchema} />
       <JsonLd data={breadcrumbSchema} />

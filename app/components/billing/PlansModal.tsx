@@ -248,7 +248,7 @@ function BrowseStep({ plansLoading, subs, packs, term, onTermChange, currency, o
               {t.label}
               {t.months === 12 && savePct != null && (
                 <span className={`ml-2 text-[10px] font-black px-1.5 py-0.5 rounded-full ${
-                  term === 12 ? "bg-green-400 text-green-900" : "bg-green-100 text-green-700"
+                  term === 12 ? "bg-success text-bg" : "bg-tint-emerald text-success"
                 }`}>
                   SAVE {savePct}%
                 </span>
@@ -459,12 +459,12 @@ function CheckoutStep({
           {couponsAvailable && (
           <div className="border-t border-line pt-4">
             {appliedCoupon ? (
-              <div className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+              <div className="flex items-center justify-between gap-2 bg-tint-emerald border border-tint-emerald-border rounded-lg px-3 py-2">
                 <div className="min-w-0">
-                  <p className="text-xs font-bold text-green-700 truncate">🎟 {appliedCoupon.code} applied</p>
+                  <p className="text-xs font-bold text-success truncate">🎟 {appliedCoupon.code} applied</p>
                   <p className="text-[11px] text-success">{appliedCoupon.label}</p>
                 </div>
-                <button onClick={onClearCoupon} className="text-xs text-green-700 hover:text-green-900 underline flex-shrink-0">Remove</button>
+                <button onClick={onClearCoupon} className="text-xs text-success hover:text-emerald-bright hover:text-emerald-bright underline flex-shrink-0">Remove</button>
               </div>
             ) : (
               <div>

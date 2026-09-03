@@ -118,7 +118,7 @@ export function InsufficientCreditsModal({ info, onClose }: {
 
         {done ? (
           <div className="text-center py-6">
-            <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
+            <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-tint-emerald flex items-center justify-center">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-6 h-6 text-success">
                 <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -181,7 +181,7 @@ export function InsufficientCreditsModal({ info, onClose }: {
             </div>
 
             {coupon && coupon.discountInPaise > 0 && selectedPack && (
-              <p className="mt-3 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+              <p className="mt-3 text-xs font-semibold text-success bg-tint-emerald border border-tint-emerald-border rounded-lg px-3 py-2">
                 🎟 {coupon.code} applied — you pay {formatPrice(totalPaise)} (save {formatPrice(coupon.discountInPaise)})
               </p>
             )}

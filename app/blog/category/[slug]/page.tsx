@@ -51,7 +51,7 @@ export default async function BlogCategoryPage({ params }: { params: Promise<{ s
   ]);
 
   return (
-    <div className="theme-emerald min-h-screen bg-bg text-fg font-sans">
+    <div className="min-h-screen bg-bg text-fg font-sans">
       <JsonLd data={collectionSchema} />
       <JsonLd data={breadcrumbSchema} />
       <SiteNavbar solid />

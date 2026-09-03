@@ -69,7 +69,7 @@ function ConfirmBody() {
 
 export default function ChangeEmailConfirmPage() {
   return (
-    <main className="theme-emerald min-h-screen bg-bg text-fg flex items-center justify-center px-4">
+    <main className="min-h-screen bg-bg text-fg flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-2.5 mb-8">
           <BoltIcon />

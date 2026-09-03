@@ -19,12 +19,11 @@ Two themes coexist:
 | `:root` | the original light system |
 | `.theme-emerald` | the dark emerald system |
 
-A subtree opts in by carrying `theme-emerald`. It is applied at the shell level
-(`DashboardShell`, `MarketingShell`, `AdminLayoutClient`, each auth page root)
-rather than at `:root`. Every surface is migrated now, so the remaining reason
-to keep the class is the un-migrated LIGHT values still sitting in `:root` — a
-new page that forgets the class renders light rather than rendering dark tokens
-under light utility classes.
+The class lives on `<body>` (`app/layout.tsx`) — **one place, not per-shell**.
+That matters: `Modal`, `ContextMenu` and the language dropdown all
+`createPortal` into `document.body`, so anything scoped to a shell root leaves
+every modal and popover in the app rendering the light theme. Put it on body,
+and portals are inside it.
 
 **Why per-subtree theming works at all:** `@theme inline` resolves its `var()`
 at the element's position in the cascade, not at `:root`. So
@@ -38,10 +37,8 @@ scope that redefines `--ink` changes every `text-ink` inside it.
 ### Retiring the light theme
 
 When `npm run check:theme` reaches zero, the `.theme-emerald` values move up
-into `:root` and the class disappears. Two temporary bridges go with it:
-
-- the inverted `--color-gray-*` ramp (see §9)
-- the `.theme-emerald` class on every shell root
+into `:root` and the class disappears, along with the inverted `--color-gray-*`
+ramp (see §9) that is bridging the remaining stock-gray usages.
 
 ---
 

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 export default function NewsletterConfirmedPage() {
   return (
-    <div className="theme-emerald min-h-screen bg-bg text-fg font-sans">
+    <div className="min-h-screen bg-bg text-fg font-sans">
       <SiteNavbar solid />
       <main className="mx-auto w-full max-w-xl px-4 py-24 text-center md:px-6">
         <h1 className="text-3xl font-extrabold text-ink md:text-4xl">You&apos;re subscribed 🎉</h1>

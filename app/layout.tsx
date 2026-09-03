@@ -72,7 +72,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-canvas text-on-canvas">
+      {/* `theme-emerald` sits on <body>, not on each shell.
+          Modal, ContextMenu and the language dropdown all createPortal into
+          document.body, which is OUTSIDE any shell root — so with the class on
+          the shells, every modal and popover in the app rendered in the light
+          theme. Scoping bought nothing any more anyway: every surface is
+          migrated, admin included. */}
+      <body className="theme-emerald min-h-full flex flex-col bg-canvas text-on-canvas">
         {/* Renders nothing; reports Core Web Vitals to our own endpoint. */}
         <WebVitals />
         <QueryProvider>

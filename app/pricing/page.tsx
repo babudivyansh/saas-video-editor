@@ -468,7 +468,7 @@ export default function PricingPage() {
     : totalDueMinor;
 
   return (
-    <div className="theme-emerald min-h-screen bg-bg text-fg">
+    <div className="min-h-screen bg-bg text-fg">
       <SiteNavbar solid />
 
       {/* ── Success banner ── */}

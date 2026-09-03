@@ -120,7 +120,7 @@ export function PlanCard({
           return (
             <p className={`text-xs mt-1 ${highlighted ? "text-on-primary" : "text-fg-muted"}`}>
               ≈ {images} images or {perRender ? Math.floor(plan.monthlyCredits / perRender) : 0} videos
-              <span className={highlighted ? "text-white/90" : "text-fg-muted"}> on the cheapest model</span>
+              <span className={highlighted ? "text-on-primary/85" : "text-fg-muted"}> on the cheapest model</span>
             </p>
           );
         })()}

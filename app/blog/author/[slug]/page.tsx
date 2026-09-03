@@ -47,7 +47,7 @@ export default async function BlogAuthorPage({ params }: { params: Promise<{ slu
   ]);
 
   return (
-    <div className="theme-emerald min-h-screen bg-bg text-fg font-sans">
+    <div className="min-h-screen bg-bg text-fg font-sans">
       <JsonLd data={profileSchema} />
       <JsonLd data={breadcrumbSchema} />
       <SiteNavbar solid />
