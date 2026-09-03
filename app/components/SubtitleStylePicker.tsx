@@ -22,7 +22,7 @@ export default function SubtitleStylePicker({
             onClick={() => onChange(i)}
             title={s.label}
             className={`relative h-[72px] rounded-xl flex items-center justify-center overflow-hidden transition-all
-              ${selected ? "ring-2 ring-blue-600 ring-offset-1" : "ring-1 ring-gray-200 hover:ring-gray-300"}`}
+              ${selected ? "ring-2 ring-blue-600 ring-offset-1" : "ring-1 ring-line hover:ring-gray-300"}`}
             style={{ background: "linear-gradient(135deg,#1e293b,#0f172a)" }}
           >
             <span

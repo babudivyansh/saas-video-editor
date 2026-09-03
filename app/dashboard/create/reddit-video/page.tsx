@@ -218,7 +218,7 @@ function VoiceCard({ voice, selected, onSelect }: { voice: Voice; selected: bool
   return (
     <div
       onClick={onSelect}
-      className={`flex items-center gap-3 px-3.5 py-3 rounded-xl border cursor-pointer transition-all ${selected ? "border-orange-500 bg-orange-50" : "border-gray-200 bg-white hover:border-gray-300"}`}
+      className={`flex items-center gap-3 px-3.5 py-3 rounded-xl border cursor-pointer transition-all ${selected ? "border-orange-500 bg-orange-50" : "border-line bg-panel hover:border-line-strong"}`}
       style={{ borderWidth: selected ? "2px" : "1px" }}
     >
       <button type="button" onClick={handlePlay}
@@ -226,10 +226,10 @@ function VoiceCard({ voice, selected, onSelect }: { voice: Voice; selected: bool
         <IcPlay />
       </button>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900">{voice.name}</p>
+        <p className="text-sm font-semibold text-fg">{voice.name}</p>
         <div className="flex gap-1.5 mt-1 flex-wrap">
-          <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-medium">{voice.gender}</span>
-          <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-medium">{voice.age}</span>
+          <span className="text-[10px] bg-surface-3 text-fg-muted px-2 py-0.5 rounded-md font-medium">{voice.gender}</span>
+          <span className="text-[10px] bg-surface-3 text-fg-muted px-2 py-0.5 rounded-md font-medium">{voice.age}</span>
           <span className="text-[10px] bg-orange-50 text-orange-600 px-2 py-0.5 rounded-md font-medium">{voice.accent}</span>
         </div>
       </div>
@@ -245,17 +245,17 @@ function VoiceColumn({ title, selected, onSelect }: { title: string; selected: s
   );
   return (
     <div className="flex flex-col gap-3">
-      <h3 className="text-sm font-bold text-gray-900">{title}</h3>
+      <h3 className="text-sm font-bold text-fg">{title}</h3>
       <div className="relative">
-        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-fg-subtle" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
           <circle cx="9" cy="9" r="6" /><path d="M14 14l3 3" strokeLinecap="round" />
         </svg>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, accent…"
-          className="w-full rounded-lg border border-gray-200 bg-white pl-8 pr-3.5 py-2 text-sm focus:outline-none placeholder:text-gray-400" />
+          className="w-full rounded-lg border border-line bg-panel pl-8 pr-3.5 py-2 text-sm focus:outline-none placeholder:text-fg-subtle" />
       </div>
       <div className="overflow-y-auto space-y-2 pr-0.5" style={{ maxHeight: "calc(100vh - 330px)" }}>
         {filtered.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-4">No voices found</p>
+          <p className="text-sm text-fg-subtle text-center py-4">No voices found</p>
         ) : filtered.map(v => (
           <VoiceCard key={v.id} voice={v} selected={selected === v.id} onSelect={() => onSelect(v.id)} />
         ))}
@@ -291,22 +291,22 @@ function VoiceSettingsPanel({ settings, onChange, language, onLanguageChange }: 
     { key: "voiceSpeed",        label: "Voice Speed",        min: 50, max: 200 },
   ];
   return (
-    <div className="bg-gray-50 border border-gray-100 rounded-2xl p-5 space-y-4">
+    <div className="bg-surface-2 border border-line rounded-2xl p-5 space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <IcSliders />
-          <span className="text-sm font-bold text-gray-800">Voice Settings</span>
+          <span className="text-sm font-bold text-fg">Voice Settings</span>
         </div>
         <button onClick={() => onChange(DEFAULT_VS)}
-          className="text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors">
+          className="text-xs font-semibold text-fg-subtle hover:text-fg-muted transition-colors">
           Reset
         </button>
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-bold text-gray-500 uppercase">Language</label>
+        <label className="text-xs font-bold text-fg-muted uppercase">Language</label>
         <select value={language} onChange={e => onLanguageChange(e.target.value)}
-          className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none">
+          className="rounded-xl border border-line bg-panel px-3 py-2 text-sm text-fg focus:outline-none">
           {LANGS.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
         </select>
       </div>
@@ -315,8 +315,8 @@ function VoiceSettingsPanel({ settings, onChange, language, onLanguageChange }: 
         {sliders.map(({ key, label, min, max }) => (
           <div key={key}>
             <div className="flex justify-between mb-1.5">
-              <span className="text-xs font-medium text-gray-600">{label}</span>
-              <span className="text-xs font-bold text-gray-800">{settings[key]}{key === "voiceSpeed" ? "%" : ""}</span>
+              <span className="text-xs font-medium text-fg-muted">{label}</span>
+              <span className="text-xs font-bold text-fg">{settings[key]}{key === "voiceSpeed" ? "%" : ""}</span>
             </div>
             <input type="range" min={min} max={max} value={settings[key]}
               onChange={e => onChange({ ...settings, [key]: Number(e.target.value) })}
@@ -340,7 +340,7 @@ function Header({ stepIndex, onNext, onBack, onGenerate, canNext, canGenerate, i
           <div className="w-9 h-9 rounded-lg bg-orange-500 flex items-center justify-center">
             <span className="text-white font-black text-lg leading-none">r</span>
           </div>
-          <h1 className="text-xl font-bold text-gray-900">Reddit Story Video</h1>
+          <h1 className="text-xl font-bold text-fg">Reddit Story Video</h1>
         </div>
       </div>
       <div className="flex items-center justify-between mt-5">
@@ -360,7 +360,7 @@ function Header({ stepIndex, onNext, onBack, onGenerate, canNext, canGenerate, i
         </nav>
         <div className="flex items-center gap-2">
           {stepIndex > 0 && (
-            <button onClick={onBack} className="inline-flex items-center gap-1 border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+            <button onClick={onBack} className="inline-flex items-center gap-1 border border-line hover:bg-surface-2 text-fg text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
               <IcChevronLeft /> Back
             </button>
           )}
@@ -455,15 +455,15 @@ function AiScriptModal({ onClose, onResult }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-gray-100" onClick={e => e.stopPropagation()}>
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-base font-bold text-gray-900 flex items-center gap-1.5"><IcSparkle /> Generate Script</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><IcX /></button>
+      <div className="bg-panel rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-line" onClick={e => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-line flex items-center justify-between">
+          <h3 className="text-base font-bold text-fg flex items-center gap-1.5"><IcSparkle /> Generate Script</h3>
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg-muted"><IcX /></button>
         </div>
-        <div className="flex border-b border-gray-100">
+        <div className="flex border-b border-line">
           {(["reddit", "ai"] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className={`flex-1 py-3 text-sm font-semibold border-b-2 transition-all ${tab === t ? "border-orange-500 text-orange-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
+              className={`flex-1 py-3 text-sm font-semibold border-b-2 transition-all ${tab === t ? "border-orange-500 text-orange-600" : "border-transparent text-fg-muted hover:text-fg"}`}>
               {t === "reddit" ? "Reddit URL" : "AI Generate"}
             </button>
           ))}
@@ -472,15 +472,15 @@ function AiScriptModal({ onClose, onResult }: {
           {tab === "reddit" ? (
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-gray-600 block mb-1.5">Paste Reddit URL</label>
+                <label className="text-xs font-bold text-fg-muted block mb-1.5">Paste Reddit URL</label>
                 <input value={redditUrl} onChange={e => setRedditUrl(e.target.value)}
                   placeholder="https://www.reddit.com/r/AskReddit/comments/…"
-                  className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-800 focus:outline-none" />
+                  className="w-full rounded-xl border border-line px-3.5 py-2.5 text-sm text-fg focus:outline-none" />
                 <button onClick={() => setRedditUrl("https://www.reddit.com/r/AskReddit/comments/17yv7v8/what_scientific_breakthrough_are_we_closer_to/")}
                   className="text-xs text-orange-500 font-bold hover:underline mt-1 block">Use Example URL</button>
               </div>
               {scrapeError && (
-                <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{scrapeError}</p>
+                <p className="text-sm text-error bg-error/10 px-3 py-2 rounded-lg">{scrapeError}</p>
               )}
               <button onClick={handleRedditFetch} disabled={loading || !redditUrl.trim()}
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl transition-all shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm">
@@ -490,24 +490,24 @@ function AiScriptModal({ onClose, onResult }: {
           ) : (
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-gray-600 block mb-1.5">Topic / Scenario</label>
+                <label className="text-xs font-bold text-fg-muted block mb-1.5">Topic / Scenario</label>
                 <textarea value={topic} onChange={e => setTopic(e.target.value)} rows={2}
                   placeholder="e.g. I found out my neighbor has been impersonating me online for years"
-                  className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-800 focus:outline-none resize-none" />
+                  className="w-full rounded-xl border border-line px-3.5 py-2.5 text-sm text-fg focus:outline-none resize-none" />
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-600 block mb-2">Tone</label>
+                <label className="text-xs font-bold text-fg-muted block mb-2">Tone</label>
                 <div className="flex flex-wrap gap-2">
                   {AI_TONES.map(t => (
                     <button key={t.id} onClick={() => setTone(t.id)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${tone === t.id ? "bg-orange-500 border-orange-500 text-white" : "border-gray-200 text-gray-600 hover:border-orange-300"}`}>
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${tone === t.id ? "bg-orange-500 border-orange-500 text-white" : "border-line text-fg-muted hover:border-orange-300"}`}>
                       {t.label}
                     </button>
                   ))}
                 </div>
               </div>
               {genError && (
-                <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{genError}</p>
+                <p className="text-sm text-error bg-error/10 px-3 py-2 rounded-lg">{genError}</p>
               )}
               <button onClick={handleAiGenerate} disabled={loading || !topic.trim()}
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl transition-all shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm">
@@ -624,7 +624,7 @@ function RedditVideoFlow() {
   const canGenerate = !!script.trim() && !isGenerating;
 
   return (
-      <div className="h-full overflow-y-auto bg-white flex flex-col">
+      <div className="h-full overflow-y-auto bg-panel flex flex-col">
         <Header stepIndex={stepIndex} onNext={() => goTo(stepIndex + 1)} onBack={() => goTo(stepIndex - 1)}
           onGenerate={handleGenerate} canNext={canNext} canGenerate={canGenerate} isGenerating={isGenerating} />
 
@@ -654,7 +654,7 @@ function RedditVideoFlow() {
                 Download
               </a>
               <button onClick={resetGenerate}
-                className="inline-flex items-center gap-1.5 text-green-600 text-xs font-semibold hover:underline px-2">
+                className="inline-flex items-center gap-1.5 text-success text-xs font-semibold hover:underline px-2">
                 Dismiss
               </button>
             </div>
@@ -662,14 +662,14 @@ function RedditVideoFlow() {
         )}
 
         {isFailed && (
-          <div className="mx-8 mt-4 rounded-xl bg-red-50 border border-red-200 px-5 py-3 flex items-center gap-4">
+          <div className="mx-8 mt-4 rounded-xl bg-error/10 border border-error/40 px-5 py-3 flex items-center gap-4">
             <span className="text-xl">⚠️</span>
             <p className="flex-1 text-sm font-semibold text-red-800">{genError ?? "Render failed — please try again."}</p>
             <button onClick={resetGenerate}
               className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3.5 py-2 rounded-lg transition-colors">
               Try Again
             </button>
-            <button onClick={resetGenerate} className="text-red-400 hover:text-red-600"><IcX /></button>
+            <button onClick={resetGenerate} className="text-red-400 hover:text-error"><IcX /></button>
           </div>
         )}
 
@@ -678,12 +678,12 @@ function RedditVideoFlow() {
           {stepIndex === 0 && (
             <div className="px-8 pt-6 pb-10 grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Left: Controls */}
-              <div className="bg-[#F7F7F7] border border-gray-100 rounded-[28px] p-6 flex flex-col space-y-5">
+              <div className="bg-[#F7F7F7] border border-line rounded-[28px] p-6 flex flex-col space-y-5">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-gray-900">Story Setup</h2>
+                  <h2 className="text-lg font-bold text-fg">Story Setup</h2>
                   <div className="flex gap-2">
                     <button onClick={loadSampleData}
-                      className="px-3.5 py-2 bg-white hover:bg-gray-100 text-gray-700 text-sm font-semibold rounded-xl border border-gray-200 transition-colors">
+                      className="px-3.5 py-2 bg-panel hover:bg-surface-3 text-fg text-sm font-semibold rounded-xl border border-line transition-colors">
                       Sample Data
                     </button>
                     <button onClick={() => setShowModal(true)}
@@ -701,9 +701,9 @@ function RedditVideoFlow() {
                     ["Comments", comments, setComments] as const,
                   ] as const).map(([label, val, setter]) => (
                     <div key={String(label)} className="flex flex-col space-y-1">
-                      <label className="text-[11px] font-bold text-gray-500 uppercase">{label}</label>
+                      <label className="text-[11px] font-bold text-fg-muted uppercase">{label}</label>
                       <input value={val} onChange={e => (setter as (v: string) => void)(e.target.value)}
-                        className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 focus:outline-none" />
+                        className="bg-panel border border-line rounded-xl px-3 py-2 text-sm text-fg focus:outline-none" />
                     </div>
                   ))}
                 </div>
@@ -711,12 +711,12 @@ function RedditVideoFlow() {
                 {/* Post title */}
                 <div className="flex flex-col space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-bold text-gray-500 uppercase">Post Title</label>
-                    <span className="text-[10px] text-gray-400">{postTitle.length}/100</span>
+                    <label className="text-[11px] font-bold text-fg-muted uppercase">Post Title</label>
+                    <span className="text-[10px] text-fg-subtle">{postTitle.length}/100</span>
                   </div>
                   <textarea rows={2} value={postTitle} onChange={e => setPostTitle(e.target.value.slice(0, 100))}
                     placeholder="Catchy Reddit post title…"
-                    className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 focus:outline-none resize-none" />
+                    className="bg-panel border border-line rounded-xl px-3 py-2 text-sm text-fg focus:outline-none resize-none" />
                 </div>
 
                 {/* Dark mode + intro card toggles */}
@@ -734,12 +734,12 @@ function RedditVideoFlow() {
                 {/* Script */}
                 <div className="flex flex-col space-y-1.5 flex-1">
                   <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-bold text-gray-500 uppercase">Script Content</label>
-                    <span className="text-[10px] text-gray-400">{script.split(/\s+/).filter(Boolean).length} words</span>
+                    <label className="text-[11px] font-bold text-fg-muted uppercase">Script Content</label>
+                    <span className="text-[10px] text-fg-subtle">{script.split(/\s+/).filter(Boolean).length} words</span>
                   </div>
                   <textarea value={script} onChange={e => setScript(e.target.value)}
                     placeholder="Enter or generate your Reddit story script…"
-                    className="bg-white border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 focus:outline-none resize-none"
+                    className="bg-panel border border-line rounded-xl px-3 py-3 text-sm text-fg focus:outline-none resize-none"
                     style={{ minHeight: "140px" }} />
                 </div>
 
@@ -752,7 +752,7 @@ function RedditVideoFlow() {
                   {/* Opens the billing overlay in place — this page holds a lot
                       of unsaved editor state, so navigating away to buy credits
                       would have thrown it out. */}
-                  <button onClick={() => openBilling({ view: "plans" })} className="text-xs font-extrabold text-orange-600 hover:underline bg-white px-3.5 py-2 rounded-lg border border-orange-200 shadow-sm whitespace-nowrap cursor-pointer">View plans</button>
+                  <button onClick={() => openBilling({ view: "plans" })} className="text-xs font-extrabold text-orange-600 hover:underline bg-panel px-3.5 py-2 rounded-lg border border-orange-200 shadow-sm whitespace-nowrap cursor-pointer">View plans</button>
                 </div>
               </div>
 
@@ -830,8 +830,8 @@ function RedditVideoFlow() {
           {/* ── Step 3: Background Video ── */}
           {stepIndex === 2 && (
             <div className="px-8 pt-6 pb-10">
-              <h2 className="text-lg font-bold text-gray-900">Select Background Video</h2>
-              <p className="text-sm text-gray-500 mt-1">Tip: you can swap the background after generation in the editor.</p>
+              <h2 className="text-lg font-bold text-fg">Select Background Video</h2>
+              <p className="text-sm text-fg-muted mt-1">Tip: you can swap the background after generation in the editor.</p>
               <div className="flex items-center gap-2 mt-4 flex-wrap">
                 {BG_TAGS.map(tag => (
                   <button key={tag} onClick={() => setBgFilter(tag)}
@@ -848,7 +848,7 @@ function RedditVideoFlow() {
                   const thumbUrl  = `${BACKDROP_CDN}/${b.id}/thumbnail.webp`;
                   return (
                     <div key={b.id} onClick={() => setSelectedBg(globalIdx)}
-                      className="relative overflow-hidden rounded-lg border bg-white cursor-pointer transition-all"
+                      className="relative overflow-hidden rounded-lg border bg-panel cursor-pointer transition-all"
                       style={{ borderColor: isSel ? "#f97316" : "#e5e7eb", borderWidth: isSel ? "2px" : "1px" }}>
                       {isSel && (
                         <div className="absolute left-3 top-3 z-30 h-5 w-5 rounded-full bg-orange-500 flex items-center justify-center text-white">
@@ -873,18 +873,18 @@ function RedditVideoFlow() {
                       </div>
                       <div className="space-y-1.5 p-3">
                         <div className="flex items-center justify-between">
-                          <h3 className="text-sm font-medium text-gray-900 truncate">{b.title}</h3>
+                          <h3 className="text-sm font-medium text-fg truncate">{b.title}</h3>
                           <div className="flex items-center gap-1">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={b.authorImg} alt={b.author} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
                               className="h-4 w-4 rounded-full object-cover" />
-                            <p className="text-[10px] text-gray-600 truncate max-w-[60px]">{b.author}</p>
+                            <p className="text-[10px] text-fg-muted truncate max-w-[60px]">{b.author}</p>
                           </div>
                         </div>
                         <div className="flex gap-1.5">
-                          <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-700">{b.mins}</span>
-                          <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-700">Free</span>
-                          <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-700">{b.size}</span>
+                          <span className="rounded bg-surface-3 px-1.5 py-0.5 text-[10px] text-fg">{b.mins}</span>
+                          <span className="rounded bg-surface-3 px-1.5 py-0.5 text-[10px] text-fg">Free</span>
+                          <span className="rounded bg-surface-3 px-1.5 py-0.5 text-[10px] text-fg">{b.size}</span>
                         </div>
                       </div>
                     </div>
@@ -898,8 +898,8 @@ function RedditVideoFlow() {
           {stepIndex === 3 && (
             <div className="mx-6 mt-4 mb-8 space-y-4">
               {/* Voice columns */}
-              <div className="border border-gray-200 rounded-2xl overflow-hidden">
-                <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
+              <div className="border border-line rounded-2xl overflow-hidden">
+                <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-line">
                   <div className="p-5">
                     <VoiceColumn title="Intro Voice" selected={introVoice} onSelect={setIntroVoice} />
                   </div>
@@ -908,13 +908,13 @@ function RedditVideoFlow() {
                   </div>
                   {/* Music */}
                   <div className="p-5 flex flex-col gap-3">
-                    <h3 className="text-sm font-bold text-gray-900">Background Music</h3>
+                    <h3 className="text-sm font-bold text-fg">Background Music</h3>
                     <div className="overflow-y-auto space-y-2" style={{ maxHeight: "calc(100vh - 330px)" }}>
                       {BACKGROUND_MUSIC.map((m, i) => {
                         const isSel = selectedMusic === i;
                         return (
                           <div key={i} onClick={() => setSelectedMusic(i)}
-                            className={`px-3.5 py-3 rounded-xl border cursor-pointer transition-all ${isSel ? "border-orange-400 bg-orange-50" : "border-gray-200 bg-white hover:border-gray-300"}`}
+                            className={`px-3.5 py-3 rounded-xl border cursor-pointer transition-all ${isSel ? "border-orange-400 bg-orange-50" : "border-line bg-panel hover:border-line-strong"}`}
                             style={{ borderWidth: isSel ? "2px" : "1px" }}>
                             <div className="flex items-center gap-2.5">
                               <button type="button" onClick={e => {
@@ -929,9 +929,9 @@ function RedditVideoFlow() {
                                 <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 ml-0.5"><path d="M4 2.5l9 5.5-9 5.5V2.5z" /></svg>
                               </button>
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-gray-900 truncate">{m.name}</p>
+                                <p className="text-sm font-semibold text-fg truncate">{m.name}</p>
                               </div>
-                              {m.duration && <span className="text-xs text-gray-400 flex-shrink-0">{m.duration}</span>}
+                              {m.duration && <span className="text-xs text-fg-subtle flex-shrink-0">{m.duration}</span>}
                               <IcMusic />
                             </div>
                             {i > 0 && (
@@ -941,7 +941,7 @@ function RedditVideoFlow() {
                                 ))}
                               </div>
                             )}
-                            {i === 0 && <p className="text-[10px] text-gray-400 mt-1 leading-relaxed">Add your own music after generating in the editor</p>}
+                            {i === 0 && <p className="text-[10px] text-fg-subtle mt-1 leading-relaxed">Add your own music after generating in the editor</p>}
                           </div>
                         );
                       })}
@@ -978,7 +978,7 @@ function RedditVideoFlow() {
 
 export default function RedditVideoPage() {
   return (
-    <Suspense fallback={<div className="h-screen bg-white" />}>
+    <Suspense fallback={<div className="h-screen bg-panel" />}>
       <RedditVideoFlow />
     </Suspense>
   );

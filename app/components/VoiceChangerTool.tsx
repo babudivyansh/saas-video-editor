@@ -227,7 +227,7 @@ function VoicePickerModal({
         <div className="px-4 sm:px-7 py-4 border-t border-slate-100 flex justify-end">
           <button
             onClick={handleDone}
-            className="inline-flex items-center gap-3 px-8 py-3 rounded-xl bg-brand hover:opacity-90 text-white text-sm font-semibold transition-opacity"
+            className="inline-flex items-center gap-3 px-8 py-3 rounded-xl bg-brand hover:opacity-90 text-on-primary text-sm font-semibold transition-opacity"
           >
             Done
             <span className="text-xs text-white/60 font-normal">Esc</span>
@@ -565,7 +565,7 @@ export default function VoiceChangerTool() {
               <button
                 onClick={handleSubmit}
                 disabled={!audioFile || job.status === "processing"}
-                className="w-full rounded-xl bg-brand hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold py-3 transition-opacity flex items-center justify-center gap-2"
+                className="w-full rounded-xl bg-brand hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-on-primary text-sm font-semibold py-3 transition-opacity flex items-center justify-center gap-2"
               >
                 {job.status === "processing" ? (
                   <>

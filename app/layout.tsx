@@ -72,7 +72,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-zinc-950 text-zinc-100">
+      <body className="min-h-full flex flex-col bg-canvas text-on-canvas">
         {/* Renders nothing; reports Core Web Vitals to our own endpoint. */}
         <WebVitals />
         <QueryProvider>

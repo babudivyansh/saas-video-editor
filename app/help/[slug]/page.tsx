@@ -53,7 +53,7 @@ export default async function HelpArticlePage({ params }: { params: Promise<{ sl
             <p className="mx-auto mt-2 max-w-md text-sm text-fg-muted">We answer every message — usually within a day.</p>
             <Link
               href="/contact"
-              className="mt-5 inline-flex items-center gap-2 rounded-full bg-brand px-7 py-3 text-sm font-bold text-white transition-transform duration-200 hover:scale-[1.02]"
+              className="mt-5 inline-flex items-center gap-2 rounded-full bg-brand px-7 py-3 text-sm font-bold text-on-primary transition-transform duration-200 hover:scale-[1.02]"
             >
               Contact support
             </Link>

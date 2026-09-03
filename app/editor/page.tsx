@@ -247,7 +247,7 @@ function EditorContent() {
                 {VOICE_IDS.map(v => (
                   <button
                     key={v.id} onClick={() => setVoiceId(v.id)}
-                    className={`py-2 rounded-lg text-sm transition-colors ${voiceId === v.id ? "bg-violet-600 text-white" : "bg-surface-2 border border-line text-fg-muted hover:border-zinc-500"}`}
+                    className={`py-2 rounded-lg text-sm transition-colors ${voiceId === v.id ? "bg-violet-600 text-white" : "bg-surface-2 border border-line text-fg-muted hover:border-line-strong"}`}
                   >
                     {v.name}
                   </button>
@@ -276,7 +276,7 @@ function EditorContent() {
                 {BG_VIDEOS.map(v => (
                   <button
                     key={v.url} onClick={() => setBgVideo(v.url)}
-                    className={`py-2 rounded-lg text-sm transition-colors ${bgVideo === v.url ? "bg-violet-600 text-white" : "bg-surface-2 border border-line text-fg-muted hover:border-zinc-500"}`}
+                    className={`py-2 rounded-lg text-sm transition-colors ${bgVideo === v.url ? "bg-violet-600 text-white" : "bg-surface-2 border border-line text-fg-muted hover:border-line-strong"}`}
                   >
                     {v.label}
                   </button>

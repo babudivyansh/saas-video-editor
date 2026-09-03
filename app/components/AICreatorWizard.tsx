@@ -215,7 +215,7 @@ function VoicePickerModal({
           </div>
         </div>
         <div className="px-7 py-4 border-t border-slate-100 flex justify-end">
-          <button onClick={handleDone} className="inline-flex items-center gap-3 px-8 py-3 rounded-xl bg-brand hover:opacity-90 text-white text-sm font-semibold transition-opacity">
+          <button onClick={handleDone} className="inline-flex items-center gap-3 px-8 py-3 rounded-xl bg-brand hover:opacity-90 text-on-primary text-sm font-semibold transition-opacity">
             Done <span className="text-xs text-white/60 font-normal">Esc</span>
           </button>
         </div>

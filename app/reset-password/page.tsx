@@ -90,7 +90,7 @@ function ResetForm() {
           onChange={e => setPassword(e.target.value)}
           placeholder="At least 8 characters"
           required
-          className="w-full rounded-xl border border-line bg-surface-3 px-4 py-2.5 text-sm text-fg placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-colors"
+          className="w-full rounded-xl border border-line bg-surface-3 px-4 py-2.5 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:border-blue-500 transition-colors"
         />
       </div>
       <div>
@@ -101,7 +101,7 @@ function ResetForm() {
           onChange={e => setConfirm(e.target.value)}
           placeholder="Repeat new password"
           required
-          className="w-full rounded-xl border border-line bg-surface-3 px-4 py-2.5 text-sm text-fg placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-colors"
+          className="w-full rounded-xl border border-line bg-surface-3 px-4 py-2.5 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:border-blue-500 transition-colors"
         />
       </div>
 

@@ -122,7 +122,7 @@ export default function CookiePreferences() {
           )}
           <button
             onClick={handleSave}
-            className="rounded-full bg-brand px-6 py-2.5 text-xs font-bold text-white shadow-md hover:bg-[#2348d8] transition-all cursor-pointer"
+            className="rounded-full bg-brand px-6 py-2.5 text-xs font-bold text-on-primary shadow-md hover:bg-[#2348d8] transition-all cursor-pointer"
           >
             Save Preferences
           </button>

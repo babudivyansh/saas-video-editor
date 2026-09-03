@@ -41,7 +41,9 @@ const PATTERNS = {
   // Stock slate/stone/neutral ramps. Unlike gray these are NOT bridged by the
   // inverted ramp in globals.css, so each one has to be codemodded outright.
   "raw-slate": /\b(?:bg|text|border|ring|divide|placeholder|from|to|via)-(?:slate|stone|neutral)-\d{2,3}\b/g,
-  // The fourth palette (error/404 pages, legacy editor wizard).
+  // The fourth palette (error/404 pages, legacy editor wizard). The two that
+  // remain are the Reddit card's own dark-mode swatch in create/reddit-video,
+  // which is product output rather than chrome.
   "raw-zinc": /\b(?:bg|text|border|ring|divide|placeholder|from|to|via)-zinc-\d{2,3}\b/g,
   // Literal old-brand hexes in UI code.
   "brand-hex": /#(?:335cff|7c3aed|d946ef)\b/gi,
@@ -53,10 +55,10 @@ const PATTERNS = {
 
 // Exact expected counts. Lower these as each stage lands; never raise them.
 const BUDGET = {
-  "raw-gray": 318,
-  "bg-white": 35,
+  "raw-gray": 67,
+  "bg-white": 5,
   "raw-slate": 16,
-  "raw-zinc": 22,
+  "raw-zinc": 2,
   "brand-hex": 52,
   "legacy-light": 0,
 };

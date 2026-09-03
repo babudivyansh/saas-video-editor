@@ -56,8 +56,13 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
-  /* The page canvas behind <body>. Dark in both themes — see the `html` rule. */
+  /* The page canvas behind <body>, and the text colour that sits on it. Dark
+     in BOTH themes — see the `html` rule — because every page paints its own
+     surface over this, and the only thing that ever shows through is
+     overscroll. Kept identical to what <body> has painted since before the
+     migration. */
   --canvas: #050908;
+  --on-canvas: #f5f7f4;
 
   /* Brand palette — light theme, blue accent (restored) */
   --brand: #335cff;
@@ -287,6 +292,8 @@
   --font-mono: var(--font-geist-mono);
 
   /* ── Semantic names — use these in new code ── */
+  --color-canvas: var(--canvas);
+  --color-on-canvas: var(--on-canvas);
   --color-bg: var(--bg);
   --color-surface-1: var(--surface-1);
   --color-surface-2: var(--surface-2);
@@ -632,12 +639,12 @@ body {
   animation: clipiro-chart-draw 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* Editor scrollbars — black/faded instead of the OS-default light-gray bars,
-   which stood out badly against the editor's dark theme. Scoped to
-   .clipiro-editor (EditorShell's root) so the light marketing pages keep
-   their normal scrollbars. */
+/* Editor scrollbars. These were black-on-dark — a thumb at rgba(0,0,0,.85)
+   over #0d0d11, i.e. effectively invisible, which is why the editor appeared
+   to have no scrollbars at all. Light-on-dark now, matching the rule the rest
+   of the app got in the theme block above. */
 .clipiro-editor {
-  scrollbar-color: rgba(0, 0, 0, 0.75) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
   scrollbar-width: thin;
 }
 .clipiro-editor ::-webkit-scrollbar {
@@ -648,11 +655,11 @@ body {
   background: transparent;
 }
 .clipiro-editor ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.5));
+  background: rgba(255, 255, 255, 0.16);
   border-radius: 9999px;
 }
 .clipiro-editor ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.95);
+  background: rgba(255, 255, 255, 0.28);
 }
 
 /* Blog article anchor targets.

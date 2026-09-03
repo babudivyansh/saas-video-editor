@@ -10,8 +10,8 @@ export default function NotFound() {
       <div className="flex flex-col items-center text-center max-w-md">
         <BoltIcon />
         <p className="mt-6 text-7xl font-black text-surface-3 select-none">404</p>
-        <h1 className="mt-2 text-2xl font-bold text-zinc-100">Page not found</h1>
-        <p className="mt-3 text-zinc-400 text-sm leading-relaxed">
+        <h1 className="mt-2 text-2xl font-bold text-fg">Page not found</h1>
+        <p className="mt-3 text-fg-muted text-sm leading-relaxed">
           The page you&apos;re looking for doesn&apos;t exist or has been moved.
         </p>
         <div className="mt-8 flex gap-3">
@@ -23,7 +23,7 @@ export default function NotFound() {
           </Link>
           <Link
             href="/dashboard"
-            className="px-5 py-2.5 rounded-full border border-zinc-700 hover:border-zinc-500 text-zinc-300 hover:text-zinc-100 text-sm font-semibold transition-colors"
+            className="px-5 py-2.5 rounded-full border border-line hover:border-line-strong text-fg-muted hover:text-fg text-sm font-semibold transition-colors"
           >
             Dashboard
           </Link>

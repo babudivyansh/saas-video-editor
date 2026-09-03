@@ -121,8 +121,8 @@ export default function AccountSettings() {
     }
   }
 
-  const inputCls = "w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all";
-  const labelCls = "text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5";
+  const inputCls = "w-full bg-surface-2 border border-line rounded-xl px-4 py-3 text-sm text-fg placeholder:text-fg-subtle focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all";
+  const labelCls = "text-xs font-semibold text-fg-muted uppercase tracking-wide block mb-1.5";
 
   return (
     <div className="space-y-6">
@@ -143,14 +143,14 @@ export default function AccountSettings() {
             </div>
           )}
           <button onClick={() => fileInputRef.current?.click()} disabled={uploadingAvatar} title="Change avatar"
-            className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full bg-white shadow border border-gray-100 flex items-center justify-center text-gray-600 hover:text-blue-600 transition-colors">
+            className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full bg-panel shadow border border-line flex items-center justify-center text-fg-muted hover:text-blue-600 transition-colors">
             {uploadingAvatar ? <IcSpinner /> : <IcCamera />}
           </button>
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
         </div>
         <div className="min-w-0">
-          <p className="text-base font-bold text-gray-900 truncate">{user?.name || user?.email || "—"}</p>
-          <p className="text-sm text-gray-400 truncate">{user?.email}</p>
+          <p className="text-base font-bold text-fg truncate">{user?.name || user?.email || "—"}</p>
+          <p className="text-sm text-fg-subtle truncate">{user?.email}</p>
           <div className="mt-1.5">
             <AssetField accept={["image"]} label="Choose from Assets" onSelect={handleAvatarAssetSelected} />
           </div>
@@ -158,8 +158,8 @@ export default function AccountSettings() {
       </div>
 
       {/* Edit profile */}
-      <div className="rounded-2xl border border-gray-100 p-5 space-y-4">
-        <div className="flex items-center gap-2"><IcUser /><h3 className="text-sm font-bold text-gray-900">Edit Profile</h3></div>
+      <div className="rounded-2xl border border-line p-5 space-y-4">
+        <div className="flex items-center gap-2"><IcUser /><h3 className="text-sm font-bold text-fg">Edit Profile</h3></div>
         <form onSubmit={handleSaveName} className="space-y-4">
           <div>
             <label className={labelCls}>Display Name</label>
@@ -171,13 +171,13 @@ export default function AccountSettings() {
           </div>
           <div>
             <label className={labelCls}>Email Address</label>
-            <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
-              <span className="text-sm text-gray-700 flex-1 truncate">{user?.email ?? "—"}</span>
-              <span className="text-[10px] font-semibold text-gray-400 bg-gray-200 px-2 py-0.5 rounded-full flex-shrink-0">Read only</span>
+            <div className="flex items-center gap-2 bg-surface-2 border border-line rounded-xl px-4 py-3">
+              <span className="text-sm text-fg flex-1 truncate">{user?.email ?? "—"}</span>
+              <span className="text-[10px] font-semibold text-fg-subtle bg-surface-3 px-2 py-0.5 rounded-full flex-shrink-0">Read only</span>
             </div>
           </div>
           {nameMsg && (
-            <div className={`text-sm font-medium px-4 py-3 rounded-xl ${nameMsg.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>{nameMsg.text}</div>
+            <div className={`text-sm font-medium px-4 py-3 rounded-xl ${nameMsg.type === "success" ? "bg-green-50 text-green-700" : "bg-error/10 text-error"}`}>{nameMsg.text}</div>
           )}
           <button type="submit" disabled={savingName} className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold py-3 rounded-xl transition-colors">
             {savingName ? <><IcSpinner /> Saving…</> : "Save Changes"}
@@ -186,8 +186,8 @@ export default function AccountSettings() {
       </div>
 
       {/* Change password */}
-      <div className="rounded-2xl border border-gray-100 p-5">
-        <div className="flex items-center gap-2 mb-4"><IcLock /><h3 className="text-sm font-bold text-gray-900">Change Password</h3></div>
+      <div className="rounded-2xl border border-line p-5">
+        <div className="flex items-center gap-2 mb-4"><IcLock /><h3 className="text-sm font-bold text-fg">Change Password</h3></div>
         <form onSubmit={handleChangePassword} className="space-y-4">
           {[
             { label: "Current Password", value: currentPw, setter: setCurrentPw, placeholder: "Enter current password" },
@@ -200,7 +200,7 @@ export default function AccountSettings() {
             </div>
           ))}
           {pwMsg && (
-            <div className={`text-sm font-medium px-4 py-3 rounded-xl ${pwMsg.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>{pwMsg.text}</div>
+            <div className={`text-sm font-medium px-4 py-3 rounded-xl ${pwMsg.type === "success" ? "bg-green-50 text-green-700" : "bg-error/10 text-error"}`}>{pwMsg.text}</div>
           )}
           <button type="submit" disabled={pwLoading} className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold py-3 rounded-xl transition-colors">
             {pwLoading ? <><IcSpinner /> Updating…</> : "Update Password"}
@@ -210,13 +210,13 @@ export default function AccountSettings() {
 
       {/* Danger zone */}
       <div className="rounded-2xl border border-red-100 p-5">
-        <h3 className="text-sm font-bold text-red-600 mb-3">Danger Zone</h3>
+        <h3 className="text-sm font-bold text-error mb-3">Danger Zone</h3>
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold text-gray-800">Sign out of all devices</p>
-            <p className="text-xs text-gray-400 mt-0.5">Invalidates your current session.</p>
+            <p className="text-sm font-semibold text-fg">Sign out of all devices</p>
+            <p className="text-xs text-fg-subtle mt-0.5">Invalidates your current session.</p>
           </div>
-          <button onClick={signOut} className="flex-shrink-0 text-sm font-semibold text-red-600 border border-red-200 hover:bg-red-50 px-5 py-2 rounded-xl transition-colors">
+          <button onClick={signOut} className="flex-shrink-0 text-sm font-semibold text-error border border-error/40 hover:bg-error/10 px-5 py-2 rounded-xl transition-colors">
             Sign Out
           </button>
         </div>

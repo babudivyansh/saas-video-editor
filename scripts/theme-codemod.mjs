@@ -53,7 +53,9 @@ const DENY_FILE_RE = [/\.test\.tsx?$/, /opengraph-image\.tsx$/, /twitter-image\.
 const CONTENT_DENY = [
   "app/dashboard/create/text-video/page.tsx",
   "app/dashboard/create/reddit-video/page.tsx",
-  "app/dashboard/create/streamer-video/page.tsx",
+  // streamer-video came off this list after review: every gray in it is page
+  // chrome, and its product output (the OUTLINE text-shadow and the caption
+  // presets) lives in inline style strings a class rewriter cannot reach.
   // NOTE: app/components/dashboard/toolPreviews.tsx was on this list, but it
   // draws CLIPIRO's own UI, not a third-party app's — so it should follow the
   // theme like everything else. Only the WhatsApp/Telegram/iMessage/Reddit
@@ -135,6 +137,36 @@ const NEVER = new Set(["print:bg-white"]);
 // it ONLY when the same string literal also carries the fill class.
 const LIME_FILL_RE = /\b(?:grad-brand|bg-brand)\b/;
 
+const argv = process.argv.slice(2);
+const apply = argv.includes("--apply");
+// Escape hatch for the content-denylisted files. Their CHROME still has to be
+// migrated even though their mockup regions must not be, so --allow-content is
+// only ever used together with --protect <start-end> ranges naming the
+// product-output components (the chat/Reddit renderings), which are then
+// excluded from rewriting.
+const allowContent = argv.includes("--allow-content");
+const protect = [];
+for (let i = 0; i < argv.length; i++) {
+  if (argv[i] === "--protect") {
+    while (argv[i + 1] && !argv[i + 1].startsWith("--")) {
+      const [a, b] = argv[++i].split("-").map(Number);
+      protect.push([a, b]);
+    }
+  }
+}
+if (allowContent && !protect.length) {
+  console.error("--allow-content requires --protect <start-end> …; refusing to rewrite a whole content file.");
+  process.exit(1);
+}
+const report = argv.includes("--report");
+const fileArgs = [];
+for (let i = 0; i < argv.length; i++) {
+  if (argv[i] === "--files") {
+    while (argv[i + 1] && !argv[i + 1].startsWith("--")) fileArgs.push(argv[++i]);
+  }
+}
+
+
 // ── Token rewriting ────────────────────────────────────────────────────────
 
 function rewriteToken(token, literal) {
@@ -187,7 +219,7 @@ const REWRITABLE = new Set([
 function processFile(abs) {
   const src = readFileSync(abs, "utf8");
   const sf = ts.createSourceFile(abs, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const edits = [];
+  let edits = [];
 
   (function walk(node) {
     if (REWRITABLE.has(node.kind)) {
@@ -210,6 +242,10 @@ function processFile(abs) {
     node.forEachChild(walk);
   })(sf);
 
+  if (protect.length) {
+    const lineOf = (i) => src.slice(0, i).split(/\n/).length;
+    edits = edits.filter((e) => !protect.some(([a, b]) => lineOf(e.s) >= a && lineOf(e.s) <= b));
+  }
   if (!edits.length) return null;
   let next = src;
   for (const ed of [...edits].sort((a, b) => b.s - a.s)) {
@@ -223,7 +259,7 @@ function processFile(abs) {
 function isDenied(rel) {
   if (DENY_PATHS.some((p) => rel === p || rel.startsWith(p + "/"))) return "denylist";
   if (DENY_FILE_RE.some((re) => re.test(rel))) return "denylist";
-  if (CONTENT_DENY.includes(rel)) return "content-denylist (product output — migrate by hand)";
+  if (CONTENT_DENY.includes(rel) && !allowContent) return "content-denylist (product output — needs --allow-content plus --protect ranges)";
   return null;
 }
 
@@ -241,16 +277,6 @@ function collect(target, out = []) {
     else if (/\.tsx?$/.test(entry)) out.push(childAbs);
   }
   return out;
-}
-
-const argv = process.argv.slice(2);
-const apply = argv.includes("--apply");
-const report = argv.includes("--report");
-const fileArgs = [];
-for (let i = 0; i < argv.length; i++) {
-  if (argv[i] === "--files") {
-    while (argv[i + 1] && !argv[i + 1].startsWith("--")) fileArgs.push(argv[++i]);
-  }
 }
 
 if (report) {

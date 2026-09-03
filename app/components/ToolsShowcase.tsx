@@ -40,7 +40,7 @@ export function ClipiroToolsStrip({ activeLabel }: { activeLabel?: string }) {
   return (
     <section className="mx-auto w-full max-w-[1440px] px-8 mt-10">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-[17px] font-extrabold text-gray-900">Clipiro Tools</h2>
+        <h2 className="text-[17px] font-extrabold text-fg">Clipiro Tools</h2>
         <Link href="/dashboard/tools" className="inline-flex items-center gap-1 text-[13px] font-semibold text-blue-600 hover:text-blue-700">
           View All Tools <IcArrow />
         </Link>
@@ -52,12 +52,12 @@ export function ClipiroToolsStrip({ activeLabel }: { activeLabel?: string }) {
             <Link
               key={t.label}
               href={t.href}
-              className={`rounded-2xl border bg-white px-4 py-5 flex flex-col items-center text-center gap-2.5 transition-all ${
-                active ? "border-blue-300 ring-2 ring-blue-100" : "border-gray-200 hover:border-gray-300 hover:shadow-sm"
+              className={`rounded-2xl border bg-panel px-4 py-5 flex flex-col items-center text-center gap-2.5 transition-all ${
+                active ? "border-blue-300 ring-2 ring-blue-100" : "border-line hover:border-line-strong hover:shadow-sm"
               }`}
             >
               <span className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-500 flex items-center justify-center">{t.icon}</span>
-              <span className="text-[12.5px] font-semibold text-gray-700 leading-tight">{t.label}</span>
+              <span className="text-[12.5px] font-semibold text-fg leading-tight">{t.label}</span>
             </Link>
           );
         })}
@@ -81,21 +81,21 @@ const ALL_TOOLS = [
 export function AllToolsSection() {
   return (
     <section className="mx-auto w-full max-w-[1440px] px-8 mt-12">
-      <h2 className="text-[17px] font-extrabold text-gray-900 mb-4">All Tools</h2>
+      <h2 className="text-[17px] font-extrabold text-fg mb-4">All Tools</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {ALL_TOOLS.map((t) => (
-          <div key={t.title} className="rounded-2xl border border-gray-200 bg-white p-5 flex flex-col">
+          <div key={t.title} className="rounded-2xl border border-line bg-panel p-5 flex flex-col">
             <div className="flex items-center gap-2 mb-3">
               <span className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-500 flex items-center justify-center">{t.icon}</span>
               {t.badge && (
                 <span className="text-[10px] font-bold uppercase tracking-wide text-blue-600 bg-blue-50 rounded-full px-2 py-0.5">{t.badge}</span>
               )}
             </div>
-            <h3 className="text-[15px] font-bold text-gray-900">{t.title}</h3>
-            <p className="text-[12.5px] text-gray-500 mt-1.5 leading-relaxed flex-1">{t.desc}</p>
+            <h3 className="text-[15px] font-bold text-fg">{t.title}</h3>
+            <p className="text-[12.5px] text-fg-muted mt-1.5 leading-relaxed flex-1">{t.desc}</p>
             <Link
               href={t.href}
-              className="mt-4 inline-flex items-center justify-center rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-[13px] font-semibold text-gray-700 px-4 py-2.5 transition-colors"
+              className="mt-4 inline-flex items-center justify-center rounded-xl border border-line hover:border-line-strong hover:bg-surface-2 text-[13px] font-semibold text-fg px-4 py-2.5 transition-colors"
             >
               Get Started
             </Link>
