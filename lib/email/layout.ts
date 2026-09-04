@@ -160,7 +160,7 @@ function footer(unsubscribeUrl?: string): string {
  * and would otherwise show nothing at all.
  */
 function gradientRule(): string {
-  return `<tr><td style="font-size:0;line-height:0;height:3px;background-color:${COLOR.brand};background-image:linear-gradient(90deg,${COLOR.brand} 0%,${COLOR.violet} 55%,${COLOR.fuchsia} 100%);border-radius:12px 12px 0 0;">&nbsp;</td></tr>`;
+  return `<tr><td style="font-size:0;line-height:0;height:3px;background-color:${COLOR.gradientFrom};background-image:linear-gradient(90deg,${COLOR.gradientFrom} 0%,${COLOR.gradientMid} 55%,${COLOR.gradientTo} 100%);border-radius:12px 12px 0 0;">&nbsp;</td></tr>`;
 }
 
 export function renderEmail(doc: EmailDocument): RenderedEmail {

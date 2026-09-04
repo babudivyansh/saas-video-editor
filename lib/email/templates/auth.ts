@@ -182,7 +182,7 @@ export function accountExportReady(p: { name: string; downloadUrl: string }): Em
         kind: "paragraph",
         text: `Hi ${greet(p.name)}, the copy of your ${PRODUCT_NAME} account data you asked for is ready.`,
       },
-      { kind: "button", href: p.downloadUrl, label: "Download my data", tone: "violet" },
+      { kind: "button", href: p.downloadUrl, label: "Download my data", tone: "accent" },
       { kind: "paragraph", tone: "fine", text: "This link expires in 24 hours." },
     ],
   };
