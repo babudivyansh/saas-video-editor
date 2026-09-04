@@ -462,3 +462,46 @@ export const reviewSettingsPatchSchema = z
   })
   .strict()
   .refine((v) => Object.keys(v).length > 0, { message: "Nothing to update" });
+
+// ── Feature announcements ────────────────────────────────────────────────────
+// audience mirrors the two NotificationCategory columns this system finally
+// gives a producer to (lib/notifications.ts) — kept as a plain string enum
+// here rather than importing NotificationCategory, same reasoning as
+// lib/email/templates/registry.ts's own duplicated union (that module can't
+// pull in prisma/env, and this schemas file is a fine place to just repeat
+// two literals rather than share a type across that boundary).
+const announcementAudience = z.enum(["featureReleases", "newsletter"]);
+const announcementFields = {
+  title: z.string().trim().min(1).max(150),
+  body: z.string().trim().min(1).max(4000),
+  ctaLabel: z.string().trim().max(40).nullable(),
+  ctaUrl: z.string().trim().url().max(500).nullable(),
+  audience: announcementAudience,
+};
+const ctaConsistency = (v: { ctaLabel?: string | null; ctaUrl?: string | null }, ctx: z.RefinementCtx) => {
+  if ((v.ctaLabel && !v.ctaUrl) || (!v.ctaLabel && v.ctaUrl)) {
+    ctx.addIssue({ code: "custom", path: ["ctaUrl"], message: "ctaLabel and ctaUrl must be set together, or both left out" });
+  }
+};
+export const announcementCreateSchema = z
+  .object({
+    title: announcementFields.title,
+    body: announcementFields.body,
+    ctaLabel: announcementFields.ctaLabel.optional(),
+    ctaUrl: announcementFields.ctaUrl.optional(),
+    audience: announcementFields.audience,
+  })
+  .strict()
+  .superRefine(ctaConsistency);
+export const announcementPatchSchema = z
+  .object({
+    title: announcementFields.title.optional(),
+    body: announcementFields.body.optional(),
+    ctaLabel: announcementFields.ctaLabel.optional(),
+    ctaUrl: announcementFields.ctaUrl.optional(),
+    audience: announcementFields.audience.optional(),
+    publish: z.literal(true).optional(),
+  })
+  .strict()
+  .refine((v) => Object.keys(v).length > 0, { message: "Nothing to update" })
+  .superRefine(ctaConsistency);

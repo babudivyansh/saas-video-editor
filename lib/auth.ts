@@ -8,6 +8,7 @@ import { describeDevice } from "@/lib/device";
 import { getClientIp } from "@/lib/rate-limit";
 import { effectivePlan } from "@/lib/plans/effective-plan";
 import type { TierId } from "@/lib/plans/tiers";
+import { LOCALE_COOKIE, isSupportedLocale } from "@/lib/i18n-locales";
 
 const JWT_SECRET = env.JWT_SECRET;
 const SESSION_TTL = 60 * 60 * 24 * 7; // 7 days in seconds
@@ -39,6 +40,24 @@ export function setSessionCookie(res: NextResponse, token: string): void {
     sameSite: "lax",
     maxAge: SESSION_TTL,
     path: "/",
+  });
+}
+
+/**
+ * Refreshes the `locale` cookie i18n/request.ts reads from the user's saved
+ * `preferredLanguage`, so a fresh browser/device (or one whose cookie was
+ * cleared) picks up their real language immediately at login instead of
+ * silently falling back to English until they happen to visit Settings.
+ * Every login-completing route must call this alongside setSessionCookie —
+ * two of the four (reactivate, verify-otp) previously didn't, which is
+ * exactly the kind of per-route copy/paste this centralizes against.
+ */
+export function setLocaleCookieFromUser(res: NextResponse, preferredLanguage: string | null | undefined): void {
+  if (!preferredLanguage || !isSupportedLocale(preferredLanguage)) return;
+  res.cookies.set(LOCALE_COOKIE, preferredLanguage, {
+    maxAge: 60 * 60 * 24 * 365,
+    path: "/",
+    sameSite: "lax",
   });
 }
 

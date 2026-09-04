@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import jwt from "jsonwebtoken";
 import { createHash } from "crypto";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 process.env.JWT_SECRET = process.env.JWT_SECRET ?? "test-secret";
 
@@ -58,8 +58,10 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-const { requireAdmin, getAuthUser, completeLogin, listSessions, invalidateOneSession, invalidateAllSessions, signToken } =
-  await import("@/lib/auth");
+const {
+  requireAdmin, getAuthUser, completeLogin, listSessions, invalidateOneSession, invalidateAllSessions, signToken,
+  setLocaleCookieFromUser,
+} = await import("@/lib/auth");
 
 function tokenFor(userId: string): string {
   const sessionId = `session-${userId}`;
@@ -180,5 +182,32 @@ describe("multi-session support", () => {
     const sessions = await listSessions("user-1");
     expect(sessions[0]).not.toHaveProperty("tokenHash");
     expect(sessions[0]).toMatchObject({ device: "Chrome on Windows" });
+  });
+});
+
+// Regression: reactivate and verify-otp (two of finishLogin's four callers)
+// used to skip re-seeding the `locale` cookie from the user's saved
+// preferredLanguage, unlike login and 2fa/verify-login which inlined it
+// separately — a fresh browser completing login through either of those two
+// paths silently fell back to English even though the DB had their real
+// preference. Centralized here so a future login-completing route can't
+// forget it the way those two did.
+describe("setLocaleCookieFromUser", () => {
+  it("sets the locale cookie for a supported language", () => {
+    const res = NextResponse.json({});
+    setLocaleCookieFromUser(res, "hi");
+    expect(res.cookies.get("locale")?.value).toBe("hi");
+  });
+
+  it("does not set a cookie for null/undefined (no saved preference)", () => {
+    const res = NextResponse.json({});
+    setLocaleCookieFromUser(res, null);
+    expect(res.cookies.get("locale")).toBeUndefined();
+  });
+
+  it("does not set a cookie for an unsupported/garbage locale value", () => {
+    const res = NextResponse.json({});
+    setLocaleCookieFromUser(res, "not-a-real-locale");
+    expect(res.cookies.get("locale")).toBeUndefined();
   });
 });

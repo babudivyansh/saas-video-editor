@@ -12,6 +12,13 @@ vi.mock("@/lib/auth", () => ({
   getAuthUser: vi.fn(async () => authUser),
 }));
 
+// PATCH is now rate-limited (withRateLimit); always allow so these
+// ownership/behavior tests aren't coupled to the rate-limit window.
+vi.mock("@/lib/rate-limit", () => ({
+  rateLimit: vi.fn(async () => ({ allowed: true, remaining: 1 })),
+  getClientIp: vi.fn(() => "127.0.0.1"),
+}));
+
 const ASSET_OWNED = { id: "asset-owned", s3Key: "uploads/u1/avatar.png" };
 const findFirstImpl = vi.fn(async ({ where }: { where: { id: string; userId: string } }) => {
   // Mirrors real Prisma semantics: userId is part of the WHERE clause, so an

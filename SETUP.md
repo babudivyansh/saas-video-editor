@@ -83,15 +83,15 @@ The app is deployed live at clipiro.com via cPanel's **Setup Node.js App**
 
 ## 7. Cron Jobs (cPanel)
 
-Twelve routes expect an external scheduler and are fail-closed (401) unless
+Thirteen routes expect an external scheduler and are fail-closed (401) unless
 `CRON_SECRET` / `SOCIAL_REFRESH_SECRET` / `ASSET_CLEANUP_SECRET` are set in
 `.env` — set them, then add matching entries under cPanel → **Cron Jobs**.
 As of a 2026-08 launch-readiness audit, only the first three below (`refill-
 credits`, the three `social-refresh` jobs, `commission-payout`) were actually
 wired into the production crontab — the rest existed as working routes with
 no schedule, so lifecycle emails, cleanup, and re-engagement were silently
-never firing. This list is now the complete set of 12 (incl. the stale
-Auto Clip sweep).
+never firing. This list is now the complete set of 13 (incl. the stale
+Auto Clip sweep and feature-announcements).
 
 ```
 # Monthly credit refill + subscription expiry — daily is enough, the route
@@ -128,6 +128,12 @@ Auto Clip sweep).
 
 # Re-engagement (7d/30d inactive win-back) + mid-month unused-credits nudge
 0 9 * * 1 curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/reengagement
+
+# Sends any admin-published FeatureAnnouncement (app/admin/announcements) to
+# all active users, gated per-recipient by the Notifications settings
+# featureReleases/newsletter toggles. Daily is enough — an announcement only
+# sends once (sentAt), so a missed day just means it goes out the next.
+0 11 * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/feature-announcements
 
 # Review request drip sequence (up to 3 emails per user, stops on submit/opt-out)
 0 10 * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/review-drip

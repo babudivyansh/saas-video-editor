@@ -115,10 +115,23 @@ async function handlePOST(req: NextRequest) {
   if (basePlan.kind === "subscription" && razorpayPlanId) {
     const user = await prisma.user.findUnique({
       where: { id: auth.userId },
-      select: { trialUsedAt: true },
+      select: { trialUsedAt: true, subscriptionEndsAt: true },
     });
     // Trial: Pro-tier only, once per account, requested explicitly by the client.
     const wantsTrial = body.trial === true && basePlan.tier === "pro" && !user?.trialUsedAt;
+
+    // Set only from the billing dunning banner's "View plans" (a failed
+    // payment retry, not a normal upgrade) — the customer already paid for
+    // time remaining on their current period, so this subscription shouldn't
+    // start billing until that period actually ends. Recomputed from the
+    // user's own subscriptionEndsAt server-side, never trusted from the
+    // client as a raw timestamp. Falls through to an immediate start if the
+    // period has already lapsed (nothing left to preserve).
+    const resumeFromPeriodEnd = body.resumeFromPeriodEnd === true;
+    const deferStart =
+      resumeFromPeriodEnd && user?.subscriptionEndsAt && user.subscriptionEndsAt.getTime() > Date.now()
+        ? Math.floor(user.subscriptionEndsAt.getTime() / 1000)
+        : undefined;
 
     // NOTE: the old subscription is NOT cancelled here. Cancelling before the
     // customer has paid meant that abandoning the Razorpay modal killed the
@@ -135,7 +148,15 @@ async function handlePOST(req: NextRequest) {
         plan_id: razorpayPlanId,
         customer_notify: 1,
         total_count: 120, // ~10 years of monthly cycles; Razorpay requires a bound
-        ...(wantsTrial ? { start_at: Math.floor(Date.now() / 1000) + 7 * 86400 } : {}),
+        // Trial delay and resume-from-period-end are mutually exclusive in
+        // practice (a dunning customer won't also be trial-eligible), but kept
+        // as explicit separate branches rather than merged into one condition
+        // so it's never ambiguous which one fired.
+        ...(deferStart
+          ? { start_at: deferStart }
+          : wantsTrial
+            ? { start_at: Math.floor(Date.now() / 1000) + 7 * 86400 }
+            : {}),
         notes: {
           userId: auth.userId,
           planId: basePlan.slug,

@@ -369,3 +369,28 @@ export async function sendAdminAffiliatePayoutReadyEmail(
 export async function sendNewsletterConfirmEmail(to: string, confirmUrl: string): Promise<void> {
   await sendTemplate("newsletter-confirm", to, { confirmUrl });
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Announcements (FeatureAnnouncement — app/api/cron/feature-announcements)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface AnnouncementContent {
+  name: string;
+  title: string;
+  body: string;
+  ctaLabel: string | null;
+  ctaUrl: string | null;
+}
+
+// Returns whether this recipient actually got the mail (as opposed to
+// dev-logged/suppressed/skipped-optout/failed), so the cron's recipientCount
+// reflects real deliveries rather than every user it merely attempted.
+export async function sendFeatureAnnouncementEmail(to: string, userId: string, c: AnnouncementContent): Promise<boolean> {
+  const r = await sendTemplate("feature-announcement", to, c, { userId });
+  return r.status === "sent";
+}
+
+export async function sendNewsletterBroadcastEmail(to: string, userId: string, c: AnnouncementContent): Promise<boolean> {
+  const r = await sendTemplate("newsletter-broadcast", to, c, { userId });
+  return r.status === "sent";
+}

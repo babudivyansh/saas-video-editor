@@ -27,6 +27,11 @@ export interface StartCheckoutArgs {
   trial?: boolean;
   /** Checkout currency; defaults server-side to INR. */
   currency?: "INR" | "USD";
+  /** Defer a new subscription's start to the caller's current
+   *  subscriptionEndsAt instead of billing today — set only from the billing
+   *  dunning banner's "View plans", where the customer already paid for time
+   *  still remaining. Server-validated/recomputed, never trusted as-is. */
+  resumeFromPeriodEnd?: boolean;
   /** Fired from the Razorpay success handler (e.g. refreshUser + toast, or a redirect). */
   onSuccess?: () => void;
   /** Surface a checkout error. Defaults to window.alert. */
@@ -58,7 +63,7 @@ export function useRazorpayCheckout(): UseRazorpayCheckout {
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const startCheckout = useCallback(
-    async ({ planId, addonIds = [], couponCode, trial, currency, onSuccess, onError }: StartCheckoutArgs) => {
+    async ({ planId, addonIds = [], couponCode, trial, currency, resumeFromPeriodEnd, onSuccess, onError }: StartCheckoutArgs) => {
       const fail = (message: string) => (onError ? onError(message) : alert(message));
       if (!user || !token) {
         fail("Please sign in to continue.");
@@ -80,7 +85,7 @@ export function useRazorpayCheckout(): UseRazorpayCheckout {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ planId, addonIds, couponCode, trial, currency }),
+          body: JSON.stringify({ planId, addonIds, couponCode, trial, currency, resumeFromPeriodEnd }),
         });
 
         if (!res.ok) {

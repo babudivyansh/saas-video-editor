@@ -65,6 +65,11 @@ model User {
   // a debounced attempt to purchase this pack (one-click email in practice;
   // see lib/email.ts sendAutoTopupPromptEmail and the RBI-mandate note there).
   autoTopupPackSlug        String?
+  // Balance (in credits) that triggers the auto-topup prompt above — user-set
+  // via Settings > Billing, bounded to [5, 100] server-side (see
+  // app/api/billing/auto-topup/route.ts). Default of 10 matches the previous
+  // hardcoded global threshold, so existing rows keep the same behavior.
+  autoTopupThreshold       Int       @default(10)
   role                     Role      @default(USER)
   firstName                String?
   lastName                 String?
@@ -200,6 +205,33 @@ model NotificationPreference {
   newsletter      Boolean  @default(true)
   reviewPrompts   Boolean  @default(true) // gates lib/email.ts's sendReviewPromptEmail (P7) — finer-grained than productUpdates since it's a nudge, not general product news
   updatedAt       DateTime @updatedAt
+}
+
+// Admin-authored broadcast — the producer that was missing for the
+// featureReleases/newsletter NotificationPreference toggles above (they were
+// persisted and enforced but nothing ever called shouldSendCategory for
+// either, so flipping them had no effect). Created as a draft (publishedAt
+// null), published when an admin is ready to send, then picked up once by
+// app/api/cron/feature-announcements and marked sentAt so it's never resent.
+model FeatureAnnouncement {
+  id               String    @id @default(uuid())
+  title            String
+  body             String
+  ctaLabel         String?
+  ctaUrl           String?
+  // "featureReleases" | "newsletter" — validated against lib/notifications.ts's
+  // NotificationCategory in app/api/admin/announcements, not a DB enum (this
+  // schema mostly keeps small closed string sets as plain TEXT + app-level
+  // validation, e.g. Coupon.discountType/appliesTo, rather than a Postgres enum).
+  audience         String
+  publishedAt      DateTime?
+  sentAt           DateTime?
+  recipientCount   Int?
+  createdByAdminId String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([publishedAt, sentAt])
 }
 
 // One row per successful login (Phase 3) — powers the admin user-detail login
@@ -557,10 +589,12 @@ model ClipPublish {
   // The last two are written by lib/clip-scheduler.ts and were undocumented,
   // which is why the UI rendered one of them raw as "Awaiting_manual".
   status          String        @default("pending") // pending | linked | failed | awaiting_manual | expired
-  /** Why a publish failed, in words a creator can act on. This used to be
-   *  stuffed into metricsJson, which is owned by the metrics refresh — so the
-   *  reason was overwritten on the next sync and, worse, a failed publish
-   *  looked to score-performance like a post with no views. */
+  /**
+   * Why a publish failed, in words a creator can act on. This used to be
+   * stuffed into metricsJson, which is owned by the metrics refresh — so the
+   * reason was overwritten on the next sync and, worse, a failed publish
+   * looked to score-performance like a post with no views.
+   */
   failureReason   String?
   metricsJson     Json? // cached NormalizedPost-shaped snapshot, refreshed by lib/social/refresh-queue.ts
   scheduledFor    DateTime?
@@ -689,7 +723,7 @@ model Asset {
   // best-effort async side task and never gates usability). Only a long
   // server-side import (URL import sizing/probing) sets "processing"; almost
   // everything is "ready" the instant its row is created.
-  status          String  @default("ready") // processing | ready | failed
+  status          String   @default("ready") // processing | ready | failed
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { getAuthUser, invalidateAllSessions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
+import { cancelRazorpaySubscriptionBestEffort } from "@/lib/billing/cancel-on-account-lifecycle";
 
 const PURGE_WINDOW_DAYS = 30;
 
@@ -20,7 +21,10 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "Enter your password to continue" }, { status: 400 });
   }
 
-  const user = await prisma.user.findUnique({ where: { id: auth.userId } });
+  const user = await prisma.user.findUnique({
+    where: { id: auth.userId },
+    select: { passwordHash: true, razorpaySubscriptionId: true },
+  });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) return NextResponse.json({ error: "Incorrect password" }, { status: 400 });
@@ -33,6 +37,14 @@ async function handlePOST(req: NextRequest) {
 
   // Deactivating implies "stop using this account everywhere, right now."
   await invalidateAllSessions(auth.userId);
+
+  // Deactivated users can't reach Billing to cancel themselves (login is
+  // blocked while deactivated) — without this, an active subscription would
+  // keep auto-charging for up to PURGE_WINDOW_DAYS with nobody able to stop
+  // it. Best-effort: a Razorpay outage must not block deactivation itself.
+  if (user.razorpaySubscriptionId) {
+    void cancelRazorpaySubscriptionBestEffort(user.razorpaySubscriptionId, auth.userId, "deactivate");
+  }
 
   return NextResponse.json({ ok: true, purgeAt });
 }

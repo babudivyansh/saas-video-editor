@@ -4,8 +4,9 @@ import { getAuthUser, invalidateAllSessions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { sendPasswordChangedAlertEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
+import { withRateLimit } from "@/lib/with-rate-limit";
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -39,3 +40,5 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ success: true });
 }
+
+export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 900, keyBy: "user", name: "auth:change-password" });

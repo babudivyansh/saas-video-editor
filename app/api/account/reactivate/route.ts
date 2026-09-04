@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { setSessionCookie } from "@/lib/auth";
+import { setSessionCookie, setLocaleCookieFromUser } from "@/lib/auth";
 import { finishLogin } from "@/lib/login-tail";
 import { mintTwoFactorTicket } from "@/lib/two-factor-ticket";
 import { normalizeIdentifier, findUserByMethod, type AuthMethod } from "@/lib/identifier";
@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
       user: { id: user.id, email: user.email, credits: user.credits },
     });
     setSessionCookie(res, token);
+    setLocaleCookieFromUser(res, user.preferredLanguage);
     return res;
   } catch (err) {
     logger.error("account-reactivate", "request failed", err);

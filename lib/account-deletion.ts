@@ -8,6 +8,7 @@
 import { prisma } from "@/lib/prisma";
 import { invalidateAllSessions } from "@/lib/auth";
 import { redis } from "@/lib/redis";
+import { cancelRazorpaySubscriptionBestEffort } from "@/lib/billing/cancel-on-account-lifecycle";
 
 export type DeleteAccountResult = { ok: true } | { ok: false; reason: string };
 
@@ -25,6 +26,18 @@ export async function hardDeleteUserAccount(userId: string): Promise<DeleteAccou
       ok: false,
       reason: "Account has billing history that must be retained for financial records — contact support to request deletion.",
     };
+  }
+
+  // Purchase history (checked above) is the common case that would carry a
+  // subscription, but razorpaySubscriptionId can exist without a Purchase row
+  // in edge cases (e.g. trial-only) — check unconditionally so the account
+  // row is never deleted while Razorpay is left auto-charging a mandate that
+  // no one can reach anymore. Best-effort: a Razorpay outage must not block
+  // the user's own delete request; this runs before the transaction below so
+  // it still has a live user row for context if it needs to log one.
+  const forCancel = await prisma.user.findUnique({ where: { id: userId }, select: { razorpaySubscriptionId: true } });
+  if (forCancel?.razorpaySubscriptionId) {
+    await cancelRazorpaySubscriptionBestEffort(forCancel.razorpaySubscriptionId, userId, "delete");
   }
 
   await prisma.$transaction([

@@ -415,8 +415,16 @@
     "deleteModal": {
       "title": "Supprimer définitivement votre compte ?",
       "body": "Cela supprime définitivement votre compte, vos vidéos et vos données. Cette action est irréversible.",
+      "typeToConfirmPrefix": "Tapez",
+      "typeToConfirmSuffix": "pour confirmer.",
+      "continue": "Continuer",
       "deleting": "Suppression…",
       "permanentlyDelete": "Supprimer définitivement"
+    },
+    "deleteBlockedModal": {
+      "title": "Impossible de supprimer votre compte pour l'instant",
+      "body": "Votre compte a un historique de facturation qui doit être conservé. Contactez le support, nous nous en occuperons.",
+      "gotIt": "Compris"
     },
     "confirmPasswordPlaceholder": "Confirmez votre mot de passe",
     "cancel": "Annuler",
