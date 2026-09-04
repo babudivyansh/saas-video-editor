@@ -236,7 +236,7 @@ export default function Mp3ConverterTool() {
                 onDragLeave={() => setDragging(false)}
                 onDrop={e => { e.preventDefault(); setDragging(false); onPick(e.dataTransfer.files); }}
                 className="mt-4 w-full rounded-xl border transition-colors flex flex-col items-center justify-center text-center px-6 py-10"
-                style={{ borderColor: dragging ? "#93c5fd" : "#e5e7eb", background: dragging ? "#eff6ff" : "#ffffff" }}
+                style={{ borderColor: dragging ? "var(--primary)" : "var(--line)", background: dragging ? "var(--tint-emerald)" : "var(--surface-2)" }}
               >
                 <div className="w-12 h-12 rounded-full bg-surface-2 border border-line flex items-center justify-center text-fg-subtle mb-3">
                   <IcCloud />
@@ -280,13 +280,13 @@ export default function Mp3ConverterTool() {
                       onClick={() => setQuality(opt.id)}
                       className="rounded-lg border px-1 py-2 text-center transition-colors"
                       style={{
-                        borderColor: active ? "#3b82f6" : "#e5e7eb",
-                        background: active ? "#eff6ff" : "#ffffff",
+                        borderColor: active ? "var(--primary)" : "var(--line)",
+                        background: active ? "var(--tint-emerald)" : "var(--surface-2)",
                         opacity: qualityLocked && !active ? 0.5 : 1,
                         cursor: qualityLocked ? "not-allowed" : "pointer",
                       }}
                     >
-                      <p className="text-[12px] font-semibold" style={{ color: active ? "#2563eb" : "#374151" }}>{opt.label}</p>
+                      <p className="text-[12px] font-semibold" style={{ color: active ? "var(--brand-deep)" : "var(--fg-muted)" }}>{opt.label}</p>
                       <p className="text-[10px] text-fg-subtle leading-tight mt-0.5">{opt.sub}</p>
                     </button>
                   );
@@ -337,8 +337,8 @@ export default function Mp3ConverterTool() {
             <button
               type="button"
               onClick={() => void handleConvert()}
-              className="mt-4 w-full inline-flex items-center justify-center gap-2 text-white text-sm font-semibold py-3 rounded-xl transition-colors"
-              style={{ background: "#2563eb" }}
+              className="mt-4 w-full inline-flex items-center justify-center gap-2 text-sm font-semibold py-3 rounded-xl transition-colors"
+              style={{ background: "var(--primary)", color: "var(--on-primary)" }}
             >
               Convert
             </button>
@@ -348,8 +348,8 @@ export default function Mp3ConverterTool() {
             <button
               type="button"
               disabled
-              className="mt-4 w-full inline-flex items-center justify-center gap-2 text-white text-sm font-semibold py-3 rounded-xl"
-              style={{ background: "#a5b4fc", cursor: "not-allowed" }}
+              className="mt-4 w-full inline-flex items-center justify-center gap-2 text-sm font-semibold py-3 rounded-xl"
+              style={{ background: "var(--surface-3)", color: "var(--fg-subtle)", cursor: "not-allowed" }}
             >
               <Spinner />
             </button>
@@ -360,8 +360,8 @@ export default function Mp3ConverterTool() {
               <button
                 type="button"
                 onClick={handleDownload}
-                className="inline-flex items-center justify-center gap-2 text-white text-sm font-semibold py-3 rounded-xl"
-                style={{ background: "#2563eb" }}
+                className="inline-flex items-center justify-center gap-2 text-sm font-semibold py-3 rounded-xl"
+                style={{ background: "var(--primary)", color: "var(--on-primary)" }}
               >
                 <IcDownload /> Download Converted MP3
               </button>

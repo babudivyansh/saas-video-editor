@@ -32,27 +32,29 @@ function token() {
   return typeof window !== "undefined" ? (localStorage.getItem("token") ?? "") : "";
 }
 
+// The step chips were pastel light-theme hexes (#eff6ff / #f0fdf4 / #fefce8)
+// with matching dark text — near-white dots on a dark card. Tokens instead, so
+// they carry the same three-step progression without punching holes in the
+// surface. Classes rather than inline style: an inline hex is invisible to
+// scripts/check-theme-debt.mjs, which is how these survived the migration.
 const STEPS = [
   {
     num: "1",
     title: "Share your link",
     desc: "Copy your unique referral link and share it with friends, on social media, or in your community.",
-    color: "#eff6ff",
-    textColor: "#2563eb",
+    chip: "bg-brand/15 text-brand",
   },
   {
     num: "2",
     title: "Friend signs up",
     desc: "Your friend creates a Clipiro account using your referral link — takes less than a minute.",
-    color: "#f0fdf4",
-    textColor: "#16a34a",
+    chip: "bg-emerald-bright/15 text-emerald-bright",
   },
   {
     num: "3",
     title: "You earn 20%",
     desc: "When your friend makes their first payment, you automatically receive 20% as affiliate commission.",
-    color: "#fefce8",
-    textColor: "#ca8a04",
+    chip: "bg-success/15 text-success",
   },
 ];
 
@@ -146,8 +148,8 @@ export default function ReferralPage() {
         {/* Header */}
         <div className="bg-panel border-b border-line px-8 py-5">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-yellow-50 flex items-center justify-center flex-shrink-0">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#ca8a04" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+            <div className="w-9 h-9 rounded-xl bg-brand/15 text-brand flex items-center justify-center flex-shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
                 <polyline points="20 12 20 22 4 22 4 12"/>
                 <rect x="2" y="7" width="20" height="5"/>
                 <line x1="12" y1="22" x2="12" y2="7"/>
@@ -289,10 +291,7 @@ export default function ReferralPage() {
             <div className="flex flex-col gap-4">
               {STEPS.map((step, i) => (
                 <div key={i} className="flex items-start gap-4">
-                  <div
-                    className="w-8 h-8 rounded-xl flex items-center justify-center text-sm font-extrabold flex-shrink-0"
-                    style={{ background: step.color, color: step.textColor }}
-                  >
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm font-extrabold flex-shrink-0 ${step.chip}`}>
                     {step.num}
                   </div>
                   <div>

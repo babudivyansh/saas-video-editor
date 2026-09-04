@@ -55,19 +55,28 @@ export default function AuthModal() {
         </div>
 
         {/* Right panel (Desktop only) */}
-        <div className={`hidden sm:flex w-72 flex-shrink-0 flex-col items-center justify-center p-8 border-l ${isFree ? "bg-[#f0fff4] border-green-100/30" : "bg-[#f0f5ff] border-line/30"}`}>
+        {/* Surfaces are tokens, not hexes: this panel was `bg-[#f0f5ff]` with a
+            `bg-[#2563eb]` icon — a near-white wash and the RETIRED brand blue,
+            both baked in as literals, so they stayed light when everything
+            around them went dark. The free/premium distinction is carried by
+            the eyebrow copy and the icon fill, not by tinting the whole panel.
+            Matches /login's right panel, which was migrated. */}
+        <div className="hidden sm:flex w-72 flex-shrink-0 flex-col items-center justify-center p-8 border-l border-line bg-surface-2">
           <div className="bg-panel rounded-2xl p-6 text-center shadow-sm w-full border border-line">
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm ${isFree ? "bg-[#16a34a]" : "bg-[#2563eb]"}`}>
+            {/* text-on-primary + currentColor rather than a literal white: the
+                fills below are light in this theme, so white-on-them fails
+                contrast badly. on-primary is #071006 here. */}
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm text-on-primary ${isFree ? "bg-success" : "grad-brand"}`}>
               {isFree ? (
-                <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" fill="currentColor" fillOpacity="0.2" stroke="currentColor"/>
                   <path d="M9 12l2 2 4-4"/>
                 </svg>
               ) : (
-                <svg className="w-7 h-7 text-white" viewBox="0 0 40 40" fill="none">
-                  <path d="M22 10H13C12.4477 10 12 10.4477 12 11V29C12 29.5523 12.4477 30 13 30H22" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-                  <path d="M22 10L28 13V27L22 30V10Z" fill="white" fillOpacity="0.3" stroke="white" strokeWidth="2.5" strokeLinejoin="round" />
-                  <circle cx="25" cy="20" r="1.5" fill="white" />
+                <svg className="w-7 h-7" viewBox="0 0 40 40" fill="none">
+                  <path d="M22 10H13C12.4477 10 12 10.4477 12 11V29C12 29.5523 12.4477 30 13 30H22" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                  <path d="M22 10L28 13V27L22 30V10Z" fill="currentColor" fillOpacity="0.3" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round" />
+                  <circle cx="25" cy="20" r="1.5" fill="currentColor" />
                 </svg>
               )}
             </div>

@@ -55,8 +55,8 @@ function ConfirmBody() {
 
   return (
     <div className="text-center space-y-3">
-      <div className="w-12 h-12 rounded-full bg-green-600/20 flex items-center justify-center mx-auto">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+      <div className="w-12 h-12 rounded-full bg-success/15 text-success flex items-center justify-center mx-auto">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
           <path d="M5 13l4 4L19 7" />
         </svg>
       </div>

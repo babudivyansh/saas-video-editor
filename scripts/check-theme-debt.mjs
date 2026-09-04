@@ -61,6 +61,33 @@ const PATTERNS = {
   // is deleted from globals.css — that deletion is the last step of the
   // migration, and this is the gate on it.
   "legacy-light": /\blegacy-light\b/g,
+  // ANY colour literal in an inline style, not just the retired brand's.
+  //
+  // Every rule above matches class strings, and the codemod only ever rewrote
+  // class strings — so a colour written as `style={{ background: "#ffffff" }}`
+  // was invisible to both. That is precisely how the four free-tool components
+  // kept a white drop zone and blue buttons through the whole migration while
+  // the ratchet reported "on budget": the debt was real, just unmeasured.
+  //
+  // Deliberately narrow, to stay honest rather than noisy: only hexes inside a
+  // `style` prop or a style object's value, so an SVG `stroke="#..."` and a hex
+  // in a comment don't inflate it.
+  //
+  // The 322 baseline is a MEASUREMENT, not a certificate — unlike the budgets
+  // above it is not all deliberate. Roughly:
+  //   209  create/{streamer,split,viral-split-screen,reddit,text}-video — caption
+  //        presets and chat themes that ffmpeg burns into the exported video.
+  //        Permanent; recolouring these corrupts product output.
+  //     6  global-error.tsx — already the emerald values, hardcoded because it
+  //        renders its own <html>/<body> outside the shell, so no CSS var from
+  //        globals.css is in scope. Correct as-is.
+  //    ~35 per-item identity colours (voice-catalog avatars, social platform
+  //        brand colours). Categorical, like a chart palette — defensible.
+  //    ~70 GENUINE REMAINING DEBT: QuestCard's accent dots still use the retired
+  //        brand hexes, AccountPicker/AccountSettingsList carry light `bg` tints
+  //        (#ffe8e8, #f1f5f9), and AICreatorWizard/auto-clip are unaudited.
+  // Lower this number as that last group is migrated.
+  "inline-hex": /(?:style=\{\{|(?:background|backgroundColor|color|borderColor|border|fill|stroke|boxShadow|outline)\s*:)[^}\n]*?#[0-9a-fA-F]{3,8}\b/g,
 };
 
 // Exact expected counts. Lower these as each stage lands; never raise them.
@@ -73,6 +100,7 @@ const BUDGET = {
   "raw-red": 15,
   "brand-hex": 51,
   "legacy-light": 0,
+  "inline-hex": 322,
 };
 
 function walk(dir, out = []) {

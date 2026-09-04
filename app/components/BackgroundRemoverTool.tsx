@@ -56,13 +56,13 @@ function CheckerBg({ children }: { children: React.ReactNode }) {
       className="rounded-xl overflow-hidden"
       style={{
         backgroundImage:
-          "linear-gradient(45deg,#ccc 25%,transparent 25%)," +
-          "linear-gradient(-45deg,#ccc 25%,transparent 25%)," +
-          "linear-gradient(45deg,transparent 75%,#ccc 75%)," +
-          "linear-gradient(-45deg,transparent 75%,#ccc 75%)",
+          "linear-gradient(45deg,rgba(255,255,255,0.10) 25%,transparent 25%)," +
+          "linear-gradient(-45deg,rgba(255,255,255,0.10) 25%,transparent 25%)," +
+          "linear-gradient(45deg,transparent 75%,rgba(255,255,255,0.10) 75%)," +
+          "linear-gradient(-45deg,transparent 75%,rgba(255,255,255,0.10) 75%)",
         backgroundSize: "16px 16px",
         backgroundPosition: "0 0,0 8px,8px -8px,-8px 0",
-        backgroundColor: "#f9f9f9",
+        backgroundColor: "var(--surface-3)",
       }}
     >
       {children}
@@ -220,7 +220,7 @@ export default function BackgroundRemoverTool() {
                 onDragLeave={() => setDragging(false)}
                 onDrop={e => { e.preventDefault(); setDragging(false); onPick(e.dataTransfer.files); }}
                 className="mt-4 w-full rounded-xl border transition-colors flex flex-col items-center justify-center text-center px-6 py-12"
-                style={{ borderColor: dragging ? "#93c5fd" : "#e5e7eb", background: dragging ? "#eff6ff" : "#fafafa" }}
+                style={{ borderColor: dragging ? "var(--primary)" : "var(--line)", background: dragging ? "var(--tint-emerald)" : "var(--surface-2)" }}
               >
                 <div className="w-14 h-14 rounded-full bg-panel border border-line flex items-center justify-center text-fg-subtle mb-3">
                   <IcCloud />
