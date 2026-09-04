@@ -24,7 +24,11 @@ export default async function SocialTrackerV2Layout({
   // No feature flag any more: this IS the Social Tracker. Redirect to billing
   // rather than to the old page, which no longer exists.
   const auth = await requireServerSubscriber();
-  if (!auth) redirect("/dashboard/billing");
+  // Billing is an overlay, not a route: /dashboard/billing has no page and no
+  // redirect rule, so sending a non-subscriber there 404s instead of showing
+  // them the upgrade prompt. ?billing=1 is what next.config redirects /billing
+  // itself to.
+  if (!auth) redirect("/dashboard?billing=1");
 
   const accounts = await loadAccounts(auth.userId);
 

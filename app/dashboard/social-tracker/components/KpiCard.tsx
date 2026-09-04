@@ -208,7 +208,7 @@ export function DeltaChip({ pct, invert = false }: { pct: number; invert?: boole
   return (
     <span
       className={`inline-flex items-center gap-0.5 text-xs font-semibold ${
-        flat ? "text-ink-soft" : good ? "text-emerald-600" : "text-error"
+        flat ? "text-ink-soft" : good ? "text-success" : "text-error"
       }`}
     >
       <span aria-hidden="true">{flat ? "→" : rising ? "↑" : "↓"}</span>

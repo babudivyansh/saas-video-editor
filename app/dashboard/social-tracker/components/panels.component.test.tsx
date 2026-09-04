@@ -215,7 +215,7 @@ describe("AiInsightsPanel", () => {
 
     const alertBox = await screen.findByRole("alert");
     expect(within(alertBox).getByText(/Not enough credits/)).toBeInTheDocument();
-    expect(within(alertBox).getByRole("link", { name: "Top up" })).toHaveAttribute("href", "/dashboard/billing");
+    expect(within(alertBox).getByRole("link", { name: "Top up" })).toHaveAttribute("href", "/dashboard?billing=1&tab=topup");
   });
 
   it("says plainly that a failed generation was not charged", async () => {

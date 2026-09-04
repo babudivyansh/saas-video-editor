@@ -84,7 +84,11 @@ export async function loadViewContext(params: SearchParams): Promise<ViewContext
   const auth = await requireServerSubscriber();
   // The layout already gated this; the redirect is the belt to its braces, and
   // it must not point at this same route or an expired session loops forever.
-  if (!auth) redirect("/dashboard/billing");
+  // Billing is an overlay, not a route: /dashboard/billing has no page and no
+  // redirect rule, so sending a non-subscriber there 404s instead of showing
+  // them the upgrade prompt. ?billing=1 is what next.config redirects /billing
+  // itself to.
+  if (!auth) redirect("/dashboard?billing=1");
 
   const filters = parseFilters(params);
   // One query, then filter in memory: nobody connects enough accounts for this

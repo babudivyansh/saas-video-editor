@@ -195,7 +195,7 @@ function messageFor(status: number, serverMessage?: string): { message: string; 
   if (status === 402) {
     return {
       message: serverMessage ?? "You do not have enough credits for this.",
-      action: { label: "Top up", href: "/dashboard/billing" },
+      action: { label: "Top up", href: "/dashboard?billing=1&tab=topup" },
     };
   }
   if (status === 409) {
