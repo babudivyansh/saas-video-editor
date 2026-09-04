@@ -61,9 +61,20 @@ export interface AuthUser {
   tier: TierId;
 }
 
+/**
+ * Resolving to `null` is a VERDICT on the token — AuthContext deletes it and
+ * signs the user out. Throwing means "couldn't find out", which leaves the
+ * token alone for the next attempt.
+ *
+ * So only a 401/403 may return null. Every other failure used to as well, which
+ * meant a single 5xx from /api/auth/me — a database blip, a restarting worker —
+ * signed the user out, while being fully offline (which throws) correctly did
+ * not. The transient failure was punished harder than the total one.
+ */
 export async function fetchAuthUser(token: string): Promise<AuthUser | null> {
   const res = await fetch("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } });
-  if (!res.ok) return null;
+  if (res.status === 401 || res.status === 403) return null;
+  if (!res.ok) throw new Error(`/api/auth/me failed: ${res.status}`);
   const data = await res.json();
   return (data.user as AuthUser | undefined) ?? null;
 }

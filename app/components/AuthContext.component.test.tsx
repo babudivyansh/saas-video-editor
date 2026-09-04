@@ -84,6 +84,10 @@ describe("AuthContext", () => {
     localStorage.setItem("token", "expired-token");
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
+      // The status matters: only 401/403 is a verdict on the token. This
+      // fixture used to set `ok: false` alone, which passed while the code
+      // treated every failure — including a 500 — as an expired session.
+      status: 401,
       json: async () => ({ error: "Unauthorized" }),
     }) as unknown as typeof fetch;
 
@@ -94,6 +98,23 @@ describe("AuthContext", () => {
     // true-at-t=0 text content.
     await waitFor(() => expect(localStorage.getItem("token")).toBeNull());
     expect(screen.getByTestId("user")).toHaveTextContent("none");
+  });
+
+  it("KEEPS the token when /api/auth/me fails with a server error", async () => {
+    // A 5xx says nothing about whether the session is valid, so signing the
+    // user out over one is wrong — and it was inconsistent too, since being
+    // offline (a thrown fetch) already left the token in place.
+    localStorage.setItem("token", "valid-token");
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: "Internal Server Error" }),
+    }) as unknown as typeof fetch;
+
+    renderWithProviders();
+
+    await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"));
+    expect(localStorage.getItem("token")).toBe("valid-token");
   });
 
   it("signOut calls the logout endpoint and clears local session state", async () => {

@@ -34,13 +34,39 @@ export default function PrivacySettingsPage() {
     }
   }
 
+  // A blip mid-export shouldn't abandon a job that is still running, but a
+  // failure that never clears has to end somewhere. Previously neither
+  // happened: an error body has no `.status`, so it matched neither branch and
+  // the poll simply looped every 3s forever, and a non-JSON error made
+  // `.json()` throw out of an un-caught async callback — killing the poll with
+  // the page still showing "preparing", with no way back except a reload.
+  const MAX_CONSECUTIVE_FAILURES = 5;
+
   function poll(jobId: string) {
+    let consecutiveFailures = 0;
+
+    const giveUp = () => { setState("failed"); showToast(t("toasts.exportFailed"), "error"); };
+
     const check = async () => {
-      const res = await fetch(`/api/account/export/${jobId}`, { headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
-      if (data.status === "ready") { setState("ready"); setDownloadUrl(data.url); showToast(t("toasts.ready")); return; }
-      if (data.status === "failed") { setState("failed"); showToast(data.error ?? t("toasts.exportFailed"), "error"); return; }
-      pollRef.current = setTimeout(check, 3000);
+      try {
+        const res = await fetch(`/api/account/export/${jobId}`, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json().catch(() => null);
+
+        if (!res.ok || !data) {
+          if (++consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) { giveUp(); return; }
+          pollRef.current = setTimeout(check, 3000);
+          return;
+        }
+        consecutiveFailures = 0;
+
+        if (data.status === "ready") { setState("ready"); setDownloadUrl(data.url); showToast(t("toasts.ready")); return; }
+        if (data.status === "failed") { setState("failed"); showToast(data.error ?? t("toasts.exportFailed"), "error"); return; }
+        pollRef.current = setTimeout(check, 3000);
+      } catch {
+        // Offline or a dropped connection — same tolerance as a bad response.
+        if (++consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) { giveUp(); return; }
+        pollRef.current = setTimeout(check, 3000);
+      }
     };
     void check();
   }
