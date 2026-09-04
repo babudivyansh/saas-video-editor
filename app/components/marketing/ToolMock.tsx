@@ -1,4 +1,5 @@
 import { getMotif, motifLabel, type MotifVariant } from "./toolMotifs";
+import ShowcaseGlow from "./ShowcaseGlow";
 
 /**
  * The illustration at the top of a /tools/<slug> page.
@@ -26,7 +27,8 @@ export default function ToolMock({
   const gradientId = `tool-mock-${slug}-${variant}`;
 
   return (
-    <div className="overflow-hidden rounded-[var(--radius-card)] border border-card-border shadow-card transition-all duration-200 hover:shadow-card-hover motion-safe:hover:-translate-y-1">
+    <ShowcaseGlow radius="rounded-[var(--radius-card)]">
+      <div className="overflow-hidden rounded-[var(--radius-card)] border border-card-border shadow-card transition-all duration-200 hover:shadow-card-hover motion-safe:hover:-translate-y-1">
       <svg
         viewBox="0 0 960 400"
         className="block h-auto w-full"
@@ -38,13 +40,14 @@ export default function ToolMock({
       >
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#335CFF" />
-            <stop offset="100%" stopColor="#2348D8" />
+            <stop offset="0%" stopColor="var(--emerald-bright)" />
+            <stop offset="100%" stopColor="var(--emerald-brand)" />
           </linearGradient>
         </defs>
         <rect width="960" height="400" fill={`url(#${gradientId})`} />
         {getMotif(slug, variant)}
       </svg>
-    </div>
+      </div>
+    </ShowcaseGlow>
   );
 }

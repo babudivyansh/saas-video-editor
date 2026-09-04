@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import Reveal from "@/app/components/Reveal";
+import ShowcaseGlow from "@/app/components/marketing/ShowcaseGlow";
 import { PlayIcon, CheckIcon } from "@/app/components/landing/icons";
 import HeroRatingBadge from "@/app/components/landing/HeroRatingBadge";
 import { MINIMUM_REVIEWS_FOR_SCHEMA } from "@/app/reviews/schema";
@@ -110,8 +111,8 @@ export default function Hero({ reviewSummary }: HeroProps) {
         {/* Hero visual: editor mockup (CSS-drawn — replaced with a real editor
             screenshot once the browser editor ships) */}
         <Reveal delay={300} className="w-full">
-          <div className="relative mx-auto mt-8 w-full max-w-5xl">
-            <div className="absolute -inset-4 -z-10 rounded-[32px] bg-gradient-to-tr from-emerald-brand/30 to-emerald-bright/20 blur-2xl" />
+          <div className="mx-auto mt-8 w-full max-w-5xl">
+            <ShowcaseGlow>
             <div className="overflow-hidden rounded-2xl border border-card-border bg-panel shadow-2xl">
               {/* Faux window chrome */}
               <div className="flex items-center gap-1.5 border-b border-line bg-surface-2 px-4 py-3">
@@ -177,6 +178,7 @@ export default function Hero({ reviewSummary }: HeroProps) {
                 </div>
               </div>
             </div>
+            </ShowcaseGlow>
             {/* Floating feature badge */}
             <div className="absolute -bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-line bg-panel px-5 py-2.5 shadow-lg">
               <CheckIcon className="h-4 w-4 text-success" />

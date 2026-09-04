@@ -27,7 +27,9 @@ const INK = "rgba(255,255,255,0.94)";
 const SOFT = "rgba(255,255,255,0.40)";
 const FAINT = "rgba(255,255,255,0.18)";
 /** For marks that sit *inside* a white shape and need to read as brand. */
-const BRAND = "#335CFF";
+// Marks that sit INSIDE a white shape in the illustration and need to read as
+// the brand. Emerald since the design-system migration; was the retired blue.
+const BRAND = "#00A968";
 
 // ---------------------------------------------------------------- primitives
 

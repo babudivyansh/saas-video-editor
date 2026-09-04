@@ -71,7 +71,7 @@ const BUDGET = {
   "raw-zinc": 2,
   "raw-blue": 42,
   "raw-red": 15,
-  "brand-hex": 53,
+  "brand-hex": 51,
   "legacy-light": 0,
 };
 
