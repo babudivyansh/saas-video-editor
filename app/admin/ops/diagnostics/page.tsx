@@ -16,7 +16,7 @@ import { Card as UiCard } from "@/app/components/ui/Card";
 
 function Badge({ ok, label }: { ok: boolean; label: string }) {
   return (
-    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${ok ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${ok ? "bg-emerald-100 text-emerald-700" : "bg-error/15 text-error"}`}>
       {label}
     </span>
   );
@@ -138,7 +138,7 @@ function RenderReproduce({ headers }: { headers: () => Record<string, string> })
         <div className="mt-4 space-y-2">
           <Badge ok={result.result.startsWith("SUCCESS")} label={result.result} />
           {result.errorLines.length > 0 && (
-            <pre className="text-[11px] text-red-700 bg-error/10 border border-red-100 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap break-words">
+            <pre className="text-[11px] text-error bg-error/10 border border-error/30 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap break-words">
               {result.errorLines.join("\n")}
             </pre>
           )}

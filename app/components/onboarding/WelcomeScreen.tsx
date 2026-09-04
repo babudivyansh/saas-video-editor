@@ -26,7 +26,7 @@ interface WelcomeScreenProps {
 }
 
 const GOAL_TINT: Record<PrimaryGoalId, string> = {
-  "auto-clip": "bg-tint-blue text-brand border-blue-100",
+  "auto-clip": "bg-tint-blue text-brand border-line",
   video: "bg-tint-emerald text-emerald-500 border-emerald-100",
   image: "bg-tint-fuchsia text-accent-fuchsia border-fuchsia-100",
   voiceover: "bg-tint-violet text-accent-violet border-violet-100",
@@ -150,7 +150,7 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }
             <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={handleTakeTour}
-                className="flex-1 text-left rounded-[var(--radius-card)] border border-blue-100 bg-tint-blue p-4 transition-all hover:shadow-card-hover hover:-translate-y-0.5"
+                className="flex-1 text-left rounded-[var(--radius-card)] border border-line bg-tint-blue p-4 transition-all hover:shadow-card-hover hover:-translate-y-0.5"
               >
                 <p className="text-sm font-semibold text-ink">Take the 60-second tour</p>
                 <p className="text-xs text-ink-soft mt-0.5">See where everything lives before you start</p>

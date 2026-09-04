@@ -519,12 +519,12 @@ export default function CutAndCropPage() {
             {/* Error toast */}
             {(preflightError || (job.status === "error" && job.error)) && (
               <span
-                className="text-xs text-error bg-error/10 border border-red-100 rounded-xl px-3 py-1.5 max-w-[280px] truncate"
+                className="text-xs text-error bg-error/10 border border-error/30 rounded-xl px-3 py-1.5 max-w-[280px] truncate"
                 title={preflightError ?? job.error ?? undefined}
               >
                 {preflightError ?? job.error}
                 {job.status === "error" && (
-                  <button onClick={() => void handleExport()} className="ml-1.5 font-semibold underline underline-offset-2 hover:text-red-800">
+                  <button onClick={() => void handleExport()} className="ml-1.5 font-semibold underline underline-offset-2 hover:text-error">
                     Retry
                   </button>
                 )}
@@ -552,7 +552,7 @@ export default function CutAndCropPage() {
             <button
               onClick={handleExport}
               disabled={clips.length === 0 || job.status === "processing"}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-on-primary bg-brand hover:bg-brand-dark transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <IconUpload />
               Export
@@ -584,7 +584,7 @@ export default function CutAndCropPage() {
                 onClick={onAddVideo}
                 className={`flex flex-col items-center gap-4 cursor-pointer rounded-2xl border-2 border-dashed px-14 py-12 transition-colors ${
                   draggingOver
-                    ? "border-blue-500 bg-blue-500/10"
+                    ? "border-brand bg-tint-blue0/10"
                     : "border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10"
                 }`}
               >
@@ -597,7 +597,7 @@ export default function CutAndCropPage() {
                 </div>
                 <button
                   onClick={e => { e.stopPropagation(); onAddVideo(); }}
-                  className="px-5 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors shadow-sm"
+                  className="px-5 py-2 rounded-full bg-brand hover:bg-brand-dark text-on-primary text-sm font-semibold transition-colors shadow-sm"
                 >
                   Add Video
                 </button>
@@ -666,7 +666,7 @@ export default function CutAndCropPage() {
                 another clip, but the empty-state's own indicator only renders
                 before the first clip is added, so this covers the rest. */}
             {draggingOver && clips.length > 0 && (
-              <div className="absolute inset-0 flex items-center justify-center bg-blue-500/10 border-2 border-dashed border-blue-400 rounded-2xl pointer-events-none">
+              <div className="absolute inset-0 flex items-center justify-center bg-tint-blue0/10 border-2 border-dashed border-brand/60 rounded-2xl pointer-events-none">
                 <p className="text-white text-sm font-medium bg-black/60 px-4 py-2 rounded-full">Drop to add another clip</p>
               </div>
             )}
@@ -766,14 +766,14 @@ export default function CutAndCropPage() {
               <button
                 onClick={() => setRotation(r => (r === 270 ? 0 : (r + 90) as 0 | 90 | 180 | 270))}
                 title={`Rotate (currently ${rotation}°)`}
-                className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors ${rotation !== 0 ? "bg-blue-50 text-blue-600" : "text-fg-muted hover:bg-surface-3"}`}
+                className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors ${rotation !== 0 ? "bg-tint-blue text-brand" : "text-fg-muted hover:bg-surface-3"}`}
               >
                 <IconRotate />
               </button>
               <button
                 onClick={() => setFlipH(v => !v)}
                 title="Flip horizontal"
-                className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors ${flipH ? "bg-blue-50 text-blue-600" : "text-fg-muted hover:bg-surface-3"}`}
+                className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors ${flipH ? "bg-tint-blue text-brand" : "text-fg-muted hover:bg-surface-3"}`}
               >
                 <IconFlip />
               </button>
@@ -844,7 +844,7 @@ export default function CutAndCropPage() {
                           onKeyDown={e => { if (e.key === "Enter") setActiveId(clip.id); }}
                           className={`relative h-9 rounded-xl select-none cursor-pointer transition-all ${
                             isActive
-                              ? "bg-blue-50 ring-1 ring-blue-300"
+                              ? "bg-tint-blue ring-1 ring-primary/40"
                               : "bg-surface-3 ring-1 ring-line hover:bg-gray-200/70"
                           }`}
                           style={{ width: `${widthPct}%`, minWidth: 180 }}
@@ -857,7 +857,7 @@ export default function CutAndCropPage() {
                           <div
                             onPointerDown={e => startTrimDrag(clip.id, "start", e.currentTarget.parentElement as HTMLElement, e)}
                             title="Trim start"
-                            className="absolute inset-y-0 w-2 cursor-ew-resize bg-blue-600 rounded-l-xl flex items-center justify-center z-10"
+                            className="absolute inset-y-0 w-2 cursor-ew-resize bg-brand rounded-l-xl flex items-center justify-center z-10"
                             style={{ left: `${trimLPct}%` }}
                           >
                             <div className="w-px h-3 bg-white/70 rounded-full" />
@@ -866,7 +866,7 @@ export default function CutAndCropPage() {
                           <div
                             onPointerDown={e => startTrimDrag(clip.id, "end", e.currentTarget.parentElement as HTMLElement, e)}
                             title="Trim end"
-                            className="absolute inset-y-0 w-2 cursor-ew-resize bg-blue-600 rounded-r-xl flex items-center justify-center z-10"
+                            className="absolute inset-y-0 w-2 cursor-ew-resize bg-brand rounded-r-xl flex items-center justify-center z-10"
                             style={{ right: `${trimRPct}%` }}
                           >
                             <div className="w-px h-3 bg-white/70 rounded-full" />
@@ -874,8 +874,8 @@ export default function CutAndCropPage() {
 
                           {/* Playhead */}
                           {playheadPct !== null && (
-                            <div className="absolute top-0 bottom-0 w-0.5 bg-blue-600 pointer-events-none z-20" style={{ left: `${playheadPct}%` }}>
-                              <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-2 h-2 bg-blue-600 rotate-45" />
+                            <div className="absolute top-0 bottom-0 w-0.5 bg-brand pointer-events-none z-20" style={{ left: `${playheadPct}%` }}>
+                              <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-2 h-2 bg-brand rotate-45" />
                             </div>
                           )}
 

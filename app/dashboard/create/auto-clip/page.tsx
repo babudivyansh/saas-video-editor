@@ -486,7 +486,7 @@ function RetryClipButton({ projectId, clip, onQueued }: { projectId: string; cli
       <button onClick={retry} disabled={busy} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white/90 hover:bg-panel text-ink transition-colors disabled:opacity-50">
         {busy ? "Retrying…" : "Retry"}
       </button>
-      {err && <span className="text-[10px] text-red-300">{err}</span>}
+      {err && <span className="text-[10px] text-error">{err}</span>}
     </div>
   );
 }
@@ -2035,7 +2035,7 @@ function AutoClipFlow() {
           </>
         )}
 
-        {importError && <p className="mt-3 rounded-xl border border-error/40 bg-error/10 px-3 py-2 text-xs font-medium text-red-700">{importError}</p>}
+        {importError && <p className="mt-3 rounded-xl border border-error/40 bg-error/10 px-3 py-2 text-xs font-medium text-error">{importError}</p>}
 
         {/* Essentials */}
         <div className="mt-8 rounded-[20px] border border-card-border bg-panel p-6 flex flex-col gap-6">
@@ -2124,7 +2124,7 @@ function AutoClipFlow() {
 
 export default function AutoClipPage() {
   return (
-    <Suspense fallback={<div className="flex h-screen items-center justify-center"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>}>
+    <Suspense fallback={<div className="flex h-screen items-center justify-center"><div className="w-8 h-8 border-4 border-brand/40 border-t-blue-600 rounded-full animate-spin" /></div>}>
       <AutoClipFlow />
     </Suspense>
   );

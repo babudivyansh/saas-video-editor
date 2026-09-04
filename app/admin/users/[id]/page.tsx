@@ -130,7 +130,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
       <Link href="/admin/users" className="text-xs font-semibold text-fg-subtle hover:text-fg">← All users</Link>
 
       {suspended && (
-        <p className="text-sm text-red-800 bg-error/10 border border-red-100 rounded-lg px-4 py-2 my-3">
+        <p className="text-sm text-error bg-error/10 border border-error/30 rounded-lg px-4 py-2 my-3">
           Suspended since {dt(d.user.suspendedAt)} — login is blocked.
         </p>
       )}

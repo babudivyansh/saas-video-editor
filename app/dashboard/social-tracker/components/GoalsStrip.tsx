@@ -91,7 +91,7 @@ function StatusChip({ goal }: { goal: GoalProgress & { measurable: boolean } }) 
     return <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">HIT</span>;
   }
   if (goal.overdue) {
-    return <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">MISSED</span>;
+    return <span className="rounded-full bg-error/15 px-2 py-0.5 text-[10px] font-bold text-error">MISSED</span>;
   }
   if (goal.onTrack === null) {
     return <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold text-ink-soft">PACE UNKNOWN</span>;

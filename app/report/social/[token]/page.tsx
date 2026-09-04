@@ -146,7 +146,7 @@ export default async function SocialReportPage({ params }: { params: Promise<{ t
 
       <p className="mt-8 text-center text-xs text-fg-muted">
         Generated with{" "}
-        <a href="https://clipiro.com" className="font-semibold text-blue-600">
+        <a href="https://clipiro.com" className="font-semibold text-brand">
           Clipiro
         </a>{" "}
         Social Tracker

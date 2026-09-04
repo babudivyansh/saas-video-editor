@@ -402,7 +402,7 @@ export function BillingPanel({
       )}
 
       {error && (
-        <div className="bg-error/10 border border-error/40 text-red-800 rounded-2xl px-5 py-3.5 text-sm font-medium">
+        <div className="bg-error/10 border border-error/40 text-error rounded-2xl px-5 py-3.5 text-sm font-medium">
           {error}
         </div>
       )}

@@ -55,7 +55,7 @@ export default function AuthModal() {
         </div>
 
         {/* Right panel (Desktop only) */}
-        <div className={`hidden sm:flex w-72 flex-shrink-0 flex-col items-center justify-center p-8 border-l ${isFree ? "bg-[#f0fff4] border-green-100/30" : "bg-[#f0f5ff] border-blue-100/30"}`}>
+        <div className={`hidden sm:flex w-72 flex-shrink-0 flex-col items-center justify-center p-8 border-l ${isFree ? "bg-[#f0fff4] border-green-100/30" : "bg-[#f0f5ff] border-line/30"}`}>
           <div className="bg-panel rounded-2xl p-6 text-center shadow-sm w-full border border-line">
             <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm ${isFree ? "bg-[#16a34a]" : "bg-[#2563eb]"}`}>
               {isFree ? (
@@ -85,7 +85,7 @@ export default function AuthModal() {
               </>
             ) : feature ? (
               <>
-                <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-2">
+                <p className="text-[10px] font-bold text-brand uppercase tracking-widest mb-2">
                   Premium Feature
                 </p>
                 <p className="text-[15px] text-fg font-bold leading-snug mb-2">

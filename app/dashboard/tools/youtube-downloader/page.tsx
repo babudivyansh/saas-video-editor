@@ -200,12 +200,12 @@ export default function YouTubeDownloaderPage() {
             )}
 
             {error && (
-              <p className="mt-3 text-sm text-error bg-error/10 border border-red-100 rounded-xl px-4 py-2.5">
+              <p className="mt-3 text-sm text-error bg-error/10 border border-error/30 rounded-xl px-4 py-2.5">
                 {error}
               </p>
             )}
             {job.status === "error" && job.error && (
-              <p className="mt-3 text-sm text-error bg-error/10 border border-red-100 rounded-xl px-4 py-2.5">
+              <p className="mt-3 text-sm text-error bg-error/10 border border-error/30 rounded-xl px-4 py-2.5">
                 {job.error}
               </p>
             )}
@@ -311,7 +311,7 @@ export default function YouTubeDownloaderPage() {
                   "https://youtube.com/shorts/...",
                 ].map(ex => (
                   <div key={ex} className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-error flex-shrink-0" />
                     <span className="font-mono">{ex}</span>
                   </div>
                 ))}

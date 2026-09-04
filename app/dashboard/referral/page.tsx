@@ -126,7 +126,7 @@ export default function ReferralPage() {
         <div className="flex-1 p-8 max-w-3xl w-full mx-auto space-y-6">
 
           {/* Hero */}
-          <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl p-8 text-white text-center shadow-lg">
+          <div className="bg-gradient-to-br from-emerald-brand to-emerald-bright rounded-2xl p-8 text-white text-center shadow-lg">
             <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center mx-auto mb-4">
               <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8">
                 <polyline points="20 12 20 22 4 22 4 12"/>
@@ -137,7 +137,7 @@ export default function ReferralPage() {
               </svg>
             </div>
             <h2 className="text-2xl font-extrabold mb-2">Earn 20% on every referral</h2>
-            <p className="text-blue-100 text-sm max-w-sm mx-auto">
+            <p className="text-brand-soft text-sm max-w-sm mx-auto">
               Share your unique link. Every time a friend makes their first payment, you earn <strong className="text-white">20% commission</strong> — automatically, no limits.
             </p>
           </div>
@@ -166,7 +166,7 @@ export default function ReferralPage() {
                   <button
                     onClick={handleCopy}
                     className={`flex-shrink-0 inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold transition-all shadow-sm ${
-                      copied ? "bg-green-500 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"
+                      copied ? "bg-green-500 text-white" : "bg-brand hover:bg-brand-dark text-on-primary"
                     }`}
                   >
                     {copied ? (

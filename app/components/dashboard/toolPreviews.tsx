@@ -10,7 +10,7 @@ export function AutoClipPreview() {
   return (
     <div className="h-[160px] bg-gradient-to-br from-tint-violet to-tint-fuchsia flex items-center justify-center gap-3 px-4 overflow-hidden">
       <div className="flex gap-1.5 items-center">
-        {[{ c: "from-indigo-400 to-blue-700", r: -7 }, { c: "from-violet-400 to-purple-600", r: 0 }, { c: "from-fuchsia-400 to-pink-600", r: 7 }].map((s, i) => (
+        {[{ c: "from-emerald-bright to-emerald-brand", r: -7 }, { c: "from-violet-400 to-purple-600", r: 0 }, { c: "from-fuchsia-400 to-pink-600", r: 7 }].map((s, i) => (
           <div key={i} className={`w-[54px] h-[90px] rounded-xl overflow-hidden shadow-md border border-black/10 bg-gradient-to-b ${s.c}`} style={{ transform: `rotate(${s.r}deg)` }} />
         ))}
       </div>
@@ -96,7 +96,7 @@ export function AICreatorPreview() {
     <div className="h-[140px] bg-gradient-to-br from-tint-emerald to-tint-blue flex items-center justify-center gap-2.5 px-5 overflow-hidden">
       {[
         { g: "from-emerald-400 to-teal-600", scale: false },
-        { g: "from-brand to-indigo-600", scale: true },
+        { g: "from-brand to-emerald-bright", scale: true },
         { g: "from-accent-violet to-accent-fuchsia", scale: false },
       ].map((s, i) => (
         <div key={i} className="relative">
@@ -203,7 +203,7 @@ export function VocalRemoverPreview() {
   return (
     <div className="h-[212px] bg-surface-2 flex flex-col gap-4 p-4 justify-center overflow-hidden">
       <div className="flex items-center gap-3">
-        <div className="relative w-12 h-12 rounded-full bg-tint-blue border border-blue-100 flex items-center justify-center flex-shrink-0">
+        <div className="relative w-12 h-12 rounded-full bg-tint-blue border border-line flex items-center justify-center flex-shrink-0">
           <span className="text-brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="w-5 h-5"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" strokeLinecap="round"/></svg></span>
           <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] flex items-center justify-center">✕</span>
         </div>
@@ -412,7 +412,7 @@ export function RedditPreview() {
           </div>
         ))}
       </div>
-      <div className="w-1/2 rounded-lg overflow-hidden border border-line bg-gradient-to-b from-sky-300 to-blue-600 relative">
+      <div className="w-1/2 rounded-lg overflow-hidden border border-line bg-gradient-to-b from-sky-300 to-emerald-brand relative">
         <div className="absolute top-2 left-2 right-2 bg-panel/95 rounded p-1.5">
           <p className="text-[7px] font-bold text-fg">r/AskReddit</p>
           <p className="text-[7px] text-fg-muted leading-tight mt-0.5">What scientific breakthrough are we closer to than people realize?</p>

@@ -58,7 +58,7 @@ export function UploadQueuePanel({ items, onPause, onResume, onRetry, onCancel, 
               <div className="flex items-center gap-2 mt-1.5">
                 <div className="flex-1 h-1.5 bg-surface-3 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-300 ${it.status === "error" ? "bg-red-400" : "grad-brand"}`}
+                    className={`h-full rounded-full transition-all duration-300 ${it.status === "error" ? "bg-error" : "grad-brand"}`}
                     style={{ width: `${it.progress}%` }}
                   />
                 </div>

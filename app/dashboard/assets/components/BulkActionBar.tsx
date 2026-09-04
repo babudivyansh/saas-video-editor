@@ -84,7 +84,7 @@ export function BulkActionBar({
             <>
               <button onClick={onRestore} className="text-xs font-semibold px-3 py-1.5 rounded-full hover:bg-white/10 cursor-pointer whitespace-nowrap">Restore</button>
               <button onClick={onDownload} className="text-xs font-semibold px-3 py-1.5 rounded-full hover:bg-white/10 cursor-pointer whitespace-nowrap">Download</button>
-              <button onClick={onPermanentDelete} className="text-xs font-semibold px-3 py-1.5 rounded-full text-red-300 hover:bg-red-500/20 cursor-pointer whitespace-nowrap">Delete permanently</button>
+              <button onClick={onPermanentDelete} className="text-xs font-semibold px-3 py-1.5 rounded-full text-error hover:bg-error/20 cursor-pointer whitespace-nowrap">Delete permanently</button>
             </>
           )}
 

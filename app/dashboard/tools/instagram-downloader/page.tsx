@@ -171,7 +171,7 @@ export default function InstagramDownloaderPage() {
             </div>
 
             {error && (
-              <p className="mt-3 text-sm text-error bg-error/10 border border-red-100 rounded-xl px-4 py-2.5">
+              <p className="mt-3 text-sm text-error bg-error/10 border border-error/30 rounded-xl px-4 py-2.5">
                 {error}
               </p>
             )}

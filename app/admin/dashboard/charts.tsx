@@ -219,7 +219,7 @@ export function Gauge({ successPct, chips }: { successPct: number | null; chips:
           <span
             key={c.label}
             className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-              c.tone === "bad" && c.value > 0 ? "bg-error/10 text-red-700" : c.tone === "warn" && c.value > 0 ? "bg-amber-50 text-amber-700" : "bg-surface-2 text-fg-muted"
+              c.tone === "bad" && c.value > 0 ? "bg-error/10 text-error" : c.tone === "warn" && c.value > 0 ? "bg-amber-50 text-amber-700" : "bg-surface-2 text-fg-muted"
             }`}
           >
             {c.value} {c.label}

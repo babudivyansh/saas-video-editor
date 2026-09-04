@@ -110,8 +110,8 @@ function ImageDropZone({
               background: dragging ? "#eef2ff" : "#fafafa",
             }}
           >
-            <span className="text-indigo-400"><IcUpload /></span>
-            <span className="text-[12px] font-medium text-indigo-500">Click or drag to upload</span>
+            <span className="text-brand"><IcUpload /></span>
+            <span className="text-[12px] font-medium text-brand">Click or drag to upload</span>
             <span className="text-[11px] text-fg-subtle">PNG, JPG, WEBP</span>
           </button>
         </>
@@ -270,7 +270,7 @@ export default function FaceSwapTool() {
                 <button
                   type="button"
                   onClick={handleDownload}
-                  className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-3 rounded-xl transition-colors"
+                  className="inline-flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark text-on-primary text-sm font-semibold py-3 rounded-xl transition-colors"
                 >
                   <IcDownload /> Download Image
                 </button>
@@ -316,7 +316,7 @@ export default function FaceSwapTool() {
                   disabled={busy}
                   placeholder="Describe any adjustments or style changes..."
                   rows={3}
-                  className="mt-1.5 w-full bg-surface-2 border border-line rounded-xl px-4 py-3 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none disabled:opacity-50"
+                  className="mt-1.5 w-full bg-surface-2 border border-line rounded-xl px-4 py-3 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none disabled:opacity-50"
                 />
               </div>
 
@@ -327,7 +327,7 @@ export default function FaceSwapTool() {
                   checked={cleanUp}
                   onChange={e => setCleanUp(e.target.checked)}
                   disabled={busy}
-                  className="w-4 h-4 rounded border-line-strong text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  className="w-4 h-4 rounded border-line-strong text-brand focus:ring-primary/40 cursor-pointer"
                 />
                 <span className="text-[13px] text-fg font-medium">Clean up result</span>
               </label>
@@ -340,7 +340,7 @@ export default function FaceSwapTool() {
                     <span className="text-fg-subtle">{Math.round(job.progress)}%</span>
                   </div>
                   <div className="h-2 rounded-full bg-surface-3 overflow-hidden">
-                    <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${job.progress}%` }} />
+                    <div className="h-full bg-brand transition-all duration-300" style={{ width: `${job.progress}%` }} />
                   </div>
                   <button
                     type="button"

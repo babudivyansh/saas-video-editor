@@ -12,7 +12,7 @@ import type { PickerAsset } from "@/app/components/assets/assetPickerData";
 function IcUser()    { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>; }
 function IcLock()    { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>; }
 function IcCamera()  { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>; }
-function IcSpinner() { return <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />; }
+function IcSpinner() { return <div className="w-5 h-5 border-2 border-brand border-t-transparent rounded-full animate-spin" />; }
 
 export default function AccountSettings() {
   const { user, token, signOut, refreshUser } = useAuth();
@@ -121,7 +121,7 @@ export default function AccountSettings() {
     }
   }
 
-  const inputCls = "w-full bg-surface-2 border border-line rounded-xl px-4 py-3 text-sm text-fg placeholder:text-fg-subtle focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all";
+  const inputCls = "w-full bg-surface-2 border border-line rounded-xl px-4 py-3 text-sm text-fg placeholder:text-fg-subtle focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-transparent transition-all";
   const labelCls = "text-xs font-semibold text-fg-muted uppercase tracking-wide block mb-1.5";
 
   return (
@@ -138,12 +138,12 @@ export default function AccountSettings() {
               className="w-16 h-16 rounded-2xl object-cover shadow-sm"
             />
           ) : (
-            <div className="w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center text-white text-2xl font-extrabold select-none shadow-sm">
+            <div className="w-16 h-16 rounded-2xl bg-brand flex items-center justify-center text-on-primary text-2xl font-extrabold select-none shadow-sm">
               {(user?.name?.[0] ?? user?.email?.[0] ?? "?").toUpperCase()}
             </div>
           )}
           <button onClick={() => fileInputRef.current?.click()} disabled={uploadingAvatar} title="Change avatar"
-            className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full bg-panel shadow border border-line flex items-center justify-center text-fg-muted hover:text-blue-600 transition-colors">
+            className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full bg-panel shadow border border-line flex items-center justify-center text-fg-muted hover:text-brand transition-colors">
             {uploadingAvatar ? <IcSpinner /> : <IcCamera />}
           </button>
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
@@ -179,7 +179,7 @@ export default function AccountSettings() {
           {nameMsg && (
             <div className={`text-sm font-medium px-4 py-3 rounded-xl ${nameMsg.type === "success" ? "bg-green-50 text-green-700" : "bg-error/10 text-error"}`}>{nameMsg.text}</div>
           )}
-          <button type="submit" disabled={savingName} className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold py-3 rounded-xl transition-colors">
+          <button type="submit" disabled={savingName} className="w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:bg-brand/60 text-on-primary text-sm font-semibold py-3 rounded-xl transition-colors">
             {savingName ? <><IcSpinner /> Saving…</> : "Save Changes"}
           </button>
         </form>
@@ -202,14 +202,14 @@ export default function AccountSettings() {
           {pwMsg && (
             <div className={`text-sm font-medium px-4 py-3 rounded-xl ${pwMsg.type === "success" ? "bg-green-50 text-green-700" : "bg-error/10 text-error"}`}>{pwMsg.text}</div>
           )}
-          <button type="submit" disabled={pwLoading} className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold py-3 rounded-xl transition-colors">
+          <button type="submit" disabled={pwLoading} className="w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:bg-brand/60 text-on-primary text-sm font-semibold py-3 rounded-xl transition-colors">
             {pwLoading ? <><IcSpinner /> Updating…</> : "Update Password"}
           </button>
         </form>
       </div>
 
       {/* Danger zone */}
-      <div className="rounded-2xl border border-red-100 p-5">
+      <div className="rounded-2xl border border-error/30 p-5">
         <h3 className="text-sm font-bold text-error mb-3">Danger Zone</h3>
         <div className="flex items-center justify-between gap-4">
           <div>

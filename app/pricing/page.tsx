@@ -986,7 +986,7 @@ export default function PricingPage() {
                 </div>
 
                 {checkoutError && (
-                  <p role="alert" className="mt-4 text-xs text-error bg-error/10 border border-red-100 rounded-lg px-3 py-2">
+                  <p role="alert" className="mt-4 text-xs text-error bg-error/10 border border-error/30 rounded-lg px-3 py-2">
                     {checkoutError}
                   </p>
                 )}
@@ -1088,7 +1088,7 @@ export default function PricingPage() {
                   Credits &amp; Perks
                 </td>
               </tr>
-              <tr className="bg-panel border-b border-gray-50">
+              <tr className="bg-panel border-b border-line">
                 <td className="py-4 px-6 text-sm text-ink-soft">Credits per month</td>
                 {PURCHASABLE_TIER_ORDER.map(t => (
                   <td
@@ -1109,7 +1109,7 @@ export default function PricingPage() {
                   product implements support tiering, and lib/plans/display.ts had
                   already dropped "Dedicated support" from the plan bullets for
                   exactly that reason. Storage is a real, enforced difference. */}
-              <tr className="bg-panel border-b border-gray-50">
+              <tr className="bg-panel border-b border-line">
                 <td className="py-4 px-6 text-sm text-ink-soft">Asset storage</td>
                 {PURCHASABLE_TIER_ORDER.map(t => (
                   <td

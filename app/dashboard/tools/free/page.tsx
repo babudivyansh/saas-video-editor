@@ -11,9 +11,9 @@ function IcFileAudio() {
 }
 
 const FREE_TOOLS = [
-  { icon: <IcEqualizer />, title: "Audio Balancer", desc: "Balance between the left and right channels", href: "/dashboard/tools/free/audio-balancer", iconBg: "bg-blue-600" },
-  { icon: <IcVideoFile />, title: "Video Compressor", desc: "Compress video files to reduce file size", href: "/dashboard/tools/free/video-compressor", iconBg: "bg-blue-600" },
-  { icon: <IcFileAudio />, title: "MP3 Converter", desc: "Convert any media file to MP3", href: "/dashboard/tools/free/mp3-converter", iconBg: "bg-blue-600" },
+  { icon: <IcEqualizer />, title: "Audio Balancer", desc: "Balance between the left and right channels", href: "/dashboard/tools/free/audio-balancer", iconBg: "bg-brand" },
+  { icon: <IcVideoFile />, title: "Video Compressor", desc: "Compress video files to reduce file size", href: "/dashboard/tools/free/video-compressor", iconBg: "bg-brand" },
+  { icon: <IcFileAudio />, title: "MP3 Converter", desc: "Convert any media file to MP3", href: "/dashboard/tools/free/mp3-converter", iconBg: "bg-brand" },
 ];
 
 export default function FreeToolsPage() {

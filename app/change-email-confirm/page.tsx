@@ -47,8 +47,8 @@ function ConfirmBody() {
   if (status === "error") {
     return (
       <div className="text-center space-y-3">
-        <p className="text-red-400 text-sm bg-red-950/40 border border-red-800/40 rounded-lg px-3 py-2">{error}</p>
-        <Link href="/login" className="text-blue-400 hover:underline text-sm">Back to login</Link>
+        <p className="text-error text-sm bg-error/12/40 border border-error/40/40 rounded-lg px-3 py-2">{error}</p>
+        <Link href="/login" className="text-brand hover:underline text-sm">Back to login</Link>
       </div>
     );
   }
@@ -62,7 +62,7 @@ function ConfirmBody() {
       </div>
       <p className="text-fg font-semibold">Email updated!</p>
       <p className="text-fg-muted text-sm">Every device has been signed out for security — log in again with your new email.</p>
-      <Link href="/login" className="text-blue-400 hover:underline text-sm">Go to login</Link>
+      <Link href="/login" className="text-brand hover:underline text-sm">Go to login</Link>
     </div>
   );
 }

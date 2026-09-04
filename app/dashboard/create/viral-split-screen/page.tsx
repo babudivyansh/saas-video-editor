@@ -174,7 +174,7 @@ function GeneratingOverlay({ status, videoUrl, error, onReset }: { status: Gener
           <h2 className="text-xl font-bold text-fg">Your video is ready!</h2>
           <video src={videoUrl} controls className="w-full rounded-xl shadow-lg max-h-64 object-contain" />
           <div className="flex gap-3 w-full">
-            <a href={videoUrl} download className="flex-1 inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors">Download</a>
+            <a href={videoUrl} download className="flex-1 inline-flex items-center justify-center bg-brand hover:bg-brand-dark text-on-primary text-sm font-semibold py-2.5 rounded-lg transition-colors">Download</a>
             <button onClick={onReset} className="flex-1 inline-flex items-center justify-center border border-line text-fg text-sm font-semibold py-2.5 rounded-lg hover:bg-surface-2 transition-colors">Create Another</button>
           </div>
         </div>
@@ -187,11 +187,11 @@ function GeneratingOverlay({ status, videoUrl, error, onReset }: { status: Gener
         {status === "failed" ? (
           <>
             <p className="text-fg font-medium">{error ?? "Something went wrong."}</p>
-            <button onClick={onReset} className="mt-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors">Try Again</button>
+            <button onClick={onReset} className="mt-2 px-5 py-2.5 bg-brand hover:bg-brand-dark text-on-primary text-sm font-semibold rounded-lg transition-colors">Try Again</button>
           </>
         ) : (
           <>
-            <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+            <div className="w-10 h-10 border-4 border-brand/40 border-t-blue-600 rounded-full animate-spin" />
             <p className="text-fg font-medium">{statusText[status] ?? ""}</p>
             {status === "rendering" && <p className="text-sm text-fg-subtle">You can leave this page — we&apos;ll keep processing.</p>}
           </>
@@ -314,10 +314,10 @@ function UploadStep({
         />
 
         {fileName ? (
-          <div className="mx-4 rounded-lg border border-blue-200 bg-blue-50 flex items-center gap-3 px-4 py-4">
-            <div className="text-blue-500 flex-shrink-0"><IcFile /></div>
-            <span className="text-sm font-semibold text-blue-700 flex-1 truncate">{fileName}</span>
-            <button onClick={onClearFile} className="text-blue-400 hover:text-blue-600 flex-shrink-0 transition-colors">
+          <div className="mx-4 rounded-lg border border-brand/40 bg-tint-blue flex items-center gap-3 px-4 py-4">
+            <div className="text-brand flex-shrink-0"><IcFile /></div>
+            <span className="text-sm font-semibold text-brand flex-1 truncate">{fileName}</span>
+            <button onClick={onClearFile} className="text-brand hover:text-brand flex-shrink-0 transition-colors">
               <IcX />
             </button>
           </div>
@@ -330,7 +330,7 @@ function UploadStep({
             className="mx-4 flex cursor-pointer flex-col items-center justify-center space-y-3 rounded-lg border border-dashed border-line-strong py-4 transition-all duration-300 ease-in-out md:py-8"
             style={{ borderColor: dragging ? "#93c5fd" : undefined, background: dragging ? "#eff6ff" : undefined }}
           >
-            <div className="text-blue-500"><IcCloud /></div>
+            <div className="text-brand"><IcCloud /></div>
             <p className="text-center text-base text-fg">Choose a clip or drag &amp; drop it here.</p>
             <p className="text-center text-sm text-fg-subtle">MP4 formats, up to 50 MB.</p>
             <button
@@ -401,7 +401,7 @@ function BgCard({ b, isSel, onSelect }: { b: typeof BACKGROUNDS[0]; isSel: boole
       style={{ borderColor: isSel ? "#2563eb" : "#e5e7eb" }}
     >
       {isSel && (
-        <div className="absolute left-3 top-3 z-30 h-5 w-5 rounded-full border border-blue-600 bg-blue-500 flex items-center justify-center">
+        <div className="absolute left-3 top-3 z-30 h-5 w-5 rounded-full border border-brand bg-brand flex items-center justify-center">
           <IcCheck />
         </div>
       )}
@@ -506,7 +506,7 @@ function SubtitleStep({
               style={{ background: "#243044", border: isSel ? "2px solid #2563eb" : "2px solid transparent" }}
             >
               {isSel && (
-                <span className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow">
+                <span className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-brand text-on-primary flex items-center justify-center shadow">
                   <IcCheck />
                 </span>
               )}

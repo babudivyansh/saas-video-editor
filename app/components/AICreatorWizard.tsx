@@ -268,10 +268,10 @@ function RecentGenerationsPanel({ token, refreshKey }: { token: string | null; r
 
   const statusStyle: Record<string, string> = {
     completed: "bg-green-100 text-green-700",
-    failed: "bg-red-100 text-red-700",
+    failed: "bg-error/15 text-error",
     refunded: "bg-surface-3 text-fg-muted",
     cancelled: "bg-surface-3 text-fg-muted",
-    pending: "bg-blue-100 text-blue-700",
+    pending: "bg-tint-violet text-brand",
   };
 
   return (
@@ -512,7 +512,7 @@ export default function AICreatorWizard() {
                 <span
                   className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${
                     i === stepIdx
-                      ? "bg-blue-600 text-white"
+                      ? "bg-brand text-on-primary"
                       : i < stepIdx
                       ? "bg-surface-3 text-fg-muted"
                       : "bg-surface-3 text-fg-subtle"
@@ -534,7 +534,7 @@ export default function AICreatorWizard() {
           disabled={!nextEnabled || generating}
           className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
             nextEnabled && !generating
-              ? "bg-blue-600 hover:bg-blue-700 text-white"
+              ? "bg-brand hover:bg-brand-dark text-on-primary"
               : "bg-surface-3 text-fg-subtle cursor-not-allowed"
           }`}
         >
@@ -571,7 +571,7 @@ export default function AICreatorWizard() {
                   <img src={avatarChoice.previewUrl} className="max-h-full max-w-full rounded-xl object-contain" alt="Avatar" />
                 ) : (
                   <div className="flex flex-col items-center gap-3 text-center">
-                    <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-purple-400 to-blue-500 flex items-center justify-center text-white text-4xl font-bold shadow-lg">
+                    <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-purple-400 to-emerald-bright flex items-center justify-center text-white text-4xl font-bold shadow-lg">
                       {avatarChoice.type === "nano-banana" ? "NB" : "FS"}
                     </div>
                     <p className="text-sm font-semibold text-fg">
@@ -636,8 +636,8 @@ export default function AICreatorWizard() {
                   <p className="text-xs font-semibold text-fg-muted mb-2">Tips for best results:</p>
                   <ul className="space-y-1.5">
                     {["Use high-quality, well-lit footage", "Vertical (9:16) works best for short-form", "Keep videos under 3 minutes"].map(tip => (
-                      <li key={tip} className="flex items-start gap-1.5 text-xs text-blue-600">
-                        <span className="mt-0.5 text-blue-400">•</span>
+                      <li key={tip} className="flex items-start gap-1.5 text-xs text-brand">
+                        <span className="mt-0.5 text-brand">•</span>
                         {tip}
                       </li>
                     ))}
@@ -668,7 +668,7 @@ export default function AICreatorWizard() {
                       }}
                       className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border text-sm font-semibold transition-all shadow-sm ${
                         isSelected
-                          ? "border-blue-500 bg-blue-50 text-blue-700"
+                          ? "border-brand bg-tint-blue text-brand"
                           : "border-line bg-panel hover:bg-surface-2 text-fg"
                       }`}
                     >
@@ -695,7 +695,7 @@ export default function AICreatorWizard() {
                   onClick={() => setVoiceSlug("original")}
                   className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border text-sm font-semibold transition-all shadow-sm ${
                     voiceSlug === "original"
-                      ? "border-blue-500 bg-blue-50 text-blue-700"
+                      ? "border-brand bg-tint-blue text-brand"
                       : "border-line bg-panel hover:bg-surface-2 text-fg"
                   }`}
                 >
@@ -713,7 +713,7 @@ export default function AICreatorWizard() {
                   onClick={() => setShowVoicePicker(true)}
                   className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border text-sm font-semibold transition-all shadow-sm ${
                     voiceSlug !== "original"
-                      ? "border-blue-500 bg-blue-50 text-blue-700"
+                      ? "border-brand bg-tint-blue text-brand"
                       : "border-line bg-panel hover:bg-surface-2 text-fg"
                   }`}
                 >
@@ -738,7 +738,7 @@ export default function AICreatorWizard() {
                 {job.status === "error" && job.error && (
                   <div className="flex items-center justify-between gap-2 text-xs text-error bg-error/10 rounded-lg px-3 py-2">
                     <span>{job.error}</span>
-                    <button onClick={() => void handleGenerate()} className="font-semibold underline underline-offset-2 hover:text-red-800 flex-shrink-0">
+                    <button onClick={() => void handleGenerate()} className="font-semibold underline underline-offset-2 hover:text-error flex-shrink-0">
                       Retry
                     </button>
                   </div>
@@ -754,7 +754,7 @@ export default function AICreatorWizard() {
                       <span>Generating…</span><span>{job.progress}%</span>
                     </div>
                     <div className="w-full bg-surface-3 rounded-full h-1.5">
-                      <div className="bg-blue-600 h-1.5 rounded-full transition-all duration-500" style={{ width: `${job.progress}%` }} />
+                      <div className="bg-brand h-1.5 rounded-full transition-all duration-500" style={{ width: `${job.progress}%` }} />
                     </div>
                     <button
                       onClick={() => void job.cancel()}
@@ -774,7 +774,7 @@ export default function AICreatorWizard() {
                   <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2.5">
                     <span className="text-success text-sm">✓</span>
                     <p className="text-xs text-green-700 font-medium flex-1">Done! Video downloaded.</p>
-                    <a href={resultUrl} download="ai-creator-video.mp4" className="text-xs text-blue-600 font-medium hover:underline">Download again</a>
+                    <a href={resultUrl} download="ai-creator-video.mp4" className="text-xs text-brand font-medium hover:underline">Download again</a>
                   </div>
                 )}
 

@@ -87,7 +87,7 @@ function Delta({ pct, invert }: { pct: number | null; invert?: boolean }) {
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${
-        good ? "bg-emerald-50 text-emerald-700" : "bg-error/10 text-red-700"
+        good ? "bg-emerald-50 text-emerald-700" : "bg-error/10 text-error"
       }`}
     >
       <span aria-hidden="true">{pct > 0 ? "↑" : "↓"}</span>

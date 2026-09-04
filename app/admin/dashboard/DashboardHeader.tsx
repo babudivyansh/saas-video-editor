@@ -54,13 +54,13 @@ export function DashboardHeader({
       {/* Env badge + health */}
       <span
         className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full ${
-          env === "production" ? "bg-error/10 text-red-700 border border-red-100" : "bg-emerald-50 text-emerald-700 border border-emerald-100"
+          env === "production" ? "bg-error/10 text-error border border-error/30" : "bg-emerald-50 text-emerald-700 border border-emerald-100"
         }`}
       >
         {env ?? "…"}
       </span>
       <span
-        className={`w-2.5 h-2.5 rounded-full ${healthOk === null ? "bg-surface-3" : healthOk ? "bg-success" : "bg-red-500 animate-pulse"}`}
+        className={`w-2.5 h-2.5 rounded-full ${healthOk === null ? "bg-surface-3" : healthOk ? "bg-success" : "bg-error animate-pulse"}`}
         title={healthOk === null ? "Checking system health…" : healthOk ? "All systems healthy" : "System degraded — check Operations"}
         aria-label={healthOk === null ? "health unknown" : healthOk ? "system healthy" : "system degraded"}
       />
@@ -122,7 +122,7 @@ export function DashboardHeader({
           >
             <Bell size={14} />
             {alerts.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full min-w-4 h-4 px-0.5 flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 bg-error text-white text-[9px] font-bold rounded-full min-w-4 h-4 px-0.5 flex items-center justify-center">
                 {alerts.length}
               </span>
             )}

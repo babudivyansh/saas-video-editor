@@ -197,7 +197,7 @@ function Dropdown<T extends { slug?: string; label?: string; name?: string; badg
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Search models..."
-                  className="w-full rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] outline-none focus:border-blue-400"
+                  className="w-full rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand/60"
                   onClick={e => e.stopPropagation()}
                 />
               </div>
@@ -212,7 +212,7 @@ function Dropdown<T extends { slug?: string; label?: string; name?: string; badg
                     onClick={() => { onChange(slug); setOpen(false); setSearch(""); }}
                     className="flex items-center gap-2 w-full px-3.5 py-2.5 text-[13px] text-left hover:bg-surface-2 transition-colors"
                   >
-                    <span className={`flex-shrink-0 w-3.5 ${value === slug ? "text-blue-600" : "text-transparent"}`}>
+                    <span className={`flex-shrink-0 w-3.5 ${value === slug ? "text-brand" : "text-transparent"}`}>
                       <IcCheck />
                     </span>
                     <span className="flex-1 font-medium text-fg truncate">{getLabel(opt)}</span>
@@ -312,7 +312,7 @@ function PromptLibraryModal({ onSelect, onClose }: { onSelect: (text: string) =>
               onClick={() => setActiveCategory(cat.slug)}
               className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
                 activeCategory === cat.slug
-                  ? "bg-blue-600 text-white"
+                  ? "bg-brand text-on-primary"
                   : "bg-surface-3 text-fg-muted hover:bg-surface-3"
               }`}
             >
@@ -332,11 +332,11 @@ function PromptLibraryModal({ onSelect, onClose }: { onSelect: (text: string) =>
                 <button
                   key={p.id}
                   onClick={() => setSelectedId(p.id)}
-                  className={`w-full p-1.5 transition-colors ${selectedId === p.id ? "bg-blue-50" : "hover:bg-surface-2"}`}
+                  className={`w-full p-1.5 transition-colors ${selectedId === p.id ? "bg-tint-blue" : "hover:bg-surface-2"}`}
                 >
                   <div
                     className={`relative w-full rounded-lg overflow-hidden border-2 transition-colors ${
-                      selectedId === p.id ? "border-blue-500" : "border-transparent"
+                      selectedId === p.id ? "border-brand" : "border-transparent"
                     }`}
                     style={{ aspectRatio: "16/9", background: p.gradient }}
                   >
@@ -438,7 +438,7 @@ function PromptDocsPopover({ onClose }: { onClose: () => void }) {
       <ul className="space-y-1.5">
         {PROMPT_TIPS.map((tip, i) => (
           <li key={i} className="flex items-start gap-1.5 text-[11px] text-fg-muted leading-relaxed">
-            <span className="text-blue-400 mt-0.5 flex-shrink-0">•</span>{tip}
+            <span className="text-brand mt-0.5 flex-shrink-0">•</span>{tip}
           </li>
         ))}
       </ul>
@@ -714,7 +714,7 @@ export default function VideoGeneratorTool() {
                   value={seed}
                   onChange={e => setSeed(e.target.value)}
                   placeholder="Random"
-                  className="w-full rounded-xl border border-line bg-panel px-3 py-2.5 text-[13px] outline-none focus:border-blue-400"
+                  className="w-full rounded-xl border border-line bg-panel px-3 py-2.5 text-[13px] outline-none focus:border-brand/60"
                 />
               </div>
             )}
@@ -774,10 +774,10 @@ export default function VideoGeneratorTool() {
                   </button>
                 </>
               ) : (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-xs font-medium text-blue-700">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand/40 bg-tint-blue text-xs font-medium text-brand">
                   <IcImage />
                   <span className="max-w-[120px] truncate">{refImage ? refImage.name : refImageAsset!.name}</span>
-                  <button onClick={() => { setRefImage(null); setRefImageAsset(null); }} className="text-blue-400 hover:text-blue-700 transition-colors ml-0.5"><IcX /></button>
+                  <button onClick={() => { setRefImage(null); setRefImageAsset(null); }} className="text-brand hover:text-brand transition-colors ml-0.5"><IcX /></button>
                 </div>
               )}
               <AssetPicker
@@ -802,7 +802,7 @@ export default function VideoGeneratorTool() {
                 placeholder="Describe the video you want to create..."
                 rows={8}
                 disabled={job.status === "processing"}
-                className="w-full rounded-xl border border-line bg-panel px-4 py-3 text-sm text-fg placeholder:text-fg-subtle outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 resize-none transition-all disabled:opacity-60"
+                className="w-full rounded-xl border border-line bg-panel px-4 py-3 text-sm text-fg placeholder:text-fg-subtle outline-none focus:border-brand/60 focus:ring-2 focus:ring-primary/25 resize-none transition-all disabled:opacity-60"
               />
               <p className="text-[11px] text-fg-subtle mt-1 text-right">{prompt.length}/2000</p>
             </div>
@@ -815,7 +815,7 @@ export default function VideoGeneratorTool() {
                   <span>{job.progress}%</span>
                 </div>
                 <div className="w-full bg-surface-3 rounded-full h-2">
-                  <div className="bg-blue-600 h-2 rounded-full transition-all duration-500" style={{ width: `${job.progress}%` }} />
+                  <div className="bg-brand h-2 rounded-full transition-all duration-500" style={{ width: `${job.progress}%` }} />
                 </div>
                 <button
                   onClick={() => void job.cancel()}

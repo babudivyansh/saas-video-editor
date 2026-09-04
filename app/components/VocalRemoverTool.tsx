@@ -218,7 +218,7 @@ export default function VocalRemoverTool() {
               !file ? (
                 <div
                   className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center cursor-pointer transition-colors ${
-                    dragging ? "border-brand bg-blue-50" : "border-line hover:border-line-strong bg-surface-2"
+                    dragging ? "border-brand bg-tint-blue" : "border-line hover:border-line-strong bg-surface-2"
                   }`}
                   onClick={() => fileInputRef.current?.click()}
                   onDragOver={e => { e.preventDefault(); setDragging(true); }}
@@ -237,7 +237,7 @@ export default function VocalRemoverTool() {
                 </div>
               ) : (
                 <div className="border border-line rounded-xl p-4 flex items-center gap-3 bg-surface-2">
-                  <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                  <div className="w-10 h-10 rounded-lg bg-tint-blue flex items-center justify-center flex-shrink-0">
                     <IcMusic />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -254,7 +254,7 @@ export default function VocalRemoverTool() {
             {/* File chip during processing / complete */}
             {(stage === "processing" || stage === "done") && file && (
               <div className="border border-line rounded-xl p-4 flex items-center gap-3 bg-surface-2">
-                <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 rounded-lg bg-tint-blue flex items-center justify-center flex-shrink-0">
                   <IcMusic />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -341,7 +341,7 @@ export default function VocalRemoverTool() {
               /* Result state */
               <div className="w-full space-y-4">
                 <div className="bg-surface-2 rounded-xl p-3 flex items-center gap-2.5 border border-line">
-                  <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                  <div className="w-9 h-9 rounded-lg bg-tint-blue flex items-center justify-center flex-shrink-0">
                     <IcMusic />
                   </div>
                   <div className="flex-1 min-w-0">

@@ -311,7 +311,7 @@ function TwoFactorSection() {
         {status?.enabled ? (
           <>
             <Button variant="secondary" size="sm" onClick={() => setRegenOpen(true)}>{t("regenerateCodes")}</Button>
-            <Button variant="secondary" size="sm" onClick={() => setDisableOpen(true)} className="!text-red-600">{t("disable2fa")}</Button>
+            <Button variant="secondary" size="sm" onClick={() => setDisableOpen(true)} className="!text-error">{t("disable2fa")}</Button>
           </>
         ) : (
           <Button size="sm" onClick={() => setSetupOpen(true)}>{t("enable2fa")}</Button>
@@ -373,7 +373,7 @@ function TwoFactorSection() {
           <input type="password" required autoFocus value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)} placeholder={t("currentPasswordPlaceholder")} className={inputCls} />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" size="sm" onClick={() => setDisableOpen(false)}>{tCommon("cancel")}</Button>
-            <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-red-600">{busy ? <><IcSpinner /> {t("disabling")}</> : t("disable")}</Button>
+            <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-error">{busy ? <><IcSpinner /> {t("disabling")}</> : t("disable")}</Button>
           </div>
         </form>
       </Modal>

@@ -114,6 +114,16 @@ const RULES = {
   "ring-gray-200": "ring-line",
 
   // Status — lime is branding, not every state.
+  // red-700/800/900 are DARK reds that were readable on a light error banner
+  // and are ~2:1 on the dark one. red-100/200/300 are the light banner itself.
+  "text-red-400": "text-error",
+  "text-red-700": "text-error",
+  "text-red-800": "text-error",
+  "text-red-900": "text-error",
+  "bg-red-100": "bg-error/15",
+  "bg-red-400": "bg-error",
+  "border-red-100": "border-error/30",
+  "border-red-400": "border-error/60",
   "text-red-500": "text-error",
   "text-red-600": "text-error",
   "bg-red-50": "bg-error/10",
@@ -123,6 +133,49 @@ const RULES = {
   "text-green-600": "text-success",
   "text-amber-500": "text-warning",
   "text-amber-600": "text-warning",
+
+  // Stock blue/indigo — the OLD brand colour, used as the accent throughout the
+  // tool pages long before this migration. Left alone by the first pass because
+  // the rules only covered neutrals, and the debt ratchet did not count blue.
+  "bg-blue-600": "bg-brand",
+  "bg-blue-700": "bg-brand-dark",
+  "bg-blue-500": "bg-brand",
+  "bg-blue-400": "bg-brand/60",
+  "bg-blue-50": "bg-tint-blue",
+  "bg-blue-100": "bg-tint-violet",
+  "bg-indigo-600": "bg-brand",
+  "bg-indigo-50": "bg-tint-blue",
+  "text-blue-800": "text-brand",
+  "text-blue-700": "text-brand",
+  "text-blue-600": "text-brand",
+  "text-blue-500": "text-brand",
+  "text-blue-400": "text-brand",
+  "text-indigo-600": "text-brand",
+  "border-blue-500": "border-brand",
+  "border-blue-400": "border-brand/60",
+  "border-blue-300": "border-brand/50",
+  "border-blue-200": "border-brand/40",
+  "border-blue-100": "border-line",
+  "bg-blue-200": "bg-tint-violet",
+  "bg-blue-300": "bg-brand/50",
+  "bg-blue-900": "bg-surface-3",
+  "bg-indigo-500": "bg-brand",
+  "bg-indigo-700": "bg-brand-dark",
+  "bg-indigo-100": "bg-tint-violet",
+  "bg-indigo-300": "bg-brand/50",
+  "bg-indigo-400": "bg-brand/70",
+  "text-blue-900": "text-brand",
+  "text-blue-300": "text-brand",
+  "text-blue-200": "text-brand",
+  "text-indigo-500": "text-brand",
+  "text-indigo-400": "text-brand",
+  "text-indigo-700": "text-brand",
+  "border-indigo-500": "border-brand",
+  "border-indigo-300": "border-brand/50",
+  "border-indigo-100": "border-line",
+  "border-blue-50": "border-line",
+  "ring-blue-500": "ring-primary/40",
+  "ring-blue-200": "ring-primary/25",
 
   // Old brand hexes → tokens
   "text-[#335CFF]": "text-brand",
@@ -136,7 +189,10 @@ const NEVER = new Set(["print:bg-white"]);
 // `text-white` is correct on 340 sites (hero overlays, gradient fills). It is
 // only wrong where the fill became lime, which needs near-black text. Rewrite
 // it ONLY when the same string literal also carries the fill class.
-const LIME_FILL_RE = /\b(?:grad-brand|bg-brand)\b/;
+// bg-blue-600/700 are listed because they BECOME bg-brand in the same pass —
+// without them a "bg-blue-600 text-white" pair would keep its white text on
+// what is now a lime fill.
+const LIME_FILL_RE = /\b(?:grad-brand|bg-brand|bg-blue-600|bg-blue-700|bg-indigo-600)\b/;
 
 const argv = process.argv.slice(2);
 const apply = argv.includes("--apply");

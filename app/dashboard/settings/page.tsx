@@ -28,7 +28,7 @@ function Meter({ label, pct, sublabel }: { label: string; pct: number; sublabel:
         <span className="text-xs font-semibold text-ink-soft">{sublabel}</span>
       </div>
       <div className="h-2 bg-surface-3 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full transition-all duration-500 ${pct >= 90 ? "bg-red-400" : "grad-brand"}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+        <div className={`h-full rounded-full transition-all duration-500 ${pct >= 90 ? "bg-error" : "grad-brand"}`} style={{ width: `${Math.min(pct, 100)}%` }} />
       </div>
     </div>
   );

@@ -115,13 +115,13 @@ function Stat({ label, value }: { label: string; value: string }) {
  */
 function SyncBadge({ status, syncStatus }: { status: string; syncStatus: string }) {
   if (status === "needs_reauth") {
-    return <Badge tint="bg-tint-rose" text="text-red-700">Reconnect</Badge>;
+    return <Badge tint="bg-tint-rose" text="text-error">Reconnect</Badge>;
   }
   if (status === "revoked") {
-    return <Badge tint="bg-tint-rose" text="text-red-700">Revoked</Badge>;
+    return <Badge tint="bg-tint-rose" text="text-error">Revoked</Badge>;
   }
   if (syncStatus === "failed") {
-    return <Badge tint="bg-tint-rose" text="text-red-700">Sync failed</Badge>;
+    return <Badge tint="bg-tint-rose" text="text-error">Sync failed</Badge>;
   }
   if (syncStatus === "partial") {
     return <Badge tint="bg-tint-amber" text="text-amber-700">Partial</Badge>;

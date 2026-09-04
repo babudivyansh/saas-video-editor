@@ -102,7 +102,7 @@ export function NotificationBell({ className = "" }: { className?: string }) {
         >
           <IcBell />
           {unreadCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-error text-white text-[9px] font-bold flex items-center justify-center">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
@@ -114,7 +114,7 @@ export function NotificationBell({ className = "" }: { className?: string }) {
           <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-line">
             <p className="text-sm font-bold text-fg">Notifications</p>
             {items.some((n) => !n.readAt) && (
-              <button onClick={markAllRead} className="text-xs font-semibold text-blue-600 hover:text-blue-800 cursor-pointer">
+              <button onClick={markAllRead} className="text-xs font-semibold text-brand hover:text-brand cursor-pointer">
                 Mark all read
               </button>
             )}
@@ -130,7 +130,7 @@ export function NotificationBell({ className = "" }: { className?: string }) {
                 onClick={() => { markRead(n.id); close(); if (n.href) router.push(n.href); }}
               >
                 <span className="flex items-start gap-2 w-full text-left">
-                  {!n.readAt && <span className="w-1.5 h-1.5 rounded-full bg-blue-600 mt-1.5 flex-shrink-0" />}
+                  {!n.readAt && <span className="w-1.5 h-1.5 rounded-full bg-brand mt-1.5 flex-shrink-0" />}
                   <span className={`min-w-0 flex-1 ${n.readAt ? "opacity-60" : ""}`}>
                     <span className="block text-sm font-semibold text-fg">{n.title}</span>
                     {n.body && <span className="block text-xs text-fg-muted mt-0.5 line-clamp-2">{n.body}</span>}

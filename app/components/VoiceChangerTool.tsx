@@ -440,7 +440,7 @@ export default function VoiceChangerTool() {
                       handleFileChange(e.dataTransfer.files[0] ?? null);
                     }}
                     className={`rounded-xl border-2 border-dashed px-6 py-8 flex flex-col items-center gap-3 cursor-pointer transition-colors ${
-                      dragging ? "border-brand bg-blue-50" : "border-line bg-surface-2 hover:border-slate-300 hover:bg-surface-3"
+                      dragging ? "border-brand bg-tint-blue" : "border-line bg-surface-2 hover:border-slate-300 hover:bg-surface-3"
                     }`}
                   >
                     <div className="text-fg-subtle"><IcCloud /></div>
@@ -514,7 +514,7 @@ export default function VoiceChangerTool() {
               {job.status === "error" && job.error && (
                 <div className="flex items-center justify-between gap-2 text-xs text-error bg-error/10 border border-error/40 rounded-lg px-3 py-2">
                   <span>{job.error}</span>
-                  <button onClick={() => void handleSubmit()} className="font-semibold underline underline-offset-2 hover:text-red-800 flex-shrink-0">
+                  <button onClick={() => void handleSubmit()} className="font-semibold underline underline-offset-2 hover:text-error flex-shrink-0">
                     Retry
                   </button>
                 </div>

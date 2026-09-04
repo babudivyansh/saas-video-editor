@@ -63,7 +63,7 @@ function IdeaCard({ idea, index }: { idea: Idea; index: number }) {
     <div className="border border-line rounded-xl p-4 bg-panel hover:border-line transition-colors">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2.5 flex-1 min-w-0">
-          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 text-[10px] font-bold flex items-center justify-center mt-0.5">
+          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-tint-violet text-brand text-[10px] font-bold flex items-center justify-center mt-0.5">
             {index + 1}
           </span>
           <div className="min-w-0">
@@ -151,7 +151,7 @@ export default function BrainstormerTool() {
               onChange={e => setTopic(e.target.value)}
               maxLength={200}
               placeholder="Generate ideas for a niche to start a page on"
-              className="w-full rounded-xl border border-line px-3.5 py-2.5 text-sm text-fg placeholder:text-fg-subtle outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+              className="w-full rounded-xl border border-line px-3.5 py-2.5 text-sm text-fg placeholder:text-fg-subtle outline-none focus:border-brand/60 focus:ring-2 focus:ring-primary/25 transition-all"
             />
             <div className="flex flex-wrap gap-2 mt-2.5">
               {TOPIC_CHIPS.map(chip => (
@@ -160,7 +160,7 @@ export default function BrainstormerTool() {
                   onClick={() => setTopic(chip)}
                   className={`px-3 py-1 rounded-lg border text-xs font-medium transition-colors ${
                     topic === chip
-                      ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+                      ? "border-brand/50 bg-tint-blue text-brand"
                       : "border-line bg-panel text-fg-muted hover:border-line-strong hover:bg-surface-2"
                   }`}
                 >
@@ -177,7 +177,7 @@ export default function BrainstormerTool() {
               <select
                 value={tone}
                 onChange={e => setTone(e.target.value)}
-                className="w-full appearance-none rounded-xl border border-line px-3.5 py-2.5 text-sm text-fg outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all bg-panel pr-8"
+                className="w-full appearance-none rounded-xl border border-line px-3.5 py-2.5 text-sm text-fg outline-none focus:border-brand/60 focus:ring-2 focus:ring-primary/25 transition-all bg-panel pr-8"
               >
                 <option value="">Select Tone</option>
                 {TONES.map(t => <option key={t} value={t}>{t}</option>)}
@@ -197,7 +197,7 @@ export default function BrainstormerTool() {
               onChange={e => setTargetAudience(e.target.value)}
               maxLength={200}
               placeholder="30-40 year old moms in the US"
-              className="w-full rounded-xl border border-line px-3.5 py-2.5 text-sm text-fg placeholder:text-fg-subtle outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+              className="w-full rounded-xl border border-line px-3.5 py-2.5 text-sm text-fg placeholder:text-fg-subtle outline-none focus:border-brand/60 focus:ring-2 focus:ring-primary/25 transition-all"
             />
           </div>
 
@@ -211,7 +211,7 @@ export default function BrainstormerTool() {
                   onClick={() => setVideoType(prev => prev === vt ? "" : vt)}
                   className={`px-3.5 py-2 rounded-lg border text-xs font-medium transition-colors ${
                     videoType === vt
-                      ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+                      ? "border-brand/50 bg-tint-blue text-brand"
                       : "border-line bg-panel text-fg-muted hover:border-line-strong hover:bg-surface-2"
                   }`}
                 >
@@ -244,7 +244,7 @@ export default function BrainstormerTool() {
         {/* ── Right panel ── */}
         <div className="w-full lg:w-96 lg:flex-shrink-0 bg-panel rounded-2xl border border-line shadow-sm flex flex-col overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-4 border-b border-line flex-shrink-0">
-            <IcSparkle className="w-3.5 h-3.5 text-indigo-500" />
+            <IcSparkle className="w-3.5 h-3.5 text-brand" />
             <p className="text-sm font-semibold text-fg">Your idea will appear here</p>
           </div>
 

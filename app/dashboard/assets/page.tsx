@@ -287,7 +287,7 @@ function AssetsPageInner() {
                 <span className="text-[10px] font-semibold text-ink-soft">{fmtSize(usedBytes)} / {fmtSize(limitBytes)}</span>
               </div>
               <div className="h-1.5 bg-surface-3 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full transition-all duration-500 ${usedPct > 90 ? "bg-red-400" : "grad-brand"}`} style={{ width: `${usedPct}%` }} />
+                <div className={`h-full rounded-full transition-all duration-500 ${usedPct > 90 ? "bg-error" : "grad-brand"}`} style={{ width: `${usedPct}%` }} />
               </div>
             </div>
           )}

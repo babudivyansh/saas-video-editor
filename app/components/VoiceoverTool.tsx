@@ -228,7 +228,7 @@ function VoicePickerModal({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search name, tag, etc."
-              className="w-full rounded-xl border border-line pl-9 pr-4 py-2.5 text-[13.5px] text-fg placeholder:text-fg-subtle outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+              className="w-full rounded-xl border border-line pl-9 pr-4 py-2.5 text-[13.5px] text-fg placeholder:text-fg-subtle outline-none focus:border-brand/60 focus:ring-2 focus:ring-primary/25 transition"
             />
           </div>
         </div>
@@ -251,7 +251,7 @@ function VoicePickerModal({
                     onClick={() => onSelect(v.slug)}
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(v.slug); }}}
                     className={`relative rounded-2xl border-2 p-4 text-left transition-all cursor-pointer ${
-                      isActive ? "border-blue-500 bg-blue-50/40" : "border-line bg-panel hover:border-line-strong hover:bg-gray-50/50"
+                      isActive ? "border-brand bg-tint-blue/40" : "border-line bg-panel hover:border-line-strong hover:bg-gray-50/50"
                     }`}
                   >
                     {/* Like + Play buttons */}
@@ -259,7 +259,7 @@ function VoicePickerModal({
                       <button
                         onClick={(e) => { e.stopPropagation(); onLike(v.slug); }}
                         className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                          isLiked ? "text-error bg-error/10 hover:bg-red-100" : "text-fg-subtle hover:text-fg-muted hover:bg-surface-3"
+                          isLiked ? "text-error bg-error/10 hover:bg-error/15" : "text-fg-subtle hover:text-fg-muted hover:bg-surface-3"
                         }`}
                         aria-label={isLiked ? "Unlike" : "Like"}
                       >
@@ -270,9 +270,9 @@ function VoicePickerModal({
                         disabled={!!loadingSlug && loadingSlug !== v.slug}
                         className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
                           isPreviewing
-                            ? "text-blue-600 bg-blue-100 hover:bg-blue-200"
+                            ? "text-brand bg-tint-violet hover:bg-tint-violet"
                             : loadingSlug === v.slug
-                              ? "text-blue-400 bg-blue-50"
+                              ? "text-brand bg-tint-blue"
                               : "text-fg-subtle hover:text-fg hover:bg-surface-3"
                         }`}
                         aria-label="Preview voice"
@@ -313,7 +313,7 @@ function VoicePickerModal({
         <div className="px-6 py-4 border-t border-line flex items-center justify-end flex-shrink-0">
           <button
             onClick={onClose}
-            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-[13.5px] font-bold px-6 py-2.5 rounded-xl transition-colors cursor-pointer"
+            className="inline-flex items-center gap-2 bg-brand hover:bg-brand-dark text-on-primary text-[13.5px] font-bold px-6 py-2.5 rounded-xl transition-colors cursor-pointer"
           >
             Done
             <kbd className="text-[10px] font-semibold bg-white/20 rounded px-1.5 py-0.5">Esc</kbd>
@@ -407,7 +407,7 @@ function PlayerCard({
       <div className="flex items-center gap-3">
         <button
           onClick={onToggle}
-          className="w-9 h-9 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center flex-shrink-0 transition-colors cursor-pointer"
+          className="w-9 h-9 rounded-full bg-brand hover:bg-brand-dark text-on-primary flex items-center justify-center flex-shrink-0 transition-colors cursor-pointer"
           aria-label={isActive && isPlaying ? "Pause" : "Play"}
         >
           {isActive && isPlaying ? <IcPause /> : <IcPlay />}
@@ -433,7 +433,7 @@ function PlayerCard({
         </a>
       </div>
       <div className="mt-3 h-1 rounded-full bg-surface-3 overflow-hidden">
-        <div className="h-full bg-blue-500 transition-[width] duration-150" style={{ width: `${pctBar}%` }} />
+        <div className="h-full bg-brand transition-[width] duration-150" style={{ width: `${pctBar}%` }} />
       </div>
     </div>
   );
@@ -634,7 +634,7 @@ export default function VoiceoverTool() {
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Enter a title for your voiceover"
             maxLength={120}
-            className="w-full rounded-xl border border-line px-3.5 py-2.5 text-[14px] text-fg placeholder:text-fg-subtle outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition mb-5"
+            className="w-full rounded-xl border border-line px-3.5 py-2.5 text-[14px] text-fg placeholder:text-fg-subtle outline-none focus:border-brand focus:ring-2 focus:ring-primary/25 transition mb-5"
           />
 
           {/* Script */}
@@ -653,7 +653,7 @@ export default function VoiceoverTool() {
             onKeyDown={onKeyDown}
             placeholder="Enter text here"
             rows={11}
-            className="w-full rounded-xl border border-line px-3.5 py-3 text-[14px] leading-relaxed text-fg placeholder:text-fg-subtle outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition resize-none"
+            className="w-full rounded-xl border border-line px-3.5 py-3 text-[14px] leading-relaxed text-fg placeholder:text-fg-subtle outline-none focus:border-brand focus:ring-2 focus:ring-primary/25 transition resize-none"
           />
           {chars > MAX_CHARS && (
             <p className="text-[12px] text-error mt-1.5">Script exceeds the {MAX_CHARS.toLocaleString()} character limit.</p>
@@ -671,7 +671,7 @@ export default function VoiceoverTool() {
             onClick={() => void generate()}
             disabled={!canGenerate}
             className={`mt-5 w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-[14px] font-bold transition-colors ${
-              canGenerate ? "bg-blue-600 hover:bg-blue-700 text-white cursor-pointer" : "bg-surface-3 text-fg-subtle cursor-not-allowed"
+              canGenerate ? "bg-brand hover:bg-brand-dark text-on-primary cursor-pointer" : "bg-surface-3 text-fg-subtle cursor-not-allowed"
             }`}
           >
             {busy ? (
@@ -704,7 +704,7 @@ export default function VoiceoverTool() {
               <p className="text-[12.5px] text-fg-subtle mt-0.5">Select and download a script to generate voiceover</p>
             </div>
             {history.length > 0 && (
-              <button onClick={() => persistHistory([])} className="text-[12.5px] font-semibold text-blue-600 hover:text-blue-700 cursor-pointer">Clear all</button>
+              <button onClick={() => persistHistory([])} className="text-[12.5px] font-semibold text-brand hover:text-brand cursor-pointer">Clear all</button>
             )}
           </div>
 

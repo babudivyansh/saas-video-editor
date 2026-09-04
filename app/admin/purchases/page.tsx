@@ -187,7 +187,7 @@ export default function AdminPurchasesPage() {
                       <td className="py-3 px-3">
                         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${
                           p.status === "captured" ? "text-green-700 bg-green-100" :
-                          p.status === "failed"   ? "text-red-700 bg-red-100" :
+                          p.status === "failed"   ? "text-error bg-error/15" :
                           "text-fg-muted bg-surface-3"}`}>
                           {p.status}
                         </span>

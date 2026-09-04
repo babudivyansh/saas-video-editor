@@ -140,7 +140,7 @@ function ModelTable({
               const disabled = m.override?.enabled === false;
               const effectiveCost = m.override?.creditCost ?? m.defaultCreditCost;
               return (
-                <tr key={m.id} className={disabled ? "bg-red-50/40" : "hover:bg-surface-2"}>
+                <tr key={m.id} className={disabled ? "bg-error/10/40" : "hover:bg-surface-2"}>
                   <td className="px-6 py-3">
                     <p className="font-semibold text-fg">{m.displayName}</p>
                     <p className="text-xs text-fg-subtle font-mono">{m.id}</p>

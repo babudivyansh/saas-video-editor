@@ -125,7 +125,7 @@ export function InsufficientCreditsModal({ info, onClose }: {
             </div>
             <h2 className="text-xl font-extrabold text-fg">Credits added</h2>
             <p className="text-sm text-fg-muted mt-1.5">Your top-up is on your account — retry your {info.action?.toLowerCase() ?? "action"} whenever you&apos;re ready.</p>
-            <button onClick={onClose} className="mt-6 w-full bg-blue-600 text-white font-bold py-3 rounded-full hover:bg-blue-700 transition-colors">
+            <button onClick={onClose} className="mt-6 w-full bg-brand text-on-primary font-bold py-3 rounded-full hover:bg-brand-dark transition-colors">
               Back to work
             </button>
           </div>
@@ -144,7 +144,7 @@ export function InsufficientCreditsModal({ info, onClose }: {
                   out to the marketing site. */}
               <button
                 onClick={() => { onClose(); openBilling({ view: "plans" }); }}
-                className="text-blue-600 underline hover:text-blue-800 cursor-pointer"
+                className="text-brand underline hover:text-brand cursor-pointer"
               >
                 upgrade your plan
               </button>{" "}
@@ -160,7 +160,7 @@ export function InsufficientCreditsModal({ info, onClose }: {
                   <label
                     key={pack.id}
                     className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                      active ? "border-blue-600 bg-blue-50/30 shadow-sm" : "border-line hover:border-line"
+                      active ? "border-brand bg-tint-blue/30 shadow-sm" : "border-line hover:border-line"
                     }`}
                   >
                     <input
@@ -189,7 +189,7 @@ export function InsufficientCreditsModal({ info, onClose }: {
             <button
               onClick={buy}
               disabled={!selectedPack || paying}
-              className="mt-5 w-full bg-blue-600 text-white font-bold py-3.5 rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+              className="mt-5 w-full bg-brand text-on-primary font-bold py-3.5 rounded-full hover:bg-brand-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
             >
               {paying ? (
                 <>

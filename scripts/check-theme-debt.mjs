@@ -43,6 +43,16 @@ const PATTERNS = {
   // remain are the Reddit card's own dark-mode swatch in create/reddit-video,
   // which is product output rather than chrome.
   "raw-zinc": /\b(?:bg|text|border|ring|divide|placeholder|from|to|via)-zinc-\d{2,3}\b/g,
+  // Stock blue/indigo. The retired brand was blue, so these are old-accent
+  // leakage rather than a deliberate hue choice. The 42 that remain are all
+  // inside the two protected content files, where blue is the Telegram /
+  // iMessage / Reddit rendering rather than Clipiro chrome.
+  "raw-blue": /\b(?:bg|text|border|ring|divide|placeholder|from|to|via)-(?:blue|indigo)-\d{2,3}\b/g,
+  // Stock red. text-red-700/800/900 read fine on a light error banner and are
+  // ~2:1 on the dark one; bg-red-100/50 IS the light banner. The 15 that remain
+  // are YouTube brand red in the downloader and its preview illustration —
+  // a platform colour, like the Reddit orange, not an error state.
+  "raw-red": /\b(?:bg|text|border|ring|divide|from|to|via)-red-\d{2,3}\b/g,
   // Literal old-brand hexes in UI code. One is legitimate and permanent:
   // #7c3aed is also PALETTE[3] in app/admin/dashboard/ui.tsx, a validated
   // categorical chart hue that happens to collide with the retired accent.
@@ -55,10 +65,12 @@ const PATTERNS = {
 
 // Exact expected counts. Lower these as each stage lands; never raise them.
 const BUDGET = {
-  "raw-gray": 67,
+  "raw-gray": 65,
   "bg-white": 5,
   "raw-slate": 16,
   "raw-zinc": 2,
+  "raw-blue": 42,
+  "raw-red": 15,
   "brand-hex": 53,
   "legacy-light": 0,
 };

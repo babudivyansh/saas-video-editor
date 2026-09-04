@@ -94,7 +94,7 @@ function ModelDropdown({ value, onChange }: { value: string; onChange: (v: strin
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search models..."
-              className="w-full rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] outline-none focus:border-blue-400"
+              className="w-full rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand/60"
               onClick={e => e.stopPropagation()}
             />
           </div>
@@ -105,7 +105,7 @@ function ModelDropdown({ value, onChange }: { value: string; onChange: (v: strin
                 onClick={() => { onChange(m.id); setOpen(false); setSearch(""); }}
                 className="w-full flex items-center gap-2 px-3.5 py-2.5 text-[13.5px] text-left hover:bg-surface-2 transition-colors cursor-pointer"
               >
-                {value === m.id ? <span className="text-blue-600"><IcCheck /></span> : <span className="w-3.5 h-3.5" />}
+                {value === m.id ? <span className="text-brand"><IcCheck /></span> : <span className="w-3.5 h-3.5" />}
                 <span className="flex-1 font-medium text-fg">{m.displayName}</span>
                 <span className="text-[10px] font-semibold text-fg-subtle bg-surface-3 rounded-md px-1.5 py-0.5 whitespace-nowrap">{creditLabel(m.creditCost)}</span>
               </button>
@@ -146,7 +146,7 @@ function RatioDropdown({ value, onChange }: { value: string; onChange: (v: strin
               onClick={() => { onChange(r); setOpen(false); }}
               className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-left hover:bg-surface-2 transition-colors cursor-pointer"
             >
-              {value === r ? <span className="text-blue-600"><IcCheck /></span> : <span className="w-3.5 h-3.5" />}
+              {value === r ? <span className="text-brand"><IcCheck /></span> : <span className="w-3.5 h-3.5" />}
               <span className="font-medium text-fg">{r}</span>
             </button>
           ))}
@@ -365,7 +365,7 @@ export default function ImageGeneratorTool() {
                 value={negativePrompt}
                 onChange={e => setNegativePrompt(e.target.value)}
                 placeholder="Things to avoid in the image..."
-                className="w-full rounded-xl border border-line px-3.5 py-2.5 text-[13px] text-fg placeholder:text-fg-subtle outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+                className="w-full rounded-xl border border-line px-3.5 py-2.5 text-[13px] text-fg placeholder:text-fg-subtle outline-none focus:border-brand/60 focus:ring-2 focus:ring-primary/25 transition"
               />
             </div>
           )}
@@ -388,7 +388,7 @@ export default function ImageGeneratorTool() {
                         value={seed}
                         onChange={e => setSeed(e.target.value)}
                         placeholder="Random"
-                        className="w-full rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] outline-none focus:border-blue-400"
+                        className="w-full rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand/60"
                       />
                     </div>
                   )}
@@ -400,7 +400,7 @@ export default function ImageGeneratorTool() {
                         value={guidanceScale}
                         onChange={e => setGuidanceScale(e.target.value)}
                         placeholder="Default"
-                        className="w-full rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] outline-none focus:border-blue-400"
+                        className="w-full rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand/60"
                       />
                     </div>
                   )}
@@ -412,7 +412,7 @@ export default function ImageGeneratorTool() {
                         value={steps}
                         onChange={e => setSteps(e.target.value)}
                         placeholder="Default"
-                        className="w-full rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] outline-none focus:border-blue-400"
+                        className="w-full rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand/60"
                       />
                     </div>
                   )}
@@ -426,7 +426,7 @@ export default function ImageGeneratorTool() {
             {generating ? (
               <div className="flex flex-col items-center justify-center h-full min-h-[340px] gap-4">
                 <div className="w-14 h-14 rounded-full bg-panel border border-line flex items-center justify-center shadow-sm">
-                  <Spinner className="w-6 h-6 text-blue-500" />
+                  <Spinner className="w-6 h-6 text-brand" />
                 </div>
                 <div className="text-center">
                   <p className="text-[14px] font-bold text-fg">Generating your image…</p>
@@ -461,7 +461,7 @@ export default function ImageGeneratorTool() {
                 </div>
                 <div>
                   <p className="text-[15px] font-bold text-fg">Ready to create something amazing?</p>
-                  <p className="text-[13px] text-blue-500 mt-1">Enter a prompt below and let AI bring your ideas to life</p>
+                  <p className="text-[13px] text-brand mt-1">Enter a prompt below and let AI bring your ideas to life</p>
                 </div>
               </div>
             )}
@@ -481,7 +481,7 @@ export default function ImageGeneratorTool() {
               onKeyDown={onKeyDown}
               placeholder="Describe the image you want to create..."
               rows={6}
-              className="w-full rounded-xl border border-line px-4 py-3 text-[13.5px] leading-relaxed text-fg placeholder:text-fg-subtle outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition resize-none pb-10"
+              className="w-full rounded-xl border border-line px-4 py-3 text-[13.5px] leading-relaxed text-fg placeholder:text-fg-subtle outline-none focus:border-brand/60 focus:ring-2 focus:ring-primary/25 transition resize-none pb-10"
             />
             {/* Enhance Prompt */}
             <button
@@ -507,7 +507,7 @@ export default function ImageGeneratorTool() {
             disabled={!prompt.trim() || generating}
             className={`mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl py-3 text-[14px] font-bold transition-colors ${
               prompt.trim() && !generating
-                ? "bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
+                ? "bg-brand hover:bg-brand-dark text-on-primary cursor-pointer"
                 : "bg-surface-3 text-fg-subtle cursor-not-allowed"
             }`}
           >
@@ -528,7 +528,7 @@ export default function ImageGeneratorTool() {
             {generations.length > 0 && (
               <button
                 onClick={() => persistGenerations([])}
-                className="text-[12.5px] font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
+                className="text-[12.5px] font-semibold text-brand hover:text-brand cursor-pointer"
               >
                 Clear all
               </button>

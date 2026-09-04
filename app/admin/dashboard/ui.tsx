@@ -223,8 +223,8 @@ export function Leaderboard({
 export function HealthDot({ ok, label }: { ok: boolean; label: string }) {
   return (
     <div className="flex items-center gap-2 text-sm">
-      <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${ok ? "bg-success" : "bg-red-500"}`} aria-hidden />
-      <span className={ok ? "text-fg-muted" : "text-red-700 font-semibold"}>{label}</span>
+      <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${ok ? "bg-success" : "bg-error"}`} aria-hidden />
+      <span className={ok ? "text-fg-muted" : "text-error font-semibold"}>{label}</span>
       <span className="sr-only">{ok ? "healthy" : "attention needed"}</span>
     </div>
   );

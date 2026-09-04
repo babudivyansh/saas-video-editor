@@ -47,8 +47,8 @@ function VerifyBody() {
   if (status === "error") {
     return (
       <div className="text-center space-y-3">
-        <p className="text-red-400 text-sm bg-red-950/40 border border-red-800/40 rounded-lg px-3 py-2">{error}</p>
-        <Link href="/dashboard/settings/security" className="text-blue-400 hover:underline text-sm">Back to Security settings</Link>
+        <p className="text-error text-sm bg-error/12/40 border border-error/40/40 rounded-lg px-3 py-2">{error}</p>
+        <Link href="/dashboard/settings/security" className="text-brand hover:underline text-sm">Back to Security settings</Link>
       </div>
     );
   }
@@ -61,7 +61,7 @@ function VerifyBody() {
         </svg>
       </div>
       <p className="text-fg font-semibold">Email verified!</p>
-      <Link href="/dashboard" className="text-blue-400 hover:underline text-sm">Go to Dashboard</Link>
+      <Link href="/dashboard" className="text-brand hover:underline text-sm">Go to Dashboard</Link>
     </div>
   );
 }

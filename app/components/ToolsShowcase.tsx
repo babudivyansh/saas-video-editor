@@ -41,7 +41,7 @@ export function ClipiroToolsStrip({ activeLabel }: { activeLabel?: string }) {
     <section className="mx-auto w-full max-w-[1440px] px-8 mt-10">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-[17px] font-extrabold text-fg">Clipiro Tools</h2>
-        <Link href="/dashboard/tools" className="inline-flex items-center gap-1 text-[13px] font-semibold text-blue-600 hover:text-blue-700">
+        <Link href="/dashboard/tools" className="inline-flex items-center gap-1 text-[13px] font-semibold text-brand hover:text-brand">
           View All Tools <IcArrow />
         </Link>
       </div>
@@ -53,10 +53,10 @@ export function ClipiroToolsStrip({ activeLabel }: { activeLabel?: string }) {
               key={t.label}
               href={t.href}
               className={`rounded-2xl border bg-panel px-4 py-5 flex flex-col items-center text-center gap-2.5 transition-all ${
-                active ? "border-blue-300 ring-2 ring-blue-100" : "border-line hover:border-line-strong hover:shadow-sm"
+                active ? "border-brand/50 ring-2 ring-primary/25" : "border-line hover:border-line-strong hover:shadow-sm"
               }`}
             >
-              <span className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-500 flex items-center justify-center">{t.icon}</span>
+              <span className="w-10 h-10 rounded-xl bg-tint-blue text-brand flex items-center justify-center">{t.icon}</span>
               <span className="text-[12.5px] font-semibold text-fg leading-tight">{t.label}</span>
             </Link>
           );
@@ -86,9 +86,9 @@ export function AllToolsSection() {
         {ALL_TOOLS.map((t) => (
           <div key={t.title} className="rounded-2xl border border-line bg-panel p-5 flex flex-col">
             <div className="flex items-center gap-2 mb-3">
-              <span className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-500 flex items-center justify-center">{t.icon}</span>
+              <span className="w-10 h-10 rounded-xl bg-tint-blue text-brand flex items-center justify-center">{t.icon}</span>
               {t.badge && (
-                <span className="text-[10px] font-bold uppercase tracking-wide text-blue-600 bg-blue-50 rounded-full px-2 py-0.5">{t.badge}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wide text-brand bg-tint-blue rounded-full px-2 py-0.5">{t.badge}</span>
               )}
             </div>
             <h3 className="text-[15px] font-bold text-fg">{t.title}</h3>

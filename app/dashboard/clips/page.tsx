@@ -45,9 +45,9 @@ const COVER_GRADIENTS = [
   "from-brand to-accent-violet",
   "from-accent-violet to-accent-fuchsia",
   "from-accent-fuchsia to-accent-pink",
-  "from-indigo-400 to-brand",
+  "from-emerald-bright to-brand",
   "from-fuchsia-400 to-accent-violet",
-  "from-blue-400 to-indigo-600",
+  "from-emerald-bright to-emerald-bright",
 ];
 
 const ACTIVE_STATUSES = ["draft", "analyzing", "pending_review", "rendering"];
@@ -244,7 +244,7 @@ function ClipsTab() {
       {/* A failed request is now visibly a failure. The old page swallowed
           non-2xx responses and rendered the "nothing here yet" empty state. */}
       {error && (
-        <div className="rounded-2xl border border-error/40 bg-error/10 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-2xl border border-error/40 bg-error/10 px-4 py-3 text-sm text-error">
           We couldn&apos;t load your clips. {(error as Error).message}
         </div>
       )}
@@ -459,7 +459,7 @@ function ProjectsTab() {
       )}
 
       {projectsQuery.error && (
-        <div className="rounded-2xl border border-error/40 bg-error/10 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-2xl border border-error/40 bg-error/10 px-4 py-3 text-sm text-error">
           We couldn&apos;t load your projects. {(projectsQuery.error as Error).message}
         </div>
       )}

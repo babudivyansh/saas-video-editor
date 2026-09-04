@@ -15,7 +15,7 @@ function DangerRow({ title, desc, actionLabel, onAction, actionVariant = "outlin
   title: string; desc: string; actionLabel: string; onAction: () => void; actionVariant?: "outline" | "solid";
 }) {
   return (
-    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4 border-t border-red-50 first:border-t-0 first:pt-0">
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4 border-t border-error/25 first:border-t-0 first:pt-0">
       <div>
         <p className="text-sm font-semibold text-ink">{title}</p>
         <p className="text-xs text-fg-subtle mt-0.5">{desc}</p>
@@ -23,7 +23,7 @@ function DangerRow({ title, desc, actionLabel, onAction, actionVariant = "outlin
       <button
         onClick={onAction}
         className={`flex-shrink-0 text-sm font-semibold px-5 py-2 rounded-xl transition-colors cursor-pointer ${
-          actionVariant === "solid" ? "text-white bg-red-600 hover:bg-red-700" : "text-error border border-error/40 hover:bg-error/10"
+          actionVariant === "solid" ? "text-white bg-error hover:bg-error/85" : "text-error border border-error/40 hover:bg-error/10"
         }`}
       >
         {actionLabel}
@@ -88,7 +88,7 @@ export default function DangerZoneSettingsPage() {
         <p className="text-sm text-ink-soft mt-1">{t("pageSubtitle")}</p>
       </div>
 
-      <Card padding="md" className="border-red-100">
+      <Card padding="md" className="border-error/30">
         <DangerRow
           title={t("signOut.title")}
           desc={t("signOut.desc")}
@@ -117,7 +117,7 @@ export default function DangerZoneSettingsPage() {
           {error && <p className="text-sm text-error">{error}</p>}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" size="sm" onClick={() => setDeactivateOpen(false)}>{t("cancel")}</Button>
-            <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-red-600">{busy ? <><IcSpinner /> {t("deactivateModal.deactivating")}</> : t("deactivate.action")}</Button>
+            <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-error">{busy ? <><IcSpinner /> {t("deactivateModal.deactivating")}</> : t("deactivate.action")}</Button>
           </div>
         </form>
       </Modal>
@@ -129,7 +129,7 @@ export default function DangerZoneSettingsPage() {
           {error && <p className="text-sm text-error">{error}</p>}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" size="sm" onClick={() => setDeleteOpen(false)}>{t("cancel")}</Button>
-            <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-red-600">{busy ? <><IcSpinner /> {t("deleteModal.deleting")}</> : t("deleteModal.permanentlyDelete")}</Button>
+            <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-error">{busy ? <><IcSpinner /> {t("deleteModal.deleting")}</> : t("deleteModal.permanentlyDelete")}</Button>
           </div>
         </form>
       </Modal>

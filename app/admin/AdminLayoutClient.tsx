@@ -167,7 +167,7 @@ function AdminSignIn({ error: initialError }: { error?: string | null }) {
         </p>
 
         {error && (
-          <div className="bg-error/10 border border-red-100 text-red-700 text-xs rounded-xl p-3 mb-4 text-left">
+          <div className="bg-error/10 border border-error/30 text-error text-xs rounded-xl p-3 mb-4 text-left">
             {error}
           </div>
         )}
@@ -236,7 +236,7 @@ function Shell({ email, onSignOut, children }: { email: string; onSignOut: () =>
         <Link href="/dashboard" className="block text-sm font-semibold text-fg-muted hover:text-fg px-1 py-1">
           ← Back to app
         </Link>
-        <button onClick={onSignOut} className="block w-full text-left text-sm font-semibold text-red-400 hover:text-error px-1 py-1">
+        <button onClick={onSignOut} className="block w-full text-left text-sm font-semibold text-error hover:text-error px-1 py-1">
           Logout
         </button>
       </div>

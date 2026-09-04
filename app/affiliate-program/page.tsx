@@ -155,7 +155,7 @@ export default function AffiliateProgramPage() {
               <ul className="mt-4 space-y-3">
                 {DONTS.map((item) => (
                   <li key={item} className="flex gap-3 text-sm leading-relaxed text-ink-soft">
-                    <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-red-500" />
+                    <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-error" />
                     {item}
                   </li>
                 ))}

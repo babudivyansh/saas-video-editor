@@ -167,7 +167,7 @@ function PipelineMockup() {
       <div className="flex h-full w-full flex-col overflow-hidden rounded-2xl border border-card-border bg-surface">
         <div className="flex h-10 items-center justify-between border-b border-card-border bg-panel px-3">
           <div className="flex gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
+            <span className="h-2.5 w-2.5 rounded-full bg-error" />
             <span className="h-2.5 w-2.5 rounded-full bg-yellow-400" />
             <span className="h-2.5 w-2.5 rounded-full bg-green-400" />
           </div>

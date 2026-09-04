@@ -361,7 +361,7 @@ function EditorContent() {
               </p>
             </div>
 
-            {exportError && <p className="text-red-400 text-sm">{exportError}</p>}
+            {exportError && <p className="text-error text-sm">{exportError}</p>}
 
             <button
               onClick={handleExport} disabled={exporting || !audioUrl}

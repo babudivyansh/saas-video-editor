@@ -373,7 +373,7 @@ export default function VideoCompressorTool() {
                 {realtime > 0 && <span className="text-fg-subtle">~{realtime.toFixed(1)}x real time</span>}
               </div>
               <div className="mt-2 h-2 rounded-full bg-surface-3 overflow-hidden">
-                <div className="h-full bg-blue-500 transition-all duration-150" style={{ width: `${job.progress}%` }} />
+                <div className="h-full bg-brand transition-all duration-150" style={{ width: `${job.progress}%` }} />
               </div>
               <p className="text-xs text-fg-muted mt-1">{Math.round(job.progress)}% complete</p>
             </div>

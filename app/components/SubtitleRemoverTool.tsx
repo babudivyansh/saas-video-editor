@@ -181,7 +181,7 @@ export default function SubtitleRemoverTool() {
               <div
                 className={`relative border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center cursor-pointer transition-colors ${
                   dragging
-                    ? "border-brand bg-blue-50"
+                    ? "border-brand bg-tint-blue"
                     : "border-line hover:border-line-strong bg-surface-2"
                 }`}
                 onClick={() => fileInputRef.current?.click()}
@@ -216,7 +216,7 @@ export default function SubtitleRemoverTool() {
             ) : (
               <div className="border border-line rounded-xl p-4 flex items-center gap-3 bg-surface-2">
                 {/* Video file icon */}
-                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-lg bg-tint-violet flex items-center justify-center shrink-0">
                   <svg className="w-5 h-5 text-brand" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M12 18.75H4.5a2.25 2.25 0 01-2.25-2.25V7.5A2.25 2.25 0 014.5 5.25H12a2.25 2.25 0 012.25 2.25v9a2.25 2.25 0 01-2.25 2.25z" />
                   </svg>
@@ -266,7 +266,7 @@ export default function SubtitleRemoverTool() {
             <div className="flex items-center justify-between gap-2 text-sm text-error bg-error/10 rounded-lg px-3 py-2">
               <span>{errorMsg || job.error}</span>
               {job.status === "error" && (
-                <button onClick={() => void handleRemove()} className="text-xs font-semibold underline underline-offset-2 hover:text-red-800 flex-shrink-0">
+                <button onClick={() => void handleRemove()} className="text-xs font-semibold underline underline-offset-2 hover:text-error flex-shrink-0">
                   Retry
                 </button>
               )}

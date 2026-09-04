@@ -32,7 +32,7 @@ interface Project {
 const STATUS_STYLES: Record<string, string> = {
   completed: "bg-tint-emerald text-green-700",
   rendering: "bg-tint-violet text-accent-violet",
-  failed: "bg-red-100 text-error",
+  failed: "bg-error/15 text-error",
   draft: "bg-surface-3 text-fg-muted",
 };
 

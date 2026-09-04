@@ -42,11 +42,11 @@ interface CommissionRow {
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-green-100 text-green-700",
   suspended: "bg-yellow-100 text-yellow-700",
-  banned: "bg-red-100 text-red-700",
+  banned: "bg-error/15 text-error",
   pending: "bg-yellow-100 text-yellow-700",
   available: "bg-tint-violet text-brand",
   paid: "bg-green-100 text-green-700",
-  rejected: "bg-red-100 text-red-700",
+  rejected: "bg-error/15 text-error",
   signed_up: "bg-surface-3 text-fg-muted",
   converted: "bg-green-100 text-green-700",
   flagged: "bg-orange-100 text-orange-700",
@@ -190,7 +190,7 @@ function AffiliateContent() {
             className={`px-5 py-2 rounded-lg text-sm font-semibold capitalize transition-all ${tab === t ? "bg-panel text-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}>
             {t}
             {t === "payouts" && payoutCandidates.length > 0 && (
-              <span className="ml-1.5 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">{payoutCandidates.length}</span>
+              <span className="ml-1.5 bg-error text-white text-xs rounded-full px-1.5 py-0.5">{payoutCandidates.length}</span>
             )}
           </button>
         ))}

@@ -22,7 +22,7 @@ export default function SubtitleStylePicker({
             onClick={() => onChange(i)}
             title={s.label}
             className={`relative h-[72px] rounded-xl flex items-center justify-center overflow-hidden transition-all
-              ${selected ? "ring-2 ring-blue-600 ring-offset-1" : "ring-1 ring-line hover:ring-gray-300"}`}
+              ${selected ? "ring-2 ring-brand ring-offset-1" : "ring-1 ring-line hover:ring-gray-300"}`}
             style={{ background: "linear-gradient(135deg,#1e293b,#0f172a)" }}
           >
             <span
@@ -40,7 +40,7 @@ export default function SubtitleStylePicker({
               {s.uppercase ? sample.toUpperCase() : sample}
             </span>
             {selected && (
-              <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-blue-600 flex items-center justify-center">
+              <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-brand flex items-center justify-center">
                 <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3.5">
                   <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>

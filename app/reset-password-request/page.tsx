@@ -51,7 +51,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <main className="relative min-h-screen flex items-center justify-center p-4 bg-bg text-fg">
-      <div className="absolute inset-0 bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100" />
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-100 via-surface-2 to-surface-3" />
 
       <div className="relative z-10 w-full max-w-[420px] rounded-2xl shadow-2xl overflow-hidden bg-panel px-8 py-8">
         {sent ? (
@@ -90,7 +90,7 @@ export default function ForgotPasswordPage() {
               </div>
 
               {error && (
-                <div className="flex items-start gap-2 text-error text-sm bg-error/10 border border-red-100 rounded-xl px-3.5 py-2.5 text-center justify-center">
+                <div className="flex items-start gap-2 text-error text-sm bg-error/10 border border-error/30 rounded-xl px-3.5 py-2.5 text-center justify-center">
                   {error}
                 </div>
               )}

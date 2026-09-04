@@ -283,7 +283,7 @@ export default function BackgroundRemoverTool() {
                   </div>
                   <div className="h-2 rounded-full bg-surface-3 overflow-hidden">
                     <div
-                      className="h-full bg-blue-500 transition-all duration-300"
+                      className="h-full bg-brand transition-all duration-300"
                       style={{ width: `${job.progress}%` }}
                     />
                   </div>
@@ -314,7 +314,7 @@ export default function BackgroundRemoverTool() {
               <button
                 type="button"
                 onClick={() => void handleRemove()}
-                className="w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-3 rounded-xl transition-colors"
+                className="w-full inline-flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark text-on-primary text-sm font-semibold py-3 rounded-xl transition-colors"
               >
                 Remove BG
               </button>
@@ -325,7 +325,7 @@ export default function BackgroundRemoverTool() {
                 <button
                   type="button"
                   disabled
-                  className="w-full inline-flex items-center justify-center gap-2 bg-blue-300 text-white text-sm font-semibold py-3 rounded-xl cursor-not-allowed"
+                  className="w-full inline-flex items-center justify-center gap-2 bg-brand/50 text-on-primary text-sm font-semibold py-3 rounded-xl cursor-not-allowed"
                 >
                   <Spinner /> Processing…
                 </button>

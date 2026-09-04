@@ -33,7 +33,7 @@ type StatusTab = (typeof STATUS_TABS)[number];
 const STATUS_BADGE: Record<AdminReview["status"], string> = {
   pending: "bg-amber-100 text-amber-700",
   published: "bg-emerald-100 text-emerald-700",
-  rejected: "bg-red-100 text-red-700",
+  rejected: "bg-error/15 text-error",
   hidden: "bg-surface-3 text-fg-muted",
 };
 
