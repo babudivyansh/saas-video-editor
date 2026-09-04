@@ -124,8 +124,12 @@ describe("KpiCard delta", () => {
       />,
     );
     // Arrow still points up — the movement is up — but it is styled as harmful.
+    // Asserts the error TOKEN, not a stock palette class: the delta colour was
+    // text-red-600 before the emerald migration, and pinning the literal is what
+    // made this test fail silently when the token replaced it.
     expect(screen.getByText("↑")).toBeInTheDocument();
-    expect(container.querySelector(".text-red-600")).not.toBeNull();
+    expect(container.querySelector(".text-error")).not.toBeNull();
+    expect(container.querySelector(".text-success")).toBeNull();
   });
 
   it("reads a negligible change as flat", () => {

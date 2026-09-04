@@ -26,11 +26,11 @@ interface WelcomeScreenProps {
 }
 
 const GOAL_TINT: Record<PrimaryGoalId, string> = {
-  "auto-clip": "bg-tint-blue text-brand border-blue-100",
+  "auto-clip": "bg-tint-blue text-brand border-line",
   video: "bg-tint-emerald text-emerald-500 border-emerald-100",
   image: "bg-tint-fuchsia text-accent-fuchsia border-fuchsia-100",
   voiceover: "bg-tint-violet text-accent-violet border-violet-100",
-  editor: "bg-tint-amber text-amber-500 border-amber-100",
+  editor: "bg-tint-amber text-warning border-amber-100",
 };
 
 const EXPERIENCE_OPTIONS: { id: ExperienceLevel; label: string }[] = [
@@ -137,7 +137,7 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }
         ref={dialogRef}
         tabIndex={-1}
         onKeyDown={e => { if (e.key === "Escape") handleEscape(); }}
-        className="relative z-10 w-full max-w-[640px] rounded-2xl shadow-2xl overflow-hidden bg-white max-h-[90vh] overflow-y-auto outline-none"
+        className="relative z-10 w-full max-w-[640px] rounded-2xl shadow-2xl overflow-hidden bg-panel max-h-[90vh] overflow-y-auto outline-none"
       >
         <div className="grad-brand px-8 pt-10 pb-8 text-center">
           <p className="text-white/70 text-xs font-semibold uppercase tracking-wider mb-2">Welcome to Clipiro</p>
@@ -150,14 +150,14 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }
             <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={handleTakeTour}
-                className="flex-1 text-left rounded-[var(--radius-card)] border border-blue-100 bg-tint-blue p-4 transition-all hover:shadow-card-hover hover:-translate-y-0.5"
+                className="flex-1 text-left rounded-[var(--radius-card)] border border-line bg-tint-blue p-4 transition-all hover:shadow-card-hover hover:-translate-y-0.5"
               >
                 <p className="text-sm font-semibold text-ink">Take the 60-second tour</p>
                 <p className="text-xs text-ink-soft mt-0.5">See where everything lives before you start</p>
               </button>
               <button
                 onClick={handleSkipToTool}
-                className="flex-1 text-left rounded-[var(--radius-card)] border border-card-border bg-white p-4 transition-all hover:shadow-card-hover hover:-translate-y-0.5"
+                className="flex-1 text-left rounded-[var(--radius-card)] border border-card-border bg-panel p-4 transition-all hover:shadow-card-hover hover:-translate-y-0.5"
               >
                 <p className="text-sm font-semibold text-ink">Skip, take me to my tool</p>
                 <p className="text-xs text-ink-soft mt-0.5">Jump straight into creating</p>
@@ -174,8 +174,8 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }
                       onClick={() => setExperienceLevel(opt.id)}
                       className={`text-xs font-semibold px-3.5 py-2 rounded-full border transition-colors ${
                         experienceLevel === opt.id
-                          ? "bg-brand text-white border-brand"
-                          : "bg-white text-ink-soft border-card-border hover:border-violet-200"
+                          ? "bg-brand text-on-primary border-brand"
+                          : "bg-panel text-ink-soft border-card-border hover:border-violet-200"
                       }`}
                     >
                       {opt.label}
@@ -192,8 +192,8 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }
                       onClick={() => setTeamOrIndividual(opt.id)}
                       className={`text-xs font-semibold px-3.5 py-2 rounded-full border transition-colors ${
                         teamOrIndividual === opt.id
-                          ? "bg-brand text-white border-brand"
-                          : "bg-white text-ink-soft border-card-border hover:border-violet-200"
+                          ? "bg-brand text-on-primary border-brand"
+                          : "bg-panel text-ink-soft border-card-border hover:border-violet-200"
                       }`}
                     >
                       {opt.label}
@@ -204,7 +204,7 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }
               <button
                 onClick={handlePreferencesContinue}
                 disabled={isSubmitting}
-                className="w-full text-center text-sm font-semibold text-white grad-brand px-4 py-2.5 rounded-full shadow-glow hover:shadow-glow-hover transition-all disabled:opacity-50"
+                className="w-full text-center text-sm font-semibold text-on-primary grad-brand px-4 py-2.5 rounded-full shadow-glow hover:shadow-glow-hover transition-all disabled:opacity-50"
               >
                 Continue
               </button>
@@ -245,7 +245,7 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }
               <button
                 onClick={step === "goal" ? handleSkip : () => setStep("tour-offer")}
                 disabled={isSubmitting}
-                className="text-xs text-gray-400 hover:text-ink-soft transition-colors disabled:opacity-50"
+                className="text-xs text-fg-subtle hover:text-ink-soft transition-colors disabled:opacity-50"
               >
                 Skip for now
               </button>

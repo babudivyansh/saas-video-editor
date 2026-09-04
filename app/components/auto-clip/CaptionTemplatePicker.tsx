@@ -34,7 +34,7 @@ export function CaptionTemplatePicker({ value, onChange, disabled }: CaptionTemp
               disabled={disabled}
               onClick={() => onChange(t.id)}
               className={`rounded-xl border p-2.5 text-left transition-colors disabled:opacity-40 ${
-                selected ? "border-brand bg-tint-blue" : "border-card-border bg-white hover:bg-tint-blue/50"
+                selected ? "border-brand bg-tint-blue" : "border-card-border bg-panel hover:bg-tint-blue/50"
               }`}
             >
               <span className="flex items-center justify-between gap-1">
@@ -104,7 +104,7 @@ export function TranslateCaptions({ projectId, clipId, disabled, onQueued }: Tra
   if (languages.length === 0) return null;
 
   return (
-    <div className="space-y-2 rounded-xl border border-card-border p-3 bg-white">
+    <div className="space-y-2 rounded-xl border border-card-border p-3 bg-panel">
       <div>
         <label className="text-xs font-semibold text-ink">Translate captions</label>
         <p className="text-[10px] text-ink-soft mt-0.5">
@@ -116,7 +116,7 @@ export function TranslateCaptions({ projectId, clipId, disabled, onQueued }: Tra
           value={target}
           onChange={(e) => setTarget(e.target.value)}
           disabled={disabled || busy}
-          className="flex-1 rounded-lg border border-card-border px-2 py-1.5 text-xs bg-white"
+          className="flex-1 rounded-lg border border-card-border px-2 py-1.5 text-xs bg-panel"
         >
           {languages.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
         </select>
@@ -124,7 +124,7 @@ export function TranslateCaptions({ projectId, clipId, disabled, onQueued }: Tra
           {busy ? "Translating…" : "Translate"}
         </Button>
       </div>
-      {error && <p className="text-[11px] text-red-600">{error}</p>}
+      {error && <p className="text-[11px] text-error">{error}</p>}
       <p className="text-[10px] text-ink-soft">
         Your original transcript is kept, so you can switch back without re-transcribing.
       </p>

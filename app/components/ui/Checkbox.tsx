@@ -30,13 +30,13 @@ const BOX_BASE =
 
 function boxClasses(checked: boolean): string {
   return `${BOX_BASE} ${
-    checked ? "grad-brand border-transparent" : "bg-white/90 border-card-border hover:border-violet-300"
+    checked ? "grad-brand border-transparent" : "bg-panel border-card-border hover:border-primary/60"
   }`;
 }
 
 function Tick() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3} className="w-3 h-3">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} className="w-3 h-3 text-on-primary">
       <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );

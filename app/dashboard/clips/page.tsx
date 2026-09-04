@@ -45,9 +45,9 @@ const COVER_GRADIENTS = [
   "from-brand to-accent-violet",
   "from-accent-violet to-accent-fuchsia",
   "from-accent-fuchsia to-accent-pink",
-  "from-indigo-400 to-brand",
+  "from-emerald-bright to-brand",
   "from-fuchsia-400 to-accent-violet",
-  "from-blue-400 to-indigo-600",
+  "from-emerald-bright to-emerald-bright",
 ];
 
 const ACTIVE_STATUSES = ["draft", "analyzing", "pending_review", "rendering"];
@@ -122,7 +122,7 @@ function ClipsLibraryPageInner() {
             onClick={() => setTab(t)}
             aria-current={tab === t ? "page" : undefined}
             className={`text-xs font-bold px-4 py-1.5 rounded-full transition-colors ${
-              tab === t ? "bg-white text-ink shadow-sm" : "text-ink-soft hover:text-ink"
+              tab === t ? "bg-panel text-ink shadow-sm" : "text-ink-soft hover:text-ink"
             }`}
           >
             {t === "clips" ? "Clips" : "Projects"}
@@ -198,8 +198,8 @@ function ClipsTab() {
               onClick={() => setStatus(f.id)}
               className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
                 status === f.id
-                  ? "grad-brand text-white shadow-glow"
-                  : "bg-white border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
+                  ? "grad-brand text-on-primary shadow-glow"
+                  : "bg-panel border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
               }`}
             >
               {f.label}
@@ -211,7 +211,7 @@ function ClipsTab() {
             className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
               favorite
                 ? "bg-tint-amber text-amber-700 border border-amber-200"
-                : "bg-white border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
+                : "bg-panel border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
             }`}
           >
             ★ Starred
@@ -223,7 +223,7 @@ function ClipsTab() {
             value={sort}
             onChange={(e) => setSort(e.target.value as ClipSort)}
             aria-label="Sort clips"
-            className="text-xs font-semibold px-3 py-2 rounded-full bg-white border border-card-border text-ink-soft outline-none focus:border-violet-300 cursor-pointer"
+            className="text-xs font-semibold px-3 py-2 rounded-full bg-panel border border-card-border text-ink-soft outline-none focus:border-violet-300 cursor-pointer"
           >
             {SORTS.map((s) => (
               <option key={s.id} value={s.id}>{s.label}</option>
@@ -235,7 +235,7 @@ function ClipsTab() {
               value={rawQuery}
               onChange={(e) => setRawQuery(e.target.value)}
               placeholder="Search clips…"
-              className="w-full text-sm bg-white border border-card-border rounded-full pl-9 pr-4 py-2 text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
+              className="w-full text-sm bg-panel border border-card-border rounded-full pl-9 pr-4 py-2 text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
             />
           </div>
         </div>
@@ -244,7 +244,7 @@ function ClipsTab() {
       {/* A failed request is now visibly a failure. The old page swallowed
           non-2xx responses and rendered the "nothing here yet" empty state. */}
       {error && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-2xl border border-error/40 bg-error/10 px-4 py-3 text-sm text-error">
           We couldn&apos;t load your clips. {(error as Error).message}
         </div>
       )}
@@ -428,8 +428,8 @@ function ProjectsTab() {
                 onClick={() => setFilter(f.id)}
                 className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
                   filter === f.id
-                    ? "grad-brand text-white shadow-glow"
-                    : "bg-white border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
+                    ? "grad-brand text-on-primary shadow-glow"
+                    : "bg-panel border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
                 }`}
               >
                 {f.label} <span className={filter === f.id ? "text-white/70" : "text-ink-soft/60"}>({countFor(f.id)})</span>
@@ -440,7 +440,7 @@ function ProjectsTab() {
             <button
               onClick={() => setSort((s) => (s === "newest" ? "oldest" : "newest"))}
               title="Toggle sort order"
-              className="flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded-full bg-white border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors whitespace-nowrap"
+              className="flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded-full bg-panel border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors whitespace-nowrap"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M11 5h10M11 9h7M11 13h4M3 17l3 3 3-3M6 18V4"/></svg>
               {sort === "newest" ? "Newest" : "Oldest"}
@@ -451,7 +451,7 @@ function ProjectsTab() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search projects…"
-                className="w-full text-sm bg-white border border-card-border rounded-full pl-9 pr-4 py-2 text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
+                className="w-full text-sm bg-panel border border-card-border rounded-full pl-9 pr-4 py-2 text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
               />
             </div>
           </div>
@@ -459,7 +459,7 @@ function ProjectsTab() {
       )}
 
       {projectsQuery.error && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-2xl border border-error/40 bg-error/10 px-4 py-3 text-sm text-error">
           We couldn&apos;t load your projects. {(projectsQuery.error as Error).message}
         </div>
       )}
@@ -515,7 +515,7 @@ function ProjectsTab() {
                 </div>
                 {p.status === "rendering" && (
                   <div className="flex items-center gap-2 pt-1">
-                    <div className="h-1 bg-gray-100 rounded-full flex-1 overflow-hidden">
+                    <div className="h-1 bg-surface-3 rounded-full flex-1 overflow-hidden">
                       <div className="h-full grad-brand rounded-full transition-all duration-500" style={{ width: `${p.progress}%` }} />
                     </div>
                     <span className="text-[10px] font-bold text-ink-soft">{p.progress}%</span>

@@ -56,7 +56,17 @@ export function ConfirmDialog({ open, title, message, confirmLabel, danger, chil
           size="sm"
           onClick={confirm}
           disabled={busy || confirmDisabled}
-          className={danger ? "!bg-none !bg-red-600 !shadow-none hover:!brightness-105" : undefined}
+          // A filled destructive confirm, unlike Button's outlined `danger`:
+          // this is the committing action in a modal the user opened on
+          // purpose, so it should carry the weight a row-level "Disconnect"
+          // shouldn't. Overrides the primary fill rather than adding a variant,
+          // and `text-bg` keeps the label readable on the error fill in both
+          // themes (the primary fill's own text token is tuned for lime).
+          className={
+            danger
+              ? "!bg-none !bg-error !text-bg !shadow-none hover:!brightness-110"
+              : undefined
+          }
         >
           {confirmLabel ?? t("confirm")}
         </Button>

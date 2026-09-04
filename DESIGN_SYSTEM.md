@@ -1,22 +1,65 @@
 # Design system ownership
 
-Four visual systems currently exist in this codebase. That's not being unified here — a visual-parity rewrite across all four is a real, multi-week undertaking with no user-facing benefit on its own. This doc exists so a fifth doesn't start by accident, and so it's clear which one new work should default to.
+**The full reference is [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md).** This
+file only says which system a given surface belongs to, so a new one doesn't
+start by accident.
 
-## Default for new consumer-facing work: main dashboard tokens
+The four parallel systems this file used to describe are now one, plus the
+editor. The 2026-09 emerald migration unified the marketing site, the dashboard,
+the tool pages, auth, billing, settings, the error pages and the admin panel
+onto one dark token set, and re-accented the editor to match.
 
-- Color/type/shadow/radius tokens: `app/globals.css` (`--brand`, `--ink`, `--ink-soft`, `--card-border`, `--surface`, `--tint-*`, `--shadow-card`, `--radius-card`, `grad-brand` utility).
-- Components: `app/components/ui/*` — `Button`, `Card`, `Field` (`FieldLabel`/`Input`), `Switch`, `Tooltip`, `SectionHeader`, `StatTile`, `ToolCard`, `CreditsPill`, `CreditRing`, `UsageBarChart`, `EmptyState`.
-- No dark mode support today — light-only by design, not an oversight.
-- **Any new dashboard page, tool page, or marketing-adjacent authenticated page should use these tokens/components.** If a component you need doesn't exist here yet, add it here rather than one-off styling a new page — that's how this set became the most complete of the four.
+## Default for new work: the emerald tokens
+
+- Tokens: `app/globals.css` — `--bg`, `--surface-1/2/3`, `--panel`, `--fg`,
+  `--fg-muted`, `--fg-subtle`, `--line`, `--primary`, `--on-primary`,
+  `--emerald-brand`, `--emerald-bright`, `--success/warning/error/info`,
+  `--tint-*` and their `--tint-*-border` pairs, `--elev-*`, the radius scale.
+- Components: `app/components/ui/*` — 24 primitives. **If a component you need
+  doesn't exist there yet, add it there** rather than one-off styling a page.
+- A surface opts into the dark theme with `theme-emerald` on its shell root.
+  See `docs/DESIGN_SYSTEM.md` §1 for why that is per-subtree rather than at
+  `:root`, and what has to be true before the class can go away.
+- **Dark-first. There is no light mode**, and the light values still in `:root`
+  are migration scaffolding, not a supported theme.
 
 ## Deliberate, scoped exceptions
 
-**Editor** (`app/dashboard/editor/**`) — its own dark chrome, `editor-*` tokens (`editor-bg`, `editor-border`, `editor-glass`, `editor-panel`, `rounded-editor-sm/md/full`, etc.) and its own component library at `app/dashboard/editor/components/ui/*` (Button, ColorField, EmptyState, Switch, Tooltip, Tabs, Slider, IconButton, NumberField, PillGroup, SelectField, TextField, PropertyCard). `app/globals.css` scopes custom scrollbar styling to `.clipiro-editor` specifically so the rest of the app keeps normal scrollbars — this exception is intentional and documented in that file. **Stay inside this token set for anything rendered within the editor shell; don't reach for the main dashboard's tokens there, and don't extend the editor's tokens to pages outside it.**
+**Editor** (`app/dashboard/editor/**`) — its own `--editor-*` tokens and its own
+component library at `app/dashboard/editor/components/ui/*`. Now emerald-accented
+and on the same surface ramp as the rest of the app, but still a separate token
+namespace. **Stay inside that set for anything rendered in the editor shell, and
+don't extend it outward.** Its timeline video track is lime rather than emerald
+on purpose — the accent is emerald and the audio track is already mint.
 
-**Admin** (`app/admin/**`) — its own chart/animation set (`Donut`, `Gauge`, `GrowthLineChart`, `HBars`, `RevenueAreaChart`, `SparkArea`, `CountUp`, `Skeleton`, `HealthDot` in `app/admin/dashboard/charts.tsx`), built with Framer Motion + `lucide-react` icons, used nowhere else in the app. Internal-only, desktop-first by convention. **Stay inside this set for new admin surfaces.**
+**Admin** (`app/admin/**`) — migrated. It keeps its own Recharts chart set in
+`app/admin/dashboard/charts.tsx` + `ui.tsx`, which is where the chart parameters
+live: see `docs/DESIGN_SYSTEM.md` §12 before changing a palette, a grid colour or
+a tooltip. Two things there are load-bearing — the categorical `PALETTE` was
+re-validated against the dark surface rather than remapped (it passes unchanged,
+and categorical hues are deliberately not brand colours), and every Recharts
+`<Tooltip>` must pass the shared style objects, because Recharts writes a white
+background as an inline style that no stylesheet can reach.
 
-**Global error/404 pages** (`app/not-found.tsx`, `app/error.tsx`) — a fourth, minimal palette (`zinc-950`/`blue-600`) matching neither of the above. These are simple enough that unifying them onto the main dashboard tokens is low-risk whenever someone's next already touching one of these two files — not urgent enough to schedule on its own.
+**Email, PDF reports, OG images** (`lib/email/**`, `lib/social/reports/**`,
+`app/**/opengraph-image.tsx`) — **permanently light.** These render into email
+clients, onto paper, and into third-party feeds. They carry their own brand
+colour deliberately and are denylisted in the codemod.
 
-## When you're not sure which set applies
+**Product output** (`app/dashboard/create/text-video`, `create/reddit-video`) —
+these render WhatsApp/Telegram/iMessage and Reddit themes, and caption presets,
+whose colours ffmpeg burns into the exported video. Their *chrome* is migrated;
+their mockup regions must not be. They are on the codemod's `CONTENT_DENY` and
+need `--allow-content` with explicit `--protect` ranges.
 
-If the page/component renders inside `app/dashboard/editor/**`, use the editor set. If it renders inside `app/admin/**`, use the admin set. Everything else defaults to the main dashboard set. If you're adding a genuinely new visual context (not a page within an existing one), that's worth a conversation before writing code, not a fifth ad hoc token set.
+## Guardrails
+
+`npm run lint` runs `scripts/check-theme-debt.mjs`, an exact-count ratchet over
+the remaining light-theme styling. It fails if the counts grow **and** if they
+shrink without the budget being updated, so wins get locked in. `legacy-light`
+is budgeted at 0 and gates removing the migration scaffolding.
+
+## When you're not sure
+
+Editor shell → editor tokens. Everything else → emerald.
+A genuinely new visual context is worth a conversation, not a third set.

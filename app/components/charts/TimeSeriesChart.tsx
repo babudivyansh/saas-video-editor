@@ -218,7 +218,7 @@ function Tooltip({
   const flip = xRatio > 0.6;
   return (
     <div
-      className="pointer-events-none absolute top-2 z-10 rounded-lg border border-card-border bg-white px-2.5 py-1.5 shadow-card"
+      className="pointer-events-none absolute top-2 z-10 rounded-lg border border-card-border bg-panel px-2.5 py-1.5 shadow-card"
       style={{ left: `${xRatio * 100}%`, transform: flip ? "translateX(-100%)" : "none" }}
       aria-hidden="true"
     >

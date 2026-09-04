@@ -74,7 +74,7 @@ export default function SidebarAccount() {
       <button
         onClick={() => setOpen((p) => !p)}
         title={t("avatarButton")}
-        className="relative w-10 h-10 rounded-full overflow-hidden flex items-center justify-center grad-brand text-white text-sm font-bold select-none hover:opacity-90 transition-opacity flex-shrink-0"
+        className="relative w-10 h-10 rounded-full overflow-hidden flex items-center justify-center grad-brand text-on-primary text-sm font-bold select-none hover:opacity-90 transition-opacity flex-shrink-0"
       >
         {user.avatarUrl ? (
           <Image src={user.avatarUrl} alt="" fill sizes="40px" className="object-cover" />
@@ -84,12 +84,12 @@ export default function SidebarAccount() {
       {/* Always mounted so both open and close animate, instead of the
           previous instant conditional-render mount/unmount. */}
       <div
-        className={`absolute top-full right-0 mt-2 w-64 bg-white rounded-2xl border border-card-border shadow-xl z-50 overflow-hidden origin-top-right transition-all duration-200 ease-out ${
+        className={`absolute top-full right-0 mt-2 w-64 bg-panel rounded-2xl border border-card-border shadow-xl z-50 overflow-hidden origin-top-right transition-all duration-200 ease-out ${
           open ? "opacity-100 scale-100 translate-y-0 visible" : "opacity-0 scale-95 -translate-y-1 invisible pointer-events-none"
         }`}
       >
           <div className="px-4 py-3 border-b border-card-border">
-            <p className="text-sm font-semibold text-gray-900 truncate">{user.name || t("userFallback")}</p>
+            <p className="text-sm font-semibold text-fg truncate">{user.name || t("userFallback")}</p>
             <p className="text-xs text-[#868C98] truncate">{user.email}</p>
           </div>
 
@@ -111,7 +111,7 @@ export default function SidebarAccount() {
           <div className="border-t border-card-border py-1.5">
             <button
               onClick={() => { setOpen(false); signOut(); }}
-              className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+              className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-error hover:bg-error/10 transition-colors cursor-pointer"
             >
               <IcLogout /> {t("signOut")}
             </button>

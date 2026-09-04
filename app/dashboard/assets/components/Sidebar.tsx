@@ -41,12 +41,12 @@ function NavRow({ active, icon, label, count, onClick, onDrop }: {
       onDragLeave={onDrop ? () => setDragOver(false) : undefined}
       onDrop={onDrop ? (e) => { e.preventDefault(); setDragOver(false); onDrop(e); } : undefined}
       className={`w-full flex items-center gap-2 text-left text-sm px-3 py-2 rounded-xl transition-colors cursor-pointer ${
-        active ? "grad-brand text-white shadow-glow" : dragOver ? "bg-tint-violet text-brand" : "text-ink-soft hover:bg-tint-blue hover:text-ink"
+        active ? "bg-tint-emerald text-brand font-medium" : dragOver ? "bg-tint-violet text-brand" : "text-ink-soft hover:bg-tint-blue hover:text-ink"
       }`}
     >
       {icon}
       <span className="flex-1 truncate">{label}</span>
-      {count !== undefined && <span className={`text-[10px] font-bold ${active ? "text-white/80" : "text-ink-soft/60"}`}>{count}</span>}
+      {count !== undefined && <span className={`text-[10px] font-bold ${active ? "text-brand/90" : "text-ink-soft/60"}`}>{count}</span>}
     </button>
   );
 }
@@ -106,11 +106,11 @@ export function Sidebar({
                   onDrop={(e) => { const id = e.dataTransfer.getData("text/asset-id"); if (id) onFolderDrop(f.id, id); }}
                 />
               )}
-              <div className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover/folder:flex items-center gap-0.5 bg-white/95 rounded-lg">
+              <div className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover/folder:flex items-center gap-0.5 bg-panel rounded-lg">
                 <button onClick={() => { setRenamingId(f.id); setRenameVal(f.name); }} className="w-5 h-5 flex items-center justify-center text-ink-soft hover:text-brand cursor-pointer" title="Rename">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3 h-3"><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                 </button>
-                <button onClick={() => onFolderDelete(f.id)} className="w-5 h-5 flex items-center justify-center text-ink-soft hover:text-red-500 cursor-pointer" title="Delete">
+                <button onClick={() => onFolderDelete(f.id)} className="w-5 h-5 flex items-center justify-center text-ink-soft hover:text-error cursor-pointer" title="Delete">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3 h-3"><path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" /></svg>
                 </button>
               </div>
@@ -127,7 +127,7 @@ export function Sidebar({
               className="w-full text-sm border border-violet-400 rounded-xl px-3 py-2 outline-none"
             />
           )}
-          {folders.length === 0 && !creating && <p className="text-xs text-ink-soft/60 px-3">No folders yet.</p>}
+          {folders.length === 0 && !creating && <p className="text-xs text-ink-soft px-3">No folders yet.</p>}
         </div>
       </div>
 
@@ -142,7 +142,7 @@ export function Sidebar({
                   onDoubleClick={() => onTagRename?.(t)}
                   title={`${t.assetCount} file${t.assetCount === 1 ? "" : "s"} — double-click to rename`}
                   className={`text-[11px] font-semibold pl-2.5 pr-5 py-1 rounded-full transition-colors cursor-pointer ${
-                    activeTag === t.name ? "grad-brand text-white" : "bg-white border border-card-border text-ink-soft hover:bg-tint-violet"
+                    activeTag === t.name ? "grad-brand text-on-primary" : "bg-panel border border-card-border text-ink-soft hover:bg-tint-violet"
                   }`}
                 >
                   {t.name}

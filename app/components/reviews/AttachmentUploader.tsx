@@ -127,7 +127,7 @@ export function AttachmentUploader({ attachments, onChange, token, maxCount = 5 
         </>
       )}
 
-      {error && <p className="text-xs text-red-600 mt-1.5">{error}</p>}
+      {error && <p className="text-xs text-error mt-1.5">{error}</p>}
     </div>
   );
 }

@@ -125,7 +125,7 @@ test("editor: tablet width clears the phone gate and uses overlay panels, not a 
   // Opening a tool tab shows its panel as an overlay with a backdrop, rather
   // than pushing the preview area (which would leave ~144px for it).
   await page.getByRole("button", { name: "Media", exact: true }).click();
-  await expect(page.locator(".fixed.inset-0.z-30")).toBeVisible();
+  await expect(page.getByTestId("editor-panel-backdrop").first()).toBeVisible();
 });
 
 // Regression coverage for a real bug: iPad Mini/Air land at 1024-1194px wide

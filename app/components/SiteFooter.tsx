@@ -71,7 +71,7 @@ export default function SiteFooter() {
             <Link href="/" className="inline-flex" aria-label="Clipiro home">
               <ClipiroLogo className="h-13" />
             </Link>
-            <p className="mt-4 max-w-xs text-sm leading-relaxed text-gray-500">
+            <p className="mt-4 max-w-xs text-sm leading-relaxed text-fg-muted">
               Turn long videos into viral short-form content with AI clipping, captions, and one-click export.
             </p>
           </div>
@@ -79,11 +79,11 @@ export default function SiteFooter() {
           {/* Link columns */}
           {COLUMNS.map((col) => (
             <div key={col.title}>
-              <p className="mb-4 text-sm font-bold text-gray-900">{col.title}</p>
+              <p className="mb-4 text-sm font-bold text-fg">{col.title}</p>
               <ul className="space-y-2.5">
                 {col.links.map((link) => (
                   <li key={link.label}>
-                    <Link href={link.href} className="text-sm text-gray-500 transition-colors hover:text-brand-deep">
+                    <Link href={link.href} className="text-sm text-fg-muted transition-colors hover:text-brand-deep">
                       {link.label}
                     </Link>
                   </li>
@@ -94,8 +94,8 @@ export default function SiteFooter() {
         </div>
 
         {/* Bottom bar */}
-        <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-gray-100 pt-8 sm:flex-row">
-          <p className="text-sm text-gray-400">© 2026 Clipiro. All rights reserved.</p>
+        <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-line pt-8 sm:flex-row">
+          <p className="text-sm text-fg-subtle">© 2026 Clipiro. All rights reserved.</p>
           <div className="flex items-center gap-2">
             {SOCIALS.map((s) => {
               const external = s.href.startsWith("http");
@@ -105,7 +105,7 @@ export default function SiteFooter() {
                   href={s.href}
                   aria-label={s.label}
                   {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                  className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-brand hover:text-brand-deep"
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-line text-fg-muted transition-colors hover:border-brand hover:text-brand-deep"
                 >
                   {s.icon}
                 </a>

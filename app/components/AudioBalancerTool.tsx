@@ -206,17 +206,17 @@ export default function AudioBalancerTool() {
 
   return (
     <div className="mx-auto w-full max-w-[1440px] px-4 md:px-8 pb-10">
-      <div className="rounded-[28px] bg-gray-50 border border-gray-100 flex items-center justify-center p-4 md:p-8" style={{ minHeight: "calc(100vh - 132px)" }}>
-        <div className="w-full max-w-[560px] bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+      <div className="rounded-[28px] bg-surface-2 border border-line flex items-center justify-center p-4 md:p-8" style={{ minHeight: "calc(100vh - 132px)" }}>
+        <div className="w-full max-w-[560px] bg-panel rounded-2xl border border-line shadow-sm p-5">
 
           {/* Header */}
-          <div className="flex items-start gap-3 pb-4 border-b border-gray-100">
-            <div className="w-11 h-11 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 flex-shrink-0">
+          <div className="flex items-start gap-3 pb-4 border-b border-line">
+            <div className="w-11 h-11 rounded-full border border-line flex items-center justify-center text-fg-muted flex-shrink-0">
               <IcMusic />
             </div>
             <div className="min-w-0">
-              <h2 className="font-bold text-gray-900 text-[17px] leading-tight">Balance Audio</h2>
-              <p className="text-sm text-gray-500 mt-1">Upload an audio or video file to normalize and balance audio.</p>
+              <h2 className="font-bold text-fg text-[17px] leading-tight">Balance Audio</h2>
+              <p className="text-sm text-fg-muted mt-1">Upload an audio or video file to normalize and balance audio.</p>
             </div>
           </div>
 
@@ -231,14 +231,14 @@ export default function AudioBalancerTool() {
                 onDragLeave={() => setDragging(false)}
                 onDrop={e => { e.preventDefault(); setDragging(false); onPick(e.dataTransfer.files); }}
                 className="mt-4 w-full rounded-xl border transition-colors flex flex-col items-center justify-center text-center px-6 py-10"
-                style={{ borderColor: dragging ? "#93c5fd" : "#e5e7eb", background: dragging ? "#eff6ff" : "#ffffff" }}
+                style={{ borderColor: dragging ? "var(--primary)" : "var(--line)", background: dragging ? "var(--tint-emerald)" : "var(--surface-2)" }}
               >
-                <div className="w-12 h-12 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-400 mb-3">
+                <div className="w-12 h-12 rounded-full bg-surface-2 border border-line flex items-center justify-center text-fg-subtle mb-3">
                   <IcCloud />
                 </div>
-                <p className="text-[15px] font-semibold text-gray-900">Upload audio or video</p>
-                <p className="text-sm text-gray-400 mt-1">Drag and drop or click to browse</p>
-                <p className="text-xs text-gray-400 mt-2">.mp3, .wav, .aac, .ogg, .flac, .mp4, .mov, .mkv • Max {uploadMaxSizeLabel ?? "500 MB"}</p>
+                <p className="text-[15px] font-semibold text-fg">Upload audio or video</p>
+                <p className="text-sm text-fg-subtle mt-1">Drag and drop or click to browse</p>
+                <p className="text-xs text-fg-subtle mt-2">.mp3, .wav, .aac, .ogg, .flac, .mp4, .mov, .mkv • Max {uploadMaxSizeLabel ?? "500 MB"}</p>
               </button>
             </>
           )}
@@ -246,14 +246,14 @@ export default function AudioBalancerTool() {
           {/* Uploaded file card */}
           {stage !== "idle" && file && (
             <div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 flex items-center gap-3">
-              <span className="text-green-600 flex-shrink-0"><IcCheck /></span>
-              <span className="w-8 h-8 rounded-lg bg-white border border-green-200 flex items-center justify-center text-gray-500 flex-shrink-0"><IcDoc /></span>
+              <span className="text-success flex-shrink-0"><IcCheck /></span>
+              <span className="w-8 h-8 rounded-lg bg-panel border border-green-200 flex items-center justify-center text-fg-muted flex-shrink-0"><IcDoc /></span>
               <div className="min-w-0 flex-1">
-                <p className="text-[14px] font-semibold text-gray-900 truncate">{truncate(file.name)}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{fmtMB(file.size)} • Uploaded successfully</p>
+                <p className="text-[14px] font-semibold text-fg truncate">{truncate(file.name)}</p>
+                <p className="text-xs text-fg-muted mt-0.5">{fmtMB(file.size)} • Uploaded successfully</p>
               </div>
               {!busy && (
-                <button type="button" onClick={clearFile} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
+                <button type="button" onClick={clearFile} className="text-fg-subtle hover:text-fg-muted flex-shrink-0">
                   <IcX />
                 </button>
               )}
@@ -263,7 +263,7 @@ export default function AudioBalancerTool() {
           {/* Balance Mode selector */}
           {stage !== "idle" && (
             <div className="mt-5">
-              <p className="text-sm font-semibold text-gray-900 mb-2">Balance Mode</p>
+              <p className="text-sm font-semibold text-fg mb-2">Balance Mode</p>
               <div className="grid grid-cols-3 gap-2">
                 {BALANCE_MODES.map(opt => {
                   const active = balanceMode === opt.id;
@@ -275,14 +275,14 @@ export default function AudioBalancerTool() {
                       onClick={() => setBalanceMode(opt.id)}
                       className="rounded-lg border px-1 py-3 text-center transition-colors"
                       style={{
-                        borderColor: active ? "#3b82f6" : "#e5e7eb",
-                        background: active ? "#eff6ff" : "#ffffff",
+                        borderColor: active ? "var(--primary)" : "var(--line)",
+                        background: active ? "var(--tint-emerald)" : "var(--surface-2)",
                         opacity: modeLocked && !active ? 0.5 : 1,
                         cursor: modeLocked ? "not-allowed" : "pointer",
                       }}
                     >
-                      <p className="text-[13px] font-semibold" style={{ color: active ? "#2563eb" : "#374151" }}>{opt.label}</p>
-                      <p className="text-[11px] text-gray-400 leading-tight mt-0.5">{opt.sub}</p>
+                      <p className="text-[13px] font-semibold" style={{ color: active ? "var(--brand-deep)" : "var(--fg-muted)" }}>{opt.label}</p>
+                      <p className="text-[11px] text-fg-subtle leading-tight mt-0.5">{opt.sub}</p>
                     </button>
                   );
                 })}
@@ -290,19 +290,19 @@ export default function AudioBalancerTool() {
             </div>
           )}
 
-          {stage === "error" && job.error && <p className="mt-3 text-sm text-red-500 text-center">{job.error}</p>}
+          {stage === "error" && job.error && <p className="mt-3 text-sm text-error text-center">{job.error}</p>}
 
           {/* Balancing progress */}
           {stage === "processing" && (
             <div className="mt-5">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Balancing audio levels…</span>
-                {realtime > 0 && <span className="text-gray-400">~{realtime.toFixed(1)}x real time</span>}
+                <span className="text-fg-muted">Balancing audio levels…</span>
+                {realtime > 0 && <span className="text-fg-subtle">~{realtime.toFixed(1)}x real time</span>}
               </div>
-              <div className="mt-2 h-2 rounded-full bg-gray-100 overflow-hidden">
-                <div className="h-full bg-blue-500 transition-all duration-150" style={{ width: `${job.progress}%` }} />
+              <div className="mt-2 h-2 rounded-full bg-surface-3 overflow-hidden">
+                <div className="h-full bg-brand transition-all duration-150" style={{ width: `${job.progress}%` }} />
               </div>
-              <p className="text-xs text-gray-500 mt-1">{Math.round(job.progress)}% complete</p>
+              <p className="text-xs text-fg-muted mt-1">{Math.round(job.progress)}% complete</p>
             </div>
           )}
 
@@ -314,20 +314,20 @@ export default function AudioBalancerTool() {
               </div>
               <div className="mt-2 space-y-1 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Original size:</span>
-                  <span className="font-medium text-gray-900">{fmtMB(file.size)}</span>
+                  <span className="text-fg-muted">Original size:</span>
+                  <span className="font-medium text-fg">{fmtMB(file.size)}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Output size:</span>
-                  <span className="font-medium text-gray-900">{fmtMB(outputBlob.size)}</span>
+                  <span className="text-fg-muted">Output size:</span>
+                  <span className="font-medium text-fg">{fmtMB(outputBlob.size)}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="font-medium" style={{ color: "#2563eb" }}>Balance mode:</span>
-                  <span className="font-semibold" style={{ color: "#2563eb" }}>{modeLabel}</span>
+                  <span className="font-medium" style={{ color: "var(--brand-deep)" }}>Balance mode:</span>
+                  <span className="font-semibold" style={{ color: "var(--brand-deep)" }}>{modeLabel}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="font-medium" style={{ color: "#2563eb" }}>File type:</span>
-                  <span className="font-semibold" style={{ color: "#2563eb" }}>{fileType}</span>
+                  <span className="font-medium" style={{ color: "var(--brand-deep)" }}>File type:</span>
+                  <span className="font-semibold" style={{ color: "var(--brand-deep)" }}>{fileType}</span>
                 </div>
               </div>
             </div>
@@ -338,8 +338,8 @@ export default function AudioBalancerTool() {
             <button
               type="button"
               onClick={() => void handleBalance()}
-              className="mt-4 w-full inline-flex items-center justify-center gap-2 text-white text-sm font-semibold py-3 rounded-xl transition-colors"
-              style={{ background: "#2563eb" }}
+              className="mt-4 w-full inline-flex items-center justify-center gap-2 text-sm font-semibold py-3 rounded-xl transition-colors"
+              style={{ background: "var(--primary)", color: "var(--on-primary)" }}
             >
               Balance Audio
             </button>
@@ -349,8 +349,8 @@ export default function AudioBalancerTool() {
             <button
               type="button"
               disabled
-              className="mt-4 w-full inline-flex items-center justify-center gap-2 text-white text-sm font-semibold py-3 rounded-xl"
-              style={{ background: "#a5b4fc", cursor: "not-allowed" }}
+              className="mt-4 w-full inline-flex items-center justify-center gap-2 text-sm font-semibold py-3 rounded-xl"
+              style={{ background: "var(--surface-3)", color: "var(--fg-subtle)", cursor: "not-allowed" }}
             >
               <Spinner />
             </button>
@@ -361,15 +361,15 @@ export default function AudioBalancerTool() {
               <button
                 type="button"
                 onClick={handleDownload}
-                className="inline-flex items-center justify-center gap-2 text-white text-sm font-semibold py-3 rounded-xl"
-                style={{ background: "#2563eb" }}
+                className="inline-flex items-center justify-center gap-2 text-sm font-semibold py-3 rounded-xl"
+                style={{ background: "var(--primary)", color: "var(--on-primary)" }}
               >
                 <IcDownload /> Download Balanced Audio
               </button>
               <button
                 type="button"
                 onClick={balanceAgain}
-                className="inline-flex items-center justify-center gap-2 text-gray-700 text-sm font-semibold py-3 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors"
+                className="inline-flex items-center justify-center gap-2 text-fg text-sm font-semibold py-3 rounded-xl border border-line hover:bg-surface-2 transition-colors"
               >
                 Balance Again
               </button>

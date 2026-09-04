@@ -53,7 +53,7 @@ export function ReportReviewModal({ open, onClose, onSubmit }: ReportReviewModal
             id="report-reason"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            className="w-full text-sm bg-white border border-card-border rounded-xl px-4 py-2.5 text-ink outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
+            className="w-full text-sm bg-panel border border-card-border rounded-xl px-4 py-2.5 text-ink outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
           >
             {REASONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
           </select>

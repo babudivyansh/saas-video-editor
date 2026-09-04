@@ -60,8 +60,8 @@ function ResetForm() {
   if (!token) {
     return (
       <div className="text-center">
-        <p className="text-red-400 text-sm mb-4">Invalid or missing reset token.</p>
-        <Link href="/login" className="text-blue-400 hover:underline text-sm">Back to login</Link>
+        <p className="text-error text-sm mb-4">Invalid or missing reset token.</p>
+        <Link href="/login" className="text-brand hover:underline text-sm">Back to login</Link>
       </div>
     );
   }
@@ -69,13 +69,13 @@ function ResetForm() {
   if (done) {
     return (
       <div className="text-center space-y-3">
-        <div className="w-12 h-12 rounded-full bg-green-600/20 flex items-center justify-center mx-auto">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+        <div className="w-12 h-12 rounded-full bg-success/15 text-success flex items-center justify-center mx-auto">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
             <path d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <p className="text-zinc-100 font-semibold">Password updated!</p>
-        <p className="text-zinc-400 text-sm">Redirecting you to login…</p>
+        <p className="text-fg font-semibold">Password updated!</p>
+        <p className="text-fg-muted text-sm">Redirecting you to login…</p>
       </div>
     );
   }
@@ -83,42 +83,42 @@ function ResetForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-zinc-300 mb-1.5">New password</label>
+        <label className="block text-sm font-medium text-fg-muted mb-1.5">New password</label>
         <input
           type="password"
           value={password}
           onChange={e => setPassword(e.target.value)}
           placeholder="At least 8 characters"
           required
-          className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-colors"
+          className="w-full rounded-xl border border-line bg-surface-3 px-4 py-2.5 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:border-brand transition-colors"
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-zinc-300 mb-1.5">Confirm password</label>
+        <label className="block text-sm font-medium text-fg-muted mb-1.5">Confirm password</label>
         <input
           type="password"
           value={confirm}
           onChange={e => setConfirm(e.target.value)}
           placeholder="Repeat new password"
           required
-          className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-colors"
+          className="w-full rounded-xl border border-line bg-surface-3 px-4 py-2.5 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:border-brand transition-colors"
         />
       </div>
 
       {error && (
-        <p className="text-red-400 text-sm bg-red-950/40 border border-red-800/40 rounded-lg px-3 py-2">{error}</p>
+        <p className="text-error text-sm bg-error/12/40 border border-error/40/40 rounded-lg px-3 py-2">{error}</p>
       )}
 
       <button
         type="submit"
         disabled={loading}
-        className="w-full py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-semibold transition-colors"
+        className="w-full py-2.5 rounded-full bg-brand hover:bg-primary-hover disabled:opacity-50 text-on-primary text-sm font-semibold transition-colors"
       >
         {loading ? "Updating…" : "Set new password"}
       </button>
 
-      <p className="text-center text-sm text-zinc-500">
-        <Link href="/login" className="text-blue-400 hover:underline">Back to login</Link>
+      <p className="text-center text-sm text-fg-subtle">
+        <Link href="/login" className="text-brand hover:underline">Back to login</Link>
       </p>
     </form>
   );
@@ -126,17 +126,17 @@ function ResetForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <main className="min-h-screen bg-zinc-950 flex items-center justify-center px-4">
+    <main className="min-h-screen bg-bg text-fg flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-2.5 mb-8">
           <BoltIcon />
-          <span className="text-lg font-bold text-zinc-100">Clipiro</span>
+          <span className="text-lg font-bold text-fg">Clipiro</span>
         </div>
 
-        <h1 className="text-2xl font-bold text-zinc-100 mb-1">Set new password</h1>
-        <p className="text-zinc-400 text-sm mb-8">Choose a strong password for your account.</p>
+        <h1 className="text-2xl font-bold text-fg mb-1">Set new password</h1>
+        <p className="text-fg-muted text-sm mb-8">Choose a strong password for your account.</p>
 
-        <Suspense fallback={<div className="animate-pulse h-40 rounded-xl bg-zinc-800" />}>
+        <Suspense fallback={<div className="animate-pulse h-40 rounded-xl bg-surface-3" />}>
           <ResetForm />
         </Suspense>
       </div>

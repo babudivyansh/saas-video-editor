@@ -5,10 +5,43 @@
 // components from each getting it subtly wrong.
 
 import { redirect } from "next/navigation";
-import { requireServerSubscriber } from "@/lib/auth";
+import { getServerSubscriberState, type TokenPayload } from "@/lib/auth";
+import { withNextParam } from "@/lib/safe-redirect";
 import { loadAccounts, type AccountContext } from "@/lib/social/queries";
 
 export type SearchParams = Record<string, string | string[] | undefined>;
+
+/** Where a visitor is returned to once they have signed back in. */
+const TRACKER_PATH = "/dashboard/social-tracker";
+
+/**
+ * The Social Tracker's access gate, shared by the layout and every sub-route
+ * so the two can't drift.
+ *
+ * The two denials are routed differently on purpose. A lapsed subscription
+ * belongs on the billing overlay — and that is `/dashboard?billing=1`, not
+ * `/dashboard/billing`, which has no page and no redirect rule and so 404s.
+ * A session that no longer resolves belongs at the login form instead: telling
+ * someone whose session was revoked (or who is here during a Redis outage,
+ * which reads the same way — see getServerSubscriberState) that they have no
+ * subscription is both wrong and unactionable.
+ *
+ * The login case cannot redirect to /login directly. The cookie's JWT is still
+ * signed and unexpired — that is how the request got past proxy.ts at all — so
+ * proxy would bounce /login straight back to /dashboard, dead session and all.
+ * /api/auth/session-expired clears the cookie first, which is what makes the
+ * login form reachable.
+ *
+ * Neither target is under /dashboard/social-tracker, so a redirect can't loop.
+ */
+export async function requireSubscriberOrRedirect(): Promise<TokenPayload> {
+  const state = await getServerSubscriberState();
+  if (state.status === "active") return state.auth;
+  if (state.status === "unauthenticated") {
+    redirect(withNextParam("/api/auth/session-expired", TRACKER_PATH));
+  }
+  redirect("/dashboard?billing=1");
+}
 
 export function first(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
@@ -81,10 +114,8 @@ export interface ViewContext {
  * one-element array renders exactly one account's analytics.
  */
 export async function loadViewContext(params: SearchParams): Promise<ViewContext> {
-  const auth = await requireServerSubscriber();
-  // The layout already gated this; the redirect is the belt to its braces, and
-  // it must not point at this same route or an expired session loops forever.
-  if (!auth) redirect("/dashboard/billing");
+  // The layout already gated this; this is the belt to its braces.
+  const auth = await requireSubscriberOrRedirect();
 
   const filters = parseFilters(params);
   // One query, then filter in memory: nobody connects enough accounts for this

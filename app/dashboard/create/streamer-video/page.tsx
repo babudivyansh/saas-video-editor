@@ -103,11 +103,11 @@ function GeneratingOverlay({ status, videoUrl, error, onReset }: { status: Gener
     return (
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-sm flex flex-col items-center gap-5 text-center">
-          <h2 className="text-xl font-bold text-gray-900">Your video is ready!</h2>
+          <h2 className="text-xl font-bold text-fg">Your video is ready!</h2>
           <video src={videoUrl} controls className="w-full rounded-xl shadow-lg max-h-64 object-contain" />
           <div className="flex gap-3 w-full">
-            <a href={videoUrl} download className="flex-1 inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors">Download</a>
-            <button onClick={onReset} className="flex-1 inline-flex items-center justify-center border border-gray-200 text-gray-700 text-sm font-semibold py-2.5 rounded-lg hover:bg-gray-50 transition-colors">Create Another</button>
+            <a href={videoUrl} download className="flex-1 inline-flex items-center justify-center bg-brand hover:bg-brand-dark text-on-primary text-sm font-semibold py-2.5 rounded-lg transition-colors">Download</a>
+            <button onClick={onReset} className="flex-1 inline-flex items-center justify-center border border-line text-fg text-sm font-semibold py-2.5 rounded-lg hover:bg-surface-2 transition-colors">Create Another</button>
           </div>
         </div>
       </div>
@@ -118,14 +118,14 @@ function GeneratingOverlay({ status, videoUrl, error, onReset }: { status: Gener
       <div className="flex flex-col items-center gap-4 text-center">
         {status === "failed" ? (
           <>
-            <p className="text-gray-700 font-medium">{error ?? "Something went wrong."}</p>
-            <button onClick={onReset} className="mt-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors">Try Again</button>
+            <p className="text-fg font-medium">{error ?? "Something went wrong."}</p>
+            <button onClick={onReset} className="mt-2 px-5 py-2.5 bg-brand hover:bg-brand-dark text-on-primary text-sm font-semibold rounded-lg transition-colors">Try Again</button>
           </>
         ) : (
           <>
-            <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-            <p className="text-gray-700 font-medium">{statusText[status] ?? ""}</p>
-            {status === "rendering" && <p className="text-sm text-gray-400">You can leave this page — we&apos;ll keep processing.</p>}
+            <div className="w-10 h-10 border-4 border-brand/40 border-t-blue-600 rounded-full animate-spin" />
+            <p className="text-fg font-medium">{statusText[status] ?? ""}</p>
+            {status === "rendering" && <p className="text-sm text-fg-subtle">You can leave this page — we&apos;ll keep processing.</p>}
           </>
         )}
       </div>
@@ -150,11 +150,11 @@ function Header({
   canGenerate: boolean;
 }) {
   return (
-    <div className="sticky top-0 z-40 bg-white border-b border-gray-100 px-8 py-4" style={{ backdropFilter: "blur(25px)" }}>
+    <div className="sticky top-0 z-40 bg-panel border-b border-line px-8 py-4" style={{ backdropFilter: "blur(25px)" }}>
       <div className="flex items-center justify-between">
         {/* Left: icon + title */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-700">
+          <div className="w-9 h-9 rounded-lg border border-line flex items-center justify-center text-fg">
             <IcFilm />
           </div>
           <h1 className="text-lg font-medium text-black">Streamer Video</h1>
@@ -189,7 +189,7 @@ function Header({
           {stepIndex > 0 && (
             <button
               onClick={onBack}
-              className="inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+              className="inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-lg border border-line text-fg hover:bg-surface-2 transition-colors"
             >
               <IcChevronLeft /> Back
             </button>
@@ -256,11 +256,11 @@ function UploadStep({
 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center md:bg-[#F7F7F7] md:rounded-[20px] p-4 md:p-8" style={{ minHeight: "calc(100vh - 160px)" }}>
-      <div className="w-full max-w-xl flex flex-col space-y-2 rounded-lg border border-gray-200 bg-white py-4">
+      <div className="w-full max-w-xl flex flex-col space-y-2 rounded-lg border border-line bg-panel py-4">
 
         <div className="px-4">
           <p className="text-base text-black">Upload your video</p>
-          <p className="text-xs text-gray-500 mt-0.5">Upload a video to use for your new project.</p>
+          <p className="text-xs text-fg-muted mt-0.5">Upload a video to use for your new project.</p>
         </div>
 
         <input
@@ -272,10 +272,10 @@ function UploadStep({
         />
 
         {fileName ? (
-          <div className="mx-4 rounded-lg border border-blue-200 bg-blue-50 flex items-center gap-3 px-4 py-4">
-            <div className="text-blue-500 flex-shrink-0"><IcFile /></div>
-            <span className="text-sm font-semibold text-blue-700 flex-1 truncate">{fileName}</span>
-            <button onClick={onClearFile} className="text-blue-400 hover:text-blue-600 flex-shrink-0 transition-colors">
+          <div className="mx-4 rounded-lg border border-brand/40 bg-tint-blue flex items-center gap-3 px-4 py-4">
+            <div className="text-brand flex-shrink-0"><IcFile /></div>
+            <span className="text-sm font-semibold text-brand flex-1 truncate">{fileName}</span>
+            <button onClick={onClearFile} className="text-brand hover:text-brand flex-shrink-0 transition-colors">
               <IcX />
             </button>
           </div>
@@ -285,15 +285,15 @@ function UploadStep({
             onDragLeave={() => setDragging(false)}
             onDrop={e => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files?.[0]) onFile(e.dataTransfer.files[0]); }}
             onClick={() => inputRef.current?.click()}
-            className="mx-4 flex cursor-pointer flex-col items-center justify-center space-y-3 rounded-lg border border-dashed border-gray-300 py-4 transition-all duration-300 ease-in-out md:py-8"
+            className="mx-4 flex cursor-pointer flex-col items-center justify-center space-y-3 rounded-lg border border-dashed border-line-strong py-4 transition-all duration-300 ease-in-out md:py-8"
             style={{ borderColor: dragging ? "#93c5fd" : undefined, background: dragging ? "#eff6ff" : undefined }}
           >
-            <div className="text-blue-500"><IcCloud /></div>
-            <p className="text-center text-base text-gray-700">Choose a clip or drag &amp; drop it here.</p>
-            <p className="text-center text-sm text-gray-400">MP4 formats, up to 50 MB.</p>
+            <div className="text-brand"><IcCloud /></div>
+            <p className="text-center text-base text-fg">Choose a clip or drag &amp; drop it here.</p>
+            <p className="text-center text-sm text-fg-subtle">MP4 formats, up to 50 MB.</p>
             <button
               onClick={e => { e.stopPropagation(); inputRef.current?.click(); }}
-              className="inline-flex items-center justify-center rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:opacity-90 h-10"
+              className="inline-flex items-center justify-center rounded-md bg-fg px-4 py-2 text-sm font-medium text-bg transition-colors hover:opacity-90 h-10"
             >
               Browse File
             </button>
@@ -307,20 +307,20 @@ function UploadStep({
         )}
 
         <div className="flex items-center gap-3 mx-4 py-1">
-          <div className="h-px bg-gray-100 flex-1" />
-          <span className="text-sm text-gray-500">OR</span>
-          <div className="h-px bg-gray-100 flex-1" />
+          <div className="h-px bg-surface-3 flex-1" />
+          <span className="text-sm text-fg-muted">OR</span>
+          <div className="h-px bg-surface-3 flex-1" />
         </div>
 
         <div className="px-4">
-          <p className="text-sm text-gray-500 mb-2">Add YouTube link</p>
+          <p className="text-sm text-fg-muted mb-2">Add YouTube link</p>
           <div className="flex items-center gap-2">
             <input
               value={link}
               onChange={e => { setLink(e.target.value); setLinkError(""); }}
               onKeyDown={e => e.key === "Enter" && handleLinkSubmit()}
               placeholder="https://youtube.com/watch?v=..."
-              className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none"
+              className="flex h-10 w-full rounded-md border border-line bg-panel px-3 py-2 text-sm placeholder:text-fg-subtle focus:outline-none"
               style={{ borderColor: linkError ? "#fca5a5" : undefined }}
             />
             <button
@@ -335,7 +335,7 @@ function UploadStep({
               <IcArrowRight />
             </button>
           </div>
-          {linkError && <p className="text-xs text-red-500 mt-1.5">{linkError}</p>}
+          {linkError && <p className="text-xs text-error mt-1.5">{linkError}</p>}
         </div>
 
       </div>
@@ -366,12 +366,12 @@ function TitleStep({
     <div className="px-8 pt-6 pb-10 flex flex-col space-y-4 h-full">
       {/* Title input */}
       <div className="flex flex-col space-y-2">
-        <h1 className="text-lg font-medium md:text-xl text-gray-900">Select Title Text</h1>
+        <h1 className="text-lg font-medium md:text-xl text-fg">Select Title Text</h1>
         <input
           value={titleText}
           onChange={e => onTitleChange(e.target.value)}
           placeholder="ex: Adin Ross just did something crazy with Ray"
-          className="w-full rounded-md border px-4 py-5 text-sm text-gray-800 focus:outline-none focus:ring-0 transition-colors"
+          className="w-full rounded-md border px-4 py-5 text-sm text-fg focus:outline-none focus:ring-0 transition-colors"
           style={{ borderColor: "#E7E9EF" }}
           onFocus={e => (e.currentTarget.style.borderColor = "#4e80ed")}
           onBlur={e => (e.currentTarget.style.borderColor = "#E7E9EF")}
@@ -387,7 +387,7 @@ function TitleStep({
           style={{ background: subtitleMode === "lines" ? "#335CFF" : "#cbd5e1" }}
         >
           <span
-            className="absolute w-4 h-4 rounded-full bg-white transition-all shadow-sm"
+            className="absolute w-4 h-4 rounded-full bg-panel transition-all shadow-sm"
             style={{ left: subtitleMode === "lines" ? "22px" : "2px", top: "4px" }}
           />
         </button>
@@ -498,7 +498,7 @@ function StreamerVideoFlow() {
   }
 
   return (
-      <main className="h-full overflow-y-auto bg-white flex flex-col">
+      <main className="h-full overflow-y-auto bg-panel flex flex-col">
         <Header
           stepIndex={stepIndex}
           onNext={() => goTo(stepIndex + 1)}
@@ -539,7 +539,7 @@ function StreamerVideoFlow() {
 
 export default function StreamerVideoPage() {
   return (
-    <Suspense fallback={<div className="h-screen bg-white" />}>
+    <Suspense fallback={<div className="h-screen bg-panel" />}>
       <StreamerVideoFlow />
     </Suspense>
   );

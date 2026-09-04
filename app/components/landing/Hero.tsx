@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import Reveal from "@/app/components/Reveal";
+import ShowcaseGlow from "@/app/components/marketing/ShowcaseGlow";
 import { PlayIcon, CheckIcon } from "@/app/components/landing/icons";
 import HeroRatingBadge from "@/app/components/landing/HeroRatingBadge";
 import { MINIMUM_REVIEWS_FOR_SCHEMA } from "@/app/reviews/schema";
@@ -22,10 +23,16 @@ export default function Hero({ reviewSummary }: HeroProps) {
 
   return (
     <section className="relative overflow-hidden font-sans">
-      {/* Soft gradient blobs */}
+      {/* Atmospheric emerald lighting. Two drifting blobs plus a wide, static
+          glow rising from behind the product panel — the reference this system
+          is drawn from puts its light low and lets the rest of the frame stay
+          dark, rather than spreading a tint across the whole section. Lime is
+          kept out of it: it is the CTA's colour, and a lime haze behind the
+          hero competes with the one button that matters. */}
       <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="clipiro-blob absolute -top-24 -left-20 w-[420px] h-[420px] rounded-full bg-brand/15 blur-3xl" />
-        <div className="clipiro-blob absolute top-10 right-0 w-[360px] h-[360px] rounded-full bg-emerald-300/15 blur-3xl" style={{ animationDelay: "4s" }} />
+        <div className="clipiro-blob absolute -top-24 -left-20 w-[420px] h-[420px] rounded-full bg-emerald-brand/20 blur-3xl" />
+        <div className="clipiro-blob absolute top-10 right-0 w-[360px] h-[360px] rounded-full bg-emerald-bright/12 blur-3xl" style={{ animationDelay: "4s" }} />
+        <div className="absolute inset-x-0 bottom-0 h-[520px] bg-[radial-gradient(900px_420px_at_50%_100%,var(--glow-hero),transparent_70%)]" />
       </div>
 
       <div className="mx-auto flex w-full max-w-screen-2xl flex-col items-center gap-6 px-4 py-20 text-center md:px-12 lg:px-[120px] lg:py-28">
@@ -40,14 +47,17 @@ export default function Hero({ reviewSummary }: HeroProps) {
         <Reveal delay={60}>
           <h1 className="max-w-4xl text-balance text-4xl font-semibold leading-tight tracking-[0.01em] text-ink md:text-6xl lg:text-7xl">
             Create Viral Shorts From{" "}
-            <span className="bg-gradient-to-r from-brand-deep to-brand bg-clip-text text-transparent">Long Videos</span>{" "}
+            {/* `grad-text` rather than a hand-rolled bg-clip-text pair: the
+                utility declares a solid fallback colour first, so this does not
+                render as invisible text anywhere the clip is unsupported. */}
+            <span className="grad-text inline-block">Long Videos</span>{" "}
             in Seconds
           </h1>
         </Reveal>
 
         {/* Subhead */}
         <Reveal delay={120}>
-          <p className="max-w-2xl text-lg leading-relaxed text-gray-600">
+          <p className="max-w-2xl text-lg leading-relaxed text-fg-muted">
             Transform podcasts, interviews, webinars, and YouTube videos into engaging short-form content with
             AI-powered clipping, captions, and social media optimization.
           </p>
@@ -59,21 +69,21 @@ export default function Hero({ reviewSummary }: HeroProps) {
             {user ? (
               <Link
                 href="/dashboard"
-                className="inline-flex items-center gap-2 rounded-full bg-brand px-8 py-4 text-base font-bold text-white shadow-card transition-all duration-200 hover:scale-[1.02] hover:bg-brand-dark"
+                className="inline-flex items-center gap-2 rounded-full bg-brand px-8 py-4 text-base font-bold text-on-primary shadow-card transition-all duration-200 hover:scale-[1.02] hover:bg-brand-dark"
               >
                 Go to Dashboard
               </Link>
             ) : (
               <button
                 onClick={() => openAuthModal("register")}
-                className="inline-flex items-center gap-2 rounded-full bg-brand px-8 py-4 text-base font-bold text-white shadow-card transition-all duration-200 hover:scale-[1.02] hover:bg-brand-dark cursor-pointer"
+                className="inline-flex items-center gap-2 rounded-full bg-brand px-8 py-4 text-base font-bold text-on-primary shadow-card transition-all duration-200 hover:scale-[1.02] hover:bg-brand-dark cursor-pointer"
               >
                 Try Clipiro Free
               </button>
             )}
             <button
               onClick={() => setDemoOpen(true)}
-              className="inline-flex items-center gap-2 rounded-full border border-card-border bg-white px-8 py-4 text-base font-semibold text-ink transition-colors hover:border-brand hover:bg-brand-soft cursor-pointer"
+              className="inline-flex items-center gap-2 rounded-full border border-card-border bg-panel px-8 py-4 text-base font-semibold text-ink transition-colors hover:border-brand hover:bg-brand-soft cursor-pointer"
             >
               <PlayIcon className="h-4 w-4 text-brand-deep" />
               Watch Demo
@@ -88,10 +98,10 @@ export default function Hero({ reviewSummary }: HeroProps) {
 
         {/* Trust row */}
         <Reveal delay={240}>
-          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-gray-500">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-fg-muted">
             {TRUST_POINTS.map((point) => (
               <span key={point} className="inline-flex items-center gap-1.5">
-                <CheckIcon className="h-4 w-4 text-green-500" />
+                <CheckIcon className="h-4 w-4 text-success" />
                 {point}
               </span>
             ))}
@@ -101,36 +111,36 @@ export default function Hero({ reviewSummary }: HeroProps) {
         {/* Hero visual: editor mockup (CSS-drawn — replaced with a real editor
             screenshot once the browser editor ships) */}
         <Reveal delay={300} className="w-full">
-          <div className="relative mx-auto mt-8 w-full max-w-5xl">
-            <div className="absolute -inset-4 -z-10 rounded-[32px] bg-gradient-to-tr from-brand/25 to-emerald-300/20 blur-2xl" />
-            <div className="overflow-hidden rounded-2xl border border-card-border bg-white shadow-2xl">
+          <div className="mx-auto mt-8 w-full max-w-5xl">
+            <ShowcaseGlow>
+            <div className="overflow-hidden rounded-2xl border border-card-border bg-panel shadow-2xl">
               {/* Faux window chrome */}
-              <div className="flex items-center gap-1.5 border-b border-gray-100 bg-gray-50 px-4 py-3">
-                <span className="h-3 w-3 rounded-full bg-red-400" />
-                <span className="h-3 w-3 rounded-full bg-yellow-400" />
-                <span className="h-3 w-3 rounded-full bg-green-400" />
-                <span className="ml-3 inline-flex items-center gap-1.5 rounded-md bg-white px-3 py-1 text-xs text-gray-400 ring-1 ring-gray-100">
+              <div className="flex items-center gap-1.5 border-b border-line bg-surface-2 px-4 py-3">
+                <span className="h-3 w-3 rounded-full bg-line-strong" />
+                <span className="h-3 w-3 rounded-full bg-line-strong" />
+                <span className="h-3 w-3 rounded-full bg-line-strong" />
+                <span className="ml-3 inline-flex items-center gap-1.5 rounded-md bg-panel px-3 py-1 text-xs text-fg-subtle ring-1 ring-line">
                   clipiro.com/editor
                 </span>
               </div>
               {/* Editor mockup: sidebar / preview / properties + timeline */}
               <div className="flex h-[300px] gap-2 bg-surface p-3 sm:h-[380px]" aria-hidden="true">
                 {/* Left sidebar: media bin */}
-                <div className="hidden w-40 flex-col gap-2 rounded-xl border border-card-border bg-white p-2 sm:flex">
-                  <div className="h-2 w-16 rounded-full bg-gray-200" />
+                <div className="hidden w-40 flex-col gap-2 rounded-xl border border-card-border bg-panel p-2 sm:flex">
+                  <div className="h-2 w-16 rounded-full bg-surface-3" />
                   <div className="grid grid-cols-2 gap-1.5">
                     {["/hero/thumb-1.jpg", "/hero/thumb-2.jpg", "/hero/thumb-3.jpg", "/hero/thumb-4.jpg"].map((src, i) => (
-                      <div key={src} className="relative aspect-video overflow-hidden rounded-md bg-gray-100">
+                      <div key={src} className="relative aspect-video overflow-hidden rounded-md bg-surface-3">
                         <Image src={src} alt="" fill sizes="80px" className="object-cover" priority={i === 0} />
                       </div>
                     ))}
                   </div>
-                  <div className="mt-1 h-2 w-20 rounded-full bg-gray-100" />
-                  <div className="h-2 w-14 rounded-full bg-gray-100" />
+                  <div className="mt-1 h-2 w-20 rounded-full bg-surface-3" />
+                  <div className="h-2 w-14 rounded-full bg-surface-3" />
                 </div>
                 {/* Center: preview + timeline */}
                 <div className="flex flex-1 flex-col gap-2">
-                  <div className="relative flex flex-1 items-center justify-center rounded-xl bg-gray-900">
+                  <div className="relative flex flex-1 items-center justify-center rounded-xl bg-black">
                     <div className="relative flex aspect-[9/16] h-[85%] items-center justify-center overflow-hidden rounded-lg">
                       <Image src="/hero/preview.jpg" alt="" fill sizes="220px" className="object-cover" priority />
                       <span className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/85">
@@ -142,7 +152,7 @@ export default function Hero({ reviewSummary }: HeroProps) {
                     </span>
                   </div>
                   {/* Timeline */}
-                  <div className="flex flex-col gap-1.5 rounded-xl border border-card-border bg-white p-2">
+                  <div className="flex flex-col gap-1.5 rounded-xl border border-card-border bg-panel p-2">
                     <div className="flex h-5 items-center gap-1">
                       <div className="h-full w-2/5 rounded bg-brand/70" />
                       <div className="h-full w-1/4 rounded bg-brand/50" />
@@ -158,20 +168,21 @@ export default function Hero({ reviewSummary }: HeroProps) {
                   </div>
                 </div>
                 {/* Right: properties */}
-                <div className="hidden w-36 flex-col gap-2 rounded-xl border border-card-border bg-white p-2 md:flex">
-                  <div className="h-2 w-14 rounded-full bg-gray-200" />
+                <div className="hidden w-36 flex-col gap-2 rounded-xl border border-card-border bg-panel p-2 md:flex">
+                  <div className="h-2 w-14 rounded-full bg-surface-3" />
                   <div className="h-7 rounded-md border border-card-border bg-surface" />
                   <div className="h-7 rounded-md border border-card-border bg-surface" />
-                  <div className="mt-1 h-2 w-10 rounded-full bg-gray-100" />
+                  <div className="mt-1 h-2 w-10 rounded-full bg-surface-3" />
                   <div className="h-2 rounded-full bg-brand/40" />
                   <div className="mt-auto h-8 rounded-lg bg-brand" />
                 </div>
               </div>
             </div>
+            </ShowcaseGlow>
             {/* Floating feature badge */}
-            <div className="absolute -bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-gray-100 bg-white px-5 py-2.5 shadow-lg">
-              <CheckIcon className="h-4 w-4 text-green-500" />
-              <span className="text-sm font-semibold text-gray-700">Auto captions & viral-moment detection</span>
+            <div className="absolute -bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-line bg-panel px-5 py-2.5 shadow-lg">
+              <CheckIcon className="h-4 w-4 text-success" />
+              <span className="text-sm font-semibold text-fg">Auto captions & viral-moment detection</span>
             </div>
           </div>
         </Reveal>

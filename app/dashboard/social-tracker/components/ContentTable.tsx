@@ -188,7 +188,7 @@ export function ContentTable({
 
   if (error) {
     return (
-      <div className="rounded-[var(--radius-card)] border border-card-border bg-white p-8 text-center shadow-card">
+      <div className="rounded-[var(--radius-card)] border border-card-border bg-panel p-8 text-center shadow-card">
         <p className="text-sm text-ink-soft">{error}</p>
         <div className="mt-4">
           {/* Re-runs the effect by clearing the error, rather than duplicating
@@ -209,7 +209,7 @@ export function ContentTable({
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value)}
-            className="rounded-lg border border-card-border bg-white px-2 py-1 text-xs text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            className="rounded-lg border border-card-border bg-panel px-2 py-1 text-xs text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
           >
             {SORTS.map((s) => (
               <option key={s.value} value={s.value}>{s.label}</option>
@@ -234,7 +234,7 @@ export function ContentTable({
       </div>
 
       {posts && posts.length === 0 ? (
-        <div className="rounded-[var(--radius-card)] border border-card-border bg-white p-10 text-center shadow-card">
+        <div className="rounded-[var(--radius-card)] border border-card-border bg-panel p-10 text-center shadow-card">
           <p className="text-sm font-semibold text-ink">No posts tracked yet</p>
           <p className="mt-1 text-sm text-ink-soft">
             Publish something, or widen the date range — the first sync only pulls recent history.
@@ -242,7 +242,7 @@ export function ContentTable({
         </div>
       ) : (
         <>
-          <div className="overflow-x-auto rounded-[var(--radius-card)] border border-card-border bg-white shadow-card">
+          <div className="overflow-x-auto rounded-[var(--radius-card)] border border-card-border bg-panel shadow-card">
             <table className="w-full text-sm">
               <caption className="sr-only">
                 Published posts with their performance metrics, sorted by{" "}

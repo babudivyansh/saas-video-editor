@@ -8,7 +8,7 @@ import { getToolBySlug } from "@/app/components/featureLinks";
  * language already used by FEATURED_ART in landing/ToolShowcase.tsx — white
  * shapes at three opacities, with brand blue reserved for marks sitting inside
  * a white shape. `Features.tsx` uses teal for the same job; brand blue wins
- * here because the whole marketing surface now renders under `flat-brand`.
+ * here because the whole marketing surface renders under the emerald theme.
  *
  * These are original drawings of what each tool *does*. Nothing is traced from
  * a reference, and nothing depicts a real person, third-party footage, or
@@ -27,7 +27,9 @@ const INK = "rgba(255,255,255,0.94)";
 const SOFT = "rgba(255,255,255,0.40)";
 const FAINT = "rgba(255,255,255,0.18)";
 /** For marks that sit *inside* a white shape and need to read as brand. */
-const BRAND = "#335CFF";
+// Marks that sit INSIDE a white shape in the illustration and need to read as
+// the brand. Emerald since the design-system migration; was the retired blue.
+const BRAND = "#00A968";
 
 // ---------------------------------------------------------------- primitives
 

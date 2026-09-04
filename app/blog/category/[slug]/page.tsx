@@ -51,12 +51,12 @@ export default async function BlogCategoryPage({ params }: { params: Promise<{ s
   ]);
 
   return (
-    <div className="flat-brand min-h-screen bg-white text-gray-900 font-sans">
+    <div className="min-h-screen bg-bg text-fg font-sans">
       <JsonLd data={collectionSchema} />
       <JsonLd data={breadcrumbSchema} />
       <SiteNavbar solid />
       <main>
-        <section className="border-b border-gray-100 bg-gray-50/60">
+        <section className="border-b border-line bg-gray-50/60">
           <div className="mx-auto w-full max-w-screen-2xl px-4 py-20 text-center md:px-12 lg:px-[120px]">
             <div className="flex justify-center">
               <Breadcrumbs

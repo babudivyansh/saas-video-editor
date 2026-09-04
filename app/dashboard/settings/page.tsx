@@ -27,15 +27,15 @@ function Meter({ label, pct, sublabel }: { label: string; pct: number; sublabel:
         <span className="text-xs font-bold text-ink-soft uppercase tracking-widest">{label}</span>
         <span className="text-xs font-semibold text-ink-soft">{sublabel}</span>
       </div>
-      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full transition-all duration-500 ${pct >= 90 ? "bg-red-400" : "grad-brand"}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+      <div className="h-2 bg-surface-3 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full transition-all duration-500 ${pct >= 90 ? "bg-error" : "grad-brand"}`} style={{ width: `${Math.min(pct, 100)}%` }} />
       </div>
     </div>
   );
 }
 
 function QuickAction({ href, onClick, label, desc }: { href?: string; onClick?: () => void; label: string; desc: string }) {
-  const cls = "flex flex-col gap-1 rounded-2xl border border-card-border bg-white p-4 hover:border-violet-200 hover:shadow-card-hover transition-all text-left w-full";
+  const cls = "flex flex-col gap-1 rounded-2xl border border-card-border bg-panel p-4 hover:border-violet-200 hover:shadow-card-hover transition-all text-left w-full";
   const body = (
     <>
       <p className="text-sm font-bold text-ink">{label}</p>

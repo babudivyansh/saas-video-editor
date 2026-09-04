@@ -33,8 +33,8 @@ export default function ToolsPage() {
   const t = useTranslations("Tools");
 
   const topCards: { icon: React.ReactNode; title: string; desc: string; color: string; tint: CardTint; href: string }[] = [
-    { icon: <IcSmile />, title: t("topCards.freeTools.title"), desc: t("topCards.freeTools.desc"), color: "text-amber-500", tint: "amber", href: "/dashboard/tools/free" },
-    { icon: <IcYoutube />, title: t("topCards.youtubeDownloader.title"), desc: t("topCards.youtubeDownloader.desc"), color: "text-red-500", tint: "rose", href: "/dashboard/tools/youtube-downloader" },
+    { icon: <IcSmile />, title: t("topCards.freeTools.title"), desc: t("topCards.freeTools.desc"), color: "text-warning", tint: "amber", href: "/dashboard/tools/free" },
+    { icon: <IcYoutube />, title: t("topCards.youtubeDownloader.title"), desc: t("topCards.youtubeDownloader.desc"), color: "text-error", tint: "rose", href: "/dashboard/tools/youtube-downloader" },
     { icon: <IcInstagram />, title: t("topCards.instagramDownloader.title"), desc: t("topCards.instagramDownloader.desc"), color: "text-accent-pink", tint: "fuchsia", href: "/dashboard/tools/instagram-downloader" },
   ];
 
@@ -63,7 +63,7 @@ export default function ToolsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {topCards.map((c, i) => (
               <Card key={i} tint={c.tint} href={c.href} className="flex items-center gap-3 px-5 py-3.5">
-                <div className={`w-9 h-9 rounded-xl bg-white shadow-sm flex items-center justify-center flex-shrink-0 ${c.color}`}>
+                <div className={`w-9 h-9 rounded-xl bg-panel shadow-sm flex items-center justify-center flex-shrink-0 ${c.color}`}>
                   {c.icon}
                 </div>
                 <div className="flex-1 min-w-0">

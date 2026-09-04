@@ -162,7 +162,7 @@ export function ReportBuilder({ accounts, initialRuns }: ReportBuilderProps) {
         </p>
       </div>
 
-      <div className="space-y-4 rounded-[var(--radius-card)] border border-card-border bg-white p-4 shadow-card">
+      <div className="space-y-4 rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card">
         <Fieldset legend="Accounts">
           {accounts.map((a) => (
             <Checkbox
@@ -193,7 +193,7 @@ export function ReportBuilder({ accounts, initialRuns }: ReportBuilderProps) {
         </div>
 
         {error && (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-error">
             {error}
           </p>
         )}
@@ -214,7 +214,7 @@ export function ReportBuilder({ accounts, initialRuns }: ReportBuilderProps) {
             {runs.map((run) => (
               <li
                 key={run.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] border border-card-border bg-white px-4 py-3"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] border border-card-border bg-panel px-4 py-3"
               >
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-ink">
@@ -285,7 +285,7 @@ function Choice<T extends string>({
             aria-pressed={value === option}
             onClick={() => onChange(option)}
             className={`rounded-full px-3 py-1 text-xs font-semibold capitalize transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
-              value === option ? "bg-brand text-white" : "bg-surface text-ink-soft hover:text-ink"
+              value === option ? "bg-brand text-on-primary" : "bg-surface text-ink-soft hover:text-ink"
             }`}
           >
             {option}

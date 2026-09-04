@@ -19,12 +19,12 @@ export function CreditRing({ used, total, size = 72 }: { used: number; total: nu
     >
       <defs>
         <linearGradient id="ring-grad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="var(--brand)" />
-          <stop offset="55%" stopColor="var(--accent-violet)" />
-          <stop offset="100%" stopColor="var(--accent-fuchsia)" />
+          <stop offset="0%" stopColor="var(--emerald-brand)" />
+          <stop offset="55%" stopColor="var(--emerald-bright)" />
+          <stop offset="100%" stopColor="var(--primary)" />
         </linearGradient>
       </defs>
-      <circle cx="36" cy="36" r={r} fill="none" stroke="var(--tint-blue)" strokeWidth="7" />
+      <circle cx="36" cy="36" r={r} fill="none" stroke="var(--line-strong)" strokeWidth="7" />
       <circle
         cx="36" cy="36" r={r} fill="none"
         stroke="url(#ring-grad)" strokeWidth="7"
@@ -32,7 +32,7 @@ export function CreditRing({ used, total, size = 72 }: { used: number; total: nu
         strokeLinecap="round"
         transform="rotate(-90 36 36)"
       />
-      <text x="36" y="39" textAnchor="middle" fontSize="13" fontWeight="700" fill="var(--ink)" aria-hidden="true">
+      <text x="36" y="39" textAnchor="middle" fontSize="13" fontWeight="700" fill="var(--fg)" aria-hidden="true">
         {used}
       </text>
     </svg>

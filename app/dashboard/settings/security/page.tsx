@@ -12,7 +12,7 @@ function IcSpinner() { return <div className="w-4 h-4 border-2 border-white/40 b
 function IcCheck() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M5 13l4 4L19 7" /></svg>; }
 function IcCopy() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>; }
 
-const inputCls = "w-full bg-white border border-card-border rounded-xl px-4 py-3 text-sm text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all";
+const inputCls = "w-full bg-panel border border-card-border rounded-xl px-4 py-3 text-sm text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all";
 const labelCls = "text-xs font-semibold text-ink-soft uppercase tracking-wide block mb-1.5";
 
 interface TwoFaStatus { enabled: boolean; unusedRecoveryCodes: number }
@@ -77,7 +77,7 @@ function EmailSection() {
       <div>
         <label className={labelCls}>{t("emailAddress")}</label>
         <div className="flex items-center gap-2 bg-surface border border-card-border rounded-xl px-4 py-3">
-          <span className="text-sm text-gray-700 flex-1 truncate">{user?.email ?? "—"}</span>
+          <span className="text-sm text-fg flex-1 truncate">{user?.email ?? "—"}</span>
         </div>
         {pendingEmail && (
           <p className="text-xs text-amber-700 mt-2">
@@ -157,7 +157,7 @@ function PasswordSection() {
         <Button variant="secondary" size="sm" onClick={() => setOpen((o) => !o)}>{open ? t("cancel") : t("changePassword")}</Button>
       </div>
       {!open ? (
-        <p className="mt-3 text-sm tracking-widest text-gray-400">••••••••</p>
+        <p className="mt-3 text-sm tracking-widest text-fg-subtle">••••••••</p>
       ) : (
         <form onSubmit={handleChangePassword} className="mt-4 space-y-4">
           {fields.map((f) => (
@@ -311,7 +311,7 @@ function TwoFactorSection() {
         {status?.enabled ? (
           <>
             <Button variant="secondary" size="sm" onClick={() => setRegenOpen(true)}>{t("regenerateCodes")}</Button>
-            <Button variant="secondary" size="sm" onClick={() => setDisableOpen(true)} className="!text-red-600">{t("disable2fa")}</Button>
+            <Button variant="secondary" size="sm" onClick={() => setDisableOpen(true)} className="!text-error">{t("disable2fa")}</Button>
           </>
         ) : (
           <Button size="sm" onClick={() => setSetupOpen(true)}>{t("enable2fa")}</Button>
@@ -373,7 +373,7 @@ function TwoFactorSection() {
           <input type="password" required autoFocus value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)} placeholder={t("currentPasswordPlaceholder")} className={inputCls} />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" size="sm" onClick={() => setDisableOpen(false)}>{tCommon("cancel")}</Button>
-            <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-red-600">{busy ? <><IcSpinner /> {t("disabling")}</> : t("disable")}</Button>
+            <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-error">{busy ? <><IcSpinner /> {t("disabling")}</> : t("disable")}</Button>
           </div>
         </form>
       </Modal>

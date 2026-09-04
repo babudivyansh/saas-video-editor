@@ -3,15 +3,17 @@ import SiteFooter from "@/app/components/SiteFooter";
 import SiteNavbar from "@/app/components/SiteNavbar";
 
 /**
- * Outer shell for every public marketing page: white page surface, solid
- * navbar, footer.
+ * Outer shell for every public marketing page: emerald page surface, navbar,
+ * footer.
  *
- * The root <body> is `bg-zinc-950` for the editor/dashboard, so each marketing
- * page has to re-establish `bg-white` itself — doing it here means no page can
- * forget.
+ * The dark token set comes from `theme-emerald` on <body> (app/layout.tsx),
+ * not from here — portalled surfaces mount to document.body and would escape a
+ * per-shell scope.
  *
- * `flat-brand` opts the subtree into the solid brand blue for filled surfaces
- * (see globals.css); the dashboard keeps the gradient.
+ * This shell replaced `flat-brand`, which existed only to flatten the old
+ * blue-to-fuchsia gradient down to a solid brand blue on marketing while the
+ * dashboard kept the gradient. The emerald system has one accent family, so
+ * there is nothing left to fork.
  */
 export default function MarketingShell({
   children,
@@ -22,7 +24,7 @@ export default function MarketingShell({
   as?: "main" | "article";
 }) {
   return (
-    <div className="flat-brand min-h-screen bg-white">
+    <div className="min-h-screen bg-bg text-fg">
       <SiteNavbar solid />
       <Tag>{children}</Tag>
       <SiteFooter />

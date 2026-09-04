@@ -286,8 +286,8 @@ function AssetsPageInner() {
                 <span className="text-[10px] font-bold text-ink-soft uppercase tracking-widest">Storage · {stats.tier}</span>
                 <span className="text-[10px] font-semibold text-ink-soft">{fmtSize(usedBytes)} / {fmtSize(limitBytes)}</span>
               </div>
-              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full transition-all duration-500 ${usedPct > 90 ? "bg-red-400" : "grad-brand"}`} style={{ width: `${usedPct}%` }} />
+              <div className="h-1.5 bg-surface-3 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full transition-all duration-500 ${usedPct > 90 ? "bg-error" : "grad-brand"}`} style={{ width: `${usedPct}%` }} />
               </div>
             </div>
           )}
@@ -323,7 +323,7 @@ function AssetsPageInner() {
               {KIND_TABS.map((t) => (
                 <button key={t} onClick={() => setTab(t)}
                   className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors capitalize cursor-pointer ${
-                    tab === t ? "grad-brand text-white shadow-glow" : "bg-white border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
+                    tab === t ? "grad-brand text-on-primary shadow-glow" : "bg-panel border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
                   }`}>
                   {t === "all" ? "All" : t === "video" ? "Videos" : t === "audio" ? "Audio" : "Images"}
                 </button>
@@ -331,7 +331,7 @@ function AssetsPageInner() {
             </div>
             <div className="flex items-center gap-2">
               <select value={sort} onChange={(e) => setSort(e.target.value as SortOption)}
-                className="text-xs font-semibold border border-card-border rounded-full px-3 py-2 outline-none focus:border-violet-300 bg-white text-ink-soft cursor-pointer">
+                className="text-xs font-semibold border border-card-border rounded-full px-3 py-2 outline-none focus:border-violet-300 bg-panel text-ink-soft cursor-pointer">
                 {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
               <div className="relative sm:w-64">
@@ -339,7 +339,7 @@ function AssetsPageInner() {
                   <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" strokeLinecap="round" />
                 </svg>
                 <input ref={searchRef} type="text" placeholder="Search files… ( / )" value={q} onChange={(e) => setQ(e.target.value)}
-                  className="w-full text-sm bg-white border border-card-border rounded-full pl-9 pr-4 py-2 text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all" />
+                  className="w-full text-sm bg-panel border border-card-border rounded-full pl-9 pr-4 py-2 text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all" />
               </div>
             </div>
           </div>
@@ -348,18 +348,18 @@ function AssetsPageInner() {
           {view !== "archive" && (
             <div
               className={`flex flex-col items-center justify-center gap-2 rounded-[var(--radius-card)] border-2 border-dashed transition-all cursor-pointer py-8 ${
-                draggingOver ? "border-violet-400 bg-tint-violet" : "border-card-border bg-white hover:border-violet-300 hover:bg-tint-violet/50"
+                draggingOver ? "border-violet-400 bg-tint-violet" : "border-card-border bg-panel hover:border-violet-300 hover:bg-tint-violet/50"
               }`}
               onClick={() => requireAuth(() => fileRef.current?.click())}
               onDragOver={(e) => { e.preventDefault(); setDraggingOver(true); }}
               onDragLeave={() => setDraggingOver(false)}
               onDrop={(e) => { e.preventDefault(); setDraggingOver(false); handleFiles(e.dataTransfer.files); }}
             >
-              <div className="w-11 h-11 rounded-2xl grad-brand text-white flex items-center justify-center shadow-glow">
+              <div className="w-11 h-11 rounded-2xl grad-brand text-on-primary flex items-center justify-center shadow-glow">
                 <IcUpload />
               </div>
               <p className="text-sm text-ink-soft mt-1">Drop files here or <span className="text-brand font-semibold">browse</span></p>
-              <p className="text-xs text-ink-soft/60">
+              <p className="text-xs text-ink-soft">
                 Supports video, audio, and images{stats ? ` up to ${fmtSize(stats.maxUploadBytes)} per file` : ""}
               </p>
             </div>
@@ -548,13 +548,13 @@ function AssetsPageInner() {
       />
 
       {zipJobId && (
-        <div className="fixed bottom-24 right-6 z-40 flex items-center gap-2.5 text-xs font-semibold text-ink-soft bg-white border border-card-border rounded-full pl-4 pr-2 py-2 shadow-lg">
+        <div className="fixed bottom-24 right-6 z-40 flex items-center gap-2.5 text-xs font-semibold text-ink-soft bg-panel border border-card-border rounded-full pl-4 pr-2 py-2 shadow-lg">
           <span className="w-3 h-3 rounded-full border-2 border-brand border-t-transparent animate-spin" />
           Preparing download…
           <button
             type="button"
             onClick={cancelZipDownload}
-            className="text-ink-soft/60 hover:text-ink hover:bg-tint-blue rounded-full w-6 h-6 flex items-center justify-center transition-colors cursor-pointer"
+            className="text-ink-soft hover:text-ink hover:bg-tint-blue rounded-full w-6 h-6 flex items-center justify-center transition-colors cursor-pointer"
             aria-label="Cancel download"
           >
             ✕

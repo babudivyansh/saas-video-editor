@@ -95,11 +95,11 @@ export function ManageSubscriptionPanel({
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <span className="text-sm font-bold text-ink">{user?.plan?.name ?? "Subscription"}</span>
             {cancelled ? (
-              <span className="bg-gray-100 text-ink-soft text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
+              <span className="bg-surface-3 text-ink-soft text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
                 Cancelling
               </span>
             ) : (
-              <span className="bg-tint-emerald text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
+              <span className="bg-tint-emerald text-success text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
                 Active
               </span>
             )}
@@ -157,14 +157,14 @@ export function ManageSubscriptionPanel({
           ) : (
             <button
               onClick={onCancelClick}
-              className="w-full text-center text-xs text-ink-soft/70 hover:text-red-600 font-medium transition-colors cursor-pointer py-2"
+              className="w-full text-center text-xs text-ink-soft hover:text-error font-medium transition-colors cursor-pointer py-2"
             >
               Cancel subscription
             </button>
           )}
 
           {cancelled && endsAt && (
-            <p className="text-xs text-ink-soft/70 text-center">
+            <p className="text-xs text-ink-soft text-center">
               Your plan and credits stay available until {formatDate(endsAt)}.
             </p>
           )}
@@ -174,7 +174,7 @@ export function ManageSubscriptionPanel({
         <section>
           <h3 className="text-xs font-bold uppercase tracking-widest text-ink-soft mb-2.5">Billing history</h3>
           {purchases.length === 0 ? (
-            <p className="text-xs text-ink-soft/70 py-3">No payments yet.</p>
+            <p className="text-xs text-ink-soft py-3">No payments yet.</p>
           ) : (
             <ul className="rounded-2xl border border-card-border divide-y divide-card-border">
               {purchases.slice(0, 6).map((p) => (
@@ -190,7 +190,7 @@ export function ManageSubscriptionPanel({
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label={`View receipt for ${p.plan?.name ?? "credits"} on ${formatDate(p.createdAt)} (opens in a new tab)`}
-                      className="text-ink-soft/60 hover:text-brand transition-colors"
+                      className="text-ink-soft hover:text-brand transition-colors"
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
                         <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6" strokeLinecap="round" strokeLinejoin="round" />
@@ -202,14 +202,14 @@ export function ManageSubscriptionPanel({
             </ul>
           )}
           {purchases.length > 6 && (
-            <p className="text-[11px] text-ink-soft/70 mt-2">
+            <p className="text-[11px] text-ink-soft mt-2">
               Showing the 6 most recent — the Payment History tab has them all.
             </p>
           )}
         </section>
 
         {recurring && (
-          <p className="text-[11px] text-ink-soft/60 leading-relaxed">
+          <p className="text-[11px] text-ink-soft leading-relaxed">
             Changing plan starts a fresh term from that day rather than pro-rating the current one. Credits already in
             your account carry over.
           </p>

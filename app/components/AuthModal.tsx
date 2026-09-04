@@ -30,12 +30,12 @@ export default function AuthModal() {
       />
 
       {/* Modal Container */}
-      <div className="relative z-10 w-full max-w-[760px] min-h-[520px] flex rounded-2xl shadow-2xl overflow-hidden bg-white max-h-[90vh]">
+      <div className="relative z-10 w-full max-w-[760px] min-h-[520px] flex rounded-2xl shadow-2xl overflow-hidden bg-panel max-h-[90vh]">
         {/* Close Button — hidden for free tools (sign-in required) */}
         {!isFree && (
           <button
             onClick={closeAuthModal}
-            className="absolute top-4 right-4 z-50 p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
+            className="absolute top-4 right-4 z-50 p-1.5 rounded-full text-fg-subtle hover:text-fg-muted hover:bg-surface-3 transition-all"
             aria-label="Close authentication window"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -55,48 +55,57 @@ export default function AuthModal() {
         </div>
 
         {/* Right panel (Desktop only) */}
-        <div className={`hidden sm:flex w-72 flex-shrink-0 flex-col items-center justify-center p-8 border-l ${isFree ? "bg-[#f0fff4] border-green-100/30" : "bg-[#f0f5ff] border-blue-100/30"}`}>
-          <div className="bg-white rounded-2xl p-6 text-center shadow-sm w-full border border-gray-100">
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm ${isFree ? "bg-[#16a34a]" : "bg-[#2563eb]"}`}>
+        {/* Surfaces are tokens, not hexes: this panel was `bg-[#f0f5ff]` with a
+            `bg-[#2563eb]` icon — a near-white wash and the RETIRED brand blue,
+            both baked in as literals, so they stayed light when everything
+            around them went dark. The free/premium distinction is carried by
+            the eyebrow copy and the icon fill, not by tinting the whole panel.
+            Matches /login's right panel, which was migrated. */}
+        <div className="hidden sm:flex w-72 flex-shrink-0 flex-col items-center justify-center p-8 border-l border-line bg-surface-2">
+          <div className="bg-panel rounded-2xl p-6 text-center shadow-sm w-full border border-line">
+            {/* text-on-primary + currentColor rather than a literal white: the
+                fills below are light in this theme, so white-on-them fails
+                contrast badly. on-primary is #071006 here. */}
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm text-on-primary ${isFree ? "bg-success" : "grad-brand"}`}>
               {isFree ? (
-                <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" fill="currentColor" fillOpacity="0.2" stroke="currentColor"/>
                   <path d="M9 12l2 2 4-4"/>
                 </svg>
               ) : (
-                <svg className="w-7 h-7 text-white" viewBox="0 0 40 40" fill="none">
-                  <path d="M22 10H13C12.4477 10 12 10.4477 12 11V29C12 29.5523 12.4477 30 13 30H22" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-                  <path d="M22 10L28 13V27L22 30V10Z" fill="white" fillOpacity="0.3" stroke="white" strokeWidth="2.5" strokeLinejoin="round" />
-                  <circle cx="25" cy="20" r="1.5" fill="white" />
+                <svg className="w-7 h-7" viewBox="0 0 40 40" fill="none">
+                  <path d="M22 10H13C12.4477 10 12 10.4477 12 11V29C12 29.5523 12.4477 30 13 30H22" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                  <path d="M22 10L28 13V27L22 30V10Z" fill="currentColor" fillOpacity="0.3" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round" />
+                  <circle cx="25" cy="20" r="1.5" fill="currentColor" />
                 </svg>
               )}
             </div>
             {isFree && feature ? (
               <>
-                <p className="text-[10px] font-bold text-green-600 uppercase tracking-widest mb-2">
+                <p className="text-[10px] font-bold text-success uppercase tracking-widest mb-2">
                   Free Tool
                 </p>
-                <p className="text-[15px] text-gray-900 font-bold leading-snug mb-2">
+                <p className="text-[15px] text-fg font-bold leading-snug mb-2">
                   {feature}
                 </p>
-                <p className="text-xs text-gray-500 leading-relaxed">
+                <p className="text-xs text-fg-muted leading-relaxed">
                   This tool is completely free — just sign in to get started.
                 </p>
               </>
             ) : feature ? (
               <>
-                <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-2">
+                <p className="text-[10px] font-bold text-brand uppercase tracking-widest mb-2">
                   Premium Feature
                 </p>
-                <p className="text-[15px] text-gray-900 font-bold leading-snug mb-2">
+                <p className="text-[15px] text-fg font-bold leading-snug mb-2">
                   {feature}
                 </p>
-                <p className="text-xs text-gray-500 leading-relaxed">
+                <p className="text-xs text-fg-muted leading-relaxed">
                   Sign in to continue and unlock all premium tools.
                 </p>
               </>
             ) : (
-              <p className="text-sm text-gray-600 leading-relaxed font-medium">
+              <p className="text-sm text-fg-muted leading-relaxed font-medium">
                 Get started in seconds. Login or create an account now.
               </p>
             )}

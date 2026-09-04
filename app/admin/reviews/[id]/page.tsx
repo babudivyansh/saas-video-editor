@@ -133,7 +133,7 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
   if (data === null) {
     return (
       <AdminShell title="Review">
-        <p className="text-sm text-gray-400">Review not found. <Link href="/admin/reviews" className="text-blue-600 hover:underline">Back to Reviews</Link></p>
+        <p className="text-sm text-fg-subtle">Review not found. <Link href="/admin/reviews" className="text-brand hover:underline">Back to Reviews</Link></p>
       </AdminShell>
     );
   }
@@ -141,7 +141,7 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
     return <AdminShell title="Review"><ErrorCard onRetry={refetch} /></AdminShell>;
   }
   if (isLoading || !data) {
-    return <AdminShell title="Review"><p className="text-sm text-gray-400">Loading…</p></AdminShell>;
+    return <AdminShell title="Review"><p className="text-sm text-fg-subtle">Loading…</p></AdminShell>;
   }
 
   const review = data.review;
@@ -150,20 +150,20 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
 
   return (
     <AdminShell title="Review">
-      <Link href="/admin/reviews" className="text-xs font-semibold text-gray-500 hover:text-gray-800">← Back to Reviews</Link>
+      <Link href="/admin/reviews" className="text-xs font-semibold text-fg-muted hover:text-fg">← Back to Reviews</Link>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mt-4">
         <div className="lg:col-span-2 space-y-5">
           <Card shadow padding="lg">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <span className="text-lg font-bold text-gray-900">{review.rating}★</span>
-                <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-gray-100 text-gray-600">{review.status}</span>
+                <span className="text-lg font-bold text-fg">{review.rating}★</span>
+                <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-surface-3 text-fg-muted">{review.status}</span>
                 {review.verifiedCustomer && <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">Verified</span>}
                 {review.pinned && <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-violet-100 text-violet-700">Pinned</span>}
               </div>
               {!editing && (
-                <Button variant="secondary" size="sm" onClick={() => setEditing(true)} className="!text-blue-600 !border-blue-200 hover:!bg-blue-50">
+                <Button variant="secondary" size="sm" onClick={() => setEditing(true)} className="!text-brand !border-brand/40 hover:!bg-tint-blue">
                   Edit content
                 </Button>
               )}
@@ -172,9 +172,9 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
             {editing ? (
               <div className="space-y-3">
                 <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="Title"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2" />
+                  className="w-full text-sm border border-line rounded-lg px-3 py-2" />
                 <textarea value={editBody} onChange={(e) => setEditBody(e.target.value)} rows={6}
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2" />
+                  className="w-full text-sm border border-line rounded-lg px-3 py-2" />
                 <div className="flex gap-2">
                   <Button variant="primary" size="sm" onClick={() => saveEditMutation.mutate()} disabled={saveEditMutation.isPending}>
                     {saveEditMutation.isPending ? "Saving…" : "Save"}
@@ -186,28 +186,28 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
               </div>
             ) : (
               <>
-                {review.title && <p className="font-bold text-gray-900 mb-1">{review.title}</p>}
-                <p className="text-sm text-gray-700 whitespace-pre-line">{review.body}</p>
+                {review.title && <p className="font-bold text-fg mb-1">{review.title}</p>}
+                <p className="text-sm text-fg whitespace-pre-line">{review.body}</p>
               </>
             )}
 
-            <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-50 text-xs text-gray-500">
-              <span className="bg-gray-50 rounded-full px-2.5 py-1">{review.featureUsed}</span>
-              <span className="bg-gray-50 rounded-full px-2.5 py-1">{review.helpfulCount} helpful · {review.notHelpfulCount} not helpful</span>
-              <span className="bg-gray-50 rounded-full px-2.5 py-1">{review._count.reports} report{review._count.reports === 1 ? "" : "s"}</span>
-              <span className="bg-gray-50 rounded-full px-2.5 py-1">Spam score: {review.spamScore ?? "—"}{review.spamFlags?.length ? ` (${review.spamFlags.join(", ")})` : ""}</span>
+            <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-line text-xs text-fg-muted">
+              <span className="bg-surface-2 rounded-full px-2.5 py-1">{review.featureUsed}</span>
+              <span className="bg-surface-2 rounded-full px-2.5 py-1">{review.helpfulCount} helpful · {review.notHelpfulCount} not helpful</span>
+              <span className="bg-surface-2 rounded-full px-2.5 py-1">{review._count.reports} report{review._count.reports === 1 ? "" : "s"}</span>
+              <span className="bg-surface-2 rounded-full px-2.5 py-1">Spam score: {review.spamScore ?? "—"}{review.spamFlags?.length ? ` (${review.spamFlags.join(", ")})` : ""}</span>
             </div>
             {review.rejectionReason && (
-              <p className="text-xs text-red-600 mt-3">Rejection reason: {review.rejectionReason}</p>
+              <p className="text-xs text-error mt-3">Rejection reason: {review.rejectionReason}</p>
             )}
           </Card>
 
           {review.attachments.length > 0 && (
             <Card shadow padding="lg">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Attachments</p>
+              <p className="text-xs font-bold text-fg-subtle uppercase tracking-widest mb-3">Attachments</p>
               <div className="grid grid-cols-4 gap-2">
                 {review.attachments.map((a) => (
-                  <div key={a.id} className="aspect-square bg-gray-50 rounded-lg border border-gray-100 flex items-center justify-center text-[10px] text-gray-400 text-center p-1">
+                  <div key={a.id} className="aspect-square bg-surface-2 rounded-lg border border-line flex items-center justify-center text-[10px] text-fg-subtle text-center p-1">
                     {a.kind} · {a.moderationStatus}
                   </div>
                 ))}
@@ -217,9 +217,9 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
 
           <Card shadow padding="lg">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Response from Clipiro</p>
+              <p className="text-xs font-bold text-fg-subtle uppercase tracking-widest">Response from Clipiro</p>
               {!replyEditing && (
-                <Button variant="secondary" size="sm" onClick={() => setReplyEditing(true)} className="!text-blue-600 !border-blue-200 hover:!bg-blue-50">
+                <Button variant="secondary" size="sm" onClick={() => setReplyEditing(true)} className="!text-brand !border-brand/40 hover:!bg-tint-blue">
                   {review.reply ? "Edit reply" : "Add reply"}
                 </Button>
               )}
@@ -228,7 +228,7 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
               <div className="space-y-3">
                 <textarea value={replyBody} onChange={(e) => setReplyBody(e.target.value)} rows={4} maxLength={2000}
                   placeholder="Write a public reply as Clipiro…"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2" />
+                  className="w-full text-sm border border-line rounded-lg px-3 py-2" />
                 <div className="flex gap-2">
                   <Button variant="primary" size="sm" onClick={() => saveReplyMutation.mutate()} disabled={saveReplyMutation.isPending || !replyBody.trim()}>
                     {saveReplyMutation.isPending ? "Saving…" : "Save reply"}
@@ -240,27 +240,27 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
               </div>
             ) : review.reply ? (
               <div>
-                <p className="text-sm text-gray-700 whitespace-pre-line">{review.reply.body}</p>
+                <p className="text-sm text-fg whitespace-pre-line">{review.reply.body}</p>
                 <div className="flex items-center gap-3 mt-2">
-                  <p className="text-xs text-gray-400">{dt(review.reply.editedAt ?? review.reply.createdAt)}{review.reply.editedAt ? " (edited)" : ""}</p>
-                  <Button variant="link" onClick={() => setConfirmDeleteReply(true)} disabled={deleteReplyMutation.isPending} className="text-red-600">Delete</Button>
+                  <p className="text-xs text-fg-subtle">{dt(review.reply.editedAt ?? review.reply.createdAt)}{review.reply.editedAt ? " (edited)" : ""}</p>
+                  <Button variant="link" onClick={() => setConfirmDeleteReply(true)} disabled={deleteReplyMutation.isPending} className="text-error">Delete</Button>
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-gray-400">No reply yet.</p>
+              <p className="text-sm text-fg-subtle">No reply yet.</p>
             )}
           </Card>
 
           <Card shadow padding="lg">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Moderation history</p>
+            <p className="text-xs font-bold text-fg-subtle uppercase tracking-widest mb-3">Moderation history</p>
             {history.length === 0 ? (
-              <p className="text-sm text-gray-400">No moderation actions yet.</p>
+              <p className="text-sm text-fg-subtle">No moderation actions yet.</p>
             ) : (
               <ul className="space-y-3">
                 {history.map((h) => (
-                  <li key={h.id} className="text-sm border-l-2 border-gray-100 pl-3">
-                    <p className="font-semibold text-gray-800">{h.action}</p>
-                    <p className="text-xs text-gray-400">{dt(h.createdAt)} · admin {h.adminId}</p>
+                  <li key={h.id} className="text-sm border-l-2 border-line pl-3">
+                    <p className="font-semibold text-fg">{h.action}</p>
+                    <p className="text-xs text-fg-subtle">{dt(h.createdAt)} · admin {h.adminId}</p>
                   </li>
                 ))}
               </ul>
@@ -270,17 +270,17 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
 
         <div className="space-y-5">
           <Card shadow padding="lg">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Reviewer</p>
-            <p className="font-semibold text-gray-900 text-sm">{review.user.name || review.user.email}</p>
-            <p className="text-xs text-gray-400">{review.user.email}</p>
-            <p className="text-xs text-gray-400 mt-1">Joined {dt(review.user.createdAt)}</p>
-            <Link href={`/admin/users/${review.user.id}`} className="inline-block mt-3 text-xs font-semibold text-blue-600 hover:text-blue-800">
+            <p className="text-xs font-bold text-fg-subtle uppercase tracking-widest mb-3">Reviewer</p>
+            <p className="font-semibold text-fg text-sm">{review.user.name || review.user.email}</p>
+            <p className="text-xs text-fg-subtle">{review.user.email}</p>
+            <p className="text-xs text-fg-subtle mt-1">Joined {dt(review.user.createdAt)}</p>
+            <Link href={`/admin/users/${review.user.id}`} className="inline-block mt-3 text-xs font-semibold text-brand hover:text-brand-deep">
               View user →
             </Link>
           </Card>
 
           <Card shadow padding="lg" className="space-y-2">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Actions</p>
+            <p className="text-xs font-bold text-fg-subtle uppercase tracking-widest mb-2">Actions</p>
             {review.status !== "published" && (
               <Button variant="secondary" disabled={busy} onClick={() => moderateMutation.mutate({ action: "approve" })} className="w-full !text-emerald-700 !border-emerald-200 hover:!bg-emerald-50">Approve</Button>
             )}
@@ -299,7 +299,7 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
                 <Button variant="secondary" disabled={busy} onClick={() => moderateMutation.mutate({ action: "pin" })} className="w-full !text-violet-700 !border-violet-200 hover:!bg-violet-50">Feature</Button>
               )
             )}
-            <div className="pt-2 border-t border-gray-50">
+            <div className="pt-2 border-t border-line">
               <Button variant="danger" onClick={() => setConfirmDeleteReview(true)} className="w-full">Delete review</Button>
             </div>
           </Card>
@@ -345,7 +345,7 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
           rows={3}
           autoFocus
           placeholder="Reason for rejecting this review…"
-          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
+          className="w-full text-sm border border-line rounded-lg px-3 py-2"
         />
       </ConfirmDialog>
     </AdminShell>

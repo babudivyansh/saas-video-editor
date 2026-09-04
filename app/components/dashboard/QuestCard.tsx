@@ -157,7 +157,7 @@ export function QuestCard({ questData, hasUser, onDiscordQuest }: QuestCardProps
   const progressPct = Math.round((earnedXp / TOTAL_XP) * 100);
 
   return (
-    <Card className="bg-white">
+    <Card className="bg-panel">
       <button
         type="button"
         onClick={toggle}
@@ -178,14 +178,14 @@ export function QuestCard({ questData, hasUser, onDiscordQuest }: QuestCardProps
             )}
           </div>
           {loading ? (
-            <div className="h-5 w-40 bg-gray-100 rounded animate-pulse mt-0.5" />
+            <div className="h-5 w-40 bg-surface-3 rounded animate-pulse mt-0.5" />
           ) : (
             <p className="text-ink font-bold text-[15px] flex items-center gap-1.5">
               {allComplete && <span aria-hidden="true">🏆</span>}
               {allComplete ? t("allQuestsComplete") : t("questsToGo", { count: remaining })}
             </p>
           )}
-          <div className="mt-2 h-1 bg-gray-100 rounded-full w-full max-w-64 overflow-hidden">
+          <div className="mt-2 h-1 bg-surface-3 rounded-full w-full max-w-64 overflow-hidden">
             <div className="h-full grad-brand rounded-full transition-all duration-500"
               style={{ width: `${progressPct}%` }} />
           </div>
@@ -218,7 +218,7 @@ export function QuestCard({ questData, hasUser, onDiscordQuest }: QuestCardProps
         <div className="flex items-center gap-3 flex-shrink-0">
           <div className="text-right">
             {loading ? (
-              <div className="h-7 w-24 bg-gray-100 rounded animate-pulse ml-auto" />
+              <div className="h-7 w-24 bg-surface-3 rounded animate-pulse ml-auto" />
             ) : (
               <>
                 <span className="text-xl font-extrabold grad-text inline-block">{earnedXp}</span>
@@ -226,7 +226,7 @@ export function QuestCard({ questData, hasUser, onDiscordQuest }: QuestCardProps
               </>
             )}
           </div>
-          <span className={`text-gray-400 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}>
+          <span className={`text-fg-subtle transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}>
             <IcChevronDown />
           </span>
         </div>
@@ -241,23 +241,23 @@ export function QuestCard({ questData, hasUser, onDiscordQuest }: QuestCardProps
         className={`grid transition-all duration-200 ${expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
       >
         <div className="overflow-hidden">
-          <div className="grid grid-cols-1 sm:grid-cols-2 border-t border-gray-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 border-t border-line">
             {quests.map((q, i) => {
               const liveQuest = questData?.quests?.find(lq => lq.id === q.id);
               const done = !!liveQuest?.completedAt;
               const isDiscord = q.id === "join-community";
               const cls = `flex items-start gap-3 px-4 py-3.5 text-left transition-colors group
-                ${i % 2 === 0 ? "sm:border-r border-gray-100" : ""}
-                ${i >= 1 ? "border-t border-gray-100" : ""} ${i === 1 ? "sm:border-t-0" : ""}
+                ${i % 2 === 0 ? "sm:border-r border-line" : ""}
+                ${i >= 1 ? "border-t border-line" : ""} ${i === 1 ? "sm:border-t-0" : ""}
                 ${done ? "bg-tint-emerald cursor-default" : "hover:bg-tint-blue"}`;
               const inner = (
                 <>
                   <span className="mt-0.5 flex-shrink-0 opacity-60" style={{ color: q.color }}>{q.icon}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                      <span className={`text-sm font-semibold ${done ? "line-through text-gray-400" : "text-ink"}`}>{q.title}</span>
+                      <span className={`text-sm font-semibold ${done ? "line-through text-fg-subtle" : "text-ink"}`}>{q.title}</span>
                       {liveQuest && (
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${done ? "bg-tint-emerald text-green-600 border-green-100" : "bg-tint-violet text-accent-violet border-violet-100"}`}>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${done ? "bg-tint-emerald text-success border-green-100" : "bg-tint-violet text-accent-violet border-violet-100"}`}>
                           {t("xpSuffix", { xp: liveQuest.xp })}
                         </span>
                       )}
@@ -271,7 +271,7 @@ export function QuestCard({ questData, hasUser, onDiscordQuest }: QuestCardProps
                       </svg>
                     </span>
                   ) : (
-                    <span className="text-gray-300 group-hover:text-brand transition-colors mt-0.5 flex-shrink-0"><IcChevron /></span>
+                    <span className="text-fg-subtle group-hover:text-brand transition-colors mt-0.5 flex-shrink-0"><IcChevron /></span>
                   )}
                 </>
               );
@@ -296,7 +296,7 @@ export function QuestCard({ questData, hasUser, onDiscordQuest }: QuestCardProps
 
           {allComplete && (
             <div className="border-t border-green-100 bg-tint-emerald px-5 py-3 flex items-center gap-2.5">
-              <span className="text-green-500 text-lg" aria-hidden="true">🎉</span>
+              <span className="text-success text-lg" aria-hidden="true">🎉</span>
               <p className="text-sm font-semibold text-green-700">{t("allQuestsCompleteBanner")}</p>
             </div>
           )}

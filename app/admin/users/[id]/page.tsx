@@ -102,7 +102,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   if (data === null) {
     return (
       <AdminShell title="User">
-        <p className="text-sm text-gray-500">User not found. <Link href="/admin/users" className="text-blue-600 font-semibold">Back to users</Link></p>
+        <p className="text-sm text-fg-muted">User not found. <Link href="/admin/users" className="text-brand font-semibold">Back to users</Link></p>
       </AdminShell>
     );
   }
@@ -116,7 +116,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   if (isLoading || !data) {
     return (
       <AdminShell title="User">
-        <div className="animate-pulse space-y-4"><div className="h-32 bg-gray-100 rounded-2xl" /><div className="h-64 bg-gray-100 rounded-2xl" /></div>
+        <div className="animate-pulse space-y-4"><div className="h-32 bg-surface-3 rounded-2xl" /><div className="h-64 bg-surface-3 rounded-2xl" /></div>
       </AdminShell>
     );
   }
@@ -127,10 +127,10 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
 
   return (
     <AdminShell title={d.user.name || d.user.email}>
-      <Link href="/admin/users" className="text-xs font-semibold text-gray-400 hover:text-gray-700">← All users</Link>
+      <Link href="/admin/users" className="text-xs font-semibold text-fg-subtle hover:text-fg">← All users</Link>
 
       {suspended && (
-        <p className="text-sm text-red-800 bg-red-50 border border-red-100 rounded-lg px-4 py-2 my-3">
+        <p className="text-sm text-error bg-error/10 border border-error/30 rounded-lg px-4 py-2 my-3">
           Suspended since {dt(d.user.suspendedAt)} — login is blocked.
         </p>
       )}
@@ -139,30 +139,30 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         {/* Profile + moderation */}
         <Card shadow padding="md" className="space-y-3">
           <div>
-            <p className="font-bold text-gray-900">{d.user.name ?? d.user.firstName ?? "—"}</p>
-            <p className="text-sm text-gray-500">{d.user.email}</p>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="font-bold text-fg">{d.user.name ?? d.user.firstName ?? "—"}</p>
+            <p className="text-sm text-fg-muted">{d.user.email}</p>
+            <p className="text-xs text-fg-subtle mt-1">
               {d.user.role} · joined {new Date(d.user.createdAt).toLocaleDateString("en-IN")} · last login {dt(d.user.lastLoginAt)}
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2 text-sm">
-            <div className="bg-gray-50 rounded-lg p-2.5"><p className="text-xs text-gray-400">Credits</p><p className="font-bold text-gray-900">{d.user.credits}</p></div>
-            <div className="bg-gray-50 rounded-lg p-2.5"><p className="text-xs text-gray-400">Consumed (all time)</p><p className="font-bold text-gray-900">{d.generationTotals.creditsConsumed}</p></div>
-            <div className="bg-gray-50 rounded-lg p-2.5 col-span-2">
-              <p className="text-xs text-gray-400">Subscription</p>
-              <p className="font-semibold text-gray-800">
+            <div className="bg-surface-2 rounded-lg p-2.5"><p className="text-xs text-fg-subtle">Credits</p><p className="font-bold text-fg">{d.user.credits}</p></div>
+            <div className="bg-surface-2 rounded-lg p-2.5"><p className="text-xs text-fg-subtle">Consumed (all time)</p><p className="font-bold text-fg">{d.generationTotals.creditsConsumed}</p></div>
+            <div className="bg-surface-2 rounded-lg p-2.5 col-span-2">
+              <p className="text-xs text-fg-subtle">Subscription</p>
+              <p className="font-semibold text-fg">
                 {d.user.plan ? `${d.user.plan.name} (${d.user.plan.kind})` : "No plan"}
                 {subActive ? ` · until ${new Date(d.user.subscriptionEndsAt!).toLocaleDateString("en-IN")}` : " · inactive"}
               </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 pt-1">
-            <span className={`text-[11px] font-semibold px-2 py-1 rounded-full ${d.hasActiveSession ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+            <span className={`text-[11px] font-semibold px-2 py-1 rounded-full ${d.hasActiveSession ? "bg-emerald-50 text-emerald-700" : "bg-surface-3 text-fg-muted"}`}>
               {d.hasActiveSession ? "Active session" : "No live session"}
             </span>
           </div>
           <CreditAdjust userId={id} headers={headers} />
-          <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-50">
+          <div className="flex flex-wrap gap-2 pt-2 border-t border-line">
             <Button onClick={() => setConfirmRevoke(true)} variant="secondary" size="sm">
               Revoke sessions
             </Button>
@@ -180,12 +180,12 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
 
         {/* Admin notes */}
         <Card shadow padding="md">
-          <p className="text-sm font-bold text-gray-800 mb-2">Admin notes <span className="text-[10px] font-normal text-gray-400">(internal only)</span></p>
+          <p className="text-sm font-bold text-fg mb-2">Admin notes <span className="text-[10px] font-normal text-fg-subtle">(internal only)</span></p>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={6}
-            className="w-full text-sm border border-gray-200 rounded-xl p-3 resize-y"
+            className="w-full text-sm border border-line rounded-xl p-3 resize-y"
             placeholder="Support history, warnings, context…"
           />
           <Button onClick={() => saveNotesMutation.mutate()} variant="primary" size="sm" className="mt-2">
@@ -196,26 +196,26 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         {/* Affiliate + social */}
         <div className="space-y-5">
           <Card shadow padding="md">
-            <p className="text-sm font-bold text-gray-800 mb-2">Affiliate</p>
+            <p className="text-sm font-bold text-fg mb-2">Affiliate</p>
             {d.affiliate ? (
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-fg-muted">
                 <span className="font-mono text-xs">{d.affiliate.code}</span> · {d.affiliate.status} · {(d.affiliate.commissionRate * 100).toFixed(0)}%
                 <br />earned ₹{d.affiliate.totalEarned.toFixed(0)} · paid ₹{d.affiliate.totalPaid.toFixed(0)}
               </p>
             ) : (
-              <p className="text-sm text-gray-400">Not an affiliate.</p>
+              <p className="text-sm text-fg-subtle">Not an affiliate.</p>
             )}
           </Card>
           <Card shadow padding="md">
-            <p className="text-sm font-bold text-gray-800 mb-2">Social accounts</p>
+            <p className="text-sm font-bold text-fg mb-2">Social accounts</p>
             {d.socialAccounts.length === 0 ? (
-              <p className="text-sm text-gray-400">None connected.</p>
+              <p className="text-sm text-fg-subtle">None connected.</p>
             ) : (
-              <ul className="text-sm text-gray-600 space-y-1.5">
+              <ul className="text-sm text-fg-muted space-y-1.5">
                 {d.socialAccounts.map((s) => (
                   <li key={s.id} className="flex justify-between gap-2">
                     <span className="capitalize">{s.provider} · {s.displayName ?? s.username ?? "—"}</span>
-                    <span className={s.status === "active" ? "text-gray-400" : "text-amber-600 font-semibold"}>
+                    <span className={s.status === "active" ? "text-fg-subtle" : "text-warning font-semibold"}>
                       {s.followers != null ? `${s.followers.toLocaleString()} · ` : ""}{s.status}
                     </span>
                   </li>
@@ -229,19 +229,19 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">
         {/* Purchases */}
         <Card shadow padding="md">
-          <p className="text-sm font-bold text-gray-800 mb-3">Purchases (latest 20)</p>
+          <p className="text-sm font-bold text-fg mb-3">Purchases (latest 20)</p>
           {d.purchases.length === 0 ? (
-            <p className="text-sm text-gray-400">No purchases.</p>
+            <p className="text-sm text-fg-subtle">No purchases.</p>
           ) : (
             <table className="w-full text-sm">
               <tbody>
                 {d.purchases.map((p) => (
-                  <tr key={p.id} className="border-t border-gray-50 first:border-0">
-                    <td className="py-1.5 text-gray-700">{p.plan?.name ?? "—"}</td>
-                    <td className="py-1.5 text-xs text-gray-400">{new Date(p.createdAt).toLocaleDateString("en-IN")}</td>
-                    <td className="py-1.5 text-right text-gray-500">+{p.credits} cr</td>
-                    <td className="py-1.5 text-right font-semibold text-gray-800">{inr(p.amountInPaise)}</td>
-                    <td className={`py-1.5 text-right text-xs ${p.status === "refunded" ? "text-red-600 font-semibold" : "text-gray-400"}`}>{p.status}</td>
+                  <tr key={p.id} className="border-t border-line first:border-0">
+                    <td className="py-1.5 text-fg">{p.plan?.name ?? "—"}</td>
+                    <td className="py-1.5 text-xs text-fg-subtle">{new Date(p.createdAt).toLocaleDateString("en-IN")}</td>
+                    <td className="py-1.5 text-right text-fg-muted">+{p.credits} cr</td>
+                    <td className="py-1.5 text-right font-semibold text-fg">{inr(p.amountInPaise)}</td>
+                    <td className={`py-1.5 text-right text-xs ${p.status === "refunded" ? "text-error font-semibold" : "text-fg-subtle"}`}>{p.status}</td>
                   </tr>
                 ))}
               </tbody>
@@ -251,20 +251,20 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
 
         {/* Credit ledger */}
         <Card shadow padding="md">
-          <p className="text-sm font-bold text-gray-800 mb-3">
-            Credit ledger <span className="text-[10px] font-normal text-gray-400">({d.generationTotals.count} generations all time)</span>
+          <p className="text-sm font-bold text-fg mb-3">
+            Credit ledger <span className="text-[10px] font-normal text-fg-subtle">({d.generationTotals.count} generations all time)</span>
           </p>
           {d.generations.length === 0 ? (
-            <p className="text-sm text-gray-400">No generations.</p>
+            <p className="text-sm text-fg-subtle">No generations.</p>
           ) : (
             <table className="w-full text-sm">
               <tbody>
                 {d.generations.map((g) => (
-                  <tr key={g.id} className="border-t border-gray-50 first:border-0">
-                    <td className="py-1.5 text-gray-700">{g.toolSlug}{g.modelId ? ` · ${g.modelId}` : ""}</td>
-                    <td className="py-1.5 text-xs text-gray-400">{new Date(g.createdAt).toLocaleDateString("en-IN")}</td>
-                    <td className="py-1.5 text-right text-gray-700">−{g.creditsCost} cr</td>
-                    <td className={`py-1.5 text-right text-xs ${g.status === "failed" ? "text-red-600" : g.status === "refunded" ? "text-amber-600" : "text-gray-400"}`}>{g.status}</td>
+                  <tr key={g.id} className="border-t border-line first:border-0">
+                    <td className="py-1.5 text-fg">{g.toolSlug}{g.modelId ? ` · ${g.modelId}` : ""}</td>
+                    <td className="py-1.5 text-xs text-fg-subtle">{new Date(g.createdAt).toLocaleDateString("en-IN")}</td>
+                    <td className="py-1.5 text-right text-fg">−{g.creditsCost} cr</td>
+                    <td className={`py-1.5 text-right text-xs ${g.status === "failed" ? "text-error" : g.status === "refunded" ? "text-warning" : "text-fg-subtle"}`}>{g.status}</td>
                   </tr>
                 ))}
               </tbody>
@@ -275,13 +275,13 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
 
       {/* Login history */}
       <Card shadow padding="md" className="mt-5">
-        <p className="text-sm font-bold text-gray-800 mb-3">Login history (latest 15)</p>
+        <p className="text-sm font-bold text-fg mb-3">Login history (latest 15)</p>
         {d.loginEvents.length === 0 ? (
-          <p className="text-sm text-gray-400">No logins recorded yet — history accrues from the next sign-in.</p>
+          <p className="text-sm text-fg-subtle">No logins recorded yet — history accrues from the next sign-in.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-[11px] uppercase tracking-wide text-gray-400 text-left">
+              <tr className="text-[11px] uppercase tracking-wide text-fg-subtle text-left">
                 <th className="font-semibold pb-2">When</th>
                 <th className="font-semibold pb-2">Device</th>
                 <th className="font-semibold pb-2">Country</th>
@@ -290,11 +290,11 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             </thead>
             <tbody>
               {d.loginEvents.map((e, i) => (
-                <tr key={i} className="border-t border-gray-50">
-                  <td className="py-1.5 text-gray-700">{dt(e.createdAt)}</td>
-                  <td className="py-1.5 text-gray-500">{e.device ?? "—"}</td>
-                  <td className="py-1.5 text-gray-500">{e.country ?? "—"}</td>
-                  <td className="py-1.5 text-gray-400 font-mono text-xs">{e.ip ?? "—"}</td>
+                <tr key={i} className="border-t border-line">
+                  <td className="py-1.5 text-fg">{dt(e.createdAt)}</td>
+                  <td className="py-1.5 text-fg-muted">{e.device ?? "—"}</td>
+                  <td className="py-1.5 text-fg-muted">{e.country ?? "—"}</td>
+                  <td className="py-1.5 text-fg-subtle font-mono text-xs">{e.ip ?? "—"}</td>
                 </tr>
               ))}
             </tbody>

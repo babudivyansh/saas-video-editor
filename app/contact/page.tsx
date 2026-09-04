@@ -87,7 +87,7 @@ export default function ContactPage() {
         <div className={`${CONTAINER} ${SECTION_Y}`}>
           <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-12 lg:gap-16">
             <div className="space-y-5 lg:col-span-5">
-              <div className="rounded-2xl border border-card-border bg-white p-6">
+              <div className="rounded-2xl border border-card-border bg-panel p-6">
                 <h2 className="mb-6 text-[22px] font-semibold leading-[1.2] tracking-tight text-ink">
                   Contact information
                 </h2>
@@ -135,7 +135,7 @@ export default function ContactPage() {
             </div>
 
             <div className="lg:col-span-7">
-              <div className="rounded-2xl border border-card-border bg-white p-6 md:p-8">
+              <div className="rounded-2xl border border-card-border bg-panel p-6 md:p-8">
                 {status === "success" ? (
                   <div className="py-12 text-center">
                     <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-tint-emerald text-emerald-600">
@@ -160,7 +160,7 @@ export default function ContactPage() {
                     </h2>
 
                     {status === "error" && (
-                      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-[13px] font-medium text-red-600">
+                      <div className="rounded-xl border border-error/40 bg-error/10 p-4 text-[13px] font-medium text-error">
                         Please fill in all the required fields.
                       </div>
                     )}
@@ -199,7 +199,7 @@ export default function ContactPage() {
                         name="subject"
                         value={formData.subject}
                         onChange={handleChange}
-                        className="w-full rounded-xl border border-card-border bg-white px-4 py-2.5 text-sm text-ink outline-none transition-all focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                        className="w-full rounded-xl border border-card-border bg-panel px-4 py-2.5 text-sm text-ink outline-none transition-all focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
                       >
                         <option value="support">Technical support / account issues</option>
                         <option value="billing">Billing &amp; refund inquiry</option>

@@ -10,14 +10,14 @@ export const PRODUCT_LABELS: Record<string, string> = {
 
 const COLORS: Record<string, string> = {
   "split-screen": "bg-tint-violet text-accent-violet",
-  "streamer-video": "bg-tint-amber text-amber-600",
-  "reddit-video": "bg-tint-rose text-red-600",
+  "streamer-video": "bg-tint-amber text-warning",
+  "reddit-video": "bg-tint-rose text-error",
   "text-video": "bg-tint-emerald text-emerald-600",
 };
 
 export function ProductBadge({ type }: { type: string }) {
   return (
-    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${COLORS[type] ?? "bg-gray-100 text-gray-600"}`}>
+    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${COLORS[type] ?? "bg-surface-3 text-fg-muted"}`}>
       {PRODUCT_LABELS[type] ?? type}
     </span>
   );

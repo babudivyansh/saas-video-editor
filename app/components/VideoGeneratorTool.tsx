@@ -174,30 +174,30 @@ function Dropdown<T extends { slug?: string; label?: string; name?: string; badg
 
   return (
     <div className="flex-1 min-w-0">
-      <p className="text-xs font-semibold text-gray-500 mb-1.5">{label}</p>
+      <p className="text-xs font-semibold text-fg-muted mb-1.5">{label}</p>
       <div ref={ref} className="relative">
         <button
           onClick={() => setOpen(o => { if (o) setSearch(""); return !o; })}
-          className="flex items-center gap-2 w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[13px] font-medium text-gray-900 hover:border-gray-300 transition-colors"
+          className="flex items-center gap-2 w-full rounded-xl border border-line bg-panel px-3.5 py-2.5 text-[13px] font-medium text-fg hover:border-line-strong transition-colors"
         >
           <span className="flex-1 text-left truncate">{getLabel(selected)}</span>
           {getBadge && getBadge(selected) && (
-            <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 rounded-md px-1.5 py-0.5 flex-shrink-0">
+            <span className="text-[10px] font-semibold text-fg-muted bg-surface-3 rounded-md px-1.5 py-0.5 flex-shrink-0">
               {getBadge(selected)}
             </span>
           )}
           <IcChevron />
         </button>
         {open && (
-          <div className="absolute top-full mt-1 left-0 w-full z-30 bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
+          <div className="absolute top-full mt-1 left-0 w-full z-30 bg-panel rounded-xl border border-line shadow-lg overflow-hidden">
             {searchable && (
-              <div className="p-2 border-b border-gray-100">
+              <div className="p-2 border-b border-line">
                 <input
                   autoFocus
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Search models..."
-                  className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12.5px] outline-none focus:border-blue-400"
+                  className="w-full rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand/60"
                   onClick={e => e.stopPropagation()}
                 />
               </div>
@@ -210,14 +210,14 @@ function Dropdown<T extends { slug?: string; label?: string; name?: string; badg
                   <button
                     key={slug}
                     onClick={() => { onChange(slug); setOpen(false); setSearch(""); }}
-                    className="flex items-center gap-2 w-full px-3.5 py-2.5 text-[13px] text-left hover:bg-gray-50 transition-colors"
+                    className="flex items-center gap-2 w-full px-3.5 py-2.5 text-[13px] text-left hover:bg-surface-2 transition-colors"
                   >
-                    <span className={`flex-shrink-0 w-3.5 ${value === slug ? "text-blue-600" : "text-transparent"}`}>
+                    <span className={`flex-shrink-0 w-3.5 ${value === slug ? "text-brand" : "text-transparent"}`}>
                       <IcCheck />
                     </span>
-                    <span className="flex-1 font-medium text-gray-900 truncate">{getLabel(opt)}</span>
+                    <span className="flex-1 font-medium text-fg truncate">{getLabel(opt)}</span>
                     {badge && (
-                      <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 rounded-md px-1.5 py-0.5 flex-shrink-0">
+                      <span className="text-[10px] font-semibold text-fg-subtle bg-surface-3 rounded-md px-1.5 py-0.5 flex-shrink-0">
                         {badge}
                       </span>
                     )}
@@ -225,7 +225,7 @@ function Dropdown<T extends { slug?: string; label?: string; name?: string; badg
                 );
               })}
               {filtered.length === 0 && (
-                <p className="px-3.5 py-3 text-[12.5px] text-gray-400 text-center">No models found</p>
+                <p className="px-3.5 py-3 text-[12.5px] text-fg-subtle text-center">No models found</p>
               )}
             </div>
           </div>
@@ -286,34 +286,34 @@ function PromptLibraryModal({ onSelect, onClose }: { onSelect: (text: string) =>
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full flex flex-col overflow-hidden"
+        className="bg-panel rounded-2xl shadow-2xl w-full flex flex-col overflow-hidden"
         style={{ maxWidth: 860, height: "min(540px, 90vh)" }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-line flex-shrink-0">
           <div className="flex items-center gap-2">
             <IcBook />
-            <h2 className="text-base font-bold text-gray-900">Prompt Library</h2>
+            <h2 className="text-base font-bold text-fg">Prompt Library</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            className="p-1.5 rounded-lg text-fg-subtle hover:text-fg hover:bg-surface-3 transition-colors"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M18 6L6 18M6 6l12 12"/></svg>
           </button>
         </div>
 
         {/* Category tabs */}
-        <div className="flex items-center gap-2 px-6 py-3 border-b border-gray-100 flex-shrink-0 overflow-x-auto scrollbar-hide">
+        <div className="flex items-center gap-2 px-6 py-3 border-b border-line flex-shrink-0 overflow-x-auto scrollbar-hide">
           {CATEGORIES.map(cat => (
             <button
               key={cat.slug}
               onClick={() => setActiveCategory(cat.slug)}
               className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
                 activeCategory === cat.slug
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  ? "bg-brand text-on-primary"
+                  : "bg-surface-3 text-fg-muted hover:bg-surface-3"
               }`}
             >
               {cat.label} ({cat.count})
@@ -325,18 +325,18 @@ function PromptLibraryModal({ onSelect, onClose }: { onSelect: (text: string) =>
         <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-y-auto">
 
           {/* Col 1: thumbnail list */}
-          <div className="w-full md:w-44 md:flex-shrink-0 max-h-40 md:max-h-none overflow-y-auto border-b md:border-b-0 md:border-r border-gray-100 py-2">
+          <div className="w-full md:w-44 md:flex-shrink-0 max-h-40 md:max-h-none overflow-y-auto border-b md:border-b-0 md:border-r border-line py-2">
             {filtered.map(p => {
               const src = promptVideoSrc(p.id);
               return (
                 <button
                   key={p.id}
                   onClick={() => setSelectedId(p.id)}
-                  className={`w-full p-1.5 transition-colors ${selectedId === p.id ? "bg-blue-50" : "hover:bg-gray-50"}`}
+                  className={`w-full p-1.5 transition-colors ${selectedId === p.id ? "bg-tint-blue" : "hover:bg-surface-2"}`}
                 >
                   <div
                     className={`relative w-full rounded-lg overflow-hidden border-2 transition-colors ${
-                      selectedId === p.id ? "border-blue-500" : "border-transparent"
+                      selectedId === p.id ? "border-brand" : "border-transparent"
                     }`}
                     style={{ aspectRatio: "16/9", background: p.gradient }}
                   >
@@ -364,7 +364,7 @@ function PromptLibraryModal({ onSelect, onClose }: { onSelect: (text: string) =>
           {selected && (
             <>
               {/* Col 2: video preview */}
-              <div className="flex-1 flex flex-col justify-center p-4 border-b md:border-b-0 md:border-r border-gray-100 min-w-0">
+              <div className="flex-1 flex flex-col justify-center p-4 border-b md:border-b-0 md:border-r border-line min-w-0">
                 <div
                   className="w-full rounded-xl overflow-hidden relative flex items-center justify-center"
                   style={{ aspectRatio: "16/9", background: selected.gradient }}
@@ -391,7 +391,7 @@ function PromptLibraryModal({ onSelect, onClose }: { onSelect: (text: string) =>
                       <div className="absolute bottom-0 left-0 right-0 bg-black/40 px-3 py-1.5 flex items-center gap-2">
                         <svg viewBox="0 0 24 24" fill="white" className="w-3 h-3 flex-shrink-0"><path d="M8 5v14l11-7z"/></svg>
                         <span className="text-white text-[10px] font-mono">0:00 / 0:08</span>
-                        <div className="flex-1 h-0.5 bg-white/30 rounded mx-1"><div className="h-full w-0 bg-white rounded"/></div>
+                        <div className="flex-1 h-0.5 bg-white/30 rounded mx-1"><div className="h-full w-0 bg-panel rounded"/></div>
                         <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-3 h-3 flex-shrink-0"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 010 14.14"/></svg>
                         <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-3 h-3 flex-shrink-0"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
                         <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-3 h-3 flex-shrink-0"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
@@ -404,7 +404,7 @@ function PromptLibraryModal({ onSelect, onClose }: { onSelect: (text: string) =>
               {/* Col 3: prompt text + button */}
               <div className="w-full md:w-72 md:flex-shrink-0 flex flex-col p-5 gap-4">
                 <div className="flex-1 overflow-y-auto min-h-0">
-                  <p className="text-[13px] text-gray-700 leading-relaxed">{selected.text}</p>
+                  <p className="text-[13px] text-fg leading-relaxed">{selected.text}</p>
                 </div>
                 <div className="flex justify-end flex-shrink-0">
                   <button
@@ -433,12 +433,12 @@ function PromptDocsPopover({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   return (
-    <div className="absolute top-full mt-2 left-0 z-30 bg-white rounded-xl border border-gray-200 shadow-lg p-4 w-72" onClick={e => e.stopPropagation()}>
-      <p className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-1.5"><IcInfo /> Prompt Writing Tips</p>
+    <div className="absolute top-full mt-2 left-0 z-30 bg-panel rounded-xl border border-line shadow-lg p-4 w-72" onClick={e => e.stopPropagation()}>
+      <p className="text-xs font-bold text-fg mb-2.5 flex items-center gap-1.5"><IcInfo /> Prompt Writing Tips</p>
       <ul className="space-y-1.5">
         {PROMPT_TIPS.map((tip, i) => (
-          <li key={i} className="flex items-start gap-1.5 text-[11px] text-gray-500 leading-relaxed">
-            <span className="text-blue-400 mt-0.5 flex-shrink-0">•</span>{tip}
+          <li key={i} className="flex items-start gap-1.5 text-[11px] text-fg-muted leading-relaxed">
+            <span className="text-brand mt-0.5 flex-shrink-0">•</span>{tip}
           </li>
         ))}
       </ul>
@@ -630,15 +630,15 @@ export default function VideoGeneratorTool() {
   const fpsOptions        = FPS_OPTIONS.map(f => ({ slug: f, name: `${f} fps` }));
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+    <div className="min-h-screen bg-surface-2 p-4 md:p-8">
       <div className="max-w-3xl mx-auto">
         {/* Title */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Video Generator</h1>
-          <p className="text-sm text-gray-500 mt-1">Generate stunning videos from text with AI</p>
+          <h1 className="text-2xl font-bold text-fg">Video Generator</h1>
+          <p className="text-sm text-fg-muted mt-1">Generate stunning videos from text with AI</p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-visible">
+        <div className="bg-panel rounded-2xl border border-line shadow-sm overflow-visible">
           <div className="p-6 space-y-5">
 
             {/* Dropdowns row */}
@@ -696,10 +696,10 @@ export default function VideoGeneratorTool() {
               )}
             </div>
             {modelEntry.supportsAudio && (
-              <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-3.5 py-2.5">
+              <div className="flex items-center justify-between rounded-xl border border-line bg-panel px-3.5 py-2.5">
                 <div>
-                  <p className="text-[13px] font-semibold text-gray-900">Audio</p>
-                  <p className="text-[11px] text-gray-400">
+                  <p className="text-[13px] font-semibold text-fg">Audio</p>
+                  <p className="text-[11px] text-fg-subtle">
                     {audio ? "Generated with sound" : "Silent video (cheaper)"} · {currentRate} credits/sec
                   </p>
                 </div>
@@ -708,13 +708,13 @@ export default function VideoGeneratorTool() {
             )}
             {supports("seed") && (
               <div className="w-32">
-                <p className="text-xs font-semibold text-gray-500 mb-1.5">Seed</p>
+                <p className="text-xs font-semibold text-fg-muted mb-1.5">Seed</p>
                 <input
                   type="number"
                   value={seed}
                   onChange={e => setSeed(e.target.value)}
                   placeholder="Random"
-                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-[13px] outline-none focus:border-blue-400"
+                  className="w-full rounded-xl border border-line bg-panel px-3 py-2.5 text-[13px] outline-none focus:border-brand/60"
                 />
               </div>
             )}
@@ -723,7 +723,7 @@ export default function VideoGeneratorTool() {
             <div className="flex items-center gap-2 flex-wrap relative">
               <button
                 onClick={() => setShowLibrary(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-xs font-medium text-gray-600 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line bg-panel hover:bg-surface-2 text-xs font-medium text-fg-muted transition-colors"
               >
                 <IcBook /> Prompt Library
               </button>
@@ -731,7 +731,7 @@ export default function VideoGeneratorTool() {
               <div className="relative">
                 <button
                   onClick={() => setShowDocs(v => !v)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-xs font-medium text-gray-600 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line bg-panel hover:bg-surface-2 text-xs font-medium text-fg-muted transition-colors"
                 >
                   <IcFileText /> Prompt Docs
                 </button>
@@ -761,23 +761,23 @@ export default function VideoGeneratorTool() {
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
                       modelEntry.imageInput === "required"
                         ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                        : "border-line bg-panel text-fg-muted hover:bg-surface-2"
                     }`}
                   >
                     <IcImage /> {modelEntry.imageInput === "required" ? "Reference image required" : "Add reference image"}
                   </button>
                   <button
                     onClick={() => setRefPickerOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line bg-panel text-xs font-medium text-fg-muted hover:bg-surface-2 transition-colors"
                   >
                     Choose from Assets
                   </button>
                 </>
               ) : (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-xs font-medium text-blue-700">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand/40 bg-tint-blue text-xs font-medium text-brand">
                   <IcImage />
                   <span className="max-w-[120px] truncate">{refImage ? refImage.name : refImageAsset!.name}</span>
-                  <button onClick={() => { setRefImage(null); setRefImageAsset(null); }} className="text-blue-400 hover:text-blue-700 transition-colors ml-0.5"><IcX /></button>
+                  <button onClick={() => { setRefImage(null); setRefImageAsset(null); }} className="text-brand hover:text-brand transition-colors ml-0.5"><IcX /></button>
                 </div>
               )}
               <AssetPicker
@@ -789,11 +789,11 @@ export default function VideoGeneratorTool() {
               />
             </div>
 
-            {pickError && <p className="text-sm text-red-500">{pickError}</p>}
+            {pickError && <p className="text-sm text-error">{pickError}</p>}
 
             {/* Prompt textarea */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Prompt</label>
+              <label className="block text-sm font-semibold text-fg mb-2">Prompt</label>
               <textarea
                 ref={textareaRef}
                 value={prompt}
@@ -802,24 +802,24 @@ export default function VideoGeneratorTool() {
                 placeholder="Describe the video you want to create..."
                 rows={8}
                 disabled={job.status === "processing"}
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 resize-none transition-all disabled:opacity-60"
+                className="w-full rounded-xl border border-line bg-panel px-4 py-3 text-sm text-fg placeholder:text-fg-subtle outline-none focus:border-brand/60 focus:ring-2 focus:ring-primary/25 resize-none transition-all disabled:opacity-60"
               />
-              <p className="text-[11px] text-gray-400 mt-1 text-right">{prompt.length}/2000</p>
+              <p className="text-[11px] text-fg-subtle mt-1 text-right">{prompt.length}/2000</p>
             </div>
 
             {/* Progress bar */}
             {job.status === "processing" && (
               <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs text-gray-500">
+                <div className="flex items-center justify-between text-xs text-fg-muted">
                   <span className="flex items-center gap-1.5"><Spinner /> Generating… this takes 1–3 minutes</span>
                   <span>{job.progress}%</span>
                 </div>
-                <div className="w-full bg-gray-100 rounded-full h-2">
-                  <div className="bg-blue-600 h-2 rounded-full transition-all duration-500" style={{ width: `${job.progress}%` }} />
+                <div className="w-full bg-surface-3 rounded-full h-2">
+                  <div className="bg-brand h-2 rounded-full transition-all duration-500" style={{ width: `${job.progress}%` }} />
                 </div>
                 <button
                   onClick={() => void job.cancel()}
-                  className="text-xs font-medium text-gray-400 hover:text-red-600 transition-colors"
+                  className="text-xs font-medium text-fg-subtle hover:text-error transition-colors"
                 >
                   Cancel
                 </button>
@@ -828,11 +828,11 @@ export default function VideoGeneratorTool() {
 
             {/* Error */}
             {job.status === "error" && job.error && (
-              <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3">{job.error}</p>
+              <p className="text-sm text-error bg-error/10 rounded-xl px-4 py-3">{job.error}</p>
             )}
 
             {job.status === "cancelled" && (
-              <p className="text-sm text-gray-500 bg-gray-50 rounded-xl px-4 py-3">
+              <p className="text-sm text-fg-muted bg-surface-2 rounded-xl px-4 py-3">
                 Cancelled — your credit was refunded.
               </p>
             )}
@@ -843,20 +843,20 @@ export default function VideoGeneratorTool() {
                 <video
                   src={videoUrl}
                   controls
-                  className="w-full rounded-xl border border-gray-200 bg-black"
+                  className="w-full rounded-xl border border-line bg-black"
                   style={{ maxHeight: 360 }}
                 />
                 <div className="flex gap-2">
                   <a
                     href={videoUrl}
                     download={downloadName}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold transition-colors"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-fg hover:bg-fg-muted text-bg text-sm font-semibold transition-colors"
                   >
                     <IcDownload /> Download
                   </a>
                   <button
                     onClick={handleReset}
-                    className="px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-sm font-semibold text-gray-700 transition-colors"
+                    className="px-4 py-2 rounded-xl border border-line hover:bg-surface-2 text-sm font-semibold text-fg transition-colors"
                   >
                     Generate Another
                   </button>
@@ -882,7 +882,7 @@ export default function VideoGeneratorTool() {
               </button>
             )}
             {job.status !== "done" && !needsImage && (
-              <p className="text-[11px] text-gray-400 text-center -mt-2">
+              <p className="text-[11px] text-fg-subtle text-center -mt-2">
                 {modelEntry.displayName}
                 {supports("resolution") ? ` · ${resolution}` : ""}
                 {modelEntry.supportsAudio ? ` · audio ${audio ? "on" : "off"}` : ""}

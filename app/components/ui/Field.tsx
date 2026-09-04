@@ -13,7 +13,7 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...rest}
-      className={`w-full text-sm bg-white border border-card-border rounded-xl px-4 py-2.5 text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all disabled:bg-surface disabled:text-ink-soft ${className}`}
+      className={`w-full text-sm bg-panel border border-card-border rounded-xl px-4 py-2.5 text-ink placeholder:text-ink-soft/50 outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/25 transition-all disabled:bg-surface disabled:text-ink-soft ${className}`}
     />
   );
 }
@@ -23,7 +23,7 @@ export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
   return (
     <textarea
       {...rest}
-      className={`w-full text-sm bg-white border border-card-border rounded-xl px-4 py-2.5 text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all disabled:bg-surface disabled:text-ink-soft resize-y ${className}`}
+      className={`w-full text-sm bg-panel border border-card-border rounded-xl px-4 py-2.5 text-ink placeholder:text-ink-soft/50 outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/25 transition-all disabled:bg-surface disabled:text-ink-soft resize-y ${className}`}
     />
   );
 }

@@ -79,7 +79,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
   const faqSchema = post.faqs.length > 0 ? buildFaqPageSchema(post.faqs) : null;
 
   return (
-    <div className="flat-brand min-h-screen bg-white text-gray-900 font-sans">
+    <div className="min-h-screen bg-bg text-fg font-sans">
       <JsonLd data={blogPostingSchema} />
       <JsonLd data={breadcrumbSchema} />
       {faqSchema && <JsonLd data={faqSchema} />}
@@ -108,8 +108,8 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
           >
             {post.category}
           </Link>
-          <h1 className="mt-4 text-3xl font-extrabold leading-tight text-gray-900 md:text-4xl">{post.title}</h1>
-          <p className="mt-3 text-sm text-gray-400">
+          <h1 className="mt-4 text-3xl font-extrabold leading-tight text-fg md:text-4xl">{post.title}</h1>
+          <p className="mt-3 text-sm text-fg-subtle">
             <Link href={`/blog/author/${post.author.slug}`} className="font-semibold text-ink-soft hover:text-brand">
               {post.author.name}
             </Link>{" "}
@@ -144,7 +144,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             </figure>
           )}
 
-          <p className="mt-8 text-lg leading-relaxed text-gray-700">{post.intro}</p>
+          <p className="mt-8 text-lg leading-relaxed text-fg">{post.intro}</p>
 
           {/* Collapsed inline TOC for narrow viewports, where the sticky aside
               is hidden. Closed by default so it doesn't push the article down. */}
@@ -168,13 +168,13 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                         // here — otherwise duplicate headings would emit
                         // duplicate ids and every TOC link would land on the first.
                         id={headingIds.get(i)}
-                        className="mb-3 mt-8 text-xl font-extrabold text-gray-900 md:text-2xl"
+                        className="mb-3 mt-8 text-xl font-extrabold text-fg md:text-2xl"
                       >
                         {block.heading}
                       </h2>
                     )}
-                    <p className="text-[15px] leading-relaxed text-gray-700">
-                      {block.lead && <strong className="font-bold text-gray-900">{block.lead} </strong>}
+                    <p className="text-[15px] leading-relaxed text-fg">
+                      {block.lead && <strong className="font-bold text-fg">{block.lead} </strong>}
                       {block.text}
                     </p>
                   </div>
@@ -215,11 +215,11 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             })}
           </div>
 
-          <p className="mt-6 text-[15px] leading-relaxed text-gray-700">{post.closing}</p>
+          <p className="mt-6 text-[15px] leading-relaxed text-fg">{post.closing}</p>
 
           {post.faqs.length > 0 && (
-            <div className="mt-14 border-t border-gray-100 pt-10">
-              <h2 className="text-xl font-extrabold text-gray-900">Frequently asked questions</h2>
+            <div className="mt-14 border-t border-line pt-10">
+              <h2 className="text-xl font-extrabold text-fg">Frequently asked questions</h2>
               <div className="mt-5">
                 <FaqAccordion items={post.faqs.map((f) => ({ question: f.question, answer: f.answer }))} />
               </div>
@@ -235,17 +235,17 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
           </div>
 
           {related.length > 0 && (
-            <div className="mt-14 border-t border-gray-100 pt-10">
-              <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400">Read next</h2>
+            <div className="mt-14 border-t border-line pt-10">
+              <h2 className="text-sm font-bold uppercase tracking-widest text-fg-subtle">Read next</h2>
               <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {related.map((r) => (
                   <Link
                     key={r.slug}
                     href={`/blog/${r.slug}`}
-                    className="group rounded-xl border border-gray-100 p-5 transition-colors hover:border-[#335CFF]/30"
+                    className="group rounded-xl border border-line p-5 transition-colors hover:border-[#335CFF]/30"
                   >
-                    <span className="text-xs font-bold uppercase tracking-widest text-[#335CFF]">{r.category}</span>
-                    <p className="mt-1.5 text-sm font-bold leading-snug text-gray-900 group-hover:text-[#335CFF]">{r.title}</p>
+                    <span className="text-xs font-bold uppercase tracking-widest text-brand">{r.category}</span>
+                    <p className="mt-1.5 text-sm font-bold leading-snug text-fg group-hover:text-brand">{r.title}</p>
                   </Link>
                 ))}
               </div>

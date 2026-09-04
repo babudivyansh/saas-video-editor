@@ -89,7 +89,7 @@ export function FilterBar({ accounts }: { accounts: AccountChip[] }) {
   if (!show.account && !show.range && !show.granularity) return null;
 
   return (
-    <div className="sticky top-0 z-20 -mx-4 mb-6 border-b border-card-border bg-white/85 px-4 py-3 backdrop-blur sm:-mx-8 sm:px-8">
+    <div className="sticky top-0 z-20 -mx-4 mb-6 border-b border-card-border bg-bg/85 px-4 py-3 backdrop-blur sm:-mx-8 sm:px-8">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
         {/*
           An account SWITCHER, not a set of filters. The tracker is scoped to one
@@ -104,7 +104,7 @@ export function FilterBar({ accounts }: { accounts: AccountChip[] }) {
               <select
                 value={account ?? ""}
                 onChange={(e) => setParam({ account: e.target.value || null })}
-                className="max-w-[13rem] rounded-lg border border-card-border bg-white px-2 py-1 text-xs font-semibold text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                className="max-w-[13rem] rounded-lg border border-card-border bg-panel px-2 py-1 text-xs font-semibold text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
               >
                 {/* The empty value is the picker, so "back to my accounts" is
                     reachable from inside any tab without using Back. */}
@@ -141,7 +141,7 @@ export function FilterBar({ accounts }: { accounts: AccountChip[] }) {
             <select
               value={granularity}
               onChange={(e) => setParam({ granularity: e.target.value === "day" ? null : e.target.value })}
-              className="rounded-lg border border-card-border bg-white px-2 py-1 text-xs text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              className="rounded-lg border border-card-border bg-panel px-2 py-1 text-xs text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
             >
               {GRANULARITIES.map((g) => (
                 <option key={g.value} value={g.value}>
@@ -181,8 +181,8 @@ function Chip({
       aria-pressed={active}
       className={`cursor-pointer rounded-full px-3 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 ${
         active
-          ? "bg-brand text-white"
-          : "border border-card-border bg-white text-ink-soft hover:text-ink"
+          ? "bg-brand text-on-primary"
+          : "border border-card-border bg-panel text-ink-soft hover:text-ink"
       }`}
     >
       {children}

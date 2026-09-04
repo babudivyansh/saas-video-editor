@@ -18,13 +18,13 @@ interface CardProps {
 }
 
 const TINT: Record<CardTint, string> = {
-  none: "bg-white border-card-border",
-  blue: "bg-tint-blue border-blue-100",
-  violet: "bg-tint-violet border-violet-100",
-  fuchsia: "bg-tint-fuchsia border-fuchsia-100",
-  amber: "bg-tint-amber border-amber-100",
-  emerald: "bg-tint-emerald border-emerald-100",
-  rose: "bg-tint-rose border-rose-100",
+  none: "bg-panel border-card-border",
+  blue: "bg-tint-blue border-tint-blue-border",
+  violet: "bg-tint-violet border-tint-violet-border",
+  fuchsia: "bg-tint-fuchsia border-tint-fuchsia-border",
+  amber: "bg-tint-amber border-tint-amber-border",
+  emerald: "bg-tint-emerald border-tint-emerald-border",
+  rose: "bg-tint-rose border-tint-rose-border",
 };
 
 const PADDING = { none: "", sm: "p-4", md: "p-5", lg: "p-6" } as const;

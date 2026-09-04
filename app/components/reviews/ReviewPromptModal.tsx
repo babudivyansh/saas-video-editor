@@ -189,7 +189,7 @@ export function ReviewPromptModal({ featureHint, mode = "new", onClose }: Review
               id="prompt-feature"
               value={form.featureUsed}
               onChange={(e) => setForm((f) => ({ ...f, featureUsed: e.target.value }))}
-              className="w-full text-sm bg-white border border-card-border rounded-xl px-4 py-2.5 text-ink outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
+              className="w-full text-sm bg-panel border border-card-border rounded-xl px-4 py-2.5 text-ink outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
             >
               {FEATURE_USED_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -211,7 +211,7 @@ export function ReviewPromptModal({ featureHint, mode = "new", onClose }: Review
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <FieldLabel htmlFor="prompt-body">Your review</FieldLabel>
-              <span className={`text-xs ${form.body.trim().length > 0 && form.body.trim().length < REVIEW_BODY_MIN ? "text-red-500" : "text-ink-soft"}`}>
+              <span className={`text-xs ${form.body.trim().length > 0 && form.body.trim().length < REVIEW_BODY_MIN ? "text-error" : "text-ink-soft"}`}>
                 {form.body.length}/{REVIEW_BODY_MAX}
               </span>
             </div>
@@ -232,7 +232,7 @@ export function ReviewPromptModal({ featureHint, mode = "new", onClose }: Review
                 type="button"
                 onClick={() => setForm((f) => ({ ...f, wouldRecommend: true }))}
                 className={`flex-1 rounded-xl border px-4 py-2 text-sm font-semibold transition-colors cursor-pointer ${
-                  form.wouldRecommend === true ? "border-transparent grad-brand text-white" : "border-card-border text-ink-soft hover:bg-surface"
+                  form.wouldRecommend === true ? "border-transparent grad-brand text-on-primary" : "border-card-border text-ink-soft hover:bg-surface"
                 }`}
               >
                 Yes
@@ -241,7 +241,7 @@ export function ReviewPromptModal({ featureHint, mode = "new", onClose }: Review
                 type="button"
                 onClick={() => setForm((f) => ({ ...f, wouldRecommend: false }))}
                 className={`flex-1 rounded-xl border px-4 py-2 text-sm font-semibold transition-colors cursor-pointer ${
-                  form.wouldRecommend === false ? "border-transparent grad-brand text-white" : "border-card-border text-ink-soft hover:bg-surface"
+                  form.wouldRecommend === false ? "border-transparent grad-brand text-on-primary" : "border-card-border text-ink-soft hover:bg-surface"
                 }`}
               >
                 No
@@ -289,7 +289,7 @@ export function ReviewPromptModal({ featureHint, mode = "new", onClose }: Review
             style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 }}
           />
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-error">{error}</p>}
 
           <Button type="submit" variant="primary" disabled={busy}>
             {busy ? "Saving…" : mode === "edit" ? "Save changes" : "Submit review"}
@@ -309,7 +309,7 @@ export function ReviewPromptModal({ featureHint, mode = "new", onClose }: Review
 
       {step === "thanks" && (
         <div className="flex flex-col items-center gap-4 py-2 text-center">
-          <div className="w-12 h-12 rounded-full grad-brand flex items-center justify-center text-white">
+          <div className="w-12 h-12 rounded-full grad-brand flex items-center justify-center text-on-primary">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} className="w-6 h-6">
               <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>

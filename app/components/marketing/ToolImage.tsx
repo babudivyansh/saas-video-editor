@@ -1,4 +1,5 @@
 import Image from "next/image";
+import ShowcaseGlow from "./ShowcaseGlow";
 
 /**
  * A supplied illustration for a tool page, used where a designed asset exists.
@@ -29,7 +30,8 @@ export default function ToolImage({
   priority?: boolean;
 }) {
   return (
-    <div className="overflow-hidden rounded-[var(--radius-card)] border border-card-border bg-white shadow-card transition-all duration-200 hover:shadow-card-hover motion-safe:hover:-translate-y-1">
+    <ShowcaseGlow radius="rounded-[var(--radius-card)]">
+      <div className="overflow-hidden rounded-[var(--radius-card)] border border-card-border bg-panel shadow-card transition-all duration-200 hover:shadow-card-hover motion-safe:hover:-translate-y-1">
       <Image
         src={src}
         alt={alt}
@@ -44,6 +46,7 @@ export default function ToolImage({
         sizes="(min-width: 1280px) 1100px, (min-width: 768px) 90vw, 100vw"
         className="block h-auto w-full"
       />
-    </div>
+      </div>
+    </ShowcaseGlow>
   );
 }

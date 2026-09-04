@@ -126,10 +126,10 @@ export function ProductTour({ startStep, onAdvance, onFinish, onSkip }: ProductT
           animate={{ opacity: 1, y: 0 }}
           exit={reduceMotion ? undefined : { opacity: 0 }}
           transition={transition}
-          className="fixed w-[300px] rounded-2xl bg-white shadow-2xl p-5"
+          className="fixed w-[300px] rounded-2xl bg-panel shadow-2xl p-5"
           style={{ left, top, bottom }}
         >
-          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+          <p className="text-[11px] font-bold text-fg-subtle uppercase tracking-wider mb-1">
             Step {step + 1} of {TOUR_STEPS.length}
           </p>
           <p className="text-sm font-bold text-ink mb-1">{current.title}</p>
@@ -137,7 +137,7 @@ export function ProductTour({ startStep, onAdvance, onFinish, onSkip }: ProductT
           <div className="flex items-center justify-between">
             <button
               onClick={onSkip}
-              className="text-xs text-gray-400 hover:text-ink-soft transition-colors"
+              className="text-xs text-fg-subtle hover:text-ink-soft transition-colors"
             >
               Skip tour
             </button>
@@ -153,7 +153,7 @@ export function ProductTour({ startStep, onAdvance, onFinish, onSkip }: ProductT
               <button
                 ref={nextBtnRef}
                 onClick={goNext}
-                className="text-xs font-semibold text-white grad-brand px-3.5 py-1.5 rounded-full shadow-glow hover:shadow-glow-hover transition-all"
+                className="text-xs font-semibold text-on-primary grad-brand px-3.5 py-1.5 rounded-full shadow-glow hover:shadow-glow-hover transition-all"
               >
                 {isLast ? "Done" : "Next"}
               </button>

@@ -24,25 +24,38 @@ interface ButtonProps {
 }
 
 const VARIANT: Record<ButtonVariant, string> = {
-  primary: "grad-brand text-white shadow-glow hover:shadow-glow-hover hover:brightness-105",
-  secondary: "bg-white border border-card-border text-ink hover:bg-tint-blue",
+  // `text-on-primary` rather than `text-white`: the emerald theme fills this
+  // with lime, and white on lime is 1.6:1. The token is white on the light
+  // theme and near-black on lime, so the fill and its text stay in step.
+  primary: "grad-brand text-on-primary shadow-glow hover:shadow-glow-hover hover:brightness-105",
+  secondary: "bg-panel border border-card-border text-ink hover:bg-tint-blue",
   // ghost is designed for use on gradient/hero surfaces. On a white card it is
   // white-on-white and effectively invisible — which is exactly how the Social
   // Tracker's Disconnect button shipped. Use `danger` for destructive actions
   // on light surfaces instead of reaching for this one.
   ghost: "bg-white/15 text-white border border-white/25 hover:bg-white/25",
-  inverse: "bg-white text-ink shadow-card hover:shadow-card-hover",
-  // Destructive, on a light surface. Outlined rather than filled: a solid red
-  // button pulls more attention than "Disconnect" deserves sitting next to a
-  // routine "Re-sync", but it must still read as dangerous before the click.
-  danger: "bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300",
+  // Deliberately INVERTED against the page, in both themes — dark chip on a
+  // light page, light chip on a dark one. Mapping this to `bg-panel` would
+  // make it identical to `secondary` and lose the variant entirely.
+  inverse: "bg-fg text-bg shadow-card hover:shadow-card-hover",
+  // Destructive. Outlined rather than filled: a solid red button pulls more
+  // attention than "Disconnect" deserves sitting next to a routine "Re-sync",
+  // but it must still read as dangerous before the click. Transparent rather
+  // than panel-filled so it works on a card and on a page background alike.
+  danger: "bg-transparent border border-error/40 text-error hover:bg-error/10 hover:border-error/60",
   // Borderless inline text action, for dense tables with several row-level
   // actions (e.g. admin's Suspend/Ban/Release/Reject) where a pill per
   // action is too heavy. No default color — callers set one via className
-  // (e.g. text-red-500) to carry the action's own semantic weight, same as
+  // (e.g. text-error) to carry the action's own semantic weight, same as
   // the existing className color overrides on the other variants.
   link: "bg-transparent hover:underline",
 };
+
+// Every variant needs a visible keyboard focus ring, and the browser default is
+// a blue halo that belongs to neither theme. `ring-offset-*` uses the page
+// background so the ring reads as a gap rather than a smear on both themes.
+const FOCUS =
+  "outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
 
 const SIZE: Record<ButtonSize, string> = {
   sm: "text-xs px-3 py-1.5 gap-1",
@@ -52,8 +65,8 @@ const SIZE: Record<ButtonSize, string> = {
 
 export function Button({ variant = "primary", size = "md", href, icon, onClick, disabled, className = "", children, type }: ButtonProps) {
   const cls = variant === "link"
-    ? `inline-flex items-center font-semibold whitespace-nowrap text-xs ${VARIANT.link} ${disabled ? "opacity-50 pointer-events-none" : ""} ${className}`
-    : `inline-flex items-center justify-center font-semibold rounded-full transition-all whitespace-nowrap ${VARIANT[variant]} ${SIZE[size]} ${disabled ? "opacity-50 pointer-events-none" : ""} ${className}`;
+    ? `inline-flex items-center font-semibold whitespace-nowrap text-xs rounded-sm ${FOCUS} ${VARIANT.link} ${disabled ? "opacity-50 pointer-events-none" : ""} ${className}`
+    : `inline-flex items-center justify-center font-semibold rounded-full transition-all whitespace-nowrap ${FOCUS} ${VARIANT[variant]} ${SIZE[size]} ${disabled ? "opacity-50 pointer-events-none" : ""} ${className}`;
   if (href) {
     // onClick is forwarded here too: next/link accepts it natively, and
     // dropping it silently meant a tracked or instrumented link rendered fine

@@ -13,11 +13,11 @@ import {
 // Renders a dropdown row (title + description), handling internal vs external links.
 function DropdownItem({ item, onNavigate }: { item: NavItem; onNavigate: () => void }) {
   const className =
-    "flex flex-col gap-0.5 rounded-xl px-3 py-2.5 transition-colors hover:bg-gray-50 group";
+    "flex flex-col gap-0.5 rounded-xl px-3 py-2.5 transition-colors hover:bg-surface-2 group";
   const content = (
     <>
-      <span className="text-sm font-semibold text-gray-900 group-hover:text-brand-deep transition-colors">{item.title}</span>
-      <span className="text-xs leading-snug text-gray-500">{item.desc}</span>
+      <span className="text-sm font-semibold text-fg group-hover:text-brand-deep transition-colors">{item.title}</span>
+      <span className="text-xs leading-snug text-fg-muted">{item.desc}</span>
     </>
   );
   if (item.external) {
@@ -93,14 +93,14 @@ function NavDropdown({
     >
       <button
         onClick={() => setOpen((p) => !p)}
-        className="flex items-center gap-1 text-base font-semibold text-gray-700 hover:text-gray-900 transition-colors"
+        className="flex items-center gap-1 text-base font-semibold text-fg hover:text-fg transition-colors"
       >
         {label}
         <ChevronDownIcon className={`w-4 h-4 transition-transform duration-150 ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
         <div
-          className={`${positionClass} rounded-2xl border border-gray-100 bg-white shadow-xl z-50`}
+          className={`${positionClass} rounded-2xl border border-line bg-panel shadow-xl z-50`}
           style={{ width, maxWidth: "calc(100vw - 1.5rem)" }}
         >
           <div onClick={() => setOpen(false)}>{children}</div>
@@ -127,14 +127,19 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, [solid]);
 
-  // Navbar background, matched to crayo.ai: a translucent white gradient that
-  // fades to transparent toward the bottom, with the backdrop-blur masked to fade
-  // out too. The bar dissolves into the page — no border, no shadow, no hard line.
+  // Navbar background: a translucent gradient of the page colour that fades to
+  // transparent toward the bottom, with the backdrop-blur masked to fade out
+  // too. The bar dissolves into the page — no border, no shadow, no hard line.
   // It cross-fades in on scroll (and is always shown on `solid` pages).
+  //
+  // `color-mix` against --bg rather than a literal rgba, so the same gradient
+  // is a white veil on the light theme and a near-black one under the emerald
+  // theme. A hard bottom border was considered and left out: the mask fades
+  // this edge deliberately, and a 1px line across it would undo that.
   const showBar = solid || scrolled;
   const barStyle: React.CSSProperties = {
     background:
-      "linear-gradient(to bottom, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.7) 70%, rgba(255,255,255,0.4) 95%, transparent 100%)",
+      "linear-gradient(to bottom, color-mix(in srgb, var(--bg) 88%, transparent) 0%, color-mix(in srgb, var(--bg) 72%, transparent) 70%, color-mix(in srgb, var(--bg) 40%, transparent) 95%, transparent 100%)",
     backdropFilter: "blur(12px)",
     WebkitBackdropFilter: "blur(12px)",
     maskImage: "linear-gradient(to bottom, black 0%, black 90%, transparent 100%)",
@@ -186,7 +191,7 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
                     ))}
                   </div>
                 </div>
-                <div className="col-span-2 p-2 border-l border-gray-100">
+                <div className="col-span-2 p-2 border-l border-line">
                   <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-brand-deep">AI Tools</p>
                   <div className="grid grid-cols-2 gap-x-1">
                     <div className="space-y-0.5">
@@ -201,8 +206,8 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
                     </div>
                   </div>
                 </div>
-                <div className="rounded-2xl bg-gradient-to-b from-brand/[0.04] to-transparent p-2 border-l border-gray-100">
-                  <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-gray-400">Free Tools</p>
+                <div className="rounded-2xl bg-gradient-to-b from-brand/[0.04] to-transparent p-2 border-l border-line">
+                  <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-fg-subtle">Free Tools</p>
                   <div className="space-y-0.5">
                     {FREE_FEATURES.map((item) => (
                       <DropdownItem key={item.title} item={toNavLink(item)} onNavigate={() => { }} />
@@ -221,9 +226,9 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
               </div>
             </NavDropdown>
 
-            <Link href="/pricing" className="text-base font-semibold text-gray-700 hover:text-gray-900 transition-colors">Pricing</Link>
-            <Link href="/blog" className="text-base font-semibold text-gray-700 hover:text-gray-900 transition-colors">Blog</Link>
-            <Link href="/about" className="text-base font-semibold text-gray-700 hover:text-gray-900 transition-colors">About</Link>
+            <Link href="/pricing" className="text-base font-semibold text-fg hover:text-fg transition-colors">Pricing</Link>
+            <Link href="/blog" className="text-base font-semibold text-fg hover:text-fg transition-colors">Blog</Link>
+            <Link href="/about" className="text-base font-semibold text-fg hover:text-fg transition-colors">About</Link>
           </nav>
 
           {/* CTA */}
@@ -231,7 +236,7 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
             {user ? (
               <Link
                 href="/dashboard"
-                className="flex items-center gap-1.5 bg-brand text-white hover:bg-brand-dark text-base font-bold px-5 py-2.5 rounded-full transition-transform duration-200 hover:scale-[1.02]"
+                className="flex items-center gap-1.5 bg-brand text-on-primary hover:bg-brand-dark text-base font-bold px-5 py-2.5 rounded-full transition-transform duration-200 hover:scale-[1.02]"
               >
                 Dashboard
               </Link>
@@ -239,13 +244,13 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
               <>
                 <button
                   onClick={() => openAuthModal("login")}
-                  className="text-base font-semibold text-gray-700 hover:text-gray-900 px-4 py-2.5 rounded-full transition-colors cursor-pointer"
+                  className="text-base font-semibold text-fg hover:text-fg px-4 py-2.5 rounded-full transition-colors cursor-pointer"
                 >
                   Sign In
                 </button>
                 <button
                   onClick={() => openAuthModal("register")}
-                  className="flex items-center gap-1.5 bg-brand text-white hover:bg-brand-dark text-base font-bold px-5 py-2.5 rounded-full transition-transform duration-200 hover:scale-[1.02] cursor-pointer"
+                  className="flex items-center gap-1.5 bg-brand text-on-primary hover:bg-brand-dark text-base font-bold px-5 py-2.5 rounded-full transition-transform duration-200 hover:scale-[1.02] cursor-pointer"
                 >
                   Start Free
                 </button>
@@ -254,7 +259,7 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
           </div>
 
           {/* Mobile hamburger */}
-          <button className="md:hidden p-2 rounded-md text-gray-600 hover:text-gray-900" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle menu">
+          <button className="md:hidden p-2 rounded-md text-fg-muted hover:text-fg" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle menu">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {menuOpen
                 ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -275,9 +280,9 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
           and any scrolling while it was open just scrolled the background
           page instead, landing you at a random scroll position once closed. */}
       {menuOpen && (
-        <div className="md:hidden fixed inset-x-0 top-[80px] z-50 max-h-[calc(100vh-80px)] overflow-y-auto overscroll-contain border-t border-gray-100 bg-white px-4 py-4 space-y-1">
+        <div className="md:hidden fixed inset-x-0 top-[80px] z-50 max-h-[calc(100vh-80px)] overflow-y-auto overscroll-contain border-t border-line bg-panel px-4 py-4 space-y-1">
           {/* Features */}
-          <button onClick={() => setMobileSection(mobileSection === "features" ? null : "features")} className="flex items-center justify-between w-full text-sm font-semibold text-gray-700 py-2">
+          <button onClick={() => setMobileSection(mobileSection === "features" ? null : "features")} className="flex items-center justify-between w-full text-sm font-semibold text-fg py-2">
             Features
             <ChevronDownIcon className={`w-4 h-4 transition-transform ${mobileSection === "features" ? "rotate-180" : ""}`} />
           </button>
@@ -288,8 +293,8 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
                   <p className="text-[10px] font-bold uppercase tracking-widest text-brand-deep mt-2 mb-1">{group}</p>
                   {items.map((item) => (
                     <Link key={item.title} href={toolPath(item)} onClick={closeMobile} className="block py-1.5">
-                      <span className="block text-sm font-medium text-gray-700 hover:text-brand-deep">{item.title}</span>
-                      <span className="block text-xs text-gray-400">{item.desc}</span>
+                      <span className="block text-sm font-medium text-fg hover:text-brand-deep">{item.title}</span>
+                      <span className="block text-xs text-fg-subtle">{item.desc}</span>
                     </Link>
                   ))}
                 </div>
@@ -298,7 +303,7 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
           )}
 
           {/* Resources */}
-          <button onClick={() => setMobileSection(mobileSection === "resources" ? null : "resources")} className="flex items-center justify-between w-full text-sm font-semibold text-gray-700 py-2">
+          <button onClick={() => setMobileSection(mobileSection === "resources" ? null : "resources")} className="flex items-center justify-between w-full text-sm font-semibold text-fg py-2">
             Resources
             <ChevronDownIcon className={`w-4 h-4 transition-transform ${mobileSection === "resources" ? "rotate-180" : ""}`} />
           </button>
@@ -307,32 +312,32 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
               {RESOURCES.map((item) =>
                 item.external ? (
                   <a key={item.title} href={item.href} target="_blank" rel="noopener noreferrer" onClick={closeMobile} className="block py-1.5">
-                    <span className="block text-sm font-medium text-gray-700 hover:text-brand-deep">{item.title}</span>
-                    <span className="block text-xs text-gray-400">{item.desc}</span>
+                    <span className="block text-sm font-medium text-fg hover:text-brand-deep">{item.title}</span>
+                    <span className="block text-xs text-fg-subtle">{item.desc}</span>
                   </a>
                 ) : (
                   <Link key={item.title} href={item.href} onClick={closeMobile} className="block py-1.5">
-                    <span className="block text-sm font-medium text-gray-700 hover:text-brand-deep">{item.title}</span>
-                    <span className="block text-xs text-gray-400">{item.desc}</span>
+                    <span className="block text-sm font-medium text-fg hover:text-brand-deep">{item.title}</span>
+                    <span className="block text-xs text-fg-subtle">{item.desc}</span>
                   </Link>
                 ),
               )}
             </div>
           )}
 
-          <Link href="/pricing" className="block text-sm font-semibold text-gray-700 hover:text-brand-deep py-2" onClick={closeMobile}>Pricing</Link>
-          <Link href="/blog" className="block text-sm font-semibold text-gray-700 hover:text-brand-deep py-2" onClick={closeMobile}>Blog</Link>
-          <Link href="/about" className="block text-sm font-semibold text-gray-700 hover:text-brand-deep py-2" onClick={closeMobile}>About</Link>
+          <Link href="/pricing" className="block text-sm font-semibold text-fg hover:text-brand-deep py-2" onClick={closeMobile}>Pricing</Link>
+          <Link href="/blog" className="block text-sm font-semibold text-fg hover:text-brand-deep py-2" onClick={closeMobile}>Blog</Link>
+          <Link href="/about" className="block text-sm font-semibold text-fg hover:text-brand-deep py-2" onClick={closeMobile}>About</Link>
 
-          <div className="pt-2 border-t border-gray-100 mt-1 space-y-2">
+          <div className="pt-2 border-t border-line mt-1 space-y-2">
             {user ? (
-              <Link href="/dashboard" onClick={closeMobile} className="w-full flex items-center justify-center gap-1.5 bg-brand text-white hover:bg-brand-dark text-sm font-semibold px-4 py-2.5 rounded-full">
+              <Link href="/dashboard" onClick={closeMobile} className="w-full flex items-center justify-center gap-1.5 bg-brand text-on-primary hover:bg-brand-dark text-sm font-semibold px-4 py-2.5 rounded-full">
                 Dashboard
               </Link>
             ) : (
               <>
-                <button onClick={() => { closeMobile(); openAuthModal("login"); }} className="w-full text-sm font-semibold text-gray-700 border border-gray-200 px-4 py-2.5 rounded-full">Sign In</button>
-                <button onClick={() => { closeMobile(); openAuthModal("register"); }} className="w-full flex items-center justify-center gap-1.5 bg-brand text-white hover:bg-brand-dark text-sm font-semibold px-4 py-2.5 rounded-full">
+                <button onClick={() => { closeMobile(); openAuthModal("login"); }} className="w-full text-sm font-semibold text-fg border border-line px-4 py-2.5 rounded-full">Sign In</button>
+                <button onClick={() => { closeMobile(); openAuthModal("register"); }} className="w-full flex items-center justify-center gap-1.5 bg-brand text-on-primary hover:bg-brand-dark text-sm font-semibold px-4 py-2.5 rounded-full">
                   Start Free
                 </button>
               </>

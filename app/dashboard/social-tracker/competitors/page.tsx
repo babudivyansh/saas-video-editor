@@ -55,7 +55,7 @@ export default async function CompetitorsPage({
       )}
 
       {rows.length > 0 && (
-        <div className="overflow-x-auto rounded-[var(--radius-card)] border border-card-border bg-white shadow-card">
+        <div className="overflow-x-auto rounded-[var(--radius-card)] border border-card-border bg-panel shadow-card">
           <table className="w-full text-sm">
             <caption className="sr-only">
               Tracked competitor profiles compared against your own accounts on the same platform.
@@ -84,7 +84,7 @@ export default async function CompetitorsPage({
                       // unrelated account would be meaningless.
                       <span className="text-ink-soft">—</span>
                     ) : (
-                      <span className={c.followerGap > 0 ? "text-red-600" : "text-emerald-600"}>
+                      <span className={c.followerGap > 0 ? "text-error" : "text-emerald-600"}>
                         {c.followerGap > 0 ? "+" : ""}
                         {fmtCompact(c.followerGap)}
                       </span>

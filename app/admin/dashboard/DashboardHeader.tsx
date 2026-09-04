@@ -54,27 +54,27 @@ export function DashboardHeader({
       {/* Env badge + health */}
       <span
         className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full ${
-          env === "production" ? "bg-red-50 text-red-700 border border-red-100" : "bg-emerald-50 text-emerald-700 border border-emerald-100"
+          env === "production" ? "bg-error/10 text-error border border-error/30" : "bg-emerald-50 text-emerald-700 border border-emerald-100"
         }`}
       >
         {env ?? "…"}
       </span>
       <span
-        className={`w-2.5 h-2.5 rounded-full ${healthOk === null ? "bg-gray-200" : healthOk ? "bg-emerald-500" : "bg-red-500 animate-pulse"}`}
+        className={`w-2.5 h-2.5 rounded-full ${healthOk === null ? "bg-surface-3" : healthOk ? "bg-success" : "bg-error animate-pulse"}`}
         title={healthOk === null ? "Checking system health…" : healthOk ? "All systems healthy" : "System degraded — check Operations"}
         aria-label={healthOk === null ? "health unknown" : healthOk ? "system healthy" : "system degraded"}
       />
 
       {/* Search */}
       <form onSubmit={submitSearch} className="relative flex-1 min-w-40 max-w-xs">
-        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300" aria-hidden />
+        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-subtle" aria-hidden />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           list="admin-pages"
           placeholder="Jump to page or search users…"
           aria-label="Search admin"
-          className="w-full text-xs border border-gray-200 rounded-xl pl-7 pr-2 py-2 bg-white"
+          className="w-full text-xs border border-line rounded-xl pl-7 pr-2 py-2 bg-panel"
         />
         <datalist id="admin-pages">
           {PAGES.map((p) => (
@@ -85,13 +85,13 @@ export function DashboardHeader({
 
       <div className="ml-auto flex items-center gap-2">
         {/* Range pills */}
-        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1" role="group" aria-label="Date range">
+        <div className="flex items-center gap-1 bg-surface-3 rounded-xl p-1" role="group" aria-label="Date range">
           {RANGES.map((r) => (
             <button
               key={r}
               onClick={() => onRange(r)}
               aria-pressed={range === r}
-              className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg cursor-pointer ${range === r ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg cursor-pointer ${range === r ? "bg-panel text-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}
             >
               {r === 365 ? "1y" : `${r}d`}
             </button>
@@ -99,14 +99,14 @@ export function DashboardHeader({
         </div>
 
         {/* Auto refresh */}
-        <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 cursor-pointer select-none">
+        <label className="flex items-center gap-1.5 text-[11px] font-semibold text-fg-muted cursor-pointer select-none">
           <input type="checkbox" checked={autoRefresh} onChange={(e) => onAutoRefresh(e.target.checked)} />
           Auto 30s
         </label>
 
         <button
           onClick={onRefresh}
-          className="p-2 rounded-xl border border-gray-200 text-gray-500 hover:text-blue-600 cursor-pointer bg-white"
+          className="p-2 rounded-xl border border-line text-fg-muted hover:text-brand cursor-pointer bg-panel"
           title="Refresh now"
           aria-label="Refresh dashboard"
         >
@@ -117,23 +117,23 @@ export function DashboardHeader({
         <div className="relative">
           <button
             onClick={() => setBellOpen((o) => !o)}
-            className="p-2 rounded-xl border border-gray-200 text-gray-500 hover:text-blue-600 cursor-pointer bg-white relative"
+            className="p-2 rounded-xl border border-line text-fg-muted hover:text-brand cursor-pointer bg-panel relative"
             aria-label={`Notifications (${alerts.length})`}
           >
             <Bell size={14} />
             {alerts.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full min-w-4 h-4 px-0.5 flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 bg-error text-white text-[9px] font-bold rounded-full min-w-4 h-4 px-0.5 flex items-center justify-center">
                 {alerts.length}
               </span>
             )}
           </button>
           {bellOpen && (
-            <div className="absolute right-0 top-10 z-30 bg-white border border-gray-100 rounded-xl shadow-lg p-2 w-64">
+            <div className="absolute right-0 top-10 z-30 bg-panel border border-line rounded-xl shadow-lg p-2 w-64">
               {alerts.length === 0 ? (
-                <p className="text-xs text-gray-400 p-2">Nothing needs attention.</p>
+                <p className="text-xs text-fg-subtle p-2">Nothing needs attention.</p>
               ) : (
                 alerts.map((a) => (
-                  <a key={a.label} href={a.href} className="block text-xs text-gray-700 hover:bg-gray-50 rounded-lg px-2 py-1.5">
+                  <a key={a.label} href={a.href} className="block text-xs text-fg hover:bg-surface-2 rounded-lg px-2 py-1.5">
                     ⚠ {a.label}
                   </a>
                 ))

@@ -24,53 +24,53 @@ export default async function HelpArticlePage({ params }: { params: Promise<{ sl
   const related = HELP_ARTICLES.filter((a) => a.category === article.category && a.slug !== article.slug).slice(0, 2);
 
   return (
-    <div className="flat-brand min-h-screen bg-white text-gray-900 font-sans">
+    <div className="min-h-screen bg-bg text-fg font-sans">
       <SiteNavbar solid />
       <main>
         <article className="mx-auto w-full max-w-3xl px-4 py-16 md:px-6">
-          <Link href="/help" className="text-xs font-bold uppercase tracking-widest text-[#335CFF] hover:underline">
+          <Link href="/help" className="text-xs font-bold uppercase tracking-widest text-brand hover:underline">
             ← Help Center
           </Link>
 
-          <span className="mt-5 inline-block rounded-full bg-[#335CFF]/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-[#335CFF]">
+          <span className="mt-5 inline-block rounded-full bg-[#335CFF]/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-brand">
             {article.category}
           </span>
-          <h1 className="mt-4 text-3xl font-extrabold leading-tight text-gray-900 md:text-4xl">{article.title}</h1>
+          <h1 className="mt-4 text-3xl font-extrabold leading-tight text-fg md:text-4xl">{article.title}</h1>
 
-          <p className="mt-8 text-lg leading-relaxed text-gray-700">{article.summary}</p>
+          <p className="mt-8 text-lg leading-relaxed text-fg">{article.summary}</p>
 
           <div className="mt-6 space-y-5">
             {article.paragraphs.map((p, i) => (
-              <p key={i} className="text-[15px] leading-relaxed text-gray-700">
-                {p.lead && <strong className="font-bold text-gray-900">{p.lead} </strong>}
+              <p key={i} className="text-[15px] leading-relaxed text-fg">
+                {p.lead && <strong className="font-bold text-fg">{p.lead} </strong>}
                 {p.text}
               </p>
             ))}
           </div>
 
           <div className="mt-12 rounded-2xl border border-[#E8EDFF] bg-gradient-to-br from-[#335CFF]/[0.04] to-purple-400/[0.04] p-8 text-center">
-            <h2 className="text-xl font-extrabold text-gray-900">Didn&apos;t answer your question?</h2>
-            <p className="mx-auto mt-2 max-w-md text-sm text-gray-600">We answer every message — usually within a day.</p>
+            <h2 className="text-xl font-extrabold text-fg">Didn&apos;t answer your question?</h2>
+            <p className="mx-auto mt-2 max-w-md text-sm text-fg-muted">We answer every message — usually within a day.</p>
             <Link
               href="/contact"
-              className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#335CFF] px-7 py-3 text-sm font-bold text-white transition-transform duration-200 hover:scale-[1.02]"
+              className="mt-5 inline-flex items-center gap-2 rounded-full bg-brand px-7 py-3 text-sm font-bold text-on-primary transition-transform duration-200 hover:scale-[1.02]"
             >
               Contact support
             </Link>
           </div>
 
           {related.length > 0 && (
-            <div className="mt-14 border-t border-gray-100 pt-10">
-              <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400">Related</h2>
+            <div className="mt-14 border-t border-line pt-10">
+              <h2 className="text-sm font-bold uppercase tracking-widest text-fg-subtle">Related</h2>
               <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {related.map((r) => (
                   <Link
                     key={r.slug}
                     href={`/help/${r.slug}`}
-                    className="group rounded-xl border border-gray-100 p-5 transition-colors hover:border-[#335CFF]/30"
+                    className="group rounded-xl border border-line p-5 transition-colors hover:border-[#335CFF]/30"
                   >
-                    <span className="text-xs font-bold uppercase tracking-widest text-[#335CFF]">{r.category}</span>
-                    <p className="mt-1.5 text-sm font-bold leading-snug text-gray-900 group-hover:text-[#335CFF]">{r.title}</p>
+                    <span className="text-xs font-bold uppercase tracking-widest text-brand">{r.category}</span>
+                    <p className="mt-1.5 text-sm font-bold leading-snug text-fg group-hover:text-brand">{r.title}</p>
                   </Link>
                 ))}
               </div>

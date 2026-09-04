@@ -10,10 +10,12 @@ import {
   Area, AreaChart, Bar, BarChart, Brush, CartesianGrid, Cell, Line, LineChart,
   Pie, PieChart, RadialBar, RadialBarChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { BRAND, PALETTE, compact, inr } from "./ui";
+import { BRAND, PALETTE, TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE, TOOLTIP_STYLE, compact, inr } from "./ui";
 
-const GRID = "#f3f4f6";
-const AXIS_TICK = { fontSize: 10, fill: "#9ca3af" } as const;
+// Recessive on the dark surface. Was #f3f4f6 — a near-white grid, which on
+// #050908 is the loudest thing in the chart.
+const GRID = "var(--line)";
+const AXIS_TICK = { fontSize: 10, fill: "var(--fg-subtle)" } as const;
 
 export function SparkArea({ data, color = BRAND }: { data: Array<{ date: string; value: number }>; color?: string }) {
   if (data.length < 2) return <div className="h-9" />;
@@ -53,7 +55,7 @@ export function RevenueAreaChart({
   const toggle = (key: keyof typeof show) => setShow((s) => ({ ...s, [key]: !s[key] }));
 
   if (data.length === 0) {
-    return <p className="text-xs text-gray-400 py-10 text-center">No purchases in this range yet.</p>;
+    return <p className="text-xs text-fg-subtle py-10 text-center">No purchases in this range yet.</p>;
   }
 
   return (
@@ -62,20 +64,20 @@ export function RevenueAreaChart({
         {([
           ["revenue", "Revenue", BRAND],
           ["refunds", "Refunds", PALETTE[4]],
-          ...(previous ? ([["previous", "Previous period", "#9ca3af"]] as const) : []),
+          ...(previous ? ([["previous", "Previous period", "var(--fg-subtle)"]] as const) : []),
         ] as Array<[keyof typeof show, string, string]>).map(([key, label, color]) => (
           <button
             key={key}
             onClick={() => toggle(key)}
             aria-pressed={show[key]}
-            className={`inline-flex items-center gap-1.5 cursor-pointer ${show[key] ? "text-gray-700" : "text-gray-300 line-through"}`}
+            className={`inline-flex items-center gap-1.5 cursor-pointer ${show[key] ? "text-fg" : "text-fg-subtle line-through"}`}
           >
             <span className="w-2.5 h-2.5 rounded-full" style={{ background: color }} aria-hidden />
             {label}
           </button>
         ))}
         {mrrInPaise != null && mrrInPaise > 0 && (
-          <span className="ml-auto text-gray-400 font-normal">MRR {inr(mrrInPaise)} · ARR {inr(mrrInPaise * 12)}</span>
+          <span className="ml-auto text-fg-subtle font-normal">MRR {inr(mrrInPaise)} · ARR {inr(mrrInPaise * 12)}</span>
         )}
       </div>
       <div className="h-72">
@@ -86,11 +88,12 @@ export function RevenueAreaChart({
             <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} tickFormatter={(v: number) => `₹${compact(v / 100)}`} width={52} />
             <Tooltip
               formatter={(value, name) => [inr(Number(value)), String(name)]}
-              labelStyle={{ fontSize: 11, color: "#6b7280" }}
-              contentStyle={{ fontSize: 12, borderRadius: 12, border: "1px solid #f3f4f6" }}
+              contentStyle={TOOLTIP_STYLE}
+              itemStyle={TOOLTIP_ITEM_STYLE}
+              labelStyle={{ ...TOOLTIP_LABEL_STYLE, fontSize: 11 }}
             />
             {show.previous && previous && (
-              <Line type="monotone" dataKey="previousInPaise" name="Previous period" stroke="#9ca3af" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
+              <Line type="monotone" dataKey="previousInPaise" name="Previous period" stroke="var(--fg-subtle)" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
             )}
             {show.revenue && (
               <Area type="monotone" dataKey="revenueInPaise" name="Revenue" stroke={BRAND} strokeWidth={2} fill={BRAND} fillOpacity={0.08} />
@@ -98,7 +101,7 @@ export function RevenueAreaChart({
             {show.refunds && (
               <Area type="monotone" dataKey="refundsInPaise" name="Refunds" stroke={PALETTE[4]} strokeWidth={1.5} fill={PALETTE[4]} fillOpacity={0.08} />
             )}
-            {data.length > 14 && <Brush dataKey="date" height={18} travellerWidth={8} stroke="#d1d5db" fill="#fafafa" />}
+            {data.length > 14 && <Brush dataKey="date" height={18} travellerWidth={8} stroke="var(--line-strong)" fill="var(--surface-2)" />}
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -130,12 +133,12 @@ export function GrowthLineChart({ daily }: { daily: Array<{ date: string; value:
             key={b}
             onClick={() => setBucket(b)}
             aria-pressed={bucket === b}
-            className={`text-[11px] font-semibold px-2 py-1 rounded-lg capitalize cursor-pointer ${bucket === b ? "bg-gray-100 text-gray-800" : "text-gray-400"}`}
+            className={`text-[11px] font-semibold px-2 py-1 rounded-lg capitalize cursor-pointer ${bucket === b ? "bg-surface-3 text-fg" : "text-fg-subtle"}`}
           >
             {b}
           </button>
         ))}
-        <span className="ml-auto text-[10px] text-gray-400 self-center">Returning users: needs activity events — not tracked yet</span>
+        <span className="ml-auto text-[10px] text-fg-subtle self-center">Returning users: needs activity events — not tracked yet</span>
       </div>
       <div className="h-56">
         <ResponsiveContainer width="100%" height="100%">
@@ -143,7 +146,7 @@ export function GrowthLineChart({ daily }: { daily: Array<{ date: string; value:
             <CartesianGrid stroke={GRID} vertical={false} />
             <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={32} />
             <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} allowDecimals={false} width={32} />
-            <Tooltip contentStyle={{ fontSize: 12, borderRadius: 12, border: "1px solid #f3f4f6" }} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} />
             <Line type="monotone" dataKey="value" name="New users" stroke={BRAND} strokeWidth={2} dot={false} />
           </LineChart>
         </ResponsiveContainer>
@@ -162,7 +165,7 @@ export function Donut({
   centerValue: string;
 }) {
   const nonZero = slices.filter((s) => s.value > 0);
-  if (nonZero.length === 0) return <p className="text-xs text-gray-400 py-10 text-center">No data in range.</p>;
+  if (nonZero.length === 0) return <p className="text-xs text-fg-subtle py-10 text-center">No data in range.</p>;
   return (
     <div className="relative">
       <div className="h-56">
@@ -173,12 +176,12 @@ export function Donut({
                 <Cell key={s.name} fill={PALETTE[i % PALETTE.length]} />
               ))}
             </Pie>
-            <Tooltip formatter={(value, name) => [inr(Number(value)), String(name)]} contentStyle={{ fontSize: 12, borderRadius: 12, border: "1px solid #f3f4f6" }} />
+            <Tooltip formatter={(value, name) => [inr(Number(value)), String(name)]} contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} />
           </PieChart>
         </ResponsiveContainer>
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <span className="text-lg font-extrabold text-gray-900">{centerValue}</span>
-          <span className="text-[10px] text-gray-400">{centerLabel}</span>
+          <span className="text-lg font-extrabold text-fg">{centerValue}</span>
+          <span className="text-[10px] text-fg-subtle">{centerLabel}</span>
         </div>
       </div>
       {/* Direct labels — required by the palette's tritan-band pair, good practice anyway */}
@@ -186,8 +189,8 @@ export function Donut({
         {nonZero.map((s, i) => (
           <li key={s.name} className="flex items-center gap-1.5 text-[11px]">
             <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: PALETTE[i % PALETTE.length] }} aria-hidden />
-            <span className="text-gray-600 truncate">{s.name}{s.isCost ? " (cost)" : ""}</span>
-            <span className="ml-auto font-semibold text-gray-800">{inr(s.value)}</span>
+            <span className="text-fg-muted truncate">{s.name}{s.isCost ? " (cost)" : ""}</span>
+            <span className="ml-auto font-semibold text-fg">{inr(s.value)}</span>
           </li>
         ))}
       </ul>
@@ -207,8 +210,8 @@ export function Gauge({ successPct, chips }: { successPct: number | null; chips:
           </RadialBarChart>
         </ResponsiveContainer>
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <span className="text-2xl font-extrabold text-gray-900">{successPct == null ? "—" : `${successPct.toFixed(1)}%`}</span>
-          <span className="text-[10px] text-gray-400">success rate</span>
+          <span className="text-2xl font-extrabold text-fg">{successPct == null ? "—" : `${successPct.toFixed(1)}%`}</span>
+          <span className="text-[10px] text-fg-subtle">success rate</span>
         </div>
       </div>
       <div className="flex flex-wrap gap-1.5 justify-center">
@@ -216,7 +219,7 @@ export function Gauge({ successPct, chips }: { successPct: number | null; chips:
           <span
             key={c.label}
             className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-              c.tone === "bad" && c.value > 0 ? "bg-red-50 text-red-700" : c.tone === "warn" && c.value > 0 ? "bg-amber-50 text-amber-700" : "bg-gray-50 text-gray-500"
+              c.tone === "bad" && c.value > 0 ? "bg-error/10 text-error" : c.tone === "warn" && c.value > 0 ? "bg-amber-50 text-amber-700" : "bg-surface-2 text-fg-muted"
             }`}
           >
             {c.value} {c.label}
@@ -234,7 +237,7 @@ export function HBars({
   items: Array<{ label: string; value: number; sub?: string }>;
   valueFmt?: (n: number) => string;
 }) {
-  if (items.length === 0) return <p className="text-xs text-gray-400 py-6 text-center">No data in range.</p>;
+  if (items.length === 0) return <p className="text-xs text-fg-subtle py-6 text-center">No data in range.</p>;
   const h = Math.max(120, items.length * 30);
   return (
     <div style={{ height: h }}>
@@ -242,7 +245,7 @@ export function HBars({
         <BarChart data={items} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 8 }}>
           <XAxis type="number" hide />
           <YAxis type="category" dataKey="label" tick={{ fontSize: 10, fill: "#6b7280" }} width={110} tickLine={false} axisLine={false} />
-          <Tooltip formatter={(value) => valueFmt(Number(value))} contentStyle={{ fontSize: 12, borderRadius: 12, border: "1px solid #f3f4f6" }} />
+          <Tooltip formatter={(value) => valueFmt(Number(value))} contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} />
           <Bar
             dataKey="value"
             fill={BRAND}

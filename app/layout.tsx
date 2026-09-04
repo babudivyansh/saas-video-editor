@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/app/components/AuthContext";
 import AuthModal from "@/app/components/AuthModal";
 import QueryProvider from "@/app/components/QueryProvider";
 import WebVitals from "@/app/components/analytics/WebVitals";
 
-const plusJakarta = Plus_Jakarta_Sans({
-  variable: "--font-plus-jakarta",
+// Geist replaces Plus Jakarta Sans as the UI face for the emerald design
+// system: a neutral grotesk reads as more restrained at the large heading
+// sizes the new system leans on. Geist Mono was already here, so the two are a
+// matched pair.
+const geistSans = Geist({
+  variable: "--font-geist-sans",
   subsets: ["latin"],
 });
 
@@ -67,8 +71,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${plusJakarta.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-zinc-950 text-zinc-100">
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+      {/* `theme-emerald` sits on <body>, not on each shell.
+          Modal, ContextMenu and the language dropdown all createPortal into
+          document.body, which is OUTSIDE any shell root — so with the class on
+          the shells, every modal and popover in the app rendered in the light
+          theme. Scoping bought nothing any more anyway: every surface is
+          migrated, admin included. */}
+      <body className="theme-emerald min-h-full flex flex-col bg-canvas text-on-canvas">
         {/* Renders nothing; reports Core Web Vitals to our own endpoint. */}
         <WebVitals />
         <QueryProvider>

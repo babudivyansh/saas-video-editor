@@ -26,9 +26,9 @@ function IcAlert() {
 }
 
 const VARIANT_CLASS: Record<ToastVariant, string> = {
-  success: "bg-ink text-white",
-  error: "bg-red-600 text-white",
-  info: "bg-ink text-white",
+  success: "bg-fg text-bg",
+  error: "bg-error text-bg",
+  info: "bg-fg text-bg",
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {

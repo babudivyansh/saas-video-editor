@@ -146,10 +146,10 @@ function HeaderSearch({ className = "relative flex-1 max-w-md" }: { className?: 
         onFocus={() => setFocused(true)}
         onKeyDown={(e) => { if (e.key === "Escape") setFocused(false); }}
         placeholder={t("searchPlaceholder")}
-        className="w-full text-sm bg-surface border border-card-border rounded-full pl-10 pr-4 py-2 text-ink placeholder:text-ink-soft/50 outline-none focus:bg-white focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
+        className="w-full text-sm bg-surface border border-card-border rounded-full pl-10 pr-4 py-2 text-ink placeholder:text-ink-soft/50 outline-none focus:bg-panel focus:border-primary/60 focus:ring-2 focus:ring-primary/25 transition-all"
       />
       <div
-        className={`absolute top-full mt-2 left-0 right-0 rounded-2xl border border-card-border bg-white shadow-xl z-50 overflow-hidden origin-top transition-all duration-150 ease-out ${
+        className={`absolute top-full mt-2 left-0 right-0 rounded-2xl border border-card-border bg-panel shadow-xl z-50 overflow-hidden origin-top transition-all duration-150 ease-out ${
           open ? "opacity-100 scale-100 visible" : "opacity-0 scale-95 invisible pointer-events-none"
         }`}
       >
@@ -247,12 +247,12 @@ function CreateMenu() {
       <button
         onClick={() => setOpen((p) => !p)}
         data-tour="create-menu"
-        className="inline-flex items-center gap-1.5 grad-brand text-white text-sm font-semibold px-4 py-2 rounded-full shadow-glow hover:shadow-glow-hover hover:brightness-105 transition-all cursor-pointer"
+        className="inline-flex items-center gap-1.5 grad-brand text-on-primary text-sm font-semibold px-4 py-2 rounded-full shadow-glow hover:shadow-glow-hover hover:brightness-105 transition-all cursor-pointer"
       >
         <IcPlus /> {t("create")} <IcChevronDown open={open} />
       </button>
       <div
-        className={`absolute top-full mt-2 right-0 w-72 rounded-2xl border border-card-border bg-white shadow-xl z-50 overflow-hidden origin-top-right transition-all duration-150 ease-out ${
+        className={`absolute top-full mt-2 right-0 w-72 rounded-2xl border border-card-border bg-panel shadow-xl z-50 overflow-hidden origin-top-right transition-all duration-150 ease-out ${
           open ? "opacity-100 scale-100 visible" : "opacity-0 scale-95 invisible pointer-events-none"
         }`}
       >
@@ -299,7 +299,7 @@ export default function DashboardHeader() {
 
   return (
     <>
-    <header className="flex items-center gap-4 px-5 h-16 flex-shrink-0 border-b border-gray-100 bg-white z-40">
+    <header className="flex items-center gap-4 px-5 h-16 flex-shrink-0 border-b border-line bg-panel z-40">
       {user && (
         <button
           className="xl:hidden p-2 -ml-2 rounded-md text-ink-soft hover:text-ink flex-shrink-0"
@@ -328,7 +328,7 @@ export default function DashboardHeader() {
               chip={<span className="w-8 h-8 rounded-lg bg-[#5865F2]/10 text-[#5865F2] flex items-center justify-center flex-shrink-0"><IcDiscord /></span>}
             />
           </div>
-          <div className="border-t border-gray-100 bg-surface px-4 py-2.5">
+          <div className="border-t border-line bg-surface px-4 py-2.5">
             <p className="text-xs text-ink-soft">{t("discordHelp")}</p>
           </div>
         </NavDropdown>
@@ -351,7 +351,7 @@ export default function DashboardHeader() {
               </div>
             </div>
             {/* AI tools */}
-            <div className="p-2 border-l border-gray-100">
+            <div className="p-2 border-l border-line">
               <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-accent-violet">{t("aiTools")}</p>
               <div className="space-y-0.5">
                 {AI_TOOLS.slice(0, 4).map((item) => (
@@ -361,7 +361,7 @@ export default function DashboardHeader() {
               </div>
             </div>
             {/* Free tools */}
-            <div className="p-2 border-t border-gray-100">
+            <div className="p-2 border-t border-line">
               <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-accent-fuchsia">{t("freeTools")}</p>
               <div className="space-y-0.5">
                 {FREE_FEATURES.slice(0, 3).map((item) => (
@@ -377,14 +377,14 @@ export default function DashboardHeader() {
               <p className="relative text-sm font-extrabold leading-tight">{t("spotlightTitle")}</p>
               <p className="relative text-xs text-white/80 mt-1 leading-relaxed">{t("spotlightDesc")}</p>
               <Link href="/dashboard/create/auto-clip" className="relative mt-auto pt-2.5 inline-block">
-                <span className="inline-flex items-center gap-1 bg-white text-ink text-xs font-semibold px-3 py-1.5 rounded-full hover:shadow-card transition-shadow">
+                <span className="inline-flex items-center gap-1 bg-panel text-ink text-xs font-semibold px-3 py-1.5 rounded-full hover:shadow-card transition-shadow">
                   {t("tryAutoClip")}
                 </span>
               </Link>
             </div>
           </div>
           {/* Footer bar */}
-          <div className="border-t border-gray-100 bg-surface px-5 py-3 flex items-center justify-between">
+          <div className="border-t border-line bg-surface px-5 py-3 flex items-center justify-between">
             <p className="text-xs text-ink-soft">{t("allToolsIncluded", { count: TOOL_COUNT })}</p>
             <Link href="/dashboard/tools" className="text-xs font-semibold text-brand hover:text-brand-dark transition-colors">
               {t("viewAllTools")}
@@ -418,8 +418,8 @@ export default function DashboardHeader() {
               data-tour="plan-chip"
               className={`hidden xl:inline-flex items-center text-[11px] font-bold uppercase tracking-wider rounded-full px-2.5 py-1 transition-colors cursor-pointer ${
                 hasActivePlan
-                  ? "bg-tint-emerald text-green-700 hover:bg-emerald-100"
-                  : "bg-gray-100 text-ink-soft hover:bg-gray-200"
+                  ? "bg-tint-emerald text-success hover:bg-tint-fuchsia"
+                  : "bg-surface-3 text-ink-soft hover:bg-surface-3"
               }`}
             >
               {planName}
@@ -467,7 +467,7 @@ export default function DashboardHeader() {
     {user && menuOpen && (
       <div className="xl:hidden fixed inset-x-0 top-16 bottom-0 z-50 flex" data-testid="mobile-nav-drawer">
         <div className="absolute inset-0 bg-black/40" onClick={closeMobile} />
-        <div className="relative w-full max-w-xs h-full bg-white shadow-xl overflow-y-auto px-4 py-4 space-y-1">
+        <div className="relative w-full max-w-xs h-full bg-panel shadow-xl overflow-y-auto px-4 py-4 space-y-1">
           <HeaderSearch className="relative mb-3" />
 
           {/* Primary nav (mirrors ToolsSidebar) */}
@@ -478,7 +478,7 @@ export default function DashboardHeader() {
             </Link>
           ))}
 
-          <div className="my-2 border-t border-gray-100" />
+          <div className="my-2 border-t border-line" />
 
           {/* Create */}
           <button onClick={() => setMobileSection(mobileSection === "create" ? null : "create")} className="flex items-center justify-between w-full text-sm font-semibold text-ink py-2 px-3">
@@ -541,7 +541,7 @@ export default function DashboardHeader() {
           )}
 
           {/* Bottom nav (earn / settings / billing) */}
-          <div className="my-2 border-t border-gray-100" />
+          <div className="my-2 border-t border-line" />
           {railBottomNav.map((item) => {
             const cls = "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink hover:bg-tint-blue transition-colors w-full text-left";
             // Billing opens an overlay rather than navigating.
@@ -560,11 +560,11 @@ export default function DashboardHeader() {
 
           {user && (
             <>
-              <div className="my-2 border-t border-gray-100" />
+              <div className="my-2 border-t border-line" />
               <div className="flex items-center justify-between px-3 py-2">
                 <span
                   className={`inline-flex items-center text-[11px] font-bold uppercase tracking-wider rounded-full px-2.5 py-1 ${
-                    hasActivePlan ? "bg-tint-emerald text-green-700" : "bg-gray-100 text-ink-soft"
+                    hasActivePlan ? "bg-tint-emerald text-success" : "bg-surface-3 text-ink-soft"
                   }`}
                 >
                   {planName}

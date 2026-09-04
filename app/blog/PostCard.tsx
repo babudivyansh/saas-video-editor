@@ -21,7 +21,7 @@ export default function PostCard({ post }: { post: BlogPost }) {
   const category = getCategoryByLabel(post.category);
 
   return (
-    <article className="group relative flex flex-col overflow-hidden rounded-[var(--radius-card)] border border-card-border bg-white shadow-card transition-all duration-300 ease-out hover:border-brand/30 hover:shadow-card-hover motion-safe:hover:-translate-y-1">
+    <article className="group relative flex flex-col overflow-hidden rounded-[var(--radius-card)] border border-card-border bg-panel shadow-card transition-all duration-300 ease-out hover:border-brand/30 hover:shadow-card-hover motion-safe:hover:-translate-y-1">
       <div className="relative flex aspect-[16/9] items-center justify-center overflow-hidden bg-gradient-to-br from-brand/10 to-accent-violet/10">
         {/* The artwork scales inside a clipped box, so the card's own edges
             stay put while the image fills toward them. */}
@@ -45,7 +45,7 @@ export default function PostCard({ post }: { post: BlogPost }) {
 
         <Link
           href={`/blog/category/${category.slug}`}
-          className="relative z-10 rounded-full bg-white/85 px-3 py-1 text-xs font-bold uppercase tracking-widest text-brand backdrop-blur-sm transition-colors hover:bg-white"
+          className="relative z-10 rounded-full bg-white/85 px-3 py-1 text-xs font-bold uppercase tracking-widest text-brand backdrop-blur-sm transition-colors hover:bg-panel"
         >
           {post.category}
         </Link>

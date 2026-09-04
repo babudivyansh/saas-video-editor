@@ -32,21 +32,21 @@ export default function BlogPage() {
   ]);
 
   return (
-    <div className="flat-brand min-h-screen bg-white text-gray-900 font-sans">
+    <div className="min-h-screen bg-bg text-fg font-sans">
       <JsonLd data={collectionSchema} />
       <JsonLd data={breadcrumbSchema} />
       <SiteNavbar solid />
       <main>
-        <section className="border-b border-gray-100 bg-gray-50/60">
+        <section className="border-b border-line bg-gray-50/60">
           <div className="mx-auto w-full max-w-screen-2xl px-4 py-20 text-center md:px-12 lg:px-[120px]">
             <div className="flex justify-center">
               <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Blog" }]} />
             </div>
-            <span className="mt-4 block text-xs font-bold uppercase tracking-widest text-[#335CFF]">Blog</span>
-            <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-extrabold leading-tight text-gray-900 md:text-6xl">
+            <span className="mt-4 block text-xs font-bold uppercase tracking-widest text-brand">Blog</span>
+            <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-extrabold leading-tight text-fg md:text-6xl">
               The Clipiro creator playbook
             </h1>
-            <p className="mx-auto mt-5 max-w-2xl text-lg text-gray-600">
+            <p className="mx-auto mt-5 max-w-2xl text-lg text-fg-muted">
               Tutorials, growth tips, and product updates to help you go viral with short-form video.
             </p>
           </div>

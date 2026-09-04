@@ -11,9 +11,9 @@ function IcFileAudio() {
 }
 
 const FREE_TOOLS = [
-  { icon: <IcEqualizer />, title: "Audio Balancer", desc: "Balance between the left and right channels", href: "/dashboard/tools/free/audio-balancer", iconBg: "bg-blue-600" },
-  { icon: <IcVideoFile />, title: "Video Compressor", desc: "Compress video files to reduce file size", href: "/dashboard/tools/free/video-compressor", iconBg: "bg-blue-600" },
-  { icon: <IcFileAudio />, title: "MP3 Converter", desc: "Convert any media file to MP3", href: "/dashboard/tools/free/mp3-converter", iconBg: "bg-blue-600" },
+  { icon: <IcEqualizer />, title: "Audio Balancer", desc: "Balance between the left and right channels", href: "/dashboard/tools/free/audio-balancer", iconBg: "bg-brand" },
+  { icon: <IcVideoFile />, title: "Video Compressor", desc: "Compress video files to reduce file size", href: "/dashboard/tools/free/video-compressor", iconBg: "bg-brand" },
+  { icon: <IcFileAudio />, title: "MP3 Converter", desc: "Convert any media file to MP3", href: "/dashboard/tools/free/mp3-converter", iconBg: "bg-brand" },
 ];
 
 export default function FreeToolsPage() {
@@ -24,13 +24,13 @@ export default function FreeToolsPage() {
           <Link
             key={i}
             href={t.href}
-            className="rounded-2xl border border-gray-200 bg-white p-5 hover:shadow-md hover:border-gray-300 transition-all"
+            className="rounded-2xl border border-line bg-panel p-5 hover:shadow-md hover:border-line-strong transition-all"
           >
             <div className={`w-10 h-10 rounded-xl ${t.iconBg} flex items-center justify-center text-white mb-4`}>
               {t.icon}
             </div>
-            <h3 className="text-[15px] font-bold text-gray-900 leading-tight">{t.title}</h3>
-            <p className="text-[13px] text-gray-500 mt-1.5 leading-relaxed">{t.desc}</p>
+            <h3 className="text-[15px] font-bold text-fg leading-tight">{t.title}</h3>
+            <p className="text-[13px] text-fg-muted mt-1.5 leading-relaxed">{t.desc}</p>
           </Link>
         ))}
       </div>

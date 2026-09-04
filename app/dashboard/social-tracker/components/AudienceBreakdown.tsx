@@ -39,7 +39,7 @@ const AUDIENCE_LABEL: Record<string, string> = {
 export function AudienceBreakdown({ rows }: { rows: AudienceRowView[] }) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-[var(--radius-card)] border border-card-border bg-white p-10 text-center shadow-card">
+      <div className="rounded-[var(--radius-card)] border border-card-border bg-panel p-10 text-center shadow-card">
         <p className="text-sm font-semibold text-ink">No audience data yet</p>
         <p className="mx-auto mt-1 max-w-md text-sm text-ink-soft">
           Instagram only reports demographics for accounts with at least 100 followers, and YouTube
@@ -68,7 +68,7 @@ export function AudienceBreakdown({ rows }: { rows: AudienceRowView[] }) {
         return (
           <figure
             key={key}
-            className="rounded-[var(--radius-card)] border border-card-border bg-white p-4 shadow-card"
+            className="rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card"
           >
             <figcaption className="text-sm font-semibold text-ink">
               {DIMENSION_LABEL[dimension] ?? dimension}

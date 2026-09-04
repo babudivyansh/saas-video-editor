@@ -219,7 +219,7 @@ export default function AdminUsersPage() {
   }, [expandedId, expandedSubEnd, expandedMonthly]);
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
-  const inputCls = "bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const inputCls = "bg-surface-2 border border-line rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40";
 
   return (
     <AdminShell title="Users">
@@ -229,22 +229,22 @@ export default function AdminUsersPage() {
           value={searchInput}
           onChange={e => { setSearchInput(e.target.value); setPage(1); }}
           placeholder="Search by email or name…"
-          className="w-72 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+          className="w-72 bg-panel border border-line rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 shadow-sm"
         />
-        <span className="text-sm text-gray-400">{total} user{total !== 1 ? "s" : ""}</span>
+        <span className="text-sm text-fg-subtle">{total} user{total !== 1 ? "s" : ""}</span>
       </div>
 
       {isError ? (
         <ErrorCard onRetry={refetch} />
       ) : isLoading ? (
-        <p className="text-sm text-gray-400">Loading users…</p>
+        <p className="text-sm text-fg-subtle">Loading users…</p>
       ) : (
         <>
           <Card shadow className="mb-4">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                  <tr className="border-b border-line text-left text-xs font-semibold text-fg-subtle uppercase tracking-wide">
                     <th className="py-3.5 px-5">User</th>
                     <th className="py-3.5 px-3">Credits</th>
                     <th className="py-3.5 px-3">Mo. Credits</th>
@@ -264,14 +264,14 @@ export default function AdminUsersPage() {
                     return (
                       <Fragment key={u.id}>
                         <tr
-                          className={`border-b border-gray-50 last:border-0 transition-colors ${isAdmin ? "bg-blue-50/40" : ""}`}>
+                          className={`border-b border-line last:border-0 transition-colors ${isAdmin ? "bg-tint-blue/40" : ""}`}>
                           <td className="py-3 px-5">
-                            <p className="font-semibold text-gray-900">{u.name || u.email}</p>
-                            {u.name && <p className="text-xs text-gray-400">{u.email}</p>}
-                            {isAdmin && <span className="text-[10px] font-bold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full">ADMIN</span>}
+                            <p className="font-semibold text-fg">{u.name || u.email}</p>
+                            {u.name && <p className="text-xs text-fg-subtle">{u.email}</p>}
+                            {isAdmin && <span className="text-[10px] font-bold text-brand bg-tint-violet px-1.5 py-0.5 rounded-full">ADMIN</span>}
                           </td>
-                          <td className="py-3 px-3 font-semibold text-gray-900">{u.credits}</td>
-                          <td className="py-3 px-3 text-gray-500">{u.monthlyCredits > 0 ? u.monthlyCredits : "—"}</td>
+                          <td className="py-3 px-3 font-semibold text-fg">{u.credits}</td>
+                          <td className="py-3 px-3 text-fg-muted">{u.monthlyCredits > 0 ? u.monthlyCredits : "—"}</td>
                           {/* Showed `plan.name` with no expiry check, so an account whose
                               subscription term was missing or past looked identical to a
                               paying one — the admin had no way to see that the user's own
@@ -279,7 +279,7 @@ export default function AdminUsersPage() {
                               existing "· inactive" convention. */}
                           <td className="py-3 px-3 text-xs">
                             {u.plan?.name ? (
-                              <span className={subExpired ? "text-gray-400" : "text-gray-600"}>
+                              <span className={subExpired ? "text-fg-subtle" : "text-fg-muted"}>
                                 {u.plan.name}
                                 {subExpired && (
                                   <span className="ml-1.5 text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full align-middle">
@@ -288,10 +288,10 @@ export default function AdminUsersPage() {
                                 )}
                               </span>
                             ) : (
-                              <span className="text-gray-600">Free</span>
+                              <span className="text-fg-muted">Free</span>
                             )}
                           </td>
-                          <td className={`py-3 px-3 text-xs ${subExpired ? "text-gray-300" : "text-gray-600"}`}>
+                          <td className={`py-3 px-3 text-xs ${subExpired ? "text-fg-subtle" : "text-fg-muted"}`}>
                             {fmtDate(u.subscriptionEndsAt)}
                           </td>
                           <td className="py-3 px-3">
@@ -299,20 +299,20 @@ export default function AdminUsersPage() {
                               value={u.role}
                               onChange={e => e.target.value === "ADMIN" ? setConfirmPromoteId(u.id) : patchMutation.mutate({ id: u.id, body: { role: e.target.value } })}
                               disabled={savingThis}
-                              className={`text-xs font-semibold border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 ${isAdmin ? "border-blue-200 text-blue-700 bg-blue-50" : "border-gray-200 text-gray-600 bg-white"}`}
+                              className={`text-xs font-semibold border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary/40 ${isAdmin ? "border-brand/40 text-brand bg-tint-blue" : "border-line text-fg-muted bg-panel"}`}
                             >
                               <option value="USER">User</option>
                               <option value="ADMIN">Admin</option>
                             </select>
                           </td>
-                          <td className="py-3 px-3 text-gray-600">{u._count.projects}</td>
-                          <td className="py-3 px-3 text-gray-400 text-xs whitespace-nowrap">{fmt(u.createdAt)}</td>
+                          <td className="py-3 px-3 text-fg-muted">{u._count.projects}</td>
+                          <td className="py-3 px-3 text-fg-subtle text-xs whitespace-nowrap">{fmt(u.createdAt)}</td>
                           <td className="py-3 px-3">
                             <div className="flex items-center gap-1.5">
                               <Button href={`/admin/users/${u.id}`} variant="secondary" size="sm">
                                 View
                               </Button>
-                              <Button variant="secondary" size="sm" onClick={() => openExpand(u)} className="!text-blue-600 !border-blue-200 hover:!bg-blue-50">
+                              <Button variant="secondary" size="sm" onClick={() => openExpand(u)} className="!text-brand !border-brand/40 hover:!bg-tint-blue">
                                 {expandedId === u.id ? "Close" : "Edit"}
                               </Button>
                               <Button variant="danger" size="sm" onClick={() => setDeleteConfirmId(u.id)}>
@@ -322,31 +322,31 @@ export default function AdminUsersPage() {
                           </td>
                         </tr>
                         {expandedId === u.id && (
-                          <tr key={`${u.id}-expand`} className="bg-blue-50/60 border-b border-blue-100">
+                          <tr key={`${u.id}-expand`} className="bg-tint-blue/60 border-b border-line">
                             <td colSpan={9} className="px-5 py-4">
                               <div className="flex flex-wrap items-end gap-4">
                                 <div>
-                                  <label className="text-[10px] font-semibold text-gray-400 block mb-1">Display Name</label>
+                                  <label className="text-[10px] font-semibold text-fg-subtle block mb-1">Display Name</label>
                                   <input type="text" className={inputCls} value={editName} onChange={e => { setEditName(e.target.value); markTouched("name"); }} placeholder="e.g. John Doe" />
                                 </div>
                                 <div>
-                                  <label className="text-[10px] font-semibold text-gray-400 block mb-1">Email</label>
+                                  <label className="text-[10px] font-semibold text-fg-subtle block mb-1">Email</label>
                                   <input type="email" className={inputCls} value={editEmail} onChange={e => { setEditEmail(e.target.value); markTouched("email"); }} />
                                 </div>
                                 <div>
-                                  <label className="text-[10px] font-semibold text-gray-400 block mb-1">Credits</label>
-                                  <p className="text-sm font-bold text-gray-900 px-2.5 py-1.5">{u.credits}</p>
+                                  <label className="text-[10px] font-semibold text-fg-subtle block mb-1">Credits</label>
+                                  <p className="text-sm font-bold text-fg px-2.5 py-1.5">{u.credits}</p>
                                 </div>
                                 <div>
-                                  <label className="text-[10px] font-semibold text-gray-400 block mb-1">Monthly Credits</label>
+                                  <label className="text-[10px] font-semibold text-fg-subtle block mb-1">Monthly Credits</label>
                                   <input type="number" className={inputCls} value={editMonthly} onChange={e => { setEditMonthly(e.target.value); markTouched("monthlyCredits"); }} min={0} />
                                 </div>
                                 <div>
-                                  <label className="text-[10px] font-semibold text-gray-400 block mb-1">Sub Ends At</label>
+                                  <label className="text-[10px] font-semibold text-fg-subtle block mb-1">Sub Ends At</label>
                                   <input type="date" className={inputCls} value={editSubEnd} onChange={e => { setEditSubEnd(e.target.value); markTouched("subscriptionEndsAt"); }} />
                                 </div>
                                 <div>
-                                  <label className="text-[10px] font-semibold text-gray-400 block mb-1" htmlFor={`plan-${u.id}`}>Assign Plan</label>
+                                  <label className="text-[10px] font-semibold text-fg-subtle block mb-1" htmlFor={`plan-${u.id}`}>Assign Plan</label>
                                   <select
                                     id={`plan-${u.id}`}
                                     value={planChange?.userId === u.id ? (planChange.planId ?? "") : (u.plan?.id ?? "")}
@@ -396,7 +396,7 @@ export default function AdminUsersPage() {
           </Card>
 
           {/* Pagination */}
-          <div className="flex items-center justify-between text-sm text-gray-500">
+          <div className="flex items-center justify-between text-sm text-fg-muted">
             <span>Page {page} of {totalPages}</span>
             <div className="flex gap-2">
               <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>
@@ -448,7 +448,7 @@ export default function AdminUsersPage() {
           onChange={(e) => setPlanReason(e.target.value)}
           placeholder="Reason (required, recorded in the audit log)"
           aria-label="Reason for the plan change"
-          className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-2"
+          className="w-full text-xs border border-line rounded-lg px-2.5 py-2"
         />
       </ConfirmDialog>
 

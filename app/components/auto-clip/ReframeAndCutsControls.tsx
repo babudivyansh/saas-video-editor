@@ -29,7 +29,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
       type="button"
       onClick={onClick}
       className={`rounded-lg border p-1.5 text-center text-xs font-bold transition-colors ${
-        active ? "grad-brand text-white shadow-glow border-transparent" : "bg-white border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
+        active ? "grad-brand text-on-primary shadow-glow border-transparent" : "bg-panel border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
       }`}
     >
       {children}

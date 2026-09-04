@@ -81,7 +81,7 @@ export function ContextMenu({ open, x, y, onClose, children }: ContextMenuProps)
           exit={{ opacity: 0, scale: 0.96 }}
           transition={{ duration: 0.1 }}
           style={style}
-          className="fixed z-[150] min-w-[11rem] rounded-2xl border border-card-border bg-white shadow-xl overflow-hidden py-1"
+          className="fixed z-[150] min-w-[11rem] rounded-2xl border border-card-border bg-panel shadow-xl overflow-hidden py-1"
           onMouseDown={(e) => e.stopPropagation()}
         >
           {children}

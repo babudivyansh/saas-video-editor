@@ -75,7 +75,7 @@ export default function AdminModelsPage() {
       {isError ? (
         <ErrorCard onRetry={refetch} />
       ) : isLoading ? (
-        <p className="text-sm text-gray-400">Loading…</p>
+        <p className="text-sm text-fg-subtle">Loading…</p>
       ) : (
         <div className="space-y-6">
           <ModelTable title="Image models" unit="credits / generation" rows={image} onPatch={(modelId, body) => patchModelMutation.mutate({ modelId, body })} />
@@ -83,12 +83,12 @@ export default function AdminModelsPage() {
 
           {pricing && (
             <Card shadow padding="lg">
-              <h2 className="text-base font-bold text-gray-800 mb-1">AutoClip pricing</h2>
-              <p className="text-xs text-gray-400 mb-4">Credits charged by the AutoClip pipeline — applies immediately, no deploy.</p>
+              <h2 className="text-base font-bold text-fg mb-1">AutoClip pricing</h2>
+              <p className="text-xs text-fg-subtle mb-4">Credits charged by the AutoClip pipeline — applies immediately, no deploy.</p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {(Object.entries(pricing) as Array<[keyof AutoclipPricing, number]>).map(([key, value]) => (
                   <div key={key}>
-                    <label className="text-xs font-semibold text-gray-400 block mb-1 capitalize">{key}</label>
+                    <label className="text-xs font-semibold text-fg-subtle block mb-1 capitalize">{key}</label>
                     <input
                       type="number"
                       min={0}
@@ -97,7 +97,7 @@ export default function AdminModelsPage() {
                         const n = parseInt(e.target.value, 10);
                         if (Number.isInteger(n) && n >= 0 && n !== value) savePricingMutation.mutate({ [key]: n });
                       }}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                      className="w-full border border-line rounded-lg px-3 py-2 text-sm"
                     />
                   </div>
                 ))}
@@ -119,13 +119,13 @@ function ModelTable({
   return (
     <Card shadow padding="none">
       <div className="px-6 pt-5 pb-3">
-        <h2 className="text-base font-bold text-gray-800">{title}</h2>
-        <p className="text-xs text-gray-400">Cost unit: {unit} · overrides apply at generation time, instantly</p>
+        <h2 className="text-base font-bold text-fg">{title}</h2>
+        <p className="text-xs text-fg-subtle">Cost unit: {unit} · overrides apply at generation time, instantly</p>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            <tr className="bg-surface-2 text-left text-xs font-semibold text-fg-muted uppercase tracking-wide">
               <th className="px-6 py-3">Model</th>
               <th className="px-4 py-3">Provider</th>
               <th className="px-4 py-3">Tiers</th>
@@ -135,19 +135,19 @@ function ModelTable({
               <th className="px-4 py-3">Override</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-line">
             {rows.map((m) => {
               const disabled = m.override?.enabled === false;
               const effectiveCost = m.override?.creditCost ?? m.defaultCreditCost;
               return (
-                <tr key={m.id} className={disabled ? "bg-red-50/40" : "hover:bg-gray-50"}>
+                <tr key={m.id} className={disabled ? "bg-error/10/40" : "hover:bg-surface-2"}>
                   <td className="px-6 py-3">
-                    <p className="font-semibold text-gray-900">{m.displayName}</p>
-                    <p className="text-xs text-gray-400 font-mono">{m.id}</p>
+                    <p className="font-semibold text-fg">{m.displayName}</p>
+                    <p className="text-xs text-fg-subtle font-mono">{m.id}</p>
                   </td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{m.provider}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{m.allowedTiers.join(", ")}</td>
-                  <td className="px-4 py-3 text-right text-xs text-gray-500">{m.costUsd != null ? `$${m.costUsd}` : "—"}</td>
+                  <td className="px-4 py-3 text-xs text-fg-muted">{m.provider}</td>
+                  <td className="px-4 py-3 text-xs text-fg-muted">{m.allowedTiers.join(", ")}</td>
+                  <td className="px-4 py-3 text-right text-xs text-fg-muted">{m.costUsd != null ? `$${m.costUsd}` : "—"}</td>
                   <td className="px-4 py-3 text-right">
                     <input
                       type="number"
@@ -158,7 +158,7 @@ function ModelTable({
                         if (!Number.isFinite(n) || n < 0 || n === effectiveCost) return;
                         onPatch(m.id, { creditCost: n });
                       }}
-                      className={`w-20 border rounded-lg px-2 py-1 text-xs text-right ${m.override?.creditCost != null ? "border-blue-300 bg-blue-50 font-semibold" : "border-gray-200"}`}
+                      className={`w-20 border rounded-lg px-2 py-1 text-xs text-right ${m.override?.creditCost != null ? "border-brand/60 bg-tint-blue font-semibold" : "border-line"}`}
                       aria-label={`${m.displayName} credit cost`}
                     />
                   </td>
@@ -169,16 +169,16 @@ function ModelTable({
                         checked={!disabled}
                         onChange={(e) => onPatch(m.id, { enabled: e.target.checked })}
                       />
-                      <span className={disabled ? "text-red-600" : "text-gray-500"}>{disabled ? "Disabled" : "On"}</span>
+                      <span className={disabled ? "text-error" : "text-fg-muted"}>{disabled ? "Disabled" : "On"}</span>
                     </label>
                   </td>
                   <td className="px-4 py-3">
                     {m.override ? (
-                      <Button variant="link" onClick={() => onPatch(m.id, { clear: true })} className="text-gray-400 hover:text-red-600">
+                      <Button variant="link" onClick={() => onPatch(m.id, { clear: true })} className="text-fg-subtle hover:text-error">
                         Reset to default
                       </Button>
                     ) : (
-                      <span className="text-xs text-gray-300">defaults</span>
+                      <span className="text-xs text-fg-subtle">defaults</span>
                     )}
                   </td>
                 </tr>

@@ -52,7 +52,7 @@ export function AccountPicker({ accounts, query = "" }: AccountPickerProps) {
             <li key={account.id}>
               <Link
                 href={href(account.id)}
-                className="group flex h-full flex-col gap-3 rounded-[var(--radius-card)] border border-card-border bg-white p-4 shadow-card transition-shadow hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                className="group flex h-full flex-col gap-3 rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card transition-shadow hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
               >
                 <div className="flex items-center gap-3">
                   {account.avatarUrl ? (
@@ -133,7 +133,7 @@ function SyncLine({ account }: { account: AccountContext }) {
     return <p className="mt-auto text-xs text-amber-700">Last sync was incomplete</p>;
   }
   if (account.lastSyncStatus && account.lastSyncStatus !== "ok") {
-    return <p className="mt-auto text-xs text-red-600">Last sync failed</p>;
+    return <p className="mt-auto text-xs text-error">Last sync failed</p>;
   }
   return (
     <p className="mt-auto text-xs text-ink-soft">

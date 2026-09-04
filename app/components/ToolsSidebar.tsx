@@ -32,23 +32,23 @@ function NavLink({ id, icon, label, href, onSelect, active }: {
   const isActive = active === id;
   // "billing" is the one monetization affordance in the rail — always gradient
   const isUpgrade = id === "billing";
-  const className = `group relative w-12 h-12 flex items-center justify-center rounded-2xl transition-all duration-100 flex-shrink-0 ${
+  const className = `group relative w-full h-11 flex items-center gap-3 px-3 rounded-xl transition-colors duration-100 flex-shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-primary/70 ${
     isUpgrade
-      ? "grad-brand text-white shadow-glow hover:shadow-glow-hover hover:brightness-105"
+      ? "grad-brand text-on-primary justify-center font-semibold shadow-glow hover:shadow-glow-hover hover:brightness-105"
       : isActive
-        ? "bg-tint-violet text-brand"
+        ? "bg-tint-emerald text-brand font-medium"
         : "text-ink-soft hover:bg-tint-blue hover:text-ink"
   }`;
 
   const inner = (
     <>
       {isActive && !isUpgrade && (
-        <span className="absolute -left-3.5 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full grad-brand" />
+        // Sits in the sidebar's own left padding, so the marker reads as
+        // attached to the edge of the rail rather than to the item.
+        <span className="absolute -left-3 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full grad-brand" />
       )}
-      {icon}
-      <span className="pointer-events-none absolute left-full ml-3 px-2 py-1 text-xs font-semibold text-white bg-ink rounded-lg opacity-0 group-hover:opacity-100 whitespace-nowrap z-50 shadow-lg transition-opacity">
-        {label}
-      </span>
+      <span className="flex-shrink-0">{icon}</span>
+      <span className="truncate text-sm">{label}</span>
     </>
   );
 
@@ -56,14 +56,14 @@ function NavLink({ id, icon, label, href, onSelect, active }: {
   // button rather than a link.
   if (onSelect) {
     return (
-      <button onClick={onSelect} title={label} aria-label={label} data-tour={`nav-${id}`} className={className}>
+      <button onClick={onSelect} aria-label={label} data-tour={`nav-${id}`} className={className}>
         {inner}
       </button>
     );
   }
 
   return (
-    <Link href={href!} title={label} data-tour={`nav-${id}`} className={className}>
+    <Link href={href!} data-tour={`nav-${id}`} className={className}>
       {inner}
     </Link>
   );
@@ -111,20 +111,25 @@ export default function ToolsSidebar({ active = "home" }: { active?: string }) {
   const { nav: NAV, bottomNav: BOTTOM_NAV } = useDashboardNavItems();
 
   return (
+    // Labelled rather than icon-only. The icons were carrying the whole
+    // meaning of a destination at 18px with a hover tooltip, which is a
+    // guessing game for anything past Home — and the mobile drawer already
+    // showed these same items with their labels, so the two surfaces
+    // disagreed. Same items, same routes, same nav data.
     <aside
-      className="hidden xl:flex flex-col items-center pt-5 pb-5 flex-shrink-0 border-r border-gray-100 bg-white"
-      style={{ width: 88 }}
+      className="hidden xl:flex flex-col pt-5 pb-5 flex-shrink-0 border-r border-card-border bg-surface-1"
+      style={{ width: 232 }}
     >
       {/* Main nav */}
-      <nav className="flex flex-col items-center gap-2.5 flex-1 w-full px-3.5">
+      <nav className="flex flex-col gap-1 flex-1 w-full px-3">
         {NAV.map(item => (
           <NavLink key={item.id} {...item} active={active} />
         ))}
       </nav>
 
       {/* Bottom section */}
-      <div className="w-8 h-px bg-gray-200 mb-3 flex-shrink-0" />
-      <div className="flex flex-col items-center gap-2.5 w-full px-3.5 flex-shrink-0">
+      <div className="mx-3 h-px bg-card-border mb-3 flex-shrink-0" />
+      <div className="flex flex-col gap-1 w-full px-3 flex-shrink-0">
         {/* "billing" is excluded here — its icon-badge NavLink has no icon to
             show any more, and the header's own Upgrade/Top Up button already
             covers this at the same xl: breakpoint. Still present in

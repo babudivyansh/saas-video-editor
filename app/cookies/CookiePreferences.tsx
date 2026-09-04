@@ -46,38 +46,38 @@ export default function CookiePreferences() {
 
   return (
     <div className="my-8 rounded-[24px] border border-gray-150 bg-gray-50/50 p-6 sm:p-8">
-      <h3 className="text-lg font-bold text-gray-900 mb-4">Manage Cookie Preferences</h3>
+      <h3 className="text-lg font-bold text-fg mb-4">Manage Cookie Preferences</h3>
 
       <div className="space-y-4">
         {/* Essential */}
-        <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-white">
+        <div className="flex items-center justify-between p-4 rounded-xl border border-line bg-panel">
           <div>
-            <p className="text-sm font-bold text-gray-800">Strictly Necessary Cookies</p>
-            <p className="text-xs text-gray-500 mt-0.5">Required for account authorization, security, and payment integrations.</p>
+            <p className="text-sm font-bold text-fg">Strictly Necessary Cookies</p>
+            <p className="text-xs text-fg-muted mt-0.5">Required for account authorization, security, and payment integrations.</p>
           </div>
           <div>
-            <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-500">
+            <span className="inline-flex items-center rounded-full bg-surface-3 px-3 py-1 text-xs font-bold text-fg-muted">
               Always Active
             </span>
           </div>
         </div>
 
         {/* Analytics */}
-        <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-white">
+        <div className="flex items-center justify-between p-4 rounded-xl border border-line bg-panel">
           <div>
-            <p className="text-sm font-bold text-gray-800">Performance & Analytics Cookies</p>
-            <p className="text-xs text-gray-500 mt-0.5">Allows us to monitor traffic patterns, user flows, and editor performance metrics.</p>
+            <p className="text-sm font-bold text-fg">Performance & Analytics Cookies</p>
+            <p className="text-xs text-fg-muted mt-0.5">Allows us to monitor traffic patterns, user flows, and editor performance metrics.</p>
           </div>
           <div>
             <button
               type="button"
               onClick={() => handleToggle("analytics")}
               className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                preferences.analytics ? "bg-[#335CFF]" : "bg-gray-200"
+                preferences.analytics ? "bg-brand" : "bg-surface-3"
               }`}
             >
               <span
-                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-panel shadow ring-0 transition duration-200 ease-in-out ${
                   preferences.analytics ? "translate-x-5" : "translate-x-0"
                 }`}
               />
@@ -86,21 +86,21 @@ export default function CookiePreferences() {
         </div>
 
         {/* Marketing */}
-        <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-white">
+        <div className="flex items-center justify-between p-4 rounded-xl border border-line bg-panel">
           <div>
-            <p className="text-sm font-bold text-gray-800">Marketing & Targeting Cookies</p>
-            <p className="text-xs text-gray-500 mt-0.5">Used to track referral efficiency from our affiliate networks and promotional ads.</p>
+            <p className="text-sm font-bold text-fg">Marketing & Targeting Cookies</p>
+            <p className="text-xs text-fg-muted mt-0.5">Used to track referral efficiency from our affiliate networks and promotional ads.</p>
           </div>
           <div>
             <button
               type="button"
               onClick={() => handleToggle("marketing")}
               className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                preferences.marketing ? "bg-[#335CFF]" : "bg-gray-200"
+                preferences.marketing ? "bg-brand" : "bg-surface-3"
               }`}
             >
               <span
-                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-panel shadow ring-0 transition duration-200 ease-in-out ${
                   preferences.marketing ? "translate-x-5" : "translate-x-0"
                 }`}
               />
@@ -110,7 +110,7 @@ export default function CookiePreferences() {
       </div>
 
       <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <p className="text-xs text-gray-400">Your choice is saved in this browser for one year.</p>
+        <p className="text-xs text-fg-subtle">Your choice is saved in this browser for one year.</p>
         <div className="flex items-center gap-3">
           {isSaved && (
             <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
@@ -122,7 +122,7 @@ export default function CookiePreferences() {
           )}
           <button
             onClick={handleSave}
-            className="rounded-full bg-[#335CFF] px-6 py-2.5 text-xs font-bold text-white shadow-md hover:bg-[#2348d8] transition-all cursor-pointer"
+            className="rounded-full bg-brand px-6 py-2.5 text-xs font-bold text-on-primary shadow-md hover:bg-[#2348d8] transition-all cursor-pointer"
           >
             Save Preferences
           </button>

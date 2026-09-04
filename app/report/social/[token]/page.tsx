@@ -44,8 +44,8 @@ export default async function SocialReportPage({ params }: { params: Promise<{ t
     return (
       <Shell>
         <div className="py-20 text-center">
-          <h1 className="mb-2 text-lg font-bold text-gray-900">{copy.title}</h1>
-          <p className="text-sm text-gray-500">{copy.detail}</p>
+          <h1 className="mb-2 text-lg font-bold text-fg">{copy.title}</h1>
+          <p className="text-sm text-fg-muted">{copy.detail}</p>
         </div>
       </Shell>
     );
@@ -65,8 +65,8 @@ export default async function SocialReportPage({ params }: { params: Promise<{ t
     return (
       <Shell>
         <div className="py-20 text-center">
-          <h1 className="mb-2 text-lg font-bold text-gray-900">This report is no longer available</h1>
-          <p className="text-sm text-gray-500">The account it covered has been disconnected.</p>
+          <h1 className="mb-2 text-lg font-bold text-fg">This report is no longer available</h1>
+          <p className="text-sm text-fg-muted">The account it covered has been disconnected.</p>
         </div>
       </Shell>
     );
@@ -100,20 +100,20 @@ export default async function SocialReportPage({ params }: { params: Promise<{ t
           // eslint-disable-next-line @next/next/no-img-element
           <img src={account.avatarUrl} alt="" className="h-14 w-14 rounded-full object-cover" />
         ) : (
-          <div className="h-14 w-14 rounded-full bg-gray-100" />
+          <div className="h-14 w-14 rounded-full bg-surface-3" />
         )}
         <div>
-          <h1 className="text-lg font-bold text-gray-900">
+          <h1 className="text-lg font-bold text-fg">
             {account.displayName || account.username || platform}
           </h1>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-fg-muted">
             {platform} · {RANGE_DAYS}-day performance report
             {account.lastSyncedAt ? ` · data as of ${account.lastSyncedAt.toLocaleDateString("en-GB")}` : ""}
           </p>
         </div>
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-gray-100 bg-gray-100 sm:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-surface-3 sm:grid-cols-4">
         <Tile label="Followers" value={fmtCompact(a.followers.current)} delta={a.followers.deltaPct} />
         <Tile label="Engagement rate" value={fmtPct(a.engagementRate.current)} delta={a.engagementRate.deltaPct} />
         <Tile label={`Views gained (${RANGE_DAYS}d)`} value={fmtCompact(a.views.current)} delta={a.views.deltaPct} />
@@ -121,21 +121,21 @@ export default async function SocialReportPage({ params }: { params: Promise<{ t
       </div>
 
       {showContent && a.topPosts.length > 0 && (
-        <div className="rounded-2xl border border-gray-100 bg-white p-5">
-          <p className="mb-3 text-xs font-bold uppercase tracking-wide text-gray-500">Top posts</p>
+        <div className="rounded-2xl border border-line bg-panel p-5">
+          <p className="mb-3 text-xs font-bold uppercase tracking-wide text-fg-muted">Top posts</p>
           <div className="space-y-3">
             {a.topPosts.map((p, i) => (
               <div key={p.id} className="flex items-center gap-3">
-                <span className="w-4 text-xs font-bold text-gray-400">{i + 1}</span>
+                <span className="w-4 text-xs font-bold text-fg-subtle">{i + 1}</span>
                 {p.thumbnailUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={p.thumbnailUrl} alt="" className="h-8 w-12 flex-shrink-0 rounded bg-gray-100 object-cover" />
+                  <img src={p.thumbnailUrl} alt="" className="h-8 w-12 flex-shrink-0 rounded bg-surface-3 object-cover" />
                 ) : (
-                  <div className="h-8 w-12 flex-shrink-0 rounded bg-gray-100" />
+                  <div className="h-8 w-12 flex-shrink-0 rounded bg-surface-3" />
                 )}
-                <span className="flex-1 truncate text-sm text-gray-700">{p.caption || "Untitled"}</span>
-                <span className="text-sm font-semibold text-gray-700">{fmtCompact(p.views ?? p.reach)}</span>
-                <span className="w-16 text-right text-xs text-gray-500">
+                <span className="flex-1 truncate text-sm text-fg">{p.caption || "Untitled"}</span>
+                <span className="text-sm font-semibold text-fg">{fmtCompact(p.views ?? p.reach)}</span>
+                <span className="w-16 text-right text-xs text-fg-muted">
                   {fmtPct(postEngagementRate(p))} ER
                 </span>
               </div>
@@ -144,9 +144,9 @@ export default async function SocialReportPage({ params }: { params: Promise<{ t
         </div>
       )}
 
-      <p className="mt-8 text-center text-xs text-gray-500">
+      <p className="mt-8 text-center text-xs text-fg-muted">
         Generated with{" "}
-        <a href="https://clipiro.com" className="font-semibold text-blue-600">
+        <a href="https://clipiro.com" className="font-semibold text-brand">
           Clipiro
         </a>{" "}
         Social Tracker
@@ -157,7 +157,7 @@ export default async function SocialReportPage({ params }: { params: Promise<{ t
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-10">
+    <div className="min-h-screen bg-surface-2 px-4 py-10">
       <div className="mx-auto max-w-2xl">{children}</div>
     </div>
   );
@@ -166,16 +166,16 @@ function Shell({ children }: { children: React.ReactNode }) {
 function Tile({ label, value, delta }: { label: string; value: string; delta?: number | null }) {
   const flat = delta == null || Math.abs(delta) < 0.05;
   return (
-    <div className="bg-white px-4 py-3.5">
+    <div className="bg-panel px-4 py-3.5">
       {/* text-gray-500, not 400: the old shade was 2.85:1 on white, a WCAG
           failure on a label that carries the meaning of the number below it. */}
-      <p className="mb-1 text-xs text-gray-500">{label}</p>
+      <p className="mb-1 text-xs text-fg-muted">{label}</p>
       <div className="flex items-baseline gap-2">
-        <p className="text-lg font-bold text-gray-900">{value}</p>
+        <p className="text-lg font-bold text-fg">{value}</p>
         {delta !== undefined && (
           <span
             className={`text-[11px] font-semibold ${
-              flat ? "text-gray-500" : delta! > 0 ? "text-emerald-700" : "text-red-600"
+              flat ? "text-fg-muted" : delta! > 0 ? "text-emerald-700" : "text-error"
             }`}
           >
             {flat ? "→" : delta! > 0 ? "↑" : "↓"} {delta == null ? "" : `${Math.abs(delta).toFixed(1)}%`}

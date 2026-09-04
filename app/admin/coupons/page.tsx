@@ -32,7 +32,7 @@ const EMPTY = {
   appliesTo: "subscription", minAmountInPaise: 0, maxRedemptions: "",
   perUserLimit: 1, firstPurchaseOnly: false, featured: false, expiresAt: "",
 };
-const input = "w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+const input = "w-full bg-surface-2 border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40";
 
 function fmtDate(iso: string | null) {
   return iso ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—";
@@ -147,37 +147,37 @@ export default function AdminCouponsPage() {
       {isError ? (
         <ErrorCard onRetry={refetch} />
       ) : isLoading ? (
-        <p className="text-sm text-gray-400">Loading coupons…</p>
+        <p className="text-sm text-fg-subtle">Loading coupons…</p>
       ) : (
         <div className="space-y-5">
           {coupons.length === 0 && (
-            <p className="text-sm text-gray-400">No coupons yet — create your first launch code below.</p>
+            <p className="text-sm text-fg-subtle">No coupons yet — create your first launch code below.</p>
           )}
 
           {coupons.map(c => {
             const savingThis = saveMutation.isPending && saveMutation.variables?.id === c.id;
             return (
-            <div key={c.id} className={`bg-white rounded-2xl border shadow-sm p-6 ${c.active ? "border-gray-100" : "border-gray-200 opacity-60"}`}>
+            <div key={c.id} className={`bg-panel rounded-2xl border shadow-sm p-6 ${c.active ? "border-line" : "border-line opacity-60"}`}>
               <div className="flex items-start justify-between mb-4 gap-3 flex-wrap">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-mono font-bold text-gray-900 tracking-wide">{c.code}</h3>
-                  <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">{valueLabel(c)}</span>
-                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{c.appliesTo}</span>
+                  <h3 className="font-mono font-bold text-fg tracking-wide">{c.code}</h3>
+                  <span className="text-xs font-semibold text-brand bg-tint-blue px-2 py-0.5 rounded-full">{valueLabel(c)}</span>
+                  <span className="text-xs text-fg-muted bg-surface-3 px-2 py-0.5 rounded-full">{c.appliesTo}</span>
                   {c.featured && <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">Featured</span>}
                   {c.firstPurchaseOnly && <span className="text-xs text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">1st purchase</span>}
-                  {!c.active && <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">Inactive</span>}
+                  {!c.active && <span className="text-xs font-semibold text-error bg-error/10 px-2 py-0.5 rounded-full">Inactive</span>}
                 </div>
                 <div className="flex items-center gap-3">
                   <Button
                     variant="link"
                     onClick={() => setRedemptionsFor(redemptionsFor === c.id ? null : c.id)}
                     disabled={c.timesRedeemed === 0}
-                    className="text-gray-500 hover:text-blue-600"
+                    className="text-fg-muted hover:text-brand"
                   >
                     Used <strong>{c.timesRedeemed}</strong>{c.maxRedemptions != null ? ` / ${c.maxRedemptions}` : ""}
                     {c.timesRedeemed > 0 && <span className="ml-1">{redemptionsFor === c.id ? "▴" : "▾"}</span>}
                   </Button>
-                  <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-fg-muted cursor-pointer">
                     <input type="checkbox" checked={c.active} onChange={e => edit(c.id, { active: e.target.checked })} /> Active
                   </label>
                   <Button variant="danger" size="sm" onClick={() => setConfirmDelete(c.id)}>Deactivate</Button>
@@ -185,22 +185,22 @@ export default function AdminCouponsPage() {
               </div>
 
               {redemptionsFor === c.id && (
-                <div className="mb-4 bg-gray-50 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-gray-500 mb-2">Redemptions</p>
+                <div className="mb-4 bg-surface-2 rounded-xl p-4">
+                  <p className="text-xs font-semibold text-fg-muted mb-2">Redemptions</p>
                   {!redemptions ? (
-                    <p className="text-xs text-gray-400">Loading…</p>
+                    <p className="text-xs text-fg-subtle">Loading…</p>
                   ) : redemptions.redemptions.length === 0 ? (
-                    <p className="text-xs text-gray-400">No redemptions recorded.</p>
+                    <p className="text-xs text-fg-subtle">No redemptions recorded.</p>
                   ) : (
                     <div className="overflow-x-auto">
                     <table className="w-full text-xs">
                       <tbody>
                         {redemptions.redemptions.map(r => (
-                          <tr key={r.id} className="border-t border-gray-100 first:border-0">
-                            <td className="py-1.5 text-gray-700">{r.user.email}</td>
-                            <td className="py-1.5 text-gray-400">{new Date(r.createdAt).toLocaleDateString("en-IN")}</td>
-                            <td className="py-1.5 text-right font-semibold text-gray-700">−₹{(r.discountInPaise / 100).toFixed(0)}</td>
-                            <td className="py-1.5 text-right text-gray-400 font-mono">{r.orderId ?? "—"}</td>
+                          <tr key={r.id} className="border-t border-line first:border-0">
+                            <td className="py-1.5 text-fg">{r.user.email}</td>
+                            <td className="py-1.5 text-fg-subtle">{new Date(r.createdAt).toLocaleDateString("en-IN")}</td>
+                            <td className="py-1.5 text-right font-semibold text-fg">−₹{(r.discountInPaise / 100).toFixed(0)}</td>
+                            <td className="py-1.5 text-right text-fg-subtle font-mono">{r.orderId ?? "—"}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -212,18 +212,18 @@ export default function AdminCouponsPage() {
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
-                  <label className="text-xs font-semibold text-gray-400 block mb-1">Type</label>
+                  <label className="text-xs font-semibold text-fg-subtle block mb-1">Type</label>
                   <select className={input} value={c.discountType} onChange={e => edit(c.id, { discountType: e.target.value })}>
                     <option value="percent">percent (%)</option>
                     <option value="fixed">fixed (₹ in paise)</option>
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-gray-400 block mb-1">Value {c.discountType === "percent" ? "(%)" : "(paise)"}</label>
+                  <label className="text-xs font-semibold text-fg-subtle block mb-1">Value {c.discountType === "percent" ? "(%)" : "(paise)"}</label>
                   <input type="number" className={input} value={c.discountValue} onChange={e => edit(c.id, { discountValue: Number(e.target.value) })} />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-gray-400 block mb-1">Applies to</label>
+                  <label className="text-xs font-semibold text-fg-subtle block mb-1">Applies to</label>
                   <select className={input} value={c.appliesTo} onChange={e => edit(c.id, { appliesTo: e.target.value })}>
                     <option value="all">all</option>
                     <option value="subscription">subscription</option>
@@ -231,34 +231,34 @@ export default function AdminCouponsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-gray-400 block mb-1">Min order (paise)</label>
+                  <label className="text-xs font-semibold text-fg-subtle block mb-1">Min order (paise)</label>
                   <input type="number" className={input} value={c.minAmountInPaise} onChange={e => edit(c.id, { minAmountInPaise: Number(e.target.value) })} />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-gray-400 block mb-1">Max redemptions</label>
+                  <label className="text-xs font-semibold text-fg-subtle block mb-1">Max redemptions</label>
                   <input type="number" className={input} placeholder="∞" value={c.maxRedemptions ?? ""} onChange={e => edit(c.id, { maxRedemptions: e.target.value ? Number(e.target.value) : null })} />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-gray-400 block mb-1">Per-user limit</label>
+                  <label className="text-xs font-semibold text-fg-subtle block mb-1">Per-user limit</label>
                   <input type="number" className={input} value={c.perUserLimit} onChange={e => edit(c.id, { perUserLimit: Number(e.target.value) })} />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-gray-400 block mb-1">Expires</label>
+                  <label className="text-xs font-semibold text-fg-subtle block mb-1">Expires</label>
                   <input type="date" className={input} value={c.expiresAt ? c.expiresAt.split("T")[0] : ""} onChange={e => edit(c.id, { expiresAt: e.target.value || null })} />
-                  <p className="text-[10px] text-gray-400 mt-1">{c.expiresAt ? fmtDate(c.expiresAt) : "never"}</p>
+                  <p className="text-[10px] text-fg-subtle mt-1">{c.expiresAt ? fmtDate(c.expiresAt) : "never"}</p>
                 </div>
                 <div className="flex items-end gap-4 pb-1">
-                  <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-fg-muted cursor-pointer">
                     <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={c.firstPurchaseOnly} onChange={e => edit(c.id, { firstPurchaseOnly: e.target.checked })} /> 1st only
                   </label>
-                  <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-fg-muted cursor-pointer">
                     <input type="checkbox" className="w-4 h-4 accent-amber-500" checked={c.featured} onChange={e => edit(c.id, { featured: e.target.checked })} /> Featured
                   </label>
                 </div>
               </div>
 
               <div className="mt-4">
-                <label className="text-xs font-semibold text-gray-400 block mb-1">Description</label>
+                <label className="text-xs font-semibold text-fg-subtle block mb-1">Description</label>
                 <input className={input} value={c.description ?? ""} onChange={e => edit(c.id, { description: e.target.value })} />
               </div>
               <div className="flex justify-end mt-4">
@@ -271,27 +271,27 @@ export default function AdminCouponsPage() {
           })}
 
           {/* Create new coupon */}
-          <form onSubmit={createCoupon} className="bg-white rounded-2xl border border-dashed border-gray-300 p-6">
-            <h3 className="font-bold text-gray-900 mb-4">Create a coupon</h3>
-            {err && <div className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2 mb-4">{err}</div>}
+          <form onSubmit={createCoupon} className="bg-panel rounded-2xl border border-dashed border-line-strong p-6">
+            <h3 className="font-bold text-fg mb-4">Create a coupon</h3>
+            {err && <div className="text-sm text-error bg-error/10 rounded-xl px-4 py-2 mb-4">{err}</div>}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <label className="text-xs font-semibold text-gray-400 block mb-1">Code</label>
+                <label className="text-xs font-semibold text-fg-subtle block mb-1">Code</label>
                 <input className={`${input} font-mono uppercase`} placeholder="LAUNCH30" value={form.code} onChange={e => setForm({ ...form, code: e.target.value.toUpperCase() })} required />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-400 block mb-1">Type</label>
+                <label className="text-xs font-semibold text-fg-subtle block mb-1">Type</label>
                 <select className={input} value={form.discountType} onChange={e => setForm({ ...form, discountType: e.target.value })}>
                   <option value="percent">percent (%)</option>
                   <option value="fixed">fixed (₹ in paise)</option>
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-400 block mb-1">Value {form.discountType === "percent" ? "(%)" : "(paise)"}</label>
+                <label className="text-xs font-semibold text-fg-subtle block mb-1">Value {form.discountType === "percent" ? "(%)" : "(paise)"}</label>
                 <input type="number" className={input} value={form.discountValue} onChange={e => setForm({ ...form, discountValue: Number(e.target.value) })} required />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-400 block mb-1">Applies to</label>
+                <label className="text-xs font-semibold text-fg-subtle block mb-1">Applies to</label>
                 <select className={input} value={form.appliesTo} onChange={e => setForm({ ...form, appliesTo: e.target.value })}>
                   <option value="all">all</option>
                   <option value="subscription">subscription</option>
@@ -299,32 +299,32 @@ export default function AdminCouponsPage() {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-400 block mb-1">Min order (paise)</label>
+                <label className="text-xs font-semibold text-fg-subtle block mb-1">Min order (paise)</label>
                 <input type="number" className={input} value={form.minAmountInPaise} onChange={e => setForm({ ...form, minAmountInPaise: Number(e.target.value) })} />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-400 block mb-1">Max redemptions</label>
+                <label className="text-xs font-semibold text-fg-subtle block mb-1">Max redemptions</label>
                 <input type="number" className={input} placeholder="∞" value={form.maxRedemptions} onChange={e => setForm({ ...form, maxRedemptions: e.target.value })} />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-400 block mb-1">Per-user limit</label>
+                <label className="text-xs font-semibold text-fg-subtle block mb-1">Per-user limit</label>
                 <input type="number" className={input} value={form.perUserLimit} onChange={e => setForm({ ...form, perUserLimit: Number(e.target.value) })} />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-400 block mb-1">Expires</label>
+                <label className="text-xs font-semibold text-fg-subtle block mb-1">Expires</label>
                 <input type="date" className={input} value={form.expiresAt} onChange={e => setForm({ ...form, expiresAt: e.target.value })} />
               </div>
               <div className="flex items-end gap-4 pb-1">
-                <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer">
+                <label className="flex items-center gap-2 text-xs font-semibold text-fg-muted cursor-pointer">
                   <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={form.firstPurchaseOnly} onChange={e => setForm({ ...form, firstPurchaseOnly: e.target.checked })} /> 1st only
                 </label>
-                <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer">
+                <label className="flex items-center gap-2 text-xs font-semibold text-fg-muted cursor-pointer">
                   <input type="checkbox" className="w-4 h-4 accent-amber-500" checked={form.featured} onChange={e => setForm({ ...form, featured: e.target.checked })} /> Featured
                 </label>
               </div>
             </div>
             <div className="mt-4">
-              <label className="text-xs font-semibold text-gray-400 block mb-1">Description</label>
+              <label className="text-xs font-semibold text-fg-subtle block mb-1">Description</label>
               <input className={input} placeholder="Launch special — 30% off your first plan" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
             </div>
             <div className="flex justify-end mt-4">

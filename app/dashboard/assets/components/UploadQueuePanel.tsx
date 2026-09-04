@@ -33,7 +33,7 @@ export function UploadQueuePanel({ items, onPause, onResume, onRetry, onCancel, 
   const activeCount = items.filter((it) => it.status === "uploading" || it.status === "processing").length;
 
   return (
-    <div className="fixed bottom-6 right-6 z-40 w-80 max-w-[95vw] bg-white rounded-[var(--radius-card)] border border-card-border shadow-xl overflow-hidden">
+    <div className="fixed bottom-6 right-6 z-40 w-80 max-w-[95vw] bg-panel rounded-[var(--radius-card)] border border-card-border shadow-xl overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-card-border bg-tint-violet/40">
         <span className="text-xs font-bold text-ink">
           {activeCount > 0 ? `Uploading ${activeCount} file${activeCount === 1 ? "" : "s"}…` : "Uploads"}
@@ -56,16 +56,16 @@ export function UploadQueuePanel({ items, onPause, onResume, onRetry, onCancel, 
                 <span className="text-[10px] text-ink-soft/70 flex-shrink-0">{fmtSize(it.file.size)}</span>
               </div>
               <div className="flex items-center gap-2 mt-1.5">
-                <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div className="flex-1 h-1.5 bg-surface-3 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-300 ${it.status === "error" ? "bg-red-400" : "grad-brand"}`}
+                    className={`h-full rounded-full transition-all duration-300 ${it.status === "error" ? "bg-error" : "grad-brand"}`}
                     style={{ width: `${it.progress}%` }}
                   />
                 </div>
                 <span className="text-[10px] text-ink-soft/70 w-8 text-right flex-shrink-0">{it.progress}%</span>
               </div>
               <div className="flex items-center justify-between mt-1">
-                <span className={`text-[10px] font-semibold ${it.status === "error" ? "text-red-500" : it.status === "done" ? "text-emerald-600" : "text-ink-soft"}`}>
+                <span className={`text-[10px] font-semibold ${it.status === "error" ? "text-error" : it.status === "done" ? "text-emerald-600" : "text-ink-soft"}`}>
                   {it.error ?? STATUS_LABEL[it.status]}
                 </span>
                 <div className="flex items-center gap-2">
@@ -79,7 +79,7 @@ export function UploadQueuePanel({ items, onPause, onResume, onRetry, onCancel, 
                     <button onClick={() => onRetry(it.id)} className="text-[10px] font-semibold text-brand hover:underline cursor-pointer">Retry</button>
                   )}
                   {(it.status === "uploading" || it.status === "paused") && (
-                    <button onClick={() => onCancel(it.id)} className="text-[10px] font-semibold text-ink-soft hover:text-red-500 cursor-pointer">Cancel</button>
+                    <button onClick={() => onCancel(it.id)} className="text-[10px] font-semibold text-ink-soft hover:text-error cursor-pointer">Cancel</button>
                   )}
                   {(it.status === "done" || it.status === "error" || it.status === "canceled" || it.status === "duplicate") && (
                     <button onClick={() => onDismiss(it.id)} className="text-[10px] font-semibold text-ink-soft hover:text-ink cursor-pointer">Dismiss</button>

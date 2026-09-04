@@ -11,21 +11,21 @@ export default function AffiliateCTA() {
       {user ? (
         <Link
           href="/dashboard/referral"
-          className="inline-flex items-center gap-2 rounded-full bg-brand px-8 py-3.5 text-base font-bold text-white shadow-lg transition-transform duration-200 hover:scale-[1.02] hover:bg-brand-dark"
+          className="inline-flex items-center gap-2 rounded-full bg-brand px-8 py-3.5 text-base font-bold text-on-primary shadow-lg transition-transform duration-200 hover:scale-[1.02] hover:bg-brand-dark"
         >
           Go to your referral dashboard
         </Link>
       ) : (
         <button
           onClick={() => openAuthModal("register")}
-          className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-brand px-8 py-3.5 text-base font-bold text-white shadow-lg transition-transform duration-200 hover:scale-[1.02] hover:bg-brand-dark"
+          className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-brand px-8 py-3.5 text-base font-bold text-on-primary shadow-lg transition-transform duration-200 hover:scale-[1.02] hover:bg-brand-dark"
         >
           Join the affiliate program
         </button>
       )}
       <a
         href="/affiliate-tos"
-        className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-8 py-3.5 text-base font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+        className="inline-flex items-center gap-2 rounded-full border border-line px-8 py-3.5 text-base font-semibold text-fg transition-colors hover:bg-surface-2"
       >
         Read the full terms
       </a>

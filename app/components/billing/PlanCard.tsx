@@ -52,15 +52,15 @@ export function PlanCard({
     <div
       className={`relative h-full rounded-2xl border-2 flex flex-col ${compact ? "p-6" : "p-8"} ${
         highlighted
-          ? "border-brand bg-brand text-white shadow-xl"
-          : "border-gray-100 bg-white text-gray-900 shadow-sm"
+          ? "border-brand bg-brand text-on-primary shadow-xl"
+          : "border-line bg-panel text-fg shadow-sm"
       }`}
     >
       {highlighted && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2">
           {/* whitespace-nowrap is load-bearing: at card widths this narrow the
               pill wrapped onto two lines and hung off the top of the card. */}
-          <span className="block whitespace-nowrap bg-green-400 text-green-900 text-[11px] font-black px-3 py-1 rounded-full uppercase tracking-wide">
+          <span className="block whitespace-nowrap bg-success text-bg text-[11px] font-black px-3 py-1 rounded-full uppercase tracking-wide">
             Most Popular
           </span>
         </div>
@@ -68,12 +68,12 @@ export function PlanCard({
 
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-1 flex-wrap">
-          <p className={`text-sm font-bold uppercase tracking-widest ${highlighted ? "text-white" : "text-gray-500"}`}>
+          <p className={`text-sm font-bold uppercase tracking-widest ${highlighted ? "text-on-primary" : "text-fg-muted"}`}>
             {baseTier}
           </p>
           {isCurrent && (
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${
-              highlighted ? "bg-white/20 text-white" : "bg-tint-emerald text-green-700"
+              highlighted ? "bg-on-primary/15 text-on-primary" : "bg-tint-emerald text-success"
             }`}>
               Current
             </span>
@@ -83,23 +83,23 @@ export function PlanCard({
         {/* The price, and nothing competing with it. The symbol is its own
             element so it reads as a symbol rather than another digit. */}
         <div className="flex items-start gap-0.5">
-          <span className={`text-xl font-bold mt-1.5 ${highlighted ? "text-white" : "text-gray-500"}`}>
+          <span className={`text-xl font-bold mt-1.5 ${highlighted ? "text-on-primary" : "text-fg-muted"}`}>
             {currency === "USD" ? "$" : "₹"}
           </span>
           <span className={`${compact ? "text-4xl" : "text-5xl"} font-black leading-none tracking-tight`}>
             {formatMoney(perMonth, currency).replace(/^[₹$]/, "")}
           </span>
-          <span className={`text-sm font-medium self-end mb-1 ml-1 ${highlighted ? "text-white" : "text-gray-500"}`}>
+          <span className={`text-sm font-medium self-end mb-1 ml-1 ${highlighted ? "text-on-primary" : "text-fg-muted"}`}>
             /month
           </span>
         </div>
 
         {/* One secondary line, only when yearly changes the story. */}
         {months > 1 && (
-          <p className={`text-xs mt-2 ${highlighted ? "text-white" : "text-gray-500"}`}>
+          <p className={`text-xs mt-2 ${highlighted ? "text-on-primary" : "text-fg-muted"}`}>
             Billed {formatMoney(total, currency)} yearly
             {savePct && (
-              <span className={`font-bold ${highlighted ? "text-green-300" : "text-green-600"}`}>
+              <span className={`font-bold ${highlighted ? "text-on-primary" : "text-success"}`}>
                 {" "}· save {savePct}%
               </span>
             )}
@@ -107,7 +107,7 @@ export function PlanCard({
         )}
 
         <p className={`text-sm font-semibold mt-4 pt-4 border-t ${
-          highlighted ? "text-white border-white/20" : "text-gray-900 border-gray-100"
+          highlighted ? "text-on-primary border-on-primary/25" : "text-fg border-line"
         }`}>
           {plan.monthlyCredits} credits every month
         </p>
@@ -118,9 +118,9 @@ export function PlanCard({
           const perRender = cheapestVideoCostPerRender(plan.tier);
           const images = Math.floor(plan.monthlyCredits / cheapestImageCost);
           return (
-            <p className={`text-xs mt-1 ${highlighted ? "text-white" : "text-gray-500"}`}>
+            <p className={`text-xs mt-1 ${highlighted ? "text-on-primary" : "text-fg-muted"}`}>
               ≈ {images} images or {perRender ? Math.floor(plan.monthlyCredits / perRender) : 0} videos
-              <span className={highlighted ? "text-white/90" : "text-gray-500"}> on the cheapest model</span>
+              <span className={highlighted ? "text-on-primary/85" : "text-fg-muted"}> on the cheapest model</span>
             </p>
           );
         })()}
@@ -131,15 +131,15 @@ export function PlanCard({
         return (
           <>
             {inherits && (
-              <p className={`text-xs font-bold mb-3 ${highlighted ? "text-white" : "text-gray-500"}`}>
+              <p className={`text-xs font-bold mb-3 ${highlighted ? "text-on-primary" : "text-fg-muted"}`}>
                 Everything in {inherits}, plus:
               </p>
             )}
             <ul className="space-y-3 mb-8 flex-1">
               {bullets.map((b) => (
                 <li key={b} className="flex items-start gap-2.5 text-sm">
-                  <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${highlighted ? "text-white" : "text-brand"}`} />
-                  <span className={highlighted ? "text-white" : "text-gray-700"}>{b}</span>
+                  <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${highlighted ? "text-on-primary" : "text-brand"}`} />
+                  <span className={highlighted ? "text-on-primary" : "text-fg"}>{b}</span>
                 </li>
               ))}
             </ul>
@@ -151,8 +151,8 @@ export function PlanCard({
         onClick={() => onSelect(plan)}
         className={`w-full mt-auto font-bold py-3 rounded-full transition-all ${
           highlighted
-            ? "bg-white text-brand hover:bg-tint-blue shadow-lg"
-            : "bg-brand text-white hover:bg-brand-dark ring-1 ring-brand-soft"
+            ? "bg-panel text-brand hover:bg-tint-blue shadow-lg"
+            : "bg-brand text-on-primary hover:bg-brand-dark ring-1 ring-brand-soft"
         }`}
       >
         {ctaLabel ?? (isCurrent ? `Renew ${baseTier}` : `Get ${baseTier}`)}

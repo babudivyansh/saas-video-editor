@@ -17,12 +17,12 @@ export default function AdminError({
 
   return (
     <main className="min-h-[60vh] flex flex-col items-center justify-center px-4 text-center">
-      <h1 className="text-xl font-bold text-zinc-900">Admin page error</h1>
-      <p className="mt-2 text-sm text-zinc-500 max-w-md leading-relaxed">
+      <h1 className="text-xl font-bold text-fg">Admin page error</h1>
+      <p className="mt-2 text-sm text-fg-subtle max-w-md leading-relaxed">
         The admin view failed to render. Retry, or return to the admin dashboard.
       </p>
       {error.digest && (
-        <p className="mt-2 text-xs text-zinc-400 font-mono">Error ID: {error.digest}</p>
+        <p className="mt-2 text-xs text-fg-muted font-mono">Error ID: {error.digest}</p>
       )}
       <div className="mt-6 flex gap-3">
         <Button onClick={reset} variant="primary">

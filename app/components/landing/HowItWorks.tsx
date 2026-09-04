@@ -18,8 +18,8 @@ export default function HowItWorks() {
         <Reveal>
           <div className="mx-auto max-w-2xl text-center">
             <span className="text-xs font-bold uppercase tracking-widest text-brand-deep">How it works</span>
-            <h2 className="mt-3 text-3xl font-extrabold text-gray-900 md:text-5xl">From long video to viral short in 4 steps</h2>
-            <p className="mt-4 text-lg text-gray-600">No editing skills required. Go from upload to published in minutes.</p>
+            <h2 className="mt-3 text-3xl font-extrabold text-fg md:text-5xl">From long video to viral short in 4 steps</h2>
+            <p className="mt-4 text-lg text-fg-muted">No editing skills required. Go from upload to published in minutes.</p>
           </div>
         </Reveal>
 
@@ -31,14 +31,14 @@ export default function HowItWorks() {
             {STEPS.map((step, i) => (
               <Reveal key={step.title} delay={i * 80}>
                 <div className="relative flex flex-col items-center text-center">
-                  <div className="relative z-10 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand text-white shadow-lg shadow-brand/30">
+                  <div className="relative z-10 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand text-on-primary shadow-lg shadow-brand/30">
                     {step.icon}
-                    <span className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-gray-900 text-xs font-bold text-white">
+                    <span className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border-2 border-bg bg-fg text-bg text-xs font-bold text-white">
                       {i + 1}
                     </span>
                   </div>
-                  <h3 className="mt-5 text-lg font-bold text-gray-900">{step.title}</h3>
-                  <p className="mt-2 max-w-xs text-sm leading-relaxed text-gray-600">{step.desc}</p>
+                  <h3 className="mt-5 text-lg font-bold text-fg">{step.title}</h3>
+                  <p className="mt-2 max-w-xs text-sm leading-relaxed text-fg-muted">{step.desc}</p>
                 </div>
               </Reveal>
             ))}

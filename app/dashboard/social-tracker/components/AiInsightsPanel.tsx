@@ -79,7 +79,7 @@ export function AiInsightsPanel({
   return (
     <section
       aria-labelledby="ai-insights-heading"
-      className="rounded-[var(--radius-card)] border border-card-border bg-white p-5 shadow-card"
+      className="rounded-[var(--radius-card)] border border-card-border bg-panel p-5 shadow-card"
     >
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <div>
@@ -195,7 +195,7 @@ function messageFor(status: number, serverMessage?: string): { message: string; 
   if (status === 402) {
     return {
       message: serverMessage ?? "You do not have enough credits for this.",
-      action: { label: "Top up", href: "/dashboard/billing" },
+      action: { label: "Top up", href: "/dashboard?billing=1&tab=topup" },
     };
   }
   if (status === 409) {

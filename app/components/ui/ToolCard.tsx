@@ -19,7 +19,7 @@ interface ToolCardProps {
 }
 
 export function ToolCard({ title, desc, href, preview, badge, size = "md", cta = "Try Now" }: ToolCardProps) {
-  const shell = "rounded-[var(--radius-card)] border border-card-border overflow-hidden bg-white transition-all hover:shadow-card-hover hover:-translate-y-0.5 flex flex-col";
+  const shell = "rounded-[var(--radius-card)] border border-card-border overflow-hidden bg-panel transition-all hover:shadow-card-hover hover:-translate-y-0.5 flex flex-col";
 
   if (size === "sm") {
     return (
@@ -45,7 +45,7 @@ export function ToolCard({ title, desc, href, preview, badge, size = "md", cta =
         <div className="flex items-center gap-2 mb-1.5">
           <h3 className="text-[15px] font-bold text-ink leading-tight">{title}</h3>
           {badge && (
-            <span className="text-[10px] font-bold text-white grad-brand px-2 py-0.5 rounded-full flex-shrink-0">{badge}</span>
+            <span className="text-[10px] font-bold text-on-primary grad-brand px-2 py-0.5 rounded-full flex-shrink-0">{badge}</span>
           )}
         </div>
         <p className="text-[13px] text-ink-soft leading-relaxed mb-4 flex-1">{desc}</p>

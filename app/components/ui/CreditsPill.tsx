@@ -20,7 +20,7 @@ export function CreditsPill({ credits, href, onClick }: CreditsPillProps) {
     </>
   );
   const className =
-    "flex items-center gap-1.5 bg-tint-violet hover:bg-violet-100 rounded-full px-3 py-1.5 transition-all hover:scale-[1.03] cursor-pointer";
+    "flex items-center gap-1.5 bg-tint-violet hover:bg-tint-fuchsia rounded-full px-3 py-1.5 transition-all hover:scale-[1.03] cursor-pointer";
 
   return (
     <Tooltip content="Credits are spent each time you generate content. Different tools cost different amounts." position="bottom">

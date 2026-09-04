@@ -25,13 +25,13 @@ function TestimonialCard({ review }: { review: PublicReviewDTO }) {
   const plan = tierLabel(review.tierAtSubmit);
 
   return (
-    <div className="flex h-full flex-col gap-3 rounded-[20px] border border-card-border bg-white p-7 shadow-card">
+    <div className="flex h-full flex-col gap-3 rounded-[20px] border border-card-border bg-panel p-7 shadow-card">
       <div className="flex items-center gap-3">
         {review.author.avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={review.author.avatarUrl} alt="" className="h-10 w-10 flex-shrink-0 rounded-full object-cover" />
         ) : (
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full grad-brand text-sm font-bold text-white">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full grad-brand text-sm font-bold text-on-primary">
             {initials(review.author.name)}
           </div>
         )}

@@ -242,7 +242,7 @@ function TrimmedPreviewPlayer({ sourceVideoUrl, startSec, endSec, aspectRatio, c
   }, [startSec, endSec, playing]);
 
   return (
-    <div className={`relative bg-gray-900 ${className ?? ""}`} style={{ aspectRatio: arCss(aspectRatio) }}>
+    <div className={`relative bg-black ${className ?? ""}`} style={{ aspectRatio: arCss(aspectRatio) }}>
       {playing && sourceVideoUrl ? (
         <video
           ref={videoRef}
@@ -341,12 +341,12 @@ export function DubPanel({ projectId, clip, embedded }: { projectId: string; cli
   return (
     <div className="w-full space-y-2 rounded-xl border border-card-border p-3">
       <div className="flex items-center gap-2">
-        <select value={selected} onChange={(e) => setSelected(e.target.value)} className="flex-1 rounded-lg border border-card-border px-2 py-1.5 text-xs bg-white">
+        <select value={selected} onChange={(e) => setSelected(e.target.value)} className="flex-1 rounded-lg border border-card-border px-2 py-1.5 text-xs bg-panel">
           {langs.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
         </select>
-        <button onClick={() => startDubMutation.mutate()} disabled={startDubMutation.isPending} className="text-xs font-semibold py-1.5 px-3 rounded-lg grad-brand text-white shadow-glow disabled:opacity-50">{startDubMutation.isPending ? "…" : "Dub (1 credit)"}</button>
+        <button onClick={() => startDubMutation.mutate()} disabled={startDubMutation.isPending} className="text-xs font-semibold py-1.5 px-3 rounded-lg grad-brand text-on-primary shadow-glow disabled:opacity-50">{startDubMutation.isPending ? "…" : "Dub (1 credit)"}</button>
       </div>
-      {startDubMutation.isError && <p className="text-[11px] text-red-600">{startDubMutation.error instanceof Error ? startDubMutation.error.message : "Failed"}</p>}
+      {startDubMutation.isError && <p className="text-[11px] text-error">{startDubMutation.error instanceof Error ? startDubMutation.error.message : "Failed"}</p>}
       {dubs.length > 0 && (
         <ul className="space-y-1">
           {dubs.map((d) => (
@@ -419,7 +419,7 @@ export function PublishPanel({ projectId, clip, embedded }: { projectId: string;
           <div>
             <h4 className="text-[12px] font-bold text-ink-soft uppercase tracking-wider mb-2">Publish directly</h4>
             <div className="rounded-xl border border-card-border p-3 space-y-2.5">
-              <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="w-full rounded-lg border border-card-border px-2 py-1.5 text-xs bg-white">
+              <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="w-full rounded-lg border border-card-border px-2 py-1.5 text-xs bg-panel">
                 {accounts.map((a) => <option key={a.id} value={a.id}>{a.provider} — {a.displayName ?? a.username ?? a.id.slice(0, 6)}</option>)}
               </select>
               {isYoutube ? (
@@ -429,8 +429,8 @@ export function PublishPanel({ projectId, clip, embedded }: { projectId: string;
                     <label className="text-[10px] font-semibold text-ink-soft block">Schedule for later (optional)</label>
                     <input type="datetime-local" value={scheduledFor} min={minSchedule} onChange={(e) => setScheduledFor(e.target.value)} className="w-full rounded-lg border border-card-border px-2 py-1.5 text-xs" />
                   </div>
-                  {err && <p className="text-[11px] text-red-600">{err} {needsReauth && <a href="/dashboard/social-tracker" className="underline font-semibold">Reconnect →</a>}</p>}
-                  <button onClick={() => submit(scheduledFor ? { scheduledFor: new Date(scheduledFor).toISOString() } : {})} disabled={publishMutation.isPending} className="w-full min-h-[40px] text-xs font-bold rounded-lg grad-brand text-white shadow-glow disabled:opacity-50">
+                  {err && <p className="text-[11px] text-error">{err} {needsReauth && <a href="/dashboard/social-tracker" className="underline font-semibold">Reconnect →</a>}</p>}
+                  <button onClick={() => submit(scheduledFor ? { scheduledFor: new Date(scheduledFor).toISOString() } : {})} disabled={publishMutation.isPending} className="w-full min-h-[40px] text-xs font-bold rounded-lg grad-brand text-on-primary shadow-glow disabled:opacity-50">
                     {publishMutation.isPending ? "Working…" : scheduledFor ? "Schedule upload" : "Publish to YouTube"}
                   </button>
                 </>
@@ -438,8 +438,8 @@ export function PublishPanel({ projectId, clip, embedded }: { projectId: string;
                 <>
                   <p className="text-[10px] text-ink-soft/70">Instagram/Facebook auto-publish needs a Meta app review this app hasn&apos;t completed — post it yourself, then paste the link here to track its performance.</p>
                   <input value={permalink} onChange={(e) => setPermalink(e.target.value)} placeholder="Paste the live post URL after posting manually" className="w-full rounded-lg border border-card-border px-2 py-1.5 text-xs" />
-                  {err && <p className="text-[11px] text-red-600">{err}</p>}
-                  <button onClick={() => submit({ permalink: permalink || undefined })} disabled={publishMutation.isPending} className="w-full min-h-[40px] text-xs font-bold rounded-lg grad-brand text-white shadow-glow disabled:opacity-50">{publishMutation.isPending ? "…" : "Save link"}</button>
+                  {err && <p className="text-[11px] text-error">{err}</p>}
+                  <button onClick={() => submit({ permalink: permalink || undefined })} disabled={publishMutation.isPending} className="w-full min-h-[40px] text-xs font-bold rounded-lg grad-brand text-on-primary shadow-glow disabled:opacity-50">{publishMutation.isPending ? "…" : "Save link"}</button>
                 </>
               )}
             </div>
@@ -483,10 +483,10 @@ function RetryClipButton({ projectId, clip, onQueued }: { projectId: string; cli
 
   return (
     <div className="flex flex-col items-center gap-1">
-      <button onClick={retry} disabled={busy} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white/90 hover:bg-white text-ink transition-colors disabled:opacity-50">
+      <button onClick={retry} disabled={busy} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white/90 hover:bg-panel text-ink transition-colors disabled:opacity-50">
         {busy ? "Retrying…" : "Retry"}
       </button>
-      {err && <span className="text-[10px] text-red-300">{err}</span>}
+      {err && <span className="text-[10px] text-error">{err}</span>}
     </div>
   );
 }
@@ -533,12 +533,12 @@ function OverflowMenu({ children, ariaLabel = "More actions", align = "right" }:
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
-        className="w-8 h-8 flex-shrink-0 rounded-lg border border-card-border bg-white text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors flex items-center justify-center"
+        className="w-8 h-8 flex-shrink-0 rounded-lg border border-card-border bg-panel text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors flex items-center justify-center"
       >
         <IcMore />
       </button>
       {open && (
-        <div role="menu" className={`ac-pop absolute z-30 mt-1 w-52 rounded-xl border border-card-border bg-white p-1.5 shadow-card ${align === "right" ? "right-0" : "left-0"}`}>
+        <div role="menu" className={`ac-pop absolute z-30 mt-1 w-52 rounded-xl border border-card-border bg-panel p-1.5 shadow-card ${align === "right" ? "right-0" : "left-0"}`}>
           {children(() => setOpen(false))}
         </div>
       )}
@@ -567,7 +567,7 @@ function ClipCard({ projectId, clip, onChanged, onOpen }: {
   };
 
   return (
-    <div ref={cardRef} className="ac-card rounded-2xl bg-white overflow-hidden flex flex-col shadow-card">
+    <div ref={cardRef} className="ac-card rounded-2xl bg-panel overflow-hidden flex flex-col shadow-card">
       <div className="relative" style={{ aspectRatio: arCss(clip.aspectRatio), background: "linear-gradient(160deg,#243447,#0f172a 65%,#111827)" }}>
         {clip.thumbnailUrl && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -585,10 +585,10 @@ function ClipCard({ projectId, clip, onChanged, onOpen }: {
             <span className="ac-reveal absolute inset-x-0 bottom-0 h-[64%] block" style={{ background: "linear-gradient(to top, rgba(9,14,26,.92), rgba(9,14,26,0))" }} />
             <span className="ac-reveal ac-rise-in absolute inset-x-3 bottom-3 block text-white">
               <span className="block text-[12px] leading-snug text-white/80 mb-2 line-clamp-2">{clipReason(clip)}</span>
-              <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full grad-brand text-[12.5px] font-bold text-white"><IcPlay /> Open clip</span>
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full grad-brand text-[12.5px] font-bold text-on-primary"><IcPlay /> Open clip</span>
             </span>
             <span className="ac-scrub absolute inset-x-0 bottom-0 h-[3px] opacity-0" style={{ background: "rgba(255,255,255,.22)" }}>
-              <span className="block h-full w-2/5 bg-white" />
+              <span className="block h-full w-2/5 bg-panel" />
             </span>
           </button>
         ) : failed ? (
@@ -639,7 +639,7 @@ function ReviewClipCard({ clip, edit, onChange, onOpen }: {
   const [adjust, setAdjust] = useState(false);
 
   return (
-    <div ref={cardRef} className={`ac-card rounded-2xl bg-white overflow-hidden flex flex-col shadow-card ${edit.keep ? "ring-2 ring-brand/60" : "opacity-70"}`}>
+    <div ref={cardRef} className={`ac-card rounded-2xl bg-panel overflow-hidden flex flex-col shadow-card ${edit.keep ? "ring-2 ring-brand/60" : "opacity-70"}`}>
       <button
         type="button"
         onClick={() => {
@@ -659,7 +659,7 @@ function ReviewClipCard({ clip, edit, onChange, onOpen }: {
         <span className="ac-reveal absolute inset-x-0 bottom-0 h-[64%] pointer-events-none" style={{ background: "linear-gradient(to top, rgba(9,14,26,.92), rgba(9,14,26,0))" }} />
         <span className="ac-reveal ac-rise-in absolute inset-x-3 bottom-3 block text-white">
           <span className="block text-[12px] leading-snug text-white/80 mb-2 line-clamp-2">{clipReason(clip)}</span>
-          <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full grad-brand text-[12.5px] font-bold text-white"><IcPlay /> Open clip</span>
+          <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full grad-brand text-[12.5px] font-bold text-on-primary"><IcPlay /> Open clip</span>
         </span>
       </button>
       <div className="px-3.5 py-3 flex flex-col gap-2">
@@ -684,14 +684,14 @@ function ReviewClipCard({ clip, edit, onChange, onOpen }: {
               <span className="text-ink-soft/40 mt-3">—</span>
               <div className="flex-1">
                 <label className="text-[10px] text-ink-soft block mb-0.5">End (s)</label>
-                <input type="number" min={0} step={0.5} value={edit.endSec} onChange={(e) => onChange({ endSec: Number(e.target.value) })} disabled={!edit.keep} className={`w-full rounded-lg border px-2 py-1.5 text-xs text-ink disabled:bg-surface ${invalid ? "border-red-300" : "border-card-border"}`} />
+                <input type="number" min={0} step={0.5} value={edit.endSec} onChange={(e) => onChange({ endSec: Number(e.target.value) })} disabled={!edit.keep} className={`w-full rounded-lg border px-2 py-1.5 text-xs text-ink disabled:bg-surface ${invalid ? "border-error/60" : "border-card-border"}`} />
               </div>
             </div>
-            {invalid && <p className="text-[11px] font-medium text-red-600">{invalid}</p>}
+            {invalid && <p className="text-[11px] font-medium text-error">{invalid}</p>}
             <div className="grid grid-cols-3 gap-1.5">
               {ASPECTS.map((a) => (
                 <button key={a.value} type="button" disabled={!edit.keep} onClick={() => onChange({ aspectRatio: a.value })}
-                  className={`rounded-lg border py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-40 ${edit.aspectRatio === a.value ? "grad-brand text-white shadow-glow border-transparent" : "bg-white border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"}`}>
+                  className={`rounded-lg border py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-40 ${edit.aspectRatio === a.value ? "grad-brand text-on-primary shadow-glow border-transparent" : "bg-panel border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"}`}>
                   {a.label}
                 </button>
               ))}
@@ -1030,8 +1030,8 @@ function ClipWorkspace({
     <div className="fixed inset-0 z-50 ac-expand" style={{ background: "var(--surface)", transformOrigin: expandOrigin }}>
       <div className="h-full flex flex-col">
         {/* Header */}
-        <div className="ac-rise h-[60px] flex-shrink-0 border-b border-card-border bg-white flex items-center gap-3 px-4">
-          <button onClick={onClose} className="inline-flex items-center gap-2 min-h-[40px] px-3.5 rounded-lg border border-card-border bg-white text-ink text-[13px] font-semibold hover:bg-tint-blue transition-colors">
+        <div className="ac-rise h-[60px] flex-shrink-0 border-b border-card-border bg-panel flex items-center gap-3 px-4">
+          <button onClick={onClose} className="inline-flex items-center gap-2 min-h-[40px] px-3.5 rounded-lg border border-card-border bg-panel text-ink text-[13px] font-semibold hover:bg-tint-blue transition-colors">
             <IcChevronLeft /> Back to clips
           </button>
           <div className="w-px h-6 bg-card-border" />
@@ -1042,7 +1042,7 @@ function ClipWorkspace({
           </span>
           <div className="flex-1" />
           <span className="hidden md:block text-xs text-ink-soft/70">Esc to close</span>
-          <a href={`/api/projects/${projectId}/clips/${clip.id}/download`} download className="text-[13px] font-semibold px-3.5 py-2 rounded-lg border border-card-border bg-white text-ink hover:bg-tint-blue transition-colors">Download</a>
+          <a href={`/api/projects/${projectId}/clips/${clip.id}/download`} download className="text-[13px] font-semibold px-3.5 py-2 rounded-lg border border-card-border bg-panel text-ink hover:bg-tint-blue transition-colors">Download</a>
         </div>
 
         {/* Body: stage + tools panel */}
@@ -1089,10 +1089,10 @@ function ClipWorkspace({
           </div>
 
           {panelOpen && (
-            <aside className="ac-tools-panel bg-white flex flex-col">
+            <aside className="ac-tools-panel bg-panel flex flex-col">
               <div className="flex items-center gap-2 pl-4 pr-3 py-2.5 border-b border-card-border">
                 <p className="flex-1 text-sm font-bold text-ink">{panelTitle[tab]}</p>
-                <button onClick={() => setPanelOpen(false)} aria-label="Hide tools" className="w-8 h-8 rounded-lg border border-card-border bg-white text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors flex items-center justify-center"><IcChevronRight /></button>
+                <button onClick={() => setPanelOpen(false)} aria-label="Hide tools" className="w-8 h-8 rounded-lg border border-card-border bg-panel text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors flex items-center justify-center"><IcChevronRight /></button>
               </div>
               <div className="flex flex-wrap gap-1 px-3 py-2.5 border-b border-card-border">
                 {TABS.map((t) => (
@@ -1154,7 +1154,7 @@ function ClipWorkspace({
                         {brandKits.length > 0 && (
                           <div className="space-y-1">
                             <label className="text-[11px] font-semibold text-ink-soft">Load from Brand Kit</label>
-                            <select defaultValue="" onChange={(e) => { const kit = brandKits.find((k) => k.id === e.target.value); if (kit) applyBrandKit(kit); e.target.value = ""; }} className="w-full rounded-lg border border-card-border px-3 py-2 text-sm bg-white">
+                            <select defaultValue="" onChange={(e) => { const kit = brandKits.find((k) => k.id === e.target.value); if (kit) applyBrandKit(kit); e.target.value = ""; }} className="w-full rounded-lg border border-card-border px-3 py-2 text-sm bg-panel">
                               <option value="" disabled>Choose a saved style…</option>
                               {brandKits.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
                             </select>
@@ -1163,7 +1163,7 @@ function ClipWorkspace({
                         <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-1">
                             <label className="text-[11px] font-semibold text-ink-soft">Font</label>
-                            <select value={fontName} onChange={(e) => setFontName(e.target.value)} className="w-full rounded-lg border border-card-border px-3 py-2 text-sm bg-white">
+                            <select value={fontName} onChange={(e) => setFontName(e.target.value)} className="w-full rounded-lg border border-card-border px-3 py-2 text-sm bg-panel">
                               {["Outfit", "Arial", "Impact", "Courier New", "Georgia", "Times New Roman"].map((f) => <option key={f} value={f}>{f}</option>)}
                             </select>
                           </div>
@@ -1175,14 +1175,14 @@ function ClipWorkspace({
                         <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-1">
                             <label className="text-[11px] font-semibold text-ink-soft">Layout</label>
-                            <select value={borderStyle} onChange={(e) => setBorderStyle(Number(e.target.value))} className="w-full rounded-lg border border-card-border px-3 py-2 text-sm bg-white">
+                            <select value={borderStyle} onChange={(e) => setBorderStyle(Number(e.target.value))} className="w-full rounded-lg border border-card-border px-3 py-2 text-sm bg-panel">
                               <option value={1}>Outline &amp; Shadow</option>
                               <option value={3}>Background Box</option>
                             </select>
                           </div>
                           <div className="space-y-1">
                             <label className="text-[11px] font-semibold text-ink-soft">Alignment</label>
-                            <select value={alignment} onChange={(e) => setAlignment(Number(e.target.value))} className="w-full rounded-lg border border-card-border px-3 py-2 text-sm bg-white">
+                            <select value={alignment} onChange={(e) => setAlignment(Number(e.target.value))} className="w-full rounded-lg border border-card-border px-3 py-2 text-sm bg-panel">
                               <option value={5}>Center</option>
                               <option value={2}>Bottom</option>
                               <option value={8}>Top</option>
@@ -1230,7 +1230,7 @@ function ClipWorkspace({
                       <Switch checked={animatedCaptions} onChange={setAnimatedCaptions} label="Animated subtitles" disabled={saving} />
                     </div>
                     <TranslateCaptions projectId={projectId} clipId={clip.id} disabled={saving} onQueued={onChanged} />
-                    {saveErr && <p className="text-xs text-red-600">{saveErr}</p>}
+                    {saveErr && <p className="text-xs text-error">{saveErr}</p>}
                     <Button onClick={handleSaveStyleOrCuts} disabled={saving} className="w-full">{saving ? "Saving & Rendering…" : "Apply caption style"}</Button>
                     <RerenderCostNote clip={clip} />
                   </div>
@@ -1250,7 +1250,7 @@ function ClipWorkspace({
                             onClick={() => handleChangeAspect(a.value)}
                             className={`flex-1 flex items-center justify-center gap-1.5 min-h-[38px] rounded-xl text-[12px] font-bold transition-colors disabled:cursor-default ${
                               a.value === clip.aspectRatio
-                                ? "grad-brand text-white shadow-glow"
+                                ? "grad-brand text-on-primary shadow-glow"
                                 : "border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
                             }`}
                           >
@@ -1273,7 +1273,7 @@ function ClipWorkspace({
                       silenceThresholdMs={silenceThresholdMs} setSilenceThresholdMs={setSilenceThresholdMs}
                       removeFillers={removeFillers} setRemoveFillers={setRemoveFillers}
                     />
-                    {saveErr && <p className="text-xs text-red-600">{saveErr}</p>}
+                    {saveErr && <p className="text-xs text-error">{saveErr}</p>}
                     <Button onClick={handleSaveStyleOrCuts} disabled={saving} className="w-full">{saving ? "Saving & Rendering…" : "Apply reframe & audio"}</Button>
                     <RerenderCostNote clip={clip} />
                   </div>
@@ -1374,7 +1374,7 @@ function ClipWorkspace({
                         <p className="text-xs text-ink-soft">No transcript for this clip — captions were off, or transcription didn&apos;t succeed for this video.</p>
                       )}
                       {localWords.map((w, idx) => (
-                        <div key={idx} className="flex items-center gap-1 bg-white px-2 py-1 rounded-md border border-card-border shadow-sm text-xs">
+                        <div key={idx} className="flex items-center gap-1 bg-panel px-2 py-1 rounded-md border border-card-border shadow-sm text-xs">
                           {/* Sized to its content instead of a fixed w-16, which truncated any word
                               longer than about six characters — in a field whose entire
                               purpose is reading and correcting words. */}
@@ -1389,7 +1389,7 @@ function ClipWorkspace({
                         </div>
                       ))}
                     </div>
-                    {saveErr && <p className="text-xs text-red-600">{saveErr}</p>}
+                    {saveErr && <p className="text-xs text-error">{saveErr}</p>}
                     <Button onClick={handleSaveTranscript} disabled={saving || transcriptLoading || localWords.length === 0} className="w-full">{saving ? "Saving & Rendering…" : "Save transcript changes"}</Button>
                     <RerenderCostNote clip={clip} />
                   </div>
@@ -1399,7 +1399,7 @@ function ClipWorkspace({
                   <div className="ac-panel-in space-y-5">
                     {relatedQuery.isLoading && <RelatedLoading />}
                     {relatedQuery.error && (
-                      <p className="text-xs text-red-600">Couldn&apos;t load related content.</p>
+                      <p className="text-xs text-error">Couldn&apos;t load related content.</p>
                     )}
                     {relatedQuery.data && (
                       <RelatedForClip
@@ -1421,8 +1421,8 @@ function ClipWorkspace({
               </div>
 
               <div className="border-t border-card-border px-5 py-3.5 flex items-center gap-2.5">
-                <EditInEditorButton projectId={projectId} clip={clip} className="min-h-[44px] px-4 rounded-xl border border-card-border bg-white text-ink text-[12.5px] font-semibold hover:bg-tint-blue transition-colors disabled:opacity-50" />
-                <a href={`/api/projects/${projectId}/clips/${clip.id}/download`} download className="flex-1 min-h-[44px] rounded-xl grad-brand text-white text-[13.5px] font-bold shadow-glow flex items-center justify-center">Download clip</a>
+                <EditInEditorButton projectId={projectId} clip={clip} className="min-h-[44px] px-4 rounded-xl border border-card-border bg-panel text-ink text-[12.5px] font-semibold hover:bg-tint-blue transition-colors disabled:opacity-50" />
+                <a href={`/api/projects/${projectId}/clips/${clip.id}/download`} download className="flex-1 min-h-[44px] rounded-xl grad-brand text-on-primary text-[13.5px] font-bold shadow-glow flex items-center justify-center">Download clip</a>
               </div>
             </aside>
           )}
@@ -1590,7 +1590,7 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
   if (settledEmpty) {
     return (
       <div className="max-w-lg mx-auto text-center py-20 px-6 space-y-4">
-        <div className="w-14 h-14 mx-auto rounded-2xl grad-brand flex items-center justify-center text-white"><IcFilm /></div>
+        <div className="w-14 h-14 mx-auto rounded-2xl grad-brand flex items-center justify-center text-on-primary"><IcFilm /></div>
         <h2 className="text-xl font-extrabold text-ink">No clips came out of this video</h2>
         <p className="text-sm text-ink-soft leading-relaxed">
           The AI didn&apos;t find a segment worth cutting — that usually means the
@@ -1621,7 +1621,7 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
           <div className="ac-shimmer absolute inset-0" style={{ background: "linear-gradient(90deg, transparent, var(--brand), transparent)" }} />
         </div>
         <p className="text-[13px] text-ink-soft mb-8">Usually 2–5 minutes for an hour of video.</p>
-        <div className="inline-flex items-center gap-2.5 rounded-xl border border-card-border bg-white px-4 py-3 text-[13px] text-ink-soft">
+        <div className="inline-flex items-center gap-2.5 rounded-xl border border-card-border bg-panel px-4 py-3 text-[13px] text-ink-soft">
           <span className="text-brand"><IcClock /></span>
           You can leave this page — your clips will be ready when you return.
         </div>
@@ -1635,7 +1635,7 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
       <div className="max-w-xl mx-auto px-6 pt-20 pb-32 text-center">
         <h1 className="text-2xl font-extrabold text-ink mb-2">Something went wrong</h1>
         <p className="text-[15px] text-ink-soft mb-7">{project.failureReason ?? error ?? "We couldn't generate clips from this video. Please try again."}</p>
-        <button onClick={onReset} className="inline-flex items-center gap-2 grad-brand shadow-glow text-white text-sm font-bold px-6 py-3 rounded-xl">Create another</button>
+        <button onClick={onReset} className="inline-flex items-center gap-2 grad-brand shadow-glow text-on-primary text-sm font-bold px-6 py-3 rounded-xl">Create another</button>
       </div>
     );
   }
@@ -1672,7 +1672,7 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
 
       {/* Progress bar while rendering */}
       {!pendingReview && !allDone && (
-        <div className="mb-6 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+        <div className="mb-6 h-1.5 rounded-full bg-surface-3 overflow-hidden">
           <div className="h-full bg-brand transition-all duration-500" style={{ width: `${total ? (ready / total) * 100 : 0}%` }} />
         </div>
       )}
@@ -1689,9 +1689,9 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
                 : <ClipCard key={c.id} projectId={projectId!} clip={c} onChanged={() => clipsQuery.refetch()} onOpen={openClip} />,
             )
           : Array.from({ length: Math.max(1, expectedCount) }).map((_, i) => (
-              <div key={i} className="rounded-2xl bg-white overflow-hidden shadow-card">
+              <div key={i} className="rounded-2xl bg-panel overflow-hidden shadow-card">
                 <div className="relative" style={{ aspectRatio: "9/16", background: "linear-gradient(160deg,#1e293b,#0f172a)" }}><div className="ac-shimmer absolute inset-0" /></div>
-                <div className="p-3.5 space-y-2"><div className="h-3 bg-gray-100 rounded animate-pulse" /><div className="h-2 w-1/2 bg-gray-100 rounded animate-pulse" /></div>
+                <div className="p-3.5 space-y-2"><div className="h-3 bg-surface-3 rounded animate-pulse" /><div className="h-2 w-1/2 bg-surface-3 rounded animate-pulse" /></div>
               </div>
             ))}
       </div>
@@ -1704,17 +1704,17 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
               <p className="text-sm font-bold text-ink">{keptCount} of {clips.length} clip{clips.length === 1 ? "" : "s"} selected</p>
               <p className="text-[12.5px] text-ink-soft mt-0.5">
                 {firstTrimError
-                  ? <span className="text-red-600">Fix the highlighted in/out points — {firstTrimError.toLowerCase()}</span>
+                  ? <span className="text-error">Fix the highlighted in/out points — {firstTrimError.toLowerCase()}</span>
                   : estimate
                     ? `Rendering costs ${estimate.total} credit${estimate.total === 1 ? "" : "s"}${estimate.analysisCredit > 0 ? " — analysis already paid" : ""}. ${estimate.sufficient ? `Balance after: ${estimate.balance - estimate.total}.` : `You have ${estimate.balance} — ${estimate.total - estimate.balance} more needed.`}`
                     : "You're only charged for the clips you keep."}
               </p>
-              {confirmErr && <p className="text-[12px] text-red-600 mt-0.5">{confirmErr}</p>}
+              {confirmErr && <p className="text-[12px] text-error mt-0.5">{confirmErr}</p>}
             </div>
-            <button onClick={() => setEdits((prev) => { const next: Record<string, ReviewEdit> = {}; for (const [id, e] of Object.entries(prev)) next[id] = { ...e, keep: keptCount > 0 ? false : true }; return next; })} className="text-[13px] font-semibold px-4 py-2.5 rounded-xl border border-card-border bg-white text-ink hover:bg-tint-blue transition-colors">
+            <button onClick={() => setEdits((prev) => { const next: Record<string, ReviewEdit> = {}; for (const [id, e] of Object.entries(prev)) next[id] = { ...e, keep: keptCount > 0 ? false : true }; return next; })} className="text-[13px] font-semibold px-4 py-2.5 rounded-xl border border-card-border bg-panel text-ink hover:bg-tint-blue transition-colors">
               {keptCount > 0 ? "Deselect all" : "Select all"}
             </button>
-            <button onClick={handleConfirm} disabled={confirmMutation.isPending || keptCount === 0 || !!firstTrimError} className="text-sm font-bold px-6 py-3 rounded-xl grad-brand shadow-glow text-white disabled:opacity-40 disabled:cursor-not-allowed">
+            <button onClick={handleConfirm} disabled={confirmMutation.isPending || keptCount === 0 || !!firstTrimError} className="text-sm font-bold px-6 py-3 rounded-xl grad-brand shadow-glow text-on-primary disabled:opacity-40 disabled:cursor-not-allowed">
               {confirmMutation.isPending ? "Starting render…" : `Confirm & render${estimate ? ` · ${estimate.total} credit${estimate.total === 1 ? "" : "s"}` : ""}`}
             </button>
           </div>
@@ -1778,8 +1778,8 @@ function ReviewWorkspace({ clip, edit, sourceVideoUrl, expandOrigin, index, tota
   return (
     <div className="fixed inset-0 z-50 ac-expand" style={{ background: "var(--surface)", transformOrigin: expandOrigin }}>
       <div className="h-full flex flex-col">
-        <div className="ac-rise h-[60px] flex-shrink-0 border-b border-card-border bg-white flex items-center gap-3 px-4">
-          <button onClick={onClose} className="inline-flex items-center gap-2 min-h-[40px] px-3.5 rounded-lg border border-card-border bg-white text-ink text-[13px] font-semibold hover:bg-tint-blue transition-colors"><IcChevronLeft /> Back to clips</button>
+        <div className="ac-rise h-[60px] flex-shrink-0 border-b border-card-border bg-panel flex items-center gap-3 px-4">
+          <button onClick={onClose} className="inline-flex items-center gap-2 min-h-[40px] px-3.5 rounded-lg border border-card-border bg-panel text-ink text-[13px] font-semibold hover:bg-tint-blue transition-colors"><IcChevronLeft /> Back to clips</button>
           <div className="w-px h-6 bg-card-border" />
           <span className="text-sm font-bold text-ink truncate max-w-[38ch]">{clip.title || `Clip ${clip.index + 1}`}</span>
           <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: band.bg, color: band.text }}>
@@ -1802,7 +1802,7 @@ function ReviewWorkspace({ clip, edit, sourceVideoUrl, expandOrigin, index, tota
               <button aria-label="Next clip" onClick={onNext} disabled={total <= 1} className="w-9 h-9 rounded-lg border border-white/15 bg-white/[.08] text-white flex items-center justify-center disabled:opacity-30 hover:bg-white/15 transition-colors"><IcChevronRight /></button>
             </div>
           </div>
-          <aside className="ac-tools-panel bg-white flex flex-col">
+          <aside className="ac-tools-panel bg-panel flex flex-col">
             <div className="px-5 py-3 border-b border-card-border"><p className="text-sm font-bold text-ink">Trim &amp; frame</p></div>
             <div className="flex-1 overflow-y-auto p-5 space-y-5">
               <div className="flex items-center justify-between rounded-xl border border-card-border p-3">
@@ -1814,15 +1814,15 @@ function ReviewWorkspace({ clip, edit, sourceVideoUrl, expandOrigin, index, tota
                 <div className="flex items-center gap-2">
                   <div className="flex-1"><label className="text-[11px] text-ink-soft block mb-1">Start (s)</label><input type="number" min={0} step={0.5} value={edit.startSec} onChange={(e) => onChange({ startSec: Math.max(0, Number(e.target.value)) })} disabled={!edit.keep} className="w-full rounded-lg border border-card-border px-3 py-2 text-sm disabled:bg-surface" /></div>
                   <span className="text-ink-soft/40 mt-5">—</span>
-                  <div className="flex-1"><label className="text-[11px] text-ink-soft block mb-1">End (s)</label><input type="number" min={0} step={0.5} value={edit.endSec} onChange={(e) => onChange({ endSec: Number(e.target.value) })} disabled={!edit.keep} className={`w-full rounded-lg border px-3 py-2 text-sm disabled:bg-surface ${invalid ? "border-red-300" : "border-card-border"}`} /></div>
+                  <div className="flex-1"><label className="text-[11px] text-ink-soft block mb-1">End (s)</label><input type="number" min={0} step={0.5} value={edit.endSec} onChange={(e) => onChange({ endSec: Number(e.target.value) })} disabled={!edit.keep} className={`w-full rounded-lg border px-3 py-2 text-sm disabled:bg-surface ${invalid ? "border-error/60" : "border-card-border"}`} /></div>
                 </div>
-                {invalid ? <p className="text-[11px] font-medium text-red-600 mt-1.5">{invalid}</p> : <p className="text-[11px] text-ink-soft mt-1.5">{fmtTime(Math.max(0, edit.endSec - edit.startSec))} kept</p>}
+                {invalid ? <p className="text-[11px] font-medium text-error mt-1.5">{invalid}</p> : <p className="text-[11px] text-ink-soft mt-1.5">{fmtTime(Math.max(0, edit.endSec - edit.startSec))} kept</p>}
               </div>
               <div>
                 <h4 className="text-[12px] font-bold text-ink-soft uppercase tracking-wider mb-2.5">Aspect ratio</h4>
                 <div className="grid grid-cols-3 gap-2">
                   {ASPECTS.map((a) => (
-                    <button key={a.value} type="button" disabled={!edit.keep} onClick={() => onChange({ aspectRatio: a.value })} className={`flex items-center justify-center gap-2 rounded-lg border py-2.5 text-[12px] font-semibold transition-colors disabled:opacity-40 ${edit.aspectRatio === a.value ? "grad-brand text-white shadow-glow border-transparent" : "bg-white border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"}`}>
+                    <button key={a.value} type="button" disabled={!edit.keep} onClick={() => onChange({ aspectRatio: a.value })} className={`flex items-center justify-center gap-2 rounded-lg border py-2.5 text-[12px] font-semibold transition-colors disabled:opacity-40 ${edit.aspectRatio === a.value ? "grad-brand text-on-primary shadow-glow border-transparent" : "bg-panel border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"}`}>
                       <span className={`${a.box} border-[1.5px] border-current rounded-[2px]`} />{a.label}
                     </button>
                   ))}
@@ -1830,7 +1830,7 @@ function ReviewWorkspace({ clip, edit, sourceVideoUrl, expandOrigin, index, tota
               </div>
             </div>
             <div className="border-t border-card-border px-5 py-3.5">
-              <button onClick={onClose} className="w-full min-h-[44px] rounded-xl grad-brand text-white text-[13.5px] font-bold shadow-glow">Done — back to clips</button>
+              <button onClick={onClose} className="w-full min-h-[44px] rounded-xl grad-brand text-on-primary text-[13.5px] font-bold shadow-glow">Done — back to clips</button>
             </div>
           </aside>
         </div>
@@ -1992,19 +1992,19 @@ function AutoClipFlow() {
         {/* Source: file or URL */}
         <input ref={inputRef} type="file" accept="video/mp4,video/mov,video/quicktime,video/webm" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }} />
         {file && videoPreviewUrl ? (
-          <div className="rounded-[20px] border border-card-border bg-white p-4 flex items-center gap-4">
+          <div className="rounded-[20px] border border-card-border bg-panel p-4 flex items-center gap-4">
             <video src={videoPreviewUrl} className="w-28 rounded-xl object-cover bg-black" style={{ aspectRatio: "16/9" }} />
             <div className="flex-1 min-w-0"><div className="flex items-center gap-2 text-sm font-semibold text-ink"><IcFile /><span className="truncate">{file.name}</span></div><p className="text-xs text-ink-soft mt-0.5">Ready to analyze</p></div>
             <button onClick={handleClearFile} aria-label="Remove video" className="w-9 h-9 rounded-lg border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors flex items-center justify-center"><IcX /></button>
           </div>
         ) : importedUrl ? (
-          <div className="rounded-[20px] border border-card-border bg-white p-4 flex items-center gap-4">
+          <div className="rounded-[20px] border border-card-border bg-panel p-4 flex items-center gap-4">
             <span className="w-12 h-12 rounded-xl bg-tint-blue text-brand flex items-center justify-center"><IcCloud /></span>
             <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-ink truncate">{importedTitle}</p><p className="text-xs text-ink-soft mt-0.5">Downloaded from your link when analysis starts.</p></div>
             <button onClick={() => { setImportedUrl(null); setImportedTitle(null); }} aria-label="Use a different source" className="w-9 h-9 rounded-lg border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors flex items-center justify-center"><IcX /></button>
           </div>
         ) : pickedAsset ? (
-          <div className="rounded-[20px] border border-card-border bg-white p-4 flex items-center gap-4">
+          <div className="rounded-[20px] border border-card-border bg-panel p-4 flex items-center gap-4">
             <video src={pickedAsset.url} className="w-28 rounded-xl object-cover bg-black" style={{ aspectRatio: "16/9" }} />
             <div className="flex-1 min-w-0"><div className="flex items-center gap-2 text-sm font-semibold text-ink"><IcFile /><span className="truncate">{pickedAsset.name}</span></div><p className="text-xs text-ink-soft mt-0.5">From your Assets library</p></div>
             <button onClick={() => setPickedAsset(null)} aria-label="Use a different source" className="w-9 h-9 rounded-lg border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors flex items-center justify-center"><IcX /></button>
@@ -2016,7 +2016,7 @@ function AutoClipFlow() {
               onDragLeave={() => setDragging(false)}
               onDrop={(e) => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files?.[0]) handleFile(e.dataTransfer.files[0]); }}
               onClick={() => inputRef.current?.click()}
-              className="rounded-[20px] border border-dashed bg-white px-6 py-11 flex flex-col items-center gap-3 text-center cursor-pointer transition-colors"
+              className="rounded-[20px] border border-dashed bg-panel px-6 py-11 flex flex-col items-center gap-3 text-center cursor-pointer transition-colors"
               style={{ borderColor: dragging ? "var(--brand)" : "#cbd5e1", background: dragging ? "var(--tint-blue)" : "#fff" }}
             >
               <span className="w-12 h-12 rounded-2xl bg-tint-blue text-brand flex items-center justify-center"><IcCloud /></span>
@@ -2035,17 +2035,17 @@ function AutoClipFlow() {
           </>
         )}
 
-        {importError && <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">{importError}</p>}
+        {importError && <p className="mt-3 rounded-xl border border-error/40 bg-error/10 px-3 py-2 text-xs font-medium text-error">{importError}</p>}
 
         {/* Essentials */}
-        <div className="mt-8 rounded-[20px] border border-card-border bg-white p-6 flex flex-col gap-6">
+        <div className="mt-8 rounded-[20px] border border-card-border bg-panel p-6 flex flex-col gap-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
               <label className="text-[13px] font-semibold text-ink block mb-2">Clip length</label>
               <div className="flex gap-1.5">
                 {LENGTH_PRESETS.map((p) => (
                   <button key={p.id} onClick={() => { setMinDuration(p.min); setMaxDuration(p.max); }}
-                    className={`flex-1 rounded-[10px] border py-2.5 text-[13px] font-semibold transition-colors ${lengthPreset === p.id ? "grad-brand text-white shadow-glow border-transparent" : "bg-white border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"}`}>
+                    className={`flex-1 rounded-[10px] border py-2.5 text-[13px] font-semibold transition-colors ${lengthPreset === p.id ? "grad-brand text-on-primary shadow-glow border-transparent" : "bg-panel border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"}`}>
                     {p.label}
                   </button>
                 ))}
@@ -2065,7 +2065,7 @@ function AutoClipFlow() {
             <label className="text-[13px] font-semibold text-ink block mb-2">Aspect ratio</label>
             <div className="flex gap-2">
               {ASPECTS.map((a) => (
-                <button key={a.value} onClick={() => setAspectRatio(a.value)} className={`inline-flex items-center gap-2 rounded-[10px] border px-3.5 py-2.5 text-[13px] font-semibold transition-colors ${aspectRatio === a.value ? "grad-brand text-white shadow-glow border-transparent" : "bg-white border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"}`}>
+                <button key={a.value} onClick={() => setAspectRatio(a.value)} className={`inline-flex items-center gap-2 rounded-[10px] border px-3.5 py-2.5 text-[13px] font-semibold transition-colors ${aspectRatio === a.value ? "grad-brand text-on-primary shadow-glow border-transparent" : "bg-panel border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"}`}>
                   <span className={`${a.box} border-[1.5px] border-current rounded-[2px]`} />{a.label}
                 </button>
               ))}
@@ -2105,14 +2105,14 @@ function AutoClipFlow() {
               )}
               <div>
                 <label className="text-[12px] font-bold text-ink-soft uppercase tracking-wider block mb-2">Instructions (optional)</label>
-                <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={3} placeholder="e.g. Focus on funny moments, avoid silent parts, prioritize high-energy sections…" className="w-full rounded-xl border border-card-border bg-white px-3 py-3 text-sm text-ink placeholder:text-ink-soft/50 focus:outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all resize-none" />
+                <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={3} placeholder="e.g. Focus on funny moments, avoid silent parts, prioritize high-energy sections…" className="w-full rounded-xl border border-card-border bg-panel px-3 py-3 text-sm text-ink placeholder:text-ink-soft/50 focus:outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all resize-none" />
               </div>
             </div>
           )}
         </div>
 
         <div className="flex items-center gap-4 mt-7 flex-wrap">
-          <button onClick={handleGenerate} disabled={!canGenerate} className="inline-flex items-center gap-2.5 grad-brand shadow-glow hover:shadow-glow-hover hover:brightness-105 text-white text-base font-bold px-8 py-4 rounded-[14px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+          <button onClick={handleGenerate} disabled={!canGenerate} className="inline-flex items-center gap-2.5 grad-brand shadow-glow hover:shadow-glow-hover hover:brightness-105 text-on-primary text-base font-bold px-8 py-4 rounded-[14px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
             <IcSparkle /> Generate clips
           </button>
           <p className="text-[13px] text-ink-soft">Analysis costs 1 credit. You only pay for the clips you keep.</p>
@@ -2124,7 +2124,7 @@ function AutoClipFlow() {
 
 export default function AutoClipPage() {
   return (
-    <Suspense fallback={<div className="flex h-screen items-center justify-center"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>}>
+    <Suspense fallback={<div className="flex h-screen items-center justify-center"><div className="w-8 h-8 border-4 border-brand/40 border-t-blue-600 rounded-full animate-spin" /></div>}>
       <AutoClipFlow />
     </Suspense>
   );

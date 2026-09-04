@@ -215,16 +215,39 @@ export async function getServerAuthUser(): Promise<TokenPayload | null> {
   }
 }
 
-/** Server Component counterpart to `requireSubscriber`. */
-export async function requireServerSubscriber(): Promise<TokenPayload | null> {
+/**
+ * Server Component counterpart to `requireSubscriber`, reporting WHY access is
+ * denied instead of collapsing every reason into one `null`.
+ *
+ * The two denials need opposite responses, and only one of them is the user's
+ * own doing. `proxy.ts` gates protected pages with getOptimisticAuth, which
+ * checks only that the session cookie's JWT parses and has not expired —
+ * deliberately no Redis or Postgres lookup, so it stays cheap on every
+ * request. A request whose *session record* is gone therefore still reaches
+ * the page. That happens when the session was revoked or signed out from
+ * another device, and also whenever Redis is unreachable, since lib/redis.ts
+ * answers a failed GET out of an empty per-process fallback map.
+ *
+ * Collapsing that case into the same `null` as a lapsed subscription told a
+ * paying subscriber they had no subscription during a cache outage — wrong,
+ * and with nothing they could do about it. Callers must be able to tell the
+ * two apart; see `requireSubscriberOrRedirect` in the Social Tracker's
+ * shared.ts for the routing each one needs.
+ */
+export type ServerSubscriberState =
+  | { status: "active"; auth: TokenPayload }
+  | { status: "unsubscribed"; auth: TokenPayload }
+  | { status: "unauthenticated" };
+
+export async function getServerSubscriberState(): Promise<ServerSubscriberState> {
   const auth = await getServerAuthUser();
-  if (!auth) return null;
+  if (!auth) return { status: "unauthenticated" };
   const user = await prisma.user.findUnique({
     where: { id: auth.userId },
     select: { subscriptionEndsAt: true },
   });
   const active = !!user?.subscriptionEndsAt && user.subscriptionEndsAt > new Date();
-  return active ? auth : null;
+  return active ? { status: "active", auth } : { status: "unsubscribed", auth };
 }
 
 /**

@@ -8,22 +8,22 @@ import { Card } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Modal } from "@/app/components/ui/Modal";
 
-const inputCls = "w-full bg-white border border-card-border rounded-xl px-4 py-3 text-sm text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all";
+const inputCls = "w-full bg-panel border border-card-border rounded-xl px-4 py-3 text-sm text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all";
 function IcSpinner() { return <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />; }
 
 function DangerRow({ title, desc, actionLabel, onAction, actionVariant = "outline" }: {
   title: string; desc: string; actionLabel: string; onAction: () => void; actionVariant?: "outline" | "solid";
 }) {
   return (
-    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4 border-t border-red-50 first:border-t-0 first:pt-0">
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4 border-t border-error/25 first:border-t-0 first:pt-0">
       <div>
         <p className="text-sm font-semibold text-ink">{title}</p>
-        <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
+        <p className="text-xs text-fg-subtle mt-0.5">{desc}</p>
       </div>
       <button
         onClick={onAction}
         className={`flex-shrink-0 text-sm font-semibold px-5 py-2 rounded-xl transition-colors cursor-pointer ${
-          actionVariant === "solid" ? "text-white bg-red-600 hover:bg-red-700" : "text-red-600 border border-red-200 hover:bg-red-50"
+          actionVariant === "solid" ? "text-white bg-error hover:bg-error/85" : "text-error border border-error/40 hover:bg-error/10"
         }`}
       >
         {actionLabel}
@@ -88,7 +88,7 @@ export default function DangerZoneSettingsPage() {
         <p className="text-sm text-ink-soft mt-1">{t("pageSubtitle")}</p>
       </div>
 
-      <Card padding="md" className="border-red-100">
+      <Card padding="md" className="border-error/30">
         <DangerRow
           title={t("signOut.title")}
           desc={t("signOut.desc")}
@@ -114,10 +114,10 @@ export default function DangerZoneSettingsPage() {
         <form onSubmit={handleDeactivate} className="space-y-4">
           <p className="text-sm text-ink-soft">{t("deactivateModal.body")}</p>
           <input type="password" required autoFocus value={deactivatePw} onChange={(e) => setDeactivatePw(e.target.value)} placeholder={t("confirmPasswordPlaceholder")} className={inputCls} />
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-error">{error}</p>}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" size="sm" onClick={() => setDeactivateOpen(false)}>{t("cancel")}</Button>
-            <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-red-600">{busy ? <><IcSpinner /> {t("deactivateModal.deactivating")}</> : t("deactivate.action")}</Button>
+            <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-error">{busy ? <><IcSpinner /> {t("deactivateModal.deactivating")}</> : t("deactivate.action")}</Button>
           </div>
         </form>
       </Modal>
@@ -126,10 +126,10 @@ export default function DangerZoneSettingsPage() {
         <form onSubmit={handleDelete} className="space-y-4">
           <p className="text-sm text-ink-soft">{t("deleteModal.body")}</p>
           <input type="password" required autoFocus value={deletePw} onChange={(e) => setDeletePw(e.target.value)} placeholder={t("confirmPasswordPlaceholder")} className={inputCls} />
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-error">{error}</p>}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" size="sm" onClick={() => setDeleteOpen(false)}>{t("cancel")}</Button>
-            <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-red-600">{busy ? <><IcSpinner /> {t("deleteModal.deleting")}</> : t("deleteModal.permanentlyDelete")}</Button>
+            <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-error">{busy ? <><IcSpinner /> {t("deleteModal.deleting")}</> : t("deleteModal.permanentlyDelete")}</Button>
           </div>
         </form>
       </Modal>

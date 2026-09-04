@@ -70,7 +70,7 @@ export default function SidebarTabs() {
     <aside className="relative flex h-full flex-shrink-0 border-r border-editor-border bg-editor-panel">
       {/* Backdrop — overlay mode only (below xl), dismisses the panel */}
       {isCompact && !collapsed && (
-        <div className="fixed inset-0 z-30 bg-black/30 xl:hidden" onClick={() => setCollapsed(true)} />
+        <div data-testid="editor-panel-backdrop" className="fixed inset-0 z-30 bg-black/30 xl:hidden" onClick={() => setCollapsed(true)} />
       )}
       {/* Icon rail — icon + always-visible label (11 distinct content-type
           tabs benefit from a text label, unlike single-purpose icon buttons

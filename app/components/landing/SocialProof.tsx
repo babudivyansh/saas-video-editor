@@ -15,15 +15,15 @@ const BRANDS = ["YouTube", "Instagram", "Spotify", "Twitch", "LinkedIn", "Podcas
 
 export default function SocialProof() {
   return (
-    <section className="border-y border-gray-100 bg-gray-50/60 py-14 font-sans">
+    <section className="border-y border-line bg-gray-50/60 py-14 font-sans">
       <div className="mx-auto w-full max-w-screen-2xl px-4 md:px-12 lg:px-[120px]">
         {/* Stats */}
         <Reveal>
           <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
             {STATS.map((s) => (
               <div key={s.label} className="text-center">
-                <p className="text-3xl font-black tracking-tight text-gray-900 md:text-4xl">{s.value}</p>
-                <p className="mt-1 text-sm text-gray-500">{s.label}</p>
+                <p className="text-3xl font-black tracking-tight text-fg md:text-4xl">{s.value}</p>
+                <p className="mt-1 text-sm text-fg-muted">{s.label}</p>
               </div>
             ))}
           </div>

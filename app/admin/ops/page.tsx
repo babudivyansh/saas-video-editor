@@ -141,7 +141,7 @@ export default function AdminOpsPage() {
   if (isLoading || !d) {
     return (
       <AdminShell title="Operations">
-        <div className="animate-pulse space-y-4"><div className="h-32 bg-gray-100 rounded-2xl" /><div className="h-64 bg-gray-100 rounded-2xl" /></div>
+        <div className="animate-pulse space-y-4"><div className="h-32 bg-surface-3 rounded-2xl" /><div className="h-64 bg-surface-3 rounded-2xl" /></div>
       </AdminShell>
     );
   }
@@ -162,13 +162,13 @@ export default function AdminOpsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Maintenance */}
         <Card shadow padding="md">
-          <h2 className="text-sm font-bold text-gray-800 mb-2">Maintenance mode</h2>
-          <p className="text-xs text-gray-400 mb-3">Blocks all non-admin API calls with a 503 + your message. Admin routes and /api/health stay reachable.</p>
+          <h2 className="text-sm font-bold text-fg mb-2">Maintenance mode</h2>
+          <p className="text-xs text-fg-subtle mb-3">Blocks all non-admin API calls with a 503 + your message. Admin routes and /api/health stay reachable.</p>
           <input
             value={maintMessage}
             onChange={(e) => setMaintMessage(e.target.value)}
             placeholder="Message shown to users (optional)"
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 mb-2"
+            className="w-full text-sm border border-line rounded-lg px-3 py-2 mb-2"
           />
           {d.maintenance.on ? (
             <Button variant="secondary" size="sm" onClick={() => setConfirmMaintOff(true)} className="!bg-emerald-600 !text-white !border-emerald-600 hover:!bg-emerald-700">
@@ -184,15 +184,15 @@ export default function AdminOpsPage() {
         {/* Workers */}
         <Card shadow padding="md">
           <div className="flex items-center justify-between gap-2 mb-3">
-            <h2 className="text-sm font-bold text-gray-800">Workers</h2>
+            <h2 className="text-sm font-bold text-fg">Workers</h2>
             <RevokeAllSessions headers={headers} onDone={() => showToast("All non-admin sessions revoked.", "success")} />
           </div>
           <div className="space-y-2 text-sm">
             {Object.entries(d.heartbeats).map(([name, beat]) => (
               <div key={name} className="flex items-center gap-2">
-                <span className={`w-2.5 h-2.5 rounded-full ${beat ? "bg-emerald-500" : "bg-gray-300"}`} aria-hidden />
-                <span className="text-gray-700 font-mono text-xs">{name}</span>
-                <span className="text-xs text-gray-400 ml-auto">
+                <span className={`w-2.5 h-2.5 rounded-full ${beat ? "bg-success" : "bg-line-strong"}`} aria-hidden />
+                <span className="text-fg font-mono text-xs">{name}</span>
+                <span className="text-xs text-fg-subtle ml-auto">
                   {beat ? `beat ${new Date(beat).toLocaleTimeString()}` : "no heartbeat (not running or older build)"}
                 </span>
               </div>
@@ -201,28 +201,28 @@ export default function AdminOpsPage() {
           {/* Cron jobs — a cron that has NEVER run is almost certainly not
               wired into the scheduler's crontab (SETUP.md §7). Amber = never;
               the timestamp lets you judge staleness for the ones that have. */}
-          <div className="mt-4 pt-3 border-t border-gray-50 space-y-2 text-sm">
-            <p className="text-[11px] font-semibold text-gray-600 mb-1">Cron jobs</p>
+          <div className="mt-4 pt-3 border-t border-line space-y-2 text-sm">
+            <p className="text-[11px] font-semibold text-fg-muted mb-1">Cron jobs</p>
             {d.cronRuns.map((c) => (
               <div key={c.name} className="flex items-center gap-2">
-                <span className={`w-2.5 h-2.5 rounded-full ${c.lastRunAt ? "bg-emerald-500" : "bg-amber-400"}`} aria-hidden />
-                <span className="text-gray-700 font-mono text-xs">{c.name}</span>
-                <span className="text-xs text-gray-400 ml-auto">
+                <span className={`w-2.5 h-2.5 rounded-full ${c.lastRunAt ? "bg-success" : "bg-amber-400"}`} aria-hidden />
+                <span className="text-fg font-mono text-xs">{c.name}</span>
+                <span className="text-xs text-fg-subtle ml-auto">
                   {c.lastRunAt ? `ran ${new Date(c.lastRunAt).toLocaleString()}` : "never — not scheduled?"}
                 </span>
               </div>
             ))}
           </div>
           {d.queueCounts && (
-            <div className="mt-4 pt-3 border-t border-gray-50 space-y-3">
+            <div className="mt-4 pt-3 border-t border-line space-y-3">
               {Object.entries(d.queueCounts).map(([queueName, counts]) => (
                 <div key={queueName}>
-                  <p className="text-[11px] font-semibold text-gray-600 font-mono mb-1">{queueName}</p>
+                  <p className="text-[11px] font-semibold text-fg-muted font-mono mb-1">{queueName}</p>
                   <div className="grid grid-cols-5 gap-2 text-center">
                     {Object.entries(counts).map(([k, v]) => (
                       <div key={k}>
-                        <p className={`text-sm font-bold ${k === "failed" && v > 0 ? "text-red-600" : "text-gray-900"}`}>{v}</p>
-                        <p className="text-[10px] text-gray-400 capitalize">{k}</p>
+                        <p className={`text-sm font-bold ${k === "failed" && v > 0 ? "text-error" : "text-fg"}`}>{v}</p>
+                        <p className="text-[10px] text-fg-subtle capitalize">{k}</p>
                       </div>
                     ))}
                   </div>
@@ -235,14 +235,14 @@ export default function AdminOpsPage() {
 
       {/* Failed jobs */}
       <Card shadow padding="md" className="mt-5">
-        <h2 className="text-sm font-bold text-gray-800 mb-3">Failed render jobs</h2>
+        <h2 className="text-sm font-bold text-fg mb-3">Failed render jobs</h2>
         {d.failedJobs.length === 0 ? (
-          <p className="text-sm text-gray-400">None — the dead-letter set is empty.</p>
+          <p className="text-sm text-fg-subtle">None — the dead-letter set is empty.</p>
         ) : (
           <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-[11px] uppercase tracking-wide text-gray-400 text-left">
+              <tr className="text-[11px] uppercase tracking-wide text-fg-subtle text-left">
                 <th className="font-semibold pb-2">Queue</th>
                 <th className="font-semibold pb-2">Project</th>
                 <th className="font-semibold pb-2">Reason</th>
@@ -253,15 +253,15 @@ export default function AdminOpsPage() {
             </thead>
             <tbody>
               {d.failedJobs.map((j) => (
-                <tr key={`${j.queueName}:${j.id}`} className="border-t border-gray-50">
-                  <td className="py-2 text-xs text-gray-500 whitespace-nowrap">{j.queueName}</td>
-                  <td className="py-2 font-mono text-xs text-gray-600">{j.projectId ?? j.id}</td>
-                  <td className="py-2 text-xs text-gray-500 max-w-md truncate" title={j.failedReason}>{j.failedReason ?? "—"}</td>
-                  <td className="py-2 text-right text-gray-500">{j.attemptsMade}</td>
-                  <td className="py-2 text-right text-xs text-gray-400">{new Date(j.timestamp).toLocaleString()}</td>
+                <tr key={`${j.queueName}:${j.id}`} className="border-t border-line">
+                  <td className="py-2 text-xs text-fg-muted whitespace-nowrap">{j.queueName}</td>
+                  <td className="py-2 font-mono text-xs text-fg-muted">{j.projectId ?? j.id}</td>
+                  <td className="py-2 text-xs text-fg-muted max-w-md truncate" title={j.failedReason}>{j.failedReason ?? "—"}</td>
+                  <td className="py-2 text-right text-fg-muted">{j.attemptsMade}</td>
+                  <td className="py-2 text-right text-xs text-fg-subtle">{new Date(j.timestamp).toLocaleString()}</td>
                   <td className="py-2 text-right">
-                    <Button variant="link" onClick={() => jobActionMutation.mutate({ jobId: j.id!, action: "retry", queueName: j.queueName })} className="text-blue-600 mr-3">Retry</Button>
-                    <Button variant="link" onClick={() => jobActionMutation.mutate({ jobId: j.id!, action: "remove", queueName: j.queueName })} className="text-red-500">Remove</Button>
+                    <Button variant="link" onClick={() => jobActionMutation.mutate({ jobId: j.id!, action: "retry", queueName: j.queueName })} className="text-brand mr-3">Retry</Button>
+                    <Button variant="link" onClick={() => jobActionMutation.mutate({ jobId: j.id!, action: "remove", queueName: j.queueName })} className="text-error">Remove</Button>
                   </td>
                 </tr>
               ))}
@@ -274,12 +274,12 @@ export default function AdminOpsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">
         {/* Feature flags */}
         <Card shadow padding="md">
-          <h2 className="text-sm font-bold text-gray-800 mb-1">Feature flags</h2>
-          <p className="text-xs text-gray-400 mb-3">Config-backed booleans readable anywhere via <code className="font-mono">isFeatureEnabled(&quot;name&quot;)</code>.</p>
+          <h2 className="text-sm font-bold text-fg mb-1">Feature flags</h2>
+          <p className="text-xs text-fg-subtle mb-3">Config-backed booleans readable anywhere via <code className="font-mono">isFeatureEnabled(&quot;name&quot;)</code>.</p>
           <div className="space-y-2">
             {Object.entries(d.flags).map(([name, value]) => (
               <div key={name} className="flex items-center gap-2 text-sm">
-                <code className="font-mono text-xs text-gray-700 flex-1">{name}</code>
+                <code className="font-mono text-xs text-fg flex-1">{name}</code>
                 <label className="inline-flex items-center gap-1.5 text-xs font-semibold cursor-pointer">
                   <input type="checkbox" checked={value} onChange={(e) => patchMutation.mutate({ flag: { name, value: e.target.checked } })} />
                   {value ? "on" : "off"}
@@ -287,31 +287,31 @@ export default function AdminOpsPage() {
                 {/* Kept as a raw <button>, not Button — the only functional
                     label here is the aria-label on this icon-only glyph, and
                     Button doesn't forward arbitrary a11y props. */}
-                <button onClick={() => patchMutation.mutate({ flag: { name, value: null } })} className="text-xs text-gray-300 hover:text-red-500 cursor-pointer" aria-label={`Delete flag ${name}`}>✕</button>
+                <button onClick={() => patchMutation.mutate({ flag: { name, value: null } })} className="text-xs text-fg-subtle hover:text-error cursor-pointer" aria-label={`Delete flag ${name}`}>✕</button>
               </div>
             ))}
-            {Object.keys(d.flags).length === 0 && <p className="text-xs text-gray-400">No flags defined.</p>}
+            {Object.keys(d.flags).length === 0 && <p className="text-xs text-fg-subtle">No flags defined.</p>}
           </div>
           <form
             onSubmit={(e) => { e.preventDefault(); if (newFlag.trim()) { patchMutation.mutate({ flag: { name: newFlag.trim(), value: false } }); setNewFlag(""); } }}
             className="flex gap-2 mt-3"
           >
             <input value={newFlag} onChange={(e) => setNewFlag(e.target.value)} placeholder="new_flag_name"
-              className="flex-1 text-xs font-mono border border-gray-200 rounded-lg px-3 py-2" />
+              className="flex-1 text-xs font-mono border border-line rounded-lg px-3 py-2" />
             <Button type="submit" variant="primary" size="sm">Add</Button>
           </form>
         </Card>
 
         {/* Storage */}
         <Card shadow padding="md">
-          <h2 className="text-sm font-bold text-gray-800 mb-3">Storage — largest tables</h2>
+          <h2 className="text-sm font-bold text-fg mb-3">Storage — largest tables</h2>
           <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <tbody>
               {d.tableSizes.map((t) => (
-                <tr key={t.table} className="border-t border-gray-50 first:border-0">
-                  <td className="py-1.5 font-mono text-xs text-gray-600">{t.table}</td>
-                  <td className="py-1.5 text-right font-semibold text-gray-800">{t.size}</td>
+                <tr key={t.table} className="border-t border-line first:border-0">
+                  <td className="py-1.5 font-mono text-xs text-fg-muted">{t.table}</td>
+                  <td className="py-1.5 text-right font-semibold text-fg">{t.size}</td>
                 </tr>
               ))}
             </tbody>
@@ -324,24 +324,24 @@ export default function AdminOpsPage() {
       {assetsD && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">
           <Card shadow padding="md">
-            <h2 className="text-sm font-bold text-gray-800 mb-1">Assets library — top storage users</h2>
-            <p className="text-xs text-gray-400 mb-3">
+            <h2 className="text-sm font-bold text-fg mb-1">Assets library — top storage users</h2>
+            <p className="text-xs text-fg-subtle mb-3">
               {fmtBytes(assetsD.totalBytes)} across {assetsD.totalAssets} active assets · {fmtBytes(assetsD.archivedBytes)} in {assetsD.archivedCount} archived (pending purge)
               {assetsD.orphanedPendingUploads > 0 && (
                 <span className="text-amber-700 font-semibold"> · {assetsD.orphanedPendingUploads} stale pending upload(s) awaiting cleanup cron</span>
               )}
             </p>
             {assetsD.topUsers.length === 0 ? (
-              <p className="text-sm text-gray-400">No assets uploaded yet.</p>
+              <p className="text-sm text-fg-subtle">No assets uploaded yet.</p>
             ) : (
               <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <tbody>
                   {assetsD.topUsers.map((u) => (
-                    <tr key={u.userId} className="border-t border-gray-50 first:border-0">
-                      <td className="py-1.5 text-xs text-gray-600 truncate max-w-[160px]">{u.name || u.email}</td>
-                      <td className="py-1.5 text-right text-xs text-gray-400">{u.count} files</td>
-                      <td className="py-1.5 text-right font-semibold text-gray-800">{fmtBytes(u.bytes)}</td>
+                    <tr key={u.userId} className="border-t border-line first:border-0">
+                      <td className="py-1.5 text-xs text-fg-muted truncate max-w-[160px]">{u.name || u.email}</td>
+                      <td className="py-1.5 text-right text-xs text-fg-subtle">{u.count} files</td>
+                      <td className="py-1.5 text-right font-semibold text-fg">{fmtBytes(u.bytes)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -351,19 +351,19 @@ export default function AdminOpsPage() {
           </Card>
 
           <Card shadow padding="md">
-            <h2 className="text-sm font-bold text-gray-800 mb-1">Moderation queue</h2>
-            <p className="text-xs text-gray-400 mb-3">Assets Rekognition flagged for explicit/violent content — excluded from the uploader&apos;s grid pending review.</p>
+            <h2 className="text-sm font-bold text-fg mb-1">Moderation queue</h2>
+            <p className="text-xs text-fg-subtle mb-3">Assets Rekognition flagged for explicit/violent content — excluded from the uploader&apos;s grid pending review.</p>
             {assetsD.flaggedAssets.length === 0 ? (
-              <p className="text-sm text-gray-400">Nothing flagged.</p>
+              <p className="text-sm text-fg-subtle">Nothing flagged.</p>
             ) : (
               <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <tbody>
                   {assetsD.flaggedAssets.map((a) => (
-                    <tr key={a.id} className="border-t border-gray-50 first:border-0">
-                      <td className="py-1.5 text-xs text-gray-600 truncate max-w-[140px]">{a.name}</td>
-                      <td className="py-1.5 text-xs text-gray-400">{a.user?.email ?? "—"}</td>
-                      <td className="py-1.5 text-right text-xs text-gray-400">{new Date(a.createdAt).toLocaleDateString()}</td>
+                    <tr key={a.id} className="border-t border-line first:border-0">
+                      <td className="py-1.5 text-xs text-fg-muted truncate max-w-[140px]">{a.name}</td>
+                      <td className="py-1.5 text-xs text-fg-subtle">{a.user?.email ?? "—"}</td>
+                      <td className="py-1.5 text-right text-xs text-fg-subtle">{new Date(a.createdAt).toLocaleDateString()}</td>
                     </tr>
                   ))}
                 </tbody>

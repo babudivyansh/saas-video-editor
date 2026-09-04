@@ -82,6 +82,16 @@ jobs:
       - name: Test
         run: npm test
 
+      # Nothing else in CI compiles the CSS for production: the e2e job runs
+      # `next dev` (playwright.config.ts), which builds styles lazily, so a
+      # production-only Tailwind/PostCSS failure would ship green. `build:no-db`
+      # is `next build` without the migrate/render-runtime steps the deploy
+      # script wraps it in.
+      - name: Production build
+        run: npm run build:no-db
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
   e2e:
     runs-on: ubuntu-latest
 

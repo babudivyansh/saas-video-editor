@@ -124,7 +124,7 @@ export function ReviewCard({ review }: { review: PublicReviewDTO }) {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={review.author.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
           ) : (
-            <div className="w-10 h-10 rounded-full grad-brand text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+            <div className="w-10 h-10 rounded-full grad-brand text-on-primary flex items-center justify-center text-sm font-bold flex-shrink-0">
               {initials(review.author.name)}
             </div>
           )}
@@ -224,7 +224,7 @@ export function ReviewCard({ review }: { review: PublicReviewDTO }) {
             aria-pressed={myVote === -1}
             aria-label={`Not helpful (${notHelpfulCount})`}
             className={`inline-flex items-center gap-1.5 text-xs font-semibold rounded-full px-2.5 py-1.5 transition-colors cursor-pointer ${
-              myVote === -1 ? "text-red-600 bg-tint-rose" : "text-ink-soft hover:bg-surface"
+              myVote === -1 ? "text-error bg-tint-rose" : "text-ink-soft hover:bg-surface"
             }`}
           >
             <IcThumbDown filled={myVote === -1} /> {notHelpfulCount}

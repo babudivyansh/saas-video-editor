@@ -136,7 +136,7 @@ export function ShareLinkPanel({
         {accounts.map((a) => (
           <div
             key={a.id}
-            className="rounded-[var(--radius-card)] border border-card-border bg-white p-4 shadow-card"
+            className="rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card"
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="font-semibold text-ink">{a.label}</p>
@@ -162,7 +162,7 @@ export function ShareLinkPanel({
             {live.map((link) => (
               <li
                 key={link.id}
-                className="rounded-[var(--radius-card)] border border-card-border bg-white p-4 shadow-card"
+                className="rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">

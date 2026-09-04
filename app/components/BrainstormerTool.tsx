@@ -60,21 +60,21 @@ function IdeaCard({ idea, index }: { idea: Idea; index: number }) {
   };
 
   return (
-    <div className="border border-gray-100 rounded-xl p-4 bg-white hover:border-gray-200 transition-colors">
+    <div className="border border-line rounded-xl p-4 bg-panel hover:border-line transition-colors">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2.5 flex-1 min-w-0">
-          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 text-[10px] font-bold flex items-center justify-center mt-0.5">
+          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-tint-violet text-brand text-[10px] font-bold flex items-center justify-center mt-0.5">
             {index + 1}
           </span>
           <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-gray-900 leading-snug">{idea.title}</p>
-            <p className="text-xs text-gray-500 mt-1 leading-relaxed">{idea.description}</p>
+            <p className="text-[13px] font-semibold text-fg leading-snug">{idea.title}</p>
+            <p className="text-xs text-fg-muted mt-1 leading-relaxed">{idea.description}</p>
           </div>
         </div>
         <button
           onClick={handleCopy}
           title="Copy idea"
-          className={`flex-shrink-0 p-1.5 rounded-lg transition-colors ${copied ? "text-green-600 bg-green-50" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"}`}
+          className={`flex-shrink-0 p-1.5 rounded-lg transition-colors ${copied ? "text-success bg-green-50" : "text-fg-subtle hover:text-fg hover:bg-surface-3"}`}
         >
           {copied ? <IcCheck /> : <IcCopy />}
         </button>
@@ -131,18 +131,18 @@ export default function BrainstormerTool() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+    <div className="min-h-screen bg-surface-2 p-4 md:p-8">
       <div className="max-w-5xl mx-auto flex flex-col lg:flex-row gap-5">
 
         {/* ── Left panel ── */}
-        <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-5">
+        <div className="flex-1 bg-panel rounded-2xl border border-line shadow-sm p-6 space-y-5">
 
           {/* Topic */}
           <div>
             <div className="flex items-center gap-1.5 mb-2">
-              <label className="block text-sm font-semibold text-gray-800">Topic</label>
+              <label className="block text-sm font-semibold text-fg">Topic</label>
               <Tooltip content="Narrower is better — 'vintage motorcycle restoration' beats 'motorcycles' for more specific, usable ideas.">
-                <span className="text-gray-400 cursor-help"><IcInfo /></span>
+                <span className="text-fg-subtle cursor-help"><IcInfo /></span>
               </Tooltip>
             </div>
             <input
@@ -151,7 +151,7 @@ export default function BrainstormerTool() {
               onChange={e => setTopic(e.target.value)}
               maxLength={200}
               placeholder="Generate ideas for a niche to start a page on"
-              className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+              className="w-full rounded-xl border border-line px-3.5 py-2.5 text-sm text-fg placeholder:text-fg-subtle outline-none focus:border-brand/60 focus:ring-2 focus:ring-primary/25 transition-all"
             />
             <div className="flex flex-wrap gap-2 mt-2.5">
               {TOPIC_CHIPS.map(chip => (
@@ -160,8 +160,8 @@ export default function BrainstormerTool() {
                   onClick={() => setTopic(chip)}
                   className={`px-3 py-1 rounded-lg border text-xs font-medium transition-colors ${
                     topic === chip
-                      ? "border-indigo-300 bg-indigo-50 text-indigo-700"
-                      : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                      ? "border-brand/50 bg-tint-blue text-brand"
+                      : "border-line bg-panel text-fg-muted hover:border-line-strong hover:bg-surface-2"
                   }`}
                 >
                   {chip}
@@ -172,17 +172,17 @@ export default function BrainstormerTool() {
 
           {/* Tone */}
           <div>
-            <label className="block text-sm font-semibold text-gray-800 mb-2">Select the tone for your ideas</label>
+            <label className="block text-sm font-semibold text-fg mb-2">Select the tone for your ideas</label>
             <div className="relative">
               <select
                 value={tone}
                 onChange={e => setTone(e.target.value)}
-                className="w-full appearance-none rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all bg-white pr-8"
+                className="w-full appearance-none rounded-xl border border-line px-3.5 py-2.5 text-sm text-fg outline-none focus:border-brand/60 focus:ring-2 focus:ring-primary/25 transition-all bg-panel pr-8"
               >
                 <option value="">Select Tone</option>
                 {TONES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-subtle pointer-events-none">
                 <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
@@ -190,20 +190,20 @@ export default function BrainstormerTool() {
 
           {/* Target audience */}
           <div>
-            <label className="block text-sm font-semibold text-gray-800 mb-2">Target audience</label>
+            <label className="block text-sm font-semibold text-fg mb-2">Target audience</label>
             <input
               type="text"
               value={targetAudience}
               onChange={e => setTargetAudience(e.target.value)}
               maxLength={200}
               placeholder="30-40 year old moms in the US"
-              className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+              className="w-full rounded-xl border border-line px-3.5 py-2.5 text-sm text-fg placeholder:text-fg-subtle outline-none focus:border-brand/60 focus:ring-2 focus:ring-primary/25 transition-all"
             />
           </div>
 
           {/* Video type */}
           <div>
-            <label className="block text-sm font-semibold text-gray-800 mb-2">Video type</label>
+            <label className="block text-sm font-semibold text-fg mb-2">Video type</label>
             <div className="flex gap-2 flex-wrap">
               {VIDEO_TYPES.map(vt => (
                 <button
@@ -211,8 +211,8 @@ export default function BrainstormerTool() {
                   onClick={() => setVideoType(prev => prev === vt ? "" : vt)}
                   className={`px-3.5 py-2 rounded-lg border text-xs font-medium transition-colors ${
                     videoType === vt
-                      ? "border-indigo-300 bg-indigo-50 text-indigo-700"
-                      : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                      ? "border-brand/50 bg-tint-blue text-brand"
+                      : "border-line bg-panel text-fg-muted hover:border-line-strong hover:bg-surface-2"
                   }`}
                 >
                   {vt}
@@ -223,7 +223,7 @@ export default function BrainstormerTool() {
 
           {/* Error */}
           {errorMsg && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3">{errorMsg}</p>
+            <p className="text-sm text-error bg-error/10 rounded-xl px-4 py-3">{errorMsg}</p>
           )}
 
           {/* Generate button */}
@@ -242,19 +242,19 @@ export default function BrainstormerTool() {
         </div>
 
         {/* ── Right panel ── */}
-        <div className="w-full lg:w-96 lg:flex-shrink-0 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
-          <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100 flex-shrink-0">
-            <IcSparkle className="w-3.5 h-3.5 text-indigo-500" />
-            <p className="text-sm font-semibold text-gray-800">Your idea will appear here</p>
+        <div className="w-full lg:w-96 lg:flex-shrink-0 bg-panel rounded-2xl border border-line shadow-sm flex flex-col overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-line flex-shrink-0">
+            <IcSparkle className="w-3.5 h-3.5 text-brand" />
+            <p className="text-sm font-semibold text-fg">Your idea will appear here</p>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4">
             {stage === "idle" && (
               <div className="space-y-2 pt-1">
                 {[1, 0.9, 0.95, 0.7, 0.85, 0.6, 0.75, 0.88].map((w, i) => (
-                  <div key={i} className="h-2 rounded-full bg-gray-100" style={{ width: `${w * 100}%` }} />
+                  <div key={i} className="h-2 rounded-full bg-surface-3" style={{ width: `${w * 100}%` }} />
                 ))}
-                <p className="text-xs text-gray-400 mt-4 leading-relaxed">
+                <p className="text-xs text-fg-subtle mt-4 leading-relaxed">
                   Describe your niche and audience, then generate — five ideas with hooks will appear here.
                 </p>
               </div>
@@ -265,7 +265,7 @@ export default function BrainstormerTool() {
                 {[1, 0.9, 0.95, 0.7, 0.85, 0.6, 0.75, 0.88].map((w, i) => (
                   <div
                     key={i}
-                    className="h-2 rounded-full bg-gray-100 animate-pulse"
+                    className="h-2 rounded-full bg-surface-3 animate-pulse"
                     style={{ width: `${w * 100}%`, animationDelay: `${i * 80}ms` }}
                   />
                 ))}
@@ -275,7 +275,7 @@ export default function BrainstormerTool() {
             {stage === "done" && ideas.length > 0 && (
               <div className="space-y-3">
                 {ideas.length < 5 && (
-                  <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+                  <p className="text-xs text-warning bg-amber-50 rounded-lg px-3 py-2">
                     Only {ideas.length} idea{ideas.length === 1 ? "" : "s"} came back this time — try generating again for a full set of 5.
                   </p>
                 )}
@@ -286,7 +286,7 @@ export default function BrainstormerTool() {
             )}
 
             {stage === "error" && !errorMsg && (
-              <p className="text-sm text-red-500 mt-4">Generation failed. Please try again.</p>
+              <p className="text-sm text-error mt-4">Generation failed. Please try again.</p>
             )}
           </div>
         </div>

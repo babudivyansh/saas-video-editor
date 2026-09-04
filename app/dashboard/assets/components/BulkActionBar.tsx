@@ -72,7 +72,7 @@ export function BulkActionBar({
                   >
                     <input autoFocus value={tagInput} onChange={(e) => setTagInput(e.target.value)} placeholder="tag name"
                       className="text-sm text-ink border border-card-border rounded-lg px-2 py-1.5 w-32 outline-none focus:border-violet-300" />
-                    <button type="submit" className="text-xs font-semibold text-white grad-brand rounded-lg px-3 cursor-pointer">Add</button>
+                    <button type="submit" className="text-xs font-semibold text-on-primary grad-brand rounded-lg px-3 cursor-pointer">Add</button>
                   </form>
                 )}
               </Dropdown>
@@ -84,7 +84,7 @@ export function BulkActionBar({
             <>
               <button onClick={onRestore} className="text-xs font-semibold px-3 py-1.5 rounded-full hover:bg-white/10 cursor-pointer whitespace-nowrap">Restore</button>
               <button onClick={onDownload} className="text-xs font-semibold px-3 py-1.5 rounded-full hover:bg-white/10 cursor-pointer whitespace-nowrap">Download</button>
-              <button onClick={onPermanentDelete} className="text-xs font-semibold px-3 py-1.5 rounded-full text-red-300 hover:bg-red-500/20 cursor-pointer whitespace-nowrap">Delete permanently</button>
+              <button onClick={onPermanentDelete} className="text-xs font-semibold px-3 py-1.5 rounded-full text-error hover:bg-error/20 cursor-pointer whitespace-nowrap">Delete permanently</button>
             </>
           )}
 
