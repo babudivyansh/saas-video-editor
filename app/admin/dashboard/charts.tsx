@@ -5,10 +5,10 @@
 // labels, text in text tokens; every chart's data is also CSV-exportable via
 // its ChartContainer, which doubles as the accessible fallback.
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
-  Area, AreaChart, Bar, BarChart, Brush, CartesianGrid, Cell, Line, LineChart,
-  Pie, PieChart, RadialBar, RadialBarChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Area, AreaChart, Bar, BarChart, Brush, CartesianGrid, Cell, ComposedChart, Line, LineChart,
+  Pie, PieChart, RadialBar, RadialBarChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { BRAND, PALETTE, TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE, TOOLTIP_STYLE, compact, inr } from "./ui";
 
@@ -47,6 +47,9 @@ export function RevenueAreaChart({
   mrrInPaise?: number | null;
 }) {
   const [show, setShow] = useState({ revenue: true, refunds: true, previous: true });
+  // Gradient ids must be unique per mounted chart — two instances sharing an
+  // id would both resolve to whichever <defs> rendered last.
+  const uid = useId().replace(/:/g, "");
   // Align the previous window by index so it overlays the current one.
   const merged = data.map((d, i) => ({
     ...d,
@@ -83,6 +86,16 @@ export function RevenueAreaChart({
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={merged} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
+            <defs>
+              <linearGradient id={`rev-${uid}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={BRAND} stopOpacity={0.34} />
+                <stop offset="100%" stopColor={BRAND} stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id={`ref-${uid}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={PALETTE[4]} stopOpacity={0.22} />
+                <stop offset="100%" stopColor={PALETTE[4]} stopOpacity={0} />
+              </linearGradient>
+            </defs>
             <CartesianGrid stroke={GRID} vertical={false} />
             <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={32} />
             <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} tickFormatter={(v: number) => `₹${compact(v / 100)}`} width={52} />
@@ -96,10 +109,10 @@ export function RevenueAreaChart({
               <Line type="monotone" dataKey="previousInPaise" name="Previous period" stroke="var(--fg-subtle)" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
             )}
             {show.revenue && (
-              <Area type="monotone" dataKey="revenueInPaise" name="Revenue" stroke={BRAND} strokeWidth={2} fill={BRAND} fillOpacity={0.08} />
+              <Area type="monotone" dataKey="revenueInPaise" name="Revenue" stroke={BRAND} strokeWidth={2} fill={`url(#rev-${uid})`} fillOpacity={1} />
             )}
             {show.refunds && (
-              <Area type="monotone" dataKey="refundsInPaise" name="Refunds" stroke={PALETTE[4]} strokeWidth={1.5} fill={PALETTE[4]} fillOpacity={0.08} />
+              <Area type="monotone" dataKey="refundsInPaise" name="Refunds" stroke={PALETTE[4]} strokeWidth={1.5} fill={`url(#ref-${uid})`} fillOpacity={1} />
             )}
             {data.length > 14 && <Brush dataKey="date" height={18} travellerWidth={8} stroke="var(--line-strong)" fill="var(--surface-2)" />}
           </AreaChart>
@@ -219,7 +232,7 @@ export function Gauge({ successPct, chips }: { successPct: number | null; chips:
           <span
             key={c.label}
             className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-              c.tone === "bad" && c.value > 0 ? "bg-error/10 text-error" : c.tone === "warn" && c.value > 0 ? "bg-amber-50 text-amber-700" : "bg-surface-2 text-fg-muted"
+              c.tone === "bad" && c.value > 0 ? "bg-error/10 text-error" : c.tone === "warn" && c.value > 0 ? "bg-warning/10 text-warning" : "bg-surface-2 text-fg-muted"
             }`}
           >
             {c.value} {c.label}
@@ -244,7 +257,7 @@ export function HBars({
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={items} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 8 }}>
           <XAxis type="number" hide />
-          <YAxis type="category" dataKey="label" tick={{ fontSize: 10, fill: "#6b7280" }} width={110} tickLine={false} axisLine={false} />
+          <YAxis type="category" dataKey="label" tick={AXIS_TICK} width={110} tickLine={false} axisLine={false} />
           <Tooltip formatter={(value) => valueFmt(Number(value))} contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} />
           <Bar
             dataKey="value"
@@ -254,12 +267,342 @@ export function HBars({
             label={{
               position: "right",
               fontSize: 10,
-              fill: "#6b7280",
+              fill: "var(--fg-muted)",
               formatter: (v) => (typeof v === "number" ? valueFmt(v) : String(v ?? "")),
             }}
           />
         </BarChart>
       </ResponsiveContainer>
+    </div>
+  );
+}
+
+const EMPTY = <p className="text-xs text-fg-subtle py-6 text-center">No data in range.</p>;
+
+type Row = { date: string } & Record<string, string | number>;
+export interface SeriesDef { key: string; name: string; color?: string }
+
+// ── Stacked bars over time ───────────────────────────────────────────────────
+// `percent` normalises each bar to its own total, so the chart reads as
+// composition over time rather than volume — the right form for deliverability
+// or status mix, where the question is "what share failed", not "how many".
+export function StackedBars({
+  data, series, height = 200, percent = false, valueFmt = compact,
+}: {
+  data: Row[];
+  series: SeriesDef[];
+  height?: number;
+  percent?: boolean;
+  valueFmt?: (n: number) => string;
+}) {
+  if (data.length === 0) return EMPTY;
+
+  const rows: Row[] = percent
+    ? data.map((row) => {
+        const total = series.reduce((s, k) => s + Number(row[k.key] ?? 0), 0);
+        if (total <= 0) return row;
+        const out: Row = { date: row.date };
+        for (const k of series) out[k.key] = (Number(row[k.key] ?? 0) / total) * 100;
+        return out;
+      })
+    : data;
+
+  return (
+    <div style={{ height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={rows} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+          <CartesianGrid stroke={GRID} vertical={false} />
+          <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={32} />
+          <YAxis
+            tick={AXIS_TICK}
+            tickLine={false}
+            axisLine={false}
+            width={percent ? 36 : 34}
+            allowDecimals={false}
+            domain={percent ? [0, 100] : undefined}
+            tickFormatter={percent ? (v: number) => `${v}%` : undefined}
+          />
+          <Tooltip
+            formatter={(value, name) => [percent ? `${Number(value).toFixed(1)}%` : valueFmt(Number(value)), String(name)]}
+            contentStyle={TOOLTIP_STYLE}
+            itemStyle={TOOLTIP_ITEM_STYLE}
+            labelStyle={TOOLTIP_LABEL_STYLE}
+          />
+          {series.map((s, i) => (
+            <Bar
+              key={s.key}
+              dataKey={s.key}
+              name={s.name}
+              stackId="a"
+              fill={s.color ?? PALETTE[i % PALETTE.length]}
+              radius={i === series.length - 1 ? [2, 2, 0, 0] : undefined}
+            />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ── Diverging area ───────────────────────────────────────────────────────────
+// Two quantities mirrored around a zero axis — credits granted above, spent
+// below. Callers pass both as POSITIVE numbers; the down series is negated
+// here so the axis is a real zero rather than a drawn line the data floats off.
+export function DivergingArea({
+  data, up, down, height = 220, valueFmt = compact,
+}: {
+  data: Row[];
+  up: SeriesDef;
+  down: SeriesDef;
+  height?: number;
+  valueFmt?: (n: number) => string;
+}) {
+  if (data.length === 0) return EMPTY;
+  const uid = useId().replace(/:/g, "");
+  const upColor = up.color ?? PALETTE[1];
+  const downColor = down.color ?? PALETTE[3];
+  const rows = data.map((d) => ({ ...d, [down.key]: -Math.abs(Number(d[down.key] ?? 0)) }));
+
+  return (
+    <div style={{ height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={rows} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+          <defs>
+            <linearGradient id={`up-${uid}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={upColor} stopOpacity={0.32} />
+              <stop offset="100%" stopColor={upColor} stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id={`dn-${uid}`} x1="0" y1="1" x2="0" y2="0">
+              <stop offset="0%" stopColor={downColor} stopOpacity={0.32} />
+              <stop offset="100%" stopColor={downColor} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke={GRID} vertical={false} />
+          <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={false} minTickGap={32} />
+          <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} width={42} tickFormatter={(v: number) => valueFmt(Math.abs(v))} />
+          <ReferenceLine y={0} stroke="var(--line-strong)" />
+          <Tooltip
+            formatter={(value, name) => [valueFmt(Math.abs(Number(value))), String(name)]}
+            contentStyle={TOOLTIP_STYLE}
+            itemStyle={TOOLTIP_ITEM_STYLE}
+            labelStyle={TOOLTIP_LABEL_STYLE}
+          />
+          <Area type="monotone" dataKey={up.key} name={up.name} stroke={upColor} strokeWidth={1.75} fill={`url(#up-${uid})`} fillOpacity={1} />
+          <Area type="monotone" dataKey={down.key} name={down.name} stroke={downColor} strokeWidth={1.75} fill={`url(#dn-${uid})`} fillOpacity={1} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ── Multi-line ───────────────────────────────────────────────────────────────
+export function MultiLine({
+  data, series, height = 200, valueFmt = compact, yWidth = 34,
+}: {
+  data: Row[];
+  series: SeriesDef[];
+  height?: number;
+  valueFmt?: (n: number) => string;
+  yWidth?: number;
+}) {
+  if (data.length === 0) return EMPTY;
+  return (
+    <div style={{ height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+          <CartesianGrid stroke={GRID} vertical={false} />
+          <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={32} />
+          <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} width={yWidth} tickFormatter={(v: number) => valueFmt(v)} />
+          <Tooltip
+            formatter={(value, name) => [valueFmt(Number(value)), String(name)]}
+            contentStyle={TOOLTIP_STYLE}
+            itemStyle={TOOLTIP_ITEM_STYLE}
+            labelStyle={TOOLTIP_LABEL_STYLE}
+          />
+          {series.map((s, i) => (
+            <Line
+              key={s.key}
+              type="monotone"
+              dataKey={s.key}
+              name={s.name}
+              stroke={s.color ?? PALETTE[i % PALETTE.length]}
+              strokeWidth={i === 0 ? 2 : 1.75}
+              dot={false}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ── Funnel ───────────────────────────────────────────────────────────────────
+// Deliberately not Recharts: a funnel's job is the step-to-step conversion
+// number, which a bar chart states more plainly than a tapered polygon.
+export function Funnel({
+  steps, valueFmt = compact,
+}: {
+  steps: Array<{ name: string; value: number; color?: string }>;
+  valueFmt?: (n: number) => string;
+}) {
+  if (steps.length === 0) return EMPTY;
+  const top = steps[0]?.value ?? 0;
+  return (
+    <ol className="space-y-3">
+      {steps.map((s, i) => {
+        const share = top > 0 ? (s.value / top) * 100 : 0;
+        const prev = i > 0 ? steps[i - 1].value : null;
+        const stepPct = prev !== null && prev > 0 ? (s.value / prev) * 100 : null;
+        return (
+          <li key={s.name}>
+            <div className="flex justify-between items-baseline text-[11.5px] mb-1">
+              <span className="text-fg-muted">{s.name}</span>
+              <span className="font-semibold text-fg">{valueFmt(s.value)}</span>
+            </div>
+            <div className="h-[18px] bg-surface-1 rounded-md overflow-hidden">
+              <div
+                className="h-full rounded-md"
+                style={{ width: `${Math.max(0, Math.min(100, share))}%`, background: s.color ?? PALETTE[i % PALETTE.length] }}
+              />
+            </div>
+            <p className="text-[10px] text-fg-subtle mt-1">
+              {share.toFixed(0)}% of first step
+              {stepPct !== null ? ` · ${stepPct.toFixed(0)}% carried from previous` : ""}
+            </p>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+// ── Histogram ────────────────────────────────────────────────────────────────
+export function Histogram({
+  buckets, height = 180, color = BRAND, valueFmt = compact,
+}: {
+  buckets: Array<{ label: string; count: number }>;
+  height?: number;
+  color?: string;
+  valueFmt?: (n: number) => string;
+}) {
+  if (buckets.length === 0) return EMPTY;
+  return (
+    <div style={{ height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={buckets} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+          <CartesianGrid stroke={GRID} vertical={false} />
+          <XAxis dataKey="label" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: GRID }} interval={0} />
+          <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} width={34} allowDecimals={false} />
+          <Tooltip
+            formatter={(value) => [valueFmt(Number(value)), "clips"]}
+            contentStyle={TOOLTIP_STYLE}
+            itemStyle={TOOLTIP_ITEM_STYLE}
+            labelStyle={TOOLTIP_LABEL_STYLE}
+          />
+          <Bar dataKey="count" fill={color} radius={[3, 3, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ── Heatmap ──────────────────────────────────────────────────────────────────
+// CSS grid rather than Recharts — 168 cells of hour x weekday is a table, and
+// Recharts has no cell mark. Opacity ramps the brand hue; an sr-only summary
+// carries the peak for screen readers.
+const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+export function Heatmap({
+  cells, peakLabel,
+}: {
+  cells: Array<{ day: number; hour: number; value: number }>;
+  peakLabel?: string | null;
+}) {
+  if (cells.length === 0) return EMPTY;
+  const max = Math.max(...cells.map((c) => c.value), 0);
+  const byKey = new Map(cells.map((c) => [`${c.day}-${c.hour}`, c.value]));
+
+  return (
+    <div>
+      <div className="flex gap-2">
+        <div className="flex flex-col justify-between text-[9.5px] text-fg-subtle py-0.5">
+          {DAY_LABELS.map((d) => <span key={d}>{d}</span>)}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="grid gap-[3px]" style={{ gridTemplateColumns: "repeat(24, minmax(0, 1fr))" }}>
+            {DAY_LABELS.flatMap((_, day) =>
+              Array.from({ length: 24 }, (_, hour) => {
+                const v = byKey.get(`${day}-${hour}`) ?? 0;
+                const o = max > 0 ? 0.06 + (v / max) * 0.82 : 0.06;
+                return (
+                  <div
+                    key={`${day}-${hour}`}
+                    className="rounded-[2.5px]"
+                    style={{ aspectRatio: "1", background: `color-mix(in oklab, ${BRAND} ${Math.round(o * 100)}%, transparent)` }}
+                    title={`${DAY_LABELS[day]} ${String(hour).padStart(2, "0")}:00 — ${v}`}
+                  />
+                );
+              }),
+            )}
+          </div>
+          <div className="flex justify-between text-[9.5px] text-fg-subtle mt-1.5">
+            <span>00</span><span>06</span><span>12</span><span>18</span><span>23</span>
+          </div>
+        </div>
+      </div>
+      {peakLabel && <p className="text-[10.5px] text-fg-subtle mt-3">Busiest: {peakLabel}</p>}
+      <span className="sr-only">Generation volume by hour of day and day of week. Peak {peakLabel ?? "unknown"}.</span>
+    </div>
+  );
+}
+
+// ── Combo bar + line (dual axis) ─────────────────────────────────────────────
+export function ComboBarLine({
+  data, bar, line, height = 220, barFmt = compact, lineFmt = (n: number) => `${n.toFixed(0)}%`,
+}: {
+  data: Row[];
+  bar: SeriesDef;
+  line: SeriesDef;
+  height?: number;
+  barFmt?: (n: number) => string;
+  lineFmt?: (n: number) => string;
+}) {
+  if (data.length === 0) return EMPTY;
+  return (
+    <div style={{ height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+          <CartesianGrid stroke={GRID} vertical={false} />
+          <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={32} />
+          <YAxis yAxisId="l" tick={AXIS_TICK} tickLine={false} axisLine={false} width={42} tickFormatter={(v: number) => barFmt(v)} />
+          <YAxis yAxisId="r" orientation="right" tick={AXIS_TICK} tickLine={false} axisLine={false} width={40} tickFormatter={(v: number) => lineFmt(v)} />
+          <Tooltip
+            formatter={(value, name) => [name === line.name ? lineFmt(Number(value)) : barFmt(Number(value)), String(name)]}
+            contentStyle={TOOLTIP_STYLE}
+            itemStyle={TOOLTIP_ITEM_STYLE}
+            labelStyle={TOOLTIP_LABEL_STYLE}
+          />
+          <Bar yAxisId="l" dataKey={bar.key} name={bar.name} fill={bar.color ?? PALETTE[3]} fillOpacity={0.55} radius={[2, 2, 0, 0]} />
+          <Line yAxisId="r" type="monotone" dataKey={line.key} name={line.name} stroke={line.color ?? BRAND} strokeWidth={2} dot={false} />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ── Placeholder ──────────────────────────────────────────────────────────────
+// For a chart whose data does not exist yet. A skeleton axis and NO curve —
+// drawing a shape here would be inventing a trend. `needs` says in one line
+// what would make it real, so the gap is actionable rather than mysterious.
+export function PlaceholderChart({ height = 150, needs }: { height?: number; needs: string }) {
+  return (
+    <div>
+      <svg viewBox="0 0 320 132" className="w-full opacity-50" style={{ height }} aria-hidden preserveAspectRatio="none">
+        <line x1="24" x2="24" y1="4" y2="118" stroke="var(--line)" strokeDasharray="3 4" />
+        {[42, 80, 118].map((y) => (
+          <line key={y} x1="24" x2="316" y1={y} y2={y} stroke="var(--line)" strokeDasharray="3 4" />
+        ))}
+      </svg>
+      <p className="text-[10.5px] text-fg-subtle leading-relaxed mt-2">{needs}</p>
     </div>
   );
 }

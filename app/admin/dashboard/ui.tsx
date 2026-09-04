@@ -33,7 +33,9 @@ export const TOOLTIP_STYLE = {
   border: "1px solid var(--line)",
   background: "var(--panel-raised)",
   color: "var(--fg)",
-  boxShadow: "var(--elev-lg)",
+  // --elev-lg does not exist; globals.css defines --tw-elev-lg. The old name
+  // resolved to nothing, so every admin tooltip rendered without a shadow.
+  boxShadow: "var(--tw-elev-lg)",
 } as const;
 export const TOOLTIP_ITEM_STYLE = { color: "var(--fg)" } as const;
 export const TOOLTIP_LABEL_STYLE = { color: "var(--fg-muted)" } as const;
@@ -107,22 +109,34 @@ export function ChartContainer({
   csv,
   children,
   className = "",
+  dashed = false,
 }: {
   title: string;
   subtitle?: string;
   csv?: { filename: string; rows: Array<Record<string, string | number | null>> };
   children: React.ReactNode;
   className?: string;
+  /** Renders the "no data behind this yet" treatment: dashed edge, muted
+   *  title, and an explicit chip. Pair with <PlaceholderChart>. */
+  dashed?: boolean;
 }) {
   const [full, setFull] = useState(false);
+  const shell = dashed
+    ? "border-dashed border-line-strong"
+    : "bg-panel border-line shadow-sm transition-shadow hover:shadow-md";
   const body = (
-    <div className={`bg-panel rounded-2xl border border-line shadow-sm p-5 transition-shadow hover:shadow-md ${full ? "fixed inset-4 z-50 overflow-auto" : className}`}>
+    <div className={`rounded-[var(--radius-card)] border p-5 ${shell} ${full ? "fixed inset-4 z-50 overflow-auto bg-panel" : className}`}>
       <div className="flex items-start justify-between gap-2 mb-3">
         <div>
-          <h2 className="text-sm font-bold text-fg">{title}</h2>
+          <h2 className={`text-sm font-bold ${dashed ? "text-fg-muted" : "text-fg"}`}>{title}</h2>
           {subtitle && <p className="text-[11px] text-fg-subtle">{subtitle}</p>}
         </div>
         <div className="flex items-center gap-1">
+          {dashed && (
+            <span className="text-[9px] font-bold uppercase tracking-wider text-fg-subtle border border-dashed border-line-strong rounded-full px-2 py-0.5">
+              needs instrumentation
+            </span>
+          )}
           {csv && (
             <button
               onClick={() => downloadCsv(csv.filename, csv.rows)}
@@ -133,14 +147,14 @@ export function ChartContainer({
               <Download size={14} />
             </button>
           )}
-          <button
+          {!dashed && <button
             onClick={() => setFull((f) => !f)}
             className="p-1.5 text-fg-subtle hover:text-brand cursor-pointer"
             title={full ? "Close fullscreen" : "Fullscreen"}
             aria-label={full ? `Close ${title} fullscreen` : `Open ${title} fullscreen`}
           >
             {full ? <X size={14} /> : <Maximize2 size={14} />}
-          </button>
+          </button>}
         </div>
       </div>
       {children}
@@ -157,12 +171,12 @@ export function ChartContainer({
 }
 
 export function Skeleton({ h = "h-40" }: { h?: string }) {
-  return <div className={`bg-surface-3 rounded-2xl animate-pulse ${h}`} aria-label="Loading" />;
+  return <div className={`bg-surface-3 rounded-[var(--radius-card)] animate-pulse ${h}`} aria-label="Loading" />;
 }
 
 export function ErrorCard({ onRetry }: { onRetry: () => void }) {
   return (
-    <div className="bg-panel rounded-2xl border border-line shadow-sm p-6 text-center">
+    <div className="bg-panel rounded-[var(--radius-card)] border border-line shadow-sm p-6 text-center">
       <p className="text-sm text-fg-muted mb-2">Couldn’t load this section.</p>
       <button onClick={onRetry} className="text-xs font-semibold text-brand cursor-pointer">Retry</button>
     </div>

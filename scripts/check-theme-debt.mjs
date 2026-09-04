@@ -73,7 +73,7 @@ const PATTERNS = {
   // `style` prop or a style object's value, so an SVG `stroke="#..."` and a hex
   // in a comment don't inflate it.
   //
-  // The 322 baseline is a MEASUREMENT, not a certificate — unlike the budgets
+  // The 320 baseline is a MEASUREMENT, not a certificate — unlike the budgets
   // above it is not all deliberate. Roughly:
   //   209  create/{streamer,split,viral-split-screen,reddit,text}-video — caption
   //        presets and chat themes that ffmpeg burns into the exported video.
@@ -100,7 +100,7 @@ const BUDGET = {
   "raw-red": 15,
   "brand-hex": 51,
   "legacy-light": 0,
-  "inline-hex": 322,
+  "inline-hex": 320,
 };
 
 function walk(dir, out = []) {
