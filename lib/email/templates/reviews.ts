@@ -18,7 +18,7 @@ export function reviewPublished(p: { name: string; reviewUrl: string }): EmailDo
         kind: "paragraph",
         text: `Hi ${greet(p.name)}, thanks for sharing your experience — your review of ${PRODUCT_NAME} is published for other creators to see.`,
       },
-      { kind: "button", href: p.reviewUrl, label: "View your review", tone: "violet" },
+      { kind: "button", href: p.reviewUrl, label: "View your review", tone: "accent" },
     ],
   };
 }
@@ -39,7 +39,7 @@ export function reviewRejected(p: { name: string; reason?: string }): EmailDocum
         ? ([{ kind: "callout", tone: "neutral", title: "Reason", body: p.reason }] as const)
         : []),
       { kind: "paragraph", text: "You're welcome to update and resubmit your review at any time." },
-      { kind: "button", href: `${APP_URL}/dashboard?editReview=1`, label: "Edit and resubmit", tone: "violet" },
+      { kind: "button", href: `${APP_URL}/dashboard?editReview=1`, label: "Edit and resubmit", tone: "accent" },
     ],
   };
 }
@@ -54,7 +54,7 @@ export function reviewReply(p: { name: string; reviewUrl: string }): EmailDocume
         kind: "paragraph",
         text: `Hi ${greet(p.name)}, our team just posted a public response to the review you left.`,
       },
-      { kind: "button", href: p.reviewUrl, label: "See the response", tone: "violet" },
+      { kind: "button", href: p.reviewUrl, label: "See the response", tone: "accent" },
     ],
   };
 }
@@ -69,7 +69,7 @@ export function reviewPrompt(p: { name: string; reviewUrl: string }): EmailDocum
         kind: "paragraph",
         text: `Hi ${greet(p.name)}, you've been creating with ${PRODUCT_NAME} for a while — mind sharing what you think? It helps other creators decide, and helps us keep improving.`,
       },
-      { kind: "button", href: p.reviewUrl, label: "Write a review", tone: "violet" },
+      { kind: "button", href: p.reviewUrl, label: "Write a review", tone: "accent" },
       { kind: "paragraph", tone: "fine", text: "Takes about a minute." },
     ],
   };
@@ -92,7 +92,7 @@ export function reviewDrip1(p: DripProps): EmailDocument {
         kind: "paragraph",
         text: `Hi ${greet(p.name)}, thanks for using ${PRODUCT_NAME} recently. We'd love to know how it's going — a quick review helps other creators decide, and helps us keep improving.`,
       },
-      { kind: "button", href: p.ctaUrl, label: "Leave a review", tone: "violet" },
+      { kind: "button", href: p.ctaUrl, label: "Leave a review", tone: "accent" },
       { kind: "paragraph", tone: "fine", text: "Takes about a minute." },
       { kind: "pixel", src: p.pixelUrl },
     ],
@@ -109,7 +109,7 @@ export function reviewDrip2(p: DripProps): EmailDocument {
         kind: "paragraph",
         text: `Hi ${greet(p.name)}, just a gentle nudge — your feedback genuinely shapes what we build next, and it helps other creators trust ${PRODUCT_NAME} enough to try it.`,
       },
-      { kind: "button", href: p.ctaUrl, label: "Share your thoughts", tone: "violet" },
+      { kind: "button", href: p.ctaUrl, label: "Share your thoughts", tone: "accent" },
       { kind: "paragraph", tone: "fine", text: "Takes about a minute." },
       { kind: "pixel", src: p.pixelUrl },
     ],
@@ -126,7 +126,7 @@ export function reviewDrip3(p: DripProps): EmailDocument {
         kind: "paragraph",
         text: `Hi ${greet(p.name)}, this is the last time we'll ask — if you have a minute to leave a review we'd really appreciate it. Either way, thank you for creating with ${PRODUCT_NAME}.`,
       },
-      { kind: "button", href: p.ctaUrl, label: "Leave a review", tone: "violet" },
+      { kind: "button", href: p.ctaUrl, label: "Leave a review", tone: "accent" },
       {
         kind: "paragraph",
         tone: "fine",

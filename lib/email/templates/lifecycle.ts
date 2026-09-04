@@ -80,7 +80,7 @@ export function onboardingDay3(p: { name: string; creditsUsed: number; hasUsed: 
         },
         {
           kind: "callout",
-          tone: "violet",
+          tone: "accent",
           title: "Social Tracker",
           body: "Connect YouTube or Instagram and track how your videos perform — views, likes, growth — in one dashboard.",
         },

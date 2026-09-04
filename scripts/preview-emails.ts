@@ -27,7 +27,7 @@ const OUT_DIR = join(process.cwd(), ".email-preview");
 /**
  * Inline the real logo for the preview.
  *
- * Production points at https://clipiro.com/logo.png, which is live — but a
+ * Production points at the hosted logo-email.png — but a
  * preview page cannot reach an external host, so the same file is read from
  * public/ and embedded as a data URI. It is downscaled to twice its display
  * width first: the source is 760px wide for a 120px slot, and embedding it at
@@ -37,7 +37,10 @@ const OUT_DIR = join(process.cwd(), ".email-preview");
  * Only the preview substitutes anything — the emitted HTML keeps the real URL.
  */
 async function logoDataUri(): Promise<string> {
-  const source = readFileSync(join(process.cwd(), "public", "logo.png"));
+  // MUST track LOGO_URL. Reading logo.png here while tokens.ts had moved on to
+  // logo-email.png made every preview show the retired blue lockup, which is a
+  // preview that lies about what recipients get.
+  const source = readFileSync(join(process.cwd(), "public", "logo-email.png"));
   // loadImage, not `new Image()` with a Buffer src — the latter decodes nothing
   // here and silently yields a blank canvas (a 185-byte transparent PNG).
   const img = await loadImage(source);
@@ -177,7 +180,7 @@ function indexPage(rendered: Rendered[]): string {
      media query in both directions. */
   :root{
     --bg:#f4f6fb;--card:#fff;--ink:#101828;--soft:#48566d;--faint:#8b99b0;
-    --line:#e3e8f2;--brand:${COLOR.brand};--violet:${COLOR.violet};--fuchsia:${COLOR.fuchsia};
+    --line:#e3e8f2;--brand:${COLOR.brand};--violet:${COLOR.gradientMid};--fuchsia:${COLOR.gradientTo};
     --tx-bg:#eef2ff;--tx-fg:#3730a3;--mk-bg:#eafaf3;--mk-fg:#04624a;
     --warn-bg:#fffaeb;--warn-line:#f5dd9a;--warn-fg:#6b4708;
   }
@@ -207,7 +210,7 @@ function indexPage(rendered: Rendered[]): string {
   /* The masthead echoes the emails' own 6px gradient rule rather than filling a
      block with it — the previews below are the thing to look at. */
   .top{border-top:6px solid transparent;
-    border-image:linear-gradient(90deg,${COLOR.brand},${COLOR.violet} 55%,${COLOR.fuchsia}) 1;
+    border-image:linear-gradient(90deg,${COLOR.gradientFrom},${COLOR.gradientMid} 55%,${COLOR.gradientTo}) 1;
     margin:0 -20px 30px;padding:30px 20px 0}
   .top h1{margin:0 0 6px;font-size:27px;font-weight:800;letter-spacing:-.02em;text-wrap:balance}
   .top p{margin:0;color:var(--soft);max-width:66ch}

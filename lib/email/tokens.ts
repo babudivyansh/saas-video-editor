@@ -4,8 +4,18 @@
 // email client — every value has to be a literal hex in an inline style. When
 // globals.css changes, this file changes with it.
 //
-// The old templates used #2563eb, which is not one of Clipiro's colours at all;
-// the real brand blue is #335cff.
+// EMAIL STAYS ON A LIGHT CARD. The 2026-09 emerald migration took the product
+// dark, and this file followed it to emerald — but NOT to a dark background. A
+// dark email is a worse email: Gmail and Outlook apply their own inversion on
+// top, quoted replies and forwards land on white anyway, and any image with a
+// baked-in background stops matching. What changed here is the BRAND, not the
+// surface.
+//
+// The app's emeralds cannot simply be copied in, because they are tuned for
+// #050908. Measured against this white card: --emerald-bright #20d68a is
+// 1.90:1 and --emerald-brand #00a968 is 3.05:1 — both fail as link text and
+// both fail with white button text. The values below are the light-surface
+// steps of the same family, each at 5.2:1 or better both ways.
 
 /**
  * WHY THIS FILE READS process.env DIRECTLY.
@@ -41,12 +51,28 @@ export const ASSET_URL = (process.env.EMAIL_ASSET_BASE_URL ?? "https://clipiro.c
  * stays in the product; here it only appears where it earns attention.
  */
 export const COLOR = {
-  brand: "#335cff",
-  brandDark: "#2348d8",
-  brandDeep: "#3b5eff",
-  brandSoft: "#eaefff",
-  violet: "#7c3aed",
-  fuchsia: "#d946ef",
+  /** Links, list bullets and the CTA fill. 5.48:1 on white, both directions. */
+  brand: "#047857",
+  brandDark: "#065f46",
+  brandDeep: "#0a7a4d",
+  /** Pale wash behind a brand callout; `brand` on it is 5.25:1. */
+  brandSoft: "#f0fdf6",
+  brandBorder: "#a7e8cd",
+
+  /**
+   * The second callout colour, replacing the retired `violet`. Deep teal rather
+   * than another emerald so two callouts in one message stay distinguishable;
+   * 5.47:1 on white, 5.21:1 on its own wash. Lime is deliberately absent — the
+   * product's accent is 1.3:1 here and cannot carry text or a fill.
+   */
+  accent: "#0f766e",
+  accentSoft: "#effcfa",
+  accentBorder: "#99e6dd",
+
+  /** Decorative only — the 3px cap on the card, which carries no text. */
+  gradientFrom: "#047857",
+  gradientMid: "#0a7a4d",
+  gradientTo: "#00a968",
 
   ink: "#1a1c1e",
   inkSoft: "#44474e",
@@ -68,34 +94,46 @@ export const COLOR = {
   danger: "#dc2626",
   dangerSoft: "#fef2f2",
   dangerBorder: "#fecaca",
-  violetSoft: "#f5f3ff",
-  violetBorder: "#ddd6fe",
 } as const;
 
-/** Dark-mode surfaces. Chosen to stay readable when Gmail force-inverts anyway. */
+/**
+ * Dark-mode surfaces, for the clients that force-invert regardless of what the
+ * message asks for. These now match the product's own dark values instead of
+ * the navy they used to be, so a force-inverted Clipiro email and the app agree.
+ */
 export const DARK = {
-  page: "#0b1120",
-  card: "#111c33",
-  ink: "#e2e8f0",
-  inkSoft: "#94a3b8",
-  border: "#1e293b",
+  page: "#050908",
+  card: "#0b1210",
+  ink: "#f5f7f4",
+  inkSoft: "#9aa49f",
+  border: "#1e2a26",
 } as const;
 
+/**
+ * Geist first, matching the app. In practice a mail client almost never has it
+ * installed and no webfont is loaded here, so the system fallbacks do the real
+ * work — but a client that does have it now agrees with the product.
+ */
 export const FONT_STACK =
-  "'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  "Geist,'Geist Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
 /** Container width. 600px is the widest safe value across desktop clients. */
 export const WIDTH = 600;
 
 /**
- * The product's real logo, already served from public/ and already live at
- * https://clipiro.com/logo.png — so there is no new asset to deploy before email
- * can ship. Intrinsic size is 760×261 (a ~2.91:1 wordmark), displayed at 120×41.
+ * The light-surface lockup: emerald mark, ink wordmark. Intrinsic size 760×261
+ * (a ~2.91:1 wordmark), displayed at 120×41.
+ *
+ * Three variants exist and they are not interchangeable. `logo.png` is the
+ * RETIRED brand blue. `logo-emerald.png` is the dark-surface lockup — its
+ * wordmark is near-white, so on this white card it disappears and only the mark
+ * shows. `logo-email.png` is this one. **A new deploy must ship it before this
+ * URL resolves**, unlike the old logo.png which was already live.
  *
  * A PNG rather than the inline SVG the old header used: Outlook's Word engine
  * drops SVG entirely, which is why that logo lockup collapsed there.
  */
-export const LOGO_URL = `${ASSET_URL}/logo.png`;
+export const LOGO_URL = `${ASSET_URL}/logo-email.png`;
 export const LOGO_WIDTH = 120;
 export const LOGO_HEIGHT = 41;
 

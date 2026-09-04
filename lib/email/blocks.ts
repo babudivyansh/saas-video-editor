@@ -11,7 +11,7 @@
 import { COLOR, FONT_STACK, WIDTH } from "./tokens";
 import { escapeHtml, safeUrl, toSafe, type SafeHtml } from "./html";
 
-export type Tone = "neutral" | "brand" | "success" | "warning" | "danger" | "violet";
+export type Tone = "neutral" | "brand" | "success" | "warning" | "danger" | "accent";
 
 /** How much brand the document wears — see EmailDocument.accent in layout.ts. */
 export type Accent = "plain" | "brand";
@@ -33,11 +33,11 @@ export type Block =
 
 const TONE_COLORS: Record<Tone, { fg: string; bg: string; border: string }> = {
   neutral: { fg: COLOR.ink, bg: COLOR.surface, border: COLOR.border },
-  brand: { fg: COLOR.brand, bg: COLOR.brandSoft, border: "#c7d3ff" },
+  brand: { fg: COLOR.brand, bg: COLOR.brandSoft, border: COLOR.brandBorder },
   success: { fg: COLOR.success, bg: COLOR.successSoft, border: COLOR.successBorder },
   warning: { fg: COLOR.warning, bg: COLOR.warningSoft, border: COLOR.warningBorder },
   danger: { fg: COLOR.danger, bg: COLOR.dangerSoft, border: COLOR.dangerBorder },
-  violet: { fg: COLOR.violet, bg: COLOR.violetSoft, border: COLOR.violetBorder },
+  accent: { fg: COLOR.accent, bg: COLOR.accentSoft, border: COLOR.accentBorder },
 };
 
 const BASE_TEXT = `font-family:${FONT_STACK};margin:0;`;
@@ -87,7 +87,7 @@ function renderParagraph(b: Extract<Block, { kind: "paragraph" }>): string {
  * ignores border-radius and padding on an anchor; arcsize="50%" reproduces the
  * border-radius:999px the old buttons used. Everything else gets the anchor,
  * with the brand gradient layered over a solid fallback — Apple Mail honours the
- * gradient, Gmail and Outlook fall back to solid #335cff rather than to nothing.
+ * gradient, Gmail and Outlook fall back to the solid brand rather than to nothing.
  */
 function renderButton(b: Extract<Block, { kind: "button" }>, accent: Accent): string {
   const href = safeUrl(b.href);
@@ -99,7 +99,9 @@ function renderButton(b: Extract<Block, { kind: "button" }>, accent: Accent): st
   // carrying meaning, and painting a gradient over it would throw that away.
   const useGradient = accent === "brand" && (!b.tone || b.tone === "brand");
   const gradient = useGradient
-    ? `background-image:linear-gradient(135deg,${COLOR.brand} 0%,${COLOR.violet} 55%,${COLOR.fuchsia} 100%);`
+    // Every stop stays dark enough for the white label on top: 7.68 / 5.48 /
+    // 5.38:1. The retired violet+fuchsia end was 3:1 and under.
+    ? `background-image:linear-gradient(135deg,${COLOR.brandDark} 0%,${COLOR.brand} 55%,${COLOR.brandDeep} 100%);`
     : "";
 
   return `<tr><td align="center" class="px" style="padding:6px 40px 26px;text-align:center;">
