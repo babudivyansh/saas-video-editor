@@ -23,17 +23,28 @@ export default function ShowcaseGlow({
   children,
   /** Corner radius of the bloom. Match it roughly to the frame it sits behind. */
   radius = "rounded-[32px]",
+  /**
+   * How far the bloom reaches past the frame. The default matches the hero.
+   * Cards in a grid want `-inset-2`: at the default the bloom reaches ~56px
+   * past the frame (16px inset + the blur) and the grid's 24px gutter is not
+   * wide enough to keep neighbouring halos from running into each other.
+   */
+  inset = "-inset-4",
+  /** Applied to both wrappers, so `h-full` still stretches a grid cell. */
+  className = "",
 }: {
   children: ReactNode;
   radius?: string;
+  inset?: string;
+  className?: string;
 }) {
   return (
-    <div className="relative">
+    <div className={`relative ${className}`}>
       <div
         aria-hidden="true"
-        className={`pointer-events-none absolute -inset-4 ${radius} bg-gradient-to-tr from-emerald-brand/30 to-emerald-bright/20 blur-2xl`}
+        className={`pointer-events-none absolute ${inset} ${radius} bg-gradient-to-tr from-emerald-brand/30 to-emerald-bright/20 blur-2xl`}
       />
-      <div className="relative">{children}</div>
+      <div className={`relative ${className}`}>{children}</div>
     </div>
   );
 }
