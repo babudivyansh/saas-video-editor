@@ -32,8 +32,6 @@
   ],
   "exclude": [
     "node_modules",
-    "design-system",
-    "ds-bundle",
     "e2e",
     "vitest.config.ts",
     "vitest.setup.ts",
