@@ -190,7 +190,11 @@ test("a failed payment is surfaced instead of still promising a renewal", async 
   const banner = page.getByRole("alert").filter({ hasText: "We couldn't take your last payment" });
   await expect(banner).toBeVisible();
   await expect(banner).toContainText("attempt 2");
-  await expect(banner.getByRole("button", { name: "Update payment method" })).toBeVisible();
+  // No self-serve card-update flow exists (Razorpay India subscriptions need a
+  // full mandate re-authorization, not a card swap) — the button used to say
+  // "Update payment method" while actually opening the Plans view, implying an
+  // action that doesn't exist. It now says "View plans" honestly instead.
+  await expect(banner.getByRole("button", { name: "View plans" })).toBeVisible();
 });
 
 test("payment history can be filtered", async ({ page, baseURL }) => {
