@@ -8,7 +8,7 @@ export default defineConfig({
     // docblock (Vitest 4 dropped environmentMatchGlobs).
     environment: "node",
     include: ["**/*.test.ts", "**/*.component.test.tsx"],
-    exclude: ["node_modules/**", ".next/**", "design-system/**", "ds-bundle/**"],
+    exclude: ["node_modules/**", ".next/**"],
     setupFiles: ["./vitest.setup.ts"],
     coverage: {
       provider: "v8",

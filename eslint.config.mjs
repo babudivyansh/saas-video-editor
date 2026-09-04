@@ -12,13 +12,6 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    // Vendored/generated design-system bundle — not consumed by the app, not maintained here.
-    "ds-bundle/**",
-    "design-system/**",
-    // Same category: a separate, self-contained design-sync tooling package
-    // (has its own package.json/node_modules) — not app code.
-    ".design-sync/**",
-    ".ds-sync/**",
   ]),
   {
     rules: {
