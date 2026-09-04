@@ -21,6 +21,7 @@ import * as reviews from "./reviews";
 import * as social from "./social";
 import * as admin from "./admin";
 import * as newsletter from "./newsletter";
+import * as announcements from "./announcements";
 
 export type NotificationCategory =
   | "usageAlerts"
@@ -45,7 +46,8 @@ export type EmailGroup =
   | "reviews"
   | "social"
   | "admin"
-  | "newsletter";
+  | "newsletter"
+  | "announcements";
 
 export interface TemplateEntry<P = Record<string, unknown>> {
   id: string;
@@ -639,6 +641,46 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     build: newsletter.newsletterConfirm,
     samples: { default: { confirmUrl: "https://clipiro.com/api/newsletter/confirm?t=abc123" } },
   }),
+
+  // ── Announcements ────────────────────────────────────────────────────────
+  // Same build function registered under both audiences — content is
+  // identical, only the opt-out category (and therefore the unsubscribe
+  // link) differs. See FeatureAnnouncement in schema.prisma and
+  // app/api/cron/feature-announcements.
+  "feature-announcement": entry({
+    id: "feature-announcement",
+    title: "Feature announcement",
+    group: "announcements",
+    category: "featureReleases",
+    trigger: "Admin publishes a FeatureAnnouncement with audience=featureReleases",
+    build: announcements.featureAnnouncement,
+    samples: {
+      default: {
+        name: "Alex",
+        title: "New: AI Voiceover now supports 12 languages",
+        body: "You can now generate voiceovers in Hindi, Spanish, French, and 9 more languages, right from the same tool you already use.",
+        ctaLabel: "Try it now",
+        ctaUrl: "https://clipiro.com/dashboard",
+      },
+    },
+  }),
+  "newsletter-broadcast": entry({
+    id: "newsletter-broadcast",
+    title: "Newsletter broadcast",
+    group: "announcements",
+    category: "newsletter",
+    trigger: "Admin publishes a FeatureAnnouncement with audience=newsletter",
+    build: announcements.featureAnnouncement,
+    samples: {
+      default: {
+        name: "Alex",
+        title: "This month at Clipiro",
+        body: "A roundup of what shipped, what's coming, and a few creator tips from the community.",
+        ctaLabel: "Read more",
+        ctaUrl: "https://clipiro.com/dashboard",
+      },
+    },
+  }),
 };
 
 export type EmailId = keyof typeof EMAIL_REGISTRY;
@@ -654,6 +696,7 @@ export const GROUP_LABELS: Record<EmailGroup, string> = {
   social: "Social Tracker",
   admin: "Admin (internal)",
   newsletter: "Newsletter",
+  announcements: "Announcements",
 };
 
 export const GROUP_ORDER: EmailGroup[] = [
@@ -667,4 +710,5 @@ export const GROUP_ORDER: EmailGroup[] = [
   "social",
   "admin",
   "newsletter",
+  "announcements",
 ];

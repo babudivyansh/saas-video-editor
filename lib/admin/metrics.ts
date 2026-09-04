@@ -351,6 +351,7 @@ const CRON_STALE_AFTER_SEC: Record<CronName, number> = {
   "subscription-reminder": 36 * 3600,
   "admin-digest": 9 * 24 * 3600, // weekly
   reengagement: 9 * 24 * 3600, // weekly
+  "feature-announcements": 36 * 3600, // daily
 };
 
 async function staleCronCount(): Promise<number> {

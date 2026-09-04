@@ -415,8 +415,16 @@
     "deleteModal": {
       "title": "アカウントを完全に削除しますか？",
       "body": "アカウント、動画、データを完全に削除します。この操作は元に戻せません。",
+      "typeToConfirmPrefix": "確認のため",
+      "typeToConfirmSuffix": "と入力してください。",
+      "continue": "続ける",
       "deleting": "削除中…",
       "permanentlyDelete": "完全に削除"
+    },
+    "deleteBlockedModal": {
+      "title": "現在アカウントを削除できません",
+      "body": "このアカウントには保持が必要な請求履歴があります。サポートまでご連絡いただければ対応いたします。",
+      "gotIt": "了解"
     },
     "confirmPasswordPlaceholder": "パスワードを確認してください",
     "cancel": "キャンセル",

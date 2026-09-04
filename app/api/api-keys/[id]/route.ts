@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { withRateLimit } from "@/lib/with-rate-limit";
 
 // PATCH — rename a key. Only the display name is editable after creation —
 // scopes/expiration are fixed at mint time (changing what a live key can do
 // without rotating it is a real security footgun, not a convenience worth adding).
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function handlePATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
@@ -23,7 +24,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 // DELETE — revoke a key. Soft-delete (sets revokedAt) rather than removing
 // the row, so it still shows up in the key-management list (as revoked)
 // instead of silently disappearing, and so lastUsedAt/audit history survives.
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function handleDELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
@@ -36,3 +37,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   return NextResponse.json({ status: "revoked" });
 }
+
+export const PATCH = withRateLimit(handlePATCH, { limit: 20, windowSec: 900, keyBy: "user", name: "api-keys:rename" });
+export const DELETE = withRateLimit(handleDELETE, { limit: 20, windowSec: 900, keyBy: "user", name: "api-keys:revoke" });

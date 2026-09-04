@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { setSessionCookie } from "@/lib/auth";
+import { setSessionCookie, setLocaleCookieFromUser } from "@/lib/auth";
 import { finishLogin } from "@/lib/login-tail";
 import { mintTwoFactorTicket } from "@/lib/two-factor-ticket";
 import { normalizeIdentifier, findUserByMethod, type AuthMethod } from "@/lib/identifier";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
-import { LOCALE_COOKIE, isSupportedLocale } from "@/lib/i18n-locales";
 
 // Fixed-cost bcrypt hash with no matching password, compared against when the
 // account doesn't exist so the response takes the same time either way and
@@ -78,11 +77,7 @@ export async function POST(req: NextRequest) {
       user: { id: user.id, email: user.email, credits: user.credits },
     });
     setSessionCookie(res, token);
-    // Refreshes the locale cookie from the DB so a fresh browser/device picks
-    // up the user's saved language preference immediately, not just "en".
-    if (isSupportedLocale(user.preferredLanguage)) {
-      res.cookies.set(LOCALE_COOKIE, user.preferredLanguage, { maxAge: 60 * 60 * 24 * 365, path: "/", sameSite: "lax" });
-    }
+    setLocaleCookieFromUser(res, user.preferredLanguage);
     return res;
   } catch (err) {
     logger.error("login", "request failed", err);

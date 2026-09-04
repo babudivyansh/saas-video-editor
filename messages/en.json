@@ -416,8 +416,16 @@
     "deleteModal": {
       "title": "Permanently delete your account?",
       "body": "This permanently deletes your account, videos, and data. This cannot be undone.",
+      "typeToConfirmPrefix": "Type",
+      "typeToConfirmSuffix": "to confirm.",
+      "continue": "Continue",
       "deleting": "Deleting…",
       "permanentlyDelete": "Permanently Delete"
+    },
+    "deleteBlockedModal": {
+      "title": "Can't delete your account yet",
+      "body": "Your account has billing history that has to stay on record. Contact support and we'll take care of it for you.",
+      "gotIt": "Got it"
     },
     "confirmPasswordPlaceholder": "Confirm your password",
     "cancel": "Cancel",

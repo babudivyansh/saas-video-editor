@@ -415,8 +415,16 @@
     "deleteModal": {
       "title": "¿Eliminar tu cuenta permanentemente?",
       "body": "Esto elimina permanentemente tu cuenta, videos y datos. Esto no se puede deshacer.",
+      "typeToConfirmPrefix": "Escribe",
+      "typeToConfirmSuffix": "para confirmar.",
+      "continue": "Continuar",
       "deleting": "Eliminando…",
       "permanentlyDelete": "Eliminar permanentemente"
+    },
+    "deleteBlockedModal": {
+      "title": "Aún no puedes eliminar tu cuenta",
+      "body": "Tu cuenta tiene historial de facturación que debe conservarse. Contacta con soporte y nos encargaremos por ti.",
+      "gotIt": "Entendido"
     },
     "confirmPasswordPlaceholder": "Confirma tu contraseña",
     "cancel": "Cancelar",

@@ -8,7 +8,7 @@ const MAX_EXPIRY_DAYS = 365;
 
 // GET — list this user's keys. Never returns the plaintext key or hash,
 // only the prefix (for the user to tell keys apart) and metadata.
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -62,4 +62,5 @@ async function handlePOST(req: NextRequest) {
   return NextResponse.json({ key, plaintext }, { status: 201 });
 }
 
+export const GET = withRateLimit(handleGET, { limit: 60, windowSec: 60, keyBy: "user", name: "api-keys:list" });
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 3600, keyBy: "user", name: "api-keys:create" });

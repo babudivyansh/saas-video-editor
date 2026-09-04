@@ -415,8 +415,16 @@
     "deleteModal": {
       "title": "Konto endgültig löschen?",
       "body": "Dies löscht Ihr Konto, Ihre Videos und Daten endgültig. Dies kann nicht rückgängig gemacht werden.",
+      "typeToConfirmPrefix": "Geben Sie",
+      "typeToConfirmSuffix": "ein, um zu bestätigen.",
+      "continue": "Weiter",
       "deleting": "Wird gelöscht…",
       "permanentlyDelete": "Endgültig löschen"
+    },
+    "deleteBlockedModal": {
+      "title": "Ihr Konto kann noch nicht gelöscht werden",
+      "body": "Ihr Konto hat eine Abrechnungshistorie, die aufbewahrt werden muss. Kontaktieren Sie den Support, wir kümmern uns darum.",
+      "gotIt": "Verstanden"
     },
     "confirmPasswordPlaceholder": "Bestätigen Sie Ihr Passwort",
     "cancel": "Abbrechen",

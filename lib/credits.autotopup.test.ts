@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 interface Buckets { bonus: number; subscription: number; purchased: number }
 let buckets: Buckets;
-let user: { autoTopupPackSlug: string | null; email: string; firstName: string | null; name: string | null };
+let user: { autoTopupPackSlug: string | null; autoTopupThreshold: number; email: string; firstName: string | null; name: string | null };
 let pack: { slug: string; name: string; active: boolean; kind: string } | null;
 let redisStore: Record<string, string>;
 const sendAutoTopupPromptEmail = vi.fn(async () => {});
@@ -66,7 +66,7 @@ const { spendCredits } = await import("./credits");
 
 beforeEach(() => {
   buckets = { bonus: 0, subscription: 0, purchased: 20 };
-  user = { autoTopupPackSlug: "pack_mini", email: "u@test.co", firstName: "A", name: null };
+  user = { autoTopupPackSlug: "pack_mini", autoTopupThreshold: 10, email: "u@test.co", firstName: "A", name: null };
   pack = { slug: "pack_mini", name: "Mini Pack", active: true, kind: "pack" };
   redisStore = {};
   vi.clearAllMocks();
@@ -105,5 +105,22 @@ describe("auto top-up (post-spend hook)", () => {
     await spendCredits({ userId: "u1", amount: 15, reason: "spend:test" }); // 20 -> 5 again
     await flush();
     expect(sendAutoTopupPromptEmail).toHaveBeenCalledTimes(1);
+  });
+
+  // Per-user configurable threshold (account-settings remediation) — this
+  // used to be one hardcoded global constant, so the same balance had to
+  // trigger the same way for every account regardless of their own setting.
+  it("uses the user's own threshold rather than the old global default of 10", async () => {
+    user.autoTopupThreshold = 25;
+    await spendCredits({ userId: "u1", amount: 5, reason: "spend:test" }); // 20 -> 15, below their 25
+    await flush();
+    expect(sendAutoTopupPromptEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not fire above a raised per-user threshold even though it's below the old global default", async () => {
+    user.autoTopupThreshold = 5;
+    await spendCredits({ userId: "u1", amount: 5, reason: "spend:test" }); // 20 -> 15, above their 5
+    await flush();
+    expect(sendAutoTopupPromptEmail).not.toHaveBeenCalled();
   });
 });

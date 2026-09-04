@@ -31,7 +31,7 @@ describe("email registry", () => {
   const entries = Object.entries(EMAIL_REGISTRY);
 
   it("covers every send function in lib/email.ts", () => {
-    expect(entries).toHaveLength(44);
+    expect(entries).toHaveLength(46);
   });
 
   it("keys match each entry's declared id", () => {
@@ -106,6 +106,8 @@ describe("email registry", () => {
       "review-drip-1",
       "review-drip-2",
       "review-drip-3",
+      "feature-announcement",
+      "newsletter-broadcast",
     ];
     for (const id of mustBeOptOut) {
       expect(EMAIL_REGISTRY[id].category, `${id} must be opt-out-able`).not.toBe("transactional");

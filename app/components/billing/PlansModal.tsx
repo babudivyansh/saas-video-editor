@@ -30,6 +30,11 @@ function XIcon({ className = "" }: { className?: string }) {
 interface PlansModalProps {
   /** Called the moment a purchase is confirmed server-side. */
   onPurchaseSuccess: () => void;
+  /** Set only when opened from the billing dunning banner (a failed-payment
+   *  retry, not a normal upgrade/switch). The plan bought here starts at the
+   *  current period's end instead of today, since the customer already paid
+   *  for time still remaining — see /api/billing/checkout. */
+  resumeFromPeriodEnd?: boolean;
 }
 
 // "Browse all plans + top-ups", rendered as one of BillingOverlay's views so
@@ -38,7 +43,7 @@ interface PlansModalProps {
 // Purchase logic (useRazorpayCheckout, /api/billing/checkout,
 // /api/billing/verify, /api/coupons/validate) is reused as-is, not
 // reimplemented.
-export function PlansModal({ onPurchaseSuccess }: PlansModalProps) {
+export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: PlansModalProps) {
   const { user, token } = useAuth();
   const { startCheckout, activeId } = useRazorpayCheckout();
 
@@ -136,6 +141,7 @@ export function PlansModal({ onPurchaseSuccess }: PlansModalProps) {
       // had no way to remove it.
       couponCode: couponsAvailable ? appliedCoupon?.code : undefined,
       currency,
+      resumeFromPeriodEnd,
       onSuccess: () => {
         onPurchaseSuccess();
       },
@@ -170,6 +176,7 @@ export function PlansModal({ onPurchaseSuccess }: PlansModalProps) {
             onBack={backToBrowse}
             hasActivePlan={hasActivePlan}
             subscriptionEndsAt={user?.subscriptionEndsAt ?? null}
+            resumeFromPeriodEnd={resumeFromPeriodEnd}
             renewalWarningDismissed={renewalWarningDismissed}
             onDismissRenewalWarning={() => setRenewalWarningDismissed(true)}
             couponsAvailable={couponsAvailable}
@@ -336,7 +343,7 @@ function BrowseStep({ plansLoading, subs, packs, term, onTermChange, currency, o
 // ── Checkout step ────────────────────────────────────────────────────────────
 function CheckoutStep({
   plan, packs, currency, selectedAddons, onToggleAddon, onBack, hasActivePlan, subscriptionEndsAt,
-  renewalWarningDismissed, onDismissRenewalWarning, couponsAvailable, couponInput, onCouponInputChange,
+  resumeFromPeriodEnd, renewalWarningDismissed, onDismissRenewalWarning, couponsAvailable, couponInput, onCouponInputChange,
   couponApplying, couponError, appliedCoupon, onApplyCoupon, onClearCoupon,
   totalDueMinor, discountedTotalMinor, checkoutLoading, onPay,
 }: {
@@ -348,6 +355,7 @@ function CheckoutStep({
   onBack: () => void;
   hasActivePlan: boolean;
   subscriptionEndsAt: string | null;
+  resumeFromPeriodEnd: boolean;
   renewalWarningDismissed: boolean;
   onDismissRenewalWarning: () => void;
   couponsAvailable: boolean;
@@ -384,20 +392,41 @@ function CheckoutStep({
         </div>
 
         {hasActivePlan && !renewalWarningDismissed && subscriptionEndsAt && (
-          <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-warning flex-shrink-0 mt-0.5">
-              <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-amber-900">You already have an active plan</p>
-              <p className="text-xs text-amber-700 mt-0.5">
-                Buying now will <strong>reset</strong> your subscription to {plan.intervalMonths && plan.intervalMonths > 1 ? `${plan.intervalMonths} months` : "1 month"} from today — not extend your current plan (active until {new Date(subscriptionEndsAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}).
-              </p>
+          resumeFromPeriodEnd ? (
+            // Reached via the dunning banner's "View plans", not a normal
+            // upgrade — the new subscription starts at subscriptionEndsAt (see
+            // /api/billing/checkout's resumeFromPeriodEnd), so framing this as
+            // a "reset" that forfeits paid time would be wrong here.
+            <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-warning flex-shrink-0 mt-0.5">
+                <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-amber-900">This will start after your current period ends</p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  You&apos;ve already paid through {new Date(subscriptionEndsAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} — this plan begins right after, so you won&apos;t be charged for time you already have.
+                </p>
+              </div>
+              <button onClick={onDismissRenewalWarning} className="text-warning hover:text-amber-700 flex-shrink-0 ml-1">
+                <XIcon className="w-4 h-4" />
+              </button>
             </div>
-            <button onClick={onDismissRenewalWarning} className="text-warning hover:text-amber-700 flex-shrink-0 ml-1">
-              <XIcon className="w-4 h-4" />
-            </button>
-          </div>
+          ) : (
+            <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-warning flex-shrink-0 mt-0.5">
+                <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-amber-900">You already have an active plan</p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Buying now will <strong>reset</strong> your subscription to {plan.intervalMonths && plan.intervalMonths > 1 ? `${plan.intervalMonths} months` : "1 month"} from today — not extend your current plan (active until {new Date(subscriptionEndsAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}).
+                </p>
+              </div>
+              <button onClick={onDismissRenewalWarning} className="text-warning hover:text-amber-700 flex-shrink-0 ml-1">
+                <XIcon className="w-4 h-4" />
+              </button>
+            </div>
+          )
         )}
 
         {packs.length > 0 && (

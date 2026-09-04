@@ -30,17 +30,31 @@ export async function GET(req: NextRequest) {
 
   let purged = 0;
   let blocked = 0;
+  const blockedIds: string[] = [];
   for (const u of due) {
     try {
       const result = await hardDeleteUserAccount(u.id);
       if (result.ok) purged++;
       else {
+        // A blocked purge (billing-history safeguard) leaves the account
+        // deactivated-but-undeletable past its scheduled purge date with no
+        // one else able to reach it — this used to be logger.warn, which
+        // this codebase's alerting (Sentry, via logger.error) never surfaces.
+        // Without an error-level log, these could sit unnoticed indefinitely.
         blocked++;
-        logger.warn("cron/account-purge", `purge blocked for ${u.id}`, { reason: result.reason });
+        blockedIds.push(u.id);
+        logger.error("cron/account-purge", `purge blocked for ${u.id}`, { reason: result.reason });
       }
     } catch (e) {
       logger.error("cron/account-purge", `purge failed for ${u.id}`, e);
     }
+  }
+
+  // One additional summary line when anything was blocked, so a run with
+  // several blocked accounts still shows up as a single, easy-to-triage
+  // alert rather than only N separate per-account entries.
+  if (blocked > 0) {
+    logger.error("cron/account-purge", `${blocked} account(s) past their purge date are blocked on billing history`, { userIds: blockedIds });
   }
 
   return NextResponse.json({ ok: true, purged, blocked, checked: due.length, at: new Date().toISOString() });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { setSessionCookie } from "@/lib/auth";
+import { setSessionCookie, setLocaleCookieFromUser } from "@/lib/auth";
 import { finishLogin } from "@/lib/login-tail";
 import { decryptSecret } from "@/lib/encryption";
 import { verifyTotpStep, hashRecoveryCode } from "@/lib/totp";
@@ -11,7 +11,6 @@ import {
 } from "@/lib/two-factor-ticket";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { getClientIp } from "@/lib/rate-limit";
-import { LOCALE_COOKIE, isSupportedLocale } from "@/lib/i18n-locales";
 
 // POST /api/auth/2fa/verify-login { ticket, code } — completes a login that
 // paused for a second factor in app/api/auth/login. Intentionally
@@ -79,9 +78,7 @@ async function handlePOST(req: NextRequest) {
     user: { id: user.id, email: user.email, credits: user.credits },
   });
   setSessionCookie(res, token);
-  if (isSupportedLocale(user.preferredLanguage)) {
-    res.cookies.set(LOCALE_COOKIE, user.preferredLanguage, { maxAge: 60 * 60 * 24 * 365, path: "/", sameSite: "lax" });
-  }
+  setLocaleCookieFromUser(res, user.preferredLanguage);
   return res;
 }
 

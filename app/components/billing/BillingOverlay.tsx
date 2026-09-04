@@ -48,6 +48,11 @@ export function BillingOverlay({ state, onClose }: { state: BillingOverlayState;
   const [tabOverride, setTabOverride] = useState<BillingTab | null>(null);
   const [successOverride, setSuccessOverride] = useState(false);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
+  // Set only when the dunning banner's "View plans" opened this view — tells
+  // PlansModal to defer the new subscription's start to subscriptionEndsAt
+  // instead of billing today. Every other "View plans"/"Change plan" entry
+  // point leaves this false, keeping their existing immediate-switch behavior.
+  const [resumeFromPeriodEnd, setResumeFromPeriodEnd] = useState(false);
 
   const view = viewOverride ?? state.view ?? "billing";
   const tab = tabOverride ?? state.tab ?? "overview";
@@ -64,6 +69,7 @@ export function BillingOverlay({ state, onClose }: { state: BillingOverlayState;
     setViewOverride(null);
     setTabOverride(null);
     setSuccessOverride(false);
+    setResumeFromPeriodEnd(false);
   }, [state.open]);
 
   // Manage needs the purchase list for its billing-history section. BillingPanel
@@ -130,7 +136,7 @@ export function BillingOverlay({ state, onClose }: { state: BillingOverlayState;
           autotopupSlug={state.autotopupSlug ?? null}
           onTabChange={setTab}
           onOpenManage={() => setView("manage")}
-          onOpenPlans={() => setView("plans")}
+          onOpenPlans={(opts) => { setResumeFromPeriodEnd(!!opts?.resumeFromPeriodEnd); setView("plans"); }}
           onPurchaseSuccess={handlePurchaseSuccess}
         />
       )}
@@ -146,7 +152,9 @@ export function BillingOverlay({ state, onClose }: { state: BillingOverlayState;
         />
       )}
 
-      {view === "plans" && <PlansModal onPurchaseSuccess={handlePurchaseSuccess} />}
+      {view === "plans" && (
+        <PlansModal onPurchaseSuccess={handlePurchaseSuccess} resumeFromPeriodEnd={resumeFromPeriodEnd} />
+      )}
     </Modal>
   );
 }

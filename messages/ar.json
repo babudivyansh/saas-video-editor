@@ -415,8 +415,16 @@
     "deleteModal": {
       "title": "هل تريد حذف حسابك نهائيًا؟",
       "body": "سيؤدي هذا إلى حذف حسابك ومقاطع الفيديو والبيانات نهائيًا. لا يمكن التراجع عن هذا.",
+      "typeToConfirmPrefix": "اكتب",
+      "typeToConfirmSuffix": "للتأكيد.",
+      "continue": "متابعة",
       "deleting": "جارٍ الحذف…",
       "permanentlyDelete": "حذف نهائي"
+    },
+    "deleteBlockedModal": {
+      "title": "لا يمكن حذف حسابك الآن",
+      "body": "يحتوي حسابك على سجل فوترة يجب الاحتفاظ به. تواصل مع الدعم وسنتولى الأمر.",
+      "gotIt": "حسنًا"
     },
     "confirmPasswordPlaceholder": "أكّد كلمة المرور",
     "cancel": "إلغاء",

@@ -200,7 +200,6 @@ export async function spendCredits(params: SpendCreditsParams): Promise<SpendCre
   return { ok: true, ...outcome };
 }
 
-const AUTO_TOPUP_THRESHOLD = 10;
 const AUTO_TOPUP_LOCK_TTL_SEC = 3600; // one prompt per hour per user, max
 
 /** Post-spend low-balance hook for opt-in auto top-up. In India, an instant
@@ -209,13 +208,15 @@ const AUTO_TOPUP_LOCK_TTL_SEC = 3600; // one prompt per hour per user, max
  * top-up email rather than attempting a silent charge — see
  * lib/email.ts's sendAutoTopupPromptEmail for the full rationale. */
 async function maybeAutoTopup(userId: string, total: number): Promise<void> {
-  if (total >= AUTO_TOPUP_THRESHOLD) return;
-
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { autoTopupPackSlug: true, email: true, firstName: true, name: true },
+    select: { autoTopupPackSlug: true, autoTopupThreshold: true, email: true, firstName: true, name: true },
   });
   if (!user?.autoTopupPackSlug) return;
+  // The threshold is per-user (Settings > Billing), so the balance check can
+  // only happen once the row is fetched — this used to short-circuit on a
+  // module-level constant before ever hitting Prisma.
+  if (total >= user.autoTopupThreshold) return;
 
   const lockKey = `auto-topup-lock:${userId}`;
   const locked = await redis.get(lockKey);

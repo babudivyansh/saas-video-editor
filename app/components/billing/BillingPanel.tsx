@@ -132,8 +132,10 @@ export interface BillingPanelProps {
   onTabChange?: (tab: TabKey) => void;
   /** Swap the overlay to the Manage Subscription view. */
   onOpenManage: () => void;
-  /** Swap the overlay to the Plans view. */
-  onOpenPlans: () => void;
+  /** Swap the overlay to the Plans view. `resumeFromPeriodEnd` is set only by
+   *  the dunning banner, so a plan bought from there starts at the current
+   *  period's end instead of today (see PlansModal). */
+  onOpenPlans: (opts?: { resumeFromPeriodEnd?: boolean }) => void;
   /** Called after a successful purchase so the overlay can show the banner. */
   onPurchaseSuccess: () => void;
 }
@@ -392,11 +394,18 @@ export function BillingPanel({
             <p className="text-xs text-amber-800 mt-0.5">
               Your plan is still active and we&apos;ll retry automatically
               {user.paymentFailureCount > 1 ? ` (attempt ${user.paymentFailureCount})` : ""}.
-              Updating your payment method now avoids any interruption.
+              We don&apos;t support updating a saved card yet — pick a plan below and it&apos;ll take over
+              {hasActivePlan ? " once your current period ends, so you keep the time you already paid for" : ""}.
             </p>
           </div>
-          <Button variant="primary" size="sm" onClick={onOpenPlans} className="flex-shrink-0">
-            Update payment method
+          {/* No self-serve card-update flow exists (Razorpay India subscriptions
+              need a full mandate re-authorization, not a card swap) — this used
+              to say "Update payment method" and open the same Plans view,
+              implying an action that doesn't exist. resumeFromPeriodEnd defers
+              the new subscription's start to subscriptionEndsAt instead of
+              billing today, since the customer already paid for this period. */}
+          <Button variant="primary" size="sm" onClick={() => onOpenPlans({ resumeFromPeriodEnd: true })} className="flex-shrink-0">
+            View plans
           </Button>
         </div>
       )}
@@ -705,38 +714,58 @@ function UsageTab({ summary, history, historyCursor, historyLoadingMore, onLoadM
   );
 }
 
-// ── Auto top-up toggle (2026-07 audit) ──────────────────────────────────────
-// Opt-in: when the balance drops below 10 credits after a spend, the account
-// gets a one-click top-up email for the chosen pack (see lib/credits.ts's
-// maybeAutoTopup — true instant recurring charges mostly can't complete in
-// India without a pre-registered mandate, so the email IS the "auto" path).
+// ── Auto top-up toggle (2026-07 audit; threshold made configurable in the
+// account-settings remediation pass) ────────────────────────────────────────
+// Opt-in: when the balance drops below the chosen threshold after a spend,
+// the account gets a one-click top-up email for the chosen pack (see
+// lib/credits.ts's maybeAutoTopup — true instant recurring charges mostly
+// can't complete in India without a pre-registered mandate, so the email IS
+// the "auto" path).
+const AUTO_TOPUP_MIN = 5;
+const AUTO_TOPUP_MAX = 100;
+const AUTO_TOPUP_DEFAULT = 10;
+
 function AutoTopupToggle({ packs }: { packs: DbPlan[] }) {
   const { token } = useAuth();
   const [slug, setSlug] = useState<string | null>(null);
+  const [threshold, setThreshold] = useState(AUTO_TOPUP_DEFAULT);
+  // Local text so the input can hold an in-progress/invalid value (e.g. "" or
+  // "3" while typing "30") without snapping back mid-keystroke; only a valid
+  // in-range integer is ever sent to the server.
+  const [thresholdInput, setThresholdInput] = useState(String(AUTO_TOPUP_DEFAULT));
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!token) return;
     fetch("/api/billing/auto-topup", { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => (res.ok ? res.json() : { autoTopupPackSlug: null }))
-      .then((data: { autoTopupPackSlug: string | null }) => setSlug(data.autoTopupPackSlug))
+      .then((res) => (res.ok ? res.json() : { autoTopupPackSlug: null, autoTopupThreshold: AUTO_TOPUP_DEFAULT }))
+      .then((data: { autoTopupPackSlug: string | null; autoTopupThreshold: number }) => {
+        setSlug(data.autoTopupPackSlug);
+        setThreshold(data.autoTopupThreshold ?? AUTO_TOPUP_DEFAULT);
+        setThresholdInput(String(data.autoTopupThreshold ?? AUTO_TOPUP_DEFAULT));
+      })
       .catch(() => {})
       .finally(() => setLoaded(true));
   }, [token]);
 
-  async function update(next: string | null) {
+  // One PATCH body for pack + threshold together — two independent saves
+  // (one per field) could race and overwrite each other's write.
+  async function update(next: { packSlug?: string | null; threshold?: number }) {
     if (!token) return;
-    const previous = slug;
+    const previousSlug = slug;
+    const previousThreshold = threshold;
     setSaving(true);
     setError(null);
-    setSlug(next); // optimistic
+    if ("packSlug" in next) setSlug(next.packSlug!); // optimistic
+    if ("threshold" in next) setThreshold(next.threshold!);
     try {
       const res = await fetch("/api/billing/auto-topup", {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ packSlug: next }),
+        body: JSON.stringify({ packSlug: "packSlug" in next ? next.packSlug : slug, ...("threshold" in next ? { threshold: next.threshold } : {}) }),
       });
       // The response was previously never inspected and nothing caught a
       // network error, so a rejected change still rendered as applied — the
@@ -744,19 +773,31 @@ function AutoTopupToggle({ packs }: { packs: DbPlan[] }) {
       // out by never receiving a top-up prompt.
       if (!res.ok) throw new Error("save failed");
     } catch {
-      setSlug(previous);
+      setSlug(previousSlug);
+      setThreshold(previousThreshold);
+      setThresholdInput(String(previousThreshold));
       setError("Couldn't save that — please try again.");
     } finally {
       setSaving(false);
     }
   }
 
+  function onThresholdInputChange(raw: string) {
+    setThresholdInput(raw);
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < AUTO_TOPUP_MIN || n > AUTO_TOPUP_MAX) return; // don't save while out of range/incomplete
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => update({ threshold: n }), 500);
+  }
+
+  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
+
   if (!loaded || packs.length === 0) return null;
   const enabled = slug != null;
   const selected = packs.find((p) => p.slug === slug) ?? packs[0];
 
   return (
-    <Card className="p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+    <Card className="p-5 flex flex-col sm:flex-row sm:items-start gap-4">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <p className="font-bold text-ink text-sm">Auto top-up</p>
@@ -764,16 +805,32 @@ function AutoTopupToggle({ packs }: { packs: DbPlan[] }) {
         </div>
         <p className="text-xs text-ink-soft mt-1">
           {enabled
-            ? `We'll email you a one-click link to buy ${selected?.name ?? "a pack"} whenever your balance drops below 10 credits.`
+            ? `We'll email you a one-click link to buy ${selected?.name ?? "a pack"} whenever your balance drops below ${threshold} credits.`
             : "Get a one-click reminder to top up whenever your balance runs low — never get blocked mid-render."}
         </p>
+        {enabled && (
+          <label className="flex items-center gap-2 mt-2 text-xs text-ink-soft">
+            Trigger below
+            <input
+              type="number"
+              min={AUTO_TOPUP_MIN}
+              max={AUTO_TOPUP_MAX}
+              step={1}
+              value={thresholdInput}
+              onChange={(e) => onThresholdInputChange(e.target.value)}
+              disabled={saving}
+              className="w-16 text-xs font-semibold border border-card-border rounded-lg px-2 py-1 bg-surface text-ink"
+            />
+            credits ({AUTO_TOPUP_MIN}–{AUTO_TOPUP_MAX})
+          </label>
+        )}
         {error && <p role="alert" className="text-xs text-error mt-1.5">{error}</p>}
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
         {enabled && (
           <select
             value={slug ?? ""}
-            onChange={(e) => update(e.target.value)}
+            onChange={(e) => update({ packSlug: e.target.value })}
             disabled={saving}
             className="text-xs font-semibold border border-card-border rounded-lg px-2.5 py-2 bg-surface text-ink"
           >
@@ -784,7 +841,7 @@ function AutoTopupToggle({ packs }: { packs: DbPlan[] }) {
           role="switch"
           aria-checked={enabled}
           aria-label="Auto top-up"
-          onClick={() => update(enabled ? null : (packs[0]?.slug ?? null))}
+          onClick={() => update({ packSlug: enabled ? null : (packs[0]?.slug ?? null) })}
           disabled={saving}
           className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${enabled ? "bg-success" : "bg-line-strong"}`}
         >

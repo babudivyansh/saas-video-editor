@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { setSessionCookie } from "@/lib/auth";
+import { setSessionCookie, setLocaleCookieFromUser } from "@/lib/auth";
 import { finishLogin } from "@/lib/login-tail";
 import { consumeOtp } from "@/lib/otp";
 import { normalizeIdentifier, findUserByMethod, type AuthMethod } from "@/lib/identifier";
@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
       user: { id: user.id, email: user.email, credits: user.credits },
     });
     setSessionCookie(res, token);
+    setLocaleCookieFromUser(res, user.preferredLanguage);
     return res;
   } catch (err) {
     logger.error("verify-otp", "request failed", err);

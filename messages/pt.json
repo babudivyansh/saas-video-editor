@@ -415,8 +415,16 @@
     "deleteModal": {
       "title": "Excluir sua conta permanentemente?",
       "body": "Isso exclui permanentemente sua conta, vídeos e dados. Isso não pode ser desfeito.",
+      "typeToConfirmPrefix": "Digite",
+      "typeToConfirmSuffix": "para confirmar.",
+      "continue": "Continuar",
       "deleting": "Excluindo…",
       "permanentlyDelete": "Excluir permanentemente"
+    },
+    "deleteBlockedModal": {
+      "title": "Ainda não é possível excluir sua conta",
+      "body": "Sua conta tem histórico de cobrança que precisa ser mantido. Entre em contato com o suporte e cuidaremos disso para você.",
+      "gotIt": "Entendi"
     },
     "confirmPasswordPlaceholder": "Confirme sua senha",
     "cancel": "Cancelar",

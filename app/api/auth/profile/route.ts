@@ -6,6 +6,7 @@ import { hardDeleteUserAccount } from "@/lib/account-deletion";
 import { LOCALE_COOKIE, isSupportedLocale } from "@/lib/i18n-locales";
 import { markQuestComplete } from "@/lib/quests";
 import { s3KeyToPublicUrl } from "@/utils/s3-upload";
+import { withRateLimit } from "@/lib/with-rate-limit";
 
 const PHONE_RE = /^\+?[0-9]{7,15}$/;
 const GENDERS = ["male", "female", "unspecified"] as const;
@@ -13,7 +14,7 @@ const INTENDED_USES = ["content_creator", "business_marketing", "personal", "oth
 
 // Update the caller's editable profile fields (display name, phone, avatar URL,
 // gender, intended use, preferred language).
-export async function PATCH(req: NextRequest) {
+async function handlePATCH(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -120,7 +121,7 @@ export async function PATCH(req: NextRequest) {
 // a financial record, never silently destroyed) — handled by the purchase-count
 // check below. Everything else (Project + Clip, Asset, UserQuest, SocialAccount
 // + its children) cascades automatically.
-export async function DELETE(req: NextRequest) {
+async function handleDELETE(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -141,3 +142,6 @@ export async function DELETE(req: NextRequest) {
 
   return NextResponse.json({ success: true });
 }
+
+export const PATCH = withRateLimit(handlePATCH, { limit: 20, windowSec: 900, keyBy: "user", name: "auth:profile:patch" });
+export const DELETE = withRateLimit(handleDELETE, { limit: 5, windowSec: 900, keyBy: "user", name: "auth:profile:delete" });
