@@ -36,10 +36,6 @@ const DENY_PATHS = [
   "app/twitter-image.tsx",
   "app/dashboard/editor",         // already dark, owns the --editor-* token set
   // app/admin came off this list when the admin panel was migrated too.
-  "design-system",                // vendored, already eslint-ignored
-  "ds-bundle",
-  ".ds-sync",
-  ".design-sync",
   "e2e",
   "scripts",
 ];
