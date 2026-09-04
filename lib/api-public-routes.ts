@@ -17,6 +17,16 @@ const PUBLIC_API_PREFIXES = [
   "/api/auth/send-otp",
   "/api/auth/google",
   "/api/auth/callback/google",
+  // Clears a session cookie whose server-side record is already gone, then
+  // redirects to /login. Ungated deliberately: the whole point is that the
+  // session behind the cookie no longer resolves, and the JWT can expire in
+  // the window between the page redirecting here and the browser following —
+  // gating it would answer that with a JSON 401 in the address bar instead of
+  // the login form. Nothing here reads a session or touches another user: it
+  // only expires the caller's own cookie. Written out in full rather than as
+  // an "/api/auth/session" prefix, which would also un-gate the real
+  // /api/auth/sessions device-management routes.
+  "/api/auth/session-expired",
   // Second-factor and reactivation steps. Both are reached *after* the
   // password check but *before* any session exists, so this gate — which only
   // knows how to check the session cookie — can only ever 401 them. Each

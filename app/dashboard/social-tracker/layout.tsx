@@ -6,12 +6,11 @@
 // localStorage, then fetched — four sequential hops before a single number
 // appeared.
 
-import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { requireServerSubscriber } from "@/lib/auth";
 import { loadAccounts } from "@/lib/social/queries";
 import { ToastProvider } from "@/app/components/ui/Toast";
 import { FilterBar } from "./components/FilterBar";
+import { requireSubscriberOrRedirect } from "./shared";
 import { TabsNav } from "./components/TabsNav";
 
 export const dynamic = "force-dynamic";
@@ -21,14 +20,10 @@ export default async function SocialTrackerV2Layout({
 }: {
   children: React.ReactNode;
 }) {
-  // No feature flag any more: this IS the Social Tracker. Redirect to billing
-  // rather than to the old page, which no longer exists.
-  const auth = await requireServerSubscriber();
-  // Billing is an overlay, not a route: /dashboard/billing has no page and no
-  // redirect rule, so sending a non-subscriber there 404s instead of showing
-  // them the upgrade prompt. ?billing=1 is what next.config redirects /billing
-  // itself to.
-  if (!auth) redirect("/dashboard?billing=1");
+  // No feature flag any more: this IS the Social Tracker. A visitor who can't
+  // be let in is routed by WHY — billing overlay if their subscription lapsed,
+  // login if their session no longer resolves. See requireSubscriberOrRedirect.
+  const auth = await requireSubscriberOrRedirect();
 
   const accounts = await loadAccounts(auth.userId);
 
