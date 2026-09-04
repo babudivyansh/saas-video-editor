@@ -173,8 +173,10 @@ function DashboardPageInner() {
   useEffect(() => {
     if (!user || !token) return;
     fetch("/api/quests", { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(setQuestData)
+      // r.ok, not just r.json(): an error response still parses, and storing
+      // {error:"Unauthorized"} as quest data crashes the reads below.
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d) setQuestData(d); })
       .catch(() => {});
   }, [user, token]);
 
@@ -199,8 +201,12 @@ function DashboardPageInner() {
   useEffect(() => {
     if (!user || !token) return;
     fetch("/api/dashboard/summary", { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then((d: DashboardSummary) => {
+      // Without the r.ok check a 401/500 body ({error:"..."}) parsed fine and was
+      // stored as the summary — then `summary?.inProgress[0]` below read [0] of
+      // undefined and took the whole dashboard to its error boundary.
+      .then(r => (r.ok ? r.json() : null))
+      .then((d: DashboardSummary | null) => {
+        if (!d) return;
         setSummary(d);
         if (d.hasAnyProjects) sessionStorage.setItem(HAS_PROJECTS_STORAGE_KEY, "true");
       })
@@ -217,7 +223,7 @@ function DashboardPageInner() {
         body: JSON.stringify({ questId: "join-community" }),
       });
       const res = await fetch("/api/quests", { headers: { Authorization: `Bearer ${token}` } });
-      setQuestData(await res.json());
+      if (res.ok) setQuestData(await res.json());
     } catch { /* best-effort */ }
   }
 
@@ -305,7 +311,7 @@ function DashboardPageInner() {
         {welcomeOpen && (
           <WelcomeScreen
             firstName={firstName}
-            resumeProject={summary?.inProgress[0]}
+            resumeProject={summary?.inProgress?.[0]}
             onStartTour={() => { setShowTour(true); setWelcomeOpen(false); }}
             onClose={() => setWelcomeOpen(false)}
           />
