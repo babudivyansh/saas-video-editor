@@ -83,15 +83,15 @@ The app is deployed live at clipiro.com via cPanel's **Setup Node.js App**
 
 ## 7. Cron Jobs (cPanel)
 
-Thirteen routes expect an external scheduler and are fail-closed (401) unless
+Fourteen routes expect an external scheduler and are fail-closed (401) unless
 `CRON_SECRET` / `SOCIAL_REFRESH_SECRET` / `ASSET_CLEANUP_SECRET` are set in
 `.env` — set them, then add matching entries under cPanel → **Cron Jobs**.
 As of a 2026-08 launch-readiness audit, only the first three below (`refill-
 credits`, the three `social-refresh` jobs, `commission-payout`) were actually
 wired into the production crontab — the rest existed as working routes with
 no schedule, so lifecycle emails, cleanup, and re-engagement were silently
-never firing. This list is now the complete set of 13 (incl. the stale
-Auto Clip sweep and feature-announcements).
+never firing. This list is now the complete set of 14 (incl. the stale
+Auto Clip sweep, feature-announcements and mrr-snapshot).
 
 ```
 # Monthly credit refill + subscription expiry — daily is enough, the route
