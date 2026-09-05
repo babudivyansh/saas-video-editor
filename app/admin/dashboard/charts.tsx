@@ -172,16 +172,21 @@ export function Donut({
   slices,
   centerLabel,
   centerValue,
+  valueFmt = inr,
+  height = "h-56",
 }: {
   slices: Array<{ name: string; value: number; isCost?: boolean }>;
   centerLabel: string;
   centerValue: string;
+  /** Defaults to currency; pass `compact` for counts. */
+  valueFmt?: (n: number) => string;
+  height?: string;
 }) {
   const nonZero = slices.filter((s) => s.value > 0);
   if (nonZero.length === 0) return <p className="text-xs text-fg-subtle py-10 text-center">No data in range.</p>;
   return (
     <div className="relative">
-      <div className="h-56">
+      <div className={height}>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie data={nonZero} dataKey="value" nameKey="name" innerRadius="62%" outerRadius="88%" paddingAngle={2} strokeWidth={0}>
@@ -189,7 +194,7 @@ export function Donut({
                 <Cell key={s.name} fill={PALETTE[i % PALETTE.length]} />
               ))}
             </Pie>
-            <Tooltip formatter={(value, name) => [inr(Number(value)), String(name)]} contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} />
+            <Tooltip formatter={(value, name) => [valueFmt(Number(value)), String(name)]} contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} />
           </PieChart>
         </ResponsiveContainer>
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
@@ -203,7 +208,7 @@ export function Donut({
           <li key={s.name} className="flex items-center gap-1.5 text-[11px]">
             <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: PALETTE[i % PALETTE.length] }} aria-hidden />
             <span className="text-fg-muted truncate">{s.name}{s.isCost ? " (cost)" : ""}</span>
-            <span className="ml-auto font-semibold text-fg">{inr(s.value)}</span>
+            <span className="ml-auto font-semibold text-fg">{valueFmt(s.value)}</span>
           </li>
         ))}
       </ul>
@@ -357,8 +362,8 @@ export function DivergingArea({
   height?: number;
   valueFmt?: (n: number) => string;
 }) {
-  if (data.length === 0) return EMPTY;
   const uid = useId().replace(/:/g, "");
+  if (data.length === 0) return EMPTY;
   const upColor = up.color ?? PALETTE[1];
   const downColor = down.color ?? PALETTE[3];
   const rows = data.map((d) => ({ ...d, [down.key]: -Math.abs(Number(d[down.key] ?? 0)) }));

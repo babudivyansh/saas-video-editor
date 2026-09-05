@@ -9,7 +9,14 @@
 
 import { useAdminTitle } from "./admin-title";
 
-export default function AdminShell({ children, title }: { children: React.ReactNode; title: string }) {
-  useAdminTitle(title);
+export default function AdminShell({
+  children, title, wide = false,
+}: {
+  children: React.ReactNode;
+  title: string;
+  /** Opt out of the reading-width column and use the full viewport. */
+  wide?: boolean;
+}) {
+  useAdminTitle(title, wide);
   return <>{children}</>;
 }

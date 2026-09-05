@@ -16,7 +16,8 @@ import { getCronRunStatuses, type CronName } from "@/lib/cron-tracking";
 
 export type MetricsSection =
   | "kpis" | "revenue" | "ai" | "social" | "infra" | "growth"
-  | "overview" | "top" | "activity";
+  | "overview" | "top" | "activity"
+  | "lifecycle" | "credits" | "pipeline" | "acquisition";
 export const METRIC_RANGES = [7, 30, 90, 365] as const;
 
 const DAY_MS = 86400_000;
@@ -640,6 +641,325 @@ export async function activitySection() {
   return { events: events.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 40) };
 }
 
+// ── Dense-day helper ─────────────────────────────────────────────────────────
+// SQL GROUP BY only emits days that HAVE rows, so a quiet Tuesday silently
+// disappears and the line chart draws straight through it as though nothing
+// happened. Every series below is filled against the full range first.
+function denseDays(rangeDays: number): string[] {
+  const out: string[] = [];
+  const start = new Date(Date.now() - rangeDays * DAY_MS);
+  start.setUTCHours(0, 0, 0, 0);
+  for (let i = 0; i <= rangeDays; i++) {
+    out.push(new Date(start.getTime() + i * DAY_MS).toISOString().slice(0, 10));
+  }
+  return out;
+}
+
+function fill<T extends Record<string, number>>(
+  rangeDays: number,
+  rows: Array<{ date: string } & Partial<T>>,
+  zero: T,
+): Array<{ date: string } & T> {
+  const byDate = new Map(rows.map((r) => [r.date, r]));
+  return denseDays(rangeDays).map((date) => ({ date, ...zero, ...(byDate.get(date) ?? {}) }) as { date: string } & T);
+}
+
+const day = (d: Date) => d.toISOString().slice(0, 10);
+
+// ── Subscription lifecycle ───────────────────────────────────────────────────
+// SubscriptionEvent has been written on every Razorpay webhook since it landed
+// but has never been read by the admin panel. It is the only real churn signal
+// in the schema — churnProxyPct above is inferred from expiry dates.
+export async function lifecycleSection(rangeDays: number) {
+  const rangeStart = new Date(Date.now() - rangeDays * DAY_MS);
+
+  const [daily, totals, firstEvent] = await Promise.all([
+    prisma.$queryRaw<Array<{ d: Date; type: string; n: bigint }>>`
+      SELECT date_trunc('day', "createdAt") AS d, type, COUNT(*) AS n
+      FROM "SubscriptionEvent" WHERE "createdAt" >= ${rangeStart}
+      GROUP BY 1, 2 ORDER BY 1`,
+    prisma.subscriptionEvent.groupBy({
+      by: ["type"],
+      _count: true,
+      where: { createdAt: { gte: rangeStart } },
+    }),
+    prisma.subscriptionEvent.findFirst({ orderBy: { createdAt: "asc" }, select: { createdAt: true } }),
+  ]);
+
+  const perDay = new Map<string, Record<string, number>>();
+  for (const r of daily) {
+    const key = day(r.d);
+    const row = perDay.get(key) ?? {};
+    row[r.type] = Number(r.n);
+    perDay.set(key, row);
+  }
+  const series = fill(
+    rangeDays,
+    [...perDay.entries()].map(([date, v]) => ({ date, ...v })),
+    { activated: 0, charged: 0, payment_failed: 0, cancelled: 0, paused: 0, resumed: 0, halted: 0, pending: 0 },
+  );
+
+  const n = (type: string) => totals.find((t) => t.type === type)?._count ?? 0;
+  const failed = n("payment_failed");
+
+  return {
+    series,
+    churnVsReactivation: series.map((r) => ({
+      date: r.date,
+      churned: r.cancelled + r.paused,
+      reactivated: r.resumed + r.activated,
+    })),
+    // Dunning is a real funnel: a failed charge moves to pending retry, then
+    // either recovers (a later `charged`) or halts and cancels.
+    dunning: [
+      { name: "Payment failed", value: failed },
+      { name: "Retry pending", value: n("pending") },
+      { name: "Halted", value: n("halted") },
+      { name: "Cancelled", value: n("cancelled") },
+    ],
+    totals: Object.fromEntries(totals.map((t) => [t.type, t._count])),
+    dataSince: firstEvent?.createdAt ?? null,
+  };
+}
+
+// ── Credit economy ───────────────────────────────────────────────────────────
+// The ledger (positive delta = grant, negative = spend/expire/lapse). Also
+// never read by admin — the dashboard has only ever shown the denormalised
+// balance columns, which cannot answer "where did the credits go".
+export async function creditsSection(rangeDays: number) {
+  const rangeStart = new Date(Date.now() - rangeDays * DAY_MS);
+
+  const [daily, byBucket, sinks, sources] = await Promise.all([
+    prisma.$queryRaw<Array<{ d: Date; granted: bigint; spent: bigint }>>`
+      SELECT date_trunc('day', "createdAt") AS d,
+             COALESCE(SUM(delta) FILTER (WHERE delta > 0), 0) AS granted,
+             COALESCE(SUM(-delta) FILTER (WHERE delta < 0), 0) AS spent
+      FROM "CreditTransaction" WHERE "createdAt" >= ${rangeStart}
+      GROUP BY 1 ORDER BY 1`,
+    prisma.$queryRaw<Array<{ bucket: string; granted: bigint; spent: bigint }>>`
+      SELECT bucket,
+             COALESCE(SUM(delta) FILTER (WHERE delta > 0), 0) AS granted,
+             COALESCE(SUM(-delta) FILTER (WHERE delta < 0), 0) AS spent
+      FROM "CreditTransaction" WHERE "createdAt" >= ${rangeStart}
+      GROUP BY 1`,
+    // reason is "spend:<toolSlug>" — split so the chart labels the tool.
+    prisma.$queryRaw<Array<{ tool: string; spent: bigint }>>`
+      SELECT substring(reason from 7) AS tool, SUM(-delta) AS spent
+      FROM "CreditTransaction"
+      WHERE "createdAt" >= ${rangeStart} AND delta < 0 AND reason LIKE 'spend:%'
+      GROUP BY 1 ORDER BY 2 DESC LIMIT 10`,
+    prisma.$queryRaw<Array<{ reason: string; granted: bigint }>>`
+      SELECT reason, SUM(delta) AS granted
+      FROM "CreditTransaction"
+      WHERE "createdAt" >= ${rangeStart} AND delta > 0
+      GROUP BY 1 ORDER BY 2 DESC LIMIT 8`,
+  ]);
+
+  const series = fill(
+    rangeDays,
+    daily.map((r) => ({ date: day(r.d), granted: Number(r.granted), spent: Number(r.spent) })),
+    { granted: 0, spent: 0 },
+  );
+
+  return {
+    series,
+    byBucket: byBucket.map((b) => ({ bucket: b.bucket, granted: Number(b.granted), spent: Number(b.spent) })),
+    sinks: sinks.map((s) => ({ label: s.tool || "unknown", value: Number(s.spent) })),
+    sources: sources.map((s) => ({ label: s.reason, value: Number(s.granted) })),
+    netInRange: series.reduce((a, r) => a + r.granted - r.spent, 0),
+  };
+}
+
+// ── Generation + AutoClip pipeline ───────────────────────────────────────────
+export async function pipelineSection(rangeDays: number) {
+  const rangeStart = new Date(Date.now() - rangeDays * DAY_MS);
+
+  const [genDaily, latency, heat, clipDaily, virality, renderTarget] = await Promise.all([
+    prisma.$queryRaw<Array<{ d: Date; status: string; n: bigint }>>`
+      SELECT date_trunc('day', "createdAt") AS d, status, COUNT(*) AS n
+      FROM "Generation" WHERE "createdAt" >= ${rangeStart}
+      GROUP BY 1, 2 ORDER BY 1`,
+    prisma.$queryRaw<Array<{ d: Date; p50: number | null; p95: number | null }>>`
+      SELECT date_trunc('day', "createdAt") AS d,
+             percentile_cont(0.5)  WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM ("completedAt" - "createdAt"))::double precision) AS p50,
+             percentile_cont(0.95) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM ("completedAt" - "createdAt"))::double precision) AS p95
+      FROM "Generation"
+      WHERE "createdAt" >= ${rangeStart} AND status = 'completed' AND "completedAt" IS NOT NULL
+      GROUP BY 1 ORDER BY 1`,
+    // Bucketed in IST: the audience is India-first, so a UTC heatmap would put
+    // the real evening peak in the middle of the night.
+    //
+    // The DOUBLE `AT TIME ZONE` is load-bearing. These columns are
+    // TIMESTAMP(3) WITHOUT time zone holding UTC, so a single
+    // `AT TIME ZONE 'Asia/Kolkata'` would INTERPRET the naive value as Kolkata
+    // wall time and shift it the wrong way. The first cast labels it UTC, the
+    // second converts to Kolkata.
+    prisma.$queryRaw<Array<{ dow: number; hour: number; n: bigint }>>`
+      SELECT EXTRACT(ISODOW FROM "createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')::int AS dow,
+             EXTRACT(HOUR   FROM "createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')::int AS hour,
+             COUNT(*) AS n
+      FROM "Generation" WHERE "createdAt" >= ${rangeStart}
+      GROUP BY 1, 2`,
+    prisma.$queryRaw<Array<{ d: Date; status: string; n: bigint }>>`
+      SELECT date_trunc('day', "createdAt") AS d, status, COUNT(*) AS n
+      FROM "Clip" WHERE "createdAt" >= ${rangeStart}
+      GROUP BY 1, 2 ORDER BY 1`,
+    prisma.$queryRaw<Array<{ bucket: number; n: bigint }>>`
+      SELECT LEAST(score / 10, 9) AS bucket, COUNT(*) AS n
+      FROM "Clip" WHERE "createdAt" >= ${rangeStart} AND score IS NOT NULL
+      GROUP BY 1 ORDER BY 1`,
+    prisma.clip.groupBy({
+      by: ["renderTarget"],
+      _count: true,
+      where: { createdAt: { gte: rangeStart }, renderTarget: { not: null } },
+    }),
+  ]);
+
+  const pivot = (rows: Array<{ d: Date; status: string; n: bigint }>) => {
+    const per = new Map<string, Record<string, number>>();
+    for (const r of rows) {
+      const key = day(r.d);
+      const row = per.get(key) ?? {};
+      row[r.status] = Number(r.n);
+      per.set(key, row);
+    }
+    return [...per.entries()].map(([date, v]) => ({ date, ...v }));
+  };
+
+  const heatCells = heat.map((h) => ({ day: h.dow - 1, hour: h.hour, value: Number(h.n) }));
+  const peak = heatCells.reduce<{ day: number; hour: number; value: number } | null>(
+    (best, c) => (best === null || c.value > best.value ? c : best), null,
+  );
+  const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  return {
+    generations: fill(rangeDays, pivot(genDaily), { completed: 0, failed: 0, cancelled: 0, pending: 0, refunded: 0 }),
+    latency: fill(
+      rangeDays,
+      latency.map((r) => ({
+        date: day(r.d),
+        p50: r.p50 === null ? 0 : Math.round(Number(r.p50)),
+        p95: r.p95 === null ? 0 : Math.round(Number(r.p95)),
+      })),
+      { p50: 0, p95: 0 },
+    ),
+    heatmap: heatCells,
+    heatmapPeak: peak ? `${DAYS[peak.day]} ${String(peak.hour).padStart(2, "0")}:00 IST` : null,
+    clips: fill(rangeDays, pivot(clipDaily), { ready: 0, rendering: 0, failed: 0, queued: 0, pending_review: 0 }),
+    virality: Array.from({ length: 10 }, (_, i) => ({
+      label: `${i * 10}`,
+      count: Number(virality.find((v) => Number(v.bucket) === i)?.n ?? 0),
+    })),
+    renderTarget: renderTarget.map((r) => ({ name: r.renderTarget ?? "unknown", value: r._count })),
+  };
+}
+
+// ── Acquisition, messaging, platform ─────────────────────────────────────────
+export async function acquisitionSection(rangeDays: number) {
+  const rangeStart = new Date(Date.now() - rangeDays * DAY_MS);
+  const dateKeys = denseDays(rangeDays);
+  const fromKey = dateKeys[0];
+
+  const [dau, activation, utm, email, vitals, storageSoFar, storageDaily] = await Promise.all([
+    prisma.$queryRaw<Array<{ d: Date; users: bigint }>>`
+      SELECT date_trunc('day', "createdAt") AS d, COUNT(DISTINCT "userId") AS users
+      FROM "LoginEvent" WHERE "createdAt" >= ${rangeStart}
+      GROUP BY 1 ORDER BY 1`,
+    // The real activation funnel: one signup cohort, counted through the User
+    // flags that already exist. OnboardingEventDaily holds tour/asset
+    // touchpoints, NOT these steps — it cannot answer this question.
+    prisma.$queryRaw<[{ signed_up: bigint; onboarded: bigint; first_video: bigint; paid: bigint }]>`
+      SELECT COUNT(*) AS signed_up,
+             COUNT(*) FILTER (WHERE "onboardingCompletedAt" IS NOT NULL) AS onboarded,
+             COUNT(*) FILTER (WHERE "firstVideoAt" IS NOT NULL) AS first_video,
+             COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "Purchase" p WHERE p."userId" = u.id AND p.status <> 'refunded')) AS paid
+      FROM "User" u WHERE u."createdAt" >= ${rangeStart}`,
+    prisma.$queryRaw<Array<{ date: string; source: string; n: bigint }>>`
+      SELECT date, CASE WHEN "utmSource" = '' THEN 'direct' ELSE "utmSource" END AS source, SUM(count) AS n
+      FROM "MarketingEventDaily" WHERE date >= ${fromKey}
+      GROUP BY 1, 2 ORDER BY 1`,
+    prisma.$queryRaw<Array<{ d: Date; status: string; n: bigint }>>`
+      SELECT date_trunc('day', "createdAt") AS d, status, COUNT(*) AS n
+      FROM "EmailLog"
+      WHERE "createdAt" >= ${rangeStart} AND status IN ('sent','delivered','bounced','complained','failed')
+      GROUP BY 1, 2 ORDER BY 1`,
+    prisma.$queryRaw<Array<{ metric: string; bucket: string; n: bigint }>>`
+      SELECT metric, bucket, SUM(count) AS n
+      FROM "WebVitalDaily" WHERE date >= ${fromKey}
+      GROUP BY 1, 2`,
+    // Everything uploaded BEFORE the window, so the cumulative line starts at
+    // the real total rather than from zero.
+    prisma.asset.aggregate({ _sum: { size: true }, where: { createdAt: { lt: rangeStart } } }),
+    prisma.$queryRaw<Array<{ d: Date; bytes: bigint }>>`
+      SELECT date_trunc('day', "createdAt") AS d, COALESCE(SUM(size), 0) AS bytes
+      FROM "Asset" WHERE "createdAt" >= ${rangeStart}
+      GROUP BY 1 ORDER BY 1`,
+  ]);
+
+  const a = activation[0];
+  const num = (v: bigint | null | undefined) => Number(v ?? 0);
+
+  const utmSources = [...new Set(utm.map((u) => u.source))].slice(0, 6);
+  const utmByDate = new Map<string, Record<string, number>>();
+  for (const r of utm) {
+    if (!utmSources.includes(r.source)) continue;
+    const row = utmByDate.get(r.date) ?? {};
+    row[r.source] = Number(r.n);
+    utmByDate.set(r.date, row);
+  }
+
+  const emailByDate = new Map<string, Record<string, number>>();
+  for (const r of email) {
+    const key = day(r.d);
+    const row = emailByDate.get(key) ?? {};
+    // `sent` is the pre-webhook state of a delivered message; grouping them
+    // keeps the 100% stack from showing a phantom "undelivered" band.
+    const k = r.status === "sent" ? "delivered" : r.status;
+    row[k] = (row[k] ?? 0) + Number(r.n);
+    emailByDate.set(key, row);
+  }
+
+  let running = Number(storageSoFar._sum.size ?? 0);
+  const byDayBytes = new Map(storageDaily.map((r) => [day(r.d), Number(r.bytes)]));
+  const storage = dateKeys.map((date) => {
+    running += byDayBytes.get(date) ?? 0;
+    return { date, gb: Number((running / 1024 ** 3).toFixed(2)) };
+  });
+
+  const vitalMetrics = [...new Set(vitals.map((v) => v.metric))];
+
+  return {
+    dau: fill(rangeDays, dau.map((r) => ({ date: day(r.d), users: Number(r.users) })), { users: 0 }),
+    activation: [
+      { name: "Signed up", value: num(a?.signed_up) },
+      { name: "Completed onboarding", value: num(a?.onboarded) },
+      { name: "First video", value: num(a?.first_video) },
+      { name: "Converted to paid", value: num(a?.paid) },
+    ],
+    utmSources,
+    // Built by hand rather than through fill(): the source names are dynamic,
+    // so the zero row is an index signature, which cannot carry `date`.
+    utm: dateKeys.map((date) => {
+      const row: Record<string, string | number> = { date };
+      for (const s of utmSources) row[s] = utmByDate.get(date)?.[s] ?? 0;
+      return row;
+    }),
+    email: fill(
+      rangeDays,
+      [...emailByDate.entries()].map(([date, v]) => ({ date, ...v })),
+      { delivered: 0, bounced: 0, complained: 0, failed: 0 },
+    ),
+    webVitals: vitalMetrics.map((metric) => {
+      const of = (bucket: string) => Number(vitals.find((v) => v.metric === metric && v.bucket === bucket)?.n ?? 0);
+      const good = of("good"), ni = of("needs_improvement"), poor = of("poor");
+      const total = good + ni + poor;
+      return { metric, good, needsImprovement: ni, poor, goodPct: total > 0 ? (good / total) * 100 : null };
+    }),
+    storage,
+    storageNowGb: storage[storage.length - 1]?.gb ?? 0,
+  };
+}
+
 // ── Dispatch ─────────────────────────────────────────────────────────────────
 export async function computeSection(section: MetricsSection, rangeDays: number, compare = false) {
   switch (section) {
@@ -652,5 +972,9 @@ export async function computeSection(section: MetricsSection, rangeDays: number,
     case "growth": return growthSection();
     case "top": return topSection(rangeDays);
     case "activity": return activitySection();
+    case "lifecycle": return lifecycleSection(rangeDays);
+    case "credits": return creditsSection(rangeDays);
+    case "pipeline": return pipelineSection(rangeDays);
+    case "acquisition": return acquisitionSection(rangeDays);
   }
 }
