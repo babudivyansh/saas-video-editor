@@ -185,6 +185,17 @@ function Band({ children, ariaLabel, label }: { children: React.ReactNode; ariaL
   );
 }
 
+// Wrapper for a band's lazily-fetched cards. This was `display: contents`,
+// which looked tidy — the cards became direct items of the outer grid — but
+// an element with `display: contents` generates NO BOX, and IntersectionObserver
+// measures a border box. So every observer silently never fired and every
+// lazy section below the hero KPIs stayed on its skeleton forever, in
+// production, with no error anywhere: types, build and unit tests all pass.
+//
+// A full-width NESTED grid lays the cards out identically (same 12 columns,
+// same gap) while being a real, measurable box.
+const LAZY_GROUP = "col-span-12 grid grid-cols-12 gap-4";
+
 // Tailwind needs literal class strings, so spans are named rather than built.
 const SPAN = {
   2: "col-span-6 sm:col-span-4 xl:col-span-2",
@@ -324,7 +335,7 @@ export default function AdminDashboardPage() {
 
           {/* ── Hero KPIs ─────────────────────────────────────────────────── */}
           <Band ariaLabel="Headline metrics">
-            <div ref={overviewRef} className="contents">
+            <div ref={overviewRef} className={LAZY_GROUP}>
               {overview.error ? (
                 <div className={SPAN[12]}><ErrorCard onRetry={overview.retry} /></div>
               ) : !o ? (
@@ -379,7 +390,7 @@ export default function AdminDashboardPage() {
 
           {/* ── Revenue ───────────────────────────────────────────────────── */}
           <Band ariaLabel="Revenue" label="Revenue">
-            <div ref={revenueRef} className="contents">
+            <div ref={revenueRef} className={LAZY_GROUP}>
               {revenue.error ? (
                 <div className={SPAN[12]}><ErrorCard onRetry={revenue.retry} /></div>
               ) : !revenue.data ? (
@@ -428,7 +439,7 @@ export default function AdminDashboardPage() {
 
           {/* ── Subscription health ───────────────────────────────────────── */}
           <Band ariaLabel="Subscription health" label="Subscription health">
-            <div ref={lifecycleRef} className="contents">
+            <div ref={lifecycleRef} className={LAZY_GROUP}>
               {lifecycle.error ? (
                 <div className={SPAN[12]}><ErrorCard onRetry={lifecycle.retry} /></div>
               ) : !lifecycle.data ? (
@@ -479,7 +490,7 @@ export default function AdminDashboardPage() {
 
           {/* ── Credit economy ────────────────────────────────────────────── */}
           <Band ariaLabel="Credit economy" label="Credit economy">
-            <div ref={creditsRef} className="contents">
+            <div ref={creditsRef} className={LAZY_GROUP}>
               {credits.error ? (
                 <div className={SPAN[12]}><ErrorCard onRetry={credits.retry} /></div>
               ) : !credits.data ? (
@@ -511,7 +522,7 @@ export default function AdminDashboardPage() {
 
           {/* ── Generation operations ─────────────────────────────────────── */}
           <Band ariaLabel="Generation operations" label="Generation operations">
-            <div ref={pipelineRef} className="contents">
+            <div ref={pipelineRef} className={LAZY_GROUP}>
               {pipeline.error ? (
                 <div className={SPAN[12]}><ErrorCard onRetry={pipeline.retry} /></div>
               ) : !pipeline.data ? (
@@ -595,7 +606,7 @@ export default function AdminDashboardPage() {
 
           {/* ── Acquisition & messaging ───────────────────────────────────── */}
           <Band ariaLabel="Acquisition and messaging" label="Acquisition &amp; messaging">
-            <div ref={acquisitionRef} className="contents">
+            <div ref={acquisitionRef} className={LAZY_GROUP}>
               {acquisition.error ? (
                 <div className={SPAN[12]}><ErrorCard onRetry={acquisition.retry} /></div>
               ) : !acquisition.data ? (
@@ -641,7 +652,7 @@ export default function AdminDashboardPage() {
 
           {/* ── Accounts ──────────────────────────────────────────────────── */}
           <Band ariaLabel="Accounts" label="Accounts">
-            <div ref={topRef} className="contents">
+            <div ref={topRef} className={LAZY_GROUP}>
               <div className={SPAN[6]}>
                 {!top.data ? <Skeleton h="h-80" /> : (
                   <ChartContainer title="Leaderboards" subtitle={`Top accounts · ${rangeLabel}`}>
@@ -750,7 +761,7 @@ export default function AdminDashboardPage() {
 
           {/* ── AI cost ───────────────────────────────────────────────────── */}
           <Band ariaLabel="AI cost" label="AI cost">
-            <div ref={aiRef} className="contents">
+            <div ref={aiRef} className={LAZY_GROUP}>
               {!ai.data ? (
                 <><div className={SPAN[6]}><Skeleton h="h-64" /></div><div className={SPAN[6]}><Skeleton h="h-64" /></div></>
               ) : (
