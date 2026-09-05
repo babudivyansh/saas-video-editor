@@ -116,6 +116,13 @@ Auto Clip sweep and feature-announcements).
 # Admin weekly ops digest — same secret as social-refresh
 0 8 * * 1 curl -s -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" https://clipiro.com/api/cron/admin-digest
 
+# Daily MRR snapshot — the ONLY source of MRR history. MRR is otherwise derived
+# from current subscription state, so a day this doesn't run is a permanent
+# hole in the dashboard's MRR chart that no backfill can repair (past plan
+# assignments aren't stored). Runs just after UTC midnight; upserts on the UTC
+# date, so a retry is safe. Same secret as social-refresh.
+15 3 * * * curl -s -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" https://clipiro.com/api/cron/mrr-snapshot
+
 # Hard-delete accounts whose 30-day deactivation recovery window has passed
 0 2 * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/account-purge
 

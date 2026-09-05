@@ -25,8 +25,8 @@ import { useAuth } from "@/app/components/AuthContext";
 import { NotificationBell } from "@/app/components/NotificationBell";
 import { ToastProvider } from "@/app/components/ui/Toast";
 import { Button } from "@/app/components/ui/Button";
-import { ADMIN_NAV } from "./nav-config";
-import { AdminTitleProvider, useAdminTitleValue } from "./admin-title";
+import { ADMIN_NAV_GROUPS } from "./nav-config";
+import { AdminTitleProvider, useAdminTitleValue, useAdminWide } from "./admin-title";
 
 function IcSpinner() { return <div className="w-6 h-6 border-2 border-brand border-t-transparent rounded-full animate-spin" />; }
 function IcMenu({ open }: { open: boolean }) {
@@ -215,30 +215,51 @@ function AdminSignIn({ error: initialError }: { error?: string | null }) {
 function Shell({ email, onSignOut, children }: { email: string; onSignOut: () => void; children: React.ReactNode }) {
   const pathname = usePathname();
   const title = useAdminTitleValue();
+  const wide = useAdminWide();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const navContent = (
     <>
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {ADMIN_NAV.map(item => {
-          const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
-          const Icon = item.icon;
-          return (
-            <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${active ? "bg-tint-blue text-brand" : "text-fg-muted hover:bg-surface-2 hover:text-fg"}`}>
-              <Icon className="w-[18px] h-[18px]" strokeWidth={1.75} /> {item.label}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 px-3 py-3 overflow-y-auto">
+        {ADMIN_NAV_GROUPS.map((group) => (
+          <div key={group.label} className="mb-4 last:mb-0">
+            <p className="text-[9.5px] font-bold uppercase tracking-[0.13em] text-fg-subtle px-3 pb-1.5">
+              {group.label}
+            </p>
+            {group.items.map((item) => {
+              const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
+              const Icon = item.icon;
+              return (
+                <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)}
+                  // Was bg-tint-blue text-brand — and --brand resolves to LIME in
+                  // the emerald theme, which put the single-primary-action colour
+                  // on a nav item. Emerald keeps lime reserved.
+                  className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${active ? "bg-tint-emerald text-emerald-bright" : "text-fg-muted hover:bg-surface-2 hover:text-fg"}`}>
+                  <Icon className="w-[18px] h-[18px]" strokeWidth={1.75} /> {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
-      <div className="px-4 py-4 border-t border-line space-y-1">
-        <p className="text-[10px] text-fg-subtle truncate px-1">{email}</p>
-        <Link href="/dashboard" className="block text-sm font-semibold text-fg-muted hover:text-fg px-1 py-1">
-          ← Back to app
-        </Link>
-        <button onClick={onSignOut} className="block w-full text-left text-sm font-semibold text-error hover:text-error px-1 py-1">
-          Logout
-        </button>
+      <div className="px-3 py-3 border-t border-line">
+        <div className="flex items-center gap-2.5 px-1">
+          <span className="w-8 h-8 rounded-full bg-tint-emerald border border-tint-emerald-border text-emerald-bright text-[11px] font-bold flex items-center justify-center flex-shrink-0 uppercase">
+            {email.slice(0, 2)}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-fg truncate">{email.split("@")[0]}</p>
+            <p className="text-[10px] text-fg-subtle truncate">{email}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 mt-2">
+          <Link href="/dashboard" className="flex-1 text-center text-[11px] font-semibold text-fg-muted hover:text-fg py-1.5 rounded-lg hover:bg-surface-2 transition-colors">
+            ← Back to app
+          </Link>
+          <button onClick={onSignOut} className="flex-1 text-center text-[11px] font-semibold text-error py-1.5 rounded-lg hover:bg-error/10 transition-colors cursor-pointer">
+            Logout
+          </button>
+        </div>
       </div>
     </>
   );
@@ -281,7 +302,7 @@ function Shell({ email, onSignOut, children }: { email: string; onSignOut: () =>
           <h1 className="text-xl font-bold text-fg truncate flex-1">{title}</h1>
           <NotificationBell />
         </div>
-        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-8">{children}</div>
+        <div className={wide ? "px-4 sm:px-6 py-5" : "max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-8"}>{children}</div>
       </main>
     </div>
   );

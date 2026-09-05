@@ -9,21 +9,48 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 
-const AdminTitleContext = createContext<{ title: string; setTitle: (t: string) => void } | null>(null);
+interface AdminChrome {
+  title: string;
+  setTitle: (t: string) => void;
+  /** The dashboard needs the full viewport for a 12-column grid plus a rail;
+   *  every other admin page keeps the reading-width column. */
+  wide: boolean;
+  setWide: (w: boolean) => void;
+}
+
+const AdminTitleContext = createContext<AdminChrome | null>(null);
 
 export function AdminTitleProvider({ children }: { children: React.ReactNode }) {
   const [title, setTitle] = useState("Admin");
-  return <AdminTitleContext.Provider value={{ title, setTitle }}>{children}</AdminTitleContext.Provider>;
+  const [wide, setWide] = useState(false);
+  return (
+    <AdminTitleContext.Provider value={{ title, setTitle, wide, setWide }}>
+      {children}
+    </AdminTitleContext.Provider>
+  );
 }
 
-export function useAdminTitle(title: string) {
+export function useAdminTitle(title: string, wide = false) {
   const ctx = useContext(AdminTitleContext);
+  const setTitle = ctx?.setTitle;
+  const setWide = ctx?.setWide;
   useEffect(() => {
-    ctx?.setTitle(title);
-  }, [ctx, title]);
+    setTitle?.(title);
+  }, [setTitle, title]);
+  // Reset on unmount so navigating away from the dashboard restores the
+  // narrow column for the next page, which never asks for it.
+  useEffect(() => {
+    setWide?.(wide);
+    return () => setWide?.(false);
+  }, [setWide, wide]);
 }
 
 export function useAdminTitleValue() {
   const ctx = useContext(AdminTitleContext);
   return ctx?.title ?? "Admin";
+}
+
+export function useAdminWide() {
+  const ctx = useContext(AdminTitleContext);
+  return ctx?.wide ?? false;
 }
