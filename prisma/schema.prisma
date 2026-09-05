@@ -295,6 +295,8 @@ model LoginEvent {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+  // Admin DAU chart: distinct logins per day across all users.
+  @@index([createdAt])
 }
 
 model Affiliate {
@@ -581,6 +583,9 @@ model Clip {
   // Every clip list orders by score desc — this was an unindexed sort.
   @@index([projectId, score])
   @@index([sourceAssetId])
+  // AutoClip quality charts group by day across every project — Clip had no
+  // date index at all, so this was a full table scan.
+  @@index([createdAt])
 }
 
 // A dubbed-audio variant of a Clip in another language (P2.2). Captions stay
@@ -677,6 +682,9 @@ model SubscriptionEvent {
 
   @@index([userId, createdAt])
   @@index([subscriptionId])
+  // The admin lifecycle chart scans by date across ALL users, and Postgres
+  // cannot seek into the composite above on its second column.
+  @@index([createdAt])
 }
 
 // Append-only ledger of every credit balance change, per bucket. Written
@@ -696,6 +704,8 @@ model CreditTransaction {
 
   @@index([userId, createdAt])
   @@index([refId])
+  // Credit-economy chart: granted-vs-spent per day across all users.
+  @@index([createdAt])
 }
 
 // Key-value store for runtime admin configuration (e.g. tool enable/disable, credit costs).
@@ -788,6 +798,8 @@ model Asset {
   @@index([userId, sourceProjectId])
   @@index([userId, sourceClipId])
   @@index([folderId])
+  // Storage-growth chart: cumulative bytes per day across all users.
+  @@index([createdAt])
 }
 
 // Flat (non-nested) per-user folder for organizing assets.
