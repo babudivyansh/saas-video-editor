@@ -873,13 +873,22 @@ export async function acquisitionSection(rangeDays: number) {
       SELECT date_trunc('day', "createdAt") AS d, COUNT(DISTINCT "userId") AS users
       FROM "LoginEvent" WHERE "createdAt" >= ${rangeStart}
       GROUP BY 1 ORDER BY 1`,
-    // The real activation funnel: one signup cohort, counted through the User
-    // flags that already exist. OnboardingEventDaily holds tour/asset
-    // touchpoints, NOT these steps — it cannot answer this question.
+    // Activation for one signup cohort, from the User flags that already
+    // exist. OnboardingEventDaily holds tour/asset touchpoints, NOT these
+    // steps — it cannot answer this question.
+    //
+    // The three funnel steps are NESTED (each FILTER repeats the previous
+    // conditions) so the series is monotonic by construction and the funnel
+    // visual means what it looks like. Paying is deliberately NOT a fourth
+    // step: nothing gates a purchase on making a video, and real data has
+    // users who paid having activated nothing. Folding that into the funnel
+    // would either break the shape or hide the sale, so it is reported
+    // alongside as its own number.
     prisma.$queryRaw<[{ signed_up: bigint; onboarded: bigint; first_video: bigint; paid: bigint }]>`
       SELECT COUNT(*) AS signed_up,
              COUNT(*) FILTER (WHERE "onboardingCompletedAt" IS NOT NULL) AS onboarded,
-             COUNT(*) FILTER (WHERE "firstVideoAt" IS NOT NULL) AS first_video,
+             COUNT(*) FILTER (WHERE "onboardingCompletedAt" IS NOT NULL
+                                AND "firstVideoAt" IS NOT NULL) AS first_video,
              COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "Purchase" p WHERE p."userId" = u.id AND p.status <> 'refunded')) AS paid
       FROM "User" u WHERE u."createdAt" >= ${rangeStart}`,
     prisma.$queryRaw<Array<{ date: string; source: string; n: bigint }>>`
@@ -941,9 +950,11 @@ export async function acquisitionSection(rangeDays: number) {
     activation: [
       { name: "Signed up", value: num(a?.signed_up) },
       { name: "Completed onboarding", value: num(a?.onboarded) },
-      { name: "First video", value: num(a?.first_video) },
-      { name: "Converted to paid", value: num(a?.paid) },
+      { name: "Made first video", value: num(a?.first_video) },
     ],
+    // Not a funnel step — see the query comment. Reported so a purchase from
+    // a user who never activated is visible rather than swallowed.
+    paidInCohort: num(a?.paid),
     utmSources,
     // Built by hand rather than through fill(): the source names are dynamic,
     // so the zero row is an index signature, which cannot carry `date`.

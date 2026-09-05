@@ -30,11 +30,17 @@ const prismaMock = {
   auditLog: { findMany: vi.fn(async () => [] as unknown[]) },
   socialAccount: { groupBy: vi.fn(async () => []), aggregate: vi.fn(async () => ({ _sum: {} })), count: vi.fn(async () => 0) },
   socialPost: { count: vi.fn(async () => 0) },
+  // revenueSection attaches MRR history so the dashboard chart can flip from
+  // placeholder to real. Empty here: these cases are about the sources donut
+  // and AOV, and mrrHistory has its own coverage below.
+  mrrSnapshot: { findMany: vi.fn(async () => [] as unknown[]), upsert: vi.fn(async () => ({})), count: vi.fn(async () => 0) },
+  subscriptionEvent: { groupBy: vi.fn(async () => []) },
   $queryRaw: vi.fn(async () => [{ count: 0n }]),
 };
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 
 const { kpisSection, revenueSection, activitySection, infraSection } = await import("./metrics");
+const { mrrHistory } = await import("./mrr-snapshot");
 const { redis } = await import("@/lib/redis");
 const { KNOWN_CRON_NAMES } = await import("@/lib/cron-tracking");
 
@@ -118,6 +124,29 @@ describe("revenueSection sources + AOV", () => {
     expect(byName["Coupon discounts"]).toMatchObject({ inPaise: 20_000, isCost: true });
     expect(r.sources.some((s) => s.name.toLowerCase().includes("enterprise"))).toBe(false); // never faked
     expect(r.previousSeries).toBeNull(); // compare not requested
+  });
+
+});
+
+describe("mrrHistory", () => {
+  it("returns empty until the snapshot cron has recorded a day", async () => {
+    // The dashboard keeps its "needs instrumentation" placeholder on []. It
+    // must never be absent or fabricated — empty is the honest answer before
+    // the cron's first run.
+    expect(await mrrHistory(30)).toEqual([]);
+  });
+
+  it("derives ARR as 12x MRR rather than reading a stored column", async () => {
+    prismaMock.mrrSnapshot.findMany.mockResolvedValueOnce([
+      { capturedAt: new Date("2026-09-04"), mrrInPaise: 480_000, activeSubscribers: 12, newSubs: 2, churnedSubs: 1, reactivatedSubs: 0, source: "live" },
+      { capturedAt: new Date("2026-09-05"), mrrInPaise: 500_000, activeSubscribers: 13, newSubs: 1, churnedSubs: 0, reactivatedSubs: 0, source: "live" },
+    ] as never);
+
+    const h = await mrrHistory(30);
+    expect(h).toHaveLength(2);
+    expect(h[0]).toMatchObject({ date: "2026-09-04", mrrInPaise: 480_000, arrInPaise: 5_760_000 });
+    // ARR is not stored: it would overflow Int well before MRR does.
+    expect(h.every((m) => m.arrInPaise === m.mrrInPaise * 12)).toBe(true);
   });
 });
 

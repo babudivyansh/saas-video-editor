@@ -91,6 +91,7 @@ interface Pipeline {
 interface Acquisition {
   dau: DayRow[];
   activation: Array<{ name: string; value: number }>;
+  paidInCohort: number;
   utmSources: string[];
   utm: DayRow[];
   email: DayRow[];
@@ -603,7 +604,14 @@ export default function AdminDashboardPage() {
                 <>
                   <div className={SPAN[4]}>
                     <ChartContainer title="Activation funnel" subtitle={`Signups in the last ${range} days, followed through`}>
-                      <Funnel steps={acquisition.data.activation.map((a, i) => ({ ...a, color: [PALETTE[0], PALETTE[1], PALETTE[1], PALETTE[2]][i] }))} />
+                      <Funnel steps={acquisition.data.activation.map((a, i) => ({ ...a, color: [PALETTE[0], PALETTE[1], PALETTE[1]][i] }))} />
+                      {/* Outside the funnel on purpose: nothing gates a purchase
+                          on activating, so folding it in would either break the
+                          shape or hide a sale from a user who never activated. */}
+                      <p className="text-[11px] text-fg-muted mt-3 pt-3 border-t border-line">
+                        <span className="font-semibold text-fg">{compact(acquisition.data.paidInCohort)}</span> of this cohort paid
+                        <span className="text-fg-subtle"> — not gated on activating, so counted separately</span>
+                      </p>
                     </ChartContainer>
                   </div>
                   <div className={SPAN[4]}>
