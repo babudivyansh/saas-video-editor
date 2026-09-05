@@ -25,6 +25,7 @@ export const KNOWN_CRON_NAMES = [
   "clip-publish",
   "social-refresh",
   "feature-announcements",
+  "mrr-snapshot",
 ] as const;
 export type CronName = (typeof KNOWN_CRON_NAMES)[number];
 

@@ -47,6 +47,8 @@ interface Revenue {
   aovInPaise: number | null;
   creditsSold: number; creditsConsumed: number;
   affiliate: Array<{ status: string; amount: number; count: number }>;
+  /** Empty until the mrr-snapshot cron has recorded at least two days. */
+  mrrSeries: Array<{ date: string; mrrInPaise: number; arrInPaise: number; activeSubscribers: number; source: string }>;
 }
 interface Ai {
   totalGenerations: number; successRatePct: number | null; failed: number;
@@ -709,13 +711,28 @@ export default function AdminDashboardPage() {
                     })}
                   </ChartContainer>
                 </div>
+                {/* Flips from placeholder to real chart on its own, once the
+                    mrr-snapshot cron has recorded two days. */}
                 <div className={SPAN[4]}>
-                  <ChartContainer title="MRR over time" subtitle="no historical snapshot exists" dashed>
-                    <PlaceholderChart
-                      height={140}
-                      needs="MRR is derived from current subscription state, so there is nothing to plot backwards. An MrrSnapshot table written nightly would fill this in from day one, and SubscriptionEvent can partially reconstruct the past."
-                    />
-                  </ChartContainer>
+                  {(revenue.data?.mrrSeries.length ?? 0) >= 2 ? (
+                    <ChartContainer title="MRR over time" subtitle="Recorded daily since the snapshot cron went live"
+                      csv={{ filename: "mrr-history.csv", rows: revenue.data!.mrrSeries.map((m) => ({ date: m.date, mrrInPaise: m.mrrInPaise, activeSubscribers: m.activeSubscribers })) }}>
+                      <MultiLine
+                        data={revenue.data!.mrrSeries as unknown as DayRow[]}
+                        height={170}
+                        valueFmt={(n) => `₹${compact(n / 100)}`}
+                        yWidth={48}
+                        series={[{ key: "mrrInPaise", name: "MRR" }]}
+                      />
+                    </ChartContainer>
+                  ) : (
+                    <ChartContainer title="MRR over time" subtitle="recording has just started" dashed>
+                      <PlaceholderChart
+                        height={140}
+                        needs="MRR is derived from current subscription state, so there is nothing to plot backwards. The mrr-snapshot cron now records it daily — this chart fills itself in once two days exist, and is deliberately not backfilled because past plan assignments aren't stored."
+                      />
+                    </ChartContainer>
+                  )}
                 </div>
               </>
             ) : (

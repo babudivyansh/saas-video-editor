@@ -207,6 +207,53 @@ model NotificationPreference {
   updatedAt       DateTime @updatedAt
 }
 
+// One row per UTC day recording what recurring revenue actually WAS that day.
+//
+// Everything else about MRR in this codebase is derived from *current*
+// subscription state (active subscribers x their plan price), which means it
+// can only ever answer "what is MRR now" — there is no way to ask what it was
+// last Tuesday, and so the dashboard has never been able to plot it. This
+// table is the missing history: written forward by app/api/cron/mrr-snapshot,
+// never recomputed.
+//
+// Deliberately NOT backfilled. Reconstructing past MRR would need each user's
+// plan assignment as it was on each past date, and nothing stores that —
+// SubscriptionEvent records that a subscription changed state, not which plan
+// it was on or what that plan cost at the time. A reconstruction would be a
+// plausible-looking invention, which is precisely what the `source` column
+// exists to keep out: rows are "live" (measured) and the chart simply starts
+// on the day this shipped.
+model MrrSnapshot {
+  id String @id @default(uuid())
+
+  /// @db.Date, so re-running the cron on the same day upserts rather than
+  /// appending a second row for that day.
+  capturedAt DateTime @unique @db.Date
+
+  /// Ceiling is ~₹2.14 crore/month at Int range. ARR is deliberately not
+  /// stored — it is exactly 12x this and would overflow Int sooner.
+  mrrInPaise        Int
+  activeSubscribers Int
+
+  /// Movement on the day, from SubscriptionEvent. Counts, not amounts.
+  newSubs         Int @default(0)
+  churnedSubs     Int @default(0)
+  reactivatedSubs Int @default(0)
+
+  /// { planId: { name, subscribers, mrrInPaise } } — lets a later drilldown
+  /// attribute a change to a plan without another table.
+  planBreakdown Json?
+
+  /// "live" only, today. Present so that if a defensible reconstruction ever
+  /// becomes possible, those rows are distinguishable and can be rendered
+  /// differently instead of silently mixing with measured ones.
+  source String @default("live")
+
+  createdAt DateTime @default(now())
+
+  @@index([capturedAt])
+}
+
 // Admin-authored broadcast — the producer that was missing for the
 // featureReleases/newsletter NotificationPreference toggles above (they were
 // persisted and enforced but nothing ever called shouldSendCategory for

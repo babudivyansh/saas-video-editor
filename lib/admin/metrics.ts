@@ -13,6 +13,7 @@ import { env } from "@/lib/env";
 import { getSyncStats } from "@/lib/social/service";
 import { KNOWN_RENDER_QUEUE_NAMES } from "@/lib/render-queue";
 import { getCronRunStatuses, type CronName } from "@/lib/cron-tracking";
+import { mrrHistory } from "./mrr-snapshot";
 
 export type MetricsSection =
   | "kpis" | "revenue" | "ai" | "social" | "infra" | "growth"
@@ -116,7 +117,7 @@ export async function revenueSection(rangeDays: number, compare = false) {
   const rangeStart = new Date(now.getTime() - rangeDays * DAY_MS);
   const prevStart = new Date(rangeStart.getTime() - rangeDays * DAY_MS);
 
-  const [series, previousSeries, signupSeries, byPlan, byKind, creditsSold, creditsConsumed, affiliate, couponDiscount] = await Promise.all([
+  const [series, previousSeries, signupSeries, byPlan, byKind, creditsSold, creditsConsumed, affiliate, couponDiscount, mrrSeries] = await Promise.all([
     dailyRevenueSeries(rangeStart, now),
     compare ? dailyRevenueSeries(prevStart, rangeStart) : Promise.resolve(null),
     prisma.$queryRaw<Array<{ day: Date; users: bigint }>>`
@@ -138,6 +139,9 @@ export async function revenueSection(rangeDays: number, compare = false) {
     prisma.generation.aggregate({ _sum: { creditsCost: true }, where: { createdAt: { gte: rangeStart }, status: "completed" } }),
     prisma.commission.groupBy({ by: ["status"], _sum: { amount: true }, _count: true }),
     prisma.couponRedemption.aggregate({ _sum: { discountInPaise: true }, where: { createdAt: { gte: rangeStart } } }),
+    // Empty until the mrr-snapshot cron has run at least twice — the UI keeps
+    // its placeholder rather than drawing a line through a single point.
+    mrrHistory(rangeDays),
   ]);
 
   const planNames = new Map(
@@ -174,6 +178,7 @@ export async function revenueSection(rangeDays: number, compare = false) {
     creditsSold: creditsSold._sum.credits ?? 0,
     creditsConsumed: creditsConsumed._sum.creditsCost ?? 0,
     affiliate: affiliate.map((a) => ({ status: a.status, amount: a._sum.amount ?? 0, count: a._count })),
+    mrrSeries,
   };
 }
 
@@ -353,6 +358,9 @@ const CRON_STALE_AFTER_SEC: Record<CronName, number> = {
   "admin-digest": 9 * 24 * 3600, // weekly
   reengagement: 9 * 24 * 3600, // weekly
   "feature-announcements": 36 * 3600, // daily
+  // A missed day is a permanent hole in the MRR series — nothing can fill it
+  // in afterwards — so this is flagged stale sooner than the other dailies.
+  "mrr-snapshot": 30 * 3600,
 };
 
 async function staleCronCount(): Promise<number> {
