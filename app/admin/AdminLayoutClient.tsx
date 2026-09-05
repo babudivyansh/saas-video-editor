@@ -290,7 +290,16 @@ function Shell({ email, onSignOut, children }: { email: string; onSignOut: () =>
       )}
 
       {/* Main */}
-      <main className="flex-1 overflow-y-auto">
+      {/* `relative` is load-bearing, not decoration. This is the scroll
+          container, but `overflow` does NOT establish a containing block —
+          only positioning does. Without it, any absolutely-positioned
+          descendant (a Tailwind `sr-only` span, for one) escapes to the
+          initial containing block and is laid out at its static position
+          *in document coordinates*, stretching <html> to reach it. That gave
+          the dashboard a second, phantom scrollbar ~2,100px tall whose bottom
+          was pure black: the heatmap's sr-only summary alone was setting
+          document height to 3083px against a 945px viewport. */}
+      <main className="relative flex-1 overflow-y-auto">
         <div className="sticky top-0 z-10 bg-panel border-b border-line px-4 sm:px-8 h-16 flex items-center gap-3">
           <button
             className="xl:hidden p-2 -ml-2 rounded-md text-fg-muted hover:text-fg flex-shrink-0"
