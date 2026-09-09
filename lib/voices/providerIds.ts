@@ -10,43 +10,67 @@
 // table of optional overrides, and importing the validated env schema would
 // make an otherwise-pure module refuse to load wherever DATABASE_URL is unset.
 //
-// The 32 ELEVENLABS_VOICE_* overrides are DEPRECATED - the voice_catalog
-// Config row supersedes them and, unlike these, needs no deploy. They are
-// still read for one release so production behaviour is unchanged.
+// The ELEVENLABS_VOICE_* overrides are DEPRECATED - the voice_catalog Config
+// row supersedes them and, unlike these, needs no deploy. They are still read
+// for one release so production behaviour is unchanged.
+//
+// REBUILT 2026-09-10 against GET /v1/voices on the live account. The previous
+// table was inherited from the old hardcoded lists and 24 of its 32 ids were
+// voices ElevenLabs has since retired - they 404 on this account, including
+// `william`, which was the DEFAULT for every render. The ids below are the 22
+// this account actually has.
 
 export const PROVIDER_VOICE_IDS: Record<string, string> = {
+  // ── The 22 voices this account actually has (verified live) ──────────────
   adam: process.env.ELEVENLABS_VOICE_ADAM || "pNInz6obpgDQGcFmaJgB",
   alice: process.env.ELEVENLABS_VOICE_ALICE || "Xb7hH8MSUJpSbSDYk0k2",
-  amir1: process.env.ELEVENLABS_VOICE_AMIR1 || "ZQe5CZNOzWyzPSCn5a3c",
-  amir2: process.env.ELEVENLABS_VOICE_AMIR2 || "bVMeCyTHy58xNoL34h3p",
-  aria: process.env.ELEVENLABS_VOICE_ARIA || "9BWtsMINqrJLrRacOk9x",
-  bella: process.env.ELEVENLABS_VOICE_BELLA || "EXAVITQu4vr4xnSDxMaL",
-  charlie: process.env.ELEVENLABS_VOICE_CHARLIE || "yoZ06aMxZJJ28mfd3POQ",
-  charlotte: process.env.ELEVENLABS_VOICE_CHARLOTTE || "XB0fDUnXU5powFXDhCwa",
-  clyde: process.env.ELEVENLABS_VOICE_CLYDE || "2EiwWnXFnvU5JabPnv8n",
-  dandan: process.env.ELEVENLABS_VOICE_DANDAN || "TxGEqnHWrfWFTfGW9XjX",
+  bella: process.env.ELEVENLABS_VOICE_BELLA || "hpp4J3VqNfWAUOO0d1Us",
+  bill: process.env.ELEVENLABS_VOICE_BILL || "pqHfZKP75CvOlQylNhV4",
+  brian: process.env.ELEVENLABS_VOICE_BRIAN || "nPczCjzI2devNBz1zQrb",
+  callum: process.env.ELEVENLABS_VOICE_CALLUM || "N2lVS1w4EtoT3dr4eOWO",
+  charlie: process.env.ELEVENLABS_VOICE_CHARLIE || "IKne3meq5aSn9XLyUdCD",
+  chris: process.env.ELEVENLABS_VOICE_CHRIS || "iP95p4xoKVk53GoZ742B",
   daniel: process.env.ELEVENLABS_VOICE_DANIEL || "onwK4e9ZLuTAKqWW03F9",
-  dave: process.env.ELEVENLABS_VOICE_DAVE || "CYw3kZ02Hs0563khs1Fj",
-  elli: process.env.ELEVENLABS_VOICE_ELLI || "MF3mGyEYCl7XYWbV9V6O",
-  emily: process.env.ELEVENLABS_VOICE_EMILY || "LcfcDJNUP1GQjkzn1xUU",
-  ethan: process.env.ELEVENLABS_VOICE_ETHAN || "g5CIjZEefAph4nQFvHAz",
-  fin: process.env.ELEVENLABS_VOICE_FIN || "D38z5RcWu1voky8WS1ja",
-  freya: process.env.ELEVENLABS_VOICE_FREYA || "jsCqWAovK2LkecY7zXl4",
-  grace: process.env.ELEVENLABS_VOICE_GRACE || "oWAxZDx7w5VEj9dCyTzz",
+  eric: process.env.ELEVENLABS_VOICE_ERIC || "cjVigY5qzO86Huf0OWal",
+  george: process.env.ELEVENLABS_VOICE_GEORGE || "JBFqnCBsd6RMkjVDRZzb",
   harry: process.env.ELEVENLABS_VOICE_HARRY || "SOYHLrjzK2X1ezoPC6cr",
-  josh: process.env.ELEVENLABS_VOICE_JOSH || "TxGEqnHWrfWFTfGW9XjX",
+  jessica: process.env.ELEVENLABS_VOICE_JESSICA || "cgSgspJ2msm6clMCkdW9",
+  laura: process.env.ELEVENLABS_VOICE_LAURA || "FGY2WhTYpPnrIDTdsKH5",
   liam: process.env.ELEVENLABS_VOICE_LIAM || "TX3LPaxmHKxFdv7VOQHJ",
+  lily: process.env.ELEVENLABS_VOICE_LILY || "pFZP5JQG7iQjIQuC4Bku",
   matilda: process.env.ELEVENLABS_VOICE_MATILDA || "XrExE9yKIg1WjnnlVkGX",
-  matthew: process.env.ELEVENLABS_VOICE_MATTHEW || "Yko7PKHZNXotIFUBG7I9",
-  natasha: process.env.ELEVENLABS_VOICE_NATASHA || "21m00Tcm4TlvDq8ikWAM",
-  patrick: process.env.ELEVENLABS_VOICE_PATRICK || "ODq5zmih8GrVes37Dy9a",
-  rachel: process.env.ELEVENLABS_VOICE_RACHEL || "21m00Tcm4TlvDq8ikWAM",
-  sam: process.env.ELEVENLABS_VOICE_SAM || "yoZ06aMxZJJ28mfd3POQ",
+  river: process.env.ELEVENLABS_VOICE_RIVER || "SAz9YHcvj6GT2YYXdXww",
+  roger: process.env.ELEVENLABS_VOICE_ROGER || "CwhRBWXzGAHq8TQ4Fs17",
   sarah: process.env.ELEVENLABS_VOICE_SARAH || "EXAVITQu4vr4xnSDxMaL",
-  serena: process.env.ELEVENLABS_VOICE_SERENA || "pMsXgVXv3BLzUgSXRplE",
-  spongebob: process.env.ELEVENLABS_VOICE_SPONGEBOB || "jBpfuIE2acCO8z3wKNLl",
-  thomas: process.env.ELEVENLABS_VOICE_THOMAS || "GBv7mTt0atIp3Br8iCZE",
-  william: process.env.ELEVENLABS_VOICE_WILLIAM || "VR6AewLTigWG4xSOukaG",
+  "sunny-singh": process.env.ELEVENLABS_VOICE_SUNNY_SINGH || "C9mPSTSfiDpIm4wTghYI",
+  will: process.env.ELEVENLABS_VOICE_WILL || "bIHbv24MWmeRgasZH58o",
+
+  // ── Retired slugs, kept so stored Project.voiceId rows still resolve ─────
+  // Each points at the id of the surviving voice named beside it. Hidden from
+  // pickers via `aliasOf` + `active: false` in catalog.ts.
+  amir1: process.env.ELEVENLABS_VOICE_AMIR1 || "JBFqnCBsd6RMkjVDRZzb", // -> george
+  amir2: process.env.ELEVENLABS_VOICE_AMIR2 || "TX3LPaxmHKxFdv7VOQHJ", // -> liam
+  aria: process.env.ELEVENLABS_VOICE_ARIA || "FGY2WhTYpPnrIDTdsKH5", // -> laura
+  charlotte: process.env.ELEVENLABS_VOICE_CHARLOTTE || "cgSgspJ2msm6clMCkdW9", // -> jessica
+  clyde: process.env.ELEVENLABS_VOICE_CLYDE || "N2lVS1w4EtoT3dr4eOWO", // -> callum
+  dandan: process.env.ELEVENLABS_VOICE_DANDAN || "nPczCjzI2devNBz1zQrb", // -> brian
+  dave: process.env.ELEVENLABS_VOICE_DAVE || "bIHbv24MWmeRgasZH58o", // -> will
+  elli: process.env.ELEVENLABS_VOICE_ELLI || "cgSgspJ2msm6clMCkdW9", // -> jessica
+  emily: process.env.ELEVENLABS_VOICE_EMILY || "Xb7hH8MSUJpSbSDYk0k2", // -> alice
+  ethan: process.env.ELEVENLABS_VOICE_ETHAN || "iP95p4xoKVk53GoZ742B", // -> chris
+  fin: process.env.ELEVENLABS_VOICE_FIN || "pqHfZKP75CvOlQylNhV4", // -> bill
+  freya: process.env.ELEVENLABS_VOICE_FREYA || "FGY2WhTYpPnrIDTdsKH5", // -> laura
+  grace: process.env.ELEVENLABS_VOICE_GRACE || "XrExE9yKIg1WjnnlVkGX", // -> matilda
+  josh: process.env.ELEVENLABS_VOICE_JOSH || "nPczCjzI2devNBz1zQrb", // -> brian
+  matthew: process.env.ELEVENLABS_VOICE_MATTHEW || "JBFqnCBsd6RMkjVDRZzb", // -> george
+  natasha: process.env.ELEVENLABS_VOICE_NATASHA || "EXAVITQu4vr4xnSDxMaL", // -> sarah
+  patrick: process.env.ELEVENLABS_VOICE_PATRICK || "SOYHLrjzK2X1ezoPC6cr", // -> harry
+  rachel: process.env.ELEVENLABS_VOICE_RACHEL || "EXAVITQu4vr4xnSDxMaL", // -> sarah
+  sam: process.env.ELEVENLABS_VOICE_SAM || "cjVigY5qzO86Huf0OWal", // -> eric
+  serena: process.env.ELEVENLABS_VOICE_SERENA || "hpp4J3VqNfWAUOO0d1Us", // -> bella
+  spongebob: process.env.ELEVENLABS_VOICE_SPONGEBOB || "cgSgspJ2msm6clMCkdW9", // -> jessica
+  thomas: process.env.ELEVENLABS_VOICE_THOMAS || "SAz9YHcvj6GT2YYXdXww", // -> river
+  william: process.env.ELEVENLABS_VOICE_WILLIAM || "nPczCjzI2devNBz1zQrb", // -> brian
 };
 
 /** The id to synthesize with, or undefined when the slug is not a seed voice. */

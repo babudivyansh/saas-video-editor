@@ -41,9 +41,9 @@ describe("getVoiceLibrary", () => {
   });
 
   it("lets an admin override a voice without a deploy", async () => {
-    configFindUnique.mockResolvedValue({ value: JSON.stringify({ william: { label: "Narrator" } }) });
+    configFindUnique.mockResolvedValue({ value: JSON.stringify({ brian: { label: "Narrator" } }) });
     const all = await getVoiceLibrary();
-    expect(all.find((v) => v.slug === "william")?.label).toBe("Narrator");
+    expect(all.find((v) => v.slug === "brian")?.label).toBe("Narrator");
   });
 
   it("lets an admin ADD a voice, which is the point of the Config layer", async () => {
@@ -63,9 +63,9 @@ describe("getVoiceLibrary", () => {
 
   it("deactivates a voice the account can no longer speak", async () => {
     // Not deleted: an admin needs to see WHY it vanished from the picker.
-    listVoices.mockResolvedValue(allKnown().filter((v) => v.voice_id !== PROVIDER_VOICE_IDS.william));
+    listVoices.mockResolvedValue(allKnown().filter((v) => v.voice_id !== PROVIDER_VOICE_IDS.brian));
     const all = await getVoiceLibrary();
-    expect(all.find((v) => v.slug === "william")?.active).toBe(false);
+    expect(all.find((v) => v.slug === "brian")?.active).toBe(false);
   });
 
   it("leaves EVERYTHING enabled when the provider can't be reached", async () => {
@@ -73,7 +73,11 @@ describe("getVoiceLibrary", () => {
     // bug than the one the check exists to prevent.
     listVoices.mockRejectedValue(new Error("network"));
     const all = await getVoiceLibrary();
-    expect(all.every((v) => v.active !== false)).toBe(true);
+    // "Everything" means nothing NEWLY disabled. The seed itself ships the
+    // retired slugs as inactive, so the assertion is that the sync added none.
+    const seedOff = new Set(VOICE_SEED.filter((v) => v.active === false).map((v) => v.slug));
+    expect(all.filter((v) => v.active === false).map((v) => v.slug).sort())
+      .toEqual([...seedOff].sort());
   });
 
   it("treats an unusable key the same way — no catalogue, not an empty one", async () => {
@@ -83,23 +87,37 @@ describe("getVoiceLibrary", () => {
     expect(listVoices).not.toHaveBeenCalled();
   });
 
-  it("adopts the provider's own preview mp3 when we have none", async () => {
+  it("adopts the provider's own preview mp3 for a voice that has none", async () => {
+    // Only for voices with no preview of their own — every seeded voice now
+    // ships the real ElevenLabs preview URL, and a seeded value must win so a
+    // provider blip cannot swap what the picker plays.
+    configFindUnique.mockResolvedValue({
+      value: JSON.stringify({
+        newbie: {
+          label: "Newbie", gender: "female", age: "young", languages: ["en"],
+          category: "starter", free: true, creditMultiplier: 1,
+          providerVoiceIdOverride: "aaaaaaaaaaaaaaaaaaaa",
+        },
+      }),
+    });
     listVoices.mockResolvedValue(
-      allKnown().map((v) => ({ ...v, preview_url: `https://cdn.invalid/${v.voice_id}.mp3` })),
+      [...allKnown(), { voice_id: "aaaaaaaaaaaaaaaaaaaa", name: "Newbie" }]
+        .map((v) => ({ ...v, preview_url: `https://cdn.invalid/${v.voice_id}.mp3` })),
     );
     const all = await getVoiceLibrary();
     // Free to play, unlike synthesizing a sample on every picker open.
-    expect(all.find((v) => v.slug === "william")?.previewUrl).toContain("cdn.invalid");
+    expect(all.find((v) => v.slug === "newbie")?.previewUrl).toContain("cdn.invalid");
+    expect(all.find((v) => v.slug === "brian")?.previewUrl).toContain("elevenlabs.io");
   });
 });
 
 describe("getActiveVoices", () => {
   it("hides aliases so one voice is offered once", async () => {
     const shown = await getActiveVoices();
-    for (const slug of ["josh", "rachel", "sam", "sarah"]) {
+    for (const slug of ["josh", "rachel", "william", "thomas"]) {
       expect(shown.find((v) => v.slug === slug), slug).toBeUndefined();
     }
-    for (const slug of ["dandan", "natasha", "charlie", "bella"]) {
+    for (const slug of ["brian", "sarah", "charlie", "bella"]) {
       expect(shown.find((v) => v.slug === slug), slug).toBeDefined();
     }
   });
@@ -113,13 +131,13 @@ describe("getActiveVoices", () => {
 
 describe("resolveVoiceRef", () => {
   it("resolves a slug to the provider id the synthesis call needs", async () => {
-    const r = await resolveVoiceRef("william");
-    expect(r).toMatchObject({ slug: "william", providerVoiceId: PROVIDER_VOICE_IDS.william, source: "catalog" });
+    const r = await resolveVoiceRef("brian");
+    expect(r).toMatchObject({ slug: "brian", providerVoiceId: PROVIDER_VOICE_IDS.brian, source: "catalog" });
   });
 
   it("resolves an ALIAS slug, because real projects have one stored", async () => {
     const r = await resolveVoiceRef("josh");
-    expect(r.providerVoiceId).toBe(PROVIDER_VOICE_IDS.dandan);
+    expect(r.providerVoiceId).toBe(PROVIDER_VOICE_IDS.brian);
   });
 
   it("passes a raw provider id through, which is what /editor rows hold", async () => {
@@ -128,7 +146,7 @@ describe("resolveVoiceRef", () => {
   });
 
   it("falls back to the default for an empty reference", async () => {
-    expect((await resolveVoiceRef("")).slug).toBe("william");
+    expect((await resolveVoiceRef("")).slug).toBe("brian");
   });
 
   it("throws on anything else rather than guessing a voice", async () => {

@@ -48,14 +48,36 @@ describe("the voice seed", () => {
     expect(Object.keys(VOICE_ID_MAP).sort()).toEqual(VOICE_SEED.map((v) => v.slug).sort());
   });
 
-  it("marks the slugs that are the same voice under another name", () => {
-    // 32 slugs, 28 distinct voices: these four pairs were sold as different
-    // voices in every picker. They keep resolving; they just stop being shown
-    // twice.
-    const aliases = VOICE_SEED.filter((v) => v.aliasOf).map((v) => `${v.slug}->${v.aliasOf}`);
-    expect(aliases.sort()).toEqual([
-      "josh->dandan", "rachel->natasha", "sam->charlie", "sarah->bella",
-    ]);
+  it("keeps every retired slug resolving, pointed at a live voice", () => {
+    // ElevenLabs retired 24 of the 32 voices the old lists shipped. Those
+    // slugs are persisted in Project.voiceId rows, so they cannot simply be
+    // deleted — each is kept as an alias of the nearest surviving voice and
+    // hidden from pickers. This asserts the property, not the pairing: which
+    // voice a retired slug maps to is a judgement call, but EVERY alias must
+    // point at a slug that exists and is itself not an alias.
+    const aliases = VOICE_SEED.filter((v) => v.aliasOf);
+    expect(aliases.length).toBeGreaterThan(0);
+    for (const v of aliases) {
+      const target = VOICE_SEED.find((t) => t.slug === v.aliasOf);
+      expect(target, `${v.slug} -> ${v.aliasOf}`).toBeDefined();
+      expect(target!.aliasOf, `${v.aliasOf} must not itself be an alias`).toBeUndefined();
+      // Hidden, not deleted.
+      expect(v.active).toBe(false);
+    }
+  });
+
+  it("still carries every slug the six old lists could have stored", () => {
+    // The anti-regression test for the whole consolidation: a slug missing
+    // here is a project that renders with the wrong voice, or none.
+    const OLD = [
+      "adam", "alice", "amir1", "amir2", "aria", "bella", "charlie", "charlotte",
+      "clyde", "dandan", "daniel", "dave", "elli", "emily", "ethan", "fin",
+      "freya", "grace", "harry", "josh", "liam", "matilda", "matthew", "natasha",
+      "patrick", "rachel", "sam", "sarah", "serena", "spongebob", "thomas",
+      "william",
+    ];
+    const have = new Set(VOICE_SEED.map((v) => v.slug));
+    expect(OLD.filter((s) => !have.has(s))).toEqual([]);
   });
 
   it("gives every alias the same provider voice as its canonical slug", () => {
