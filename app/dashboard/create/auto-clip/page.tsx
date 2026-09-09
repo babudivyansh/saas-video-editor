@@ -3,6 +3,7 @@ import { Suspense, useRef, useState, useEffect, useCallback, useMemo, type React
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import CaptionStyleGrid from "@/app/components/auto-clip/CaptionStyleGrid";
+import PipelineNotice from "@/app/components/auto-clip/PipelineNotice";
 import { ReframeAndCutsControls } from "@/app/components/auto-clip/ReframeAndCutsControls";
 import { LiteEditTab, type LiteEdits } from "@/app/components/auto-clip/LiteEditTab";
 import { CaptionTemplatePicker, CaptionRenderControls, TranslateCaptions } from "@/app/components/auto-clip/CaptionTemplatePicker";
@@ -53,9 +54,6 @@ function IcChevronRight() {
 function IcPlay() {
   return <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 ml-0.5"><path d="M8 5v14l11-7z" /></svg>;
 }
-function IcWarning() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>;
-}
 function IcMore() {
   return <svg viewBox="0 0 24 24" fill="currentColor" className="w-[18px] h-[18px]"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>;
 }
@@ -86,12 +84,6 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 type SortKey = "score" | "order" | "duration";
-
-const WARNING_COPY: Record<string, string> = {
-  transcription_failed: "We couldn't transcribe this video, so the AI never read its content — clip moments are spaced out rather than chosen, and the titles, captions and insights are generic placeholders you should replace. There are no burned-in subtitles.",
-  reframe_unavailable: "No faces were detected in this video, so clips use a centered crop instead of following a speaker.",
-  reframe_failed: "Speaker tracking couldn't run on our side, so clips use a centered crop. This affects every video until it's fixed — please report it if it persists.",
-};
 
 // ── Shared types ─────────────────────────────────────────────────────────────
 interface ScoreBreakdown {
@@ -211,21 +203,6 @@ function clipReason(clip: ClipItem): string {
   return band;
 }
 
-function WarningsBanner({ warnings }: { warnings: string[] | null | undefined }) {
-  if (!warnings || warnings.length === 0) return null;
-  return (
-    <div className="mb-4 flex flex-col gap-2">
-      {warnings.map((w) => (
-        <div key={w} className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-          <IcWarning />
-          <span>{WARNING_COPY[w] ?? w}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-const MAX_CLIP_SECONDS = 300;
 
 // ── Per-clip actions (ready clips): edit-in-editor, dub, publish ─────────────
 function EditInEditorButton({ projectId, clip, className }: { projectId: string; clip: ClipItem; className?: string }) {
@@ -1499,7 +1476,7 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
           <span className="text-brand"><IcClock /></span>
           You can leave this page — your clips will be ready when you return.
         </div>
-        <div className="mt-6"><WarningsBanner warnings={project.warnings} /></div>
+        <div className="mt-6"><PipelineNotice warnings={project.warnings} /></div>
       </div>
     );
   }
@@ -1549,7 +1526,7 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
         </div>
       )}
 
-      <WarningsBanner warnings={project.warnings} />
+      <PipelineNotice warnings={project.warnings} />
       {allDone && <div className="mb-4"><ScorePerformanceBanner /></div>}
 
       {/* Feed */}
