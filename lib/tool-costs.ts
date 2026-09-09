@@ -156,6 +156,7 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   // visible, it does not change anyone's price.
   "generate-voice":     { creditCost: 2, costUsd: 0.10, costBasis: "$0.05/1,000 chars (ElevenLabs Flash TTS), 2,000-char cap — same price as the voiceover tool", generationType: "audio" },
   "voice-preview":      { creditCost: 0, costUsd: 0.002, costBasis: "One ~35-char TTS sample. Free to the user; authenticated and capped at 20/hr so the cost is bounded by accounts, not IPs", generationType: "audio" },
+  "music-generate":     { creditCost: 4, costUsd: 0.075, costBasis: "ElevenLabs Music $0.15/min, 30s default bed (verify-before-ship: the Music API is paid-plan only and 402s on the current free account, so this rate is published pricing, not a measured call). Gated creator+", generationType: "audio" },
   "split-screen":       { creditCost: 1, costUsd: null, costBasis: "Scribe/Whisper STT + FFmpeg render", generationType: "video" },
   "streamer-video":     { creditCost: 1, costUsd: null, costBasis: "Scribe/Whisper STT + FFmpeg render", generationType: "video" },
   "compile":            { creditCost: 1, costUsd: 0, costBasis: "FFmpeg render only — TTS is charged when the voice is generated", generationType: "video" },

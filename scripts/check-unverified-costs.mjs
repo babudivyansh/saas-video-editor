@@ -41,8 +41,12 @@ const ALLOWLIST = {
   //      needs a real invoice to confirm. Gated creator+ and priced per
   //      billable MINUTE rather than per render, because providers in this
   //      category round a partial minute up to a whole one.)
+  //   4. music-generate (ElevenLabs Music is paid-plan only — every call 402s
+  //      on the current free account, so $0.15/min is published pricing rather
+  //      than a measured one. Gated creator+ and priced at 4 credits for a 30s
+  //      bed, ~2x the published cost even if it has since risen.)
   // face-swap is also costUsd:null + gated, but carries no marker.
-  "lib/tool-costs.ts": 3,
+  "lib/tool-costs.ts": 4,
 };
 
 let failed = false;
