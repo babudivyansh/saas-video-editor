@@ -44,6 +44,11 @@ const PATTERNS = {
   "bg-white": /\bbg-white(?![/\w-])/g,
   // Stock slate/stone/neutral ramps. Unlike gray these are NOT bridged by the
   // inverted ramp in globals.css, so each one has to be codemodded outright.
+  // 2026-09-10, second pass: viral-split-screen, split-video and
+  // streamer-video deleted. inline-hex 98 -> 63 is those three create pages'
+  // background-catalogue tiles and title-style swatches; brand-hex 42 -> 37
+  // their step-header accents. Nothing was restyled — the debt left with the
+  // product.
   "raw-slate": /\b(?:bg|text|border|ring|divide|placeholder|from|to|via)-(?:slate|stone|neutral)-\d{2,3}\b/g,
   // The fourth palette (error/404 pages, legacy editor wizard). The two that
   // remain are the Reddit card's own dark-mode swatch in create/reddit-video,
@@ -104,7 +109,7 @@ const BUDGET = {
   "raw-gray": 36,
   // 5 -> 4: same deletion.
   "bg-white": 1,
-  "raw-slate": 11,
+  "raw-slate": 9,
   "raw-zinc": 0,
   "raw-blue": 0,
   "raw-red": 11,
@@ -112,7 +117,7 @@ const BUDGET = {
   // deleted below.
   // 47 -> 43: four more went with the per-page voice lists, whose entries
   // each carried a hand-assigned avatar tint.
-  "brand-hex": 42,
+  "brand-hex": 37,
   "legacy-light": 0,
   // 320 -> 318: same deletion. The replacement (CaptionStyleGrid) still needs
   // two inline hex values for the swatch gradient — that is product artwork
@@ -131,7 +136,7 @@ const BUDGET = {
   // 152 -> 112: the six hand-maintained voice lists are gone. Each entry
   // carried a decorative colour literal, and two pages additionally held a
   // copy of the provider's voice ids purely to build preview URLs by hand.
-  "inline-hex": 98,
+  "inline-hex": 63,
 };
 
 function walk(dir, out = []) {

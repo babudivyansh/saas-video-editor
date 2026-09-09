@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       backgroundUrl: body.backgroundUrl ?? "",
       subtitlesStyle: body.subtitlesStyle ?? {},
       uploadedVideoUrl: body.uploadedVideoUrl ?? null,
-      productType: body.productType ?? "split-screen",
+      productType: body.productType ?? "auto-clip",
       status: "draft",
     },
   });

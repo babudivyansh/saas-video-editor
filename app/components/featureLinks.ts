@@ -44,7 +44,6 @@ export const VIDEO_TOOLS: FeatureLink[] = [
   { title: "Video Editor", desc: "Multi-track timeline editor in your browser", href: "/dashboard/editor", slug: "video-editor", category: "video" },
   { title: "Clipiro AutoClip", desc: "Long videos into viral clips, automatically", href: "/dashboard/create/auto-clip", slug: "auto-clip", category: "video" },
   { title: "Cut & Crop", desc: "Trim & stitch clips ready to edit", href: "/dashboard/cut-and-crop", slug: "cut-and-crop", category: "video" },
-  { title: "Viral Split Screen", desc: "Gameplay split-screen that retains viewers", href: "/dashboard/create/viral-split-screen", slug: "viral-split-screen", category: "video" },
 ];
 
 // AI tools (single-purpose generators / enhancers).

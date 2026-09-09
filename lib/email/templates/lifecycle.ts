@@ -55,7 +55,7 @@ export function onboardingDay1(p: { name: string; creditsLeft: number }): EmailD
         title: "Three ideas to try right now",
         marker: "bullet",
         items: [
-          html`<strong>Split-screen video</strong> — paste a script, get a video`,
+          html`<strong>Clipiro AutoClip</strong> — one long video, a week of clips`,
           html`<strong>Auto Clip</strong> — upload a long video, get viral shorts`,
           html`<strong>AI Voiceover</strong> — turn text into professional narration`,
         ],

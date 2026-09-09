@@ -131,8 +131,6 @@ function VideoCard({ project, token, onDelete }: { project: Project; token: stri
 
 const FILTERS = [
   { id: "all", label: "All" },
-  { id: "split-screen", label: "Split Screen" },
-  { id: "streamer-video", label: "Streamer" },
 ];
 
 export default function MyVideosPage() {

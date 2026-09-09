@@ -121,94 +121,6 @@ export function useVideoGenerate() {
     }, 3000);
   }, []);
 
-  const generateSplitScreen = useCallback(async (params: {
-    /** A freshly picked file to upload. Mutually exclusive with videoUrl. */
-    file?: File;
-    /** A video already hosted on our S3 (e.g. reused from the Asset Library)
-     *  — skips the upload step entirely. Pass `fileName` alongside it for the
-     *  project title, since there's no File to read `.name` from. */
-    videoUrl?: string;
-    fileName?: string;
-    bgVideoUrl: string;
-    /** Legacy index, derived from the slug. Kept on the wire for back-compat. */
-    subtitleStyleIndex: number;
-    /** Caption template slug — what the picker actually selects now. */
-    captionTemplateId?: string;
-    mode: "oneword" | "lines";
-    token: string;
-  }) => {
-    const { file, videoUrl, fileName, bgVideoUrl, subtitleStyleIndex, captionTemplateId, mode, token } = params;
-    setStatus("uploading");
-    setError(null);
-    setVideoUrl(null);
-    try {
-      const uploadedVideoUrl = videoUrl ?? await uploadVideo(file!, token);
-      setStatus("creating");
-      const projectId = await createProject(token, {
-        title: fileName ?? file?.name ?? "Video",
-        backgroundUrl: bgVideoUrl,
-        subtitlesStyle: { styleIndex: subtitleStyleIndex, templateId: captionTemplateId ?? null, mode },
-        uploadedVideoUrl,
-        productType: "split-screen",
-      });
-      await callGenerate("/api/generate/split-screen", token, {
-        projectId,
-        bgVideoUrl,
-        subtitleStyleIndex,
-        captionTemplateId,
-        mode,
-      });
-      setStatus("rendering");
-      startPolling(projectId, token);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-      setStatus("failed");
-    }
-  }, [startPolling]);
-
-  const generateStreamerVideo = useCallback(async (params: {
-    /** A freshly picked file to upload. Mutually exclusive with videoUrl. */
-    file?: File;
-    /** A video already hosted on our S3 (e.g. reused from the Asset Library)
-     *  — skips the upload step entirely. */
-    videoUrl?: string;
-    fileName?: string;
-    titleText: string;
-    /** Styles the TITLE overlay. Historical name — it predates real captions. */
-    subtitleStyleIndex: number;
-    /** Caption template slug for the burned-in subtitles. */
-    captionTemplateId?: string;
-    captionMode?: "oneword" | "lines";
-    token: string;
-  }) => {
-    const { file, videoUrl, fileName, titleText, subtitleStyleIndex, captionTemplateId, captionMode, token } = params;
-    setStatus("uploading");
-    setError(null);
-    setVideoUrl(null);
-    try {
-      const uploadedVideoUrl = videoUrl ?? await uploadVideo(file!, token);
-      setStatus("creating");
-      const projectId = await createProject(token, {
-        title: titleText || fileName || file?.name || "Video",
-        subtitlesStyle: { styleIndex: subtitleStyleIndex, templateId: captionTemplateId ?? null, mode: captionMode ?? "oneword" },
-        uploadedVideoUrl,
-        productType: "streamer-video",
-      });
-      await callGenerate("/api/generate/streamer-video", token, {
-        projectId,
-        titleText,
-        subtitleStyleIndex,
-        captionTemplateId,
-        captionMode,
-      });
-      setStatus("rendering");
-      startPolling(projectId, token);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-      setStatus("failed");
-    }
-  }, [startPolling]);
-
   const generateAutoClip = useCallback(async (params: {
     file: File;
     minDuration: number;
@@ -338,5 +250,5 @@ export function useVideoGenerate() {
     setWarnings(null);
   }, []);
 
-  return { status, videoUrl, error, projectId, progress, warnings, generateSplitScreen, generateStreamerVideo, generateAutoClip, generateAutoClipForProject, reset };
+  return { status, videoUrl, error, projectId, progress, warnings, generateAutoClip, generateAutoClipForProject, reset };
 }

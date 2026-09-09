@@ -135,29 +135,6 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
 
 
 
-  "viral-split-screen": {
-    h1: "Pair your clip with footage that holds the scroll",
-    metaTitle: "Viral Split Screen Video Maker",
-    metaDescription:
-      "Pair your content with satisfying gameplay footage in a vertical split-screen layout — the format built to stop the scroll.",
-    lede: "Your video on top, satisfying background footage underneath. The layout that keeps people watching a talking head all the way through.",
-    steps: [
-      { title: "Add your main clip", body: "Upload the podcast segment, talking head, or story you want to carry the video." },
-      { title: "Pick the bottom half", body: "Choose gameplay or ambient footage from the library, or upload your own." },
-      { title: "Export vertical", body: "Both halves are framed and synced automatically, with captions burned in if you want them." },
-    ],
-    benefits: [
-      { title: "Retention, engineered", body: "The bottom half gives the eye somewhere to go during slower moments, which is exactly when viewers usually leave." },
-      { title: "Framing handled", body: "Both sources are cropped and aligned to the vertical frame automatically — no manual keyframing." },
-      { title: "Captions included", body: "Burn in synced captions so the video works with the sound off." },
-    ],
-    faqs: [
-      { question: "Can I use my own background footage?", answer: "Yes. Upload anything you like, or use the built-in gameplay and ambient library." },
-      { question: "Which half gets the audio?", answer: "Your main clip carries the audio by default. The background plays silently, and you can mix in music if you want." },
-      COMMERCIAL_FAQ,
-      CREDITS_FAQ,
-    ],
-  },
 
   // ------------------------------------------------------------------- ai --
   "ai-image-generator": {

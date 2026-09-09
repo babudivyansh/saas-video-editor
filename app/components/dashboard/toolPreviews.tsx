@@ -284,31 +284,6 @@ export function FaceSwapPreview() {
   );
 }
 
-export function SplitScreenPreview() {
-  const wave = [8, 14, 10, 18, 12, 22, 9, 16, 13, 20, 11, 17, 8, 15, 12];
-  return (
-    <div className="h-[212px] bg-surface-2 flex items-stretch gap-0 overflow-hidden rounded-t-none">
-      {/* Left half: user video */}
-      <div className="flex-1 bg-black flex flex-col items-center justify-center gap-2 border-r border-line">
-        <div className="w-10 h-10 rounded-full bg-brand flex items-center justify-center">
-          <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
-        </div>
-        <div className="flex items-center gap-px h-5">
-          {wave.map((h, i) => <div key={i} className="w-[2.5px] rounded-full bg-brand/70" style={{ height: `${h}px` }} />)}
-        </div>
-        <p className="text-[8px] text-fg-subtle">Your Video</p>
-      </div>
-      {/* Right half: gameplay background */}
-      <div className="flex-1 bg-gradient-to-b from-green-400 to-emerald-600 flex flex-col items-center justify-center gap-1">
-        <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-          <svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M8 5v14l11-7z"/></svg>
-        </div>
-        <p className="text-[8px] text-white/80 font-semibold">Background</p>
-      </div>
-    </div>
-  );
-}
-
 export function VerticalSplitPreview() {
   const wave = [8, 14, 10, 18, 12, 22, 9, 16, 13, 20];
   return (
@@ -328,30 +303,6 @@ export function VerticalSplitPreview() {
           <svg viewBox="0 0 24 24" fill="white" className="w-3.5 h-3.5"><path d="M8 5v14l11-7z"/></svg>
         </div>
         <p className="text-[8px] text-white/80 font-semibold">Gameplay</p>
-      </div>
-    </div>
-  );
-}
-
-export function StreamerPreview() {
-  return (
-    <div className="h-[212px] bg-black flex flex-col overflow-hidden relative">
-      {/* Fake video background */}
-      <div className="flex-1 bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
-        <div className="w-16 h-16 rounded-full grad-brand flex items-center justify-center shadow-lg">
-          <svg viewBox="0 0 24 24" fill="white" className="w-8 h-8"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
-        </div>
-      </div>
-      {/* Subtitle bar at bottom */}
-      <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-4 py-2.5">
-        <div className="flex justify-center">
-          <span className="text-[11px] font-extrabold text-white tracking-wide uppercase" style={{ textShadow: "0 1px 4px #000" }}>THIS IS YOUR TITLE</span>
-        </div>
-        <div className="flex justify-center gap-px mt-1.5">
-          {["and", "this", "is", "a", "subtitle"].map((w, i) => (
-            <span key={i} className={`text-[9px] font-bold px-0.5 ${i === 2 ? "text-yellow-400" : "text-white"}`}>{w} </span>
-          ))}
-        </div>
       </div>
     </div>
   );

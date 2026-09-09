@@ -196,12 +196,6 @@ const VoicePickScene = (
   </g>
 );
 
-const StylePickScene = (
-  <g>
-    <TileGrid x={20} y={16} cols={3} rows={3} tw={56} th={38} gap={10} highlight={4} />
-  </g>
-);
-
 const DownloadScene = (
   <g>
     <Ring cx={110} cy={70} r={40} pct={0.75} />
@@ -238,13 +232,6 @@ const ScriptScene = (
   </g>
 );
 
-
-const FootageScene = (
-  <g>
-    <TileGrid x={20} y={20} cols={3} rows={2} tw={56} th={50} gap={10} highlight={1} />
-    <Bar x={56} y={150} w={108} h={10} />
-  </g>
-);
 
 // -------------------------------------------------------------------- motifs
 
@@ -304,18 +291,6 @@ const PRIMARY: Record<string, ReactNode> = {
   // Three phones fanned out, the centre one showing a message thread.
 
   // One vertical frame split into two stacked panes with a caption strip.
-  "viral-split-screen": (
-    <g>
-      <Panel x={150} y={92} w={230} h={216} r={16} fill={FAINT} />
-      <PlayMark cx={265} cy={200} r={30} />
-      <Arrow x={420} y={200} w={60} stroke={INK} />
-      <Phone x={556} y={40} h={320} />
-      <rect x={574} y={58} width={144} height={128} rx={10} fill={SOFT} />
-      <rect x={574} y={214} width={144} height={128} rx={10} fill="rgba(255,255,255,0.24)" />
-      <rect x={574} y={186} width={144} height={28} rx={8} fill={INK} />
-      <Bar x={596} y={196} w={100} h={8} fill={BRAND} />
-    </g>
-  ),
 
   // A prompt bar resolving into a row of generated frames.
   "ai-image-generator": (
@@ -578,7 +553,6 @@ const SECONDARY: Record<string, ReactNode> = {
       ))}
     </g>
   ),
-  "viral-split-screen": <StepStrip scenes={[UploadScene, FootageScene, StylePickScene]} />,
   "ai-image-generator": <StepStrip scenes={[PromptScene, SparkleScene, DownloadScene]} />,
   "ai-voiceover": <StepStrip scenes={[ScriptScene, VoicePickScene, DownloadScene]} />,
   "background-remover": <StepStrip scenes={[UploadScene, SparkleScene, DownloadScene]} />,
@@ -590,7 +564,6 @@ const DESCRIPTIONS: Record<string, string> = {
   "video-editor": "a video preview above a multi-track timeline with a playhead",
   "auto-clip": "a long timeline with three moments bracketed, each becoming a vertical clip",
   "cut-and-crop": "a video frame above a waveform with an in and out selection",
-  "viral-split-screen": "a clip and background footage stacked into one vertical frame with captions",
   "ai-image-generator": "a prompt box resolving into a row of generated images",
   "ai-voiceover": "a script feeding a list of voices, one of them playing",
   "ai-video-generator": "a prompt resolving into a short vertical clip",

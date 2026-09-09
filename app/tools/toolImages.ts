@@ -42,16 +42,6 @@ export const TOOL_IMAGES: Record<string, ToolImageSet> = {
         "data:image/webp;base64,UklGRloAAABXRUJQVlA4IE4AAACwAQCdASoQAAkAA4BaJZwAAsYh7XiYAP5rYFoaSVL+Ky5rBXHvuXMCXdx8WNJ5mbryW2Y8BLHnJ8xCLtOA2p5dwMizLSJs3m6DOU3oUAA=",
     },
   },
-  "viral-split-screen": {
-    primary: {
-      src: "/tools/viral-split-screen-hero.webp",
-      alt: "Split-screen editor with two video source thumbnails, drag-and-drop media cards, alignment controls, a stacked vertical preview of two speakers, and an export timeline.",
-      width: 1800,
-      height: 982,
-      blurDataURL:
-        "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAADQAQCdASoQAAkAA4BaJZwAAu19w0e6AAD++LoiTisNp1CbIEyxnySc2DAEO9Jaoem4+UabPswhSP2AAAA=",
-    },
-  },
   "audio-balancer": {
     primary: {
       src: "/tools/audio-balancer-hero.webp",
