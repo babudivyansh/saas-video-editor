@@ -12,8 +12,10 @@ import { downloadFile } from "@/utils/download";
 import { runFFmpegArgs, generateASS, styleIndexToSubtitleStyle, maybeUseFilterScript, type SubtitleStyle } from "@/utils/ffmpeg-render";
 import { buildDynamicCropFilter, type StoredCrop } from "@/lib/reframe";
 import { FILTER_PRESETS, type FilterPreset } from "@/lib/editor/types";
-import { sampleAt, type SignalTrack } from "@/lib/signal-track";
+import { type SignalTrack } from "@/lib/signal-track";
 import { type WordTiming } from "@/utils/elevenlabs";
+import { getCaptionTemplate } from "@/lib/caption-templates";
+import { captionMotion } from "@/lib/caption-motion";
 import { logger } from "@/lib/logger";
 import os from "os";
 import path from "path";
@@ -56,23 +58,20 @@ export async function renderPreviewFrames(sourceUrl: string, clip: Clip): Promis
     const words = clip.transcriptJson as unknown as WordTiming[] | null;
     const signal = clip.signalTrack as unknown as SignalTrack | null;
 
-    // Captions: identical style resolution to the renderer, including the
-    // energy-driven motion, so the preview shows the real animation state.
+    // Captions: identical style resolution to the renderer, so the preview
+    // shows the real animation state.
     let captionsFilter: string | null = null;
     if (clip.hasCaptions && words && words.length > 0) {
       let style = styleIndexToSubtitleStyle(clip.captionStyleIndex ?? 0, "oneword");
       const custom = clip.subtitleStyleOverride as unknown as SubtitleStyle | null;
       if (custom) style = { ...style, ...custom };
-      if (signal && signal.energy?.length > 0) {
-        style = {
-          ...style,
-          motion: {
-            energy: words.map((w) => sampleAt(signal.energy, w.start / 1000, signal.hz)),
-            emphasis: signal.emphasis ?? [],
-            wordsPerSec: signal.wordsPerSec,
-          },
-        };
-      }
+      // Shared with the renderer (lib/caption-motion.ts). This used to build
+      // energy only, so a preview of an emoji template showed none of its
+      // emoji and a keyword-coloured template previewed without the colour.
+      const templateId = (clip.subtitleStyleOverride as Record<string, unknown> | null)?.templateId;
+      const template = getCaptionTemplate(typeof templateId === "string" ? templateId : null);
+      const motion = captionMotion(words, template, signal);
+      if (motion) style = { ...style, motion };
       generateASS(words, style, assPath);
       captionsFilter = `subtitles='${assPath.replace(/\\/g, "/").replace(/:/g, "\\:")}'`;
     }

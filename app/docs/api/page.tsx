@@ -123,7 +123,7 @@ export default function ApiDocsPage() {
             <Endpoint
               method="POST"
               path="/api/v1/clips"
-              desc="Start an AutoClip analysis job for an existing project (create it via POST /api/v1/projects). No credits are charged here; charging happens when you confirm which clips to keep."
+              desc="Start an AutoClip analysis job for an existing project (create it via POST /api/v1/projects). Credits are charged here, up front, for the whole run — analysis, rendering every clip, and premium captions if you pick a premium caption style. Any overcharge is refunded once the real clip lengths are known. There is no separate confirm step."
               request={`{
   "projectId": "proj_abc123",
   "minDuration": 15,
@@ -142,7 +142,7 @@ export default function ApiDocsPage() {
               path="/api/v1/projects/{id}/clips"
               desc="Poll a project's analysis status and every proposed clip's progress."
               response={`{
-  "project": { "status": "pending_review", "warnings": [] },
+  "project": { "status": "rendering", "warnings": [] },
   "clips": [
     {
       "id": "clip_123",
@@ -150,7 +150,7 @@ export default function ApiDocsPage() {
       "title": "The moment everything changed",
       "startSec": 42.5,
       "endSec": 87.2,
-      "status": "pending_review",
+      "status": "queued",
       "score": 87
     }
   ]

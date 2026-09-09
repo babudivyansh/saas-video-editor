@@ -10,11 +10,16 @@ import { getFeatureFlags, getMaintenanceMode, setFeatureFlag, setMaintenanceMode
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { KNOWN_RENDER_QUEUE_NAMES } from "@/lib/render-queue";
+import { captionProviderHealth } from "@/lib/captions/CaptionRendererFactory";
+import { captionRenderOpsSnapshot } from "@/lib/captions/ops";
 
 // GET — one ops snapshot: queue counts + failed jobs, worker heartbeats,
 // feature flags, maintenance mode, and largest tables (storage report).
 export const GET = withAdmin(async () => {
-  const [queueCounts, failedJobs, heartbeats, flags, maintenance, cronRuns, tableSizes] = await Promise.all([
+  const [
+    queueCounts, failedJobs, heartbeats, flags, maintenance, cronRuns, tableSizes,
+    captionProvider, captionRenders,
+  ] = await Promise.all([
     renderQueueCounts(),
     getFailedRenderJobs(),
     getHeartbeats([...KNOWN_RENDER_QUEUE_NAMES, "social-refresh"]),
@@ -29,6 +34,11 @@ export const GET = withAdmin(async () => {
       WHERE n.nspname = 'public' AND c.relkind = 'r'
       ORDER BY pg_total_relation_size(c.oid) DESC
       LIMIT 12`.catch(() => []),
+    // Premium caption rendering. Both of these are null-safe: the Ops page has
+    // to render even when the provider is unreachable, which is precisely when
+    // an operator most needs to look at it.
+    captionProviderHealth(),
+    captionRenderOpsSnapshot(),
   ]);
 
   return NextResponse.json({
@@ -39,6 +49,8 @@ export const GET = withAdmin(async () => {
     maintenance,
     cronRuns,
     tableSizes: tableSizes.map((t) => ({ table: t.table, size: t.size })),
+    captionProvider,
+    captionRenders,
   });
 });
 

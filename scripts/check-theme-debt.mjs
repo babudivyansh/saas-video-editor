@@ -92,7 +92,9 @@ const PATTERNS = {
 
 // Exact expected counts. Lower these as each stage lands; never raise them.
 const BUDGET = {
-  "raw-gray": 65,
+  // 65 -> 64: deleting app/components/SubtitleStylePicker.tsx (the 16-swatch
+  // index-based caption grid) took its hover:ring-gray-300 with it.
+  "raw-gray": 64,
   "bg-white": 5,
   "raw-slate": 16,
   "raw-zinc": 2,
@@ -100,7 +102,14 @@ const BUDGET = {
   "raw-red": 15,
   "brand-hex": 51,
   "legacy-light": 0,
-  "inline-hex": 320,
+  // 320 -> 318: same deletion. The replacement (CaptionStyleGrid) still needs
+  // two inline hex values for the swatch gradient — that is product artwork
+  // standing in for video, not chrome — so this is a net -2, not -4.
+  // 318 -> 317: that gradient turned out not to need hexes at all. The swatch
+  // and the new hover preview now stand on `bg-gradient-to-br from-surface-3
+  // to-bg`, and the one remaining literal (a #000 in a text-shadow) became
+  // rgba(0,0,0,1) — the same colour, measurable by the class-based rules.
+  "inline-hex": 317,
 };
 
 function walk(dir, out = []) {

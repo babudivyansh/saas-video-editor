@@ -50,7 +50,7 @@ const COVER_GRADIENTS = [
   "from-emerald-bright to-emerald-bright",
 ];
 
-const ACTIVE_STATUSES = ["draft", "analyzing", "pending_review", "rendering"];
+const ACTIVE_STATUSES = ["draft", "analyzing", "rendering"];
 
 const PROJECT_FILTERS = [
   { id: "all", label: "All" },
@@ -71,7 +71,6 @@ function matchesFilter(p: ProjectRow, filter: FilterId): boolean {
 const CLIP_STATUS_FILTERS: { id: string | null; label: string }[] = [
   { id: null, label: "All" },
   { id: "ready", label: "Ready" },
-  { id: "pending_review", label: "Awaiting review" },
   { id: "rendering", label: "Rendering" },
   { id: "failed", label: "Failed" },
 ];

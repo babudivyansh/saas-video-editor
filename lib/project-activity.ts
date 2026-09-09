@@ -12,14 +12,14 @@ import { Prisma } from "@prisma/client";
 // forever. Creation is fixed at the source now; this predicate is what keeps
 // any that still slip through (or already exist) out of the UI.
 
-export const ACTIVE_STATUSES = ["draft", "analyzing", "pending_review", "rendering"];
+export const ACTIVE_STATUSES = ["draft", "analyzing", "rendering"];
 
 /** Product types the dashboard can actually resume the user into. */
 export const RESUMABLE_PRODUCT_TYPES = ["auto-clip", "editor"];
 
 // Reaching any of these means the pipeline already claimed the project, so
 // work demonstrably started regardless of what the row currently holds.
-const STARTED_STATUSES = ["analyzing", "pending_review", "rendering"];
+const STARTED_STATUSES = ["analyzing", "rendering"];
 
 /**
  * Signs that a project holds real work. Expressed positively (rather than as

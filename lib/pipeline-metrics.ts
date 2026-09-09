@@ -15,7 +15,15 @@ import { logger } from "@/lib/logger";
 
 export type PipelineStage =
   | "download" | "transcribe" | "select" | "faces" | "signal"
-  | "render" | "upload" | "lite" | "preview";
+  | "render" | "upload" | "lite" | "preview"
+  // Premium caption rendering through an external provider (lib/captions).
+  // Split into three stages rather than one because they have completely
+  // different latency profiles and failure modes, and averaging them together
+  // would hide which part is slow: `caption-submit` is one API call,
+  // `caption-render` is the provider's own render (minutes, and the part we
+  // pay for — it carries costUsd), and `caption-ingest` is download + S3
+  // upload, which is our bandwidth rather than the provider's.
+  | "caption-submit" | "caption-render" | "caption-ingest";
 
 export interface StageSample {
   stage: PipelineStage;
@@ -120,6 +128,7 @@ export async function summariseStage(stage: PipelineStage): Promise<StageSummary
 
 export const ALL_STAGES: PipelineStage[] = [
   "download", "transcribe", "select", "faces", "signal", "render", "upload", "lite", "preview",
+  "caption-submit", "caption-render", "caption-ingest",
 ];
 
 export async function summariseAllStages(): Promise<StageSummary[]> {

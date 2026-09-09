@@ -86,9 +86,15 @@ export const silenceSettingsSchema = z.object({
 // them would inject drawing commands or corrupt the file, so they're stripped
 // rather than escaped (there is no legitimate reason for a spoken word to
 // contain them).
-export function sanitizeCaptionWord(word: string): string {
-  return word.replace(/[{}\\]/g, "").replace(/[\r\n]+/g, " ").slice(0, 120);
-}
+//
+// The implementation moved to lib/caption-sanitize.ts — a leaf module — so the
+// caption-provider adapters can sanitize without importing this file, which
+// creates a render queue (and a BullMQ Worker) at module scope. Re-exported
+// here so every existing import site keeps working. Imported as well as
+// re-exported because `export ... from` creates no local binding, and
+// applyRerenderPatch below calls it.
+import { sanitizeCaptionWord } from "@/lib/caption-sanitize";
+export { sanitizeCaptionWord };
 
 // `.strict()` here silently destroyed data. The schema listed only
 // {word,start,end}, so saving a corrected transcript stripped the `speaker`

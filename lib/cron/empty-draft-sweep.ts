@@ -16,7 +16,7 @@
 // "Empty" is intentionally strict — see lib/project-activity.ts. A draft is
 // only swept when it has no clips, no editor document, no uploaded or rendered
 // video, and has not been touched for EMPTY_DRAFT_MIN_AGE_DAYS. Anything the
-// pipeline has already claimed (analyzing / pending_review / rendering) is not
+// pipeline has already claimed (analyzing / rendering) is not
 // a draft and is never considered.
 
 import { prisma } from "@/lib/prisma";

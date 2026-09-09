@@ -44,6 +44,14 @@ export interface EnqueueOpts {
   /** BullMQ semantics: lower number = processed sooner. Tier-mapped via
    * lib/plans/tiers.ts tierPriority(); omitted = default (last). */
   priority?: number;
+  /**
+   * Reject if the job could not be handed to the queue, instead of only
+   * logging. Set this whenever the caller has ALREADY charged credits and
+   * needs to refund when the enqueue fails — silently logging leaves the user
+   * paid-up with nothing running. Default false only to preserve the existing
+   * fire-and-forget call sites; see the BullMQ driver's catch block.
+   */
+  rejectOnFailure?: boolean;
 }
 
 export interface RenderQueue<T> {
@@ -71,6 +79,10 @@ export const KNOWN_RENDER_QUEUE_NAMES = [
   "auto-clip-rerender",
   "auto-clip-dub",
   "auto-clip-dub-finish",
+  "caption-render-submit",
+  "caption-render-sync",
+  "caption-render-export",
+  "caption-render-download",
   "video-compressor",
   "asset-moderation",
   "asset-zip",
@@ -157,16 +169,31 @@ function makeBullQueue<T extends { projectId: string }>(name: string, handler: H
   return {
     driver: "bullmq",
     enqueue: async (id, payload, opts) => {
-      await queue.add(name, payload, {
-        jobId: id,
-        // BullMQ: lower priority number = dequeued first (real tier-based
-        // priority rendering — Pro/Studio jobs jump the free-tier queue).
-        ...(opts?.priority != null ? { priority: opts.priority } : {}),
-        attempts: 3,
-        backoff: { type: "exponential", delay: 5000 },
-        removeOnComplete: 50,
-        removeOnFail: 100,
-      }).catch((e) => logger.error("render-queue", `enqueue failed for ${name}:${id}`, e));
+      try {
+        await queue.add(name, payload, {
+          jobId: id,
+          // BullMQ: lower priority number = dequeued first (real tier-based
+          // priority rendering — Pro/Studio jobs jump the free-tier queue).
+          ...(opts?.priority != null ? { priority: opts.priority } : {}),
+          attempts: 3,
+          backoff: { type: "exponential", delay: 5000 },
+          removeOnComplete: 50,
+          removeOnFail: 100,
+        });
+      } catch (e) {
+        logger.error("render-queue", `enqueue failed for ${name}:${id}`, e);
+        // Opt-in rather than always, deliberately. The interface doc above
+        // promises this rejects when the job isn't durably accepted, but the
+        // implementation has only ever logged — so a caller that charged
+        // credits first could be left believing a job was queued when a Redis
+        // outage meant nothing was. Fixing that unconditionally is a bigger
+        // change than it looks: ~14 call sites currently fire-and-forget the
+        // returned promise, and an unhandled rejection terminates the process
+        // on modern Node. So the correct behaviour is opt-in for the callers
+        // that need it, and making it the default is a follow-up that has to
+        // add a .catch to each of those sites in the same commit.
+        if (opts?.rejectOnFailure) throw e;
+      }
     },
   };
 }

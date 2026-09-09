@@ -79,6 +79,31 @@ const schema = z.object({
   GPU_SERVICE_TOKEN: z.string().optional(),
   GPU_SERVICE_API_KEY: z.string().optional(),
 
+  // Submagic — premium animated-caption rendering provider (lib/captions).
+  // Optional by the same rule as FAL_KEY/GPU_SERVICE_*: absent config means
+  // "premium captions disabled", and every caller falls back to the native
+  // ASS renderer rather than refusing to boot or failing an export.
+  SUBMAGIC_API_KEY: z.string().optional(),
+  SUBMAGIC_BASE_URL: z.string().optional(), // default https://api.submagic.co
+  // Unguessable path segment for app/api/webhooks/submagic/[token]. Whether
+  // Submagic signs its callbacks is UNCONFIRMED (their docs describe a plain
+  // webhookUrl with no signing scheme), so an unguessable URL is the primary
+  // authenticator today — see lib/captions/providers/submagic/SubmagicWebhook.ts.
+  // Unset = the webhook route rejects everything, which is the safe default.
+  SUBMAGIC_WEBHOOK_TOKEN: z.string().optional(),
+  // HMAC secret, if/when Submagic ships signed webhooks. Set it and the route
+  // additionally requires a valid signature; unset leaves token-only auth.
+  SUBMAGIC_WEBHOOK_SECRET: z.string().optional(),
+  // Provider-side throttle for the paid create/export calls. The observed
+  // account limit is 1000 req/hour (x-ratelimit-limit), but the per-endpoint
+  // project-create limit is NOT documented, so the default here is deliberately
+  // far below it. See lib/captions/providers/submagic/SubmagicClient.ts.
+  SUBMAGIC_CREATE_RATE_MAX: z.string().optional(),      // default 20
+  SUBMAGIC_CREATE_RATE_DURATION: z.string().optional(), // seconds, default 60
+  // How long a render may sit in a non-terminal state before the sweep
+  // force-fails and refunds it (lib/cron/submagic-sweep.ts).
+  SUBMAGIC_STALE_TIMEOUT_MINUTES: z.string().optional(), // default 30
+
   // Observability — optional, Sentry disables itself when unset.
   SENTRY_DSN: z.string().optional(),
   NEXT_PUBLIC_SENTRY_DSN: z.string().optional(),

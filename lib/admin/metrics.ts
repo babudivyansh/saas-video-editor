@@ -18,7 +18,10 @@ import { mrrHistory } from "./mrr-snapshot";
 export type MetricsSection =
   | "kpis" | "revenue" | "ai" | "social" | "infra" | "growth"
   | "overview" | "top" | "activity"
-  | "lifecycle" | "credits" | "pipeline" | "acquisition";
+  | "lifecycle" | "credits" | "pipeline" | "acquisition"
+  // NOTE: this list and the z.enum in lib/admin/schemas.ts's metricsQuerySchema
+  // are separate and BOTH have to change when a section is added.
+  | "captions";
 export const METRIC_RANGES = [7, 30, 90, 365] as const;
 
 const DAY_MS = 86400_000;
@@ -346,6 +349,10 @@ const CRON_STALE_AFTER_SEC: Record<CronName, number> = {
   "asset-cleanup": 3600, // every 15 min
   "stale-clip-sweep": 3600, // every 15 min
   "dub-sweep": 600, // every 2 min — the primary dub-completion path until webhooks are confirmed, see lib/cron/dub-sweep.ts
+  // every 2 min — same reasoning as dub-sweep: until Submagic's webhook is
+  // confirmed live this sweep is the only thing that finishes a paid caption
+  // render, so a lapse here strands renders users have already been charged for.
+  "submagic-sweep": 600,
   "clip-publish": 3600, // every 10 min
   "social-refresh": 3 * 3600, // hourly snapshot refresh
   "refill-credits": 36 * 3600,
@@ -853,7 +860,7 @@ export async function pipelineSection(rangeDays: number) {
     ),
     heatmap: heatCells,
     heatmapPeak: peak ? `${DAYS[peak.day]} ${String(peak.hour).padStart(2, "0")}:00 IST` : null,
-    clips: fill(rangeDays, pivot(clipDaily), { ready: 0, rendering: 0, failed: 0, queued: 0, pending_review: 0 }),
+    clips: fill(rangeDays, pivot(clipDaily), { ready: 0, rendering: 0, failed: 0, queued: 0 }),
     virality: Array.from({ length: 10 }, (_, i) => ({
       label: `${i * 10}`,
       count: Number(virality.find((v) => Number(v.bucket) === i)?.n ?? 0),
@@ -995,5 +1002,84 @@ export async function computeSection(section: MetricsSection, rangeDays: number,
     case "credits": return creditsSection(rangeDays);
     case "pipeline": return pipelineSection(rangeDays);
     case "acquisition": return acquisitionSection(rangeDays);
+    case "captions": return captionsSection(rangeDays);
   }
+}
+
+/**
+ * Premium caption rendering: volume, reliability, latency and spend (§33).
+ *
+ * The decision this exists to inform is §43's — when does Clipiro stop paying a
+ * provider and render animated captions itself? That needs cost per completed
+ * clip and provider latency over time, not a vanity counter.
+ *
+ * Follows this module's honesty rule: anything not derivable from stored data
+ * is null, never a zero pretending to be a measurement.
+ */
+async function captionsSection(rangeDays: number) {
+  const since = new Date(Date.now() - rangeDays * DAY_MS);
+
+  const jobs = await prisma.captionRenderJob.findMany({
+    where: { createdAt: { gte: since } },
+    select: {
+      status: true, provider: true, templateId: true, createdAt: true, updatedAt: true,
+      actualCredits: true, estimatedCredits: true, providerCostMicroUsd: true,
+      providerBillableSec: true, failureCode: true,
+    },
+  });
+
+  const completed = jobs.filter((j) => j.status === "completed");
+  const failed = jobs.filter((j) => j.status === "failed");
+  const decided = completed.length + failed.length;
+
+  const latencies = completed
+    .map((j) => j.updatedAt.getTime() - j.createdAt.getTime())
+    .filter((ms) => ms > 0)
+    .sort((a, b) => a - b);
+  const pct = (p: number) =>
+    latencies.length === 0 ? null : latencies[Math.min(latencies.length - 1, Math.floor((p / 100) * latencies.length))];
+
+  const creditsSpent = jobs.reduce((s, j) => s + (j.actualCredits ?? j.estimatedCredits ?? 0), 0);
+  // Null, not 0, when no provider cost has ever been recorded — the rate is
+  // still unconfirmed (see lib/tool-costs.ts "caption-render"), and a $0 spend
+  // chart would read as "this is free", which is the opposite of true.
+  const costRows = jobs.filter((j) => j.providerCostMicroUsd != null);
+  const providerCostUsd = costRows.length > 0
+    ? costRows.reduce((s, j) => s + (j.providerCostMicroUsd ?? 0), 0) / 1_000_000
+    : null;
+
+  const byTemplate = new Map<string, number>();
+  for (const j of jobs) byTemplate.set(j.templateId, (byTemplate.get(j.templateId) ?? 0) + 1);
+
+  const byFailure = new Map<string, number>();
+  for (const j of failed) {
+    const k = j.failureCode ?? "UNKNOWN";
+    byFailure.set(k, (byFailure.get(k) ?? 0) + 1);
+  }
+
+  const billableMinutes = jobs.reduce((s, j) => s + Math.ceil((j.providerBillableSec ?? 0) / 60), 0);
+
+  return {
+    total: jobs.length,
+    completed: completed.length,
+    failed: failed.length,
+    inFlight: jobs.length - decided,
+    successRatePct: decided > 0 ? Math.round((completed.length / decided) * 100) : null,
+    latencyMs: { p50: pct(50), p95: pct(95) },
+    creditsSpent,
+    providerCostUsd,
+    // The number that decides the in-house question: what a delivered clip
+    // actually costs us. Null until a real provider cost is recorded.
+    costPerCompletedClipUsd:
+      providerCostUsd !== null && completed.length > 0 ? providerCostUsd / completed.length : null,
+    billableMinutes,
+    needsReconciliation: jobs.filter((j) => j.status === "needs_reconciliation").length,
+    topTemplates: [...byTemplate.entries()]
+      .map(([templateId, count]) => ({ templateId, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8),
+    failuresByReason: [...byFailure.entries()]
+      .map(([code, count]) => ({ code, count }))
+      .sort((a, b) => b.count - a.count),
+  };
 }

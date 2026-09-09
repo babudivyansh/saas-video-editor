@@ -21,6 +21,10 @@ const bodySchema = z
     alignment: z.number().int().nullable().optional(),
     animated: z.boolean().nullable().optional(),
     logoUrl: z.string().max(2048).nullable().optional(),
+    // A Clipiro caption-template slug, so a kit can capture a PREMIUM
+    // (provider-rendered) look and not just the ASS fields above.
+    captionTemplateId: z.string().max(64).nullable().optional(),
+    providerPresetId: z.string().max(128).nullable().optional(),
   })
   .strict();
 

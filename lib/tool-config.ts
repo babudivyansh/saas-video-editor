@@ -57,6 +57,14 @@ export const TOOL_DEFAULTS: ToolConfigMap = {
   // switch like every other tool. creditCost is display-only for both.
   "auto-clip":              { enabled: true, creditCost: TOOL_COSTS["auto-clip"].creditCost },
   "clip-dub":               { enabled: true, creditCost: TOOL_COSTS["clip-dub"].creditCost },
+  // Premium animated captions via an external provider. creditCost here is the
+  // display price for a <=1 minute clip; real billing is per billable minute
+  // through getCaptionRenderPricing (lib/captions/pricing.ts). Disabling it
+  // here is one of three independent off-switches, alongside the
+  // submagic_enabled / submagic_captions feature flags and the submagic_routing
+  // Config row — the integration must be safely disableable without breaking
+  // AutoClip, which keeps rendering with native ASS captions either way.
+  "caption-render":         { enabled: true, creditCost: TOOL_COSTS["caption-render"].creditCost },
 };
 
 export const TOOL_SERVICE: Record<string, string> = {
@@ -88,6 +96,7 @@ export const TOOL_SERVICE: Record<string, string> = {
   "face-swap":             "fal.ai face-swap",
   "auto-clip":             "Whisper/ElevenLabs + Gemini + GPU render",
   "clip-dub":              "ElevenLabs Dubbing",
+  "caption-render":        "Submagic animated captions",
 };
 
 async function loadFromDB(): Promise<ToolConfigMap> {

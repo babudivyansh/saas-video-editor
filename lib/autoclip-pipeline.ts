@@ -6,6 +6,7 @@
 
 import { Prisma, type Clip } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { AUTOCLIP_PRICING_DEFAULTS, computeCreditCost, computeAnalysisCost, analysisRefId, type AutoClipPricing } from "@/lib/autoclip-pricing";
 import { restoreSpend, grantCredits, spendCredits } from "@/lib/credits";
 import { resolveFontFile } from "@/lib/editor/filtergraph";
 import { downloadFile } from "@/utils/download";
@@ -51,12 +52,20 @@ import {
 import {
   classifyScene, buildCutKeyframes, buildGroupKeyframes, buildDriftKeyframes,
 } from "@/lib/scene-layout";
-import { buildSignalTrack, sampleAt, computeAudioPeaks, EMPTY_SIGNAL_TRACK, type SignalTrack } from "@/lib/signal-track";
+import { buildSignalTrack, computeAudioPeaks, EMPTY_SIGNAL_TRACK, type SignalTrack } from "@/lib/signal-track";
 import {
   parseLiteEdits, planLitePass, speechRangesFromWords, type LiteEdits,
 } from "@/lib/autoclip-lite";
 import { computeDuckEnvelope, duckVolumeExpr } from "@/lib/audio-ducking";
-import { getCaptionTemplate, planEmoji } from "@/lib/caption-templates";
+import { getCaptionTemplate } from "@/lib/caption-templates";
+import { captionMotion } from "@/lib/caption-motion";
+// position is a pure, dependency-free helper so it imports statically.
+// deferral is NOT: it reaches Redis and the Config table through the renderer
+// factory, and importing it here would pull a live ioredis client into the
+// module graph of every consumer of this file — including its unit tests, which
+// mock prisma but have no reason to stand up a Redis connection. It is
+// dynamically imported at its one call site instead.
+import { recommendCaptionPositionY } from "@/lib/captions/position";
 import { buildCameraZoom, applyZoomToKeyframes, ZOOM_STRENGTH_MAX } from "@/lib/camera-motion";
 import { getFaceTimeline } from "@/lib/asd";
 // P0-3: Project.uploadedVideoUrl is a PRESIGNED url minted at upload time and
@@ -104,23 +113,14 @@ const MOOD_TO_FILTER: Record<MoodTag, FilterPreset> = {
 //   confirm:  perClip × keptClips + perTwoMinutes × ceil(keptMin/2)
 //             − analysis already paid (floored at 0).
 //   rerender: first re-render of each clip free, then `rerender` each.
-export interface AutoClipPricing {
-  perClip: number;
-  perTwoMinutes: number;
-  analysisPerHalfHour: number;
-  rerender: number;
-  /** Per MINUTE of dubbed clip — see computeDubCost in lib/autoclip-dub.ts. */
-  dubPerMinute: number;
-}
-
-export const AUTOCLIP_PRICING_DEFAULTS: AutoClipPricing = {
-  perClip: 1, perTwoMinutes: 1, analysisPerHalfHour: 1, rerender: 1,
-  // Dubbing was a flat 1 credit per dub at any length. 2 credits per minute is a
-  // conservative placeholder, NOT a researched price — the real ElevenLabs
-  // Dubbing per-minute cost is still unconfirmed, which is why clip-dub is
-  // Pro-gated in lib/tool-costs.ts until it is.
-  dubPerMinute: 2,
-};
+// Pricing shape, defaults and the pure cost arithmetic moved to
+// lib/autoclip-pricing.ts so the create page can quote a price with the SAME
+// function the server charges with — see that file. Re-exported here so every
+// existing import site keeps working.
+export {
+  AUTOCLIP_PRICING_DEFAULTS, computeCreditCost, computeAnalysisCost, analysisRefId,
+  type AutoClipPricing,
+} from "@/lib/autoclip-pricing";
 
 export async function getAutoClipPricing(): Promise<AutoClipPricing> {
   try {
@@ -133,16 +133,8 @@ export async function getAutoClipPricing(): Promise<AutoClipPricing> {
   }
 }
 
-export function computeCreditCost(clipCount: number, totalDurationSec: number, pricing: AutoClipPricing): number {
-  const twoMinuteBlocks = Math.ceil(totalDurationSec / 120);
-  return clipCount * pricing.perClip + twoMinuteBlocks * pricing.perTwoMinutes;
-}
 
-export function computeAnalysisCost(sourceDurationSec: number, pricing: AutoClipPricing): number {
-  return Math.ceil(sourceDurationSec / 1800) * pricing.analysisPerHalfHour;
-}
 
-export const analysisRefId = (projectId: string) => `auto-clip-analysis:${projectId}`;
 
 // What to persist on Project.failureReason for the UI to render.
 //
@@ -163,6 +155,49 @@ export async function getAnalysisCreditsPaid(userId: string, projectId: string):
     select: { delta: true },
   });
   return Math.max(rows.reduce((s, r) => s - r.delta, 0), 0);
+}
+
+/**
+ * Reconciles what the create route charged against what the run actually cost.
+ *
+ * The create route has to charge BEFORE analysis, when it knows only the
+ * requested clip count and the clip-length band the user picked — not real
+ * durations. So it deliberately over-charges a worst case, and this refunds the
+ * difference the moment the true numbers exist.
+ *
+ * `- analysisPaid` is the part that must not be dropped. The analysis charge is
+ * an ADVANCE against the run, not an additional fee: the removed confirm route
+ * computed `max(gross - analysisPaid, 0)` for exactly this reason. Without the
+ * subtraction here, every run would cost analysis PLUS the full clip price —
+ * a silent double-charge on every single generation.
+ */
+export async function settleRunCost(
+  projectId: string,
+  userId: string,
+  clipCount: number,
+  totalDurationSec: number,
+): Promise<void> {
+  const pricing = await getAutoClipPricing();
+  const gross = computeCreditCost(clipCount, totalDurationSec, pricing);
+  const analysisPaid = await getAnalysisCreditsPaid(userId, projectId);
+  const actual = Math.max(gross - analysisPaid, 0);
+
+  // What the create route actually took, read from the ledger rather than
+  // recomputed — the estimate formula could change between deploys, and a
+  // refund based on a stale formula would be wrong in the user's disfavour.
+  const charged = await creditsSpentOnRun(userId, projectId);
+  const overcharge = charged - actual;
+  if (overcharge > 0) await refundCredits(projectId, overcharge);
+}
+
+/** Net credits spent under this run's refId, from the ledger. */
+async function creditsSpentOnRun(userId: string, projectId: string): Promise<number> {
+  const rows = await prisma.creditTransaction.findMany({
+    where: { userId, refId: `auto-clip:${projectId}` },
+    select: { delta: true },
+  });
+  // Spends are negative, refunds positive — the net is what is still held.
+  return Math.max(0, -rows.reduce((sum, r) => sum + r.delta, 0));
 }
 
 export async function refundCredits(projectId: string, amount: number): Promise<void> {
@@ -677,6 +712,13 @@ export interface PickPayload {
   aspectRatio: Aspect;
   instructions: string;
   captionStyleIndex: number; // -1 = captions off
+  /**
+   * Clipiro caption template slug, or null when captions are off. This is the
+   * real style selection now; captionStyleIndex above is derived from it and
+   * kept only as the base style for the ASS renderer and for the public v1 API
+   * contract. Optional so an older enqueued payload still runs after a deploy.
+   */
+  templateId?: string | null;
   reframingPreset?: string;
   removeSilence?: boolean;
   silenceThresholdMs?: number;
@@ -692,6 +734,7 @@ export interface PickPayload {
 export async function pickJob(payload: PickPayload): Promise<void> {
   const {
     projectId, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionStyleIndex,
+    templateId = null,
     reframingPreset = "balanced", removeSilence = false, silenceThresholdMs = 400, removeFillers = false,
     smartAutoReframe = true, zoomStrength = "medium", speakerMode = "auto", smoothness = 50, trackingSpeed = 50,
     animatedCaptions = false
@@ -726,7 +769,7 @@ export async function pickJob(payload: PickPayload): Promise<void> {
     void (async () => {
       logger.error("auto-clip", `pick watchdog fired for ${projectId} after ${WATCHDOG_MS}ms — failing the job`);
       await refundAnalysis("refund:auto-clip-analysis-timeout");
-      await prisma.clip.deleteMany({ where: { projectId, status: "pending_review" } }).catch(() => {});
+      await prisma.clip.deleteMany({ where: { projectId, status: "queued" } }).catch(() => {});
       await prisma.project.update({
         where: { id: projectId },
         data: {
@@ -788,7 +831,7 @@ export async function pickJob(payload: PickPayload): Promise<void> {
         });
         if (!spend.ok) {
           throw new NonRetryableError(
-            `Analyzing this video costs ${analysisCost} credit${analysisCost === 1 ? "" : "s"} (credited back when you confirm clips) — you don't have enough credits.`,
+            `Analyzing this video costs ${analysisCost} credit${analysisCost === 1 ? "" : "s"} — you don't have enough credits.`,
           );
         }
         analysisCharged = analysisCost;
@@ -893,7 +936,7 @@ export async function pickJob(payload: PickPayload): Promise<void> {
     // Clip creation and the final status flip must succeed or fail together —
     // splitting them (as an earlier version did) let a late, unrelated
     // failure (e.g. a transient error right after Gemini) leave real
-    // pending_review Clip rows attached to a Project stuck on "failed",
+    // queued Clip rows attached to a Project stuck on "failed",
     // silently discarding a pick that had actually completed.
     // The watchdog already failed and cleaned up this job; do not write clips
     // or flip the status back, which would resurrect a job the user has been
@@ -948,11 +991,28 @@ export async function pickJob(payload: PickPayload): Promise<void> {
             } as unknown as Prisma.InputJsonValue,
             mood: seg.mood,
             signalTrack: signalTracks[i] as unknown as Prisma.InputJsonValue,
-            status: "pending_review",
+            // Straight to "queued" — there is no review step. renderJob already
+            // selects on this status, so it picks these up unchanged.
+            status: "queued",
             transcriptJson: words as unknown as Prisma.InputJsonValue,
             captionStyleIndex: hasCaptions ? captionStyleIndex : null,
             hasCaptions,
-            subtitleStyleOverride: { animated: animatedCaptions } as unknown as Prisma.InputJsonValue,
+            // captionPositionY is a RECOMMENDATION derived from where the face
+            // actually is during this clip (§14) — the most common way
+            // auto-captions look amateur is landing on the speaker's chin, and
+            // the face timeline needed to avoid that is already computed here
+            // for speaker-tracked reframing. It is only a starting value: the
+            // Captions panel lets the user move it, and it falls back to the
+            // plain default whenever there is no usable face data.
+            subtitleStyleOverride: {
+              animated: animatedCaptions,
+              captionPositionY: recommendCaptionPositionY(allFaces, { startSec: seg.start, endSec: seg.end }),
+              // The chosen look, as a template slug. Writing it here means the
+              // render path (getCaptionTemplate), the Studio drawer and
+              // shouldDeferCaptionsToProvider all pick it up with no further
+              // plumbing — this blob is already what every one of them reads.
+              ...(hasCaptions && templateId ? { templateId } : {}),
+            } as unknown as Prisma.InputJsonValue,
             silenceSettings: {
               removeSilence,
               silenceThresholdMs,
@@ -979,7 +1039,7 @@ export async function pickJob(payload: PickPayload): Promise<void> {
       prisma.project.update({
         where: { id: projectId },
         data: {
-          status: "pending_review",
+          status: "rendering",
           autoClipCaptionStyle: captionStyleIndex,
           warnings: (warnings.length ? warnings : Prisma.JsonNull) as Prisma.InputJsonValue,
           // A retry that succeeds must not keep showing the previous attempt's error.
@@ -987,6 +1047,37 @@ export async function pickJob(payload: PickPayload): Promise<void> {
         },
       })
     ]);
+
+    // ── Settle up, then render ────────────────────────────────────────────
+    // The create route charged a WORST-CASE estimate before analysis, because
+    // real clip durations aren't known until now. Refund the difference.
+    //
+    // The `- analysisPaid` subtraction is load-bearing: the analysis charge is
+    // an ADVANCE against the run, not a separate fee. This mirrors exactly what
+    // the (now removed) confirm route did, and dropping it would make every
+    // single run cost analysis PLUS the full clip price.
+    const renderedSeconds = segments.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
+    await settleRunCost(projectId, project.userId, segments.length, renderedSeconds).catch((e) =>
+      logger.error("auto-clip", `cost reconciliation failed for ${projectId}`, e),
+    );
+
+    // Enqueue the render itself. This used to be the confirm route's job, so
+    // the tier priority it applied has to come with it — without it paid tiers
+    // silently stop jumping the free queue.
+    //
+    // Dynamically imported for the same reason lib/captions/deferral.ts is: a
+    // static import would pull a live Redis client into this module's graph and
+    // into every test that touches it.
+    const [{ createRenderQueue }, { tierPriority }, { getUserTier }] = await Promise.all([
+      import("@/lib/render-queue"),
+      import("@/lib/plans/tiers"),
+      import("@/lib/auth"),
+    ]);
+    await createRenderQueue<RenderPayload>("auto-clip-render", renderJob).enqueue(
+      projectId,
+      { projectId },
+      { priority: tierPriority(await getUserTier(project.userId)), rejectOnFailure: true },
+    );
   } catch (err) {
     // If the watchdog already fired, it has done the cleanup — don't repeat it
     // (and don't double-refund; refundAnalysis is single-shot regardless).
@@ -996,7 +1087,7 @@ export async function pickJob(payload: PickPayload): Promise<void> {
     await refundAnalysis("refund:auto-clip-analysis-failed");
     // Clean up any clips from a prior attempt on this project so a retry
     // doesn't accumulate duplicates alongside the ones about to be re-picked.
-    await prisma.clip.deleteMany({ where: { projectId, status: "pending_review" } }).catch(() => {});
+    await prisma.clip.deleteMany({ where: { projectId, status: "queued" } }).catch(() => {});
     await prisma.project.update({
       where: { id: projectId },
       data: { status: "failed", failureReason: userFacingFailure(err) },
@@ -1536,8 +1627,29 @@ async function renderOneClip(
       }
     }
 
+    // A provider-rendered caption template means the captions are added AFTER
+    // this render, by an external renderer working on the finished file. Burning
+    // them here too would stack two caption tracks in the exported MP4, so this
+    // render deliberately produces a clean video. shouldDeferCaptionsToProvider
+    // resolves to false for every reason a provider render might not actually
+    // follow (flag off, tier ineligible, breaker open, a previous provider
+    // render for this clip already failed), so the fallback is always captions
+    // rather than none. See lib/captions/deferral.ts.
+    const templateId = (clip.subtitleStyleOverride as Record<string, unknown> | null)?.templateId as
+      | string
+      | undefined;
+    // Dynamically imported — see the note on the position import at the top of
+    // this file. Costs one module resolution per clip render, against an ffmpeg
+    // encode; the static import cost a Redis client in every test that touches
+    // this module.
+    const deferCaptions = templateId
+      ? await import("@/lib/captions/deferral").then((m) =>
+          m.shouldDeferCaptionsToProvider({ clipId: clip.id, templateId, durationSec: finalDurationSec }),
+        )
+      : false;
+
     let assEscaped: string | null = null;
-    if (clip.hasCaptions && words && words.length > 0) {
+    if (clip.hasCaptions && !deferCaptions && words && words.length > 0) {
       // Resolve custom subtitle style overrides if they exist
       let style = styleIndexToSubtitleStyle(clip.captionStyleIndex ?? 0, "oneword");
       const customStyle = clip.subtitleStyleOverride as unknown as SubtitleStyle | null;
@@ -1550,21 +1662,11 @@ async function renderOneClip(
       // A caption template, if one is chosen, supplies the look AND whether
       // emoji/keyword colouring apply — one named decision instead of a dozen
       // colour pickers.
-      const template = getCaptionTemplate((clip.subtitleStyleOverride as Record<string, unknown> | null)?.templateId as string | undefined);
+      const template = getCaptionTemplate(templateId);
       if (template) style = { ...template.style, ...customStyle };
 
-      if (signal && signal.energy?.length > 0) {
-        style = {
-          ...style,
-          motion: {
-            energy: words.map((w) => sampleAt(signal.energy, w.start / 1000, signal.hz)),
-            emphasis: signal.emphasis ?? [],
-            wordsPerSec: signal.wordsPerSec,
-            emoji: planEmoji(words, template?.emoji ?? false),
-            keywordColor: template?.keywordColor,
-          },
-        };
-      }
+      const motion = captionMotion(words, template, signal);
+      if (motion) style = { ...style, motion };
       generateASS(words, style, assPath);
       assEscaped = assPath.replace(/\\/g, "/").replace(/:/g, "\\:");
     }
@@ -1755,6 +1857,41 @@ async function renderOneClip(
         reason: (e as Error).message,
       });
     });
+
+    // Captions were skipped above because a provider is meant to add them, so
+    // the clip is playable but currently bare. Start that render now — nothing
+    // else will, and a deferred clip that is never handed to the provider would
+    // silently ship with no captions at all.
+    //
+    // Same posture as provenance: best-effort, AFTER the status flip. A failure
+    // here must not turn a rendered clip into a failed one — and if it does
+    // fail, shouldDeferCaptionsToProvider stops deferring for this clip, so the
+    // next re-render burns the template's native look instead.
+    //
+    // Dynamically imported so this module doesn't pull the caption queues (and
+    // their workers) into every context that merely reads the pipeline's pure
+    // helpers.
+    if (deferCaptions && templateId) {
+      try {
+        const { requestCaptionRender } = await import("@/lib/caption-render-job");
+        const owner = await prisma.project.findUnique({
+          where: { id: projectId },
+          select: { userId: true },
+        });
+        if (owner) {
+          const res = await requestCaptionRender({
+            clipId: clip.id,
+            userId: owner.userId,
+            templateId,
+          });
+          if (!res.ok) {
+            logger.warn("auto-clip", `caption render not started for clip ${clip.id}: ${res.reason}`);
+          }
+        }
+      } catch (e) {
+        logger.error("auto-clip", `caption render request failed for clip ${clip.id}`, e);
+      }
+    }
 
     return { ok: true };
   } catch (err) {
