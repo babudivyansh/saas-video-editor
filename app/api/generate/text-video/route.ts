@@ -12,6 +12,7 @@ import { synthesizeVoice, WordTiming } from "@/utils/elevenlabs";
 import { runFFmpegArgs } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { resolveVoiceId } from "@/utils/voice-ids";
+import { musicBedVolumeExpr } from "@/lib/audio-ducking";
 import { downloadFile } from "@/utils/download";
 import { markQuestComplete } from "@/lib/quests";
 import { renderChatFrame, type CanvasTheme, type CanvasMessage } from "@/utils/chat-canvas";
@@ -163,6 +164,11 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
 
     let cursorMs = 0;
     const audioPiecesForConcat: string[] = [];
+    // Where speech actually is, for ducking the music bed. Each message is one
+    // contiguous range; the GAP_MS silences between them are what the bed gets
+    // to fill. Built here rather than from word timings because the messages
+    // are synthesised separately and never merged into one timing array.
+    const speechRanges: { start: number; end: number }[] = [];
     await setProgress(projectId, 10);
 
     for (let i = 0; i < messages.length; i++) {
@@ -178,7 +184,11 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
       msgAudioPaths.push(audioPath);
       audioPiecesForConcat.push(audioPath);
 
-      cursorMs += getTtsDurationMs(result.wordTimings);
+      const msgDurMs = getTtsDurationMs(result.wordTimings);
+      if (msgDurMs > 0) {
+        speechRanges.push({ start: cursorMs / 1000, end: (cursorMs + msgDurMs) / 1000 });
+      }
+      cursorMs += msgDurMs;
 
       // Add gap after every message except the last
       if (i < messages.length - 1) {
@@ -327,7 +337,7 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
     });
     const audioSources = [`[${audioInputIdx}:a]`];
     if (musicPath && musicInputIdx > 0) {
-      filterComplex += `[${musicInputIdx}:a]volume=0.12[bgm];`;
+      filterComplex += `[${musicInputIdx}:a]volume=${musicBedVolumeExpr(speechRanges, cursorMs / 1000)}[bgm];`;
       audioSources.push("[bgm]");
     }
     popPaths.forEach((_, i) => {

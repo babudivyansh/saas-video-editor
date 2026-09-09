@@ -14,6 +14,8 @@ import { resolveCaptionCreateInput } from "@/lib/captions/createPayload";
 import { planSurfaceCaptions, requestSurfaceCaptionRender } from "@/lib/captions/surfaceRender";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { resolveVoiceId } from "@/utils/voice-ids";
+import { musicBedVolumeExpr } from "@/lib/audio-ducking";
+import { speechRangesFromWords } from "@/lib/autoclip-lite";
 import { downloadFile } from "@/utils/download";
 import { markQuestComplete } from "@/lib/quests";
 import { renderRedditCard } from "@/utils/reddit-canvas";
@@ -248,7 +250,14 @@ async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
 
         // Audio mixing
         if (musicPath && musicInputIdx > 0) {
-          filterComplex += `;[${musicInputIdx}:a]volume=0.12[bgm];[1:a][bgm]amix=inputs=2:duration=first[audio]`;
+          // Duck the bed under the voice instead of pinning it at a flat,
+          // inaudible 0.12 for the whole video. combinedTimings covers intro
+          // and script, already offset, so it is exactly the speech map.
+          const musicVol = musicBedVolumeExpr(
+            speechRangesFromWords(combinedTimings),
+            getTtsDurationMs(combinedTimings) / 1000,
+          );
+          filterComplex += `;[${musicInputIdx}:a]volume=${musicVol}[bgm];[1:a][bgm]amix=inputs=2:duration=first[audio]`;
         } else {
           filterComplex += ";[1:a]acopy[audio]";
         }
@@ -278,6 +287,7 @@ async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
         bgVideoPath,
         voiceAudioPath: combinedAudioPath,
         musicAudioPath: musicPath,
+        wordTimings: combinedTimings,
         assPath: burnSubs ? assPath : undefined,
         outputPath,
       });
