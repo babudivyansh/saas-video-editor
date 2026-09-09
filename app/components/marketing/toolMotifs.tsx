@@ -238,15 +238,6 @@ const ScriptScene = (
   </g>
 );
 
-const ChatScene = (
-  <g>
-    <Phone x={62} y={10} h={150} />
-    <rect x={78} y={34} width={64} height={20} rx={10} fill={SOFT} />
-    <rect x={92} y={62} width={54} height={20} rx={10} fill={INK} />
-    <rect x={78} y={90} width={70} height={20} rx={10} fill={SOFT} />
-    <rect x={96} y={118} width={50} height={20} rx={10} fill={INK} />
-  </g>
-);
 
 const FootageScene = (
   <g>
@@ -307,58 +298,10 @@ const PRIMARY: Record<string, ReactNode> = {
   ),
 
   // A sparkle branching into script, voice, and visuals.
-  "ai-creator": (
-    <g>
-      <g stroke={SOFT} strokeWidth={3} strokeDasharray="7 8" fill="none">
-        <path d="M480 200 L250 116" />
-        <path d="M480 200 L710 116" />
-        <path d="M480 200 L480 316" />
-      </g>
-      <Sparkle cx={480} cy={200} r={54} />
-      <Panel x={168} y={70} w={164} h={92} r={16} />
-      {[104, 128, 84].map((w, i) => (
-        <Bar key={i} x={190} y={92 + i * 20} w={w} h={8} fill="rgba(51,92,255,0.45)" />
-      ))}
-      <Panel x={628} y={70} w={164} h={92} r={16} />
-      <Waveform x={654} cy={116} heights={[22, 40, 30, 52, 26, 44, 18]} gap={12} w={7} fill={BRAND} />
-      <Panel x={398} y={294} w={164} h={78} r={16} />
-      <PlayMark cx={480} cy={333} r={22} />
-    </g>
-  ),
 
   // A story card feeding a captioned vertical preview.
-  "reddit-story-videos": (
-    <g>
-      <Panel x={110} y={72} w={330} h={228} r={18} />
-      <circle cx={148} cy={112} r={18} fill={BRAND} opacity={0.35} />
-      <Bar x={178} y={106} w={110} h={10} fill="rgba(51,92,255,0.5)" />
-      {[266, 240, 282, 210].map((w, i) => (
-        <Bar key={i} x={138} y={152 + i * 26} w={w} h={9} fill="rgba(51,92,255,0.32)" />
-      ))}
-      <Arrow x={472} y={186} w={56} stroke={INK} />
-      <Phone x={572} y={48} h={304} />
-      <Panel x={598} y={92} w={124} h={70} r={12} fill={SOFT} />
-      <CaptionLines x={598} y={244} w={124} />
-    </g>
-  ),
 
   // Three phones fanned out, the centre one showing a message thread.
-  "fake-texts-videos": (
-    <g>
-      <g transform="rotate(-9 300 200)">
-        <Phone x={228} y={92} h={228} fill="rgba(0,0,0,0.16)" stroke={SOFT} />
-      </g>
-      <g transform="rotate(9 660 200)">
-        <Phone x={604} y={92} h={228} fill="rgba(0,0,0,0.16)" stroke={SOFT} />
-      </g>
-      <Phone x={412} y={52} h={296} />
-      <rect x={438} y={104} width={92} height={26} rx={13} fill={SOFT} />
-      <rect x={472} y={144} width={82} height={26} rx={13} fill={INK} />
-      <rect x={438} y={184} width={100} height={26} rx={13} fill={SOFT} />
-      <rect x={486} y={224} width={68} height={26} rx={13} fill={INK} />
-      <Bar x={452} y={286} w={104} h={10} fill={INK} />
-    </g>
-  ),
 
   // One vertical frame split into two stacked panes with a caption strip.
   "viral-split-screen": (
@@ -635,8 +578,6 @@ const SECONDARY: Record<string, ReactNode> = {
       ))}
     </g>
   ),
-  "reddit-story-videos": <StepStrip scenes={[ScriptScene, VoicePickScene, StylePickScene]} />,
-  "fake-texts-videos": <StepStrip scenes={[ChatScene, VoicePickScene, FootageScene]} />,
   "viral-split-screen": <StepStrip scenes={[UploadScene, FootageScene, StylePickScene]} />,
   "ai-image-generator": <StepStrip scenes={[PromptScene, SparkleScene, DownloadScene]} />,
   "ai-voiceover": <StepStrip scenes={[ScriptScene, VoicePickScene, DownloadScene]} />,
@@ -649,9 +590,6 @@ const DESCRIPTIONS: Record<string, string> = {
   "video-editor": "a video preview above a multi-track timeline with a playhead",
   "auto-clip": "a long timeline with three moments bracketed, each becoming a vertical clip",
   "cut-and-crop": "a video frame above a waveform with an in and out selection",
-  "ai-creator": "a spark branching out into a script, a voice, and a finished clip",
-  "reddit-story-videos": "a story card feeding a captioned vertical video",
-  "fake-texts-videos": "three phones showing an animated message thread",
   "viral-split-screen": "a clip and background footage stacked into one vertical frame with captions",
   "ai-image-generator": "a prompt box resolving into a row of generated images",
   "ai-voiceover": "a script feeding a list of voices, one of them playing",

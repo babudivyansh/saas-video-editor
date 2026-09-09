@@ -14,7 +14,7 @@ interface Idea { title: string; description: string; }
 
 const TOPIC_CHIPS = ["Sports", "TV Shows", "Gardening", "Motivational", "Countries", "Inventions"];
 const TONES = ["Mystery", "Horror", "Funny", "Suspense", "Action", "Informative", "Educational", "Inspiring", "Dramatic", "Casual"];
-const VIDEO_TYPES = ["Reddit Story", "Fake Texts", "Split Screen"];
+const VIDEO_TYPES = ["Split Screen", "Streamer Clip", "Auto Clip"];
 
 function IcSparkle({ className = "w-4 h-4" }: { className?: string }) {
   return (

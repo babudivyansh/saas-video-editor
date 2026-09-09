@@ -32,6 +32,12 @@ const PATTERNS = {
   // Stock Tailwind gray ramp used as a colour. Bridged by the inverted ramp in
   // globals.css until these reach zero, at which point the @theme gray block
   // and this budget line both get deleted.
+  // ── 2026-09-10: reddit-video, text-video and ai-creator were deleted ─────
+  // Every number below fell in one commit. Those three pages were the last
+  // holders of raw-blue and raw-zinc entirely, and carried the chat-bubble
+  // and Reddit-card mockup colours ffmpeg used to burn into exported video —
+  // the deliberate light-theme exception DESIGN_SYSTEM.md documents. With the
+  // products gone the exception goes with them, so these are locked in here.
   "raw-gray": /\b(?:bg|text|border|ring|divide|placeholder|from|to|via|outline|decoration|fill|stroke|accent|caret)-gray-\d{2,3}\b/g,
   // Opaque white surfaces. `bg-white/40` is deliberately NOT counted — a
   // translucent white overlay is already correct on a dark ground.
@@ -95,18 +101,18 @@ const BUDGET = {
   // 65 -> 64: deleting app/components/SubtitleStylePicker.tsx (the 16-swatch
   // index-based caption grid) took its hover:ring-gray-300 with it.
   // 64 -> 63: one more went with the deleted caption tile grids.
-  "raw-gray": 63,
+  "raw-gray": 36,
   // 5 -> 4: same deletion.
-  "bg-white": 4,
-  "raw-slate": 16,
-  "raw-zinc": 2,
-  "raw-blue": 42,
-  "raw-red": 15,
+  "bg-white": 1,
+  "raw-slate": 11,
+  "raw-zinc": 0,
+  "raw-blue": 0,
+  "raw-red": 11,
   // 51 -> 47: four of the retired brand hexes lived in the caption tile tables
   // deleted below.
   // 47 -> 43: four more went with the per-page voice lists, whose entries
   // each carried a hand-assigned avatar tint.
-  "brand-hex": 43,
+  "brand-hex": 42,
   "legacy-light": 0,
   // 320 -> 318: same deletion. The replacement (CaptionStyleGrid) still needs
   // two inline hex values for the swatch gradient — that is product artwork
@@ -125,7 +131,7 @@ const BUDGET = {
   // 152 -> 112: the six hand-maintained voice lists are gone. Each entry
   // carried a decorative colour literal, and two pages additionally held a
   // copy of the provider's voice ids purely to build preview URLs by hand.
-  "inline-hex": 112,
+  "inline-hex": 98,
 };
 
 function walk(dir, out = []) {

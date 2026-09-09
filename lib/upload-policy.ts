@@ -41,8 +41,7 @@ export type UploadFeature =
   | "mp3-converter"
   | "video-compressor"
   | "cut-and-crop"
-  | "reference-image"
-  | "ai-creator";
+  | "reference-image";
 
 export const UPLOAD_FEATURE_LABEL: Record<UploadFeature, string> = {
   "face-swap": "Face Swap",
@@ -56,7 +55,6 @@ export const UPLOAD_FEATURE_LABEL: Record<UploadFeature, string> = {
   "video-compressor": "Video Compressor",
   "cut-and-crop": "Cut & Crop",
   "reference-image": "Reference image upload",
-  "ai-creator": "AI Creator",
 };
 
 // The single source of truth for every feature-level technical ceiling —
@@ -76,7 +74,6 @@ export const FEATURE_TECHNICAL_MAX_BYTES: Record<UploadFeature, number> = {
   "video-compressor": 500 * 1024 * 1024,
   "cut-and-crop": 500 * 1024 * 1024,
   "reference-image": 10 * 1024 * 1024,
-  "ai-creator": 200 * 1024 * 1024,
 };
 
 // No verified provider-documented max upload size exists in this codebase

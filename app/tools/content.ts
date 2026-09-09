@@ -132,77 +132,8 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     ],
   },
 
-  "ai-creator": {
-    h1: "Go from an idea to a finished video",
-    metaTitle: "AI Creator — Generate Faceless Videos End to End",
-    metaDescription:
-      "Go from an idea to a finished faceless video: script, voiceover, visuals, and captions generated together in one guided flow.",
-    lede: "Describe the video once. Clipiro writes the script, narrates it, generates the visuals, and times the captions — all in one pass.",
-    steps: [
-      { title: "Describe the video", body: "Give it a topic, a niche, or a rough idea. It writes a script shaped for short-form pacing." },
-      { title: "Pick a voice and a look", body: "Choose a narrator from the voice library and a visual style, then let it generate the imagery and the voiceover." },
-      { title: "Publish", body: "Captions are timed to the voiceover automatically. Review the result, tweak anything in the editor, and export." },
-    ],
-    benefits: [
-      { title: "One flow, not five tools", body: "Script, voice, visuals, and captions are produced together and stay in sync, instead of being stitched together by hand." },
-      { title: "No camera, no face", body: "Built for faceless channels — everything on screen is generated, so you can publish consistently without filming." },
-      { title: "Editable at every step", body: "Rewrite a line, swap a voice, regenerate one image. You are never stuck with the whole output or nothing." },
-    ],
-    faqs: [
-      { question: "Which plans include AI Creator?", answer: "AI Creator is available on Pro and Studio." },
-      { question: "Can I use my own script?", answer: "Yes. Paste your own script and skip the generation step — the voiceover, visuals, and captions build from whatever you provide." },
-      COMMERCIAL_FAQ,
-      CREDITS_FAQ,
-    ],
-  },
 
-  "reddit-story-videos": {
-    h1: "Turn any Reddit thread into a story video",
-    metaTitle: "Reddit Story Video Generator",
-    metaDescription:
-      "Paste a Reddit thread and get a narrated story video with synced captions and background footage — formatted for Shorts, Reels, and TikTok.",
-    lede: "Paste a thread and get back a narrated video: post card, AI voiceover, synced captions, and background footage, sized for vertical feeds.",
-    steps: [
-      { title: "Paste the post", body: "Drop in a Reddit URL or paste the text directly if you would rather write your own." },
-      { title: "Choose voice and background", body: "Pick a narrator and the gameplay or ambient footage that runs underneath." },
-      { title: "Generate", body: "Captions land in time with the narration and the post card animates in. Export straight to vertical." },
-    ],
-    benefits: [
-      { title: "The whole format, assembled", body: "Post card, narration, captions, and background are produced as one piece instead of four exports you composite yourself." },
-      { title: "Built for retention", body: "Caption timing and pacing follow what actually holds attention in the first few seconds of a vertical feed." },
-      { title: "Batch a week in one sitting", body: "Each video takes a paste and two choices, so a posting schedule is an afternoon's work." },
-    ],
-    faqs: [
-      { question: "Do I need the Reddit URL?", answer: "No. Pasting the URL is the fast path, but you can type or paste any text and use the same format." },
-      { question: "Can I change the background footage?", answer: "Yes — choose from the built-in library or upload your own." },
-      COMMERCIAL_FAQ,
-      CREDITS_FAQ,
-    ],
-  },
 
-  "fake-texts-videos": {
-    h1: "Tell a story as a text conversation",
-    metaTitle: "Fake Text Conversation Video Generator",
-    metaDescription:
-      "Write a chat, pick the participants, and render it as an animated text-message story video with typing indicators, sounds, and narration.",
-    lede: "Write the thread, choose who is texting, and render it as an animated message exchange — typing indicators, notification sounds, and pacing you control.",
-    steps: [
-      { title: "Write the thread", body: "Type the messages and assign each one to a sender. Set names and avatars to taste." },
-      { title: "Set the pacing", body: "Control how fast messages land and where the pauses fall — the timing is what makes the story land." },
-      { title: "Render", body: "Export a vertical video with the thread animating in, ready for Shorts, Reels, or TikTok." },
-    ],
-    benefits: [
-      { title: "Looks like a real thread", body: "Typing indicators, read receipts, and notification sounds, so it reads as a screen recording rather than a slideshow." },
-      { title: "Pacing you control", body: "The gap before a reply is the whole joke. Set it per message instead of accepting a fixed interval." },
-      { title: "Narration optional", body: "Add an AI voiceover reading the thread aloud, or leave it silent and let the captions carry it." },
-    ],
-    faqs: [
-      { question: "Can I add a voiceover?", answer: "Yes. Any voice from the AI Voiceover library can read the thread as it animates." },
-      { question: "Can I customise names and avatars?", answer: "Yes — set the display name and avatar for each participant in the thread." },
-      COMMERCIAL_FAQ,
-      CREDITS_FAQ,
-    ],
-  },
 
   "viral-split-screen": {
     h1: "Pair your clip with footage that holds the scroll",

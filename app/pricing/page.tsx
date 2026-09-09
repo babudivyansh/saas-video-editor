@@ -133,8 +133,6 @@ const TERMS = [
 ];
 
 const WORKFLOWS = [
-  { name: "Reddit Story Videos", creator: true, pro: true, studio: true },
-  { name: "Fake Texts Videos", creator: true, pro: true, studio: true },
   { name: "Split-Screen Videos", creator: true, pro: true, studio: true },
   { name: "Streamer Highlight Videos", creator: true, pro: true, studio: true },
   { name: "Text / Faceless Story Videos", creator: true, pro: true, studio: true },

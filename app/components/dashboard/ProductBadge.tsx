@@ -4,15 +4,11 @@
 export const PRODUCT_LABELS: Record<string, string> = {
   "split-screen": "Split Screen",
   "streamer-video": "Streamer Video",
-  "reddit-video": "Reddit Story",
-  "text-video": "Fake Text",
 };
 
 const COLORS: Record<string, string> = {
   "split-screen": "bg-tint-violet text-accent-violet",
   "streamer-video": "bg-tint-amber text-warning",
-  "reddit-video": "bg-tint-rose text-error",
-  "text-video": "bg-tint-emerald text-emerald-600",
 };
 
 export function ProductBadge({ type }: { type: string }) {

@@ -44,9 +44,6 @@ export const VIDEO_TOOLS: FeatureLink[] = [
   { title: "Video Editor", desc: "Multi-track timeline editor in your browser", href: "/dashboard/editor", slug: "video-editor", category: "video" },
   { title: "Clipiro AutoClip", desc: "Long videos into viral clips, automatically", href: "/dashboard/create/auto-clip", slug: "auto-clip", category: "video" },
   { title: "Cut & Crop", desc: "Trim & stitch clips ready to edit", href: "/dashboard/cut-and-crop", slug: "cut-and-crop", category: "video" },
-  { title: "AI Creator", desc: "Become an AI content creator in 3 steps", href: "/dashboard/ai-creator", slug: "ai-creator", category: "video" },
-  { title: "Reddit Story Videos", desc: "Turn Reddit posts into viral videos", href: "/dashboard/create/reddit-video", slug: "reddit-story-videos", category: "video" },
-  { title: "Fake Texts Videos", desc: "Fake text-conversation story videos", href: "/dashboard/create/text-video", slug: "fake-texts-videos", category: "video" },
   { title: "Viral Split Screen", desc: "Gameplay split-screen that retains viewers", href: "/dashboard/create/viral-split-screen", slug: "viral-split-screen", category: "video" },
 ];
 

@@ -197,9 +197,6 @@ function useCreateItems(): NavItem[] {
       { title: t("autoClip.title"), desc: t("autoClip.desc"), href: "/dashboard/create/auto-clip" },
       { title: t("editor.title"), desc: t("editor.desc"), href: "/dashboard/editor" },
       { title: t("cutCrop.title"), desc: t("cutCrop.desc"), href: "/dashboard/cut-and-crop" },
-      { title: t("aiCreator.title"), desc: t("aiCreator.desc"), href: "/dashboard/ai-creator" },
-      { title: t("redditVideo.title"), desc: t("redditVideo.desc"), href: "/dashboard/create/reddit-video" },
-      { title: t("textVideo.title"), desc: t("textVideo.desc"), href: "/dashboard/create/text-video" },
     ],
     [t]
   );

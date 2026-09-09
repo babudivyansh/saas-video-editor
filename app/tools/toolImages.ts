@@ -52,42 +52,6 @@ export const TOOL_IMAGES: Record<string, ToolImageSet> = {
         "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAADQAQCdASoQAAkAA4BaJZwAAu19w0e6AAD++LoiTisNp1CbIEyxnySc2DAEO9Jaoem4+UabPswhSP2AAAA=",
     },
   },
-  "reddit-story-videos": {
-    primary: {
-      src: "/tools/reddit-story-videos-hero-v2.webp",
-      alt: "A Reddit post's script fed into an AI script generator, producing a captioned vertical video with subway-surfers-style background gameplay.",
-      width: 1354,
-      height: 1161,
-      blurDataURL:
-        "data:image/webp;base64,UklGRmgAAABXRUJQVlA4IFwAAADwAQCdASoQAA4AA4BaJYwCw7EUIP62GoAA/vCkiGJNCcHY/4xhMB8+l2+Qxh5juH0dqSMPF9mvnP/WxJv/J66GRI1pqqsgmZksP2Z9QhhD+co2M2ruQM1X68CAAA==",
-    },
-    secondary: {
-      src: "/tools/reddit-story-videos-workflow.webp",
-      alt: "Three steps: enter a Reddit post script, select an AI voice for the clip, and choose a subtitle style and animation.",
-      width: 1800,
-      height: 600,
-      blurDataURL:
-        "data:image/webp;base64,UklGRigAAABXRUJQVlA4IBwAAAAwAQCdASoQAAUAA4BaJaQAA3AA/vSsUyjgjQAA",
-    },
-  },
-  "fake-texts-videos": {
-    primary: {
-      src: "/tools/fake-texts-videos-hero.webp",
-      alt: "Three fake text-message conversation videos, each styled over a different background: a snowy game scene, a park scene, and a dark chat wallpaper, all captioned.",
-      width: 1254,
-      height: 1254,
-      blurDataURL:
-        "data:image/webp;base64,UklGRpIAAABXRUJQVlA4IIYAAAAwAgCdASoQABAAA4BaJbACdAYvhkd6knF1AAD+8I4Mn21z7fRVHGn9fwQzzqSUcbhwhzarq9Mx5/0VgD5GyWHKy1/ypd7sh0nLbUy9VkHtuGjSweoyO3NbehQ4DfTt6cnTRQGYKktfj980Gsd58og/ExAF3b1exO9N/TymMBg+5AEoQr2QAA==",
-    },
-    secondary: {
-      src: "/tools/fake-texts-videos-workflow.webp",
-      alt: "Three steps: write the chat script and select a theme, select an AI voiceover for the clip, and select from a wide range of gameplay videos.",
-      width: 1421,
-      height: 492,
-      blurDataURL:
-        "data:image/webp;base64,UklGRkYAAABXRUJQVlA4IDoAAACwAQCdASoQAAYAA4BaJZwAAucJkWd8AP72aDLu1qGzOlaGp2tFkIxKd/kambgdTdWZ95vMAAASVwgA",
-    },
-  },
   "audio-balancer": {
     primary: {
       src: "/tools/audio-balancer-hero.webp",
@@ -238,16 +202,6 @@ export const TOOL_IMAGES: Record<string, ToolImageSet> = {
       height: 420,
       blurDataURL:
         "data:image/webp;base64,UklGRkYAAABXRUJQVlA4IDoAAACQAQCdASoQAAUAA4BaJaQAAse4kYAA/vYkgmZJJBn4/uUtOmfjD5PEumxdIQQbOve2G9651jZSAAAA",
-    },
-  },
-  "ai-creator": {
-    primary: {
-      src: "/tools/ai-creator-hero.webp",
-      alt: "An original video next to avatar, voiceover, language, background, and aspect ratio pickers for generating an AI creator video.",
-      width: 1348,
-      height: 896,
-      blurDataURL:
-        "data:image/webp;base64,UklGRlwAAABXRUJQVlA4IFAAAADwAQCdASoQAAsAA4BaJZwAD48MYU6xyAAA/rez8Z7mbD74z7vGaTU2I+5jzZHosBnGcVB4k32h836DzzgEvoUB/kuQ9Ts3TUTQqLgtbRwAAA==",
     },
   },
   "ai-video-generator": {

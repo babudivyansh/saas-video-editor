@@ -133,8 +133,6 @@ const FILTERS = [
   { id: "all", label: "All" },
   { id: "split-screen", label: "Split Screen" },
   { id: "streamer-video", label: "Streamer" },
-  { id: "reddit-video", label: "Reddit Story" },
-  { id: "text-video", label: "Fake Text" },
 ];
 
 export default function MyVideosPage() {

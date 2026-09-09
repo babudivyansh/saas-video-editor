@@ -63,20 +63,7 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   // Fixed in Phase 1: was 2cr flat (≈$0.20 revenue) against real cost that could
   // run $1-2/generation uncapped — a confirmed loss-making price. Now
   // duration-scaled and gated to Pro+, like the video-generator models.
-  "ai-creator": {
-    creditCost: 25, // display price at the 5s default (5cr/s * 5s)
-    creditsPerSecond: 5, // ceil(0.14*3/0.0952)
-    minDurationSeconds: 3,
-    maxDurationSeconds: 15,
-    defaultDurationSeconds: 5,
-    costUsd: 0.14,
-    costBasis: "$0.14/s (fal.ai SadTalker, 720p — no 1080p tier found)",
-    generationType: "video",
-    requiredTier: "pro",
-  },
   "voice-changer":    { creditCost: 6, costUsd: 0.30, costBasis: "~$0.20/min (ElevenLabs STS), 90s cap", generationType: "audio" },
-  "reddit-video":     { creditCost: 2, costUsd: null, costBasis: "ElevenLabs TTS + FFmpeg render", generationType: "video" },
-  "text-video":       { creditCost: 2, costUsd: null, costBasis: "ElevenLabs TTS + FFmpeg render", generationType: "video" },
   "enhance-speech":   { creditCost: 6, costUsd: 0.30, costBasis: "~$0.20/min (ElevenLabs Isolation), 90s cap", generationType: "audio" },
   "youtube-downloader":   { creditCost: 1, costUsd: 0, costBasis: "yt-dlp, bandwidth only", generationType: "utility" },
   "instagram-downloader": { creditCost: 1, costUsd: 0, costBasis: "yt-dlp, bandwidth only", generationType: "utility" },
@@ -169,8 +156,6 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   // Gemini call — charged 1. Priced to match that precedent rather than to
   // recover cost: the real per-call spend is a fraction of a credit.
   "script-generic":     { creditCost: 1, costUsd: 0, costBasis: "Google Gemini text (~150-200 words)", generationType: "utility" },
-  "script-reddit":      { creditCost: 1, costUsd: 0, costBasis: "Google Gemini text (150-350 words)", generationType: "utility" },
-  "script-text-video":  { creditCost: 1, costUsd: 0, costBasis: "Google Gemini text (6-10 short messages)", generationType: "utility" },
 };
 
 // "Starting at" display price for the two multi-model tools — kept in sync

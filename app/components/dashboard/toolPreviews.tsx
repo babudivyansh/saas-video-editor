@@ -91,27 +91,6 @@ export function SubtitleRemoverPreview() {
   );
 }
 
-export function AICreatorPreview() {
-  return (
-    <div className="h-[140px] bg-gradient-to-br from-tint-emerald to-tint-blue flex items-center justify-center gap-2.5 px-5 overflow-hidden">
-      {[
-        { g: "from-emerald-400 to-teal-600", scale: false },
-        { g: "from-brand to-emerald-bright", scale: true },
-        { g: "from-accent-violet to-accent-fuchsia", scale: false },
-      ].map((s, i) => (
-        <div key={i} className="relative">
-          <div className={`w-[58px] h-[86px] rounded-xl bg-gradient-to-b ${s.g} shadow border border-white/20 ${s.scale ? "scale-110 shadow-xl" : ""}`} />
-          {i < 2 && (
-            <div className="absolute -right-2.5 top-1/2 -translate-y-1/2 z-10 w-4 h-4 rounded-full bg-panel shadow border border-line flex items-center justify-center">
-              <svg className="w-2 h-2 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path d="M9 18l6-6-6-6" strokeLinecap="round"/></svg>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ── Tools catalog previews ─────────────────────────────────────────────────
 
 export function ImageGenPreview() {
@@ -395,48 +374,6 @@ export function BrainstormerPreview() {
         {[1, 0.9, 0.95, 0.7, 0.85, 0.6].map((w, i) => (
           <div key={i} className="h-1.5 rounded-full bg-surface-3 mb-1.5" style={{ width: `${w * 100}%` }} />
         ))}
-      </div>
-    </div>
-  );
-}
-
-export function RedditPreview() {
-  return (
-    <div className="h-[212px] bg-surface-2 flex gap-2.5 p-4 overflow-hidden">
-      <div className="w-1/2 flex flex-col gap-2">
-        <div className="w-7 h-7 rounded-full bg-orange-500 flex items-center justify-center text-white text-xs font-bold">r</div>
-        {["Content", "Video Script"].map((l, i) => (
-          <div key={i} className="bg-panel rounded-md border border-line px-2 py-1.5 shadow-sm">
-            <p className="text-[8px] text-fg-subtle mb-1">{l}</p>
-            <div className="h-1 rounded-full bg-surface-3 w-3/4" />
-          </div>
-        ))}
-      </div>
-      <div className="w-1/2 rounded-lg overflow-hidden border border-line bg-gradient-to-b from-sky-300 to-emerald-brand relative">
-        <div className="absolute top-2 left-2 right-2 bg-panel/95 rounded p-1.5">
-          <p className="text-[7px] font-bold text-fg">r/AskReddit</p>
-          <p className="text-[7px] text-fg-muted leading-tight mt-0.5">What scientific breakthrough are we closer to than people realize?</p>
-        </div>
-        <div className="absolute bottom-1 left-0 right-0 text-center text-[7px] font-bold text-white">THE QUICK BROWN FOX</div>
-      </div>
-    </div>
-  );
-}
-
-export function FakeTextsPreview() {
-  return (
-    <div className="h-[212px] bg-surface-2 flex items-center justify-center gap-2 p-4 overflow-hidden">
-      <div className="flex flex-col gap-1.5 w-1/2">
-        {[0.7, 0.5, 0.85].map((w, i) => (
-          <div key={i} className="h-6 rounded-xl bg-surface-3" style={{ width: `${w * 100}%` }} />
-        ))}
-      </div>
-      <div className="w-[88px] h-[170px] rounded-xl bg-black p-2 flex flex-col gap-1.5 shadow-lg">
-        <div className="self-center text-[7px] text-fg-subtle mb-1">my baby &lt;3</div>
-        <div className="self-end max-w-[80%] bg-brand rounded-lg rounded-br-sm px-1.5 py-1 text-[7px] text-on-primary">would you still love me…</div>
-        <div className="self-start max-w-[80%] bg-surface-3 rounded-lg rounded-bl-sm px-1.5 py-1 text-[7px] text-white">well that depends…</div>
-        <div className="self-start max-w-[80%] bg-surface-3 rounded-lg rounded-bl-sm px-1.5 py-1 text-[7px] text-white">a leopard 2 A7</div>
-        <div className="self-end max-w-[80%] bg-brand rounded-lg rounded-br-sm px-1.5 py-1 text-[7px] text-on-primary">a tiger</div>
       </div>
     </div>
   );

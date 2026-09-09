@@ -15,7 +15,6 @@ const VALID_FEATURES: ReadonlySet<UploadFeature> = new Set([
   "video-compressor",
   "cut-and-crop",
   "reference-image",
-  "ai-creator",
 ]);
 
 // GET /api/upload-policy?feature=<UploadFeature> — the safe, server-derived

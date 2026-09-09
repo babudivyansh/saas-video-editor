@@ -26,10 +26,7 @@
     "createItems": {
       "autoClip": { "title": "Clipiro AutoClip", "desc": "长视频 → 病毒式短片，自动完成" },
       "editor": { "title": "视频编辑器", "desc": "多轨时间线编辑器" },
-      "cutCrop": { "title": "剪切与裁剪", "desc": "修剪并拼接片段，准备编辑" },
-      "aiCreator": { "title": "AI 创作者", "desc": "3步成为AI创作者" },
-      "redditVideo": { "title": "Reddit故事视频", "desc": "将Reddit帖子转换为视频" },
-      "textVideo": { "title": "虚拟短信视频", "desc": "文字对话形式的故事视频" }
+      "cutCrop": { "title": "剪切与裁剪", "desc": "修剪并拼接片段，准备编辑" }
     },
     "rail": {
       "home": "主页",
@@ -118,8 +115,7 @@
       "autoClip": { "title": "Clipiro AutoClip", "desc": "自动将长视频转换为病毒式传播的短片" },
       "cutCrop": { "title": "剪切与裁剪", "desc": "修剪并拼接您的视频为一个可编辑的片段" },
       "voiceChanger": { "title": "变声器", "desc": "更改任何音频或视频文件的声音" },
-      "subtitleRemover": { "title": "字幕移除工具", "desc": "使用AI在几分钟内移除字幕" },
-      "aiCreator": { "title": "AI 创作者", "desc": "3步成为AI内容创作者" }
+      "subtitleRemover": { "title": "字幕移除工具", "desc": "使用AI在几分钟内移除字幕" }
     },
     "miniTools": {
       "imageGenerator": "图片生成器",
@@ -146,9 +142,7 @@
       "speechEnhancer": { "title": "AI 语音增强器", "desc": "使用AI提升任何音频或视频文件的质量。" },
       "videoGenerator": { "title": "AI 视频生成器", "desc": "VEO3 是一款可让您使用AI创建视频的工具。" },
       "vocalRemover": { "title": "AI 人声移除工具", "desc": "使用AI从任何音频或视频文件中移除人声。" },
-      "brainstormer": { "title": "AI 创意生成器", "desc": "根据您的细分领域生成病毒式内容创意。" },
-      "redditVideo": { "title": "Reddit 视频生成器", "desc": "使用AI将Reddit帖子转换为病毒式视频。" },
-      "fakeTexts": { "title": "虚拟短信视频生成器", "desc": "使用AI制作引人入胜的虚拟短信视频，助力传播。" }
+      "brainstormer": { "title": "AI 创意生成器", "desc": "根据您的细分领域生成病毒式内容创意。" }
     }
   },
   "SettingsNav": {
