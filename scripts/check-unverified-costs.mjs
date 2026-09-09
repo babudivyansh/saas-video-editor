@@ -107,5 +107,46 @@ for (const dir of ["app", "lib", "utils"]) {
   }
 }
 
+// ── Every user-facing tool has a published price ────────────────────────────
+//
+// A tool route that charges credits but has no TOOL_COSTS entry still bills the
+// user — it just never reaches the admin AI-spend and margin dashboards, which
+// aggregate Generation rows keyed off that map. That gap is invisible by
+// construction: nothing breaks, the numbers are simply wrong and quietly
+// under-count. An audit found ten such routes at once, which is exactly the
+// kind of thing a person should not have to notice.
+//
+// So: every directory under app/api/tools/* must have a key in TOOL_COSTS.
+// Add the entry (with a costBasis) rather than adding an exemption here.
+const TOOL_COSTS_SRC = readFileSync(join(ROOT, "lib/tool-costs.ts"), "utf8");
+const PRICED = new Set([...TOOL_COSTS_SRC.matchAll(/^\s*"([a-z0-9-]+)":/gm)].map((m) => m[1]));
+
+// Routes whose price is not in TOOL_COSTS, each with the reason. Naming one
+// here is a claim someone can check, which is the point — an unexplained
+// exemption is the same invisible gap this rule exists to close.
+const PRICED_ELSEWHERE = new Set([
+  // Per-model pricing in lib/models/*, which this script already scans above.
+  "image-generator",
+  "video-generator",
+  // Not a generation: stores an uploaded file for a later, priced call.
+  "upload-reference-image",
+  // Serves the voice catalogue. Reads only.
+  "voices",
+]);
+
+for (const entry of readdirSync(join(ROOT, "app/api/tools"), { withFileTypes: true })) {
+  if (!entry.isDirectory() || entry.name.startsWith("[")) continue;
+  if (PRICED_ELSEWHERE.has(entry.name) || PRICED.has(entry.name)) continue;
+  console.error(
+    `✗ app/api/tools/${entry.name}: no TOOL_COSTS entry — it can charge credits without
+` +
+      `  appearing in cost reporting. Add one to lib/tool-costs.ts, or add it to
+` +
+      `  PRICED_ELSEWHERE in this script if its price genuinely lives elsewhere.`,
+  );
+  failed = true;
+}
+
+
 if (failed) process.exit(1);
 console.log("✓ cost verification + credit-mutation guard passed", `(${SCAN.length} cost files)`);
