@@ -7,6 +7,34 @@ import { env } from "@/lib/env";
 // Flip back to "eleven_multilingual_v2" here if higher expressiveness is needed.
 const TTS_MODEL_ID = "eleven_flash_v2_5";
 
+/**
+ * Whether the key we have can actually authenticate.
+ *
+ * ElevenLabs issues a key ID alongside every API key, and the two look alike —
+ * both are opaque hex. Only the KEY works, and it is prefixed "sk_". Passing an
+ * ID yields `400 invalid_api_key` on every call, which is what happened here:
+ * a key ID sat in the environment and silently broke voiceover, voice-changer,
+ * enhance-speech, dubbing, AutoClip transcription and every voice preview at
+ * once, each failing in its own local way with no single signal saying why.
+ *
+ * Callers gate on this so a misconfiguration reads as "not configured" rather
+ * than as a dozen unrelated provider errors. Mirrors isSubmagicConfigured().
+ */
+export function isElevenLabsConfigured(): boolean {
+  const key = env.ELEVENLABS_API_KEY;
+  return Boolean(key && key.startsWith("sk_"));
+}
+
+/** Why the key is unusable, for the admin ops page. Null when it is fine. */
+export function elevenLabsKeyProblem(): string | null {
+  const key = env.ELEVENLABS_API_KEY;
+  if (!key) return "ELEVENLABS_API_KEY is not set.";
+  if (!key.startsWith("sk_")) {
+    return "ELEVENLABS_API_KEY looks like a key ID, not a key. Keys start with \"sk_\" and are shown once, at creation.";
+  }
+  return null;
+}
+
 export interface WordTiming {
   word: string;
   start: number; // milliseconds

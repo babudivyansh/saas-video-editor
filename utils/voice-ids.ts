@@ -1,48 +1,33 @@
-import { env } from "@/lib/env";
+// Slug → provider voice id.
+//
+// The table itself now lives in lib/voices/catalog.ts (VOICE_SEED), which is
+// also what the pickers and the server registry read. This file stays because
+// `resolveVoiceId` is called from a dozen synthesis paths and its behaviour —
+// especially the raw-id passthrough below — is depended on by real data.
+//
+// Prefer `resolveVoiceRef` (lib/voices/registry.ts) in new code: it honours
+// admin overrides and returns the credit multiplier a paid voice needs. This
+// synchronous version cannot do either, because it never touches the DB.
+
+import { PROVIDER_VOICE_IDS } from "@/lib/voices/providerIds";
 
 /**
- * Maps frontend voice slugs to ElevenLabs voice_id strings.
- * Standard ElevenLabs voices available on all plans.
- * Custom/cloned voices can be added via ELEVENLABS_VOICE_* env vars.
+ * Slug → provider voice id, derived from the one catalogue.
+ *
+ * Was a hand-maintained 32-entry literal that had drifted from the five picker
+ * lists that displayed it — including four pairs of slugs pointing at the SAME
+ * provider voice (dandan/josh, charlie/sam, natasha/rachel, bella/sarah), which
+ * is why the product offered 32 voices but could only speak in 28.
  */
-export const VOICE_ID_MAP: Record<string, string> = {
-  // Male voices
-  william:   env.ELEVENLABS_VOICE_WILLIAM   ?? "VR6AewLTigWG4xSOukaG", // Arnold
-  adam:      env.ELEVENLABS_VOICE_ADAM      ?? "pNInz6obpgDQGcFmaJgB", // Adam
-  dandan:    env.ELEVENLABS_VOICE_DANDAN    ?? "TxGEqnHWrfWFTfGW9XjX", // Josh
-  charlie:   env.ELEVENLABS_VOICE_CHARLIE   ?? "yoZ06aMxZJJ28mfd3POQ", // Sam
-  clyde:     env.ELEVENLABS_VOICE_CLYDE     ?? "2EiwWnXFnvU5JabPnv8n", // Clyde
-  daniel:    env.ELEVENLABS_VOICE_DANIEL    ?? "onwK4e9ZLuTAKqWW03F9", // Daniel (British)
-  dave:      env.ELEVENLABS_VOICE_DAVE      ?? "CYw3kZ02Hs0563khs1Fj", // Dave
-  ethan:     env.ELEVENLABS_VOICE_ETHAN     ?? "g5CIjZEefAph4nQFvHAz", // Ethan
-  fin:       env.ELEVENLABS_VOICE_FIN       ?? "D38z5RcWu1voky8WS1ja", // Fin
-  harry:     env.ELEVENLABS_VOICE_HARRY     ?? "SOYHLrjzK2X1ezoPC6cr", // Harry
-  josh:      env.ELEVENLABS_VOICE_JOSH      ?? "TxGEqnHWrfWFTfGW9XjX", // Josh
-  liam:      env.ELEVENLABS_VOICE_LIAM      ?? "TX3LPaxmHKxFdv7VOQHJ", // Liam
-  matthew:   env.ELEVENLABS_VOICE_MATTHEW   ?? "Yko7PKHZNXotIFUBG7I9", // Matthew
-  patrick:   env.ELEVENLABS_VOICE_PATRICK   ?? "ODq5zmih8GrVes37Dy9a", // Patrick
-  sam:       env.ELEVENLABS_VOICE_SAM       ?? "yoZ06aMxZJJ28mfd3POQ", // Sam
-  thomas:    env.ELEVENLABS_VOICE_THOMAS    ?? "GBv7mTt0atIp3Br8iCZE", // Thomas
-  // Female voices
-  natasha:   env.ELEVENLABS_VOICE_NATASHA   ?? "21m00Tcm4TlvDq8ikWAM", // Rachel
-  alice:     env.ELEVENLABS_VOICE_ALICE     ?? "Xb7hH8MSUJpSbSDYk0k2", // Alice
-  aria:      env.ELEVENLABS_VOICE_ARIA      ?? "9BWtsMINqrJLrRacOk9x", // Aria
-  bella:     env.ELEVENLABS_VOICE_BELLA     ?? "EXAVITQu4vr4xnSDxMaL", // Bella
-  charlotte: env.ELEVENLABS_VOICE_CHARLOTTE ?? "XB0fDUnXU5powFXDhCwa", // Charlotte
-  elli:      env.ELEVENLABS_VOICE_ELLI      ?? "MF3mGyEYCl7XYWbV9V6O", // Elli
-  emily:     env.ELEVENLABS_VOICE_EMILY     ?? "LcfcDJNUP1GQjkzn1xUU", // Emily
-  freya:     env.ELEVENLABS_VOICE_FREYA     ?? "jsCqWAovK2LkecY7zXl4", // Freya
-  grace:     env.ELEVENLABS_VOICE_GRACE     ?? "oWAxZDx7w5VEj9dCyTzz", // Grace
-  matilda:   env.ELEVENLABS_VOICE_MATILDA   ?? "XrExE9yKIg1WjnnlVkGX", // Matilda
-  rachel:    env.ELEVENLABS_VOICE_RACHEL    ?? "21m00Tcm4TlvDq8ikWAM", // Rachel
-  sarah:     env.ELEVENLABS_VOICE_SARAH     ?? "EXAVITQu4vr4xnSDxMaL", // Sarah
-  serena:    env.ELEVENLABS_VOICE_SERENA    ?? "pMsXgVXv3BLzUgSXRplE", // Serena
-  // Special
-  amir1:     env.ELEVENLABS_VOICE_AMIR1     ?? "ZQe5CZNOzWyzPSCn5a3c", // James
-  amir2:     env.ELEVENLABS_VOICE_AMIR2     ?? "bVMeCyTHy58xNoL34h3p", // Jeremy
-  spongebob: env.ELEVENLABS_VOICE_SPONGEBOB ?? "jBpfuIE2acCO8z3wKNLl", // Gigi (closest available)
-};
+export const VOICE_ID_MAP: Record<string, string> = PROVIDER_VOICE_IDS;
 
+/**
+ * Resolves a stored voice reference to something the provider accepts.
+ *
+ * The fallthrough is load-bearing, not laziness: cloned voices, Voice Library
+ * voices and the legacy /editor wizard's rows all store a RAW provider id with
+ * no slug, and returning it unchanged is the only reason those still play.
+ */
 export function resolveVoiceId(slug: string): string {
-  return VOICE_ID_MAP[slug] ?? slug; // fall back to raw ID if not in map
+  return VOICE_ID_MAP[slug] ?? slug;
 }
