@@ -1,11 +1,12 @@
 "use client";
-import { Suspense, useRef, useState, useEffect, useCallback, type ReactNode } from "react";
+import { Suspense, useRef, useState, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import SubtitleStylePicker from "@/app/components/SubtitleStylePicker";
+import CaptionStyleGrid from "@/app/components/auto-clip/CaptionStyleGrid";
+import PipelineNotice from "@/app/components/auto-clip/PipelineNotice";
 import { ReframeAndCutsControls } from "@/app/components/auto-clip/ReframeAndCutsControls";
 import { LiteEditTab, type LiteEdits } from "@/app/components/auto-clip/LiteEditTab";
-import { CaptionTemplatePicker, TranslateCaptions } from "@/app/components/auto-clip/CaptionTemplatePicker";
+import { CaptionTemplatePicker, CaptionRenderControls, TranslateCaptions } from "@/app/components/auto-clip/CaptionTemplatePicker";
 import { CAPTION_TEMPLATES } from "@/lib/caption-templates";
 import { discardDraftProject } from "@/lib/discard-draft-project";
 import { UrlImportField } from "@/app/components/auto-clip/UrlImportField";
@@ -16,8 +17,12 @@ import { AssetField } from "@/app/components/assets/AssetField";
 import type { PickerAsset } from "@/app/components/assets/assetPickerData";
 import { useVideoGenerate, getStoredToken, type GenerateStatus } from "@/app/hooks/useVideoGenerate";
 import { registerAsset, type AssetRow } from "@/app/dashboard/editor/components/panels/shared/assetData";
-import { useInsufficientCredits } from "@/app/components/billing/CreditModalContext";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
+import { hexToASS, assToHex } from "@/lib/ass-color";
+import { indexForTemplateId, DEFAULT_TEMPLATE_ID } from "@/lib/captions/legacyStyleIndex";
+import { estimateRunCost, bandMaxSeconds } from "@/lib/captions/runEstimate";
+import { AUTOCLIP_PRICING_DEFAULTS } from "@/lib/autoclip-pricing";
+import { CAPTION_RENDER_PRICING_DEFAULTS } from "@/lib/captions/pricingDefaults";
 import {
   RelatedSection, RelatedRail, RelatedList, RelatedEmpty, RelatedLoading,
   SourceWindowBar, fmtDuration,
@@ -48,9 +53,6 @@ function IcChevronRight() {
 }
 function IcPlay() {
   return <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 ml-0.5"><path d="M8 5v14l11-7z" /></svg>;
-}
-function IcWarning() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>;
 }
 function IcMore() {
   return <svg viewBox="0 0 24 24" fill="currentColor" className="w-[18px] h-[18px]"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>;
@@ -83,12 +85,6 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
 
 type SortKey = "score" | "order" | "duration";
 
-const WARNING_COPY: Record<string, string> = {
-  transcription_failed: "We couldn't transcribe this video, so the AI never read its content — clip moments are spaced out rather than chosen, and the titles, captions and insights are generic placeholders you should replace. There are no burned-in subtitles.",
-  reframe_unavailable: "No faces were detected in this video, so clips use a centered crop instead of following a speaker.",
-  reframe_failed: "Speaker tracking couldn't run on our side, so clips use a centered crop. This affects every video until it's fixed — please report it if it persists.",
-};
-
 // ── Shared types ─────────────────────────────────────────────────────────────
 interface ScoreBreakdown {
   hook: number; pacing: number; payoff: number; engagement: number;
@@ -108,7 +104,7 @@ export interface ClipItem {
   score: number | null;
   scoreBreakdown: ScoreBreakdown | null;
   mood: string | null;
-  status: string; // pending_review | queued | rendering | ready | failed
+  status: string; // queued | rendering | ready | failed
   progress: number;
   videoUrl: string | null;
   thumbnailUrl: string | null;
@@ -160,11 +156,6 @@ function RerenderCostNote({ clip }: { clip: ClipItem }) {
   );
 }
 export interface ProjectMeta { status: string; warnings: string[] | null; failureReason: string | null; captionStyleIndex: number | null; uploadedVideoUrl: string | null }
-interface CostEstimate {
-  clipCount: number; totalDurationSec: number;
-  gross: number; analysisCredit: number; total: number;
-  balance: number; sufficient: boolean;
-}
 
 function fmtTime(sec: number): string {
   const s = Math.max(0, Math.round(sec));
@@ -212,83 +203,6 @@ function clipReason(clip: ClipItem): string {
   return band;
 }
 
-function WarningsBanner({ warnings }: { warnings: string[] | null | undefined }) {
-  if (!warnings || warnings.length === 0) return null;
-  return (
-    <div className="mb-4 flex flex-col gap-2">
-      {warnings.map((w) => (
-        <div key={w} className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-          <IcWarning />
-          <span>{WARNING_COPY[w] ?? w}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── Trimmed preview (review phase — no render exists yet) ────────────────────
-function TrimmedPreviewPlayer({ sourceVideoUrl, startSec, endSec, aspectRatio, className }: {
-  sourceVideoUrl: string | null;
-  startSec: number;
-  endSec: number;
-  aspectRatio: "9:16" | "16:9" | "1:1";
-  className?: string;
-}) {
-  const [playing, setPlaying] = useState(false);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-
-  useEffect(() => {
-    if (playing && videoRef.current) videoRef.current.currentTime = startSec;
-  }, [startSec, endSec, playing]);
-
-  return (
-    <div className={`relative bg-black ${className ?? ""}`} style={{ aspectRatio: arCss(aspectRatio) }}>
-      {playing && sourceVideoUrl ? (
-        <video
-          ref={videoRef}
-          src={sourceVideoUrl}
-          preload="none"
-          playsInline
-          autoPlay
-          className="w-full h-full object-contain bg-black"
-          onLoadedMetadata={(e) => { e.currentTarget.currentTime = startSec; }}
-          onTimeUpdate={(e) => {
-            if (endSec > startSec && e.currentTarget.currentTime >= endSec) e.currentTarget.currentTime = startSec;
-          }}
-        />
-      ) : (
-        <div className="absolute inset-0 flex items-center justify-center text-white/25">
-          <IcFilm />
-        </div>
-      )}
-      {sourceVideoUrl ? (
-        <button
-          type="button"
-          onClick={() => setPlaying((p) => !p)}
-          aria-label={playing ? "Pause preview" : "Play preview"}
-          className="absolute inset-0 flex items-center justify-center bg-black/15 hover:bg-black/25 transition-colors group"
-        >
-          {!playing && (
-            <span className="w-12 h-12 rounded-full bg-white/90 text-ink flex items-center justify-center group-hover:scale-105 transition-transform"><IcPlay /></span>
-          )}
-        </button>
-      ) : (
-        <div className="absolute inset-0 flex items-center justify-center text-white/60 text-xs font-medium">Preview unavailable</div>
-      )}
-    </div>
-  );
-}
-
-const MAX_CLIP_SECONDS = 300;
-interface ReviewEdit { keep: boolean; startSec: number; endSec: number; aspectRatio: "9:16" | "16:9" | "1:1" }
-function trimError(edit: ReviewEdit): string | null {
-  if (!edit.keep) return null;
-  if (!Number.isFinite(edit.startSec) || !Number.isFinite(edit.endSec)) return "Enter a start and end time.";
-  if (edit.startSec < 0) return "Start can't be negative.";
-  if (edit.endSec <= edit.startSec) return "End must come after start.";
-  if (edit.endSec - edit.startSec > MAX_CLIP_SECONDS) return `Clips can't be longer than ${MAX_CLIP_SECONDS / 60} minutes.`;
-  return null;
-}
 
 // ── Per-clip actions (ready clips): edit-in-editor, dub, publish ─────────────
 function EditInEditorButton({ projectId, clip, className }: { projectId: string; clip: ClipItem; className?: string }) {
@@ -492,27 +406,9 @@ function RetryClipButton({ projectId, clip, onQueued }: { projectId: string; cli
 }
 
 // ── Subtitle styling helpers (ASS colour packing) ────────────────────────────
-function hexToASS(hex: string): string {
-  const cleaned = hex.replace("#", "");
-  if (cleaned.length === 6) {
-    const r = cleaned.slice(0, 2);
-    const g = cleaned.slice(2, 4);
-    const b = cleaned.slice(4, 6);
-    return `&H00${b}${g}${r}`;
-  }
-  return "&H00FFFFFF";
-}
-function assToHex(ass: string): string {
-  const match = ass.match(/&H[0-9a-fA-F]{2}([0-9a-fA-F]{6})/);
-  if (match) {
-    const bgr = match[1];
-    const b = bgr.slice(0, 2);
-    const g = bgr.slice(2, 4);
-    const r = bgr.slice(4, 6);
-    return `#${r}${g}${b}`;
-  }
-  return "#ffffff";
-}
+// Moved to lib/ass-color.ts so the caption style grid can render swatches
+// without importing this 2,200-line page. Re-exported nowhere — the grid
+// imports the leaf module directly.
 
 // A small popover menu anchored to a trigger. Closes on outside-click / Esc.
 function OverflowMenu({ children, ariaLabel = "More actions", align = "right" }: { children: (close: () => void) => ReactNode; ariaLabel?: string; align?: "right" | "left" }) {
@@ -627,81 +523,6 @@ function ClipCard({ projectId, clip, onChanged, onOpen }: {
   );
 }
 
-// ── Review card (pending_review — select, trim, aspect) ──────────────────────
-function ReviewClipCard({ clip, edit, onChange, onOpen }: {
-  clip: ClipItem; edit: ReviewEdit;
-  onChange: (patch: Partial<ReviewEdit>) => void;
-  onOpen: (origin: string) => void;
-}) {
-  const band = scoreBand(clip.score);
-  const invalid = trimError(edit);
-  const cardRef = useRef<HTMLDivElement | null>(null);
-  const [adjust, setAdjust] = useState(false);
-
-  return (
-    <div ref={cardRef} className={`ac-card rounded-2xl bg-panel overflow-hidden flex flex-col shadow-card ${edit.keep ? "ring-2 ring-brand/60" : "opacity-70"}`}>
-      <button
-        type="button"
-        onClick={() => {
-          const el = cardRef.current;
-          let origin = "50% 50%";
-          if (el) { const r = el.getBoundingClientRect(); origin = `${Math.round(r.left + r.width / 2)}px ${Math.round(r.top + r.height / 2)}px`; }
-          onOpen(origin);
-        }}
-        className="group relative block w-full text-left"
-        style={{ aspectRatio: arCss(edit.aspectRatio), background: "linear-gradient(160deg,#243447,#0f172a 65%,#111827)" }}
-      >
-        <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-bold shadow-sm" style={{ background: "rgba(255,255,255,.94)", color: band.text }}>
-          <span aria-hidden>{band.icon}</span>{band.label}
-          {clip.score != null && <span className="opacity-60 tabular-nums">{clip.score}</span>}
-        </span>
-        <span className="absolute top-2.5 right-2.5 px-1.5 py-0.5 rounded-md text-[11px] font-semibold text-white" style={{ background: "rgba(15,23,42,.6)" }}>{fmtTime(Math.max(0, edit.endSec - edit.startSec))}</span>
-        <span className="ac-reveal absolute inset-x-0 bottom-0 h-[64%] pointer-events-none" style={{ background: "linear-gradient(to top, rgba(9,14,26,.92), rgba(9,14,26,0))" }} />
-        <span className="ac-reveal ac-rise-in absolute inset-x-3 bottom-3 block text-white">
-          <span className="block text-[12px] leading-snug text-white/80 mb-2 line-clamp-2">{clipReason(clip)}</span>
-          <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full grad-brand text-[12.5px] font-bold text-on-primary"><IcPlay /> Open clip</span>
-        </span>
-      </button>
-      <div className="px-3.5 py-3 flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <p className="flex-1 min-w-0 text-[13.5px] font-semibold text-ink leading-snug line-clamp-1">{clip.title || `Clip ${clip.index + 1}`}</p>
-          <label className="flex items-center gap-1.5 text-xs font-semibold text-ink-soft shrink-0 cursor-pointer">
-            <input type="checkbox" checked={edit.keep} onChange={(e) => onChange({ keep: e.target.checked })} className="w-4 h-4 accent-brand" />
-            Keep
-          </label>
-        </div>
-        <button onClick={() => setAdjust((a) => !a)} className="flex items-center justify-between text-left">
-          <span className="text-[12px] text-ink-soft">{edit.keep ? "Selected to render" : "Won't render"}</span>
-          <span className="text-[12px] font-semibold text-brand">{adjust ? "Hide timing" : "Adjust timing"}</span>
-        </button>
-        {adjust && (
-          <div className="ac-panel-in space-y-2.5 border-t border-card-border pt-2.5">
-            <div className="flex items-center gap-2">
-              <div className="flex-1">
-                <label className="text-[10px] text-ink-soft block mb-0.5">Start (s)</label>
-                <input type="number" min={0} step={0.5} value={edit.startSec} onChange={(e) => onChange({ startSec: Math.max(0, Number(e.target.value)) })} disabled={!edit.keep} className="w-full rounded-lg border border-card-border px-2 py-1.5 text-xs text-ink disabled:bg-surface" />
-              </div>
-              <span className="text-ink-soft/40 mt-3">—</span>
-              <div className="flex-1">
-                <label className="text-[10px] text-ink-soft block mb-0.5">End (s)</label>
-                <input type="number" min={0} step={0.5} value={edit.endSec} onChange={(e) => onChange({ endSec: Number(e.target.value) })} disabled={!edit.keep} className={`w-full rounded-lg border px-2 py-1.5 text-xs text-ink disabled:bg-surface ${invalid ? "border-error/60" : "border-card-border"}`} />
-              </div>
-            </div>
-            {invalid && <p className="text-[11px] font-medium text-error">{invalid}</p>}
-            <div className="grid grid-cols-3 gap-1.5">
-              {ASPECTS.map((a) => (
-                <button key={a.value} type="button" disabled={!edit.keep} onClick={() => onChange({ aspectRatio: a.value })}
-                  className={`rounded-lg border py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-40 ${edit.aspectRatio === a.value ? "grad-brand text-on-primary shadow-glow border-transparent" : "bg-panel border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"}`}>
-                  {a.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 type WorkspaceTab = "edit" | "captions" | "reframe" | "insights" | "transcript" | "publish" | "related";
 
@@ -796,7 +617,7 @@ function RelatedForClip({
 // ── Clip Workspace (ready clips) — full-screen, video hero + contextual tools ─
 function ClipWorkspace({
   projectId, clip, transcriptionFailed, initialTab, expandOrigin,
-  index, total, onPrev, onNext, onClose, onChanged, onOpenSibling,
+  index, total, onPrev, onNext, onClose, onChanged, onOpenSibling, siblingClipIds = [],
 }: {
   projectId: string; clip: ClipItem; transcriptionFailed: boolean;
   initialTab: WorkspaceTab; expandOrigin: string;
@@ -805,6 +626,8 @@ function ClipWorkspace({
   onClose: () => void; onChanged: () => void;
   /** Jump the workspace to another clip from the same run. */
   onOpenSibling: (clipId: string) => void;
+  /** The OTHER clips in this run, for "apply this style to all" (§38). */
+  siblingClipIds?: string[];
 }) {
   const [tab, setTab] = useState<WorkspaceTab>(initialTab);
   const [panelOpen, setPanelOpen] = useState(true);
@@ -826,6 +649,8 @@ function ClipWorkspace({
     baseColor: string | null; highlightColor: string | null; outlineColor: string | null; shadowColor: string | null;
     outlineWidth: number | null; shadowDepth: number | null; borderStyle: number | null; alignment: number | null;
     animated: boolean | null;
+    /** Clipiro caption-template slug, so a kit can carry a premium look. */
+    captionTemplateId: string | null;
   }
   const brandKitsQuery = useQuery({
     queryKey: ["brand-kits"],
@@ -852,6 +677,30 @@ function ClipWorkspace({
   const [captionsOn, setCaptionsOn] = useState(clip.hasCaptions);
   const [customizeOpen, setCustomizeOpen] = useState(false);
 
+  // Premium (provider-rendered) caption settings. Stored in the same
+  // subtitleStyleOverride blob as everything else on this panel, so they
+  // survive a reload and are picked up by the render request without another
+  // column on Clip.
+  const [captionPositionY, setCaptionPositionY] = useState((override.captionPositionY as number) ?? 65);
+  const [hookEnabled, setHookEnabled] = useState((override.hook as { enabled?: boolean } | null)?.enabled ?? false);
+  const [hookText, setHookText] = useState((override.hook as { text?: string } | null)?.text ?? "");
+  const [applyToAll, setApplyToAll] = useState(false);
+
+  // Whether the CHOSEN style is provider-rendered. Drives whether the premium
+  // controls appear at all — position/hook mean nothing to the native ASS
+  // renderer, and showing dead controls is worse than hiding them.
+  const isPremiumTemplate = Boolean(
+    templateId && CAPTION_TEMPLATES.find((t) => t.id === templateId)?.provider === "submagic",
+  );
+
+  async function suggestHooks(): Promise<string[]> {
+    const res = await apiFetch<{ candidates: { text: string }[] }>(
+      `/api/projects/${projectId}/clips/${clip.id}/captions/hooks`,
+      { method: "POST", body: "{}" },
+    );
+    return (res.candidates ?? []).map((c) => c.text);
+  }
+
   function applyBrandKit(kit: BrandKit) {
     if (kit.fontName != null) setFontName(kit.fontName);
     if (kit.fontSize != null) setFontSize(kit.fontSize);
@@ -864,6 +713,10 @@ function ClipWorkspace({
     if (kit.borderStyle != null) setBorderStyle(kit.borderStyle);
     if (kit.alignment != null) setAlignment(kit.alignment);
     if (kit.animated != null) setAnimatedCaptions(kit.animated);
+    // Restore the saved LOOK too, not just its ASS field values — otherwise
+    // loading a kit that was saved on a premium style silently drops back to
+    // the native renderer while looking approximately right.
+    if (kit.captionTemplateId != null) setTemplateId(kit.captionTemplateId);
   }
   const saveBrandKitMutation = useMutation({
     mutationFn: () =>
@@ -875,6 +728,10 @@ function ClipWorkspace({
           baseColor: hexToASS(baseColor), highlightColor: hexToASS(highlightColor),
           outlineColor: hexToASS(outlineColor), shadowColor: hexToASS(shadowColor),
           outlineWidth, shadowDepth, borderStyle, alignment, animated: animatedCaptions,
+          // Save the chosen look alongside its field values, so a kit saved on
+          // a premium style comes back as that style rather than as a native
+          // approximation of it.
+          captionTemplateId: templateId,
         }),
       }),
     onSuccess: () => {
@@ -938,20 +795,48 @@ function ClipWorkspace({
   async function handleSaveStyleOrCuts() {
     setSaving(true); setSaveErr(null);
     try {
+      const subtitleStyleOverride = {
+        ...(templateId ? { templateId } : {}),
+        fontName, fontSize,
+        baseColor: hexToASS(baseColor), highlightColor: hexToASS(highlightColor),
+        outlineColor: hexToASS(outlineColor), shadowColor: hexToASS(shadowColor),
+        outlineWidth, shadowDepth, borderStyle, alignment, animated: animatedCaptions,
+        // Premium-only, and only written when the chosen style actually uses a
+        // provider — otherwise these would sit in the blob confusing the next
+        // person to read it.
+        ...(isPremiumTemplate
+          ? {
+              captionPositionY,
+              hook: hookEnabled && hookText.trim() ? { enabled: true, text: hookText.trim() } : { enabled: false },
+            }
+          : {}),
+      };
+
       await apiFetch(`/api/projects/${projectId}/clips/${clip.id}/style`, {
         method: "PUT",
         body: JSON.stringify({
           captionStyleIndex: captionsOn ? (clip.captionStyleIndex != null && clip.captionStyleIndex >= 0 ? clip.captionStyleIndex : 0) : -1,
-          subtitleStyleOverride: {
-            ...(templateId ? { templateId } : {}),
-            fontName, fontSize,
-            baseColor: hexToASS(baseColor), highlightColor: hexToASS(highlightColor),
-            outlineColor: hexToASS(outlineColor), shadowColor: hexToASS(shadowColor),
-            outlineWidth, shadowDepth, borderStyle, alignment, animated: animatedCaptions,
-          },
+          subtitleStyleOverride,
           silenceSettings: { removeSilence, silenceThresholdMs, removeFillers, reframingPreset, smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed },
         }),
       });
+
+      // "Apply to all" copies the STYLE to the sibling clips and nothing more.
+      // It deliberately does not trigger a render on any of them: applying a
+      // premium style to twenty clips and silently starting twenty paid
+      // renders would be a very expensive surprise (§26/§38). Each clip is
+      // rendered only when its owner exports it.
+      if (applyToAll && siblingClipIds.length > 0) {
+        await Promise.allSettled(
+          siblingClipIds.map((id) =>
+            apiFetch(`/api/projects/${projectId}/clips/${id}/style`, {
+              method: "PUT",
+              body: JSON.stringify({ subtitleStyleOverride }),
+            }),
+          ),
+        );
+      }
+
       onChanged();
     } catch (e: unknown) {
       setSaveErr(e instanceof Error ? e.message : "An error occurred");
@@ -1144,6 +1029,25 @@ function ClipWorkspace({
                         disabled={saving}
                       />
                     </div>
+
+                    {/* Only for provider-rendered styles: caption position, an
+                        optional Clipiro-generated hook, and apply-to-all. The
+                        native ASS renderer has no concept of any of these, so
+                        showing them for a native style would be dead UI. */}
+                    {isPremiumTemplate && (
+                      <CaptionRenderControls
+                        positionY={captionPositionY}
+                        onPositionYChange={setCaptionPositionY}
+                        hookEnabled={hookEnabled}
+                        onHookEnabledChange={setHookEnabled}
+                        hookText={hookText}
+                        onHookTextChange={setHookText}
+                        onSuggestHooks={suggestHooks}
+                        applyToAll={applyToAll}
+                        onApplyToAllChange={setApplyToAll}
+                        disabled={saving}
+                      />
+                    )}
 
                     <button onClick={() => setCustomizeOpen((o) => !o)} className="flex items-center justify-between w-full">
                       <span className="text-[12px] font-bold text-ink-soft uppercase tracking-wider">Customize</span>
@@ -1478,9 +1382,8 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
   const project = clipsQuery.data?.project ?? DEFAULT_PROJECT_META;
   const fireReviewPrompt = useReviewPromptTrigger();
   const reviewPromptFiredRef = useRef(false);
-  const insufficientCredits = useInsufficientCredits();
 
-  // Workspace / review-workspace selection.
+  // Workspace selection.
   const [openId, setOpenId] = useState<string | null>(null);
   // A deep link arrives before the clips do, so the open is deferred until the
   // clip actually exists — and consumed once, so closing the workspace doesn't
@@ -1513,9 +1416,11 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
   // stopped, so it would never resolve on its own. That is a real outcome (the
   // model found nothing worth cutting, or every pick was dropped at review),
   // and it needs to be said rather than hidden behind a spinner.
-  const settledEmpty = clips.length === 0 && (projectStatus === "completed" || projectStatus === "pending_review");
+  // A completed project with zero clips is a real outcome (the model found
+  // nothing worth cutting) and needs to be said rather than hidden behind a
+  // spinner. The old `pending_review` arm went with the review step.
+  const settledEmpty = clips.length === 0 && projectStatus === "completed";
   const analyzing = clips.length === 0 && !failedHard && !settledEmpty;
-  const pendingReview = projectStatus === "pending_review";
   const allDone = projectStatus === "completed";
 
   useEffect(() => {
@@ -1524,64 +1429,10 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
     fireReviewPrompt("autoclips_milestone", { featureHint: "auto_clips" }).catch(() => {});
   }, [allDone, fireReviewPrompt]);
 
-  // ── Review edits (pending_review) ──
-  const [edits, setEdits] = useState<Record<string, ReviewEdit>>({});
-  useEffect(() => {
-    setEdits((prev) => {
-      const next = { ...prev };
-      for (const c of clips) {
-        if (!next[c.id]) next[c.id] = { keep: true, startSec: c.startSec, endSec: c.endSec, aspectRatio: (c.aspectRatio as ReviewEdit["aspectRatio"]) || "9:16" };
-      }
-      return next;
-    });
-  }, [clips]);
-  const keptCount = Object.values(edits).filter((e) => e.keep).length;
-  const firstTrimError = Object.values(edits).map(trimError).find(Boolean) ?? null;
-
-  // Debounce the edits payload the same 300ms the old setTimeout did — keying
-  // a query on a value that itself updates on a delay gets the same effect,
-  // plus (unlike the manual fetch this replaces) a stale in-flight estimate
-  // can no longer clobber a newer one: each distinct payload gets its own
-  // query-cache slot, so a late response for an edit the user has since
-  // changed just lands in a slot nothing is reading from anymore.
-  type EstimatePayload = ({ id: string } & ReviewEdit)[];
-  const [debouncedPayload, setDebouncedPayload] = useState<EstimatePayload | null>(null);
-  useEffect(() => {
-    if (!pendingReview || clips.length === 0 || Object.keys(edits).length === 0 || Object.values(edits).some((e) => trimError(e))) {
-      setDebouncedPayload(null);
-      return;
-    }
-    const payload = clips.filter((c) => edits[c.id]).map((c) => ({ id: c.id, ...edits[c.id] }));
-    if (payload.length === 0) { setDebouncedPayload(null); return; }
-    const timer = setTimeout(() => setDebouncedPayload(payload), 300);
-    return () => clearTimeout(timer);
-  }, [pendingReview, clips, edits]);
-
-  const estimateQuery = useQuery({
-    queryKey: ["auto-clip-estimate", projectId, debouncedPayload],
-    queryFn: () => apiFetch<CostEstimate>(`/api/projects/${projectId}/clips/estimate`, { method: "POST", body: JSON.stringify({ clips: debouncedPayload }) }),
-    enabled: !!projectId && !!debouncedPayload,
-  });
-  const estimate = estimateQuery.data ?? null;
-
-  const [confirmErr, setConfirmErr] = useState<string | null>(null);
-  const confirmMutation = useMutation({
-    mutationFn: (payload: EstimatePayload) => apiFetch(`/api/projects/${projectId}/clips/confirm`, { method: "POST", body: JSON.stringify({ clips: payload }) }),
-    onSuccess: () => {
-      setOpenId(null);
-      clipsQuery.refetch();
-    },
-    onError: (err) => {
-      if (err instanceof ApiError && err.status === 402) insufficientCredits.open({ required: err.body.required, balance: err.body.balance, action: "Auto Clips" });
-      else setConfirmErr(err instanceof Error ? err.message : "Failed to confirm");
-    },
-  });
-  function handleConfirm() {
-    if (!projectId) return;
-    setConfirmErr(null);
-    const payload = clips.map((c) => ({ id: c.id, ...(edits[c.id] ?? { keep: true, startSec: c.startSec, endSec: c.endSec, aspectRatio: (c.aspectRatio as ReviewEdit["aspectRatio"]) || "9:16" }) }));
-    confirmMutation.mutate(payload);
-  }
+  // The review step (select / trim / confirm-and-pay) is gone: Generate now
+  // charges up front and renders every clip. Its state, its estimate query and
+  // its confirm mutation went with it — the credit gate and the 402
+  // insufficient-credits response now live on the create route instead.
 
   const openClip = (clip: ClipItem, tab: WorkspaceTab = "edit", origin = "50% 50%") => { setOpenId(clip.id); setOpenTab(tab); setOpenOrigin(origin); };
   const transcriptionFailed = project.warnings?.includes("transcription_failed") ?? false;
@@ -1625,7 +1476,7 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
           <span className="text-brand"><IcClock /></span>
           You can leave this page — your clips will be ready when you return.
         </div>
-        <div className="mt-6"><WarningsBanner warnings={project.warnings} /></div>
+        <div className="mt-6"><PipelineNotice warnings={project.warnings} /></div>
       </div>
     );
   }
@@ -1648,14 +1499,12 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
       {/* Header */}
       <div className="flex items-end justify-between gap-6 flex-wrap mb-6">
         <div>
-          <h1 className="text-[28px] font-extrabold tracking-tight text-ink mb-1.5">{pendingReview ? "Review your clips" : allDone ? "Your clips are ready 🎉" : "Generating your clips"}</h1>
+          <h1 className="text-[28px] font-extrabold tracking-tight text-ink mb-1.5">{allDone ? "Your clips are ready 🎉" : "Generating your clips"}</h1>
           <p className="text-sm text-ink-soft">
-            {pendingReview
-              ? `${clips.length} moment${clips.length === 1 ? "" : "s"} pre-selected by score — keep what you want, then render.`
-              : `${ready} of ${total} ready${fileName ? ` · ${fileName}` : ""}`}
+            {`${ready} of ${total} ready${fileName ? ` · ${fileName}` : ""}`}
           </p>
         </div>
-        {!pendingReview && readyClips.length > 1 && (
+        {readyClips.length > 1 && (
           <div className="flex items-center gap-4">
             <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className="border-0 bg-transparent py-1.5 text-[13px] font-semibold text-ink-soft cursor-pointer">
               <option value="score">Best first</option>
@@ -1665,29 +1514,27 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
             <a href={`/api/projects/${projectId}/clips/download-all`} className="text-[13px] font-semibold px-3.5 py-2 rounded-lg border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors">Download all ({readyClips.length})</a>
           </div>
         )}
-        {(allDone || pendingReview) && (
+        {allDone && (
           <button onClick={onReset} className="text-[13px] font-semibold text-brand hover:underline">Create another</button>
         )}
       </div>
 
       {/* Progress bar while rendering */}
-      {!pendingReview && !allDone && (
+      {!allDone && (
         <div className="mb-6 h-1.5 rounded-full bg-surface-3 overflow-hidden">
           <div className="h-full bg-brand transition-all duration-500" style={{ width: `${total ? (ready / total) * 100 : 0}%` }} />
         </div>
       )}
 
-      <WarningsBanner warnings={project.warnings} />
+      <PipelineNotice warnings={project.warnings} />
       {allDone && <div className="mb-4"><ScorePerformanceBanner /></div>}
 
       {/* Feed */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
         {sortedClips.length > 0
-          ? sortedClips.map((c) =>
-              pendingReview
-                ? (edits[c.id] ? <ReviewClipCard key={c.id} clip={c} edit={edits[c.id]} onChange={(patch) => setEdits((prev) => ({ ...prev, [c.id]: { ...prev[c.id], ...patch } }))} onOpen={(origin) => openClip(c, "edit", origin)} /> : null)
-                : <ClipCard key={c.id} projectId={projectId!} clip={c} onChanged={() => clipsQuery.refetch()} onOpen={openClip} />,
-            )
+          ? sortedClips.map((c) => (
+              <ClipCard key={c.id} projectId={projectId!} clip={c} onChanged={() => clipsQuery.refetch()} onOpen={openClip} />
+            ))
           : Array.from({ length: Math.max(1, expectedCount) }).map((_, i) => (
               <div key={i} className="rounded-2xl bg-panel overflow-hidden shadow-card">
                 <div className="relative" style={{ aspectRatio: "9/16", background: "linear-gradient(160deg,#1e293b,#0f172a)" }}><div className="ac-shimmer absolute inset-0" /></div>
@@ -1696,33 +1543,8 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
             ))}
       </div>
 
-      {/* Sticky selection / confirm bar (pending_review) */}
-      {pendingReview && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-card-border" style={{ background: "rgba(255,255,255,.92)", backdropFilter: "blur(10px)" }}>
-          <div className="max-w-[1240px] mx-auto w-full px-6 md:px-8 py-3.5 flex items-center gap-5 flex-wrap">
-            <div className="flex-1 min-w-[220px]">
-              <p className="text-sm font-bold text-ink">{keptCount} of {clips.length} clip{clips.length === 1 ? "" : "s"} selected</p>
-              <p className="text-[12.5px] text-ink-soft mt-0.5">
-                {firstTrimError
-                  ? <span className="text-error">Fix the highlighted in/out points — {firstTrimError.toLowerCase()}</span>
-                  : estimate
-                    ? `Rendering costs ${estimate.total} credit${estimate.total === 1 ? "" : "s"}${estimate.analysisCredit > 0 ? " — analysis already paid" : ""}. ${estimate.sufficient ? `Balance after: ${estimate.balance - estimate.total}.` : `You have ${estimate.balance} — ${estimate.total - estimate.balance} more needed.`}`
-                    : "You're only charged for the clips you keep."}
-              </p>
-              {confirmErr && <p className="text-[12px] text-error mt-0.5">{confirmErr}</p>}
-            </div>
-            <button onClick={() => setEdits((prev) => { const next: Record<string, ReviewEdit> = {}; for (const [id, e] of Object.entries(prev)) next[id] = { ...e, keep: keptCount > 0 ? false : true }; return next; })} className="text-[13px] font-semibold px-4 py-2.5 rounded-xl border border-card-border bg-panel text-ink hover:bg-tint-blue transition-colors">
-              {keptCount > 0 ? "Deselect all" : "Select all"}
-            </button>
-            <button onClick={handleConfirm} disabled={confirmMutation.isPending || keptCount === 0 || !!firstTrimError} className="text-sm font-bold px-6 py-3 rounded-xl grad-brand shadow-glow text-on-primary disabled:opacity-40 disabled:cursor-not-allowed">
-              {confirmMutation.isPending ? "Starting render…" : `Confirm & render${estimate ? ` · ${estimate.total} credit${estimate.total === 1 ? "" : "s"}` : ""}`}
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Workspace overlay (ready clips) */}
-      {openClipItem && !pendingReview && openClipItem.status === "ready" && (
+      {openClipItem && openClipItem.status === "ready" && (
         <ClipWorkspace
           key={openClipItem.id}
           projectId={projectId!}
@@ -1737,104 +1559,10 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
           onClose={() => setOpenId(null)}
           onChanged={() => clipsQuery.refetch()}
           onOpenSibling={(clipId) => setOpenId(clipId)}
+          siblingClipIds={sortedClips.filter((c) => c.id !== openClipItem.id && c.status === "ready").map((c) => c.id)}
         />
       )}
 
-      {/* Review workspace (pending_review — trim/aspect/keep in focus) */}
-      {openClipItem && pendingReview && edits[openClipItem.id] && (
-        <ReviewWorkspace
-          key={openClipItem.id}
-          clip={openClipItem}
-          edit={edits[openClipItem.id]}
-          sourceVideoUrl={project.uploadedVideoUrl}
-          expandOrigin={openOrigin}
-          index={openIdx}
-          total={sortedClips.length}
-          onChange={(patch) => setEdits((prev) => ({ ...prev, [openClipItem.id]: { ...prev[openClipItem.id], ...patch } }))}
-          onPrev={() => { const p = sortedClips[(openIdx - 1 + sortedClips.length) % sortedClips.length]; if (p) setOpenId(p.id); }}
-          onNext={() => { const n = sortedClips[(openIdx + 1) % sortedClips.length]; if (n) setOpenId(n.id); }}
-          onClose={() => setOpenId(null)}
-        />
-      )}
-    </div>
-  );
-}
-
-// ── Review workspace (pending_review — focused trim/aspect/keep) ─────────────
-function ReviewWorkspace({ clip, edit, sourceVideoUrl, expandOrigin, index, total, onChange, onPrev, onNext, onClose }: {
-  clip: ClipItem; edit: ReviewEdit; sourceVideoUrl: string | null; expandOrigin: string;
-  index: number; total: number;
-  onChange: (patch: Partial<ReviewEdit>) => void;
-  onPrev: () => void; onNext: () => void; onClose: () => void;
-}) {
-  const band = scoreBand(clip.score);
-  const invalid = trimError(edit);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  return (
-    <div className="fixed inset-0 z-50 ac-expand" style={{ background: "var(--surface)", transformOrigin: expandOrigin }}>
-      <div className="h-full flex flex-col">
-        <div className="ac-rise h-[60px] flex-shrink-0 border-b border-card-border bg-panel flex items-center gap-3 px-4">
-          <button onClick={onClose} className="inline-flex items-center gap-2 min-h-[40px] px-3.5 rounded-lg border border-card-border bg-panel text-ink text-[13px] font-semibold hover:bg-tint-blue transition-colors"><IcChevronLeft /> Back to clips</button>
-          <div className="w-px h-6 bg-card-border" />
-          <span className="text-sm font-bold text-ink truncate max-w-[38ch]">{clip.title || `Clip ${clip.index + 1}`}</span>
-          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: band.bg, color: band.text }}>
-            <span aria-hidden>{band.icon}</span>{band.label}
-            {clip.score != null && <span className="opacity-60 tabular-nums" title="Virality score out of 99">{clip.score}</span>}
-          </span>
-          <div className="flex-1" />
-          <span className="hidden md:block text-xs text-ink-soft/70">Esc to close</span>
-        </div>
-        <div className="flex-1 relative overflow-hidden" style={{ background: "#0b1220" }}>
-          <div className="ac-stage ac-stage-open" style={{ padding: "20px 24px" }}>
-            <div className="flex-1 min-h-0 flex items-center justify-center">
-              <div className="ac-pop h-full" style={{ aspectRatio: arCss(edit.aspectRatio) }}>
-                <TrimmedPreviewPlayer sourceVideoUrl={sourceVideoUrl} startSec={edit.startSec} endSec={edit.endSec} aspectRatio={edit.aspectRatio} className="h-full rounded-2xl overflow-hidden" />
-              </div>
-            </div>
-            <div className="h-[52px] flex-shrink-0 flex items-center justify-center gap-2">
-              <button aria-label="Previous clip" onClick={onPrev} disabled={total <= 1} className="w-9 h-9 rounded-lg border border-white/15 bg-white/[.08] text-white flex items-center justify-center disabled:opacity-30 hover:bg-white/15 transition-colors"><IcChevronLeft /></button>
-              <span className="text-xs text-white/70 font-medium">Clip {index + 1} of {total}</span>
-              <button aria-label="Next clip" onClick={onNext} disabled={total <= 1} className="w-9 h-9 rounded-lg border border-white/15 bg-white/[.08] text-white flex items-center justify-center disabled:opacity-30 hover:bg-white/15 transition-colors"><IcChevronRight /></button>
-            </div>
-          </div>
-          <aside className="ac-tools-panel bg-panel flex flex-col">
-            <div className="px-5 py-3 border-b border-card-border"><p className="text-sm font-bold text-ink">Trim &amp; frame</p></div>
-            <div className="flex-1 overflow-y-auto p-5 space-y-5">
-              <div className="flex items-center justify-between rounded-xl border border-card-border p-3">
-                <div><p className="text-[12.5px] font-semibold text-ink">Keep this clip</p><p className="text-[11px] text-ink-soft">Only kept clips are rendered and charged.</p></div>
-                <Switch checked={edit.keep} onChange={(v) => onChange({ keep: v })} label="Keep this clip" />
-              </div>
-              <div>
-                <h4 className="text-[12px] font-bold text-ink-soft uppercase tracking-wider mb-2.5">Timing</h4>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1"><label className="text-[11px] text-ink-soft block mb-1">Start (s)</label><input type="number" min={0} step={0.5} value={edit.startSec} onChange={(e) => onChange({ startSec: Math.max(0, Number(e.target.value)) })} disabled={!edit.keep} className="w-full rounded-lg border border-card-border px-3 py-2 text-sm disabled:bg-surface" /></div>
-                  <span className="text-ink-soft/40 mt-5">—</span>
-                  <div className="flex-1"><label className="text-[11px] text-ink-soft block mb-1">End (s)</label><input type="number" min={0} step={0.5} value={edit.endSec} onChange={(e) => onChange({ endSec: Number(e.target.value) })} disabled={!edit.keep} className={`w-full rounded-lg border px-3 py-2 text-sm disabled:bg-surface ${invalid ? "border-error/60" : "border-card-border"}`} /></div>
-                </div>
-                {invalid ? <p className="text-[11px] font-medium text-error mt-1.5">{invalid}</p> : <p className="text-[11px] text-ink-soft mt-1.5">{fmtTime(Math.max(0, edit.endSec - edit.startSec))} kept</p>}
-              </div>
-              <div>
-                <h4 className="text-[12px] font-bold text-ink-soft uppercase tracking-wider mb-2.5">Aspect ratio</h4>
-                <div className="grid grid-cols-3 gap-2">
-                  {ASPECTS.map((a) => (
-                    <button key={a.value} type="button" disabled={!edit.keep} onClick={() => onChange({ aspectRatio: a.value })} className={`flex items-center justify-center gap-2 rounded-lg border py-2.5 text-[12px] font-semibold transition-colors disabled:opacity-40 ${edit.aspectRatio === a.value ? "grad-brand text-on-primary shadow-glow border-transparent" : "bg-panel border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"}`}>
-                      <span className={`${a.box} border-[1.5px] border-current rounded-[2px]`} />{a.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="border-t border-card-border px-5 py-3.5">
-              <button onClick={onClose} className="w-full min-h-[44px] rounded-xl grad-brand text-on-primary text-[13.5px] font-bold shadow-glow">Done — back to clips</button>
-            </div>
-          </aside>
-        </div>
-      </div>
     </div>
   );
 }
@@ -1870,7 +1598,27 @@ function AutoClipFlow() {
   const [aspectRatio, setAspectRatio] = useState<"9:16" | "16:9" | "1:1">("9:16");
   const [instructions, setInstructions] = useState("");
   const [captionsOn, setCaptionsOn] = useState(true);
-  const [captionStyleIndex, setCaptionStyleIndex] = useState(0);
+  // The caption style is now a TEMPLATE SLUG, not an index into a colour table.
+  // captionStyleIndex is still derived from it on the wire (see the create
+  // bodies below) purely to keep the public v1 API contract working.
+  const [captionTemplateId, setCaptionTemplateId] = useState<string>(DEFAULT_TEMPLATE_ID);
+  const [premiumTemplateIds, setPremiumTemplateIds] = useState<Set<string>>(new Set());
+  const captionStyleIndex = indexForTemplateId(captionTemplateId);
+  const isPremiumStyle = captionsOn && premiumTemplateIds.has(captionTemplateId);
+
+  // Priced client-side with the same helper and the same defaults the create
+  // route uses, so the figure shown here is the figure charged. Both sides read
+  // pricing that an admin can change, so this is an estimate of an estimate —
+  // it is deliberately labelled "~" and the server is the authority.
+  const runCost = useMemo(
+    () =>
+      estimateRunCost(
+        { clipCount, maxDurationSec: bandMaxSeconds(minDuration, maxDuration), premiumCaptions: isPremiumStyle },
+        AUTOCLIP_PRICING_DEFAULTS,
+        CAPTION_RENDER_PRICING_DEFAULTS,
+      ),
+    [clipCount, minDuration, maxDuration, isPremiumStyle],
+  );
 
   const [reframingPreset, setReframingPreset] = useState("balanced");
   const [removeSilence, setRemoveSilence] = useState(false);
@@ -1917,6 +1665,7 @@ function AutoClipFlow() {
         await generateAutoClipForProject({
           projectId: createdId, token, minDuration, maxDuration, clipCount, aspectRatio, instructions,
           captionStyleIndex: captionsOn ? captionStyleIndex : -1,
+          captionTemplateId: captionsOn ? captionTemplateId : null,
           reframingPreset, removeSilence, silenceThresholdMs, removeFillers,
           smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions,
         });
@@ -1938,6 +1687,7 @@ function AutoClipFlow() {
         await generateAutoClipForProject({
           projectId, token, minDuration, maxDuration, clipCount, aspectRatio, instructions,
           captionStyleIndex: captionsOn ? captionStyleIndex : -1,
+          captionTemplateId: captionsOn ? captionTemplateId : null,
           reframingPreset, removeSilence, silenceThresholdMs, removeFillers,
           smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions,
         });
@@ -1954,17 +1704,18 @@ function AutoClipFlow() {
     await generateAutoClip({
       file, minDuration, maxDuration, clipCount, aspectRatio, instructions,
       captionStyleIndex: captionsOn ? captionStyleIndex : -1,
+      captionTemplateId: captionsOn ? captionTemplateId : null,
       token, reframingPreset, removeSilence, silenceThresholdMs, removeFillers,
       smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions,
     });
-  }, [file, pickedAsset, importedUrl, importedTitle, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionsOn, captionStyleIndex, reframingPreset, removeSilence, silenceThresholdMs, removeFillers, smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions, generateAutoClip, generateAutoClipForProject]);
+  }, [file, pickedAsset, importedUrl, importedTitle, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionsOn, captionStyleIndex, captionTemplateId, reframingPreset, removeSilence, silenceThresholdMs, removeFillers, smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions, generateAutoClip, generateAutoClipForProject]);
 
   const handleReset = useCallback(() => {
     reset();
     handleClearFile();
     setImportedUrl(null); setImportedTitle(null); setImportError(null); setPickedAsset(null);
     setMinDuration(15); setMaxDuration(60); setClipCount(8); setAspectRatio("9:16");
-    setInstructions(""); setCaptionsOn(true); setCaptionStyleIndex(0);
+    setInstructions(""); setCaptionsOn(true); setCaptionTemplateId(DEFAULT_TEMPLATE_ID);
     setReframingPreset("balanced"); setRemoveSilence(false); setSilenceThresholdMs(400); setRemoveFillers(false);
     setSmartAutoReframe(true); setZoomStrength("medium"); setSpeakerMode("auto"); setSmoothness(50); setTrackingSpeed(50); setAnimatedCaptions(true);
     setAdvancedOpen(false);
@@ -2076,7 +1827,15 @@ function AutoClipFlow() {
             <div><p className="text-[13px] font-semibold text-ink">Captions</p><p className="text-xs text-ink-soft mt-0.5">Burned in, word-by-word — style below.</p></div>
             <Switch checked={captionsOn} onChange={setCaptionsOn} label="Captions" />
           </div>
-          {captionsOn && <SubtitleStylePicker value={captionStyleIndex} onChange={setCaptionStyleIndex} />}
+          {captionsOn && (
+            <CaptionStyleGrid
+              value={captionTemplateId}
+              onChange={setCaptionTemplateId}
+              onTemplatesLoaded={(list) =>
+                setPremiumTemplateIds(new Set(list.filter((t) => t.requiresRender).map((t) => t.id)))
+              }
+            />
+          )}
 
           <div className="h-px bg-card-border" />
 
@@ -2115,7 +1874,27 @@ function AutoClipFlow() {
           <button onClick={handleGenerate} disabled={!canGenerate} className="inline-flex items-center gap-2.5 grad-brand shadow-glow hover:shadow-glow-hover hover:brightness-105 text-on-primary text-base font-bold px-8 py-4 rounded-[14px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
             <IcSparkle /> Generate clips
           </button>
-          <p className="text-[13px] text-ink-soft">Analysis costs 1 credit. You only pay for the clips you keep.</p>
+          {/* There is no review step any more, so this is the LAST moment a
+              price can be shown before money is spent. It has to be itemised
+              and it has to be honest about the premium caption line, which is
+              by far the largest number here. */}
+          <div className="text-[13px] text-ink-soft">
+            {runCost ? (
+              <>
+                <span className="font-semibold text-ink">
+                  ~{runCost.total + 1} credit{runCost.total + 1 === 1 ? "" : "s"}
+                </span>{" "}
+                — analysis 1 · render {clipCount} clip{clipCount === 1 ? "" : "s"} {runCost.renderCredits}
+                {runCost.captionCredits > 0 && <> · premium captions {runCost.captionCredits}</>}
+                <span className="block text-[12px] mt-0.5">
+                  Charged up front and rendered straight through. Unused credits are returned
+                  once the real clip lengths are known.
+                </span>
+              </>
+            ) : (
+              "Analysis costs 1 credit."
+            )}
+          </div>
         </div>
       </div>
     </div>

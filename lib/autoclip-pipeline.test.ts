@@ -294,6 +294,11 @@ describe("enforceNonOverlapping", () => {
 // atomic claim guard in style/rerender/transcript routes can re-claim it) and
 // rethrow (so createRenderQueue's attempts:3/backoff still sees a real failure).
 describe("rerenderJob error handling", () => {
+  // Explicit timeout: this is the first test to pull rerenderJob's (large)
+  // module graph, so its wall time includes a one-off lazy import that the
+  // later tests in this block don't pay. Isolated it runs in ~3s, but under a
+  // full parallel `npm test` it drifts past the 5s default and flakes. Same
+  // reason lib/source-url.tenant-isolation.test.ts pins its own.
   it("flips the clip to failed and rethrows when downloadFile fails", async () => {
     clipUpdates = [];
     projectUpdates = [];
@@ -301,7 +306,7 @@ describe("rerenderJob error handling", () => {
     expect(clipUpdates).toContainEqual(
       expect.objectContaining({ where: { id: "clip-1" }, data: { status: "failed" } }),
     );
-  });
+  }, 30_000);
 
   // P0-3: this failure used to leave failureReason null, so a production P0
   // had no diagnosable reason on the record.

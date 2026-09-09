@@ -44,6 +44,17 @@ const PUBLIC_API_PREFIXES = [
   // dead addresses keep getting mailed, which is the exact failure the webhook
   // exists to prevent.
   "/api/webhooks/resend",
+  // Caption-render completion callbacks. Authenticated by an unguessable token
+  // in the path (SUBMAGIC_WEBHOOK_TOKEN) plus, when configured, an HMAC
+  // signature — the provider has no session here, so this gate could only ever
+  // 401 it. Matching is by prefix, which is what un-gates the /[token] segment.
+  //
+  // ⚠ NOTE while you're here: /api/webhooks/elevenlabs is NOT in this list and
+  // therefore cannot be reached at all. That route is documented as inert for a
+  // different reason (its secret is unset and whether ElevenLabs sends the
+  // callback is unconfirmed), so nothing is failing today, but if that webhook
+  // is ever registered it will need an entry here too or it will silently 401.
+  "/api/webhooks/submagic",
   // Per-category unsubscribe. Must work from a mail client, where there is by
   // definition no session — the signed token IS the authorisation. This also
   // has to stay reachable for the RFC 8058 one-click POST that Gmail and Yahoo

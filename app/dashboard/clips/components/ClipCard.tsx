@@ -54,14 +54,6 @@ function StatusOverlay({ clip }: { clip: ClipRow }) {
     );
   }
 
-  if (clip.status === "pending_review") {
-    return (
-      <div className="absolute inset-0 bg-bg/85 flex items-center justify-center">
-        <span className="text-[11px] font-bold text-ink-soft">Awaiting review</span>
-      </div>
-    );
-  }
-
   return (
     <div className="absolute inset-0 bg-bg/85 flex flex-col items-center justify-center gap-2 px-4">
       <span className="text-[11px] font-bold text-ink-soft">Rendering {clip.progress}%</span>

@@ -319,6 +319,9 @@ export function useVideoGenerate() {
     aspectRatio: string;
     instructions: string;
     captionStyleIndex: number;
+    /** Clipiro caption template slug. null = captions off. The index above is
+     *  derived from it and kept only for the public v1 API contract. */
+    captionTemplateId?: string | null;
     token: string;
     reframingPreset?: string;
     removeSilence?: boolean;
@@ -332,7 +335,7 @@ export function useVideoGenerate() {
     animatedCaptions?: boolean;
   }) => {
     const {
-      file, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionStyleIndex, token,
+      file, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionStyleIndex, captionTemplateId, token,
       reframingPreset, removeSilence, silenceThresholdMs, removeFillers,
       smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions
     } = params;
@@ -362,6 +365,7 @@ export function useVideoGenerate() {
         aspectRatio,
         instructions,
         captionStyleIndex,
+        captionTemplateId,
         reframingPreset,
         removeSilence,
         silenceThresholdMs,
@@ -397,6 +401,9 @@ export function useVideoGenerate() {
     aspectRatio: string;
     instructions: string;
     captionStyleIndex: number;
+    /** Clipiro caption template slug. null = captions off. The index above is
+     *  derived from it and kept only for the public v1 API contract. */
+    captionTemplateId?: string | null;
     reframingPreset?: string;
     removeSilence?: boolean;
     silenceThresholdMs?: number;

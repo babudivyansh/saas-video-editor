@@ -242,18 +242,19 @@ async function main() {
   const dup = await api("POST", "/api/generate/auto-clip", { projectId });
   check("double-submit rejected (409)", dup.status === 409, `status=${dup.status}`);
 
-  step("5. Wait for picks (pending_review)");
-  const picked = await waitFor("pending_review", async () => {
+  step("5. Wait for picks (clips are created already queued)");
+  // The review step is gone: pickJob creates clips as "queued" and enqueues the
+  // render itself, so the project moves analyzing -> rendering with no confirm.
+  const picked = await waitFor("picks", async () => {
     const r = await api("GET", `/api/projects/${projectId}/clips`);
     const st = r.body?.project?.status;
-    if (st === "pending_review") return r.body;
-    if (st === "failed") return r.body;
+    if (st === "rendering" || st === "completed" || st === "failed") return r.body;
     return null;
   }, 10 * 60 * 1000);
 
-  check("analysis finished", picked?.project?.status === "pending_review",
+  check("analysis finished", picked?.project?.status !== "failed",
     `status=${picked?.project?.status} reason=${picked?.project?.failureReason}`);
-  if (picked?.project?.status !== "pending_review") {
+  if (picked?.project?.status === "failed") {
     throw new Error(`pick failed: ${picked?.project?.failureReason ?? "unknown"}`);
   }
 
@@ -282,28 +283,11 @@ async function main() {
     check("captions disabled when there are no words", dbClips.every((c) => !c.hasCaptions));
   }
 
-  step("6. Cost estimate matches confirm");
-  const est = await api("POST", `/api/projects/${projectId}/clips/estimate`, {
-    clips: clips.map((c) => ({ id: c.id, keep: true })),
-  });
-  check("estimate (200)", est.status === 200, `status=${est.status} ${est.text.slice(0, 200)}`);
-  check("estimate has a total", typeof est.body?.total === "number", JSON.stringify(est.body));
-  check("estimate says affordable", est.body?.sufficient === true, JSON.stringify(est.body));
-
-  step("7. Confirm (keep all, one re-aspected to 1:1)");
-  const confirmBody = {
-    clips: clips.map((c, i) => ({
-      id: c.id, keep: true,
-      ...(i === 1 ? { aspectRatio: "1:1" as const } : {}),
-    })),
-  };
-  const conf = await api("POST", `/api/projects/${projectId}/clips/confirm`, confirmBody);
-  check("confirm (200)", conf.status === 200, `status=${conf.status} ${conf.text.slice(0, 250)}`);
-  check("charge equals estimate", conf.body?.creditsCharged === est.body?.total,
-    `charged=${conf.body?.creditsCharged} estimated=${est.body?.total}`);
-
-  const confDup = await api("POST", `/api/projects/${projectId}/clips/confirm`, confirmBody);
-  check("double-confirm rejected (409)", confDup.status === 409, `status=${confDup.status}`);
+  // Steps 6 and 7 (cost estimate, then confirm-and-render) are gone with the
+  // review step: a run is priced and charged at Generate, and pickJob enqueues
+  // the render itself. The double-charge guard that used to be asserted here as
+  // "charge equals estimate" is covered by app/api/generate/auto-clip/route.test.ts
+  // and by settleRunCost() in lib/autoclip-pipeline.ts.
 
   step("8. Wait for render");
   const done = await waitFor("render", async () => {

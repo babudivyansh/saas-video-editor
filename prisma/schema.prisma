@@ -103,6 +103,14 @@ model User {
   tourStep                 Int? // current guided-tour step index; null once never started
   tourCompletedAt          DateTime? // set once the guided tour is completed or skipped
   dismissedHints           String[]  @default([]) // ids of FeatureHint cards the user has dismissed — never shown again
+  // Caption vocabulary: proper nouns and jargon a speech model reliably gets
+  // wrong for this user ("Clipiro", "Razorpay", "Next.js"). Reusable across
+  // every clip rather than re-typed per render, and sanitized + length-capped
+  // before it is sent to any provider (sanitizeDictionary in
+  // lib/captions/providers/submagic/SubmagicAdapter.ts). String[] rather than
+  // its own table for the same reason dismissedHints is: it is a short, flat,
+  // user-owned list that is only ever read whole.
+  captionVocabulary        String[]  @default([])
   // Admin moderation (Phase 3): a suspended user fails auth on every request
   // (lib/auth.ts getAuthUser) until un-suspended. Soft alternative to deletion.
   suspendedAt              DateTime?
@@ -501,33 +509,36 @@ model Project {
 }
 
 // An individual clip produced by Auto Clip. The pick job creates one row per
-// AI-picked segment (status "pending_review"); the user reviews/edits picks,
-// then confirming moves kept clips to "queued" and renders + uploads each
-// separately so the UI can show every clip as its own card with live progress
-// and an Opus-style virality score.
+// AI-picked segment, already "queued", and the render is enqueued immediately —
+// each clip renders + uploads separately so the UI can show every clip as its
+// own card with live progress and an Opus-style virality score.
+//
+// There used to be a "pending_review" state between picking and rendering, where
+// the user chose which clips to keep and was charged only for those. That step
+// was removed: a run is now priced and charged up front, at Generate.
 model Clip {
-  id                    String        @id @default(cuid())
+  id                    String             @id @default(cuid())
   projectId             String
-  project               Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project               Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   index                 Int // generation order
   title                 String? // AI-generated catchy title / hook
   startSec              Float
   endSec                Float
   durationSec           Float
-  aspectRatio           String        @default("9:16")
+  aspectRatio           String             @default("9:16")
   score                 Int? // calibrated virality 0–99, see lib/virality-score.ts
-  rerenderCount         Int           @default(0) // first re-render per clip is free; charged after that
+  rerenderCount         Int                @default(0) // first re-render per clip is free; charged after that
   scoreBreakdown        Json? // {hook, pacing, payoff, engagement, audio, speechRate} sub-scores for transparency
   mood                  String? // AI-detected content mood, drives auto color grade (P2.3)
-  status                String        @default("queued") // pending_review | queued | rendering | ready | failed
-  progress              Int           @default(0) // 0–100
+  status                String             @default("queued") // queued | rendering | ready | failed
+  progress              Int                @default(0) // 0–100
   videoUrl              String?
   thumbnailUrl          String?
   // Captioning (P0.3) — transcript is sliced/re-baselined to this clip's own
   // timeline so re-render (P1.3) never needs to re-run STT.
   transcriptJson        Json?
   captionStyleIndex     Int?
-  hasCaptions           Boolean       @default(false)
+  hasCaptions           Boolean            @default(false)
   // Speaker-tracking reframe (P1.1) — smoothed crop path in source-pixel
   // coordinates, [{tSec, x, y, w, h}]. Null = static center crop (fallback).
   cropKeyframes         Json?
@@ -543,8 +554,8 @@ model Clip {
   // word the speaker actually says. [{startSec, endSec, url, query}]. The
   // single brollUrl fields above remain for clips picked before this existed.
   brollWindows          Json?
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt // stale-clip sweep reads this — see lib/cron/stale-clip-sweep.ts
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt // stale-clip sweep reads this — see lib/cron/stale-clip-sweep.ts
   subtitleStyleOverride Json?
   silenceSettings       Json?
   // Per-clip speech signal track (loudness/pitch/energy envelopes, shot
@@ -564,7 +575,7 @@ model Clip {
   // Which backend actually encoded this clip ("cpu" | "gpu"), for ops.
   renderTarget          String?
   // Starred by the user in the clips library.
-  isFavorite            Boolean       @default(false)
+  isFavorite            Boolean            @default(false)
   // Why this clip's render failed, in words written for a creator. The
   // pipeline only set status:"failed", so the UI could say nothing beyond
   // "Failed to render". Project already carries this; Clip now mirrors it.
@@ -572,11 +583,12 @@ model Clip {
   // The source media this clip was cut from. Denormalized from the project so
   // a clip can answer "where did I come from?" without a second hop.
   sourceAssetId         String?
-  sourceAsset           Asset?        @relation("ClipSourceAsset", fields: [sourceAssetId], references: [id], onDelete: SetNull)
+  sourceAsset           Asset?             @relation("ClipSourceAsset", fields: [sourceAssetId], references: [id], onDelete: SetNull)
   // Assets rendered OUT of this clip (the clip's own mp4, editor hand-offs).
-  derivedAssets         Asset[]       @relation("ClipDerivedAssets")
+  derivedAssets         Asset[]            @relation("ClipDerivedAssets")
   dubs                  ClipDub[]
   publishes             ClipPublish[]
+  captionRenders        CaptionRenderJob[]
 
   @@index([projectId])
   @@index([projectId, status])
@@ -614,6 +626,92 @@ model ClipDub {
   createdAt  DateTime @default(now())
 
   @@index([clipId])
+}
+
+// A premium caption render of a Clip through an external provider
+// (lib/captions). Submagic is the first, but nothing here names it: `provider`
+// plus `providerProjectId` is the whole coupling, so swapping in Shotstack,
+// Creatomate or Clipiro's own animated renderer later needs no schema change.
+//
+// Same shape as ClipDub above, for the same reasons — it is the other external,
+// paid, async provider job in this schema and the two share every hazard.
+model CaptionRenderJob {
+  id                   String   @id @default(cuid())
+  clipId               String
+  clip                 Clip     @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  // Who paid, and the credits-ledger refId used at spend time. Populated at
+  // creation so the webhook route and the reconciliation sweep can refund
+  // correctly without the original enqueue payload — neither has it. Nullable
+  // for the same reason ClipDub's are: rows created before a render is charged.
+  userId               String?
+  refId                String?
+  // No projectId column on purpose: it is reachable via clip.project, and a
+  // second copy of an id that already exists one hop away is exactly the
+  // duplicate-source-of-truth problem Clip.liteEdits' comment warns about.
+  provider             String // "submagic" | "native"
+  // The provider's own project id (a UUID for Submagic). Persisted the instant
+  // creation succeeds, so a queue retry detects "already created" instead of
+  // minting — and paying for — a second provider project, and so a webhook or
+  // sweep can find which row a callback belongs to.
+  providerProjectId    String?  @unique
+  // Clipiro's template slug. NEVER a provider template name — that lives in
+  // providerTemplate below, written only for support/debugging.
+  templateId           String
+  providerTemplate     String?
+  language             String   @default("auto")
+  status               String   @default("queued")
+  // queued | submitting | transcribing | ready_to_edit | editing | export_queued
+  // | rendering | downloading | uploading | completed | failed | cancelled
+  // | needs_reconciliation
+  //
+  // needs_reconciliation is deliberately NOT terminal: it means a paid call
+  // failed without telling us whether it took effect, so the sweep must ask the
+  // provider before anything is allowed to spend again. See
+  // lib/captions/providers/submagic/SubmagicErrors.ts.
+  //
+  // Validated against CAPTION_RENDER_STATUSES in lib/captions/types.ts, not a
+  // DB enum — this schema keeps small closed string sets as TEXT with
+  // app-level validation (there is exactly one enum in this file, Role).
+  //
+  // Bumped every time the user edits captions; part of the idempotency key, so
+  // an edit legitimately permits a new paid render but a double-click does not.
+  captionRevision      Int      @default(0)
+  captionPositionX     Float?
+  captionPositionY     Float?
+  hookEnabled          Boolean  @default(false)
+  hook                 Json? // { enabled, text, style, position, size } — text is Clipiro-generated
+  sourceDurationSec    Float?
+  estimatedCredits     Int?
+  actualCredits        Int?
+  // Provider-reported billable seconds. Providers round short clips up to a
+  // whole billable minute, so this is NOT the clip duration and the two are
+  // tracked separately (§24/§25).
+  providerBillableSec  Int?
+  // Real provider cost in micro-USD (1_000_000 = $1). An integer because this
+  // schema stores money in minor units (mrrInPaise, priceInPaise) and has no
+  // Decimal column anywhere; float dollars would drift under aggregation.
+  providerCostMicroUsd Int?
+  requestPayload       Json? // what we sent, minus credentials
+  providerResponse     Json? // last raw response, for support. Never returned to a client.
+  failureCode          String?
+  failureMessage       String?
+  retryCount           Int      @default(0)
+  // sha256 over the stable render inputs (clip, revision, template, language,
+  // position, hook, export settings). Unique, so a double-clicked Export can't
+  // become two paid provider projects (§21).
+  idempotencyKey       String?  @unique
+  // The Clipiro Asset holding the finished MP4. Once set, this — not any
+  // provider URL — is what the editor and download flows serve (§28).
+  outputAssetId        String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([clipId])
+  @@index([userId, status])
+  // The reconciliation sweep scans non-terminal rows by age.
+  @@index([status, updatedAt])
+  // Admin spend/latency charts bucket by day.
+  @@index([createdAt])
 }
 
 // A publish record linking a Clip to a connected SocialAccount. Actually
@@ -1296,6 +1394,16 @@ model BrandKit {
   alignment      Int?
   animated       Boolean?
   logoUrl        String?
+  // The caption template this kit represents — a Clipiro slug, so a saved brand
+  // style can carry a PREMIUM (provider-rendered) look, not just the ASS field
+  // values below. Without this a brand kit could only ever describe the native
+  // renderer's vocabulary.
+  captionTemplateId String?
+  // Seam for provider-specific presets / custom themes (§35). Nothing writes it
+  // yet; it exists so adding Submagic custom themes — or another provider's
+  // preset concept — does not need a migration and does not tempt anyone to
+  // overload captionTemplateId with two meanings.
+  providerPresetId  String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

@@ -32,12 +32,17 @@ const ALLOWLIST = {
   // models had their fal costs confirmed in the 2026-08 audit (per-resolution
   // rates now in resolutionCredits), so their markers were removed.
   "lib/models/videoModels.ts": 1,
-  // Two markers, both mitigated the same way — costUsd unknown, so the tool is
-  // route-gated pro+ where the credit revenue absorbs the uncertainty:
+  // Three markers, all mitigated the same way — costUsd unknown, so the tool is
+  // tier-gated where the credit revenue absorbs the uncertainty:
   //   1. subtitle-remover (per-frame OCR cost unconfirmed)
   //   2. clip-dub (ElevenLabs Dubbing per-minute rate unconfirmed)
+  //   3. caption-render (Submagic per-minute rate is not published, and the
+  //      billable act — creating a project — cannot be probed for free, so it
+  //      needs a real invoice to confirm. Gated creator+ and priced per
+  //      billable MINUTE rather than per render, because providers in this
+  //      category round a partial minute up to a whole one.)
   // face-swap is also costUsd:null + gated, but carries no marker.
-  "lib/tool-costs.ts": 2,
+  "lib/tool-costs.ts": 3,
 };
 
 let failed = false;

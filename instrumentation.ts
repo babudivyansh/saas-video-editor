@@ -49,6 +49,9 @@ export async function register() {
   const { assetModerationJob } = await import("./lib/asset-moderation");
   const { assetZipJob } = await import("./lib/asset-zip");
   const { accountExportJob } = await import("./lib/account-export");
+  const {
+    submitCaptionRenderJob, syncCaptionRenderJob, exportCaptionRenderJob, downloadCaptionRenderJob,
+  } = await import("./lib/caption-render-job");
 
   createRenderQueue("editor-render", editorRenderJob);
   createRenderQueue("auto-clip-pick", pickJob);
@@ -56,6 +59,13 @@ export async function register() {
   createRenderQueue("auto-clip-rerender", rerenderJob);
   createRenderQueue("auto-clip-dub", startDubJob);
   createRenderQueue("auto-clip-dub-finish", finishDubJob);
+  // Premium caption rendering (lib/caption-render-job.ts). Four hand-chained
+  // queues rather than one, because a worker must never block waiting on the
+  // provider — see that file's header.
+  createRenderQueue("caption-render-submit", submitCaptionRenderJob);
+  createRenderQueue("caption-render-sync", syncCaptionRenderJob);
+  createRenderQueue("caption-render-export", exportCaptionRenderJob);
+  createRenderQueue("caption-render-download", downloadCaptionRenderJob);
   createRenderQueue("asset-moderation", assetModerationJob);
   createRenderQueue("asset-zip", assetZipJob);
   createRenderQueue("account-export", accountExportJob);

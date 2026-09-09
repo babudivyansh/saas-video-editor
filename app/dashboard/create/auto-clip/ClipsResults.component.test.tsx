@@ -14,7 +14,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ClipsResults, autoClipPollIntervalMs, type ClipItem, type ProjectMeta } from "./page";
 
-// A pending_review project never "settles" (matches the original,
+// A queued/rendering project never "settles" (matches the original,
 // unchanged shouldPoll semantics — this refactor preserves that, not
 // something to fix here), so every render below polls on a real 2.5s
 // interval unless explicitly torn down. Without an unmount + a cleared
@@ -48,7 +48,7 @@ vi.mock("@/app/components/reviews/ReviewPromptProvider", () => ({
 function makeClip(overrides: Partial<ClipItem> = {}): ClipItem {
   return {
     id: "clip-1", index: 0, title: "Clip", startSec: 0, endSec: 10, durationSec: 10,
-    aspectRatio: "9:16", score: 80, scoreBreakdown: null, mood: null, status: "pending_review",
+    aspectRatio: "9:16", score: 80, scoreBreakdown: null, mood: null, status: "queued",
     progress: 0, videoUrl: null, thumbnailUrl: null, hasCaptions: true, captionStyleIndex: 0,
     brollQuery: null, subtitleStyleOverride: null, silenceSettings: null, liteEdits: null,
     audioPeaks: null, rerenderCount: 0,
@@ -57,7 +57,7 @@ function makeClip(overrides: Partial<ClipItem> = {}): ClipItem {
 }
 
 function makeProject(overrides: Partial<ProjectMeta> = {}): ProjectMeta {
-  return { status: "pending_review", warnings: null, failureReason: null, captionStyleIndex: null, uploadedVideoUrl: null, ...overrides };
+  return { status: "queued", warnings: null, failureReason: null, captionStyleIndex: null, uploadedVideoUrl: null, ...overrides };
 }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -102,105 +102,11 @@ describe("autoClipPollIntervalMs — the polling stop condition", () => {
   });
 });
 
-describe("ClipsResults — pending_review flow", () => {
-  let fetchMock: ReturnType<typeof vi.fn>;
-
-  // pending_review never "settles" (see the file header), so clipsQuery's
-  // real 2.5s refetchInterval keeps running for as long as the component is
-  // mounted. Do NOT globally speed up setTimeout to compensate (tried once —
-  // it also hijacks React Query's own interval scheduling, turning a 2.5s
-  // poll into a ~5ms one and triggering a genuine runaway-refetch OOM, which
-  // is worse than the problem it was meant to fix). The 300ms estimate
-  // debounce is comfortably inside RTL's default 1000ms waitFor/findBy
-  // timeout, and unmounting between tests (below) stops the interval before
-  // it can fire more than once or twice per test.
-  beforeEach(() => {
-    vi.clearAllMocks();
-    fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
-      const method = init?.method ?? "GET";
-      if (url.includes("/clips/estimate") && method === "POST") {
-        return jsonResponse({ clipCount: 1, totalDurationSec: 10, gross: 1, analysisCredit: 0, total: 1, balance: 10, sufficient: true });
-      }
-      if (url.includes("/clips/confirm") && method === "POST") {
-        return jsonResponse({ ok: true });
-      }
-      if (url.endsWith("/clips") && method === "GET") {
-        return jsonResponse({ project: makeProject(), clips: [makeClip()] });
-      }
-      return jsonResponse({}, 404);
-    });
-    vi.stubGlobal("fetch", fetchMock);
-  });
-
-  function renderPendingReview() {
-    return renderWithClient(
-      <ClipsResults projectId="proj-1" status="rendering" error={null} expectedCount={1} fileName="video.mp4" onReset={vi.fn()} />,
-    );
-  }
-
-  it("fetches the project's clips on mount", async () => {
-    renderPendingReview();
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/projects/proj-1/clips"), expect.anything()));
-  });
-
-  it("requests an estimate for the seeded review edits, debounced", async () => {
-    renderPendingReview();
-    await screen.findByRole("button", { name: /Confirm & render/ });
-
-    await waitFor(
-      () => expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/clips/estimate"))).toBe(true),
-    );
-    const [, init] = fetchMock.mock.calls.find((c) => String(c[0]).includes("/clips/estimate"))!;
-    const body = JSON.parse((init as RequestInit).body as string);
-    expect(body.clips).toEqual([{ id: "clip-1", keep: true, startSec: 0, endSec: 10, aspectRatio: "9:16" }]);
-  });
-
-  it("confirms rendering and refetches the clip list on success", async () => {
-    renderPendingReview();
-    const confirmBtn = await screen.findByRole("button", { name: /Confirm & render/ });
-
-    const clipsCallsBefore = fetchMock.mock.calls.filter((c) => String(c[0]).endsWith("/clips") && (c[1] as RequestInit)?.method !== "POST").length;
-
-    await userEvent.click(confirmBtn);
-
-    await waitFor(() => expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/clips/confirm"))).toBe(true));
-    await waitFor(() => {
-      const clipsCallsAfter = fetchMock.mock.calls.filter((c) => String(c[0]).endsWith("/clips") && (c[1] as RequestInit)?.method !== "POST").length;
-      expect(clipsCallsAfter).toBeGreaterThan(clipsCallsBefore);
-    });
-  });
-
-  it("opens the insufficient-credits modal on a 402, without showing the generic error text", async () => {
-    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
-      const method = init?.method ?? "GET";
-      if (url.includes("/clips/estimate")) return jsonResponse({ clipCount: 1, totalDurationSec: 10, gross: 1, analysisCredit: 0, total: 1, balance: 10, sufficient: true });
-      if (url.includes("/clips/confirm")) return jsonResponse({ error: "Insufficient credits", required: 5, balance: 1 }, 402);
-      if (url.endsWith("/clips") && method === "GET") return jsonResponse({ project: makeProject(), clips: [makeClip()] });
-      return jsonResponse({}, 404);
-    });
-
-    renderPendingReview();
-    const confirmBtn = await screen.findByRole("button", { name: /Confirm & render/ });
-    await userEvent.click(confirmBtn);
-
-    await waitFor(() => expect(openCreditModal).toHaveBeenCalledWith({ required: 5, balance: 1, action: "Auto Clips" }));
-    expect(screen.queryByText("Failed to confirm")).not.toBeInTheDocument();
-  });
-
-  it("shows the generic error text for a non-402 confirm failure", async () => {
-    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
-      const method = init?.method ?? "GET";
-      if (url.includes("/clips/estimate")) return jsonResponse({ clipCount: 1, totalDurationSec: 10, gross: 1, analysisCredit: 0, total: 1, balance: 10, sufficient: true });
-      if (url.includes("/clips/confirm")) return jsonResponse({ error: "Render queue is down" }, 500);
-      if (url.endsWith("/clips") && method === "GET") return jsonResponse({ project: makeProject(), clips: [makeClip()] });
-      return jsonResponse({}, 404);
-    });
-
-    renderPendingReview();
-    const confirmBtn = await screen.findByRole("button", { name: /Confirm & render/ });
-    await userEvent.click(confirmBtn);
-
-    expect(await screen.findByText("Render queue is down")).toBeInTheDocument();
-    expect(openCreditModal).not.toHaveBeenCalled();
-  });
-});
+// The 'ClipsResults — pending_review flow' suite lived here: estimate debounce,
+// confirm-and-refetch, and the 402 -> insufficient-credits modal. The review
+// step it exercised no longer exists — a run is priced and charged at Generate
+// and renders straight through — so those tests were removed with it.
+//
+// The 402 case did NOT just disappear: it was the only coverage of AutoClip's
+// insufficient-credits response, and it moved to the create route, which is
+// where the charge now happens. See app/api/generate/auto-clip/route.test.ts.

@@ -1,5 +1,5 @@
 export const STATUS_LABEL: Record<string, string> = {
-  draft: "Draft", analyzing: "Analyzing", pending_review: "Awaiting review",
+  draft: "Draft", analyzing: "Analyzing",
   rendering: "Rendering", completed: "Completed", failed: "Failed",
 };
 

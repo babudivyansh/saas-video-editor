@@ -782,7 +782,15 @@ export function styleIndexToSubtitleStyle(index: number, mode: "oneword" | "line
     { fontName: "Arial", fontSize: 70, highlightColor: P, baseColor: P },
   ];
   const arr = mode === "lines" ? lines : oneWord;
-  return arr[Math.min(index, arr.length - 1)];
+  // Clamp BOTH ends. This only clamped the high side, so the -1 "captions off"
+  // sentinel that PickPayload documents returned `arr[-1]` — i.e. undefined,
+  // against a signature that promises a SubtitleStyle. Callers spread the
+  // result into generateASS, so that surfaced as a caption track with no font
+  // rather than an error. Unreachable today only because every caller happens
+  // to pass `?? 0` and -1 is stored as null; that is a coincidence, not a
+  // guarantee, and NaN from an unvalidated API field would do the same.
+  const safe = Number.isFinite(index) ? Math.max(0, Math.min(index, arr.length - 1)) : 0;
+  return arr[safe];
 }
 
 // ── Style-index → DrawtextOptions (for streamer video) ──────────────────────

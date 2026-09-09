@@ -415,7 +415,10 @@ export const auditQuerySchema = z.object({
 export const metricsQuerySchema = z.object({
   section: z.enum([
     "kpis", "revenue", "ai", "social", "infra", "growth", "overview", "top", "activity",
-    "lifecycle", "credits", "pipeline", "acquisition",
+    // Keep in sync with MetricsSection in lib/admin/metrics.ts — the two lists
+    // are separate and a section missing from either one silently 400s or
+    // never renders.
+    "lifecycle", "credits", "pipeline", "acquisition", "captions",
   ]),
   range: z.coerce.number().pipe(z.union([z.literal(7), z.literal(30), z.literal(90), z.literal(365)])).default(30),
   compare: z.coerce.boolean().default(false),
