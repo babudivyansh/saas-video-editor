@@ -353,7 +353,8 @@ export interface RenderOptions {
   bgVideoPath: string;   // local file or s3 presigned url
   voiceAudioPath: string;
   musicAudioPath?: string;
-  assPath: string;
+  /** Omit to render WITHOUT captions — see SplitScreenOptions.assPath. */
+  assPath?: string;
   outputPath: string;
 }
 
@@ -362,7 +363,8 @@ export function runFFmpeg(opts: RenderOptions, timeoutMs = DEFAULT_FFMPEG_TIMEOU
     const { bgVideoPath, voiceAudioPath, musicAudioPath, assPath, outputPath } = opts;
 
     // Escape the ass path for the subtitles filter (forward slashes, escape colons on Windows)
-    const assEscaped = assPath.replace(/\\/g, "/").replace(/:/g, "\\:");
+    const assEscaped = assPath ? assPath.replace(/\\/g, "/").replace(/:/g, "\\:") : null;
+    const subs = assEscaped ? `,subtitles='${assEscaped}'` : "";
 
     let args: string[];
 
@@ -373,7 +375,7 @@ export function runFFmpeg(opts: RenderOptions, timeoutMs = DEFAULT_FFMPEG_TIMEOU
         "-i", voiceAudioPath,
         "-i", musicAudioPath,
         "-filter_complex",
-        `[2:a]volume=0.12[bgm];[1:a][bgm]amix=inputs=2:duration=first[audio];[0:v]crop=in_h*9/16:in_h,subtitles='${assEscaped}'[video]`,
+        `[2:a]volume=0.12[bgm];[1:a][bgm]amix=inputs=2:duration=first[audio];[0:v]crop=in_h*9/16:in_h${subs}[video]`,
         "-map", "[video]",
         "-map", "[audio]",
         ...encodeArgs(),
@@ -386,7 +388,7 @@ export function runFFmpeg(opts: RenderOptions, timeoutMs = DEFAULT_FFMPEG_TIMEOU
         "-stream_loop", "-1", "-i", bgVideoPath,
         "-i", voiceAudioPath,
         "-filter_complex",
-        `[0:v]crop=in_h*9/16:in_h,subtitles='${assEscaped}'[video]`,
+        `[0:v]crop=in_h*9/16:in_h${subs}[video]`,
         "-map", "[video]",
         "-map", "1:a",
         ...encodeArgs(),
@@ -633,13 +635,20 @@ export function analyzeAudio(filePath: string, timeoutMs = 60_000): Promise<Audi
 export interface SplitScreenOptions {
   userVideoPath: string;
   bgVideoPath: string;
-  assPath: string;
+  /**
+   * Omit to composite WITHOUT captions.
+   *
+   * A premium caption template hands the finished file to a provider, which
+   * adds its own captions — so exactly one of the two may burn them, or the
+   * export carries two caption tracks forever.
+   */
+  assPath?: string;
   outputPath: string;
 }
 
 export function runSplitScreenFFmpeg(opts: SplitScreenOptions): Promise<void> {
   const { userVideoPath, bgVideoPath, assPath, outputPath } = opts;
-  const assEscaped = assPath.replace(/\\/g, "/").replace(/:/g, "\\:");
+  const assEscaped = assPath ? assPath.replace(/\\/g, "/").replace(/:/g, "\\:") : null;
   return runFFmpegArgs([
     "-y",
     "-i", userVideoPath,
@@ -651,7 +660,7 @@ export function runSplitScreenFFmpeg(opts: SplitScreenOptions): Promise<void> {
     // infinitely -stream_loop'd background drives the output forever, duplicating
     // the user's last frame and producing a runaway file that never completes.
     `[top][bot]vstack=inputs=2:shortest=1[stacked];` +
-    `[stacked]subtitles='${assEscaped}'[video];` +
+    (assEscaped ? `[stacked]subtitles='${assEscaped}'[video];` : `[stacked]null[video];`) +
     `[0:a]aformat=sample_rates=44100:channel_layouts=stereo[audio]`,
     "-map", "[video]",
     "-map", "[audio]",

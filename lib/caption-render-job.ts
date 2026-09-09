@@ -37,7 +37,7 @@ import { createRenderQueue, NonRetryableError } from "@/lib/render-queue";
 import { getUserTier } from "@/lib/auth";
 import { tierPriority } from "@/lib/plans/tiers";
 import { downloadFile } from "@/utils/download";
-import { uploadFileToS3, getAssetReadUrl, s3KeyToPublicUrl } from "@/utils/s3-upload";
+import { uploadFileToS3, getAssetReadUrl } from "@/utils/s3-upload";
 import { s3KeyFromStoredUrl } from "@/lib/source-url";
 import { adoptExistingS3Object } from "@/lib/asset-service";
 import { getMediaDurationSec } from "@/utils/ffmpeg-render";
@@ -50,7 +50,6 @@ import {
 } from "@/lib/captions/CaptionRendererFactory";
 import {
   buildIdempotencyKey,
-  captionRenderRefId,
   estimateCaptionRenderCredits,
   getCaptionRenderPricing,
   hookRevisionOf,
@@ -60,8 +59,14 @@ import { fromWordTimings, mergeProviderWords, toWordTimings } from "@/lib/captio
 import { timeStage } from "@/lib/pipeline-metrics";
 import { userMessageFor, SubmagicError } from "@/lib/captions/providers/submagic/SubmagicErrors";
 import { DEFAULT_CAPTION_EXPORT, type CaptionHook, type CaptionRenderStatus } from "@/lib/captions/types";
-import type { WordTiming } from "@/utils/elevenlabs";
 import type { CaptionRenderJob, Prisma } from "@prisma/client";
+import {
+  resolveRenderSource,
+  applyRenderResult,
+  adoptTranscript,
+  renderRefId,
+  type RenderOwnerRef,
+} from "@/lib/captions/renderSource";
 
 /** Ceiling on a provider's returned MP4. Well above a 5-minute 1080x1920 clip. */
 const MAX_OUTPUT_BYTES = 500 * 1024 * 1024;
@@ -101,9 +106,14 @@ export const captionDownloadQueue = createRenderQueue<CaptionRenderPayload>(
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function payloadFor(job: CaptionRenderJob & { clip: { projectId: string } }): CaptionRenderPayload {
+/**
+ * The queue payload. projectId is required by createRenderQueue's type
+ * constraint, and is the one field that differs by owner: a clip-owned job
+ * reaches it through the clip, a project-owned one already has it.
+ */
+function payloadFor(job: CaptionRenderJob & { clip?: { projectId: string } | null }): CaptionRenderPayload {
   return {
-    projectId: job.clip.projectId,
+    projectId: job.clip?.projectId ?? job.projectId ?? "",
     jobId: job.id,
     userId: job.userId ?? "",
     refId: job.refId ?? "",
@@ -112,6 +122,19 @@ function payloadFor(job: CaptionRenderJob & { clip: { projectId: string } }): Ca
 
 async function loadJob(jobId: string) {
   return prisma.captionRenderJob.findUnique({ where: { id: jobId }, include: { clip: true } });
+}
+
+/**
+ * Loads a job together with what it is rendering.
+ *
+ * Every worker step needs both, and none of them may reach through `job.clip`
+ * any more — that relation is null for the project-owned products.
+ */
+async function loadJobWithSource(jobId: string) {
+  const job = await loadJob(jobId);
+  if (!job) return null;
+  const source = await resolveRenderSource(job);
+  return source ? { job, source } : null;
 }
 
 async function setStatus(jobId: string, status: CaptionRenderStatus, data: Prisma.CaptionRenderJobUpdateInput = {}) {
@@ -151,7 +174,15 @@ export async function failCaptionRender(
 // ── 1. Request ──────────────────────────────────────────────────────────────
 
 export interface RequestCaptionRenderInput {
-  clipId: string;
+  /** AutoClip's owner. Exactly one of clipId / projectId. */
+  clipId?: string;
+  /**
+   * The finished video of a reddit-video / split-screen / streamer-video
+   * project, which has no Clip row at all.
+   */
+  projectId?: string;
+  /** Duration of the source, for pricing. Read from the owner when omitted. */
+  durationSec?: number;
   userId: string;
   templateId: string;
   language?: string;
@@ -175,17 +206,24 @@ export type RequestCaptionRenderResult =
 export async function requestCaptionRender(
   input: RequestCaptionRenderInput,
 ): Promise<RequestCaptionRenderResult> {
-  const clip = await prisma.clip.findFirst({
-    where: { id: input.clipId, project: { userId: input.userId } },
-    include: { project: true },
-  });
-  if (!clip) return { ok: false, reason: "not_found" };
-  // Submagic captions a FINISHED video, so there has to be one.
-  if (clip.status !== "ready" || !clip.videoUrl) return { ok: false, reason: "clip_not_ready" };
+  // The USER is the WHERE clause, not something checked after the fact — this
+  // is the single ownership gate, for either owner kind.
+  const source = await resolveRenderSource(
+    { id: "", clipId: input.clipId ?? null, projectId: input.projectId ?? null, userId: input.userId },
+    { userId: input.userId },
+  );
+  if (!source) return { ok: false, reason: "not_found" };
+  // A provider captions a FINISHED video, so there has to be one.
+  if (!source.ready) return { ok: false, reason: "clip_not_ready" };
+
+  // A Clip knows its own duration; a Project stores none, so those products
+  // probe it and pass it in. Pricing depends on it, so a missing duration must
+  // not silently become a zero-cost render.
+  const durationSec = input.durationSec ?? source.durationSec;
 
   const template = await resolveCaptionTemplate(input.templateId);
   const tier = await getUserTier(input.userId);
-  const decision = await getCaptionRenderer(template, { tier, clipDurationSec: clip.durationSec });
+  const decision = await getCaptionRenderer(template, { tier, clipDurationSec: durationSec });
 
   if (!decision.renderer.paid) {
     return { ok: false, reason: "native", fallbackReason: decision.fallbackReason ?? "native template" };
@@ -197,10 +235,13 @@ export async function requestCaptionRender(
 
   // The revision an idempotency key is built against. Bumping it is what makes
   // a genuine caption edit eligible for a new paid render.
-  const captionRevision = await currentCaptionRevision(clip.id);
+  const captionRevision = await currentCaptionRevision(source.owner);
 
   const idempotencyKey = buildIdempotencyKey({
-    clipId: clip.id,
+    // Owner-TYPED: a clip and a project could otherwise share an id and hash
+    // to the same key, which is a unique-constraint collision between two
+    // unrelated paid renders.
+    clipId: `${source.owner.type}:${source.owner.id}`,
     captionRevision,
     templateId: input.templateId,
     language,
@@ -218,8 +259,8 @@ export async function requestCaptionRender(
   if (existing) return { ok: true, job: existing, duplicate: true, creditsCharged: 0 };
 
   const pricing = await getCaptionRenderPricing();
-  const creditCost = estimateCaptionRenderCredits(clip.durationSec, pricing);
-  const refId = captionRenderRefId(clip.id, captionRevision);
+  const creditCost = estimateCaptionRenderCredits(durationSec, pricing);
+  const refId = renderRefId(source.owner, captionRevision);
 
   // Charge BEFORE the paid provider call (§24 "do not render first and charge
   // later"). spendCredits is atomic and returns ok:false rather than going
@@ -249,7 +290,9 @@ export async function requestCaptionRender(
   try {
     job = await prisma.captionRenderJob.create({
       data: {
-        clipId: clip.id,
+        // Exactly one owner, decided by the resolver rather than by the caller.
+        clipId: source.owner.type === "clip" ? source.owner.id : null,
+        projectId: source.owner.type === "project" ? source.owner.id : null,
         userId: input.userId,
         refId,
         provider: decision.renderer.id,
@@ -262,7 +305,7 @@ export async function requestCaptionRender(
         captionPositionY: input.position?.y ?? null,
         hookEnabled: Boolean(hook?.enabled),
         hook: hook ? (hook as unknown as Prisma.InputJsonValue) : undefined,
-        sourceDurationSec: clip.durationSec,
+        sourceDurationSec: durationSec,
         estimatedCredits: creditCost,
         idempotencyKey,
       },
@@ -279,7 +322,7 @@ export async function requestCaptionRender(
   try {
     await captionSubmitQueue.enqueue(
       job.id,
-      { projectId: clip.projectId, jobId: job.id, userId: input.userId, refId },
+      { projectId: source.projectId, jobId: job.id, userId: input.userId, refId },
       // rejectOnFailure because credits are already spent at this point — a
       // silently-dropped enqueue would charge the user for a render that never
       // starts. The catch below refunds.
@@ -295,13 +338,23 @@ export async function requestCaptionRender(
 }
 
 /**
- * The clip's current caption revision — how many times its transcript has been
- * edited. Derived from existing jobs rather than stored on Clip so this feature
- * adds no column to the hottest table in the schema.
+ * The owner's current caption revision — how many times its transcript has
+ * been edited.
+ *
+ * For a clip this is derived from existing jobs rather than stored, so the
+ * feature adds no column to the hottest table in the schema. A project has no
+ * job history to read on its first render, so it stores one.
  */
-async function currentCaptionRevision(clipId: string): Promise<number> {
+async function currentCaptionRevision(owner: RenderOwnerRef): Promise<number> {
+  if (owner.type === "project") {
+    const project = await prisma.project.findUnique({
+      where: { id: owner.id },
+      select: { captionRevision: true },
+    });
+    return project?.captionRevision ?? 0;
+  }
   const latest = await prisma.captionRenderJob.findFirst({
-    where: { clipId },
+    where: { clipId: owner.id },
     orderBy: { captionRevision: "desc" },
     select: { captionRevision: true },
   });
@@ -320,14 +373,15 @@ export async function submitCaptionRenderJob(payload: CaptionRenderPayload): Pro
   // ran (a crash between the POST and the write). Never mint a second.
   if (job.providerProjectId) return;
 
-  if (!job.clip.videoUrl) {
-    await failCaptionRender(job, "NO_SOURCE", "This clip has no rendered video to caption.");
+  const source = await resolveRenderSource(job);
+  if (!source?.videoUrl) {
+    await failCaptionRender(job, "NO_SOURCE", "There is no rendered video to caption.");
     return;
   }
 
-  const s3Key = s3KeyFromStoredUrl(job.clip.videoUrl);
+  const s3Key = s3KeyFromStoredUrl(source.videoUrl);
   if (!s3Key) {
-    await failCaptionRender(job, "BAD_SOURCE", "This clip's video could not be located.");
+    await failCaptionRender(job, "BAD_SOURCE", "The source video could not be located.");
     return;
   }
 
@@ -351,11 +405,13 @@ export async function submitCaptionRenderJob(payload: CaptionRenderPayload): Pro
   try {
     const handle = await timeStage("caption-submit", () => renderer.createRender({
       jobId: job.id,
-      clipId: job.clipId,
+      // Correlation metadata only — the provider titles its project with it.
+      // A project-owned render has no clip id to give.
+      clipId: job.clipId ?? job.projectId ?? job.id,
       sourceUrl,
       templateId: job.templateId,
       language: job.language,
-      durationSec: job.sourceDurationSec ?? job.clip.durationSec,
+      durationSec: job.sourceDurationSec ?? source.durationSec,
       ...(job.captionPositionX != null && job.captionPositionY != null
         ? { position: { x: job.captionPositionX, y: job.captionPositionY } }
         : {}),
@@ -459,16 +515,14 @@ export async function syncCaptionRenderJob(payload: CaptionRenderPayload): Promi
   // word structure reconciled against OUR canonical transcript, and park at
   // ready_to_edit. autoRender=false means nothing renders until they say so.
   if (state.status === "ready_to_edit" && job.status !== "ready_to_edit") {
-    const canonical = (job.clip.transcriptJson as unknown as WordTiming[] | null) ?? [];
+    const source = await resolveRenderSource(job);
+    const canonical = source?.transcript ?? [];
     const merged = mergeProviderWords(canonical, state.words ?? []);
 
     // Clipiro's transcript stays canonical (§11). We only ADOPT the provider's
     // transcript when we had none — never overwrite user-corrected words.
     if (canonical.length === 0 && merged.length > 0) {
-      await prisma.clip.update({
-        where: { id: job.clipId },
-        data: { transcriptJson: toWordTimings(merged) as unknown as Prisma.InputJsonValue },
-      });
+      await adoptTranscript(job, toWordTimings(merged));
     }
 
     await setStatus(job.id, "ready_to_edit", {
@@ -498,7 +552,7 @@ export async function syncCaptionRenderJob(payload: CaptionRenderPayload): Promi
  * gets count 0 and does nothing.
  */
 export async function claimAndEnqueueExport(
-  job: CaptionRenderJob & { clip: { projectId: string } },
+  job: CaptionRenderJob & { clip?: { projectId: string } | null },
 ): Promise<boolean> {
   const claimed = await prisma.captionRenderJob.updateMany({
     // Both states are legitimately "waiting for the user to press Export":
@@ -524,7 +578,13 @@ export async function exportCaptionRenderJob(payload: CaptionRenderPayload): Pro
     // Push Clipiro's transcript first — it is canonical, and the user may have
     // edited it since the provider transcribed. Persisted locally long before
     // now, so a failure here costs nothing but the render.
-    const canonical = (job.clip.transcriptJson as unknown as WordTiming[] | null) ?? [];
+    //
+    // This is also what makes a premium reddit-video render an upgrade rather
+    // than a regression: its words come from ElevenLabs alignment of the script
+    // the user actually typed, so they replace the provider's re-transcription
+    // of their own audio — usernames and post titles included.
+    const source = await resolveRenderSource(job);
+    const canonical = source?.transcript ?? [];
     if (canonical.length > 0) {
       await renderer.updateTranscript(job.providerProjectId, fromWordTimings(canonical));
     }
@@ -546,7 +606,7 @@ export async function exportCaptionRenderJob(payload: CaptionRenderPayload): Pro
  * claim is a no-op. This is the mechanism that makes duplicate webhooks free.
  */
 export async function claimAndEnqueueDownload(
-  job: CaptionRenderJob & { clip: { projectId: string } },
+  job: CaptionRenderJob & { clip?: { projectId: string } | null },
 ): Promise<boolean> {
   const claimed = await prisma.captionRenderJob.updateMany({
     where: { id: job.id, status: { in: ["rendering", "export_queued"] } },
@@ -566,12 +626,13 @@ export async function claimAndEnqueueDownload(
  * flows serve the Clipiro URL and nothing depends on the provider staying up.
  */
 export async function downloadCaptionRenderJob(payload: CaptionRenderPayload): Promise<void> {
-  const job = await loadJob(payload.jobId);
-  if (!job?.providerProjectId) return;
+  const loaded = await loadJobWithSource(payload.jobId);
+  if (!loaded?.job.providerProjectId) return;
+  const { job, source } = loaded;
   if (job.status !== "downloading") return;
 
   const renderer = getRendererById(job.provider);
-  const state = await renderer.getRender(job.providerProjectId, { exportRequested: true, current: "downloading" });
+  const state = await renderer.getRender(job.providerProjectId!, { exportRequested: true, current: "downloading" });
   if (!state.outputUrl) {
     // Claimed too early. Put it back so the sweep can retry rather than
     // stranding the job in `downloading` forever.
@@ -606,7 +667,7 @@ export async function downloadCaptionRenderJob(payload: CaptionRenderPayload): P
 
     await setStatus(job.id, "uploading");
 
-    const s3Key = `renders/${job.clip.projectId}/caption-${job.id}.mp4`;
+    const s3Key = `renders/${source.projectId}/caption-${job.id}.mp4`;
     await uploadFileToS3(localPath, s3Key, "video/mp4");
 
     // Probed from the file rather than trusted from the provider — this is what
@@ -621,10 +682,12 @@ export async function downloadCaptionRenderJob(payload: CaptionRenderPayload): P
           userId: job.userId,
           s3Key,
           mimeType: "video/mp4",
-          name: `${job.clip.title ?? "Clip"} (captioned).mp4`.slice(0, 200),
-          sourceFeature: "autoclip",
-          sourceProjectId: job.clip.projectId,
-          sourceClipId: job.clipId,
+          name: `${source.title} (captioned).mp4`.slice(0, 200),
+          // Provenance follows the OWNER: an AutoClip render is still an
+          // autoclip asset, a reddit-video render is a reddit-video one.
+          sourceFeature: source.sourceFeature,
+          sourceProjectId: source.projectId,
+          ...(source.sourceClipId ? { sourceClipId: source.sourceClipId } : {}),
           size: stat.size,
           ...(durationSec ? { duration: durationSec } : {}),
           // Already ours: these are our own frames re-rendered by a provider,
@@ -646,14 +709,18 @@ export async function downloadCaptionRenderJob(payload: CaptionRenderPayload): P
               : billableMinutes(job.sourceDurationSec ?? 0) * 60,
         },
       }),
-      // The clip now points at the captioned render. This is what makes the
-      // editor/download/publish flows serve the Clipiro asset with no changes
-      // of their own.
-      prisma.clip.update({
-        where: { id: job.clipId },
-        data: { videoUrl: s3KeyToPublicUrl(s3Key), hasCaptions: true },
-      }),
     ]);
+
+    // The owner now points at the captioned render — Clip.videoUrl for
+    // AutoClip, Project.videoUrl for the single-video products. This is what
+    // makes the editor / download / publish flows serve the Clipiro asset with
+    // no changes of their own.
+    //
+    // Outside the transaction above because it is a different table per owner
+    // and the job row is already the record of truth: if this write fails the
+    // sweep retries the step, whereas a failed transaction would roll back a
+    // completed, PAID render.
+    await applyRenderResult(job, s3Key);
 
     logger.info("caption-render", `job ${job.id} completed (${job.templateId} via ${job.provider})`);
   } catch (err) {
@@ -673,7 +740,7 @@ export async function downloadCaptionRenderJob(payload: CaptionRenderPayload): P
 }
 
 /** Shared by the webhook and the sweep. Never throws. */
-export async function enqueueSync(job: CaptionRenderJob & { clip: { projectId: string } }): Promise<void> {
+export async function enqueueSync(job: CaptionRenderJob & { clip?: { projectId: string } | null }): Promise<void> {
   await captionSyncQueue
     .enqueue(`${job.id}:sync:${Date.now()}`, payloadFor(job))
     .catch((e) => logger.error("caption-render", `sync enqueue failed for ${job.id}`, e));

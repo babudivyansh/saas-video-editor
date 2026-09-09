@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withApi, parseBody } from "@/lib/api-handler";
 import { prisma } from "@/lib/prisma";
+import { ownedJobWhere } from "@/lib/captions/renderSource";
 import { logger } from "@/lib/logger";
 import { sanitizeCaptionWord } from "@/lib/caption-sanitize";
 import { MAX_CAPTION_WORDS } from "@/lib/captions/words";
@@ -47,7 +48,7 @@ export const PUT = withApi<{ id: string }>(async (req, { auth, params }) => {
   const { transcript } = await parseBody(req, bodySchema);
 
   const job = await prisma.captionRenderJob.findFirst({
-    where: { id: params.id, clip: { project: { userId: auth.userId } } },
+    where: ownedJobWhere(params.id, auth.userId),
     include: { clip: true },
   });
   if (!job) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -70,10 +71,21 @@ export const PUT = withApi<{ id: string }>(async (req, { auth, params }) => {
   }));
 
   const updated = await prisma.$transaction(async (tx) => {
-    await tx.clip.update({
-      where: { id: job.clipId },
-      data: { transcriptJson: words as unknown as Prisma.InputJsonValue },
-    });
+    // The transcript lives on whichever owner the job has: Clip.transcriptJson
+    // for AutoClip, Project.captionsJson for the single-video products. Both
+    // are Clipiro's canonical copy — the thing pushed to the provider before a
+    // paid export — so the edit has to land on the right one.
+    const value = words as unknown as Prisma.InputJsonValue;
+    if (job.clipId) {
+      await tx.clip.update({ where: { id: job.clipId }, data: { transcriptJson: value } });
+    } else if (job.projectId) {
+      await tx.project.update({
+        where: { id: job.projectId },
+        // captionRevision is stored for a project (a clip derives it from its
+        // job history), and bumping it is what makes a re-render billable.
+        data: { captionsJson: value, captionRevision: { increment: 1 } },
+      });
+    }
     return tx.captionRenderJob.update({
       where: { id: job.id },
       data: {

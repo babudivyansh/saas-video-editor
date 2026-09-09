@@ -33,6 +33,7 @@ vi.mock("@/utils/ffmpeg-render", () => ({
   runSplitScreenFFmpeg,
   extractAudio: vi.fn(async () => {}),
   generateASS: vi.fn(() => {}),
+  getMediaDurationSec: vi.fn(async () => 42),
   styleIndexToSubtitleStyle: vi.fn(() => ({})),
 }));
 vi.mock("@/lib/transcription", () => ({ transcribe: vi.fn(async () => []) }));

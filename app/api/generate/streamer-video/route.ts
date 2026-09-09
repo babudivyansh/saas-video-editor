@@ -3,11 +3,12 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { spendCredits, restoreSpend } from "@/lib/credits";
-import { runStreamerFFmpeg, styleIndexToDrawtext, extractAudio, generateASS } from "@/utils/ffmpeg-render";
+import { runStreamerFFmpeg, styleIndexToDrawtext, extractAudio, generateASS, getMediaDurationSec } from "@/utils/ffmpeg-render";
 import { transcribe } from "@/lib/transcription";
 import { WordTiming } from "@/utils/elevenlabs";
 import { resolveSurfaceCaptionStyle } from "@/lib/captions/surfaceStyle";
 import { resolveCaptionCreateInput } from "@/lib/captions/createPayload";
+import { planSurfaceCaptions, requestSurfaceCaptionRender } from "@/lib/captions/surfaceRender";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { downloadFile } from "@/utils/download";
 import { InProcessQueue } from "@/lib/job-queue";
@@ -84,22 +85,48 @@ async function renderJob(payload: StreamerPayload): Promise<void> {
       logger.warn("streamer-video", "transcription failed, rendering without captions", err);
     }
 
-    let subsPath: string | undefined;
-    if (wordTimings.length > 0) {
-      const style = resolveSurfaceCaptionStyle({
-        templateId: captionTemplateId,
-        mode: captionMode ?? "oneword",
-        words: wordTimings,
-      });
-      generateASS(wordTimings, style, assPath);
-      subsPath = assPath;
-    }
+    const durationSec = await getMediaDurationSec(userPath).catch(() => 0);
+    // A premium template means a provider captions the finished file, so this
+    // pass must not burn captions as well. The TITLE drawtext is unaffected —
+    // it is ours either way, and the provider only adds caption text.
+    const plan = wordTimings.length > 0
+      ? await planSurfaceCaptions({ projectId, userId: project.userId, templateId: captionTemplateId, durationSec })
+      : { defer: false };
 
     const drawtextOpts = styleIndexToDrawtext(subtitleStyleIndex);
-    await runStreamerFFmpeg({ userVideoPath: userPath, titleText, drawtextOpts, assPath: subsPath, outputPath: outPath });
+    const compose = async (burnSubs: boolean) => {
+      let subsPath: string | undefined;
+      if (burnSubs && wordTimings.length > 0) {
+        const style = resolveSurfaceCaptionStyle({
+          templateId: captionTemplateId,
+          mode: captionMode ?? "oneword",
+          words: wordTimings,
+        });
+        generateASS(wordTimings, style, assPath);
+        subsPath = assPath;
+      }
+      await runStreamerFFmpeg({ userVideoPath: userPath, titleText, drawtextOpts, assPath: subsPath, outputPath: outPath });
+    };
+
+    await compose(!plan.defer);
 
     const s3Key = `renders/${projectId}.mp4`;
-    const videoUrl = await uploadFileToS3(outPath, s3Key, "video/mp4");
+    let videoUrl = await uploadFileToS3(outPath, s3Key, "video/mp4");
+
+    if (plan.defer && captionTemplateId) {
+      const outcome = await requestSurfaceCaptionRender({
+        projectId,
+        userId: project.userId,
+        templateId: captionTemplateId,
+        durationSec,
+        words: wordTimings,
+      });
+      if (!outcome.submitted) {
+        logger.warn("streamer-video", `provider declined (${outcome.reason}) — burning captions locally for ${projectId}`);
+        await compose(true);
+        videoUrl = await uploadFileToS3(outPath, s3Key, "video/mp4");
+      }
+    }
 
     await prisma.project.update({ where: { id: projectId }, data: { status: "completed", videoUrl } });
   } catch (err) {

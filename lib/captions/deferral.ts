@@ -19,7 +19,14 @@ import { getCaptionTemplate, isProviderTemplate } from "@/lib/caption-templates"
 import { getCaptionRenderer } from "./CaptionRendererFactory";
 
 export interface DeferralContext {
-  clipId: string;
+  /**
+   * The owner a provider render would belong to — a clip for AutoClip, a
+   * project for the single-video products. It is also the key the "already
+   * failed once" check counts against, so a failed reddit-video render stops
+   * deferring THAT project and not some unrelated clip.
+   */
+  clipId?: string;
+  projectId?: string;
   /** From Clip.subtitleStyleOverride.templateId. */
   templateId: string | undefined;
   tier?: string;
@@ -37,6 +44,7 @@ export interface DeferralContext {
 export async function shouldDeferCaptionsToProvider(ctx: DeferralContext): Promise<boolean> {
   try {
     if (!ctx.templateId) return false;
+    if (!ctx.clipId && !ctx.projectId) return false;
 
     const template = getCaptionTemplate(ctx.templateId);
     if (!template || !isProviderTemplate(template)) return false;
@@ -50,10 +58,11 @@ export async function shouldDeferCaptionsToProvider(ctx: DeferralContext): Promi
     });
     if (!decision.renderer.paid) return false;
 
-    // A provider render for this clip already failed. Don't defer again, or the
-    // clip stays uncaptioned forever: this re-render IS the fallback.
+    // A provider render for this owner already failed. Don't defer again, or
+    // the video stays uncaptioned forever: this render IS the fallback.
+    const owner = ctx.clipId ? { clipId: ctx.clipId } : { projectId: ctx.projectId };
     const failed = await prisma.captionRenderJob.count({
-      where: { clipId: ctx.clipId, status: "failed" },
+      where: { ...owner, status: "failed" },
     });
     if (failed > 0) return false;
 

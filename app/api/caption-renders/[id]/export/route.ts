@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { withApi } from "@/lib/api-handler";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { prisma } from "@/lib/prisma";
+import { ownedJobWhere } from "@/lib/captions/renderSource";
 import { claimAndEnqueueExport } from "@/lib/caption-render-job";
 import { serializeCaptionRenderJob } from "@/lib/captions/serialize";
 
@@ -19,7 +20,7 @@ import { serializeCaptionRenderJob } from "@/lib/captions/serialize";
  */
 const handler = withApi<{ id: string }>(async (_req, { auth, params }) => {
   const job = await prisma.captionRenderJob.findFirst({
-    where: { id: params.id, clip: { project: { userId: auth.userId } } },
+    where: ownedJobWhere(params.id, auth.userId),
     include: { clip: true },
   });
   if (!job) return NextResponse.json({ error: "Not found" }, { status: 404 });

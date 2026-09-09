@@ -26,7 +26,10 @@ import type { CaptionRenderJob } from "@prisma/client";
 
 export interface SerializedCaptionRenderJob {
   id: string;
-  clipId: string;
+  /** Null when the render belongs to a whole project rather than a clip. */
+  clipId: string | null;
+  /** Set instead of clipId for the single-video products. */
+  projectId: string | null;
   status: string;
   templateId: string;
   language: string;
@@ -45,7 +48,8 @@ export interface SerializedCaptionRenderJob {
 export function serializeCaptionRenderJob(job: CaptionRenderJob): SerializedCaptionRenderJob {
   return {
     id: job.id,
-    clipId: job.clipId,
+    clipId: job.clipId ?? null,
+    projectId: job.projectId ?? null,
     status: job.status,
     templateId: job.templateId,
     language: job.language,

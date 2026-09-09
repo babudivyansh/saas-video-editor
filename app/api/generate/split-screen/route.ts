@@ -23,6 +23,8 @@ import { freshSourceUrl } from "@/lib/source-url";
 import { classifyProjectRenderFailure } from "@/lib/project-render-failure";
 import { resolveSurfaceCaptionStyle } from "@/lib/captions/surfaceStyle";
 import { resolveCaptionCreateInput } from "@/lib/captions/createPayload";
+import { planSurfaceCaptions, requestSurfaceCaptionRender } from "@/lib/captions/surfaceRender";
+import { getMediaDurationSec } from "@/utils/ffmpeg-render";
 
 export const maxDuration = 300;
 
@@ -105,12 +107,50 @@ async function renderJob(payload: SplitScreenPayload): Promise<void> {
       mode,
       words: wordTimings,
     });
-    generateASS(wordTimings, subtitleStyle, assPath);
 
-    await runSplitScreenFFmpeg({ userVideoPath: userPath, bgVideoPath: bgPath, assPath, outputPath: outPath });
+    // A premium template means a provider captions the finished file, so this
+    // pass has to produce a CLEAN one — burning them here as well would stack
+    // two caption tracks into the export, permanently.
+    const durationSec = await getMediaDurationSec(userPath).catch(() => 0);
+    const plan = await planSurfaceCaptions({
+      projectId,
+      userId: project.userId,
+      templateId: captionTemplateId,
+      durationSec,
+    });
+
+    const burnLocally = async () => {
+      generateASS(wordTimings, subtitleStyle, assPath);
+      await runSplitScreenFFmpeg({ userVideoPath: userPath, bgVideoPath: bgPath, assPath, outputPath: outPath });
+    };
+
+    if (plan.defer) {
+      await runSplitScreenFFmpeg({ userVideoPath: userPath, bgVideoPath: bgPath, outputPath: outPath });
+    } else {
+      await burnLocally();
+    }
 
     const s3Key = `renders/${projectId}.mp4`;
-    const videoUrl = await uploadFileToS3(outPath, s3Key, "video/mp4");
+    let videoUrl = await uploadFileToS3(outPath, s3Key, "video/mp4");
+
+    if (plan.defer && captionTemplateId) {
+      const outcome = await requestSurfaceCaptionRender({
+        projectId,
+        userId: project.userId,
+        templateId: captionTemplateId,
+        durationSec,
+        words: wordTimings,
+      });
+      // The gates passed a moment ago, but the charge can still fail and a flag
+      // can flip mid-render. The temp files are still here, so the honest
+      // recovery is to burn the template's native look and re-upload rather
+      // than ship a video with no captions at all.
+      if (!outcome.submitted) {
+        logger.warn("split-screen", `provider declined (${outcome.reason}) — burning captions locally for ${projectId}`);
+        await burnLocally();
+        videoUrl = await uploadFileToS3(outPath, s3Key, "video/mp4");
+      }
+    }
 
     await prisma.project.update({ where: { id: projectId }, data: { status: "completed", videoUrl } });
   } catch (err) {
