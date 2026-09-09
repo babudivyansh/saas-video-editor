@@ -92,8 +92,14 @@ const PUBLIC_API_PREFIXES = [
   // Voiceover Generator tool pages; voices is the (previously-unused)
   // cached-preview-URL endpoint those same pickers now call.
   "/api/tools/enhance-prompt",
-  "/api/tools/voice-preview",
-  "/api/tools/voices",
+  // The voice catalogue. Public because the create pages render for
+  // logged-out visitors and this carries nothing sensitive — names,
+  // languages and the provider's own public preview URLs, with the id that
+  // routes a paid call stripped server-side. What costs money is
+  // SYNTHESIS, and /api/tools/voice-preview is deliberately NOT listed
+  // here any more: it was real, billable TTS behind an IP-only limit,
+  // which is a free TTS endpoint for anyone willing to rotate IPs.
+  "/api/voices",
   // Anonymous first-party analytics beacon and the double opt-in newsletter
   // flow. Both are fired from public marketing pages (the blog) by visitors who
   // are logged out by definition — without these entries every one of those

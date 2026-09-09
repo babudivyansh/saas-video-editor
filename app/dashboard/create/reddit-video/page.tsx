@@ -1,6 +1,6 @@
 "use client";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";import { useVoiceCatalog, playVoicePreview, ageLabel, type CatalogVoice } from "@/app/components/voices/useVoiceCatalog";
 import SubtitleTemplateStep from "@/app/components/create/SubtitleTemplateStep";
 import { DEFAULT_TEMPLATE_ID, indexForTemplateId } from "@/lib/captions/legacyStyleIndex";
 import { useVideoGenerate, getStoredToken } from "@/app/hooks/useVideoGenerate";
@@ -31,28 +31,6 @@ const STEPS = [
 ];
 
 // ── ElevenLabs voice IDs ──────────────────────────────────────────────────────
-const EL_IDS: Record<string, string> = {
-  william:   "VR6AewLTigWG4xSOukaG",
-  adam:      "pNInz6obpgDQGcFmaJgB",
-  dandan:    "TxGEqnHWrfWFTfGW9XjX",
-  natasha:   "21m00Tcm4TlvDq8ikWAM",
-  amir1:     "ZQe5CZNOzWyzPSCn5a3c",
-  amir2:     "bVMeCyTHy58xNoL34h3p",
-  spongebob: "jBpfuIE2acCO8z3wKNLl",
-  charlie:   "yoZ06aMxZJJ28mfd3POQ",
-  clyde:     "2EiwWnXFnvU5JabPnv8n",
-  daniel:    "onwK4e9ZLuTAKqWW03F9",
-  ethan:     "g5CIjZEefAph4nQFvHAz",
-  josh:      "TxGEqnHWrfWFTfGW9XjX",
-  rachel:    "21m00Tcm4TlvDq8ikWAM",
-  sarah:     "EXAVITQu4vr4xnSDxMaL",
-  alice:     "Xb7hH8MSUJpSbSDYk0k2",
-  emily:     "LcfcDJNUP1GQjkzn1xUU",
-  aria:      "9BWtsMINqrJLrRacOk9x",
-  bella:     "EXAVITQu4vr4xnSDxMaL",
-};
-const EL_PREVIEW = (slug: string) =>
-  `https://storage.googleapis.com/eleven-public-prod/premade/voices/${EL_IDS[slug] ?? ""}/preview.mp3`;
 
 let currentPreviewAudio: HTMLAudioElement | null = null;
 
@@ -121,33 +99,6 @@ const BACKGROUNDS = [
 
 
 // ── Voices ────────────────────────────────────────────────────────────────────
-type Voice = { id: string; name: string; gender: "Male" | "Female"; age: string; accent: string };
-const VOICES: Voice[] = [
-  { id: "william",   name: "William",         gender: "Male",   age: "Middle aged", accent: "American"      },
-  { id: "adam",      name: "Adam",            gender: "Male",   age: "Middle aged", accent: "American"      },
-  { id: "dandan",    name: "Dan Dan",         gender: "Male",   age: "Middle aged", accent: "American"      },
-  { id: "charlie",   name: "Charlie",         gender: "Male",   age: "Young",       accent: "Australian"    },
-  { id: "clyde",     name: "Clyde",           gender: "Male",   age: "Middle aged", accent: "American"      },
-  { id: "daniel",    name: "Daniel",          gender: "Male",   age: "Middle aged", accent: "British"       },
-  { id: "ethan",     name: "Ethan",           gender: "Male",   age: "Young",       accent: "American"      },
-  { id: "josh",      name: "Josh",            gender: "Male",   age: "Young",       accent: "American"      },
-  { id: "liam",      name: "Liam",            gender: "Male",   age: "Young",       accent: "American"      },
-  { id: "matthew",   name: "Matthew",         gender: "Male",   age: "Middle aged", accent: "American"      },
-  { id: "patrick",   name: "Patrick",         gender: "Male",   age: "Middle aged", accent: "American"      },
-  { id: "sam",       name: "Sam",             gender: "Male",   age: "Young",       accent: "American"      },
-  { id: "thomas",    name: "Thomas",          gender: "Male",   age: "Old",         accent: "American"      },
-  { id: "amir1",     name: "Amir #1",         gender: "Male",   age: "Young",       accent: "Middle Eastern"},
-  { id: "spongebob", name: "Sponge Bob",      gender: "Male",   age: "Young",       accent: "Cartoon"       },
-  { id: "natasha",   name: "Natasha",         gender: "Female", age: "Young",       accent: "American"      },
-  { id: "alice",     name: "Alice",           gender: "Female", age: "Middle aged", accent: "British"       },
-  { id: "aria",      name: "Aria",            gender: "Female", age: "Young",       accent: "American"      },
-  { id: "bella",     name: "Bella",           gender: "Female", age: "Young",       accent: "American"      },
-  { id: "charlotte", name: "Charlotte",       gender: "Female", age: "Young",       accent: "British"       },
-  { id: "emily",     name: "Emily",           gender: "Female", age: "Young",       accent: "American"      },
-  { id: "rachel",    name: "Rachel",          gender: "Female", age: "Middle aged", accent: "American"      },
-  { id: "sarah",     name: "Sarah",           gender: "Female", age: "Young",       accent: "American"      },
-  { id: "serena",    name: "Serena",          gender: "Female", age: "Middle aged", accent: "British"       },
-];
 
 // ── Music ─────────────────────────────────────────────────────────────────────
 const MUSIC_BASE = "https://saas-video-editor-assets.s3.ap-south-1.amazonaws.com/music";
@@ -171,13 +122,13 @@ interface VoiceSettings { styleExaggeration: number; voiceStability: number; voi
 const DEFAULT_VS: VoiceSettings = { styleExaggeration: 60, voiceStability: 70, voiceVolume: 100, voiceSpeed: 115 };
 
 // ── VoiceCard ─────────────────────────────────────────────────────────────────
-function VoiceCard({ voice, selected, onSelect }: { voice: Voice; selected: boolean; onSelect: () => void }) {
-  function handlePlay(e: React.MouseEvent) {
+function VoiceCard({ voice, selected, onSelect }: { voice: CatalogVoice; selected: boolean; onSelect: () => void }) {
+  async function handlePlay(e: React.MouseEvent) {
     e.stopPropagation();
     if (currentPreviewAudio) { currentPreviewAudio.pause(); currentPreviewAudio = null; }
-    const audio = new Audio(EL_PREVIEW(voice.id));
-    currentPreviewAudio = audio;
-    audio.play().catch(() => {});
+    // Plays the provider's hosted sample when there is one; only synthesizes
+    // (a real, billable call) for voices that have none.
+    currentPreviewAudio = await playVoicePreview(voice);
   }
   return (
     <div
@@ -190,11 +141,11 @@ function VoiceCard({ voice, selected, onSelect }: { voice: Voice; selected: bool
         <IcPlay />
       </button>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-fg">{voice.name}</p>
+        <p className="text-sm font-semibold text-fg">{voice.label}</p>
         <div className="flex gap-1.5 mt-1 flex-wrap">
           <span className="text-[10px] bg-surface-3 text-fg-muted px-2 py-0.5 rounded-md font-medium">{voice.gender}</span>
-          <span className="text-[10px] bg-surface-3 text-fg-muted px-2 py-0.5 rounded-md font-medium">{voice.age}</span>
-          <span className="text-[10px] bg-orange-50 text-orange-600 px-2 py-0.5 rounded-md font-medium">{voice.accent}</span>
+          <span className="text-[10px] bg-surface-3 text-fg-muted px-2 py-0.5 rounded-md font-medium">{ageLabel(voice.age)}</span>
+          <span className="text-[10px] bg-orange-50 text-orange-600 px-2 py-0.5 rounded-md font-medium">{voice.accent ?? "—"}</span>
         </div>
       </div>
     </div>
@@ -204,8 +155,12 @@ function VoiceCard({ voice, selected, onSelect }: { voice: Voice; selected: bool
 // ── VoiceColumn ───────────────────────────────────────────────────────────────
 function VoiceColumn({ title, selected, onSelect }: { title: string; selected: string; onSelect: (id: string) => void }) {
   const [search, setSearch] = useState("");
-  const filtered = VOICES.filter(v =>
-    v.name.toLowerCase().includes(search.toLowerCase()) || v.accent.toLowerCase().includes(search.toLowerCase())
+  // The one catalogue, live — this page used to compile in its own 24-entry
+  // copy plus a second table of raw provider ids.
+  const { voices, configured } = useVoiceCatalog();
+  const q = search.toLowerCase();
+  const filtered = voices.filter((v) =>
+    v.label.toLowerCase().includes(q) || (v.accent ?? "").toLowerCase().includes(q)
   );
   return (
     <div className="flex flex-col gap-3">
@@ -218,10 +173,13 @@ function VoiceColumn({ title, selected, onSelect }: { title: string; selected: s
           className="w-full rounded-lg border border-line bg-panel pl-8 pr-3.5 py-2 text-sm focus:outline-none placeholder:text-fg-subtle" />
       </div>
       <div className="overflow-y-auto space-y-2 pr-0.5" style={{ maxHeight: "calc(100vh - 330px)" }}>
+        {!configured && (
+          <p className="text-xs text-fg-subtle">Voice generation is not configured, so generating will fail.</p>
+        )}
         {filtered.length === 0 ? (
           <p className="text-sm text-fg-subtle text-center py-4">No voices found</p>
         ) : filtered.map(v => (
-          <VoiceCard key={v.id} voice={v} selected={selected === v.id} onSelect={() => onSelect(v.id)} />
+          <VoiceCard key={v.slug} voice={v} selected={selected === v.slug} onSelect={() => onSelect(v.slug)} />
         ))}
       </div>
     </div>

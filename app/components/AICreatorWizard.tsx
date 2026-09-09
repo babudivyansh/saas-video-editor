@@ -9,38 +9,10 @@ import { EmptyState } from "@/app/components/ui/EmptyState";
 import { AssetPicker } from "@/app/components/assets/AssetPicker";
 import type { PickerAsset } from "@/app/components/assets/assetPickerData";
 
-// ── Voice catalogue (same as VoiceChangerTool) ───────────────────────────────
-interface Voice {
-  slug: string;
-  name: string;
-  desc: string;
-  gender: "Male" | "Female";
-  age: "Young" | "Middle aged" | "Mature";
-  language: "English" | "Multilingual";
-  color: string;
-}
-
-const VOICES: Voice[] = [
-  { slug: "adam",      name: "Adam",      desc: "Adam is one of the most recognizable voices used in many viral short-form videos",     gender: "Male",   age: "Middle aged", language: "Multilingual", color: "#3b82f6" },
-  { slug: "dandan",    name: "Dan Dan",   desc: "Warm and conversational — suits story and commentary channels",                      gender: "Male",   age: "Middle aged", language: "Multilingual", color: "#6366f1" },
-  { slug: "natasha",   name: "Natasha",   desc: "Natasha is the soft voice most notably used in viral short-form videos for female voices", gender: "Female", age: "Young",       language: "Multilingual", color: "#10b981" },
-  { slug: "william",   name: "William",   desc: "The default narrator — clear and neutral, a safe choice for most videos",            gender: "Male",   age: "Middle aged", language: "English",      color: "#ec4899" },
-  { slug: "daniel",    name: "Daniel",    desc: "Deep, authoritative British voice. Perfect for documentaries and explainers",         gender: "Male",   age: "Middle aged", language: "English",      color: "#7c3aed" },
-  { slug: "harry",     name: "Harry",     desc: "Bold and expressive British voice ideal for dramatic storytelling and gaming",        gender: "Male",   age: "Young",       language: "English",      color: "#f97316" },
-  { slug: "liam",      name: "Liam",      desc: "Energetic and clear American voice. Great for YouTube tutorials and reviews",         gender: "Male",   age: "Young",       language: "Multilingual", color: "#0ea5e9" },
-  { slug: "charlie",   name: "Charlie",   desc: "Friendly, conversational voice well suited for podcasts and storytelling",            gender: "Male",   age: "Young",       language: "Multilingual", color: "#14b8a6" },
-  { slug: "thomas",    name: "Thomas",    desc: "Calm and measured voice ideal for educational content and e-learning",                gender: "Male",   age: "Middle aged", language: "English",      color: "#8b5cf6" },
-  { slug: "matthew",   name: "Matthew",   desc: "Warm American narrator voice with excellent clarity for audiobooks",                  gender: "Male",   age: "Middle aged", language: "English",      color: "#06b6d4" },
-  { slug: "aria",      name: "Aria",      desc: "Versatile, expressive female voice great for a wide range of content",               gender: "Female", age: "Young",       language: "Multilingual", color: "#a855f7" },
-  { slug: "rachel",    name: "Rachel",    desc: "Clear, neutral American accent. The go-to voice for professional voiceovers",        gender: "Female", age: "Middle aged", language: "English",      color: "#f43f5e" },
-  { slug: "bella",     name: "Bella",     desc: "Soft and soothing voice perfect for meditation guides and gentle narration",          gender: "Female", age: "Young",       language: "English",      color: "#d946ef" },
-  { slug: "charlotte", name: "Charlotte", desc: "British female voice with natural warmth. Great for storytelling and lifestyle",      gender: "Female", age: "Middle aged", language: "English",      color: "#7c3aed" },
-  { slug: "emily",     name: "Emily",     desc: "Young and lively American voice ideal for social media and vlogs",                   gender: "Female", age: "Young",       language: "English",      color: "#f97316" },
-  { slug: "sarah",     name: "Sarah",     desc: "Confident and engaging female voice with a neutral American accent",                  gender: "Female", age: "Young",       language: "English",      color: "#f59e0b" },
-  { slug: "matilda",   name: "Matilda",   desc: "Warm and nurturing voice great for educational and kids content",                     gender: "Female", age: "Middle aged", language: "English",      color: "#22c55e" },
-  { slug: "freya",     name: "Freya",     desc: "Dynamic and expressive voice perfect for gaming and entertainment content",           gender: "Female", age: "Young",       language: "English",      color: "#10b981" },
-  { slug: "grace",     name: "Grace",     desc: "Elegant and articulate voice suited for news-style narration and documentaries",      gender: "Female", age: "Middle aged", language: "English",      color: "#84cc16" },
-];
+// Voice list: the shared catalogue (lib/voices/catalog.ts). This file used to
+// carry its own copy, comment-labelled "same as VoiceChangerTool" — which it
+// was, until both drifted.
+import { VOICES, type Voice } from "@/app/components/voice-catalog";
 
 function voiceBySlug(slug: string): Voice | null {
   return VOICES.find(v => v.slug === slug) ?? null;

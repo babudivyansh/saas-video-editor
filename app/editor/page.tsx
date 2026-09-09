@@ -3,6 +3,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
+import { useVoiceCatalog, SEED_VOICES } from "@/app/components/voices/useVoiceCatalog";
 
 
 interface Project {
@@ -20,13 +21,10 @@ interface Project {
 interface WordTiming { word: string; start: number; end: number; }
 
 const STYLE_OPTIONS = ["engaging and informative", "humorous", "dramatic", "educational", "motivational"];
-const VOICE_IDS = [
-  { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel" },
-  { id: "AZnzlk1XvdvUeBnXmlld", name: "Domi" },
-  { id: "EXAVITQu4vr4xnSDxMaL", name: "Bella" },
-  { id: "ErXwobaYiN019PkySvjV", name: "Antoni" },
-  { id: "MF3mGyEYCl7XYWbV9V6O", name: "Elli" },
-];
+// Voices come from the shared catalogue. This wizard used to hard-code five
+// RAW provider ids with no slug — the only list in the product that did, and
+// the reason resolveVoiceRef still accepts a raw id: projects created here
+// have one stored in Project.voiceId.
 const BG_VIDEOS = [
   { label: "Minecraft", url: "/fallback/minecraft.mp4" },
   { label: "Subway Surfers", url: "/fallback/subway.mp4" },
@@ -52,7 +50,8 @@ function EditorContent() {
   const [title, setTitle] = useState("");
 
   // Step 2
-  const [voiceId, setVoiceId] = useState(VOICE_IDS[0].id);
+  const { voices } = useVoiceCatalog();
+  const [voiceId, setVoiceId] = useState(SEED_VOICES[0].slug);
   const [voiceLoading, setVoiceLoading] = useState(false);
   const [audioUrl, setAudioUrl] = useState("");
   const [wordTimings, setWordTimings] = useState<WordTiming[]>([]);
@@ -244,12 +243,12 @@ function EditorContent() {
             <div>
               <label className="block text-sm text-fg-muted mb-1">Voice</label>
               <div className="grid grid-cols-3 gap-2">
-                {VOICE_IDS.map(v => (
+                {voices.map(v => (
                   <button
-                    key={v.id} onClick={() => setVoiceId(v.id)}
-                    className={`py-2 rounded-lg text-sm transition-colors ${voiceId === v.id ? "bg-violet-600 text-white" : "bg-surface-2 border border-line text-fg-muted hover:border-line-strong"}`}
+                    key={v.slug} onClick={() => setVoiceId(v.slug)}
+                    className={`py-2 rounded-lg text-sm transition-colors ${voiceId === v.slug ? "bg-violet-600 text-white" : "bg-surface-2 border border-line text-fg-muted hover:border-line-strong"}`}
                   >
-                    {v.name}
+                    {v.label}
                   </button>
                 ))}
               </div>
