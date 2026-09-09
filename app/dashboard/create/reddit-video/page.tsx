@@ -1,6 +1,8 @@
 "use client";
-import { Suspense, useEffect, useRef, useState, type CSSProperties } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import SubtitleTemplateStep from "@/app/components/create/SubtitleTemplateStep";
+import { DEFAULT_TEMPLATE_ID, indexForTemplateId } from "@/lib/captions/legacyStyleIndex";
 import { useVideoGenerate, getStoredToken } from "@/app/hooks/useVideoGenerate";
 import { useAuth } from "@/app/components/AuthContext";
 import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
@@ -117,44 +119,6 @@ const BACKGROUNDS = [
   { title: "Pressure Washing",  author: "Sir Satisfying", authorImg: SIR_SAT, mins: "1.2 mins", size: "143 MB", tag: "Chill",   id: "4qrs5tuv-1wxy-8zab-5cde-fghi6j7890"   },
 ];
 
-// ── Subtitle styles ───────────────────────────────────────────────────────────
-const OUTLINE = "1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000,0 2px 4px rgba(0,0,0,.5)";
-const ONE_WORD_STYLES: CSSProperties[] = [
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#fff", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#22d3ee", textShadow: OUTLINE },
-  { fontFamily: "Georgia,serif", fontWeight: 700, color: "#fff", textShadow: "0 0 12px rgba(255,255,255,.6)" },
-  { fontFamily: "Georgia,serif", fontWeight: 400, color: "#fff", textShadow: "0 0 14px rgba(255,255,255,.7)" },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, fontStyle: "italic", color: "#fff", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#4ade80", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, fontStyle: "italic", color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, fontStyle: "italic", color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", background: "#ef4444", padding: "4px 18px", borderRadius: 9999 },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 700, color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "Georgia,serif", fontWeight: 700, fontStyle: "italic", color: "#facc15", textShadow: "1px 1px 2px rgba(0,0,0,.6)" },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, fontStyle: "italic", color: "#facc15", textTransform: "uppercase", textShadow: "0 0 12px rgba(250,204,21,.8)" },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#facc15", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#3b82f6", textTransform: "uppercase", textShadow: "1px 1px 0 #fff,-1px 1px 0 #fff,1px -1px 0 #fff,-1px -1px 0 #fff" },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", background: "#7c3aed", padding: "4px 18px", borderRadius: 9999 },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#f97316", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, color: "#fff", textShadow: "0 0 16px rgba(34,211,238,.8),0 0 32px rgba(34,211,238,.5)" },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#ec4899", textTransform: "uppercase", textShadow: OUTLINE },
-];
-const LINE_STYLES: CSSProperties[] = [
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#fff", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#fff", textShadow: "0 0 14px rgba(255,255,255,.7)" },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, fontStyle: "italic", color: "#3b82f6", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 700, color: "#1f2937", background: "#f3f4f6", padding: "4px 12px", borderRadius: 6 },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "Georgia,serif", fontWeight: 700, color: "#facc15", textShadow: "0 0 12px rgba(250,204,21,.7)" },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, fontStyle: "italic", color: "#fff", textTransform: "uppercase", textShadow: "1px 1px 0 #ef4444,-1px -1px 0 #000" },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#facc15", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#fff", textTransform: "uppercase", background: "rgba(0,0,0,0.55)", padding: "3px 10px", borderRadius: 4 },
-  { fontFamily: "Georgia,serif", fontWeight: 700, color: "#4ade80", textShadow: "0 0 10px rgba(74,222,128,.6)" },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 700, color: "#fff", background: "#2563eb", padding: "4px 12px", borderRadius: 6 },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, color: "#ec4899", textTransform: "uppercase", textShadow: OUTLINE },
-];
 
 // ── Voices ────────────────────────────────────────────────────────────────────
 type Voice = { id: string; name: string; gender: "Male" | "Female"; age: string; accent: string };
@@ -545,7 +509,7 @@ function RedditVideoFlow() {
 
   // Caption style
   const [subtitleMode,  setSubtitleMode]  = useState<"oneword" | "lines">("oneword");
-  const [selectedStyle, setSelectedStyle] = useState(0);
+  const [captionTemplateId, setCaptionTemplateId] = useState<string>(DEFAULT_TEMPLATE_ID);
 
   // Video
   const [selectedBg,    setSelectedBg]    = useState(0);
@@ -597,7 +561,7 @@ function RedditVideoFlow() {
       postTitle, username, script,
       introVoiceId: introVoice, scriptVoiceId: scriptVoice,
       bgMusicUrl, bgVideoUrl,
-      subtitleStyleIndex: selectedStyle, subtitleMode,
+      subtitleStyleIndex: indexForTemplateId(captionTemplateId), captionTemplateId, subtitleMode,
       token,
       voiceSettings: {
         style:          voiceSettings.styleExaggeration / 100,
@@ -795,35 +759,15 @@ function RedditVideoFlow() {
           {/* ── Step 2: Captions ── */}
           {stepIndex === 1 && (
             <div className="px-8 pt-6 pb-10">
-              <h2 className="text-lg font-bold text-gray-900">Select Caption Style</h2>
-              <div className="flex items-center gap-3 mt-3 mb-5">
-                <span className="text-sm font-medium" style={{ color: subtitleMode === "oneword" ? "#111827" : "#9ca3af" }}>One Word</span>
-                <button
-                  onClick={() => { setSubtitleMode(subtitleMode === "oneword" ? "lines" : "oneword"); setSelectedStyle(0); }}
-                  className="relative w-10 h-5 rounded-full transition-colors"
-                  style={{ background: subtitleMode === "lines" ? "#f97316" : "#cbd5e1" }}>
-                  <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow-sm" style={{ left: subtitleMode === "lines" ? "22px" : "2px" }} />
-                </button>
-                <span className="text-sm font-medium" style={{ color: subtitleMode === "lines" ? "#111827" : "#9ca3af" }}>Lines</span>
-              </div>
-              <div className="grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                {(subtitleMode === "oneword" ? ONE_WORD_STYLES : LINE_STYLES).map((st, i) => {
-                  const isSel = selectedStyle === i;
-                  const sample = subtitleMode === "oneword" ? "Reddit" : "What would you do?";
-                  return (
-                    <button key={i} onClick={() => setSelectedStyle(i)}
-                      className="group relative h-[104px] rounded-xl flex items-center justify-center px-4 transition-all overflow-hidden cursor-pointer"
-                      style={{ background: "#1e293b", border: isSel ? "2px solid #f97316" : "2px solid transparent" }}>
-                      {isSel && (
-                        <span className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-orange-500 text-white flex items-center justify-center shadow">
-                          <IcCheck />
-                        </span>
-                      )}
-                      <span className="text-[22px] leading-tight text-center group-hover:scale-110 transition-transform" style={st}>{sample}</span>
-                    </button>
-                  );
-                })}
-              </div>
+              <SubtitleTemplateStep
+                value={captionTemplateId}
+                onChange={setCaptionTemplateId}
+                mode={subtitleMode}
+                onModeChange={setSubtitleMode}
+                title="Select Caption Style"
+                sample="Reddit"
+                className=""
+              />
             </div>
           )}
 

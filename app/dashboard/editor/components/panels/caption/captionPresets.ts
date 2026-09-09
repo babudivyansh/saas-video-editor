@@ -1,106 +1,111 @@
-// Adapts the existing 16 CAPTION_STYLES (lib/caption-styles.ts — already used
-// by the Auto Clip pipeline's style picker, base+highlight colors proven for
-// real subtitle burn-ins) into the editor's own CaptionClip style shape,
-// rather than inventing a parallel preset system.
+// The editor's caption gallery, generated from the one caption-template
+// library (lib/caption-templates.ts) instead of hand-copied from it.
+//
+// This file used to hold two parallel preset systems: RICH_LOOKS, a
+// hand-transcribed copy of six templates whose hex colours had been run
+// through assToHex BY HAND, and FROM_CAPTION_STYLES, derived from the retired
+// 16-entry lib/caption-styles.ts table. The first is exactly the drift the
+// templates file exists to prevent — a colour corrected there stayed wrong
+// here — and the second described looks no other surface offers any more.
+//
+// Both are gone. The gallery is now `CAPTION_TEMPLATES.map(...)` through the
+// conversion below, so the editor names a style the same as AutoClip and the
+// create flows do, and a change to a template reaches all four.
+//
+// What is deliberately NOT ported, both for reasons that still hold:
+//
+//   entrance / loop / exit — CaptionClip has them, but per their own doc
+//   comment they are PREVIEW-ONLY: lib/editor/filtergraph.ts never applies
+//   them, so a template's `animated: true` mapped onto an entrance animation
+//   would look animated in the editor and ship static. It maps to
+//   highlightMode "karaoke" instead, which does survive the export.
+//
+//   emoji / keywordColor — planEmoji mutates cue TEXT, and cue text here is
+//   user-edited data (CaptionListSection lets people rewrite, delete, hide and
+//   retime every cue). A style gallery must not rewrite what the captions say.
+//   keywordColor additionally needs the LLM emphasis indices that the editor
+//   document does not carry.
 
-import { CAPTION_STYLES } from "@/lib/caption-styles";
-import type { CaptionClip } from "@/lib/editor/types";
+import { CAPTION_TEMPLATES as CAPTION_TEMPLATE_LIBRARY, type CaptionTemplate as LibraryTemplate } from "@/lib/caption-templates";
+import { assToHex } from "@/lib/ass-color";
+import type { CaptionClip, FontFamily } from "@/lib/editor/types";
 
 export interface CaptionTemplate {
+  /** Template slug. Keys the gallery — labels are display strings and an admin
+   *  Config override can introduce a duplicate one. */
+  id: string;
   label: string;
   preview: string;
   styleOnly: Partial<CaptionClip>;
 }
 
-const FROM_CAPTION_STYLES: CaptionTemplate[] = CAPTION_STYLES.map((s) => ({
-  label: s.label,
-  preview: s.uppercase ? s.label.toUpperCase() : s.label,
-  styleOnly: {
-    fontFamily: s.fontFamily.startsWith("Impact") ? "Impact" : s.fontFamily.startsWith("'Times") ? "Times New Roman" : "Arial",
-    color: s.color,
-    highlightColor: s.highlight,
-    highlightMode: "karaoke",
-    bold: s.weight >= 700,
-    textTransform: s.uppercase ? "uppercase" : "none",
-  },
+/**
+ * ASS font name → a family the editor can actually render.
+ *
+ * `satisfies` is load-bearing: FONT_WHITELIST has no "Outfit", which three
+ * templates use, so an unmapped font would silently become a runtime fallback
+ * in the export. Adding a template with a new font is a compile error here
+ * until it is mapped.
+ */
+const FONT_MAP = {
+  Outfit: "Poppins",
+  Impact: "Impact",
+  Poppins: "Poppins",
+  Montserrat: "Montserrat",
+  Anton: "Anton",
+  "Bebas Neue": "Bebas Neue",
+  Oswald: "Oswald",
+  "Playfair Display": "Playfair Display",
+  Arial: "Arial",
+  "Times New Roman": "Times New Roman",
+} satisfies Record<string, FontFamily>;
+
+/** Fonts that ARE the all-caps look; the ASS side gets that from the face itself. */
+const UPPERCASE_FONTS = new Set(["Impact", "Anton", "Bebas Neue"]);
+
+/** The frame height the ASS styles are authored against (PlayResY). */
+const ASS_FRAME_HEIGHT = 1920;
+
+export function captionTemplateToClipStyle(t: LibraryTemplate): Partial<CaptionClip> {
+  const s = t.style;
+  const font = (FONT_MAP as Record<string, FontFamily>)[s.fontName ?? "Outfit"] ?? "Arial";
+  const base = assToHex(s.baseColor ?? "&H00FFFFFF");
+  const highlight = s.highlightColor ? assToHex(s.highlightColor) : null;
+
+  // A template whose highlight equals its base is not highlighting anything —
+  // saying "karaoke" there would animate a colour sweep between two identical
+  // colours, which reads as a bug rather than a style.
+  const highlightMode: CaptionClip["highlightMode"] =
+    !highlight || highlight === base ? "none" : s.animated === false ? "word" : "karaoke";
+
+  const style: Partial<CaptionClip> = {
+    fontFamily: font,
+    bold: UPPERCASE_FONTS.has(s.fontName ?? ""),
+    textTransform: UPPERCASE_FONTS.has(s.fontName ?? "") ? "uppercase" : "none",
+    color: base,
+    strokeColor: assToHex(s.outlineColor ?? "&H00000000"),
+    // ASS outline widths are pixels at PlayResY; CaptionClip wants a fraction
+    // of frame height, which is what makes the look survive a resize.
+    strokeWidthPct: (s.outlineWidth ?? 4) / ASS_FRAME_HEIGHT,
+    highlightMode,
+    positionPreset: s.alignment === 2 ? "bottom" : s.alignment === 8 ? "top" : "center",
+  };
+
+  if (highlightMode !== "none" && highlight) style.highlightColor = highlight;
+  if (s.shadowDepth) {
+    style.shadow = {
+      color: "#000000",
+      offsetXPct: 0,
+      offsetYPct: s.shadowDepth / ASS_FRAME_HEIGHT,
+      opacity: 0.6,
+    };
+  }
+  return style;
+}
+
+export const CAPTION_TEMPLATES: CaptionTemplate[] = CAPTION_TEMPLATE_LIBRARY.map((t) => ({
+  id: t.id,
+  label: t.label,
+  preview: UPPERCASE_FONTS.has(t.style.fontName ?? "") ? t.label.toUpperCase() : t.label,
+  styleOnly: captionTemplateToClipStyle(t),
 }));
-
-// The 6 richer AutoClip looks (lib/caption-templates.ts), translated into
-// CaptionClip's own fields rather than ported as-is: AutoClip's templates are
-// ASS-based (a `SubtitleStyle`, animated:boolean, hex colors as &HBBGGRR) and
-// the editor's CaptionClip has no such type — it has its own, more capable
-// vocabulary (highlightMode "word"/"phrase"/"karaoke", real strokeColor/
-// strokeWidthPct/shadow, all exported via caption-ass.ts) that already covers
-// everything these looks need. `animated: true` maps to `highlightMode:
-// "karaoke"` — CaptionClip.entrance/loop/exit exist too, but per their own
-// doc comment they're PREVIEW-ONLY (filtergraph.ts never applies them), so
-// using them here would look animated in the editor and ship static in the
-// actual export. Colors are the exact hex AutoClip's own ASS-to-hex
-// conversion (auto-clip/page.tsx's assToHex) produces for each named ASS
-// constant, for pixel-parity with what AutoClip already renders.
-//
-// Deliberately NOT ported here: AutoClip templates' emoji auto-placement
-// (`planEmoji`/`EMOJI_MAP`, also in lib/caption-templates.ts). That mutates
-// cue text/words, not just style, which is a different, more invasive kind of
-// feature than this style-only gallery — needs its own design pass for how
-// "apply to whole track" should interact with per-cue text edits.
-const RICH_LOOKS: CaptionTemplate[] = [
-  {
-    label: "Clean",
-    preview: "Clean",
-    styleOnly: {
-      fontFamily: "Arial", bold: false, textTransform: "none",
-      color: "#FFFFFF", strokeColor: "#000000", strokeWidthPct: 0.012,
-      highlightMode: "karaoke", highlightColor: "#FACC15",
-    },
-  },
-  {
-    label: "Bold Impact",
-    preview: "BOLD IMPACT",
-    styleOnly: {
-      fontFamily: "Impact", bold: true, textTransform: "uppercase",
-      color: "#FFFFFF", strokeColor: "#000000", strokeWidthPct: 0.016,
-      shadow: { color: "#000000", offsetXPct: 0, offsetYPct: 0.006, opacity: 0.6 },
-      highlightMode: "karaoke", highlightColor: "#80DE4A",
-    },
-  },
-  {
-    label: "Podcast",
-    preview: "Podcast",
-    styleOnly: {
-      fontFamily: "Poppins", bold: false, textTransform: "none",
-      color: "#FFFFFF", strokeColor: "#000000", strokeWidthPct: 0.006,
-      highlightMode: "karaoke", highlightColor: "#22D3EE",
-    },
-  },
-  {
-    label: "Minimal",
-    preview: "Minimal",
-    styleOnly: {
-      fontFamily: "Poppins", bold: false, textTransform: "none",
-      color: "#FFFFFF", strokeColor: "#000000", strokeWidthPct: 0.006,
-      highlightMode: "none",
-    },
-  },
-  {
-    label: "Neon",
-    preview: "Neon",
-    styleOnly: {
-      fontFamily: "Montserrat", bold: false, textTransform: "none",
-      color: "#FFFFFF", strokeColor: "#000000", strokeWidthPct: 0.014,
-      shadow: { color: "#C4B5D4", offsetXPct: 0, offsetYPct: 0, opacity: 0.5, blurPx: 6 },
-      highlightMode: "karaoke", highlightColor: "#C4B5D4",
-    },
-  },
-  {
-    label: "Headline",
-    preview: "Headline",
-    styleOnly: {
-      fontFamily: "Playfair Display", bold: false, textTransform: "none",
-      color: "#FFFFFF", strokeColor: "#000000", strokeWidthPct: 0.009,
-      highlightMode: "karaoke", highlightColor: "#EF4444",
-    },
-  },
-];
-
-export const CAPTION_TEMPLATES: CaptionTemplate[] = [...RICH_LOOKS, ...FROM_CAPTION_STYLES];

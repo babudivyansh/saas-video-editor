@@ -24,7 +24,7 @@ export default function TemplatesGallery() {
     <div className="grid grid-cols-2 gap-2">
       {CAPTION_TEMPLATES.map((tpl) => (
         <button
-          key={tpl.label}
+          key={tpl.id}
           type="button"
           onClick={() => apply(tpl.styleOnly)}
           className="overflow-hidden rounded-editor-md border border-editor-border bg-editor-card p-2.5 text-left transition-colors hover:border-editor-accent cursor-pointer"

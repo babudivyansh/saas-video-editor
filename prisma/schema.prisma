@@ -474,9 +474,17 @@ model Project {
   uploadedVideoUrl     String?
   productType          String   @default("split-screen")
   editorDoc            Json? // browser-editor timeline document (productType "editor")
-  // Auto Clip: default caption style applied to newly-picked clips (index into
-  // lib/caption-styles.ts CAPTION_STYLES; -1 = captions off). See lib/render/auto-clip.
+  // Auto Clip: default caption style applied to newly-picked clips, as the
+  // legacy integer index (-1 = captions off). The index tables it referred to
+  // are gone; it now resolves through lib/captions/legacyStyleIndex.ts, and the
+  // chosen template slug lives in subtitlesStyle.templateId.
   autoClipCaptionStyle Int?
+  // Word timings for THIS project's finished video (reddit-video, split-screen,
+  // streamer-video). Clipiro's transcript is canonical: it is what a premium
+  // caption render pushes to the provider, so a reddit video keeps the exact
+  // script the user typed instead of the provider's re-transcription of it.
+  // AutoClip stores the equivalent per clip, on Clip.transcriptJson.
+  captionsJson         Json?
   // Auto Clip: non-fatal problems surfaced to the user as a banner instead of
   // silently degrading (e.g. ["transcription_failed"]).
   warnings             Json?
@@ -495,6 +503,14 @@ model Project {
   // 409 rather than silently overwriting it. See app/api/projects/[id]/route.ts.
   editorVersion        Int      @default(1)
   clips                Clip[]
+  // Premium caption renders of THIS project's finished video (reddit-video,
+  // split-screen, streamer-video). AutoClip's renders hang off Clip instead.
+  captionRenders       CaptionRenderJob[]
+  // Bumped when the captions on this project's video are edited. Part of the
+  // render idempotency key, so an edit permits a new paid render and a
+  // double-click does not. Clip-owned jobs derive the same number from prior
+  // jobs; a project has no such history to read, so it is stored.
+  captionRevision      Int      @default(0)
   // The source media as a real Asset row. uploadedVideoUrl above stays — too
   // many call sites read it — but it is a bare URL string with no ownership
   // or lifecycle, so it can't answer "what else came from this upload?".
@@ -637,17 +653,25 @@ model ClipDub {
 // paid, async provider job in this schema and the two share every hazard.
 model CaptionRenderJob {
   id                   String   @id @default(cuid())
-  clipId               String
-  clip                 Clip     @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  // EXACTLY ONE owner is set. A caption render used to be a clip-only thing;
+  // the reddit-video / split-screen / streamer-video products own a whole
+  // finished Project video with no Clip row anywhere. The invariant is enforced
+  // in the app (resolveRenderSource), the way this schema handles every other
+  // small closed rule.
+  clipId               String?
+  clip                 Clip?    @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  projectId            String?
+  project              Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
   // Who paid, and the credits-ledger refId used at spend time. Populated at
   // creation so the webhook route and the reconciliation sweep can refund
   // correctly without the original enqueue payload — neither has it. Nullable
   // for the same reason ClipDub's are: rows created before a render is charged.
   userId               String?
   refId                String?
-  // No projectId column on purpose: it is reachable via clip.project, and a
-  // second copy of an id that already exists one hop away is exactly the
-  // duplicate-source-of-truth problem Clip.liteEdits' comment warns about.
+  // projectId above is NOT a denormalised copy of clip.projectId: on a
+  // clip-owned job it stays null and the project is still reached through the
+  // clip, exactly as before. It is the OTHER owner kind. `userId` is what
+  // authorises either — it is no longer only for refunds.
   provider             String // "submagic" | "native"
   // The provider's own project id (a UUID for Submagic). Persisted the instant
   // creation succeeds, so a queue retry detects "already created" instead of
@@ -707,6 +731,7 @@ model CaptionRenderJob {
   updatedAt            DateTime @updatedAt
 
   @@index([clipId])
+  @@index([projectId])
   @@index([userId, status])
   // The reconciliation sweep scans non-terminal rows by age.
   @@index([status, updatedAt])

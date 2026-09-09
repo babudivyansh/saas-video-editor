@@ -3,7 +3,12 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { spendCredits, restoreSpend } from "@/lib/credits";
-import { runStreamerFFmpeg, styleIndexToDrawtext } from "@/utils/ffmpeg-render";
+import { runStreamerFFmpeg, styleIndexToDrawtext, extractAudio, generateASS, getMediaDurationSec } from "@/utils/ffmpeg-render";
+import { transcribe } from "@/lib/transcription";
+import { WordTiming } from "@/utils/elevenlabs";
+import { resolveSurfaceCaptionStyle } from "@/lib/captions/surfaceStyle";
+import { resolveCaptionCreateInput } from "@/lib/captions/createPayload";
+import { planSurfaceCaptions, requestSurfaceCaptionRender } from "@/lib/captions/surfaceRender";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { downloadFile } from "@/utils/download";
 import { InProcessQueue } from "@/lib/job-queue";
@@ -23,7 +28,11 @@ const CREDIT_COST = 1;
 interface StreamerPayload {
   projectId: string;
   titleText: string;
+  /** Styles the TITLE drawtext. Historical name; it predates real captions. */
   subtitleStyleIndex: number;
+  /** Caption template slug for the burned-in subtitles. */
+  captionTemplateId?: string | null;
+  captionMode?: "oneword" | "lines";
 }
 
 // Refund the credit charged at enqueue time when an async render job fails.
@@ -43,7 +52,7 @@ async function refundRenderCredit(projectId: string) {
 }
 
 async function renderJob(payload: StreamerPayload): Promise<void> {
-  const { projectId, titleText, subtitleStyleIndex } = payload;
+  const { projectId, titleText, subtitleStyleIndex, captionTemplateId, captionMode } = payload;
 
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   if (!project?.uploadedVideoUrl) {
@@ -51,8 +60,10 @@ async function renderJob(payload: StreamerPayload): Promise<void> {
   }
 
   const tmp = os.tmpdir();
-  const userPath = path.join(tmp, `${projectId}-user.mp4`);
-  const outPath  = path.join(tmp, `${projectId}-output.mp4`);
+  const userPath  = path.join(tmp, `${projectId}-user.mp4`);
+  const audioPath = path.join(tmp, `${projectId}-audio.mp3`);
+  const assPath   = path.join(tmp, `${projectId}.ass`);
+  const outPath   = path.join(tmp, `${projectId}-output.mp4`);
 
   try {
     // Project.uploadedVideoUrl is the PRESIGNED upload URL (6h lifetime), not a
@@ -62,11 +73,60 @@ async function renderJob(payload: StreamerPayload): Promise<void> {
     // docs/stale-presigned-url-cross-product-fix.md.
     await downloadFile(await freshSourceUrl(project.uploadedVideoUrl, project.userId), userPath);
 
+    // Captions. This product never had any: the page offered a caption-style
+    // picker and the route drew only a static title. Transcription is
+    // best-effort for the same reason it is on split-screen — a video with no
+    // speech, or an STT outage, must still produce the video the user paid for.
+    let wordTimings: WordTiming[] = [];
+    try {
+      await extractAudio(userPath, audioPath);
+      wordTimings = await transcribe(fs.readFileSync(audioPath));
+    } catch (err) {
+      logger.warn("streamer-video", "transcription failed, rendering without captions", err);
+    }
+
+    const durationSec = await getMediaDurationSec(userPath).catch(() => 0);
+    // A premium template means a provider captions the finished file, so this
+    // pass must not burn captions as well. The TITLE drawtext is unaffected —
+    // it is ours either way, and the provider only adds caption text.
+    const plan = wordTimings.length > 0
+      ? await planSurfaceCaptions({ projectId, userId: project.userId, templateId: captionTemplateId, durationSec })
+      : { defer: false };
+
     const drawtextOpts = styleIndexToDrawtext(subtitleStyleIndex);
-    await runStreamerFFmpeg({ userVideoPath: userPath, titleText, drawtextOpts, outputPath: outPath });
+    const compose = async (burnSubs: boolean) => {
+      let subsPath: string | undefined;
+      if (burnSubs && wordTimings.length > 0) {
+        const style = resolveSurfaceCaptionStyle({
+          templateId: captionTemplateId,
+          mode: captionMode ?? "oneword",
+          words: wordTimings,
+        });
+        generateASS(wordTimings, style, assPath);
+        subsPath = assPath;
+      }
+      await runStreamerFFmpeg({ userVideoPath: userPath, titleText, drawtextOpts, assPath: subsPath, outputPath: outPath });
+    };
+
+    await compose(!plan.defer);
 
     const s3Key = `renders/${projectId}.mp4`;
-    const videoUrl = await uploadFileToS3(outPath, s3Key, "video/mp4");
+    let videoUrl = await uploadFileToS3(outPath, s3Key, "video/mp4");
+
+    if (plan.defer && captionTemplateId) {
+      const outcome = await requestSurfaceCaptionRender({
+        projectId,
+        userId: project.userId,
+        templateId: captionTemplateId,
+        durationSec,
+        words: wordTimings,
+      });
+      if (!outcome.submitted) {
+        logger.warn("streamer-video", `provider declined (${outcome.reason}) — burning captions locally for ${projectId}`);
+        await compose(true);
+        videoUrl = await uploadFileToS3(outPath, s3Key, "video/mp4");
+      }
+    }
 
     await prisma.project.update({ where: { id: projectId }, data: { status: "completed", videoUrl } });
   } catch (err) {
@@ -93,7 +153,7 @@ async function renderJob(payload: StreamerPayload): Promise<void> {
       logger.error("streamer-video", `could not refund failed render for project ${projectId}`, e);
     }
   } finally {
-    for (const f of [userPath, outPath]) {
+    for (const f of [userPath, audioPath, assPath, outPath]) {
       try { fs.unlinkSync(f); } catch {}
     }
   }
@@ -119,6 +179,10 @@ async function handlePOST(req: NextRequest) {
   if (!body.projectId || !body.titleText) {
     return NextResponse.json({ error: "projectId and titleText required" }, { status: 400 });
   }
+
+  // Only the slug matters here — subtitleStyleIndex on this route styles the
+  // title, not the captions, so it is deliberately NOT fed in as the fallback.
+  const caption = resolveCaptionCreateInput({ captionTemplateId: body.captionTemplateId });
 
   const project = await prisma.project.findFirst({
     where: { id: body.projectId, userId: auth.userId },
@@ -157,7 +221,11 @@ async function handlePOST(req: NextRequest) {
   getQueue().enqueue(body.projectId, {
     projectId: body.projectId,
     titleText: body.titleText,
+    // Two different things that used to share one field: the title look, and
+    // (now) the caption template. The index still styles the title only.
     subtitleStyleIndex: body.subtitleStyleIndex ?? 0,
+    captionTemplateId: caption.templateId,
+    captionMode: body.captionMode ?? "oneword",
   });
   void markQuestComplete(auth.userId, "first-clip");
 

@@ -7,7 +7,10 @@ import { prisma } from "@/lib/prisma";
 import { InProcessQueue } from "@/lib/job-queue";
 import { chargeCredits, refundCredits, markGenerationStatus } from "@/lib/credits";
 import { synthesizeVoice, WordTiming } from "@/utils/elevenlabs";
-import { generateASS, runFFmpeg, runFFmpegArgs, styleIndexToSubtitleStyle } from "@/utils/ffmpeg-render";
+import { generateASS, runFFmpeg, runFFmpegArgs } from "@/utils/ffmpeg-render";
+import { resolveSurfaceCaptionStyle } from "@/lib/captions/surfaceStyle";
+import { resolveCaptionCreateInput } from "@/lib/captions/createPayload";
+import { planSurfaceCaptions, requestSurfaceCaptionRender } from "@/lib/captions/surfaceRender";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { resolveVoiceId } from "@/utils/voice-ids";
 import { downloadFile } from "@/utils/download";
@@ -45,7 +48,10 @@ interface RedditVideoPayload {
   scriptVoiceId: string;
   bgMusicUrl: string;
   bgVideoUrl: string;
+  /** Legacy index. Kept so an in-flight job still renders its chosen look. */
   subtitleStyleIndex: number;
+  /** Template slug — authoritative when set. */
+  captionTemplateId?: string | null;
   subtitleMode: "oneword" | "lines";
   voiceSettings?: { stability?: number; style?: number; similarityBoost?: number };
   language?: string;
@@ -83,7 +89,7 @@ function offsetTimings(timings: WordTiming[], deltaMs: number): WordTiming[] {
 async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
   const {
     projectId, userId, generationId, postTitle, username, script, introVoiceId, scriptVoiceId,
-    bgMusicUrl, bgVideoUrl, subtitleStyleIndex, subtitleMode,
+    bgMusicUrl, bgVideoUrl, subtitleStyleIndex, captionTemplateId, subtitleMode,
     voiceSettings: vs, language, showIntroCard = true, darkMode = true,
     upvotes = "0", comments = "0",
   } = payload;
@@ -162,9 +168,22 @@ async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
 
     // 5. Generate ASS subtitles
     logger.info("reddit-video", "Generating subtitles...");
-    const subtitleStyle = styleIndexToSubtitleStyle(subtitleStyleIndex, subtitleMode);
+    const subtitleStyle = resolveSurfaceCaptionStyle({
+      templateId: captionTemplateId,
+      styleIndex: subtitleStyleIndex,
+      mode: subtitleMode,
+      words: combinedTimings,
+    });
     const assPath = path.join(tmpDir, "subs.ass");
     generateASS(combinedTimings, subtitleStyle, assPath);
+
+    // With a premium template a provider captions the finished file, so this
+    // composite has to come out CLEAN — otherwise the export carries two
+    // caption tracks, ours underneath theirs.
+    // Derived from the word timings themselves — the same source the intro
+    // duration comes from — rather than probing a file that doesn't exist yet.
+    const durationSec = (combinedTimings.at(-1)?.end ?? introDurationMs + gapMs) / 1000;
+    const plan = await planSurfaceCaptions({ projectId, userId, templateId: captionTemplateId, durationSec });
 
     // 6. Render Reddit card PNG (optional)
     let introCardPath: string | undefined;
@@ -199,65 +218,88 @@ async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
     logger.info("reddit-video", "Running FFmpeg...");
     const outputPath = path.join(tmpDir, "output.mp4");
 
-    if (introCardPath) {
-      // Build a custom filter_complex that overlays the Reddit card during intro narration
-      const introDurSec = ((introDurationMs + gapMs) / 1000).toFixed(3);
-      const assEscaped = assPath.replace(/\\/g, "/").replace(/:/g, "\\:");
+    // One composite, two callers: the normal pass, and the fallback pass that
+    // burns captions locally when the provider declines after the fact.
+    const compose = async (burnSubs: boolean) => {
+      if (introCardPath) {
+        // Build a custom filter_complex that overlays the Reddit card during intro narration
+        const introDurSec = ((introDurationMs + gapMs) / 1000).toFixed(3);
+        const assEscaped = assPath.replace(/\\/g, "/").replace(/:/g, "\\:");
+        // `null` is a pass-through: same graph shape either way, so the labels
+        // downstream don't have to change with the caption decision.
+        const subsNode = burnSubs ? `subtitles='${assEscaped}'` : "null";
 
-      const musicInputIdx = musicPath ? 3 : -1;
-      const cardInputIdx = musicPath ? 4 : 3;
+        const musicInputIdx = musicPath ? 3 : -1;
+        const cardInputIdx = musicPath ? 4 : 3;
 
-      let filterComplex = "";
-      // Scale BG video to 1080×1920
-      filterComplex += `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[bg];`;
-      // Overlay Reddit card during intro window
-      filterComplex += `[bg][${cardInputIdx}:v]overlay=0:0:enable='lte(t,${introDurSec})'[withcard];`;
-      // Burn subtitles
-      filterComplex += `[withcard]subtitles='${assEscaped}'[video]`;
-
-      // Audio mixing
-      if (musicPath && musicInputIdx > 0) {
-        filterComplex = `${filterComplex.replace("[video]", "[video_nosub]")};` +
-          `[${musicInputIdx}:a]volume=0.12[bgm];[1:a][bgm]amix=inputs=2:duration=first[audio]`;
-        // rebuild properly
-        filterComplex = "";
+        let filterComplex = "";
+        // Scale BG video to 1080×1920
         filterComplex += `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[bg];`;
+        // Overlay Reddit card during intro window
         filterComplex += `[bg][${cardInputIdx}:v]overlay=0:0:enable='lte(t,${introDurSec})'[withcard];`;
-        filterComplex += `[withcard]subtitles='${assEscaped}'[video];`;
-        filterComplex += `[${musicInputIdx}:a]volume=0.12[bgm];[1:a][bgm]amix=inputs=2:duration=first[audio]`;
-      } else {
-        filterComplex += ";[1:a]acopy[audio]";
+        filterComplex += `[withcard]${subsNode}[video]`;
+
+        // Audio mixing
+        if (musicPath && musicInputIdx > 0) {
+          filterComplex += `;[${musicInputIdx}:a]volume=0.12[bgm];[1:a][bgm]amix=inputs=2:duration=first[audio]`;
+        } else {
+          filterComplex += ";[1:a]acopy[audio]";
+        }
+
+        const args: string[] = [
+          "-y",
+          "-stream_loop", "-1", "-i", bgVideoPath,   // 0: bg
+          "-i", combinedAudioPath,                     // 1: voice
+        ];
+        if (musicPath) args.push("-i", musicPath);     // 2: music (optional) → index 3
+        args.push("-loop", "1", "-i", introCardPath);  // card PNG → index 3 or 4
+
+        args.push(
+          "-filter_complex", filterComplex,
+          "-map", "[video]",
+          "-map", "[audio]",
+          "-c:v", "libx264", "-preset", "superfast", "-crf", "23",
+          "-c:a", "aac", "-shortest",
+          outputPath,
+        );
+
+        await runFFmpegArgs(args);
+        return;
       }
-
-      const args: string[] = [
-        "-y",
-        "-stream_loop", "-1", "-i", bgVideoPath,   // 0: bg
-        "-i", combinedAudioPath,                     // 1: voice
-      ];
-      if (musicPath) args.push("-i", musicPath);     // 2: music (optional) → index 3
-      args.push("-loop", "1", "-i", introCardPath);  // card PNG → index 3 or 4
-
-      args.push(
-        "-filter_complex", filterComplex,
-        "-map", "[video]",
-        "-map", "[audio]",
-        "-c:v", "libx264", "-preset", "superfast", "-crf", "23",
-        "-c:a", "aac", "-shortest",
-        outputPath,
-      );
-
-      await runFFmpegArgs(args);
-    } else {
       // No intro card — use simple runFFmpeg helper
-      await runFFmpeg({ bgVideoPath, voiceAudioPath: combinedAudioPath, musicAudioPath: musicPath, assPath, outputPath });
-    }
+      await runFFmpeg({
+        bgVideoPath,
+        voiceAudioPath: combinedAudioPath,
+        musicAudioPath: musicPath,
+        assPath: burnSubs ? assPath : undefined,
+        outputPath,
+      });
+    };
+
+    await compose(!plan.defer);
 
     await setProgress(projectId, 90);
 
     // 10. Upload to S3
     logger.info("reddit-video", "Uploading to S3...");
     const s3Key = `reddit-videos/${projectId}/output.mp4`;
-    const videoUrl = await uploadFileToS3(outputPath, s3Key, "video/mp4");
+    let videoUrl = await uploadFileToS3(outputPath, s3Key, "video/mp4");
+
+    if (plan.defer && captionTemplateId) {
+      // The words handed to the provider are ElevenLabs' alignment of the
+      // script the USER typed — exact text, usernames and post titles included.
+      // Pushing them before the paid export is what stops a premium render from
+      // replacing that with an ASR guess at our own synthesized audio.
+      const outcome = await requestSurfaceCaptionRender({
+        projectId, userId, templateId: captionTemplateId, durationSec, words: combinedTimings,
+      });
+      if (!outcome.submitted) {
+        logger.warn("reddit-video", `provider declined (${outcome.reason}) — burning captions locally for ${projectId}`);
+        await compose(true);
+        videoUrl = await uploadFileToS3(outputPath, s3Key, "video/mp4");
+      }
+    }
+
     await setProgress(projectId, 95);
 
     // 11. Mark complete
@@ -304,6 +346,15 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: `Script is too long (max ${MAX_SCRIPT_CHARS} characters)` }, { status: 400 });
   }
 
+  // Shared with the AutoClip create routes. Worth noting what it fixes here:
+  // this page's picker offered 20 one-word tiles while the style table defines
+  // 16, so tiles 16-19 all silently rendered as tile 15. A slug cannot be out
+  // of range, and the legacy index is now clamped rather than clamped-by-accident.
+  const caption = resolveCaptionCreateInput({
+    captionStyleIndex: body.subtitleStyleIndex,
+    captionTemplateId: body.captionTemplateId,
+  });
+
   const project = await prisma.project.findFirst({
     where: { id: body.projectId, userId: auth.userId },
   });
@@ -331,7 +382,7 @@ async function handlePOST(req: NextRequest) {
       voiceId: body.scriptVoiceId || "",
       musicUrl: body.bgMusicUrl || null,
       backgroundUrl: body.bgVideoUrl,
-      subtitlesStyle: { styleIndex: body.subtitleStyleIndex ?? 0, mode: body.subtitleMode ?? "oneword" },
+      subtitlesStyle: { styleIndex: caption.captionStyleIndex, templateId: caption.templateId, mode: body.subtitleMode ?? "oneword" },
     },
   });
 
@@ -346,7 +397,8 @@ async function handlePOST(req: NextRequest) {
     scriptVoiceId: body.scriptVoiceId || "william",
     bgMusicUrl: body.bgMusicUrl || "",
     bgVideoUrl: body.bgVideoUrl,
-    subtitleStyleIndex: body.subtitleStyleIndex ?? 0,
+    subtitleStyleIndex: caption.captionStyleIndex,
+    captionTemplateId: caption.templateId,
     subtitleMode: body.subtitleMode ?? "oneword",
     voiceSettings: body.voiceSettings,
     language: body.language,

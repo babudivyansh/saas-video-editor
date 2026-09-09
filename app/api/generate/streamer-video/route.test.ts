@@ -30,7 +30,13 @@ const runStreamerFFmpeg = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock("@/utils/ffmpeg-render", () => ({
   runStreamerFFmpeg,
   styleIndexToDrawtext: vi.fn((i: number) => ({ fontsize: 48, style: i })),
+  // This product gained real word-timed captions alongside its title overlay;
+  // the index above still styles the title only.
+  extractAudio: vi.fn(async () => {}),
+  generateASS: vi.fn(() => {}),
+  getMediaDurationSec: vi.fn(async () => 30),
 }));
+vi.mock("@/lib/transcription", () => ({ transcribe: vi.fn(async () => []) }));
 
 const uploadFileToS3 = vi.hoisted(() => vi.fn(async () => "https://cdn.invalid/renders/project-1.mp4"));
 const getAssetReadUrl = vi.hoisted(() => vi.fn(async (key: string) => `https://signed.invalid/${key}?fresh=1`));

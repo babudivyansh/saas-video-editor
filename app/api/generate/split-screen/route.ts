@@ -8,7 +8,6 @@ import {
   extractAudio,
   generateASS,
   runSplitScreenFFmpeg,
-  styleIndexToSubtitleStyle,
 } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { WordTiming } from "@/utils/elevenlabs";
@@ -22,6 +21,10 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import { logger } from "@/lib/logger";
 import { freshSourceUrl } from "@/lib/source-url";
 import { classifyProjectRenderFailure } from "@/lib/project-render-failure";
+import { resolveSurfaceCaptionStyle } from "@/lib/captions/surfaceStyle";
+import { resolveCaptionCreateInput } from "@/lib/captions/createPayload";
+import { planSurfaceCaptions, requestSurfaceCaptionRender } from "@/lib/captions/surfaceRender";
+import { getMediaDurationSec } from "@/utils/ffmpeg-render";
 
 export const maxDuration = 300;
 
@@ -48,7 +51,11 @@ async function refundRenderCredit(projectId: string) {
 interface SplitScreenPayload {
   projectId: string;
   bgVideoUrl: string;
+  /** Legacy index. Still carried so a job enqueued before the template switch
+   *  keeps rendering the look its owner picked. */
   subtitleStyleIndex: number;
+  /** Template slug — authoritative when set. */
+  captionTemplateId?: string | null;
   mode: "oneword" | "lines";
 }
 
@@ -60,7 +67,7 @@ interface SplitScreenPayload {
 // ── Job worker ───────────────────────────────────────────────────────────────
 
 async function renderJob(payload: SplitScreenPayload): Promise<void> {
-  const { projectId, bgVideoUrl, subtitleStyleIndex, mode } = payload;
+  const { projectId, bgVideoUrl, subtitleStyleIndex, captionTemplateId, mode } = payload;
 
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   if (!project?.uploadedVideoUrl) {
@@ -94,13 +101,56 @@ async function renderJob(payload: SplitScreenPayload): Promise<void> {
       logger.warn("split-screen", "transcription failed, rendering without subtitles", err);
     }
 
-    const subtitleStyle = styleIndexToSubtitleStyle(subtitleStyleIndex, mode);
-    generateASS(wordTimings, subtitleStyle, assPath);
+    const subtitleStyle = resolveSurfaceCaptionStyle({
+      templateId: captionTemplateId,
+      styleIndex: subtitleStyleIndex,
+      mode,
+      words: wordTimings,
+    });
 
-    await runSplitScreenFFmpeg({ userVideoPath: userPath, bgVideoPath: bgPath, assPath, outputPath: outPath });
+    // A premium template means a provider captions the finished file, so this
+    // pass has to produce a CLEAN one — burning them here as well would stack
+    // two caption tracks into the export, permanently.
+    const durationSec = await getMediaDurationSec(userPath).catch(() => 0);
+    const plan = await planSurfaceCaptions({
+      projectId,
+      userId: project.userId,
+      templateId: captionTemplateId,
+      durationSec,
+    });
+
+    const burnLocally = async () => {
+      generateASS(wordTimings, subtitleStyle, assPath);
+      await runSplitScreenFFmpeg({ userVideoPath: userPath, bgVideoPath: bgPath, assPath, outputPath: outPath });
+    };
+
+    if (plan.defer) {
+      await runSplitScreenFFmpeg({ userVideoPath: userPath, bgVideoPath: bgPath, outputPath: outPath });
+    } else {
+      await burnLocally();
+    }
 
     const s3Key = `renders/${projectId}.mp4`;
-    const videoUrl = await uploadFileToS3(outPath, s3Key, "video/mp4");
+    let videoUrl = await uploadFileToS3(outPath, s3Key, "video/mp4");
+
+    if (plan.defer && captionTemplateId) {
+      const outcome = await requestSurfaceCaptionRender({
+        projectId,
+        userId: project.userId,
+        templateId: captionTemplateId,
+        durationSec,
+        words: wordTimings,
+      });
+      // The gates passed a moment ago, but the charge can still fail and a flag
+      // can flip mid-render. The temp files are still here, so the honest
+      // recovery is to burn the template's native look and re-upload rather
+      // than ship a video with no captions at all.
+      if (!outcome.submitted) {
+        logger.warn("split-screen", `provider declined (${outcome.reason}) — burning captions locally for ${projectId}`);
+        await burnLocally();
+        videoUrl = await uploadFileToS3(outPath, s3Key, "video/mp4");
+      }
+    }
 
     await prisma.project.update({ where: { id: projectId }, data: { status: "completed", videoUrl } });
   } catch (err) {
@@ -157,6 +207,15 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "projectId and bgVideoUrl required" }, { status: 400 });
   }
 
+  // The same sanitizer the AutoClip create routes use. This route previously
+  // did `body.subtitleStyleIndex ?? 0` with no validation at all, so `9999` or
+  // a string reached styleIndexToSubtitleStyle and was silently clamped. The
+  // field is named differently here for historical reasons, hence the mapping.
+  const caption = resolveCaptionCreateInput({
+    captionStyleIndex: body.subtitleStyleIndex,
+    captionTemplateId: body.captionTemplateId,
+  });
+
   const project = await prisma.project.findFirst({
     where: { id: body.projectId, userId: auth.userId },
   });
@@ -194,7 +253,8 @@ async function handlePOST(req: NextRequest) {
   getQueue().enqueue(body.projectId, {
     projectId: body.projectId,
     bgVideoUrl: body.bgVideoUrl,
-    subtitleStyleIndex: body.subtitleStyleIndex ?? 0,
+    subtitleStyleIndex: caption.captionStyleIndex,
+    captionTemplateId: caption.templateId,
     mode: body.mode ?? "oneword",
   });
   void markQuestComplete(auth.userId, "first-clip");
