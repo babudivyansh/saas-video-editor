@@ -94,13 +94,17 @@ const PATTERNS = {
 const BUDGET = {
   // 65 -> 64: deleting app/components/SubtitleStylePicker.tsx (the 16-swatch
   // index-based caption grid) took its hover:ring-gray-300 with it.
-  "raw-gray": 64,
-  "bg-white": 5,
+  // 64 -> 63: one more went with the deleted caption tile grids.
+  "raw-gray": 63,
+  // 5 -> 4: same deletion.
+  "bg-white": 4,
   "raw-slate": 16,
   "raw-zinc": 2,
   "raw-blue": 42,
   "raw-red": 15,
-  "brand-hex": 51,
+  // 51 -> 47: four of the retired brand hexes lived in the caption tile tables
+  // deleted below.
+  "brand-hex": 47,
   "legacy-light": 0,
   // 320 -> 318: same deletion. The replacement (CaptionStyleGrid) still needs
   // two inline hex values for the swatch gradient — that is product artwork
@@ -109,7 +113,14 @@ const BUDGET = {
   // and the new hover preview now stand on `bg-gradient-to-br from-surface-3
   // to-bg`, and the one remaining literal (a #000 in a text-shadow) became
   // rgba(0,0,0,1) — the same colour, measurable by the class-based rules.
-  "inline-hex": 317,
+  // 317 -> 152: the single biggest drop in this ratchet's life. The four
+  // create pages (reddit, split-video, viral-split-screen, streamer) each
+  // carried a verbatim copy of the same ONE_WORD_STYLES/LINE_STYLES CSS tile
+  // tables — ~165 inline colour literals describing caption looks that the
+  // renderer defined separately and had already drifted from. All four now
+  // render the shared named-template grid, which draws each swatch from the
+  // template's own ASS style, so the preview and the burn-in cannot disagree.
+  "inline-hex": 152,
 };
 
 function walk(dir, out = []) {

@@ -1,6 +1,8 @@
 "use client";
-import { Suspense, useEffect, useRef, useState, type CSSProperties } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import SubtitleTemplateStep from "@/app/components/create/SubtitleTemplateStep";
+import { DEFAULT_TEMPLATE_ID, indexForTemplateId } from "@/lib/captions/legacyStyleIndex";
 import { useVideoGenerate, type GenerateStatus } from "@/app/hooks/useVideoGenerate";
 import { useAuth } from "@/app/components/AuthContext";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
@@ -14,9 +16,6 @@ function IcFilm() {
 }
 function IcCloud() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/></svg>;
-}
-function IcCheck() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3"><path d="M5 13l4 4L19 7"/></svg>;
 }
 function IcFile() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>;
@@ -41,45 +40,8 @@ const STEPS = [
 ];
 
 // ── Subtitle styles (same 16 CSS tiles as Crayo) ─────────────────────────────
-const OUTLINE = "1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000,0 2px 4px rgba(0,0,0,.5)";
 
-const ONE_WORD_STYLES: CSSProperties[] = [
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#fff", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#22d3ee", textShadow: OUTLINE },
-  { fontFamily: "Georgia,serif", fontWeight: 700, color: "#fff", textShadow: "0 0 12px rgba(255,255,255,.6)" },
-  { fontFamily: "Georgia,serif", fontWeight: 400, color: "#fff", textShadow: "0 0 14px rgba(255,255,255,.7)" },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, fontStyle: "italic", color: "#fff", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#4ade80", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, fontStyle: "italic", color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, fontStyle: "italic", color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", background: "#ef4444", padding: "4px 18px", borderRadius: 9999 },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 700, color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "Georgia,serif", fontWeight: 700, fontStyle: "italic", color: "#facc15", textShadow: "1px 1px 2px rgba(0,0,0,.6)" },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, fontStyle: "italic", color: "#facc15", textTransform: "uppercase", textShadow: "0 0 12px rgba(250,204,21,.8)" },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#facc15", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#3b82f6", textTransform: "uppercase", textShadow: "1px 1px 0 #fff,-1px 1px 0 #fff,1px -1px 0 #fff,-1px -1px 0 #fff" },
-];
 
-const LINE_STYLES: CSSProperties[] = [
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#fff", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#fff", textShadow: "0 0 14px rgba(255,255,255,.7)" },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, fontStyle: "italic", color: "#3b82f6", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 700, color: "#1f2937", background: "#f3f4f6", padding: "4px 12px", borderRadius: 6 },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "Georgia,serif", fontWeight: 700, color: "#facc15", textShadow: "0 0 12px rgba(250,204,21,.7)" },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, fontStyle: "italic", color: "#fff", textTransform: "uppercase", textShadow: "1px 1px 0 #ef4444,-1px -1px 0 #000" },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#facc15", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#22d3ee", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#84cc16", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#fb923c", textShadow: "0 0 12px rgba(251,146,60,.6)" },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, fontStyle: "italic", color: "#f9a8d4", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", background: "#2563eb", padding: "4px 12px", borderRadius: 6 },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 700, color: "#fff", background: "#000", padding: "4px 12px", borderRadius: 6 },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#c4b5fd", textTransform: "uppercase", textShadow: "0 0 10px rgba(196,181,253,.6)" },
-];
 
 // Local AuthModal component deleted in favor of global AuthModal
 
@@ -349,19 +311,16 @@ function TitleStep({
   onTitleChange,
   subtitleMode,
   onModeChange,
-  subtitleSel,
-  onSubtitleSel,
+  captionTemplateId,
+  onCaptionTemplateChange,
 }: {
   titleText: string;
   onTitleChange: (v: string) => void;
   subtitleMode: "oneword" | "lines";
   onModeChange: (m: "oneword" | "lines") => void;
-  subtitleSel: number;
-  onSubtitleSel: (i: number) => void;
+  captionTemplateId: string;
+  onCaptionTemplateChange: (id: string) => void;
 }) {
-  const styles = subtitleMode === "oneword" ? ONE_WORD_STYLES : LINE_STYLES;
-  const sample = subtitleMode === "oneword" ? "Clipiro" : "The quick brown";
-
   return (
     <div className="px-8 pt-6 pb-10 flex flex-col space-y-4 h-full">
       {/* Title input */}
@@ -378,43 +337,14 @@ function TitleStep({
         />
       </div>
 
-      {/* One Word / Lines toggle */}
-      <div className="flex items-center gap-3">
-        <span className="text-sm font-medium" style={{ color: subtitleMode === "oneword" ? "#111827" : "#9ca3af" }}>One Word</span>
-        <button
-          onClick={() => { onModeChange(subtitleMode === "oneword" ? "lines" : "oneword"); onSubtitleSel(0); }}
-          className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none"
-          style={{ background: subtitleMode === "lines" ? "#335CFF" : "#cbd5e1" }}
-        >
-          <span
-            className="absolute w-4 h-4 rounded-full bg-panel transition-all shadow-sm"
-            style={{ left: subtitleMode === "lines" ? "22px" : "2px", top: "4px" }}
-          />
-        </button>
-        <span className="text-sm font-medium" style={{ color: subtitleMode === "lines" ? "#111827" : "#9ca3af" }}>Lines</span>
-      </div>
-
-      {/* Subtitle style tiles */}
-      <div className="grid w-full grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4">
-        {styles.map((st, i) => {
-          const isSel = subtitleSel === i;
-          return (
-            <button
-              key={i}
-              onClick={() => onSubtitleSel(i)}
-              className="group relative h-[104px] rounded-xl flex items-center justify-center px-4 transition-all overflow-hidden cursor-pointer"
-              style={{ background: "#243044", border: isSel ? "2px solid #335CFF" : "2px solid transparent" }}
-            >
-              {isSel && (
-                <span className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full text-white flex items-center justify-center shadow" style={{ background: "#335CFF" }}>
-                  <IcCheck />
-                </span>
-              )}
-              <span className="text-[22px] leading-tight text-center transition-transform duration-200 group-hover:scale-110" style={st}>{sample}</span>
-            </button>
-          );
-        })}
-      </div>
+      <SubtitleTemplateStep
+        value={captionTemplateId}
+        onChange={onCaptionTemplateChange}
+        mode={subtitleMode}
+        onModeChange={onModeChange}
+        title="Caption style"
+        className=""
+      />
     </div>
   );
 }
@@ -435,7 +365,7 @@ function StreamerVideoFlow() {
 
   const [titleText, setTitleText] = useState("");
   const [subtitleMode, setSubtitleMode] = useState<"oneword" | "lines">("oneword");
-  const [subtitleSel, setSubtitleSel] = useState(0);
+  const [captionTemplateId, setCaptionTemplateId] = useState<string>(DEFAULT_TEMPLATE_ID);
   const { user, openAuthModal } = useAuth();
 
   const { status: genStatus, videoUrl, error: genError, generateStreamerVideo, reset: resetGenerate } = useVideoGenerate();
@@ -481,7 +411,7 @@ function StreamerVideoFlow() {
       file: fileRef.current ?? undefined,
       videoUrl: fileRef.current ? undefined : (assetUrlRef.current ?? undefined),
       fileName: fileRef.current ? undefined : (fileName ?? undefined),
-      titleText, subtitleStyleIndex: subtitleSel, token,
+      titleText, subtitleStyleIndex: indexForTemplateId(captionTemplateId), captionTemplateId, captionMode: subtitleMode, token,
     });
   }
 
@@ -527,8 +457,8 @@ function StreamerVideoFlow() {
                 onTitleChange={setTitleText}
                 subtitleMode={subtitleMode}
                 onModeChange={setSubtitleMode}
-                subtitleSel={subtitleSel}
-                onSubtitleSel={setSubtitleSel}
+                captionTemplateId={captionTemplateId}
+                onCaptionTemplateChange={setCaptionTemplateId}
               />
             )}
           </div>

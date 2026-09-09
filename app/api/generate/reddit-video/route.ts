@@ -7,7 +7,9 @@ import { prisma } from "@/lib/prisma";
 import { InProcessQueue } from "@/lib/job-queue";
 import { chargeCredits, refundCredits, markGenerationStatus } from "@/lib/credits";
 import { synthesizeVoice, WordTiming } from "@/utils/elevenlabs";
-import { generateASS, runFFmpeg, runFFmpegArgs, styleIndexToSubtitleStyle } from "@/utils/ffmpeg-render";
+import { generateASS, runFFmpeg, runFFmpegArgs } from "@/utils/ffmpeg-render";
+import { resolveSurfaceCaptionStyle } from "@/lib/captions/surfaceStyle";
+import { resolveCaptionCreateInput } from "@/lib/captions/createPayload";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { resolveVoiceId } from "@/utils/voice-ids";
 import { downloadFile } from "@/utils/download";
@@ -45,7 +47,10 @@ interface RedditVideoPayload {
   scriptVoiceId: string;
   bgMusicUrl: string;
   bgVideoUrl: string;
+  /** Legacy index. Kept so an in-flight job still renders its chosen look. */
   subtitleStyleIndex: number;
+  /** Template slug — authoritative when set. */
+  captionTemplateId?: string | null;
   subtitleMode: "oneword" | "lines";
   voiceSettings?: { stability?: number; style?: number; similarityBoost?: number };
   language?: string;
@@ -83,7 +88,7 @@ function offsetTimings(timings: WordTiming[], deltaMs: number): WordTiming[] {
 async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
   const {
     projectId, userId, generationId, postTitle, username, script, introVoiceId, scriptVoiceId,
-    bgMusicUrl, bgVideoUrl, subtitleStyleIndex, subtitleMode,
+    bgMusicUrl, bgVideoUrl, subtitleStyleIndex, captionTemplateId, subtitleMode,
     voiceSettings: vs, language, showIntroCard = true, darkMode = true,
     upvotes = "0", comments = "0",
   } = payload;
@@ -162,7 +167,12 @@ async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
 
     // 5. Generate ASS subtitles
     logger.info("reddit-video", "Generating subtitles...");
-    const subtitleStyle = styleIndexToSubtitleStyle(subtitleStyleIndex, subtitleMode);
+    const subtitleStyle = resolveSurfaceCaptionStyle({
+      templateId: captionTemplateId,
+      styleIndex: subtitleStyleIndex,
+      mode: subtitleMode,
+      words: combinedTimings,
+    });
     const assPath = path.join(tmpDir, "subs.ass");
     generateASS(combinedTimings, subtitleStyle, assPath);
 
@@ -304,6 +314,15 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: `Script is too long (max ${MAX_SCRIPT_CHARS} characters)` }, { status: 400 });
   }
 
+  // Shared with the AutoClip create routes. Worth noting what it fixes here:
+  // this page's picker offered 20 one-word tiles while the style table defines
+  // 16, so tiles 16-19 all silently rendered as tile 15. A slug cannot be out
+  // of range, and the legacy index is now clamped rather than clamped-by-accident.
+  const caption = resolveCaptionCreateInput({
+    captionStyleIndex: body.subtitleStyleIndex,
+    captionTemplateId: body.captionTemplateId,
+  });
+
   const project = await prisma.project.findFirst({
     where: { id: body.projectId, userId: auth.userId },
   });
@@ -331,7 +350,7 @@ async function handlePOST(req: NextRequest) {
       voiceId: body.scriptVoiceId || "",
       musicUrl: body.bgMusicUrl || null,
       backgroundUrl: body.bgVideoUrl,
-      subtitlesStyle: { styleIndex: body.subtitleStyleIndex ?? 0, mode: body.subtitleMode ?? "oneword" },
+      subtitlesStyle: { styleIndex: caption.captionStyleIndex, templateId: caption.templateId, mode: body.subtitleMode ?? "oneword" },
     },
   });
 
@@ -346,7 +365,8 @@ async function handlePOST(req: NextRequest) {
     scriptVoiceId: body.scriptVoiceId || "william",
     bgMusicUrl: body.bgMusicUrl || "",
     bgVideoUrl: body.bgVideoUrl,
-    subtitleStyleIndex: body.subtitleStyleIndex ?? 0,
+    subtitleStyleIndex: caption.captionStyleIndex,
+    captionTemplateId: caption.templateId,
     subtitleMode: body.subtitleMode ?? "oneword",
     voiceSettings: body.voiceSettings,
     language: body.language,

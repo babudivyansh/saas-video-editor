@@ -122,10 +122,10 @@ vi.mock("@/lib/prisma", () => ({
 
 const { POST } = await import("@/app/api/generate/split-screen/route");
 
-function makeRequest() {
+function makeRequest(extra: Record<string, unknown> = {}) {
   return new NextRequest("http://localhost/api/generate/split-screen", {
     method: "POST",
-    body: JSON.stringify({ projectId: "project-1", bgVideoUrl: "https://example.com/bg.mp4", subtitleStyleIndex: 0, mode: "oneword" }),
+    body: JSON.stringify({ projectId: "project-1", bgVideoUrl: "https://example.com/bg.mp4", subtitleStyleIndex: 0, mode: "oneword", ...extra }),
     headers: { "content-type": "application/json" },
   });
 }
@@ -228,5 +228,30 @@ describe("Split Screen — stale source URL", () => {
     // Falls back to the stored URL — the pre-re-minting behaviour, which S3
     // rejects on its own. No access is granted that the caller lacked.
     expect(downloadFile.mock.calls.map((c) => c[0])).toContain(STALE_URL);
+  });
+});
+
+describe("Split Screen — caption template", () => {
+  it("carries the chosen template slug through to the render job", async () => {
+    await POST(makeRequest({ captionTemplateId: "hormozi" }));
+    expect(captured.enqueued[0]).toMatchObject({ captionTemplateId: "hormozi" });
+  });
+
+  it("derives the legacy index from the slug, so old readers still work", async () => {
+    // Project.subtitlesStyle and the v1 API still speak integers.
+    await POST(makeRequest({ captionTemplateId: "news", subtitleStyleIndex: 0 }));
+    expect(captured.enqueued[0].subtitleStyleIndex).toBe(2);
+  });
+
+  it("rejects an out-of-range index instead of relying on a silent clamp", async () => {
+    // This route did `body.subtitleStyleIndex ?? 0` with no validation at all;
+    // 9999 reached styleIndexToSubtitleStyle and was clamped there, invisibly.
+    await POST(makeRequest({ subtitleStyleIndex: 9999 }));
+    expect(captured.enqueued[0].subtitleStyleIndex).toBe(15);
+  });
+
+  it("falls back to the default template when the slug is unknown", async () => {
+    await POST(makeRequest({ captionTemplateId: "not-a-real-template" }));
+    expect(captured.enqueued[0].captionTemplateId).toBe("clean");
   });
 });

@@ -1,6 +1,8 @@
 "use client";
-import { Suspense, useEffect, useRef, useState, type ReactNode, type CSSProperties } from "react";
+import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import SubtitleTemplateStep from "@/app/components/create/SubtitleTemplateStep";
+import { DEFAULT_TEMPLATE_ID, indexForTemplateId } from "@/lib/captions/legacyStyleIndex";
 import { useVideoGenerate, getStoredToken, type GenerateStatus } from "@/app/hooks/useVideoGenerate";
 import { useAuth } from "@/app/components/AuthContext";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
@@ -108,47 +110,6 @@ const BACKGROUNDS = [
   { title: "Subway Surfers",  author: "Jakey",          authorImg: JAKEY,   mins: "1 mins",   size: "139 MB", id: "5p00qpnk-q5ok-njot-q8t5-hvoz6kyngq9"  },
   { title: "Minecraft Video", author: "Steve",          authorImg: STEVE,   mins: "1 mins",   size: "44 MB",  id: "6whgrwz6-l9ta-3jgl-oti4-5iia2q3s5us"  },
   { title: "Mario Kart",      author: "Mario",          authorImg: MARIO,   mins: "1 mins",   size: "137 MB", id: "7ob75v4o-vgia-vnwu-x7l5-bzh0kbxl224"  },
-];
-
-// ── Subtitle styles — CSS text tiles matching Crayo exactly ──────────────────
-const OUTLINE = "1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000,0 2px 4px rgba(0,0,0,.5)";
-
-const ONE_WORD_STYLES: CSSProperties[] = [
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#fff", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#22d3ee", textShadow: OUTLINE },
-  { fontFamily: "Georgia,serif", fontWeight: 700, color: "#fff", textShadow: "0 0 12px rgba(255,255,255,.6)" },
-  { fontFamily: "Georgia,serif", fontWeight: 400, color: "#fff", textShadow: "0 0 14px rgba(255,255,255,.7)" },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, fontStyle: "italic", color: "#fff", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#4ade80", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, fontStyle: "italic", color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, fontStyle: "italic", color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", background: "#ef4444", padding: "4px 18px", borderRadius: 9999 },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 700, color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "Georgia,serif", fontWeight: 700, fontStyle: "italic", color: "#facc15", textShadow: "1px 1px 2px rgba(0,0,0,.6)" },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, fontStyle: "italic", color: "#facc15", textTransform: "uppercase", textShadow: "0 0 12px rgba(250,204,21,.8)" },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#facc15", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#3b82f6", textTransform: "uppercase", textShadow: "1px 1px 0 #fff,-1px 1px 0 #fff,1px -1px 0 #fff,-1px -1px 0 #fff" },
-];
-
-const LINE_STYLES: CSSProperties[] = [
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#fff", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#fff", textShadow: "0 0 14px rgba(255,255,255,.7)" },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, fontStyle: "italic", color: "#3b82f6", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 700, color: "#1f2937", background: "#f3f4f6", padding: "4px 12px", borderRadius: 6 },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "Georgia,serif", fontWeight: 700, color: "#facc15", textShadow: "0 0 12px rgba(250,204,21,.7)" },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, fontStyle: "italic", color: "#fff", textTransform: "uppercase", textShadow: "1px 1px 0 #ef4444,-1px -1px 0 #000" },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#facc15", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#22d3ee", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#84cc16", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#fb923c", textShadow: "0 0 12px rgba(251,146,60,.6)" },
-  { fontFamily: "Impact,system-ui,sans-serif", fontWeight: 900, fontStyle: "italic", color: "#f9a8d4", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", textShadow: OUTLINE },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 900, color: "#fff", textTransform: "uppercase", background: "#2563eb", padding: "4px 12px", borderRadius: 6 },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 700, color: "#fff", background: "#000", padding: "4px 12px", borderRadius: 6 },
-  { fontFamily: "system-ui,sans-serif", fontWeight: 800, color: "#c4b5fd", textTransform: "uppercase", textShadow: "0 0 10px rgba(196,181,253,.6)" },
 ];
 
 // ── Generating overlay + result panel ────────────────────────────────────────
@@ -464,61 +425,6 @@ function BackgroundStep({ selected, onSelect }: { selected: number; onSelect: (i
   );
 }
 
-// ── Step 3: Subtitles — CSS-styled text tiles matching Crayo exactly ─────────
-function SubtitleStep({
-  selected,
-  onSelect,
-  mode,
-  onModeChange,
-}: {
-  selected: number;
-  onSelect: (i: number) => void;
-  mode: "oneword" | "lines";
-  onModeChange: (m: "oneword" | "lines") => void;
-}) {
-  const styles = mode === "oneword" ? ONE_WORD_STYLES : LINE_STYLES;
-  const sample = mode === "oneword" ? "Clipiro" : "The quick brown";
-
-  return (
-    <div className="px-8 pt-6 pb-10">
-      <h2 className="text-lg font-bold text-fg">Select Subtitle Template</h2>
-
-      <div className="flex items-center gap-3 mt-3 mb-5">
-        <span className="text-sm font-medium" style={{ color: mode === "oneword" ? "#111827" : "#9ca3af" }}>One Word</span>
-        <button
-          onClick={() => { onModeChange(mode === "oneword" ? "lines" : "oneword"); onSelect(0); }}
-          className="relative w-10 h-5 rounded-full transition-colors"
-          style={{ background: mode === "lines" ? "#2563eb" : "#cbd5e1" }}
-        >
-          <span className="absolute top-0.5 w-4 h-4 rounded-full bg-panel transition-all shadow-sm" style={{ left: mode === "lines" ? "22px" : "2px" }} />
-        </button>
-        <span className="text-sm font-medium" style={{ color: mode === "lines" ? "#111827" : "#9ca3af" }}>Lines</span>
-      </div>
-
-      <div className="mt-4 grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {styles.map((st, i) => {
-          const isSel = selected === i;
-          return (
-            <button
-              key={i}
-              onClick={() => onSelect(i)}
-              className="group relative h-[104px] rounded-xl flex items-center justify-center px-4 transition-all overflow-hidden cursor-pointer"
-              style={{ background: "#243044", border: isSel ? "2px solid #2563eb" : "2px solid transparent" }}
-            >
-              {isSel && (
-                <span className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-brand text-on-primary flex items-center justify-center shadow">
-                  <IcCheck />
-                </span>
-              )}
-              <span className="text-[22px] leading-tight text-center transition-transform duration-200 group-hover:scale-110" style={st}>{sample}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ── Main flow ─────────────────────────────────────────────────────────────────
 function ViralSplitScreenFlow() {
   const router = useRouter();
@@ -535,7 +441,7 @@ function ViralSplitScreenFlow() {
   const assetUrlRef = useRef<string | null>(null);
 
   const [bg, setBg] = useState(0);
-  const [subSel, setSubSel] = useState(0);
+  const [captionTemplateId, setCaptionTemplateId] = useState<string>(DEFAULT_TEMPLATE_ID);
   const [subMode, setSubMode] = useState<"oneword" | "lines">("oneword");
 
   const { status: genStatus, videoUrl, error: genError, generateSplitScreen, reset: resetGenerate } = useVideoGenerate();
@@ -574,7 +480,7 @@ function ViralSplitScreenFlow() {
       file: fileRef.current ?? undefined,
       videoUrl: fileRef.current ? undefined : (assetUrlRef.current ?? undefined),
       fileName: fileRef.current ? undefined : (fileName ?? undefined),
-      bgVideoUrl, subtitleStyleIndex: subSel, mode: subMode, token,
+      bgVideoUrl, subtitleStyleIndex: indexForTemplateId(captionTemplateId), captionTemplateId, mode: subMode, token,
     });
   }
 
@@ -607,7 +513,7 @@ function ViralSplitScreenFlow() {
               <UploadStep onFile={handleFile} onAsset={handleAsset} onLinkGate={() => openAuthModal("login", "Vertical Split Screen")} fileName={fileName} onClearFile={handleClearFile} />
             )}
             {stepIndex === 1 && <BackgroundStep selected={bg} onSelect={setBg} />}
-            {stepIndex === 2 && <SubtitleStep selected={subSel} onSelect={setSubSel} mode={subMode} onModeChange={setSubMode} />}
+            {stepIndex === 2 && <SubtitleTemplateStep value={captionTemplateId} onChange={setCaptionTemplateId} mode={subMode} onModeChange={setSubMode} />}
           </div>
         )}
       </div>

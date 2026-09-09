@@ -119,11 +119,14 @@ export function useVideoGenerate() {
     videoUrl?: string;
     fileName?: string;
     bgVideoUrl: string;
+    /** Legacy index, derived from the slug. Kept on the wire for back-compat. */
     subtitleStyleIndex: number;
+    /** Caption template slug — what the picker actually selects now. */
+    captionTemplateId?: string;
     mode: "oneword" | "lines";
     token: string;
   }) => {
-    const { file, videoUrl, fileName, bgVideoUrl, subtitleStyleIndex, mode, token } = params;
+    const { file, videoUrl, fileName, bgVideoUrl, subtitleStyleIndex, captionTemplateId, mode, token } = params;
     setStatus("uploading");
     setError(null);
     setVideoUrl(null);
@@ -133,7 +136,7 @@ export function useVideoGenerate() {
       const projectId = await createProject(token, {
         title: fileName ?? file?.name ?? "Video",
         backgroundUrl: bgVideoUrl,
-        subtitlesStyle: { styleIndex: subtitleStyleIndex, mode },
+        subtitlesStyle: { styleIndex: subtitleStyleIndex, templateId: captionTemplateId ?? null, mode },
         uploadedVideoUrl,
         productType: "split-screen",
       });
@@ -141,6 +144,7 @@ export function useVideoGenerate() {
         projectId,
         bgVideoUrl,
         subtitleStyleIndex,
+        captionTemplateId,
         mode,
       });
       setStatus("rendering");
@@ -159,10 +163,14 @@ export function useVideoGenerate() {
     videoUrl?: string;
     fileName?: string;
     titleText: string;
+    /** Styles the TITLE overlay. Historical name — it predates real captions. */
     subtitleStyleIndex: number;
+    /** Caption template slug for the burned-in subtitles. */
+    captionTemplateId?: string;
+    captionMode?: "oneword" | "lines";
     token: string;
   }) => {
-    const { file, videoUrl, fileName, titleText, subtitleStyleIndex, token } = params;
+    const { file, videoUrl, fileName, titleText, subtitleStyleIndex, captionTemplateId, captionMode, token } = params;
     setStatus("uploading");
     setError(null);
     setVideoUrl(null);
@@ -171,7 +179,7 @@ export function useVideoGenerate() {
       setStatus("creating");
       const projectId = await createProject(token, {
         title: titleText || fileName || file?.name || "Video",
-        subtitlesStyle: { styleIndex: subtitleStyleIndex },
+        subtitlesStyle: { styleIndex: subtitleStyleIndex, templateId: captionTemplateId ?? null, mode: captionMode ?? "oneword" },
         uploadedVideoUrl,
         productType: "streamer-video",
       });
@@ -179,6 +187,8 @@ export function useVideoGenerate() {
         projectId,
         titleText,
         subtitleStyleIndex,
+        captionTemplateId,
+        captionMode,
       });
       setStatus("rendering");
       startPolling(projectId, token);
@@ -196,7 +206,10 @@ export function useVideoGenerate() {
     scriptVoiceId: string;
     bgMusicUrl: string;
     bgVideoUrl: string;
+    /** Legacy index, derived from the slug. Kept on the wire for back-compat. */
     subtitleStyleIndex: number;
+    /** Caption template slug — what the picker selects now. */
+    captionTemplateId?: string;
     subtitleMode: "oneword" | "lines";
     token: string;
     voiceSettings?: { stability?: number; style?: number; similarityBoost?: number };
@@ -207,7 +220,7 @@ export function useVideoGenerate() {
     comments?: string;
   }) => {
     const { postTitle, username, script, introVoiceId, scriptVoiceId, bgMusicUrl, bgVideoUrl,
-            subtitleStyleIndex, subtitleMode, token, voiceSettings, language,
+            subtitleStyleIndex, captionTemplateId, subtitleMode, token, voiceSettings, language,
             showIntroCard, darkMode, upvotes, comments } = params;
     setStatus("creating");
     setError(null);
@@ -220,7 +233,7 @@ export function useVideoGenerate() {
         script,
         voiceId: scriptVoiceId,
         musicUrl: bgMusicUrl || null,
-        subtitlesStyle: { styleIndex: subtitleStyleIndex, mode: subtitleMode },
+        subtitlesStyle: { styleIndex: subtitleStyleIndex, templateId: captionTemplateId ?? null, mode: subtitleMode },
         productType: "reddit-video",
       });
       setProjectId(pid);
@@ -234,6 +247,7 @@ export function useVideoGenerate() {
         bgMusicUrl,
         bgVideoUrl,
         subtitleStyleIndex,
+        captionTemplateId,
         subtitleMode,
         voiceSettings,
         language,

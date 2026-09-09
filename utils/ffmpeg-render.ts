@@ -699,6 +699,15 @@ export interface StreamerVideoOptions {
   userVideoPath: string;
   titleText: string;
   drawtextOpts: DrawtextOptions;
+  /**
+   * Word-timed subtitles, burned UNDER the title.
+   *
+   * Optional because this product had none: the page has always shown a
+   * "Select Caption Style" picker, but the route only ever drew a static title
+   * and never transcribed anything, so the picker named something that did not
+   * exist. Omit it and the render is exactly what it was.
+   */
+  assPath?: string;
   outputPath: string;
 }
 
@@ -727,9 +736,16 @@ export function runStreamerFFmpeg(opts: StreamerVideoOptions): Promise<void> {
     `x=(w-text_w)/2:y=h*0.08:borderw=${dt.borderw}:bordercolor=${dt.bordercolor}:` +
     `shadowx=2:shadowy=2:shadowcolor=${dt.shadowcolor}`;
 
+  // Subtitles first, then the title: the title is pinned near the top of the
+  // frame and must not be overdrawn by a caption line that happens to wrap.
+  const assEscaped = opts.assPath ? opts.assPath.replace(/\\/g, "/").replace(/:/g, "\\:") : null;
+  const chain = ["crop=in_h*9/16:in_h", assEscaped ? `subtitles='${assEscaped}'` : null, drawFilter]
+    .filter((f): f is string => f !== null)
+    .join(",");
+
   return runFFmpegArgs([
     "-y", "-i", userVideoPath,
-    "-vf", `crop=in_h*9/16:in_h,${drawFilter}`,
+    "-vf", chain,
     ...encodeArgs(),
     outputPath,
   ]);
