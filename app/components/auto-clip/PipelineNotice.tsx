@@ -37,6 +37,11 @@ const NOTICES: Record<string, NoticeCopy> = {
     detail:
       "No faces were detected in this video, so clips use a centered crop instead of following a speaker.",
   },
+  music_unavailable: {
+    short: "No background music — the track couldn't be loaded",
+    detail:
+      "The background music you picked couldn't be fetched, so the video was rendered without it. This is ours to fix, not something wrong with your video — please report it if it keeps happening.",
+  },
   reframe_failed: {
     short: "Centered crop — speaker tracking didn't run",
     detail:

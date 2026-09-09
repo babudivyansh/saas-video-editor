@@ -5,6 +5,7 @@ import path from "path";
 import { getAuthUser, getUserTier } from "@/lib/auth";
 import { maxUploadBytesForTier, formatBytes } from "@/lib/plans/tiers";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { InProcessQueue } from "@/lib/job-queue";
 import { chargeCredits, refundCredits, markGenerationStatus } from "@/lib/credits";
 import { synthesizeVoice, WordTiming } from "@/utils/elevenlabs";
@@ -200,6 +201,7 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
 
     // 4. Download background music (only from our own S3 — reject third-party CDNs)
     let musicPath: string | undefined;
+    let musicUnavailable = false;
     if (bgMusicUrl && bgMusicUrl.includes(S3_HOST)) {
       logger.info("text-video", "Downloading background music...");
       const candidate = path.join(tmpDir, "music.mp3");
@@ -207,8 +209,12 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
         await downloadFile(bgMusicUrl, candidate);
         musicPath = candidate;
       } catch (err) {
+        // The render continues without music rather than failing. As of
+        // 2026-09 the bucket has no music/ prefix at all, so this fired for
+        // every track, every time — silently.
         logger.warn("text-video", "Background music unavailable, continuing without it", err);
         musicPath = undefined;
+        musicUnavailable = true;
       }
     }
 
@@ -370,7 +376,16 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
     // 8. Mark complete
     await prisma.project.update({
       where: { id: projectId },
-      data: { status: "completed", videoUrl, progress: 100 },
+      data: {
+        status: "completed",
+        videoUrl,
+        progress: 100,
+        // Same channel AutoClip uses for "we shipped, but degraded" — read by
+        // PipelineNotice. JsonNull clears a warning from a previous attempt.
+        warnings: musicUnavailable
+          ? (["music_unavailable"] as unknown as Prisma.InputJsonValue)
+          : Prisma.JsonNull,
+      },
     });
     if (generationId) void markGenerationStatus(generationId, "completed");
     logger.info("text-video", `Done: ${videoUrl}`);

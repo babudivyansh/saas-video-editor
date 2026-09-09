@@ -3,6 +3,8 @@ import { Suspense, useEffect, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useVoiceCatalog, playVoicePreview, ageLabel, type CatalogVoice } from "@/app/components/voices/useVoiceCatalog";
 import { useVideoGenerate, getStoredToken } from "@/app/hooks/useVideoGenerate";
+import { ACTIVE_MUSIC_TRACKS, musicUrl } from "@/lib/music/catalog";
+import PipelineNotice from "@/app/components/auto-clip/PipelineNotice";
 import { useAuth } from "@/app/components/AuthContext";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { AssetField } from "@/app/components/assets/AssetField";
@@ -190,23 +192,17 @@ let currentPreviewAudio: HTMLAudioElement | null = null;
 
 
 // ── Background Music ──────────────────────────────────────────────────────────
-const MUSIC_BASE =
-  process.env.NEXT_PUBLIC_MUSIC_BASE ??
-  "https://saas-video-editor-assets.s3.ap-south-1.amazonaws.com/music";
-
+// One shared library — lib/music/catalog.ts. This page used to derive the S3
+// key by slugifying the DISPLAY NAME, so any label that did not match its
+// object key 404’d silently. `slug` is now a real field on the entry.
 const BACKGROUND_MUSIC = [
-  { name: "No background music", duration: "",      desc: "Add your own music after generating your video in the editor" },
-  { name: "Green to Blue",       duration: "3m 8s",  desc: "waveform" },
-  { name: "Wii Shop Trap Theme", duration: "1m 0s",  desc: "waveform" },
-  { name: "Milk Cassette",       duration: "5m 8s",  desc: "waveform" },
-  { name: "Bladerunner",         duration: "3m 48s", desc: "waveform" },
-  { name: "3am Walk",            duration: "1m 0s",  desc: "waveform" },
-  { name: "Fluffing Duck",       duration: "1m 7s",  desc: "waveform" },
-  { name: "I was only temporary",duration: "1m 0s",  desc: "waveform" },
-  { name: "Phonk Drive",         duration: "2m 30s", desc: "waveform" },
-  { name: "Epic Cinematic",      duration: "3m 55s", desc: "waveform" },
-  { name: "Sad Piano",           duration: "2m 18s", desc: "waveform" },
-  { name: "Motivational Rise",   duration: "2m 40s", desc: "waveform" },
+  {
+    name: "No background music",
+    slug: "",
+    duration: "",
+    desc: "Add your own music after generating your video in the editor",
+  },
+  ...ACTIVE_MUSIC_TRACKS.map((t) => ({ ...t, desc: "waveform" })),
 ];
 
 // ── Message types ─────────────────────────────────────────────────────────────
@@ -643,7 +639,7 @@ function TextVideoFlow() {
   const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(DEFAULT_VS);
   const [language, setLanguage] = useState("auto");
 
-  const { status: genStatus, videoUrl, error: genError, generateTextVideo, reset, progress: renderProgress } = useVideoGenerate();
+  const { status: genStatus, videoUrl, error: genError, generateTextVideo, reset, progress: renderProgress, warnings } = useVideoGenerate();
 
   const fireReviewPrompt = useReviewPromptTrigger();
   const reviewPromptFiredRef = useRef(false);
@@ -662,7 +658,7 @@ function TextVideoFlow() {
     const bg = BACKGROUNDS[selectedBg];
     const bgVideoUrl = backgroundUrlFor(bg.title);
     const bgMusicUrl = selectedMusic > 0
-      ? `${MUSIC_BASE}/${BACKGROUND_MUSIC[selectedMusic].name.toLowerCase().replace(/\s+/g, "-")}.mp3`
+      ? musicUrl(BACKGROUND_MUSIC[selectedMusic].slug)
       : "";
     const t = THEMES[selectedTheme];
 
@@ -823,6 +819,9 @@ function TextVideoFlow() {
               className="text-sm font-semibold text-blue-600 underline">Download / View</a>
             <button onClick={reset} className="ml-auto text-xs text-fg-subtle hover:text-fg-muted">Dismiss</button>
           </div>
+        )}
+        {genStatus === "completed" && videoUrl && (
+          <div className="px-6 pt-3"><PipelineNotice warnings={warnings} /></div>
         )}
         {genStatus === "failed" && genError && (
           <div className="flex items-center gap-3 px-6 py-3 bg-error/10 border-b border-error/40">

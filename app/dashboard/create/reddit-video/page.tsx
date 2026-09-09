@@ -3,6 +3,8 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";import { useVoiceCatalog, playVoicePreview, ageLabel, type CatalogVoice } from "@/app/components/voices/useVoiceCatalog";
 import SubtitleTemplateStep from "@/app/components/create/SubtitleTemplateStep";
 import { DEFAULT_TEMPLATE_ID, indexForTemplateId } from "@/lib/captions/legacyStyleIndex";
+import { ACTIVE_MUSIC_TRACKS, musicUrl } from "@/lib/music/catalog";
+import PipelineNotice from "@/app/components/auto-clip/PipelineNotice";
 import { useVideoGenerate, getStoredToken } from "@/app/hooks/useVideoGenerate";
 import { useAuth } from "@/app/components/AuthContext";
 import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
@@ -101,20 +103,12 @@ const BACKGROUNDS = [
 // ── Voices ────────────────────────────────────────────────────────────────────
 
 // ── Music ─────────────────────────────────────────────────────────────────────
-const MUSIC_BASE = "https://saas-video-editor-assets.s3.ap-south-1.amazonaws.com/music";
+// One shared library — lib/music/catalog.ts. Both create pages used to carry
+// their own drifted copy; the slug is the S3 key and is never derived from a
+// label. The leading empty entry is this page’s own “none” option.
 const BACKGROUND_MUSIC = [
-  { name: "No background music",  slug: "",                    duration: ""       },
-  { name: "Green to Blue",        slug: "green-to-blue",       duration: "3m 8s"  },
-  { name: "Wii Shop Trap Theme",  slug: "wii-shop-trap-theme", duration: "1m 0s"  },
-  { name: "Milk Cassette",        slug: "milk-cassette",       duration: "5m 8s"  },
-  { name: "Bladerunner",          slug: "bladerunner",         duration: "3m 48s" },
-  { name: "3am Walk",             slug: "3am-walk",            duration: "1m 0s"  },
-  { name: "Lo-fi Chill",          slug: "lo-fi-chill",         duration: "4m 12s" },
-  { name: "Phonk Drive",          slug: "phonk-drive",         duration: "2m 30s" },
-  { name: "Epic Cinematic",       slug: "epic-cinematic",      duration: "3m 55s" },
-  { name: "Sad Piano",            slug: "sad-piano",           duration: "2m 18s" },
-  { name: "Motivational Rise",    slug: "motivational-rise",   duration: "2m 45s" },
-  { name: "Dark Trap",            slug: "dark-trap",           duration: "1m 55s" },
+  { name: "No background music", slug: "", duration: "" },
+  ...ACTIVE_MUSIC_TRACKS,
 ];
 
 // ── Voice settings ────────────────────────────────────────────────────────────
@@ -482,7 +476,7 @@ function RedditVideoFlow() {
 
   const {
     status: genStatus, videoUrl, error: genError,
-    progress: renderProgress, generateRedditVideo, reset: resetGenerate,
+    progress: renderProgress, generateRedditVideo, reset: resetGenerate, warnings,
   } = useVideoGenerate();
 
   const isRendering  = genStatus === "rendering" || genStatus === "creating";
@@ -514,7 +508,7 @@ function RedditVideoFlow() {
     const chosenBg   = BACKGROUNDS[selectedBg];
     const bgVideoUrl = backgroundUrlFor(chosenBg.title);
     const track      = BACKGROUND_MUSIC[selectedMusic];
-    const bgMusicUrl = track.slug ? `${MUSIC_BASE}/${track.slug}.mp3` : "";
+    const bgMusicUrl = track.slug ? musicUrl(track.slug) : "";
     void generateRedditVideo({
       postTitle, username, script,
       introVoiceId: introVoice, scriptVoiceId: scriptVoice,
@@ -581,6 +575,9 @@ function RedditVideoFlow() {
               </button>
             </div>
           </div>
+        )}
+        {isCompleted && videoUrl && (
+          <div className="mx-8 mt-3"><PipelineNotice warnings={warnings} /></div>
         )}
 
         {isFailed && (
@@ -823,7 +820,7 @@ function RedditVideoFlow() {
                                 e.stopPropagation();
                                 if (m.slug) {
                                   if (currentPreviewAudio) { currentPreviewAudio.pause(); currentPreviewAudio = null; }
-                                  const a = new Audio(`${MUSIC_BASE}/${m.slug}.mp3`);
+                                  const a = new Audio(musicUrl(m.slug));
                                   currentPreviewAudio = a;
                                   a.play().catch(() => {});
                                 }
