@@ -118,6 +118,14 @@ export default function SettingsGeneralPage() {
           <QuickAction href="/dashboard/settings/api-keys" label={t("manageApiKeys.label")} desc={t("manageApiKeys.desc")} />
           <QuickAction onClick={() => openBilling()} label={t("viewBilling.label")} desc={t("viewBilling.desc")} />
           <QuickAction href="/dashboard/profile/my-videos" label={t("myVideos.label")} desc={t("myVideos.desc")} />
+          {/* The only entrance to the review form from inside the product.
+              Reviews are otherwise prompt-driven, and the prompt is capped
+              per lifetime and can be switched off for good from the modal —
+              so without this, a user who opted out (or simply wants to edit
+              or delete what they wrote) has to go out to the marketing site
+              and find the footer. ?prompt=1 is handled by DeepLinkWatcher,
+              which deliberately skips the prompt throttle. */}
+          <QuickAction href="/dashboard?prompt=1" label={t("yourReview.label")} desc={t("yourReview.desc")} />
         </div>
       </div>
 

@@ -129,6 +129,58 @@ test("a user who already reviewed lands on the edit form, not a dead end", async
   await expect(page.getByRole("button", { name: "Save changes" })).toBeVisible();
 });
 
+test("settings offers a way into the review form from inside the product", async ({ page, baseURL }) => {
+  await signIn(page, baseURL);
+  await page.goto("/dashboard/settings");
+
+  // Without this, a user who hit "Don't ask again" — or who just wants to
+  // change what they wrote — has to leave for the marketing site's footer.
+  const entry = page.getByRole("link", { name: /your review/i });
+  await expect(entry).toBeVisible(NAV);
+  await expect(entry).toHaveAttribute("href", "/dashboard?prompt=1");
+});
+
+test("a user can delete their own review", async ({ page, baseURL }) => {
+  await signIn(page, baseURL);
+  let deleted = false;
+  await page.route("**/api/reviews/me", (route) => {
+    if (route.request().method() === "DELETE") {
+      deleted = true;
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true }) });
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        review: {
+          id: "rev-1",
+          rating: 4,
+          title: "Solid",
+          body: "Already said my piece about this product a while ago.",
+          featureUsed: "auto_clips",
+          wouldRecommend: true,
+          publicDisplayConsent: true,
+          company: null,
+          country: null,
+          status: "published",
+          attachments: [],
+        },
+        eligibility: null,
+      }),
+    });
+  });
+
+  await page.goto("/dashboard?prompt=1");
+  await expect(page.getByRole("heading", { name: "Edit your review" })).toBeVisible(NAV);
+
+  await page.getByRole("button", { name: "Delete my review" }).click();
+  await expect(page.getByRole("heading", { name: "Delete your review?" })).toBeVisible();
+  await page.getByRole("button", { name: "Delete review" }).click();
+
+  await expect(page.getByRole("heading", { name: "Edit your review" })).not.toBeVisible();
+  expect(deleted).toBe(true);
+});
+
 test("signed out, the CTA routes through login with the deep link intact", async ({ page }) => {
   await page.goto("/reviews");
   await page.getByRole("link", { name: "Write a review" }).click();

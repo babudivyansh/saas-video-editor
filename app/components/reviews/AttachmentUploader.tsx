@@ -118,7 +118,7 @@ export function AttachmentUploader({ attachments, onChange, token, maxCount = 5 
             onDrop={(e) => { e.preventDefault(); setDragging(false); uploadFiles(e.dataTransfer.files); }}
             disabled={uploading}
             className={`w-full rounded-xl border transition-colors flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold cursor-pointer disabled:cursor-wait ${
-              dragging ? "border-violet-300 bg-tint-violet text-accent-violet" : "border-card-border text-ink-soft hover:bg-surface"
+              dragging ? "border-primary/60 bg-tint-violet text-accent-violet" : "border-card-border text-ink-soft hover:bg-surface"
             }`}
           >
             <IcCloud />

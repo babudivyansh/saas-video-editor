@@ -45,7 +45,7 @@ export default async function ReviewsPage() {
       <JsonLd data={breadcrumbSchema} />
       <SiteNavbar solid />
       <main>
-        <section className="border-b border-line bg-gray-50/60">
+        <section className="border-b border-line bg-surface-3/60">
           <div className="mx-auto w-full max-w-screen-2xl px-4 py-16 text-center md:px-12 lg:px-[120px]">
             <div className="flex justify-center">
               <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Reviews" }]} />

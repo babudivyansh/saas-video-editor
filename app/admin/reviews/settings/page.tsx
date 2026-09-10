@@ -16,6 +16,8 @@ interface ReviewSettings {
   autoHideReportThreshold: number;
   promptThrottleDays: number;
   promptMaxLifetime: number;
+  autoclipsMilestoneThreshold: number;
+  toolGenerationMilestoneThreshold: number;
   emailDrip1DelayHours: number;
   emailDrip2DelayDays: number;
   emailDrip3DelayDays: number;
@@ -28,6 +30,8 @@ const FIELDS: { key: keyof ReviewSettings; label: string; hint: string; type: "n
   { key: "autoHideReportThreshold", label: "Report auto-hide threshold", hint: "A published review is auto-hidden once it collects this many reports.", type: "number" },
   { key: "promptThrottleDays", label: "Prompt cooldown (days)", hint: "Minimum days between smart review-prompt nudges for the same user.", type: "number" },
   { key: "promptMaxLifetime", label: "Max lifetime prompts", hint: "A user is never prompted more than this many times, ever.", type: "number" },
+  { key: "autoclipsMilestoneThreshold", label: "Auto Clips milestone", hint: "Ready clips a user needs before the Auto Clips trigger can prompt them.", type: "number" },
+  { key: "toolGenerationMilestoneThreshold", label: "Tool generation milestone", hint: "Completed generations before an AI tool's completion screen can prompt them.", type: "number" },
   { key: "emailDrip1DelayHours", label: "Drip email 1 delay (hours)", hint: "Sent this many hours after a review prompt is shown, if still unreviewed.", type: "number" },
   { key: "emailDrip2DelayDays", label: "Drip email 2 delay (days)", hint: "Sent this many days after email 1, if still unreviewed.", type: "number" },
   { key: "emailDrip3DelayDays", label: "Drip email 3 delay (days)", hint: "Sent this many days after email 2 — the final reminder.", type: "number" },

@@ -82,15 +82,28 @@ The app is deployed live at clipiro.com via cPanel's **Setup Node.js App**
 
 ## 7. Cron Jobs (cPanel)
 
-Fourteen routes expect an external scheduler and are fail-closed (401) unless
-`CRON_SECRET` / `SOCIAL_REFRESH_SECRET` / `ASSET_CLEANUP_SECRET` are set in
-`.env` — set them, then add matching entries under cPanel → **Cron Jobs**.
-As of a 2026-08 launch-readiness audit, only the first three below (`refill-
-credits`, the three `social-refresh` jobs, `commission-payout`) were actually
-wired into the production crontab — the rest existed as working routes with
-no schedule, so lifecycle emails, cleanup, and re-engagement were silently
-never firing. This list is now the complete set of 14 (incl. the stale
-Auto Clip sweep, feature-announcements and mrr-snapshot).
+**The schedule now lives in [`ops/crontab`](ops/crontab), not here.** Install it
+with `crontab ops/crontab`, or enter the same lines under cPanel → **Cron
+Jobs** (the UI writes to the same underlying crontab). The block below is
+reproduced for reading; `ops/crontab` is what's authoritative, and
+`scripts/check-cron-coverage.mjs` — wired into `npm run lint` — fails the build
+if a route under `app/api/cron/` is missing from it.
+
+Seventeen routes expect an external scheduler and are fail-closed (401) unless
+`CRON_SECRET` / `SOCIAL_REFRESH_SECRET` / `ASSET_CLEANUP_SECRET` are set.
+
+This has gone wrong silently twice, which is why the check exists. A 2026-08
+launch-readiness audit found only `refill-credits`, the three `social-refresh`
+jobs and `commission-payout` were actually wired into the production crontab —
+the rest existed as working routes with no schedule, so lifecycle emails,
+cleanup and re-engagement were never firing. Then `clip-publish` shipped with a
+route and a staleness budget but was never added to this list at all, so every
+clip a user scheduled sat pending forever. It is in `ops/crontab` now.
+
+After changing anything here, check **/admin/ops/diagnostics** — it flags any
+job whose last recorded run is older than its budget in `CRON_STALE_AFTER_SEC`
+(`lib/admin/metrics.ts`), which is the only thing that will tell you a job
+stopped.
 
 ```
 # Monthly credit refill + subscription expiry — daily is enough, the route
@@ -175,6 +188,11 @@ Auto Clip sweep, feature-announcements and mrr-snapshot).
 # the only thing that finishes a caption render until Submagic's webhook is
 # confirmed live (SUBMAGIC_WEBHOOK_TOKEN set + a callback observed).
 */2 * * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/submagic-sweep
+
+# Scheduled clip publishing — fires posts whose ClipPublish.scheduledFor has
+# arrived. A schedule is only as precise as its polling interval, hence 10
+# minutes.
+*/10 * * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/clip-publish
 ```
 
 Use cPanel's Cron Jobs UI to enter the schedule and command — it writes to the

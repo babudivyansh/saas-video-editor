@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Modal } from "@/app/components/ui/Modal";
+import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { StarRating } from "@/app/components/reviews/StarRating";
 import { AttachmentUploader, type UploadedAttachment } from "@/app/components/reviews/AttachmentUploader";
 import { FieldLabel, Textarea, Input } from "@/app/components/ui/Field";
@@ -67,6 +68,7 @@ export function ReviewPromptModal({ featureHint, mode = "new", onClose }: Review
   const [attachments, setAttachments] = useState<UploadedAttachment[]>([]);
   const [busy, setBusy] = useState(mode !== "new"); // starts by loading the existing review
   const [error, setError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   // Loads the caller's existing review, when there is one, and prefills the
   // form from it. Shared by "edit" and "auto" — the only difference is that
@@ -119,6 +121,22 @@ export function ReviewPromptModal({ featureHint, mode = "new", onClose }: Review
       setBusy(false);
       onClose();
     }
+  }
+
+  // DELETE /api/reviews/me is a real delete — there's no soft-delete column on
+  // Review, and the route also drops the attachments' S3 objects, which the
+  // DB cascade can't. So it's confirmed, and the copy says it's permanent.
+  async function handleDelete() {
+    if (!token) return;
+    setError(null);
+    const res = await fetch("/api/reviews/me", { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      setConfirmingDelete(false);
+      setError(data?.error ?? "Couldn't delete your review — please try again.");
+      return;
+    }
+    onClose();
   }
 
   function pickRating(rating: number) {
@@ -218,6 +236,13 @@ export function ReviewPromptModal({ featureHint, mode = "new", onClose }: Review
               </button>
             </div>
           )}
+          {/* "Don't ask again" silences the prompt permanently, so say plainly
+              that it isn't the same as giving up the ability to review. */}
+          {!selfInitiated && (
+            <p className="text-[11px] text-ink-soft/70 text-center">
+              You can always leave one later from Settings.
+            </p>
+          )}
         </div>
       )}
 
@@ -236,7 +261,7 @@ export function ReviewPromptModal({ featureHint, mode = "new", onClose }: Review
               id="prompt-feature"
               value={form.featureUsed}
               onChange={(e) => setForm((f) => ({ ...f, featureUsed: e.target.value }))}
-              className="w-full text-sm bg-panel border border-card-border rounded-xl px-4 py-2.5 text-ink outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
+              className="w-full text-sm bg-panel border border-card-border rounded-xl px-4 py-2.5 text-ink outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/25 transition-all"
             >
               {FEATURE_USED_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -338,9 +363,21 @@ export function ReviewPromptModal({ featureHint, mode = "new", onClose }: Review
 
           {error && <p className="text-sm text-error">{error}</p>}
 
-          <Button type="submit" variant="primary" disabled={busy}>
-            {busy ? "Saving…" : resolvedMode === "edit" ? "Save changes" : "Submit review"}
-          </Button>
+          <div className="flex items-center justify-between gap-3">
+            <Button type="submit" variant="primary" disabled={busy}>
+              {busy ? "Saving…" : resolvedMode === "edit" ? "Save changes" : "Submit review"}
+            </Button>
+            {resolvedMode === "edit" && (
+              <button
+                type="button"
+                onClick={() => setConfirmingDelete(true)}
+                disabled={busy}
+                className="text-xs font-semibold text-error hover:underline cursor-pointer disabled:opacity-50"
+              >
+                Delete my review
+              </button>
+            )}
+          </div>
         </form>
       ) : null}
 
@@ -366,6 +403,16 @@ export function ReviewPromptModal({ featureHint, mode = "new", onClose }: Review
           <Button variant="primary" onClick={onClose}>Done</Button>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        title="Delete your review?"
+        message="This removes your review and any photos or video attached to it, for good. You can write a new one afterwards."
+        confirmLabel="Delete review"
+        danger
+        onConfirm={handleDelete}
+        onClose={() => setConfirmingDelete(false)}
+      />
     </Modal>
   );
 }

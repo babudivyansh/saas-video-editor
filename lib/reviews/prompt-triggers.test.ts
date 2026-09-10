@@ -45,7 +45,12 @@ beforeEach(() => {
   promptState = null;
   clipCount = 0;
   generationCount = 0;
-  getReviewSettings.mockResolvedValue({ promptThrottleDays: 21, promptMaxLifetime: 3 });
+  getReviewSettings.mockResolvedValue({
+    promptThrottleDays: 21,
+    promptMaxLifetime: 3,
+    autoclipsMilestoneThreshold: 5,
+    toolGenerationMilestoneThreshold: 10,
+  });
 });
 
 describe("evaluatePromptTrigger", () => {
@@ -104,6 +109,23 @@ describe("evaluatePromptTrigger", () => {
     generationCount = 3;
     expect((await evaluatePromptTrigger("u1", "tool_generation_complete")).shouldPrompt).toBe(false);
     generationCount = 10;
+    expect((await evaluatePromptTrigger("u1", "tool_generation_complete")).shouldPrompt).toBe(true);
+  });
+
+  // Both milestones read from settings rather than a module constant, so an
+  // admin can loosen or tighten them at /admin/reviews/settings without a
+  // deploy. Driving the numbers from the mock (not repeating the defaults)
+  // keeps this testing the wiring rather than the current tuning.
+  it("reads both milestone thresholds from settings", async () => {
+    getReviewSettings.mockResolvedValue({
+      promptThrottleDays: 21,
+      promptMaxLifetime: 3,
+      autoclipsMilestoneThreshold: 2,
+      toolGenerationMilestoneThreshold: 2,
+    });
+    clipCount = 2;
+    generationCount = 2;
+    expect((await evaluatePromptTrigger("u1", "autoclips_milestone")).shouldPrompt).toBe(true);
     expect((await evaluatePromptTrigger("u1", "tool_generation_complete")).shouldPrompt).toBe(true);
   });
 

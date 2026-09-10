@@ -35,6 +35,16 @@ describe("REVIEW_SETTINGS_DEFAULTS", () => {
     expect(REVIEW_SETTINGS_DEFAULTS.requireProductUsage).toBe(false);
     expect(REVIEW_SETTINGS_DEFAULTS.minAccountAgeHours).toBe(0);
   });
+
+  // The prompt caps are the only thing between a user and a nag, so they stay
+  // — but the original 3-per-lifetime / 21-day / 5-clips / 10-generations
+  // combination meant most users were never asked at all.
+  it("keeps the prompt caps loose enough that a typical user is actually asked", () => {
+    expect(REVIEW_SETTINGS_DEFAULTS.promptMaxLifetime).toBeGreaterThanOrEqual(5);
+    expect(REVIEW_SETTINGS_DEFAULTS.promptThrottleDays).toBeLessThanOrEqual(14);
+    expect(REVIEW_SETTINGS_DEFAULTS.autoclipsMilestoneThreshold).toBeLessThanOrEqual(3);
+    expect(REVIEW_SETTINGS_DEFAULTS.toolGenerationMilestoneThreshold).toBeLessThanOrEqual(3);
+  });
 });
 
 describe("getReviewSettings", () => {

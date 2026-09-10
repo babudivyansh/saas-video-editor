@@ -179,6 +179,7 @@
     "manageApiKeys": { "label": "Manage API keys", "desc": "For the public API" },
     "viewBilling": { "label": "View billing", "desc": "Plan, credits, and invoices" },
     "myVideos": { "label": "My videos", "desc": "Browse everything you've generated" },
+    "yourReview": { "label": "Your review", "desc": "Write, edit, or delete it" },
     "recentSignIns": "Recent sign-ins",
     "viewAll": "View all →",
     "noSignInHistory": "No sign-in history yet.",
