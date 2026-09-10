@@ -237,12 +237,6 @@ a video letterbox inverts to near-white. Decide by **role**:
 correct on dark. `bg-white/70`–`/95` are near-opaque panels and **do** need
 `bg-bg/NN`.
 
-**Don't** touch the product-output files. `create/text-video` and
-`create/reddit-video` render WhatsApp/Telegram/iMessage and Reddit themes whose
-colours ffmpeg burns into the exported video. They are on the codemod's
-`CONTENT_DENY`; migrating their chrome needs `--allow-content` with explicit
-`--protect` ranges.
-
 **Don't** use `bg-clip-text` by hand. Use `grad-text`, which declares a solid
 fallback first — without it, any context that does not paint the background
 renders invisible text.

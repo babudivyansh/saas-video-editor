@@ -26,10 +26,7 @@
     "createItems": {
       "autoClip": { "title": "Clipiro AutoClip", "desc": "Vídeo longo → clipes virais, automaticamente" },
       "editor": { "title": "Editor de vídeo", "desc": "Editor de linha do tempo multipista" },
-      "cutCrop": { "title": "Cortar e recortar", "desc": "Corte e una clipes prontos para editar" },
-      "aiCreator": { "title": "Criador de IA", "desc": "Torne-se um criador de IA em 3 passos" },
-      "redditVideo": { "title": "Vídeo de história do Reddit", "desc": "Transforme postagens do Reddit em vídeos" },
-      "textVideo": { "title": "Vídeo de textos falsos", "desc": "Vídeos de histórias em formato de conversa por texto" }
+      "cutCrop": { "title": "Cortar e recortar", "desc": "Corte e una clipes prontos para editar" }
     },
     "rail": {
       "home": "Início",
@@ -118,8 +115,7 @@
       "autoClip": { "title": "Clipiro AutoClip", "desc": "Transforme vídeos longos em clipes virais automaticamente" },
       "cutCrop": { "title": "Cortar e recortar", "desc": "Corte e una seus vídeos em um clipe pronto para editar" },
       "voiceChanger": { "title": "Modificador de voz", "desc": "Altere a voz de qualquer arquivo de áudio ou vídeo" },
-      "subtitleRemover": { "title": "Removedor de legendas", "desc": "Remova legendas com IA em minutos" },
-      "aiCreator": { "title": "Criador de IA", "desc": "Torne-se um criador de conteúdo com IA em 3 passos" }
+      "subtitleRemover": { "title": "Removedor de legendas", "desc": "Remova legendas com IA em minutos" }
     },
     "miniTools": {
       "imageGenerator": "Gerador de imagens",
@@ -146,9 +142,7 @@
       "speechEnhancer": { "title": "Aprimorador de fala com IA", "desc": "Melhore a qualidade de qualquer arquivo de áudio ou vídeo com IA." },
       "videoGenerator": { "title": "Gerador de vídeo com IA", "desc": "VEO3 é uma ferramenta que permite criar vídeos com IA." },
       "vocalRemover": { "title": "Removedor de vocais com IA", "desc": "Remova vocais de qualquer arquivo de áudio ou vídeo com IA." },
-      "brainstormer": { "title": "Gerador de ideias com IA", "desc": "Gere ideias de conteúdo viral com base no seu nicho." },
-      "redditVideo": { "title": "Gerador de vídeo do Reddit", "desc": "Transforme postagens do Reddit em vídeos virais com IA." },
-      "fakeTexts": { "title": "Gerador de vídeo de textos falsos", "desc": "Crie vídeos envolventes de textos falsos com IA para viralizar." }
+      "brainstormer": { "title": "Gerador de ideias com IA", "desc": "Gere ideias de conteúdo viral com base no seu nicho." }
     }
   },
   "SettingsNav": {

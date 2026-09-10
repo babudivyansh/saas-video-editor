@@ -55,7 +55,7 @@ export function onboardingDay1(p: { name: string; creditsLeft: number }): EmailD
         title: "Three ideas to try right now",
         marker: "bullet",
         items: [
-          html`<strong>Split-screen video</strong> — paste a script, get a video`,
+          html`<strong>Clipiro AutoClip</strong> — one long video, a week of clips`,
           html`<strong>Auto Clip</strong> — upload a long video, get viral shorts`,
           html`<strong>AI Voiceover</strong> — turn text into professional narration`,
         ],
@@ -156,7 +156,7 @@ export function reengagement7Day(p: { name: string; creditsLeft: number }): Emai
         title: "Jump back in and try something new",
         marker: "bullet",
         items: [
-          "AI Creator Wizard — describe your idea, get a full video",
+          "Clipiro AutoClip — one long video, a week of clips",
           "Voice Changer — transform any voice in seconds",
           "Social Tracker — see how your videos are performing",
         ],

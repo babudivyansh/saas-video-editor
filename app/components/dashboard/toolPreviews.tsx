@@ -91,27 +91,6 @@ export function SubtitleRemoverPreview() {
   );
 }
 
-export function AICreatorPreview() {
-  return (
-    <div className="h-[140px] bg-gradient-to-br from-tint-emerald to-tint-blue flex items-center justify-center gap-2.5 px-5 overflow-hidden">
-      {[
-        { g: "from-emerald-400 to-teal-600", scale: false },
-        { g: "from-brand to-emerald-bright", scale: true },
-        { g: "from-accent-violet to-accent-fuchsia", scale: false },
-      ].map((s, i) => (
-        <div key={i} className="relative">
-          <div className={`w-[58px] h-[86px] rounded-xl bg-gradient-to-b ${s.g} shadow border border-white/20 ${s.scale ? "scale-110 shadow-xl" : ""}`} />
-          {i < 2 && (
-            <div className="absolute -right-2.5 top-1/2 -translate-y-1/2 z-10 w-4 h-4 rounded-full bg-panel shadow border border-line flex items-center justify-center">
-              <svg className="w-2 h-2 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path d="M9 18l6-6-6-6" strokeLinecap="round"/></svg>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ── Tools catalog previews ─────────────────────────────────────────────────
 
 export function ImageGenPreview() {
@@ -305,31 +284,6 @@ export function FaceSwapPreview() {
   );
 }
 
-export function SplitScreenPreview() {
-  const wave = [8, 14, 10, 18, 12, 22, 9, 16, 13, 20, 11, 17, 8, 15, 12];
-  return (
-    <div className="h-[212px] bg-surface-2 flex items-stretch gap-0 overflow-hidden rounded-t-none">
-      {/* Left half: user video */}
-      <div className="flex-1 bg-black flex flex-col items-center justify-center gap-2 border-r border-line">
-        <div className="w-10 h-10 rounded-full bg-brand flex items-center justify-center">
-          <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
-        </div>
-        <div className="flex items-center gap-px h-5">
-          {wave.map((h, i) => <div key={i} className="w-[2.5px] rounded-full bg-brand/70" style={{ height: `${h}px` }} />)}
-        </div>
-        <p className="text-[8px] text-fg-subtle">Your Video</p>
-      </div>
-      {/* Right half: gameplay background */}
-      <div className="flex-1 bg-gradient-to-b from-green-400 to-emerald-600 flex flex-col items-center justify-center gap-1">
-        <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-          <svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M8 5v14l11-7z"/></svg>
-        </div>
-        <p className="text-[8px] text-white/80 font-semibold">Background</p>
-      </div>
-    </div>
-  );
-}
-
 export function VerticalSplitPreview() {
   const wave = [8, 14, 10, 18, 12, 22, 9, 16, 13, 20];
   return (
@@ -354,30 +308,6 @@ export function VerticalSplitPreview() {
   );
 }
 
-export function StreamerPreview() {
-  return (
-    <div className="h-[212px] bg-black flex flex-col overflow-hidden relative">
-      {/* Fake video background */}
-      <div className="flex-1 bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
-        <div className="w-16 h-16 rounded-full grad-brand flex items-center justify-center shadow-lg">
-          <svg viewBox="0 0 24 24" fill="white" className="w-8 h-8"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
-        </div>
-      </div>
-      {/* Subtitle bar at bottom */}
-      <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-4 py-2.5">
-        <div className="flex justify-center">
-          <span className="text-[11px] font-extrabold text-white tracking-wide uppercase" style={{ textShadow: "0 1px 4px #000" }}>THIS IS YOUR TITLE</span>
-        </div>
-        <div className="flex justify-center gap-px mt-1.5">
-          {["and", "this", "is", "a", "subtitle"].map((w, i) => (
-            <span key={i} className={`text-[9px] font-bold px-0.5 ${i === 2 ? "text-yellow-400" : "text-white"}`}>{w} </span>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function BrainstormerPreview() {
   return (
     <div className="h-[212px] bg-surface-2 flex gap-2.5 p-4 overflow-hidden">
@@ -395,48 +325,6 @@ export function BrainstormerPreview() {
         {[1, 0.9, 0.95, 0.7, 0.85, 0.6].map((w, i) => (
           <div key={i} className="h-1.5 rounded-full bg-surface-3 mb-1.5" style={{ width: `${w * 100}%` }} />
         ))}
-      </div>
-    </div>
-  );
-}
-
-export function RedditPreview() {
-  return (
-    <div className="h-[212px] bg-surface-2 flex gap-2.5 p-4 overflow-hidden">
-      <div className="w-1/2 flex flex-col gap-2">
-        <div className="w-7 h-7 rounded-full bg-orange-500 flex items-center justify-center text-white text-xs font-bold">r</div>
-        {["Content", "Video Script"].map((l, i) => (
-          <div key={i} className="bg-panel rounded-md border border-line px-2 py-1.5 shadow-sm">
-            <p className="text-[8px] text-fg-subtle mb-1">{l}</p>
-            <div className="h-1 rounded-full bg-surface-3 w-3/4" />
-          </div>
-        ))}
-      </div>
-      <div className="w-1/2 rounded-lg overflow-hidden border border-line bg-gradient-to-b from-sky-300 to-emerald-brand relative">
-        <div className="absolute top-2 left-2 right-2 bg-panel/95 rounded p-1.5">
-          <p className="text-[7px] font-bold text-fg">r/AskReddit</p>
-          <p className="text-[7px] text-fg-muted leading-tight mt-0.5">What scientific breakthrough are we closer to than people realize?</p>
-        </div>
-        <div className="absolute bottom-1 left-0 right-0 text-center text-[7px] font-bold text-white">THE QUICK BROWN FOX</div>
-      </div>
-    </div>
-  );
-}
-
-export function FakeTextsPreview() {
-  return (
-    <div className="h-[212px] bg-surface-2 flex items-center justify-center gap-2 p-4 overflow-hidden">
-      <div className="flex flex-col gap-1.5 w-1/2">
-        {[0.7, 0.5, 0.85].map((w, i) => (
-          <div key={i} className="h-6 rounded-xl bg-surface-3" style={{ width: `${w * 100}%` }} />
-        ))}
-      </div>
-      <div className="w-[88px] h-[170px] rounded-xl bg-black p-2 flex flex-col gap-1.5 shadow-lg">
-        <div className="self-center text-[7px] text-fg-subtle mb-1">my baby &lt;3</div>
-        <div className="self-end max-w-[80%] bg-brand rounded-lg rounded-br-sm px-1.5 py-1 text-[7px] text-on-primary">would you still love me…</div>
-        <div className="self-start max-w-[80%] bg-surface-3 rounded-lg rounded-bl-sm px-1.5 py-1 text-[7px] text-white">well that depends…</div>
-        <div className="self-start max-w-[80%] bg-surface-3 rounded-lg rounded-bl-sm px-1.5 py-1 text-[7px] text-white">a leopard 2 A7</div>
-        <div className="self-end max-w-[80%] bg-brand rounded-lg rounded-br-sm px-1.5 py-1 text-[7px] text-on-primary">a tiger</div>
       </div>
     </div>
   );

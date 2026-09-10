@@ -42,10 +42,7 @@ export const TOOL_DEFAULTS: ToolConfigMap = {
   "image-generator":  { enabled: true, creditCost: IMAGE_GENERATOR_STARTING_CREDIT_COST },
   "voiceover":        { enabled: true, creditCost: TOOL_COSTS["voiceover"].creditCost },
   "vocal-remover":    { enabled: true, creditCost: TOOL_COSTS["vocal-remover"].creditCost },
-  "ai-creator":       { enabled: true, creditCost: TOOL_COSTS["ai-creator"].creditCost },
   "voice-changer":    { enabled: true, creditCost: TOOL_COSTS["voice-changer"].creditCost },
-  "reddit-video":     { enabled: true, creditCost: TOOL_COSTS["reddit-video"].creditCost },
-  "text-video":       { enabled: true, creditCost: TOOL_COSTS["text-video"].creditCost },
   "enhance-speech":   { enabled: true, creditCost: TOOL_COSTS["enhance-speech"].creditCost },
   // The legacy editor wizard's voice step. It charged nothing at all until
   // now; an entry here gives it the same admin kill-switch every other
@@ -88,10 +85,7 @@ export const TOOL_SERVICE: Record<string, string> = {
   "image-generator":  "9 models — Gemini, Seedream, Flux, GPT Image…",
   "voiceover":        "ElevenLabs TTS",
   "vocal-remover":    "fal.ai Demucs",
-  "ai-creator":       "fal.ai SadTalker",
   "voice-changer":    "ElevenLabs STS",
-  "reddit-video":     "ElevenLabs + FFmpeg",
-  "text-video":       "ElevenLabs + FFmpeg",
   "enhance-speech":   "ElevenLabs Isolation",
   "video-generator":     "8 models — Veo 3, Seedance, Wan, LTX…",
   "youtube-downloader":    "yt-dlp (YouTube)",

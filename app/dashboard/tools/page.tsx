@@ -9,8 +9,6 @@ import {
   VideoGenPreview,
   VocalRemoverPreview,
   BrainstormerPreview,
-  RedditPreview,
-  FakeTextsPreview,
 } from "@/app/components/dashboard/toolPreviews";
 
 function IcArrow() {
@@ -45,8 +43,6 @@ export default function ToolsPage() {
     { title: t("items.videoGenerator.title"), desc: t("items.videoGenerator.desc"), preview: <VideoGenPreview />, badge: t("credits", { count: 20 }), href: "/dashboard/tools/video-generator" },
     { title: t("items.vocalRemover.title"), desc: t("items.vocalRemover.desc"), preview: <VocalRemoverPreview />, badge: t("credits", { count: 2 }), href: "/dashboard/tools/vocal-remover" },
     { title: t("items.brainstormer.title"), desc: t("items.brainstormer.desc"), preview: <BrainstormerPreview />, badge: t("credits", { count: 1 }), href: "/dashboard/tools/brainstormer" },
-    { title: t("items.redditVideo.title"), desc: t("items.redditVideo.desc"), preview: <RedditPreview />, badge: t("credits", { count: 2 }), href: "/dashboard/create/reddit-video" },
-    { title: t("items.fakeTexts.title"), desc: t("items.fakeTexts.desc"), preview: <FakeTextsPreview />, badge: t("credits", { count: 2 }), href: "/dashboard/create/text-video" },
   ];
 
   return (

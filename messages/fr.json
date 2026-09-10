@@ -26,10 +26,7 @@
     "createItems": {
       "autoClip": { "title": "Clipiro AutoClip", "desc": "Vidéo longue → clips viraux, automatiquement" },
       "editor": { "title": "Éditeur vidéo", "desc": "Éditeur de chronologie multipiste" },
-      "cutCrop": { "title": "Couper et recadrer", "desc": "Découpez et assemblez des clips prêts à monter" },
-      "aiCreator": { "title": "Créateur IA", "desc": "Devenez créateur IA en 3 étapes" },
-      "redditVideo": { "title": "Vidéo d'histoire Reddit", "desc": "Transformez des publications Reddit en vidéos" },
-      "textVideo": { "title": "Vidéo de faux textos", "desc": "Vidéos d'histoires façon conversation par texto" }
+      "cutCrop": { "title": "Couper et recadrer", "desc": "Découpez et assemblez des clips prêts à monter" }
     },
     "rail": {
       "home": "Accueil",
@@ -118,8 +115,7 @@
       "autoClip": { "title": "Clipiro AutoClip", "desc": "Transformez des vidéos longues en clips viraux automatiquement" },
       "cutCrop": { "title": "Couper et recadrer", "desc": "Découpez et assemblez vos vidéos en un clip prêt à monter" },
       "voiceChanger": { "title": "Modificateur de voix", "desc": "Modifiez la voix de n'importe quel fichier audio ou vidéo" },
-      "subtitleRemover": { "title": "Suppresseur de sous-titres", "desc": "Supprimez les sous-titres avec l'IA en quelques minutes" },
-      "aiCreator": { "title": "Créateur IA", "desc": "Devenez créateur de contenu IA en 3 étapes" }
+      "subtitleRemover": { "title": "Suppresseur de sous-titres", "desc": "Supprimez les sous-titres avec l'IA en quelques minutes" }
     },
     "miniTools": {
       "imageGenerator": "Générateur d'images",
@@ -146,9 +142,7 @@
       "speechEnhancer": { "title": "Amélioreur vocal IA", "desc": "Améliorez la qualité de tout fichier audio ou vidéo avec l'IA." },
       "videoGenerator": { "title": "Générateur de vidéo IA", "desc": "VEO3 est un outil qui permet de créer des vidéos avec l'IA." },
       "vocalRemover": { "title": "Suppresseur de voix IA", "desc": "Supprimez les voix de tout fichier audio ou vidéo avec l'IA." },
-      "brainstormer": { "title": "Générateur d'idées IA", "desc": "Générez des idées de contenu viral selon votre niche." },
-      "redditVideo": { "title": "Générateur de vidéo Reddit", "desc": "Transformez des publications Reddit en vidéos virales avec l'IA." },
-      "fakeTexts": { "title": "Générateur de vidéo de faux textos", "desc": "Créez des vidéos de faux textos captivantes avec l'IA pour devenir viral." }
+      "brainstormer": { "title": "Générateur d'idées IA", "desc": "Générez des idées de contenu viral selon votre niche." }
     }
   },
   "SettingsNav": {

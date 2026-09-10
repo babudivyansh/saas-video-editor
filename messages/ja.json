@@ -26,10 +26,7 @@
     "createItems": {
       "autoClip": { "title": "Clipiro AutoClip", "desc": "長い動画 → バイラルクリップ、自動で" },
       "editor": { "title": "動画エディター", "desc": "マルチトラックタイムラインエディター" },
-      "cutCrop": { "title": "カット＆クロップ", "desc": "クリップをトリム・結合して編集可能に" },
-      "aiCreator": { "title": "AIクリエイター", "desc": "3ステップでAIクリエイターに" },
-      "redditVideo": { "title": "Redditストーリー動画", "desc": "Redditの投稿を動画に変換" },
-      "textVideo": { "title": "フェイクテキスト動画", "desc": "テキスト会話形式のストーリー動画" }
+      "cutCrop": { "title": "カット＆クロップ", "desc": "クリップをトリム・結合して編集可能に" }
     },
     "rail": {
       "home": "ホーム",
@@ -118,8 +115,7 @@
       "autoClip": { "title": "Clipiro AutoClip", "desc": "長い動画を自動でバイラルクリップに変換" },
       "cutCrop": { "title": "カット＆クロップ", "desc": "動画をトリム・結合して編集可能な1本のクリップに" },
       "voiceChanger": { "title": "ボイスチェンジャー", "desc": "音声や動画ファイルの声を変更" },
-      "subtitleRemover": { "title": "字幕リムーバー", "desc": "AIで数分で字幕を削除" },
-      "aiCreator": { "title": "AIクリエイター", "desc": "3ステップでAIコンテンツクリエイターに" }
+      "subtitleRemover": { "title": "字幕リムーバー", "desc": "AIで数分で字幕を削除" }
     },
     "miniTools": {
       "imageGenerator": "画像ジェネレーター",
@@ -146,9 +142,7 @@
       "speechEnhancer": { "title": "AI音声エンハンサー", "desc": "AIで音声・動画ファイルの品質を向上させます。" },
       "videoGenerator": { "title": "AI動画ジェネレーター", "desc": "VEO3はAIで動画を作成できるツールです。" },
       "vocalRemover": { "title": "AIボーカルリムーバー", "desc": "AIで音声・動画ファイルからボーカルを除去します。" },
-      "brainstormer": { "title": "AIブレインストーマー", "desc": "ニッチに基づいてバイラルコンテンツのアイデアを生成します。" },
-      "redditVideo": { "title": "Reddit動画ジェネレーター", "desc": "AIでRedditの投稿をバイラル動画に変換します。" },
-      "fakeTexts": { "title": "フェイクテキスト動画ジェネレーター", "desc": "AIでバイラルになりやすいフェイクテキスト動画を作成します。" }
+      "brainstormer": { "title": "AIブレインストーマー", "desc": "ニッチに基づいてバイラルコンテンツのアイデアを生成します。" }
     }
   },
   "SettingsNav": {

@@ -133,10 +133,6 @@ const TERMS = [
 ];
 
 const WORKFLOWS = [
-  { name: "Reddit Story Videos", creator: true, pro: true, studio: true },
-  { name: "Fake Texts Videos", creator: true, pro: true, studio: true },
-  { name: "Split-Screen Videos", creator: true, pro: true, studio: true },
-  { name: "Streamer Highlight Videos", creator: true, pro: true, studio: true },
   { name: "Text / Faceless Story Videos", creator: true, pro: true, studio: true },
 ];
 
@@ -150,9 +146,8 @@ const TOOLS = [
   // they got no video generation at all, contradicting their own plan card.
   { name: "AI Video Generator", creator: true, pro: true, studio: true },
   { name: "Premium video models (Veo3, Seedance)", creator: false, pro: true, studio: true },
-  // Both carry requiredTier: "pro" in lib/tool-costs.ts but had no row here, so
-  // Pro buyers got no credit for two tools they're paying for.
-  { name: "AI Creator", creator: false, pro: true, studio: true },
+  // Carries requiredTier: "pro" in lib/tool-costs.ts but had no row here, so
+  // Pro buyers got no credit for a tool they're paying for.
   { name: "AI Face Swap", creator: false, pro: true, studio: true },
   { name: "AI Vocal Remover", creator: true, pro: true, studio: true },
   { name: "AI Voice Changer", creator: true, pro: true, studio: true },
