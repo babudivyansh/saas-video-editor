@@ -9,7 +9,7 @@ import type { PromptTrigger } from "@/lib/reviews/prompt-triggers";
 interface ModalConfig {
   trigger: PromptTrigger;
   featureHint?: string;
-  mode: "new" | "edit";
+  mode: "new" | "edit" | "auto";
 }
 
 type FireTrigger = (trigger: PromptTrigger, opts?: { featureHint?: string }) => Promise<void>;
@@ -65,17 +65,18 @@ export function ReviewPromptProvider({ children }: { children: React.ReactNode }
   );
 }
 
-// Handles ?prompt=1 (a review-prompt notification/email deep link — the
-// server already recorded this prompt via the cron/webhook path, so this
-// just opens the UI, it does not re-fire prompt-check) and ?editReview=1
-// (a rejected-review notification/email deep link — evaluatePromptTrigger
-// would never re-open the normal flow once a Review row exists, so this is
-// the only way back into the form after a rejection). Lives in its own
-// component so only this small piece needs the Suspense boundary
-// useSearchParams requires.
+// Handles ?prompt=1 (the "Write a review" CTA on /reviews, plus review-prompt
+// notification/email deep links — the server already recorded those prompts
+// via the cron/webhook path, so this just opens the UI, it does not re-fire
+// prompt-check) and ?editReview=1 (a rejected-review notification/email deep
+// link — evaluatePromptTrigger would never re-open the normal flow once a
+// Review row exists, so this is the only way back into the form after a
+// rejection). Lives in its own component so only this small piece needs the
+// Suspense boundary useSearchParams requires.
 function DeepLinkWatcher({ onOpen }: { onOpen: (config: ModalConfig) => void }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { user, isLoading } = useAuth();
   // React StrictMode (default-on in Next.js dev) intentionally double-invokes
   // effects to surface exactly this kind of bug: without a guard, this could
   // fire twice. Also protects against any Suspense-boundary remount doing
@@ -84,6 +85,19 @@ function DeepLinkWatcher({ onOpen }: { onOpen: (config: ModalConfig) => void }) 
 
   useEffect(() => {
     if (handledRef.current) return;
+    // Wait for the session to resolve before consuming the deep link.
+    //
+    // proxy.ts already bounces signed-out visitors off /dashboard to
+    // /login?next=…, so the param survives the round trip — but on the way
+    // back in, AuthProvider needs a tick to read localStorage and another to
+    // resolve /api/auth/me. Firing on mount opened the form during that gap,
+    // against a null token: the review form's submit is a silent no-op
+    // without one (see ReviewPromptModal), and "auto" mode can't tell a
+    // new review from an edit until it can call /api/reviews/me. Stripping
+    // the param that early also burned it, since handledRef then blocks the
+    // retry once the token does arrive.
+    if (isLoading || !user) return;
+
     const prompt = searchParams.get("prompt");
     const editReview = searchParams.get("editReview");
     if (prompt !== "1" && editReview !== "1") return;
@@ -103,12 +117,15 @@ function DeepLinkWatcher({ onOpen }: { onOpen: (config: ModalConfig) => void }) 
     window.history.replaceState(window.history.state, "", nextUrl);
 
     if (prompt === "1") {
-      onOpen({ trigger: "days_active", mode: "new" });
+      // "auto", not "new": this entry point is open to everyone, including
+      // users who already reviewed, so the modal resolves which form to show
+      // from their actual review rather than dead-ending on a 403.
+      onOpen({ trigger: "days_active", mode: "auto" });
     } else {
       onOpen({ trigger: "days_active", mode: "edit" });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user, isLoading]);
 
   return null;
 }

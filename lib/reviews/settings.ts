@@ -13,7 +13,12 @@ const CACHE_TTL = 60; // seconds
 export interface ReviewSettings {
   /** Minimum account age before a review can be submitted. 0 = off. */
   minAccountAgeHours: number;
-  /** Require at least one completed render/generation before reviewing. */
+  /**
+   * Require at least one completed render/generation before reviewing.
+   * Off by default: any signed-in user can review straight away. Kept as a
+   * toggle rather than deleted so the gate can be turned back on from
+   * /admin/reviews/settings without a deploy if review spam ever justifies it.
+   */
   requireProductUsage: boolean;
   /** Spam score (0-100) at/above which a new review is auto-hidden instead of queued pending. */
   spamScoreAutoHideThreshold: number;
@@ -33,7 +38,7 @@ export interface ReviewSettings {
 
 export const REVIEW_SETTINGS_DEFAULTS: ReviewSettings = {
   minAccountAgeHours: 0,
-  requireProductUsage: true,
+  requireProductUsage: false,
   spamScoreAutoHideThreshold: 90,
   autoHideReportThreshold: 3,
   promptThrottleDays: 21,

@@ -22,7 +22,7 @@ interface ReviewSettings {
 }
 
 const FIELDS: { key: keyof ReviewSettings; label: string; hint: string; type: "number" | "boolean" }[] = [
-  { key: "requireProductUsage", label: "Require product usage", hint: "Reviewer must have rendered at least one video before reviewing.", type: "boolean" },
+  { key: "requireProductUsage", label: "Require product usage", hint: "Off by default — anyone signed in can review. Turn on to require at least one completed render first.", type: "boolean" },
   { key: "minAccountAgeHours", label: "Minimum account age (hours)", hint: "0 disables this check.", type: "number" },
   { key: "spamScoreAutoHideThreshold", label: "Spam auto-hide threshold", hint: "Submissions scoring at or above this (0–100) are hidden instead of queued as pending.", type: "number" },
   { key: "autoHideReportThreshold", label: "Report auto-hide threshold", hint: "A published review is auto-hidden once it collects this many reports.", type: "number" },

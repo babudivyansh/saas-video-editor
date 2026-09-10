@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Modal } from "@/app/components/ui/Modal";
 import { StarRating } from "@/app/components/reviews/StarRating";
 import { AttachmentUploader, type UploadedAttachment } from "@/app/components/reviews/AttachmentUploader";
@@ -17,7 +17,13 @@ interface ReviewPromptModalProps {
   // (most tool completions share the same coarse "ai_tools" bucket, so
   // guessing wrong should always be correctable by the user).
   featureHint?: string;
-  mode?: "new" | "edit";
+  /**
+   * "auto" resolves to new-or-edit from the caller's actual review. Used by
+   * the ?prompt=1 deep link (the "Write a review" CTA on /reviews), which is
+   * open to everyone — including users who already reviewed, who would
+   * otherwise fill in the whole form only to be 403'd at submit.
+   */
+  mode?: "new" | "edit" | "auto";
   onClose: () => void;
 }
 
@@ -51,36 +57,53 @@ function initialForm(featureHint?: string): FormState {
 
 export function ReviewPromptModal({ featureHint, mode = "new", onClose }: ReviewPromptModalProps) {
   const { token } = useAuth();
+  // The user asked for this form rather than being prompted into it.
+  const selfInitiated = mode === "auto";
+  // null while an "auto"/"edit" open is still fetching the caller's review.
+  const [resolvedMode, setResolvedMode] = useState<"new" | "edit" | null>(mode === "new" ? "new" : null);
   const [step, setStep] = useState<Step>(mode === "edit" ? "details" : "rate");
   const [form, setForm] = useState<FormState>(initialForm(featureHint));
   const [reviewId, setReviewId] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<UploadedAttachment[]>([]);
-  const [busy, setBusy] = useState(mode === "edit"); // edit mode starts by loading the existing review
+  const [busy, setBusy] = useState(mode !== "new"); // starts by loading the existing review
   const [error, setError] = useState<string | null>(null);
 
+  // Loads the caller's existing review, when there is one, and prefills the
+  // form from it. Shared by "edit" and "auto" — the only difference is that
+  // "auto" falls back to a blank new-review form when there's nothing to
+  // load, whereas "edit" arrived here believing a review exists (a rejection
+  // deep link) and lands on the same fallback if it has since been deleted.
+  const loadExisting = useCallback(async () => {
+    if (!token) return;
+    const res = await fetch("/api/reviews/me", { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json().catch(() => null);
+    if (data?.review) {
+      setReviewId(data.review.id);
+      setForm((f) => ({
+        ...f,
+        rating: data.review.rating,
+        title: data.review.title ?? "",
+        body: data.review.body,
+        featureUsed: data.review.featureUsed,
+        wouldRecommend: data.review.wouldRecommend ?? null,
+        publicDisplayConsent: data.review.publicDisplayConsent ?? true,
+        company: data.review.company ?? "",
+        country: data.review.country ?? "",
+      }));
+      setAttachments(data.review.attachments ?? []);
+      setResolvedMode("edit");
+      setStep("details");
+    } else {
+      setResolvedMode("new");
+      setStep("rate");
+    }
+    setBusy(false);
+  }, [token]);
+
   useEffect(() => {
-    if (mode !== "edit" || !token) return;
-    (async () => {
-      const res = await fetch("/api/reviews/me", { headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json().catch(() => null);
-      if (data?.review) {
-        setReviewId(data.review.id);
-        setForm((f) => ({
-          ...f,
-          rating: data.review.rating,
-          title: data.review.title ?? "",
-          body: data.review.body,
-          featureUsed: data.review.featureUsed,
-          wouldRecommend: data.review.wouldRecommend ?? null,
-          publicDisplayConsent: data.review.publicDisplayConsent ?? true,
-          company: data.review.company ?? "",
-          country: data.review.country ?? "",
-        }));
-        setAttachments(data.review.attachments ?? []);
-      }
-      setBusy(false);
-    })();
-  }, [mode, token]);
+    if (mode === "new" || !token) return;
+    void loadExisting();
+  }, [mode, token, loadExisting]);
 
   async function dismiss(permanent: boolean) {
     setBusy(true);
@@ -112,6 +135,7 @@ export function ReviewPromptModal({ featureHint, mode = "new", onClose }: Review
 
     setBusy(true);
     try {
+      const isEdit = resolvedMode === "edit";
       const payload = {
         rating: form.rating,
         title: form.title.trim() || undefined,
@@ -121,19 +145,28 @@ export function ReviewPromptModal({ featureHint, mode = "new", onClose }: Review
         publicDisplayConsent: form.publicDisplayConsent,
         company: form.company.trim() || undefined,
         country: form.country.trim() || undefined,
-        ...(mode === "new" ? { hp: form.hp } : {}),
+        ...(isEdit ? {} : { hp: form.hp }),
       };
-      const res = await fetch(mode === "edit" ? "/api/reviews/me" : "/api/reviews", {
-        method: mode === "edit" ? "PATCH" : "POST",
+      const res = await fetch(isEdit ? "/api/reviews/me" : "/api/reviews", {
+        method: isEdit ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
+        // A review already exists (opened as "new" from a stale client, or a
+        // second tab submitted first). There's exactly one review per user,
+        // so the right destination is the edit form on top of what's already
+        // stored — not a dead-end error on a form they just filled in.
+        if (!isEdit && (data?.reason === "already_reviewed" || res.status === 409)) {
+          await loadExisting();
+          setError("You've already reviewed Clipiro — here's your review, edit it and save.");
+          return;
+        }
         setError(data?.error ?? "Something went wrong — please try again.");
         return;
       }
-      if (mode === "edit") {
+      if (isEdit) {
         setStep("thanks");
         return;
       }
@@ -147,34 +180,48 @@ export function ReviewPromptModal({ featureHint, mode = "new", onClose }: Review
   return (
     <Modal
       open
-      onClose={step === "rate" || step === "details" ? () => (mode === "edit" ? onClose() : dismiss(false)) : onClose}
+      // Closing an unanswered new-review prompt is a "remind me later"
+      // dismissal. Closing an edit, a still-resolving open, or a
+      // self-initiated one is not: "auto" only ever comes from the user
+      // clicking "Write a review" themselves, and recording that as a
+      // dismissal would both bump dismissCount and mark whatever prompt
+      // event is still open as rejected — poisoning the prompt funnel with
+      // an event the prompt system never showed.
+      onClose={resolvedMode === "new" && !selfInitiated && (step === "rate" || step === "details") ? () => dismiss(false) : onClose}
       title={
-        step === "rate"
-          ? "How's Clipiro working out for you?"
-          : mode === "edit"
-            ? "Edit your review"
-            : step === "attachments"
-              ? "Add photos or a video (optional)"
-              : undefined
+        resolvedMode === null
+          ? undefined
+          : step === "rate"
+            ? "How's Clipiro working out for you?"
+            : resolvedMode === "edit"
+              ? "Edit your review"
+              : step === "attachments"
+                ? "Add photos or a video (optional)"
+                : undefined
       }
       maxWidth={step === "rate" || step === "thanks" ? "max-w-sm" : "max-w-lg"}
     >
-      {step === "rate" && (
+      {resolvedMode !== null && step === "rate" && (
         <div className="flex flex-col items-center gap-4 py-2">
           <p className="text-sm text-ink-soft text-center">Your feedback helps other creators decide, and helps us improve.</p>
           <StarRating value={0} onChange={pickRating} size="lg" />
-          <div className="flex items-center gap-4 mt-2">
-            <button onClick={() => dismiss(false)} disabled={busy} className="text-xs font-semibold text-ink-soft hover:text-ink cursor-pointer">
-              Remind me later
-            </button>
-            <button onClick={() => dismiss(true)} disabled={busy} className="text-xs font-semibold text-ink-soft hover:text-ink cursor-pointer">
-              Don&apos;t ask again
-            </button>
-          </div>
+          {/* Only offered when we interrupted them. Someone who navigated
+              here on purpose has nothing to opt out of, and "Don't ask
+              again" would silently cost them every future prompt. */}
+          {!selfInitiated && (
+            <div className="flex items-center gap-4 mt-2">
+              <button onClick={() => dismiss(false)} disabled={busy} className="text-xs font-semibold text-ink-soft hover:text-ink cursor-pointer">
+                Remind me later
+              </button>
+              <button onClick={() => dismiss(true)} disabled={busy} className="text-xs font-semibold text-ink-soft hover:text-ink cursor-pointer">
+                Don&apos;t ask again
+              </button>
+            </div>
+          )}
         </div>
       )}
 
-      {step === "details" && busy && mode === "edit" && !reviewId ? (
+      {resolvedMode === null ? (
         <div className="py-8 text-center text-sm text-ink-soft">Loading your review…</div>
       ) : step === "details" ? (
         <form onSubmit={handleDetailsSubmit} className="space-y-5">
@@ -260,7 +307,7 @@ export function ReviewPromptModal({ featureHint, mode = "new", onClose }: Review
             </div>
           </div>
 
-          {mode === "edit" && (
+          {resolvedMode === "edit" && (
             <div>
               <FieldLabel>Photos or video (optional)</FieldLabel>
               <AttachmentUploader attachments={attachments} onChange={setAttachments} token={token ?? null} />
@@ -292,7 +339,7 @@ export function ReviewPromptModal({ featureHint, mode = "new", onClose }: Review
           {error && <p className="text-sm text-error">{error}</p>}
 
           <Button type="submit" variant="primary" disabled={busy}>
-            {busy ? "Saving…" : mode === "edit" ? "Save changes" : "Submit review"}
+            {busy ? "Saving…" : resolvedMode === "edit" ? "Save changes" : "Submit review"}
           </Button>
         </form>
       ) : null}
@@ -314,8 +361,8 @@ export function ReviewPromptModal({ featureHint, mode = "new", onClose }: Review
               <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
-          <p className="text-sm font-bold text-ink">{mode === "edit" ? "Your review has been updated" : "Thank you for your review!"}</p>
-          <p className="text-xs text-ink-soft">{mode === "edit" ? "Changes to a published review are re-checked before going live again." : "It'll appear on our site once approved."}</p>
+          <p className="text-sm font-bold text-ink">{resolvedMode === "edit" ? "Your review has been updated" : "Thank you for your review!"}</p>
+          <p className="text-xs text-ink-soft">{resolvedMode === "edit" ? "Changes to a published review are re-checked before going live again." : "It'll appear on our site once approved."}</p>
           <Button variant="primary" onClick={onClose}>Done</Button>
         </div>
       )}
