@@ -52,12 +52,7 @@ export type SourceFeature =
   | "autoclip"
   | "url-import"
   | "editor"
-  // HISTORICAL. ai-creator and text-video were removed as products, but these
-  // strings are persisted on Asset rows users still own, and the assets pages
-  // label from this union. Kept so an old asset shows a name, not a raw slug.
-  | "ai-creator"
   | "video-generator"
-  | "text-video"
   | "avatar"
   | "stock";
 

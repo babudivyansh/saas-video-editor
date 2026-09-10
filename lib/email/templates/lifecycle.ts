@@ -156,7 +156,7 @@ export function reengagement7Day(p: { name: string; creditsLeft: number }): Emai
         title: "Jump back in and try something new",
         marker: "bullet",
         items: [
-          "AI Creator Wizard — describe your idea, get a full video",
+          "Clipiro AutoClip — one long video, a week of clips",
           "Voice Changer — transform any voice in seconds",
           "Social Tracker — see how your videos are performing",
         ],

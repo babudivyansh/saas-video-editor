@@ -1,25 +1,22 @@
-// Product-type badge for generated videos — deduped from the profile
-// my-videos and credits pages, retinted to the vibrant-gradient palette.
+// Product-type badge for generated videos, used by profile/my-videos.
 //
-// EVERY LABEL HERE IS HISTORICAL as of 2026-09-10. All six create products
-// were removed; AutoClip is the only one left, and it renders Clips rather
-// than product-typed Projects. These entries stay because users still OWN
-// the videos they made, and the component falls back to the raw `type` string
-// — so deleting a label does not hide anything, it just shows "reddit-video"
-// in the badge instead of "Reddit Story". Keep them until the Projects
-// themselves are gone, which is a data decision, not a code one.
+// Only two product types can be created as of 2026-09-10: AutoClip and the
+// editor. The six create products that owned the other labels were deleted,
+// and their labels went with them.
+//
+// A Project whose type is not listed renders the raw string. That is on
+// purpose and is the reason there is no "Unknown" fallback: users still own
+// videos made by the removed products, and a badge reading "reddit-video" is
+// a true, if ugly, answer — better than a label implying the video is
+// something it is not.
 export const PRODUCT_LABELS: Record<string, string> = {
-  "split-screen": "Split Screen",
-  "streamer-video": "Streamer Video",
-  "reddit-video": "Reddit Story",
-  "text-video": "Fake Text",
+  "auto-clip": "AutoClip",
+  editor: "Editor",
 };
 
 const COLORS: Record<string, string> = {
-  "split-screen": "bg-tint-violet text-accent-violet",
-  "streamer-video": "bg-tint-amber text-warning",
-  "reddit-video": "bg-tint-rose text-error",
-  "text-video": "bg-tint-emerald text-emerald-600",
+  "auto-clip": "bg-tint-emerald text-emerald-600",
+  editor: "bg-tint-violet text-accent-violet",
 };
 
 export function ProductBadge({ type }: { type: string }) {

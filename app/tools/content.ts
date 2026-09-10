@@ -362,7 +362,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     steps: [
       { title: "Describe your channel", body: "Your niche, your audience, the format you post in." },
       { title: "Generate ideas", body: "You get concepts with hooks and angles, not just single-line titles." },
-      { title: "Make one", body: "Take an idea straight into AutoClip, AI Creator, or the editor." },
+      { title: "Make one", body: "Take an idea straight into AutoClip or the editor." },
     ],
     benefits: [
       { title: "Hooks, not just topics", body: "A topic is not a video. Each idea comes with an angle and an opening line." },
