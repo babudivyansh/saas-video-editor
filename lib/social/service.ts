@@ -122,9 +122,31 @@ function refreshFor(account: SocialAccount, refreshToken: string): Promise<OAuth
   return PROVIDERS[account.provider as ProviderId].refreshTokens(refreshToken, account.providerAccountId);
 }
 
-async function markNeedsReauth(account: SocialAccount, reason: string): Promise<void> {
-  await prisma.socialAccount.update({ where: { id: account.id }, data: { status: "needs_reauth" } });
-  await recordAudit(account.userId, "social.needs_reauth", account.id, {
+/**
+ * Two different dead ends, told apart.
+ *
+ * "revoked" existed in the schema and in PlatformOverview's sync badge but was
+ * never written by anything, so a token the user had actively revoked at the
+ * provider looked identical to one that had merely expired — and the UI told
+ * them to reconnect, which is right, without ever being able to say the
+ * connection was cut from the other end.
+ *
+ * A provider signals revocation by rejecting the REFRESH token, not the access
+ * token: an expired access token with a working refresh token is the normal
+ * case this function never sees. So a refresh that comes back as an auth
+ * failure means the grant is gone, and anything else — a network blip, a 500,
+ * a missing refresh token on our side — is just "needs reauth".
+ */
+async function markNeedsReauth(
+  account: SocialAccount,
+  reason: string,
+  cause?: unknown,
+): Promise<void> {
+  const revoked = cause !== undefined && classifyError(cause) === "auth";
+  const status = revoked ? "revoked" : "needs_reauth";
+
+  await prisma.socialAccount.update({ where: { id: account.id }, data: { status } });
+  await recordAudit(account.userId, revoked ? "social.revoked" : "social.needs_reauth", account.id, {
     provider: account.provider,
     reason,
   });
@@ -190,8 +212,11 @@ export async function syncAccount(account: SocialAccount): Promise<void> {
     });
   } catch (e) {
     await bumpSyncCounter("fail");
-    // A dead token discovered mid-sync (not just mid-refresh) also needs reauth.
-    if (classifyError(e) === "auth" && account.status !== "needs_reauth") {
+    // A dead token discovered mid-sync (not just mid-refresh) also needs
+    // reauth. The cause is deliberately NOT passed here: an auth failure on a
+    // data call means this access token is dead, which is not the same as the
+    // grant being revoked — the refresh path is the only place that can tell.
+    if (classifyError(e) === "auth" && account.status !== "needs_reauth" && account.status !== "revoked") {
       await markNeedsReauth(account, (e as Error).message).catch(() => {});
     }
     // Record why (never overwrites `status` — needs_reauth stays put).
@@ -309,15 +334,9 @@ export async function getOverview(userId: string) {
   }));
 }
 
-/** @deprecated Use `invalidateUser` / `invalidateAccount` from ./cache. */
-export async function invalidateOverview(userId: string): Promise<void> {
-  await invalidateUser(userId);
-}
-
-/** @deprecated Key construction now lives in ./cache. */
-export function analyticsCacheVersionKey(accountId: string): string {
-  return keys.version(accountId);
-}
+// (invalidateOverview and analyticsCacheVersionKey were @deprecated shims over
+// ./cache with no callers left. Deleted — a shim nothing calls is not a
+// migration path, it is just a second name for the same thing.)
 
 // ── Refresh (manual / scheduled) ─────────────────────────────────────────────
 export async function refreshAccount(userId: string, accountId: string): Promise<boolean> {
@@ -526,11 +545,8 @@ export async function pruneTimeSeries(): Promise<RetentionResult> {
   return result;
 }
 
-/** @deprecated Renamed to `pruneTimeSeries`, which also covers the new tables. */
-export async function pruneOldSnapshots(): Promise<{ deleted: number }> {
-  const { snapshots } = await pruneTimeSeries();
-  return { deleted: snapshots };
-}
+// (pruneOldSnapshots was a @deprecated alias for pruneTimeSeries with no
+// callers. Deleted for the same reason as the two above.)
 
 // ── Audit trail ──────────────────────────────────────────────────────────────
 // Token-touching actions are recorded per docs/social-tracker-security.md.

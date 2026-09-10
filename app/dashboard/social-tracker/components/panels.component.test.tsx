@@ -9,6 +9,19 @@ import type { AccountAlert, GoalProgress } from "@/lib/social/metrics";
 
 vi.mock("next-intl", () => ({ useTranslations: () => (k: string) => k }));
 
+// AlertStrip is a Server Component and reads its copy through getTranslations.
+// The real messages are asserted below, so this resolves the SocialAlerts
+// namespace rather than echoing keys.
+const ALERT_COPY: Record<string, (p: Record<string, string>) => string> = {
+  followerMilestone: (p) => `Passed ${p.milestone} followers.`,
+  followerDrop: (p) => `Lost ${p.lost} followers this week (${p.pct} of your audience).`,
+  engagementDrop: (p) => `Engagement rate fell ${p.pct} against last week.`,
+  engagementSpike: (p) => `Engagement rate rose ${p.pct} against last week.`,
+};
+vi.mock("next-intl/server", () => ({
+  getTranslations: async () => (k: string, p: Record<string, string>) => ALERT_COPY[k]?.(p) ?? k,
+}));
+
 const alert = (over: Partial<AccountAlert> = {}): AccountAlert => ({
   kind: "milestone",
   severity: "info",
@@ -38,29 +51,29 @@ const goal = (over: Partial<GoalProgress & { metric: string; label: string; meas
 });
 
 describe("AlertStrip", () => {
-  it("renders from code and params, not from the engine's English message", () => {
+  it("renders from code and params, not from the engine's English message", async () => {
     // The engine's `message` is deprecated precisely because a computed string
     // cannot be translated; the renderer owns the wording.
-    render(<AlertStrip alerts={[alert()]} />);
+    render(await AlertStrip({ alerts: [alert()] }));
     expect(screen.getByText(/Passed 10K followers/)).toBeInTheDocument();
     expect(screen.queryByText("engine fallback")).not.toBeInTheDocument();
   });
 
-  it("falls back to the engine message for a code it has no copy for", () => {
-    render(<AlertStrip alerts={[alert({ code: "somethingNew" as AccountAlert["code"] })]} />);
+  it("falls back to the engine message for a code it has no copy for", async () => {
+    render(await AlertStrip({ alerts: [alert({ code: "somethingNew" as AccountAlert["code"] })] }));
     expect(screen.getByText("engine fallback")).toBeInTheDocument();
   });
 
-  it("is a polite status region, not an assertive alert", () => {
+  it("is a polite status region, not an assertive alert", async () => {
     // These are noteworthy, not urgent — role="alert" would interrupt a screen
     // reader mid-sentence on every render.
-    render(<AlertStrip alerts={[alert()]} />);
+    render(await AlertStrip({ alerts: [alert()] }));
     expect(screen.getByRole("status")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("renders nothing at all when there are no signals", () => {
-    const { container } = render(<AlertStrip alerts={[]} />);
+  it("renders nothing at all when there are no signals", async () => {
+    const { container } = render(await AlertStrip({ alerts: [] }));
     expect(container).toBeEmptyDOMElement();
   });
 });

@@ -1,11 +1,16 @@
 // Signals worth interrupting for: milestones, follower drops, engagement swings.
 //
 // Rendered from `code` + `params`, never from the engine's English `message`
-// field — which is deprecated for exactly this reason. Keeping the renderer in
-// charge of the wording is what makes translating this possible later without
-// touching lib/social/metrics; the strings below are the only thing a
-// next-intl namespace would have to absorb.
+// field — which is deprecated for exactly this reason. That kept the wording
+// out of lib/social/metrics; it now lives in the SocialAlerts message
+// namespace rather than in this file.
+//
+// It was hardcoded English in a thirteen-locale app until i18n/request.ts
+// gained an English fallback. Before that, adding a namespace meant editing all
+// thirteen files in one commit or throwing in twelve locales — which is exactly
+// the friction that kept these strings here.
 
+import { getTranslations } from "next-intl/server";
 import type { AccountAlert, AlertCode } from "@/lib/social/metrics";
 
 export interface AlertStripProps {
@@ -24,15 +29,26 @@ const compact = (n: number) =>
   Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 const pct = (n: number) => `${Math.abs(n).toFixed(0)}%`;
 
-const COPY: Record<AlertCode, (p: Record<string, number>) => string> = {
-  followerMilestone: (p) => `Passed ${compact(p.milestone ?? 0)} followers.`,
-  followerDrop: (p) => `Lost ${compact(p.lost ?? 0)} followers this week (${pct(p.pct ?? 0)} of your audience).`,
-  engagementDrop: (p) => `Engagement rate fell ${pct((p.changePct ?? 0) * 100)} against last week.`,
-  engagementSpike: (p) => `Engagement rate rose ${pct((p.changePct ?? 0) * 100)} against last week.`,
+/**
+ * Numbers are formatted here and passed in already-rendered, rather than as
+ * ICU number arguments. Compact notation and the sign-stripped percentage are
+ * presentation decisions this component already owns, and duplicating them into
+ * thirteen message files would be thirteen chances to disagree.
+ */
+const PARAMS: Record<AlertCode, (p: Record<string, number>) => Record<string, string>> = {
+  followerMilestone: (p) => ({ milestone: compact(p.milestone ?? 0) }),
+  followerDrop: (p) => ({ lost: compact(p.lost ?? 0), pct: pct(p.pct ?? 0) }),
+  engagementDrop: (p) => ({ pct: pct((p.changePct ?? 0) * 100) }),
+  engagementSpike: (p) => ({ pct: pct((p.changePct ?? 0) * 100) }),
 };
 
-export function AlertStrip({ alerts }: AlertStripProps) {
+export async function AlertStrip({ alerts }: AlertStripProps) {
   if (alerts.length === 0) return null;
+
+  // getTranslations, not useTranslations: this is a Server Component, and it
+  // should stay one — it renders from data the page already has and needs no
+  // interactivity.
+  const t = await getTranslations("SocialAlerts");
 
   return (
     // role="status", not "alert": these are noteworthy, not urgent, and an
@@ -51,7 +67,7 @@ export function AlertStrip({ alerts }: AlertStripProps) {
             {alert.accountLabel && <span className="font-semibold">{alert.accountLabel}: </span>}
             {/* Falls back to the engine's own message if a new code lands here
                 before its copy does — a missing string must not blank the row. */}
-            {COPY[alert.code]?.(alert.params) ?? alert.message}
+            {PARAMS[alert.code] ? t(alert.code, PARAMS[alert.code](alert.params)) : alert.message}
           </p>
         </div>
       ))}

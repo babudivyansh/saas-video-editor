@@ -18,6 +18,16 @@ vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
   useLocale: () => "en",
 }));
+vi.mock("next-intl/server", () => ({ getTranslations: async () => (key: string) => key }));
+
+// AlertStrip is an async Server Component. Next's RSC renderer awaits such a
+// child; the client renderer used here cannot, and an unresolved promise in the
+// tree blanks the whole render. Its own copy is covered in
+// components/panels.component.test.tsx.
+vi.mock("./components/AlertStrip", () => ({
+  AlertStrip: ({ alerts }: { alerts: unknown[] }) =>
+    alerts.length > 0 ? <div data-testid="alerts">{alerts.length}</div> : null,
+}));
 
 // The page's client islands (QuickActions, KpiGrid…) reach for the auth token
 // and the toast host, which the real layout provides and a bare render does not.

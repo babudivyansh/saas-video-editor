@@ -21,6 +21,7 @@ vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
   useLocale: () => "en",
 }));
+vi.mock("next-intl/server", () => ({ getTranslations: async () => (key: string) => key }));
 vi.mock("@/app/components/AuthContext", () => ({
   useAuth: () => ({ token: "test-token", user: { id: "u1" }, isLoading: false }),
 }));

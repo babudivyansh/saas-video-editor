@@ -1,4 +1,10 @@
 {
+  "SocialAlerts": {
+    "followerMilestone": "Passed {milestone} followers.",
+    "followerDrop": "Lost {lost} followers this week ({pct} of your audience).",
+    "engagementDrop": "Engagement rate fell {pct} against last week.",
+    "engagementSpike": "Engagement rate rose {pct} against last week."
+  },
   "Nav": {
     "dashboardHome": "Dashboard home",
     "searchPlaceholder": "Search tools & pages…",
