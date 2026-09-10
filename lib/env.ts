@@ -152,11 +152,6 @@ const schema = z.object({
   // still needs the logo to resolve to a host a mail client can reach.
   EMAIL_ASSET_BASE_URL: z.string().optional(),
 
-  // Preset avatar assets for the AI-creator tool — public S3 URLs, feature
-  // degrades to "upload your own face" when unset.
-  PRESET_AVATAR_NANO_BANANA_URL: z.string().optional(),
-  PRESET_AVATAR_FACE_SWAP_URL: z.string().optional(),
-
   // Social-account OAuth token encryption (lib/encryption.ts). Required in
   // production; falls back to a JWT_SECRET-derived key in dev.
   SOCIAL_TOKEN_KEY: z.string().optional(),
@@ -216,7 +211,6 @@ const schema = z.object({
   ELEVENLABS_VOICE_SPONGEBOB: z.string().optional(),
 
   NEXT_PUBLIC_APP_URL: z.string().default("http://localhost:3000"),
-  NEXT_PUBLIC_BACKGROUNDS_BASE: z.string().optional(),
   NEXT_PUBLIC_MUSIC_BASE: z.string().optional(),
   NEXT_PUBLIC_DISCORD_INVITE_URL: z.string().optional(),
   NEXT_PUBLIC_INSTAGRAM_URL: z.string().optional(),

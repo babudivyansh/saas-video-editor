@@ -26,10 +26,7 @@
     "createItems": {
       "autoClip": { "title": "Clipiro AutoClip", "desc": "Long video → viral clips, automatically" },
       "editor": { "title": "Video Editor", "desc": "Multi-track timeline editor" },
-      "cutCrop": { "title": "Cut & Crop", "desc": "Trim & stitch clips ready to edit" },
-      "aiCreator": { "title": "AI Creator", "desc": "Become an AI creator in 3 steps" },
-      "redditVideo": { "title": "Reddit Story Video", "desc": "Turn Reddit posts into videos" },
-      "textVideo": { "title": "Fake Texts Video", "desc": "Text-conversation story videos" }
+      "cutCrop": { "title": "Cut & Crop", "desc": "Trim & stitch clips ready to edit" }
     },
     "rail": {
       "home": "Home",
@@ -118,8 +115,7 @@
       "autoClip": { "title": "Clipiro AutoClip", "desc": "Transform long videos into viral clips automatically" },
       "cutCrop": { "title": "Cut & Crop", "desc": "Trim and stitch your video(s) into one clip ready to edit" },
       "voiceChanger": { "title": "Voice Changer", "desc": "Change the voice of any audio or video file" },
-      "subtitleRemover": { "title": "Subtitle Remover", "desc": "Remove subtitles with AI in minutes" },
-      "aiCreator": { "title": "AI Creator", "desc": "Become an AI content creator in 3 steps" }
+      "subtitleRemover": { "title": "Subtitle Remover", "desc": "Remove subtitles with AI in minutes" }
     },
     "miniTools": {
       "imageGenerator": "Image Generator",
@@ -146,9 +142,7 @@
       "speechEnhancer": { "title": "AI Speech Enhancer", "desc": "Enhance the quality of any audio or video file with AI." },
       "videoGenerator": { "title": "AI Video Generator", "desc": "VEO3 is a tool that allows you to create videos with AI." },
       "vocalRemover": { "title": "AI Vocal Remover", "desc": "Remove vocals from any audio or video file with AI." },
-      "brainstormer": { "title": "AI Brainstormer", "desc": "Generate viral content ideas based on your niche." },
-      "redditVideo": { "title": "Reddit Video Generator", "desc": "Convert Reddit posts into viral videos with AI." },
-      "fakeTexts": { "title": "Fake Texts Video Generator", "desc": "Create engaging fake texts videos with AI to go viral." }
+      "brainstormer": { "title": "AI Brainstormer", "desc": "Generate viral content ideas based on your niche." }
     }
   },
   "SettingsNav": {

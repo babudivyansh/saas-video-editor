@@ -46,12 +46,6 @@ background as an inline style that no stylesheet can reach.
 clients, onto paper, and into third-party feeds. They carry their own brand
 colour deliberately and are denylisted in the codemod.
 
-**Product output** (`app/dashboard/create/text-video`, `create/reddit-video`) —
-these render WhatsApp/Telegram/iMessage and Reddit themes, and caption presets,
-whose colours ffmpeg burns into the exported video. Their *chrome* is migrated;
-their mockup regions must not be. They are on the codemod's `CONTENT_DENY` and
-need `--allow-content` with explicit `--protect` ranges.
-
 ## Guardrails
 
 `npm run lint` runs `scripts/check-theme-debt.mjs`, an exact-count ratchet over

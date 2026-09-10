@@ -70,7 +70,7 @@ async function handlePOST(req: NextRequest) {
       backgroundUrl: "",
       subtitlesStyle: {},
       uploadedVideoUrl,
-      productType: "split-screen",
+      productType: "auto-clip",
       status: "draft",
     },
   });

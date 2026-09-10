@@ -46,17 +46,12 @@ const DENY_FILE_RE = [/\.test\.tsx?$/, /opengraph-image\.tsx$/, /twitter-image\.
 // iMessage, Reddit) and caption style presets that ffmpeg burns into the frame.
 // Recolouring them corrupts the product. Chrome in these files is migrated by
 // hand, hunk by hunk.
-const CONTENT_DENY = [
-  "app/dashboard/create/text-video/page.tsx",
-  "app/dashboard/create/reddit-video/page.tsx",
-  // streamer-video came off this list after review: every gray in it is page
-  // chrome, and its product output (the OUTLINE text-shadow and the caption
-  // presets) lives in inline style strings a class rewriter cannot reach.
-  // NOTE: app/components/dashboard/toolPreviews.tsx was on this list, but it
-  // draws CLIPIRO's own UI, not a third-party app's — so it should follow the
-  // theme like everything else. Only the WhatsApp/Telegram/iMessage/Reddit
-  // renderings above are genuinely product output.
-];
+// Empty since 2026-09-10. Its only entries were create/text-video and
+// create/reddit-video, whose WhatsApp/Telegram/iMessage/Reddit mockup colours
+// ffmpeg burned into exported video. Both products were deleted, so the
+// codemod no longer has any product output to protect. Kept (not removed)
+// because the next burned-in surface belongs here rather than nowhere.
+const CONTENT_DENY = [];
 
 // ── Rules ──────────────────────────────────────────────────────────────────
 // Keyed by the class BASE (no variant prefix, no /alpha). A token only matches

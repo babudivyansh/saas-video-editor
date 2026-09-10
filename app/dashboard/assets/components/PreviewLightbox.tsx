@@ -23,9 +23,7 @@ const SOURCE_LABELS: Record<string, string> = {
   autoclip: "AutoClip",
   "url-import": "URL import",
   editor: "Editor",
-  "ai-creator": "AI Creator",
   "video-generator": "Video Generator",
-  "text-video": "Text to Video",
   avatar: "Avatar",
   stock: "Stock",
 };

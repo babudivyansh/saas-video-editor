@@ -35,7 +35,7 @@ const CLIP = {
 };
 const PROJECT = {
   id: "proj-9", userId: "user-1", videoUrl: "https://cdn.invalid/renders/proj-9.mp4",
-  title: "Reddit story", status: "completed", productType: "reddit-video",
+  title: "Editor render", status: "completed", productType: "editor",
   captionsJson: [{ word: "posted", start: 0, end: 300 }],
 };
 

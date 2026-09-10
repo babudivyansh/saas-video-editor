@@ -191,17 +191,6 @@ const CASES: RouteCase[] = [
       return f;
     },
   },
-  {
-    label: "AI Creator (file upload)",
-    modulePath: "./ai-creator/route",
-    feature: "ai-creator",
-    featureCapBytes: 200 * 1024 * 1024,
-    buildOversizedForm: (over) => {
-      const f = new FormData();
-      f.append("video", file(200 * 1024 * 1024 + over, "v.mp4", "video/mp4"));
-      return f;
-    },
-  },
 ];
 
 beforeEach(() => {

@@ -26,10 +26,7 @@
     "createItems": {
       "autoClip": { "title": "Clipiro AutoClip", "desc": "Langes Video → virale Clips, automatisch" },
       "editor": { "title": "Video-Editor", "desc": "Multi-Track-Timeline-Editor" },
-      "cutCrop": { "title": "Schneiden & Zuschneiden", "desc": "Clips trimmen und zusammenfügen, bereit zum Bearbeiten" },
-      "aiCreator": { "title": "KI-Creator", "desc": "In 3 Schritten zum KI-Creator werden" },
-      "redditVideo": { "title": "Reddit-Story-Video", "desc": "Reddit-Beiträge in Videos verwandeln" },
-      "textVideo": { "title": "Fake-Text-Video", "desc": "Story-Videos im Textnachrichten-Stil" }
+      "cutCrop": { "title": "Schneiden & Zuschneiden", "desc": "Clips trimmen und zusammenfügen, bereit zum Bearbeiten" }
     },
     "rail": {
       "home": "Start",
@@ -118,8 +115,7 @@
       "autoClip": { "title": "Clipiro AutoClip", "desc": "Verwandeln Sie lange Videos automatisch in virale Clips" },
       "cutCrop": { "title": "Schneiden & Zuschneiden", "desc": "Trimmen und fügen Sie Ihre Videos zu einem bearbeitungsfertigen Clip zusammen" },
       "voiceChanger": { "title": "Stimmenverzerrer", "desc": "Ändern Sie die Stimme einer beliebigen Audio- oder Videodatei" },
-      "subtitleRemover": { "title": "Untertitel-Entferner", "desc": "Entfernen Sie Untertitel in Minuten mit KI" },
-      "aiCreator": { "title": "KI-Creator", "desc": "In 3 Schritten zum KI-Content-Creator werden" }
+      "subtitleRemover": { "title": "Untertitel-Entferner", "desc": "Entfernen Sie Untertitel in Minuten mit KI" }
     },
     "miniTools": {
       "imageGenerator": "Bildgenerator",
@@ -146,9 +142,7 @@
       "speechEnhancer": { "title": "KI-Sprachverbesserer", "desc": "Verbessern Sie die Qualität einer beliebigen Audio- oder Videodatei mit KI." },
       "videoGenerator": { "title": "KI-Videogenerator", "desc": "VEO3 ist ein Tool, mit dem Sie Videos mit KI erstellen können." },
       "vocalRemover": { "title": "KI-Gesangsentferner", "desc": "Entfernen Sie Gesang aus einer beliebigen Audio- oder Videodatei mit KI." },
-      "brainstormer": { "title": "KI-Ideengenerator", "desc": "Generieren Sie virale Content-Ideen basierend auf Ihrer Nische." },
-      "redditVideo": { "title": "Reddit-Videogenerator", "desc": "Verwandeln Sie Reddit-Beiträge mit KI in virale Videos." },
-      "fakeTexts": { "title": "Fake-Text-Videogenerator", "desc": "Erstellen Sie mit KI ansprechende Fake-Text-Videos für virale Reichweite." }
+      "brainstormer": { "title": "KI-Ideengenerator", "desc": "Generieren Sie virale Content-Ideen basierend auf Ihrer Nische." }
     }
   },
   "SettingsNav": {

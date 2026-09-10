@@ -35,7 +35,7 @@ $token = $r.body.token
 Check "register (201)" ($r.status -eq 201) "status=$($r.status)"
 
 Write-Host "`n===== PROJECTS CRUD (fixed var) =====" -ForegroundColor Cyan
-$r = Invoke-Api POST "/api/projects" @{ title="Retest Project"; script="hi"; productType="text-video" } $token
+$r = Invoke-Api POST "/api/projects" @{ title="Retest Project"; script="hi"; productType="auto-clip" } $token
 $projId = $r.body.project.id
 Check "create project (201)" ($r.status -eq 201 -and [bool]$projId) "status=$($r.status) id=$projId"
 $r = Invoke-Api GET "/api/projects/$projId" $null $token

@@ -137,8 +137,8 @@ export function tierHighlights(tier: Exclude<TierId, "free">): TierHighlights {
       bullets: [
         `${modelCount("pro")} AI models — adds Veo 3, Seedance 2.0 & ${added - 2} more`,
         `Videos up to ${secs} seconds`,
-        // The three tools carrying requiredTier: "pro" in lib/tool-costs.ts.
-        "AI Creator, Face Swap & Subtitle Remover",
+        // The tools carrying requiredTier: "pro" in lib/tool-costs.ts.
+        "Face Swap & Subtitle Remover",
         "Priority rendering",
         `${clipHours}-hour Auto Clip uploads · ${gb} GB storage`,
       ],

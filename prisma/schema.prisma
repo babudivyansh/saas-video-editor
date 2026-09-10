@@ -888,7 +888,7 @@ model Asset {
   // These were plain String columns with no foreign key, so nothing resolved
   // them and nothing stopped them dangling. They are real relations now: the
   // Related Content panels in Assets and Clips read the graph through them.
-  sourceFeature   String   @default("upload") // upload | autoclip | url-import | editor | ai-creator | video-generator | text-video | avatar | stock
+  sourceFeature   String   @default("upload") // upload | autoclip | url-import | editor | video-generator | avatar | stock
   sourceProjectId String? // Project this media entered through
   sourceProject   Project? @relation("ProjectSourceAssets", fields: [sourceProjectId], references: [id], onDelete: SetNull)
   // Set when this asset IS a rendered clip, so a clip's output can be traced
@@ -1353,7 +1353,7 @@ model Generation {
   id               String    @id @default(cuid())
   userId           String
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  toolSlug         String // "image-generator" | "video-generator" | "ai-creator" | ...
+  toolSlug         String // "image-generator" | "video-generator" | "voiceover" | ...
   modelId          String? // registry model id, e.g. "flux-2"; null for non-registry tools
   generationType   String // "image" | "video" | "audio" | "utility"
   creditsCost      Int // credits actually charged (pre-refund)

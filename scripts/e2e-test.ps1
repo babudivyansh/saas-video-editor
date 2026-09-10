@@ -104,7 +104,7 @@ Check "GET /plans (200)" ($r.status -eq 200) "status=$($r.status)"
 Check "plans seeded (>=3)" ($r.body.plans.Count -ge 3) "count=$($r.body.plans.Count)"
 
 Write-Host "`n===== PROJECTS CRUD =====" -ForegroundColor Cyan
-$r = Invoke-Api POST "/api/projects" @{ title="E2E Project"; script="hello"; productType="text-video" } $token
+$r = Invoke-Api POST "/api/projects" @{ title="E2E Project"; script="hello"; productType="auto-clip" } $token
 Check "create project (201)" ($r.status -eq 201) "status=$($r.status)"
 $pid = $r.body.project.id
 $r = Invoke-Api GET "/api/projects" $null $token

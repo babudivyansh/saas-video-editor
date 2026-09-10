@@ -48,7 +48,7 @@ describe("resolveUploadPolicy — effective = min(plan, feature, provider)", () 
   it("never lets a feature cap raise the effective limit above the plan cap", async () => {
     for (const t of ["free", "creator", "pro", "studio"] as const) {
       tier = t;
-      const policy = await resolveUploadPolicy("u1", "ai-creator");
+      const policy = await resolveUploadPolicy("u1", "face-swap");
       expect(policy.effectiveMaxBytes).toBeLessThanOrEqual(MAX_UPLOAD_BYTES_BY_TIER[t]);
     }
   });
@@ -109,7 +109,7 @@ describe("cross-plan boundary tests — canonical per-tier upload limits", () =>
     ["studio", 5 * 1024 ** 3],
   ];
 
-  it.each(cases)("%s tier: exact limit passes, limit+1 rejects (feature has no cap here — using ai-creator's cap only where it doesn't bind)", async (t, limitBytes) => {
+  it.each(cases)("%s tier: exact limit passes, limit+1 rejects (feature has no cap here — using face-swap's cap only where it doesn't bind)", async (t, limitBytes) => {
     tier = t;
     // ai-creator's own 200MB technical cap only binds below free's 250MB — for
     // creator/pro/studio the plan term is the one actually under test here.
@@ -133,9 +133,9 @@ describe("feature-cap boundary tests", () => {
     }
   });
 
-  it("Voice Changer (50MB) and AI Creator (200MB) feature caps are preserved exactly", () => {
+  it("Voice Changer (50MB) and Face Swap (10MB) feature caps are preserved exactly", () => {
     expect(FEATURE_TECHNICAL_MAX_BYTES["voice-changer"]).toBe(50 * 1024 * 1024);
-    expect(FEATURE_TECHNICAL_MAX_BYTES["ai-creator"]).toBe(200 * 1024 * 1024);
+    expect(FEATURE_TECHNICAL_MAX_BYTES["face-swap"]).toBe(10 * 1024 * 1024);
     expect(FEATURE_TECHNICAL_MAX_BYTES["subtitle-remover"]).toBe(500 * 1024 * 1024);
   });
 });

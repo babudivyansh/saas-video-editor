@@ -23,7 +23,7 @@ import { ProjectStatusBadge } from "@/app/components/dashboard/ProjectStatusBadg
 import { QuestCard, type QuestData } from "@/app/components/dashboard/QuestCard";
 import { CardMenuButton } from "@/app/components/dashboard/CardMenuButton";
 import { useProjectActions } from "@/app/components/dashboard/useProjectActions";
-import { AutoClipPreview, CutCropPreview, VoiceChangerPreview, SubtitleRemoverPreview, AICreatorPreview } from "@/app/components/dashboard/toolPreviews";
+import { AutoClipPreview, CutCropPreview, VoiceChangerPreview, SubtitleRemoverPreview } from "@/app/components/dashboard/toolPreviews";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
 import { SectionHeader } from "@/app/components/ui/SectionHeader";
@@ -94,7 +94,6 @@ function useToolCards() {
     () => [
       { title: t("voiceChanger.title"), desc: t("voiceChanger.desc"), preview: <VoiceChangerPreview />, href: "/dashboard/tools/voice-changer" },
       { title: t("subtitleRemover.title"), desc: t("subtitleRemover.desc"), preview: <SubtitleRemoverPreview />, href: "/dashboard/tools/subtitle-remover" },
-      { title: t("aiCreator.title"), desc: t("aiCreator.desc"), preview: <AICreatorPreview />, href: "/dashboard/ai-creator" },
     ],
     [t]
   );

@@ -52,9 +52,7 @@ export type SourceFeature =
   | "autoclip"
   | "url-import"
   | "editor"
-  | "ai-creator"
   | "video-generator"
-  | "text-video"
   | "avatar"
   | "stock";
 
