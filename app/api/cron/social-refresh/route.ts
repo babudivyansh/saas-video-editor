@@ -5,6 +5,7 @@ import { evaluateGoals, recomputeScores, runScheduledReports, syncDailyMetrics }
 import { refreshClipPublishMetrics } from "@/lib/autoclip-publish";
 import { recalibrateViralityWeights } from "@/lib/virality-calibration";
 import { env } from "@/lib/env";
+import { KNOWN_CRON_JOBS } from "@/lib/cron-tracking";
 
 // Scheduled entrypoint for an external scheduler (cron-job.org, Vercel Cron,
 // GitHub Actions, etc.). Protected by a shared secret in the Authorization
@@ -46,9 +47,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("social-refresh")).catch(() => {});
-
+  // Resolve and validate the job BEFORE recording the run. Recording the bare
+  // route name up here is what hid five never-scheduled jobs for months: the
+  // hourly default job kept the route's heartbeat fresh, so
+  // /admin/ops/diagnostics had nothing to complain about while `scores`,
+  // `goals`, `reports`, `daily-metrics` and `recalibrate-virality` had never
+  // executed once in production.
   const job = req.nextUrl.searchParams.get("job") ?? "refresh";
+  if (!(KNOWN_CRON_JOBS["social-refresh"] as readonly string[]).includes(job)) {
+    return NextResponse.json({ error: `unknown job "${job}"` }, { status: 400 });
+  }
+  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("social-refresh", job)).catch(() => {});
+
   if (job === "retention") {
     const pruned = await pruneTimeSeries();
     // `deleted` is retained for any existing monitoring that reads it.
@@ -77,9 +87,6 @@ export async function GET(req: NextRequest) {
   if (job === "goals") {
     const result = await evaluateGoals();
     return NextResponse.json({ ok: true, job, ...result });
-  }
-  if (job !== "refresh") {
-    return NextResponse.json({ error: `unknown job "${job}"` }, { status: 400 });
   }
   const result = await refreshStaleAccounts();
   const clipPublishResult = await refreshClipPublishMetrics().catch(() => ({ updated: 0 }));

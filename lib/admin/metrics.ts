@@ -12,7 +12,7 @@ import { redis } from "@/lib/redis";
 import { env } from "@/lib/env";
 import { getSyncStats } from "@/lib/social/service";
 import { KNOWN_RENDER_QUEUE_NAMES } from "@/lib/render-queue";
-import { getCronRunStatuses, type CronName } from "@/lib/cron-tracking";
+import { getCronRunStatuses, type CronRunId } from "@/lib/cron-tracking";
 import { mrrHistory } from "./mrr-snapshot";
 
 export type MetricsSection =
@@ -345,8 +345,9 @@ export async function socialSection() {
 // the main admin screen instead of only being visible by drilling into the
 // Ops page's own cron list, which is how a 14-day production lapse of every
 // single cron job went unnoticed.
-const CRON_STALE_AFTER_SEC: Record<CronName, number> = {
-  "asset-cleanup": 3600, // every 15 min
+const CRON_STALE_AFTER_SEC: Record<CronRunId, number> = {
+  "asset-cleanup:orphans": 3600, // every 15 min
+  "asset-cleanup:retention": 30 * 3600, // nightly
   "stale-clip-sweep": 3600, // every 15 min
   "dub-sweep": 600, // every 2 min — the primary dub-completion path until webhooks are confirmed, see lib/cron/dub-sweep.ts
   // every 2 min — same reasoning as dub-sweep: until Submagic's webhook is
@@ -354,7 +355,17 @@ const CRON_STALE_AFTER_SEC: Record<CronName, number> = {
   // render, so a lapse here strands renders users have already been charged for.
   "submagic-sweep": 600,
   "clip-publish": 3600, // every 10 min
-  "social-refresh": 3 * 3600, // hourly snapshot refresh
+  // social-refresh is tracked per ?job=, not per route — see KNOWN_CRON_JOBS.
+  // Five of these had never run in production while the route's own heartbeat
+  // read healthy, because the hourly default job was refreshing it.
+  "social-refresh:refresh": 3 * 3600, // hourly snapshot refresh
+  "social-refresh:retention": 9 * 24 * 3600, // weekly
+  "social-refresh:digest": 9 * 24 * 3600, // weekly
+  "social-refresh:daily-metrics": 30 * 3600, // nightly; a gap is a permanent hole in the history
+  "social-refresh:scores": 30 * 3600, // nightly — viral/ai/health scores render as "—" without it
+  "social-refresh:goals": 30 * 3600, // nightly, right after scores
+  "social-refresh:reports": 30 * 3600, // daily
+  "social-refresh:recalibrate-virality": 9 * 24 * 3600, // weekly
   "refill-credits": 36 * 3600,
   "commission-payout": 36 * 3600,
   "account-purge": 36 * 3600,

@@ -45,6 +45,39 @@
 # Social Tracker weekly digest email
 0 8 * * 1 curl -s -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" https://clipiro.com/api/cron/social-refresh?job=digest
 
+# ── The five social-refresh jobs below had never been scheduled. ─────────────
+# The route has supported all eight since Social Tracker v2, and its own header
+# comment prescribes these exact times, but only the three above were ever
+# entered. Because the route recorded its heartbeat before reading ?job=, the
+# hourly refresh kept /admin/ops/diagnostics green the whole time. Both halves
+# are fixed: the route now records per job, and check-cron-coverage.mjs fails
+# the build if a ?job= branch has no line here.
+
+# Fills gaps in the per-day metric series. The hourly refresh keeps the CURRENT
+# numbers current; this is what keeps the HISTORY complete. Late enough that
+# provider restatement (a 2-day overlap) has settled.
+30 2 * * * curl -s -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" "https://clipiro.com/api/cron/social-refresh?job=daily-metrics"
+
+# Recomputes persisted viral/AI post scores and account health. Without it
+# SocialPost.viralScore, aiScore and SocialAccount.healthScore stay NULL
+# forever — while the UI renders a "Viral score" sort and a health gauge over
+# them. FIRST RUN BACK-FILLS EVERY ACCOUNT AND POST: run it by hand off-peak,
+# watching DB load, before enabling this line.
+0 3 * * * curl -s -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" "https://clipiro.com/api/cron/social-refresh?job=scores"
+
+# Flips reached goals to hit and lapsed ones to missed. Immediately after
+# scores, so the two always agree.
+15 3 * * * curl -s -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" "https://clipiro.com/api/cron/social-refresh?job=goals"
+
+# Queues runs for scheduled report configs that are due. Due-ness is elapsed
+# time, not a calendar match, so a missed day self-heals on the next run.
+0 6 * * * curl -s -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" "https://clipiro.com/api/cron/social-refresh?job=reports"
+
+# Recomputes AutoClip virality-score weights from real ClipPublish engagement.
+# No-op unless the "autoclip_calibration_enabled" Config flag is on and there
+# is enough labeled data (lib/virality-calibration.ts).
+0 5 * * 1 curl -s -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" "https://clipiro.com/api/cron/social-refresh?job=recalibrate-virality"
+
 # Affiliate commission payout notifications — daily is enough; the route only
 # acts on commissions whose 30-day hold has already elapsed, so a missed day
 # self-heals on the next run. Also reachable on demand via

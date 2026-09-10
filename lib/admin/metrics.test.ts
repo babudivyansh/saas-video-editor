@@ -42,7 +42,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 const { kpisSection, revenueSection, activitySection, infraSection } = await import("./metrics");
 const { mrrHistory } = await import("./mrr-snapshot");
 const { redis } = await import("@/lib/redis");
-const { KNOWN_CRON_NAMES } = await import("@/lib/cron-tracking");
+const { KNOWN_CRON_RUN_IDS } = await import("@/lib/cron-tracking");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -193,7 +193,7 @@ describe("infraSection — stale cron detection", () => {
   it("counts every cron as stale when none has ever run", async () => {
     vi.mocked(redis.get).mockResolvedValue(null);
     const infra = await infraSection();
-    expect(infra.staleCronCount).toBe(KNOWN_CRON_NAMES.length);
+    expect(infra.staleCronCount).toBe(KNOWN_CRON_RUN_IDS.length);
   });
 
   it("does not count a cron whose last run is within its expected cadence", async () => {
@@ -214,6 +214,6 @@ describe("infraSection — stale cron detection", () => {
     const infra = await infraSection();
     // Only stale-clip-sweep is overdue for ITS cadence; refill-credits is
     // fine at 2h old; every other cron is null (never run) and counts too.
-    expect(infra.staleCronCount).toBe(KNOWN_CRON_NAMES.length - 1);
+    expect(infra.staleCronCount).toBe(KNOWN_CRON_RUN_IDS.length - 1);
   });
 });

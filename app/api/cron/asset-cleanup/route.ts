@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { deleteS3Object, abortMultipartUpload } from "@/utils/s3-upload";
 import { env } from "@/lib/env";
+import { KNOWN_CRON_JOBS } from "@/lib/cron-tracking";
 import { logger } from "@/lib/logger";
 
 // Scheduled entrypoint for an external scheduler (cron-job.org, Vercel Cron,
@@ -76,15 +77,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("asset-cleanup")).catch(() => {});
-
+  // Recorded per job, after validation — a route-level heartbeat would let the
+  // 15-minute `orphans` job vouch for `retention`. See KNOWN_CRON_JOBS.
   const job = req.nextUrl.searchParams.get("job") ?? "orphans";
+  if (!(KNOWN_CRON_JOBS["asset-cleanup"] as readonly string[]).includes(job)) {
+    return NextResponse.json({ error: `unknown job "${job}"` }, { status: 400 });
+  }
+  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("asset-cleanup", job)).catch(() => {});
+
   if (job === "retention") {
     const result = await purgeExpiredArchives();
     return NextResponse.json({ ok: true, job, ...result });
-  }
-  if (job !== "orphans") {
-    return NextResponse.json({ error: `unknown job "${job}"` }, { status: 400 });
   }
   const result = await sweepOrphanedUploads();
   return NextResponse.json({ ok: true, job, ...result });
