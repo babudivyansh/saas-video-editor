@@ -22,6 +22,7 @@ const SECTIONS = [
 
 const PERIODS = ["weekly", "monthly", "quarterly", "annual"] as const;
 const FORMATS = ["pdf", "xlsx", "csv"] as const;
+const SCHEDULES = ["none", "weekly", "monthly"] as const;
 
 const POLL_MS = 2_000;
 /** Give up following after this long; the run keeps going server-side. */
@@ -46,6 +47,10 @@ export function ReportBuilder({ accounts, initialRuns }: ReportBuilderProps) {
   const [sections, setSections] = useState<string[]>(["kpis", "trends", "content", "ai"]);
   const [period, setPeriod] = useState<(typeof PERIODS)[number]>("monthly");
   const [format, setFormat] = useState<(typeof FORMATS)[number]>("pdf");
+  // Scheduling was impossible until now: the API stripped these two fields and
+  // hardcoded schedule:"none", so runScheduledReports never found a due config.
+  const [schedule, setSchedule] = useState<(typeof SCHEDULES)[number]>("none");
+  const [emailMe, setEmailMe] = useState(true);
   const [runs, setRuns] = useState(initialRuns);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -109,7 +114,14 @@ export function ReportBuilder({ accounts, initialRuns }: ReportBuilderProps) {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify({
-          config: { accountIds: selected, period, sections, format },
+          config: {
+            accountIds: selected,
+            period,
+            sections,
+            format,
+            schedule,
+            deliverToOwner: schedule !== "none" && emailMe,
+          },
           period,
           format,
           tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -190,7 +202,25 @@ export function ReportBuilder({ accounts, initialRuns }: ReportBuilderProps) {
         <div className="flex flex-wrap gap-4">
           <Choice legend="Period" options={PERIODS} value={period} onChange={setPeriod} />
           <Choice legend="Format" options={FORMATS} value={format} onChange={setFormat} />
+          <Choice legend="Repeat" options={SCHEDULES} value={schedule} onChange={setSchedule} />
         </div>
+
+        {schedule !== "none" && (
+          <label className="flex items-start gap-2.5 rounded-xl bg-surface-3 p-3">
+            <input
+              type="checkbox"
+              checked={emailMe}
+              onChange={(e) => setEmailMe(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span className="text-xs text-fg-muted">
+              Email me each one when it&rsquo;s ready.{" "}
+              {/* Deliberately not a free-text recipient field: the API takes a
+                  boolean, so an arbitrary address can never be submitted. */}
+              <span className="text-fg-subtle">Sent to your account email.</span>
+            </span>
+          </label>
+        )}
 
         {error && (
           <p role="alert" className="text-sm text-error">

@@ -30,8 +30,11 @@ const VALID: NotificationCategory[] = [
 describe("email registry", () => {
   const entries = Object.entries(EMAIL_REGISTRY);
 
+  // 46 → 47: social-report-ready. A scheduled report used to be built,
+  // uploaded to S3 and abandoned — `recipients` was never read by anything —
+  // so there was nothing to tell the user their report existed.
   it("covers every send function in lib/email.ts", () => {
-    expect(entries).toHaveLength(46);
+    expect(entries).toHaveLength(47);
   });
 
   it("keys match each entry's declared id", () => {
