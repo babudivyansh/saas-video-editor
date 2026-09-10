@@ -5,6 +5,7 @@ import { env } from "@/lib/env";
 import { compareCompetitors } from "@/lib/social/metrics";
 import { fmtCompact, fmtPct } from "@/app/components/charts/format";
 import { CompetitorManager } from "../components/CompetitorManager";
+import { EmptyAccounts } from "../components/EmptyAccounts";
 import { loadViewContext, type SearchParams } from "../shared";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,11 @@ export default async function CompetitorsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const { userId, accounts } = await loadViewContext(await searchParams);
+
+  // Every other data tab does this; competitors was the one that didn't, so
+  // with nothing connected it rendered a "how do I compare?" table with no
+  // side of the comparison — and no route to fixing that.
+  if (accounts.length === 0) return <EmptyAccounts />;
 
   // v1 returned null when the vendor was unconfigured, so the whole feature
   // silently vanished with no explanation. Say so instead.
@@ -48,53 +54,53 @@ export default async function CompetitorsPage({
   return (
     <div className="space-y-6">
       {!vendorConfigured && (
-        <p className="rounded-[var(--radius-card)] border border-card-border bg-tint-amber px-4 py-3 text-sm text-ink-soft">
+        <p className="rounded-[var(--radius-card)] border border-line bg-tint-amber px-4 py-3 text-sm text-fg-muted">
           Competitor tracking needs a public-data provider, which isn&apos;t configured on this
           deployment yet. Existing tracked profiles are shown below but won&apos;t refresh.
         </p>
       )}
 
       {rows.length > 0 && (
-        <div className="overflow-x-auto rounded-[var(--radius-card)] border border-card-border bg-panel shadow-card">
+        <div className="overflow-x-auto rounded-[var(--radius-card)] border border-line bg-panel shadow-sm">
           <table className="w-full text-sm">
             <caption className="sr-only">
               Tracked competitor profiles compared against your own accounts on the same platform.
             </caption>
             <thead>
-              <tr className="border-b border-card-border">
-                <th scope="col" className="px-4 py-2.5 text-left text-xs font-semibold text-ink-soft">Profile</th>
-                <th scope="col" className="px-3 py-2.5 text-right text-xs font-semibold text-ink-soft">Followers</th>
-                <th scope="col" className="px-3 py-2.5 text-right text-xs font-semibold text-ink-soft">vs you</th>
-                <th scope="col" className="px-3 py-2.5 text-right text-xs font-semibold text-ink-soft">7-day change</th>
-                <th scope="col" className="px-3 py-2.5 text-right text-xs font-semibold text-ink-soft">Engagement</th>
-                <th scope="col" className="px-3 py-2.5 text-right text-xs font-semibold text-ink-soft">Posts / week</th>
+              <tr className="border-b border-line">
+                <th scope="col" className="px-4 py-2.5 text-left text-xs font-semibold text-fg-muted">Profile</th>
+                <th scope="col" className="px-3 py-2.5 text-right text-xs font-semibold text-fg-muted">Followers</th>
+                <th scope="col" className="px-3 py-2.5 text-right text-xs font-semibold text-fg-muted">vs you</th>
+                <th scope="col" className="px-3 py-2.5 text-right text-xs font-semibold text-fg-muted">7-day change</th>
+                <th scope="col" className="px-3 py-2.5 text-right text-xs font-semibold text-fg-muted">Engagement</th>
+                <th scope="col" className="px-3 py-2.5 text-right text-xs font-semibold text-fg-muted">Posts / week</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((c) => (
-                <tr key={c.id} className="border-b border-card-border last:border-0">
-                  <th scope="row" className="px-4 py-2.5 text-left font-normal text-ink">
+                <tr key={c.id} className="border-b border-line last:border-0">
+                  <th scope="row" className="px-4 py-2.5 text-left font-normal text-fg">
                     @{c.handle}
-                    <span className="ml-2 text-xs text-ink-soft">{c.provider}</span>
+                    <span className="ml-2 text-xs text-fg-muted">{c.provider}</span>
                   </th>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-ink">{fmtCompact(c.followers)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-fg">{fmtCompact(c.followers)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums">
                     {c.followerGap === null ? (
                       // No account of ours on that platform — a gap against an
                       // unrelated account would be meaningless.
-                      <span className="text-ink-soft">—</span>
+                      <span className="text-fg-muted">—</span>
                     ) : (
-                      <span className={c.followerGap > 0 ? "text-error" : "text-emerald-600"}>
+                      <span className={c.followerGap > 0 ? "text-error" : "text-success"}>
                         {c.followerGap > 0 ? "+" : ""}
                         {fmtCompact(c.followerGap)}
                       </span>
                     )}
                   </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-ink">
+                  <td className="px-3 py-2.5 text-right tabular-nums text-fg">
                     {c.weekGrowth === null ? "—" : `${c.weekGrowth >= 0 ? "+" : ""}${fmtCompact(c.weekGrowth)}`}
                   </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-ink">{fmtPct(c.engagementRate)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-ink">
+                  <td className="px-3 py-2.5 text-right tabular-nums text-fg">{fmtPct(c.engagementRate)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-fg">
                     {c.postsPerWeek === null ? "—" : c.postsPerWeek.toFixed(1)}
                   </td>
                 </tr>

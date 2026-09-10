@@ -154,15 +154,15 @@ export function ReportBuilder({ accounts, initialRuns }: ReportBuilderProps) {
   return (
     <section aria-labelledby="report-builder-heading" className="space-y-4">
       <div>
-        <h2 id="report-builder-heading" className="text-sm font-semibold text-ink">
+        <h2 id="report-builder-heading" className="text-sm font-semibold text-fg">
           Build a report
         </h2>
-        <p className="text-sm text-ink-soft">
+        <p className="text-sm text-fg-muted">
           Generated in the background — you can leave this page and come back to it.
         </p>
       </div>
 
-      <div className="space-y-4 rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card">
+      <div className="space-y-4 rounded-[var(--radius-card)] border border-line bg-panel p-4 shadow-sm">
         <Fieldset legend="Accounts">
           {accounts.map((a) => (
             <Checkbox
@@ -204,23 +204,23 @@ export function ReportBuilder({ accounts, initialRuns }: ReportBuilderProps) {
         >
           {busy ? "Starting…" : "Generate"}
         </Button>
-        {selected.length === 0 && <p className="text-xs text-ink-soft">Pick at least one account.</p>}
+        {selected.length === 0 && <p className="text-xs text-fg-muted">Pick at least one account.</p>}
       </div>
 
       {runs.length > 0 && (
         <div>
-          <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-ink-soft">Recent reports</h3>
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-fg-muted">Recent reports</h3>
           <ul className="space-y-2">
             {runs.map((run) => (
               <li
                 key={run.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] border border-card-border bg-panel px-4 py-3"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] border border-line bg-panel px-4 py-3"
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-ink">
+                  <p className="text-sm font-semibold text-fg">
                     {run.format.toUpperCase()} · {new Date(run.createdAt).toLocaleString("en-GB")}
                   </p>
-                  <p className="text-xs text-ink-soft" role="status" aria-live="polite">
+                  <p className="text-xs text-fg-muted" role="status" aria-live="polite">
                     {statusText(run)}
                   </p>
                 </div>
@@ -254,7 +254,7 @@ function statusText(run: ReportRun): string {
 function Fieldset({ legend, children }: { legend: string; children: React.ReactNode }) {
   return (
     <fieldset>
-      <legend className="mb-1.5 text-xs font-bold uppercase tracking-widest text-ink-soft">{legend}</legend>
+      <legend className="mb-1.5 text-xs font-bold uppercase tracking-widest text-fg-muted">{legend}</legend>
       <div className="flex flex-wrap gap-x-4 gap-y-2">{children}</div>
     </fieldset>
   );
@@ -273,7 +273,7 @@ function Choice<T extends string>({
 }) {
   return (
     <fieldset>
-      <legend className="mb-1.5 text-xs font-bold uppercase tracking-widest text-ink-soft">{legend}</legend>
+      <legend className="mb-1.5 text-xs font-bold uppercase tracking-widest text-fg-muted">{legend}</legend>
       <div className="flex gap-1">
         {options.map((option) => (
           <button
@@ -285,7 +285,7 @@ function Choice<T extends string>({
             aria-pressed={value === option}
             onClick={() => onChange(option)}
             className={`rounded-full px-3 py-1 text-xs font-semibold capitalize transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
-              value === option ? "bg-brand text-on-primary" : "bg-surface text-ink-soft hover:text-ink"
+              value === option ? "bg-brand text-on-primary" : "bg-bg text-fg-muted hover:text-fg"
             }`}
           >
             {option}

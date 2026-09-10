@@ -14,12 +14,9 @@ import Link from "next/link";
 import type { AccountContext } from "@/lib/social/queries";
 import { fmtCompact } from "@/app/components/charts/format";
 import { accountLabel } from "../shared";
+import { platformBrand, platformChipStyle } from "@/lib/social/platform-brand";
 
-const PLATFORM: Record<string, { name: string; color: string; bg: string }> = {
-  youtube: { name: "YouTube", color: "#ff0000", bg: "#ffe8e8" },
-  instagram: { name: "Instagram", color: "#e1306c", bg: "#ffe8f1" },
-  facebook: { name: "Facebook", color: "#1877f2", bg: "#e8f0ff" },
-};
+// Platform identity colours: lib/social/platform-brand.ts.
 
 export interface AccountPickerProps {
   accounts: AccountContext[];
@@ -37,22 +34,18 @@ export function AccountPicker({ accounts, query = "" }: AccountPickerProps) {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-extrabold text-ink">Your accounts</h2>
-        <p className="text-sm text-ink-soft">Pick one to see its analytics.</p>
+        <h2 className="text-lg font-extrabold text-fg">Your accounts</h2>
+        <p className="text-sm text-fg-muted">Pick one to see its analytics.</p>
       </div>
 
       <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {accounts.map((account) => {
-          const meta = PLATFORM[account.provider] ?? {
-            name: account.provider,
-            color: "#64748b",
-            bg: "#f1f5f9",
-          };
+          const meta = platformBrand(account.provider);
           return (
             <li key={account.id}>
               <Link
                 href={href(account.id)}
-                className="group flex h-full flex-col gap-3 rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card transition-shadow hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                className="group flex h-full flex-col gap-3 rounded-[var(--radius-card)] border border-line bg-panel p-4 shadow-sm transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
               >
                 <div className="flex items-center gap-3">
                   {account.avatarUrl ? (
@@ -66,16 +59,16 @@ export function AccountPicker({ accounts, query = "" }: AccountPickerProps) {
                     <span
                       aria-hidden="true"
                       className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold"
-                      style={{ background: meta.bg, color: meta.color }}
+                      style={platformChipStyle(account.provider)}
                     >
                       {meta.name[0]}
                     </span>
                   )}
                   <div className="min-w-0">
-                    <p className="truncate font-semibold text-ink group-hover:text-brand">
+                    <p className="truncate font-semibold text-fg group-hover:text-brand">
                       {accountLabel(account)}
                     </p>
-                    <p className="text-xs text-ink-soft">{meta.name}</p>
+                    <p className="text-xs text-fg-muted">{meta.name}</p>
                   </div>
                 </div>
 
@@ -108,8 +101,8 @@ export function AccountPicker({ accounts, query = "" }: AccountPickerProps) {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-lg font-extrabold text-ink">{value}</p>
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">{label}</p>
+      <p className="text-lg font-extrabold text-fg">{value}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-fg-muted">{label}</p>
     </div>
   );
 }
@@ -124,19 +117,19 @@ function Stat({ label, value }: { label: string; value: string }) {
 function SyncLine({ account }: { account: AccountContext }) {
   if (account.status === "needs_reauth") {
     return (
-      <p className="mt-auto text-xs font-semibold text-amber-700">
+      <p className="mt-auto text-xs font-semibold text-warning">
         Reconnect needed — analytics are paused
       </p>
     );
   }
   if (account.lastSyncStatus === "partial") {
-    return <p className="mt-auto text-xs text-amber-700">Last sync was incomplete</p>;
+    return <p className="mt-auto text-xs text-warning">Last sync was incomplete</p>;
   }
   if (account.lastSyncStatus && account.lastSyncStatus !== "ok") {
     return <p className="mt-auto text-xs text-error">Last sync failed</p>;
   }
   return (
-    <p className="mt-auto text-xs text-ink-soft">
+    <p className="mt-auto text-xs text-fg-muted">
       {account.lastSyncedAt ? `Synced ${timeAgo(account.lastSyncedAt)}` : "Not synced yet"}
     </p>
   );

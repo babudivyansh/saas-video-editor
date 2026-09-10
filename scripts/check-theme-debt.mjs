@@ -73,6 +73,19 @@ const PATTERNS = {
   // part of the emerald system's categorical palette (badge hues, star
   // gradient) rather than retired-brand residue.
   "raw-violet": /\b(?:bg|text|border|ring|divide|placeholder|from|to|via|outline|decoration|fill|stroke|accent|caret)-(?:violet|fuchsia|purple)-\d{2,3}\b/g,
+  // Stock emerald/amber. Unlike every rule above these are not a RETIRED hue —
+  // emerald is the live brand family and amber is the live warning family,
+  // which is exactly why they went unmeasured: a `bg-emerald-50` looks correct
+  // in review. It is not. The stock ramp's 50/100 steps are near-white, so on
+  // the near-black surface they render as glowing pills, and the tokens they
+  // should be using (--success, --warning, bg-tint-emerald, bg-tint-amber) are
+  // theme-aware where the ramp is not.
+  //
+  // Found the whole Social Tracker doing this on one side of a conditional and
+  // the token on the other — `good ? "bg-emerald-50 text-emerald-700" :
+  // "bg-error/10 text-error"` — so the good branch glowed and the bad branch
+  // was correct.
+  "raw-emerald": /\b(?:bg|text|border|ring|divide|placeholder|from|to|via|outline|decoration|fill|stroke|accent|caret)-(?:emerald|amber)-\d{2,3}\b/g,
   // Literal old-brand hexes in UI code. One is legitimate and permanent:
   // #7c3aed is also PALETTE[3] in app/admin/dashboard/ui.tsx, a validated
   // categorical chart hue that happens to collide with the retired accent.
@@ -128,7 +141,13 @@ const BUDGET = {
   // The review surfaces' share was paid off in the same commit that added
   // this rule: the two modals' focus rings and the attachment drop zone's
   // border now use `primary`, which is where a focus state belonged anyway.
-  "raw-violet": 101,
+  "raw-violet": 100,
+  // First measurement, 2026-09-10, taken AFTER the Social Tracker's share was
+  // paid off in the same commit that added the rule. The 138 that remain are
+  // spread over ~30 files — pricing (11), PlansModal (10), admin/ops (8),
+  // admin/reviews (7) — and are genuine debt, not a certificate. Every one is
+  // a near-white pill or a hue that ignores the theme.
+  "raw-emerald": 138,
   // 51 -> 47: four of the retired brand hexes lived in the caption tile tables
   // deleted below.
   // 47 -> 43: four more went with the per-page voice lists, whose entries
@@ -152,7 +171,7 @@ const BUDGET = {
   // 152 -> 112: the six hand-maintained voice lists are gone. Each entry
   // carried a decorative colour literal, and two pages additionally held a
   // copy of the provider's voice ids purely to build preview URLs by hand.
-  "inline-hex": 63,
+  "inline-hex": 55,
 };
 
 function walk(dir, out = []) {

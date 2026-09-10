@@ -1,6 +1,7 @@
 "use client";
 
 import { TimeSeriesChart } from "@/app/components/charts";
+import { PALETTE } from "@/app/components/dashboard";
 
 /**
  * The two trends that answer "am I growing, and is my content travelling?".
@@ -34,7 +35,7 @@ export function TrendSection({
 
   return (
     <section aria-labelledby="trends-heading" className="space-y-4">
-      <h2 id="trends-heading" className="text-sm font-semibold text-ink">
+      <h2 id="trends-heading" className="text-sm font-semibold text-fg">
         Trends
       </h2>
 
@@ -54,7 +55,11 @@ export function TrendSection({
           subtitle={period}
           variant="area"
           series={[
-            { key: "views", label: "Views", color: "var(--accent-violet)", unit: "count", points: trend(views) },
+            // PALETTE[1], not --accent-violet: the emerald theme re-points that
+            // variable at --emerald-bright, so the two trend charts on this row
+            // were rendering the same hue. This is a validated categorical step
+            // that stays separable from the brand green.
+            { key: "views", label: "Views", color: PALETTE[1], unit: "count", points: trend(views) },
           ]}
           emptyHint="No view data for this range yet."
         />

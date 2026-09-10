@@ -114,7 +114,9 @@ const schema = z.object({
   // Optional AI/feature providers — each already shows a "not configured"
   // state at the call site when unset.
   GEMINI_API_KEY: z.string().optional(),
-  GOOGLE_GEMINI_API_KEY: z.string().optional(),
+  // (GOOGLE_GEMINI_API_KEY was declared here and read by nothing. Its only
+  // consumer, /api/generate/reddit-video-script, went with the 2026-09 product
+  // removal; GEMINI_API_KEY above is the live one.)
   ELEVENLABS_API_KEY: z.string().optional(),
   // Verifies app/api/webhooks/elevenlabs/route.ts's elevenlabs-signature
   // header. Optional — unset means that route rejects every request (no

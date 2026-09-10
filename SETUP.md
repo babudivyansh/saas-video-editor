@@ -200,7 +200,25 @@ same underlying crontab, this is just documenting what to enter. Times above
 are suggestions matching each route's own header comment; adjust to spread
 load if several land in the same minute.
 
-## 8. Social Tracker — manual OAuth verification
+## 8. Social Tracker — required environment
+
+These were missing from this file and from `.env.example` until 2026-09-10,
+which meant a production deploy that followed these instructions exactly would
+crash on the first account connect. `lib/encryption.ts` fails closed by design:
+
+| Key | Needed for | If unset |
+|---|---|---|
+| `SOCIAL_TOKEN_KEY` | Encrypting stored OAuth tokens (AES-256-GCM) | **Throws in production.** Every connect and every sync fails. Dev silently derives a key from `JWT_SECRET`, so this only breaks in prod |
+| `META_APP_ID` / `META_APP_SECRET` | Instagram + Facebook | Both providers disappear from the connect screen; YouTube still works |
+| `GOOGLE_CLIENT_ID` / `_SECRET` | YouTube | YouTube disappears from the connect screen |
+| `SOCIAL_REFRESH_SECRET` | The cron entrypoint | Route returns 401 — nothing ever syncs |
+
+Generate the token key with `openssl rand -base64 32`. **Rotating it makes
+every stored token undecryptable and forces all users to reconnect**, so treat
+it like `JWT_SECRET`. Meta app setup is walked through in
+`docs/social-tracker-v2/meta-app-setup.md`.
+
+## 9. Social Tracker — manual OAuth verification
 
 All Social Tracker OAuth/sync code is covered by mocked unit tests only — none
 of it has ever been run against a real account. Before relying on it in

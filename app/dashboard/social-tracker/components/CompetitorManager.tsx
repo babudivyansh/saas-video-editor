@@ -79,9 +79,9 @@ export function CompetitorManager({
   return (
     <section
       aria-labelledby="competitors-heading"
-      className="rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card"
+      className="rounded-[var(--radius-card)] border border-line bg-panel p-4 shadow-sm"
     >
-      <h2 id="competitors-heading" className="text-sm font-semibold text-ink">
+      <h2 id="competitors-heading" className="text-sm font-semibold text-fg">
         Tracked profiles
       </h2>
 
@@ -89,7 +89,7 @@ export function CompetitorManager({
         // The add form below is hidden when the provider is unconfigured, so
         // telling people to "add a public profile" pointed at a control that
         // was not on the page. Say which of the two situations they are in.
-        <p className="mt-2 text-sm text-ink-soft">
+        <p className="mt-2 text-sm text-fg-muted">
           {enabled
             ? "Not tracking anyone yet. Add a public profile to compare follower growth and posting cadence against your own."
             : "Not tracking anyone yet, and competitor tracking can't be set up on this deployment until a public-data provider is configured."}
@@ -99,15 +99,15 @@ export function CompetitorManager({
           {existing.map((c) => (
             <li
               key={c.id}
-              className="flex items-center gap-2 rounded-full border border-card-border px-3 py-1 text-xs"
+              className="flex items-center gap-2 rounded-full border border-line px-3 py-1 text-xs"
             >
-              <span className="text-ink">@{c.handle}</span>
-              <span className="text-ink-soft">{c.provider}</span>
+              <span className="text-fg">@{c.handle}</span>
+              <span className="text-fg-muted">{c.provider}</span>
               <button
                 type="button"
                 onClick={() => setPendingRemove(c)}
                 aria-label={`Stop tracking @${c.handle}`}
-                className="cursor-pointer rounded-full px-1 text-ink-soft hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                className="cursor-pointer rounded-full px-1 text-fg-muted hover:text-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true">
                   <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" />
@@ -126,7 +126,7 @@ export function CompetitorManager({
               id="competitor-provider"
               value={provider}
               onChange={(e) => setProvider(e.target.value)}
-              className="rounded-xl border border-card-border bg-panel px-3 py-2 text-sm text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              className="rounded-xl border border-line bg-panel px-3 py-2 text-sm text-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
             >
               {PROVIDERS.map((p) => (
                 <option key={p.value} value={p.value}>{p.label}</option>

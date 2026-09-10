@@ -51,11 +51,11 @@ export default async function AudiencePage({
       {sections.map(({ account, rows, bestTimes, capturedAt }) => (
         <section key={account.id} aria-labelledby={`audience-${account.id}`} className="space-y-4">
           <div>
-            <h2 id={`audience-${account.id}`} className="text-sm font-semibold text-ink">
+            <h2 id={`audience-${account.id}`} className="text-sm font-semibold text-fg">
               {accountLabel(account)}
             </h2>
             {capturedAt && (
-              <p className="text-xs text-ink-soft">
+              <p className="text-xs text-fg-muted">
                 Demographics captured {capturedAt.toISOString().slice(0, 10)}
               </p>
             )}

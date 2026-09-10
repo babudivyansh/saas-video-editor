@@ -11,11 +11,11 @@ import {
   Pie, PieChart, RadialBar, RadialBarChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { BRAND, PALETTE, TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE, TOOLTIP_STYLE, compact, inr } from "./ui";
-
-// Recessive on the dark surface. Was #f3f4f6 — a near-white grid, which on
+// The chart grammar is shared with the hand-rolled SVG kit on the customer
+// routes — one definition, so the two read as the same design language.
+// Recessive on the dark surface: GRID was #f3f4f6, a near-white grid, which on
 // #050908 is the loudest thing in the chart.
-const GRID = "var(--line)";
-const AXIS_TICK = { fontSize: 10, fill: "var(--fg-subtle)" } as const;
+import { CHART_AXIS_TICK as AXIS_TICK, CHART_GRID as GRID } from "@/app/components/dashboard/palette";
 
 export function SparkArea({ data, color = BRAND }: { data: Array<{ date: string; value: number }>; color?: string }) {
   if (data.length < 2) return <div className="h-9" />;

@@ -15,7 +15,7 @@ vi.mock("@/lib/redis", () => ({
 
 vi.mock("@/lib/logger", () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
-const { recordCronRun, getCronRunStatuses, KNOWN_CRON_NAMES } = await import("./cron-tracking");
+const { recordCronRun, getCronRunStatuses, KNOWN_CRON_RUN_IDS, KNOWN_CRON_JOBS } = await import("./cron-tracking");
 
 beforeEach(() => {
   store.clear();
@@ -36,7 +36,7 @@ describe("cron-tracking", () => {
     await recordCronRun("refill-credits");
     const statuses = await getCronRunStatuses();
 
-    expect(statuses).toHaveLength(KNOWN_CRON_NAMES.length);
+    expect(statuses).toHaveLength(KNOWN_CRON_RUN_IDS.length);
 
     const ran = statuses.find((s) => s.name === "refill-credits")!;
     expect(ran.lastRunAt).not.toBeNull();
@@ -46,5 +46,29 @@ describe("cron-tracking", () => {
     const neverRan = statuses.find((s) => s.name === "account-purge")!;
     expect(neverRan.lastRunAt).toBeNull();
     expect(neverRan.ageSeconds).toBeNull();
+  });
+
+  // The regression that hid five never-scheduled jobs for months: a ?job=
+  // route recorded one heartbeat for the whole route, so its busiest job
+  // vouched for every other one.
+  it("keys a ?job= run separately from its route's other jobs", async () => {
+    await recordCronRun("social-refresh", "scores");
+    expect(setCalls[0].key).toBe("cron:lastrun:social-refresh:scores");
+
+    const statuses = await getCronRunStatuses();
+    expect(statuses.find((s) => s.name === "social-refresh:scores")!.lastRunAt).not.toBeNull();
+    for (const other of ["social-refresh:refresh", "social-refresh:goals", "social-refresh:reports"] as const) {
+      expect(statuses.find((s) => s.name === other)!.lastRunAt).toBeNull();
+    }
+  });
+
+  it("tracks every declared job of a dispatching route, and no bare route entry for it", async () => {
+    const ids = KNOWN_CRON_RUN_IDS as readonly string[];
+    for (const job of KNOWN_CRON_JOBS["social-refresh"]) {
+      expect(ids).toContain(`social-refresh:${job}`);
+    }
+    // A bare entry would be the false-green all over again.
+    expect(ids).not.toContain("social-refresh");
+    expect(ids).not.toContain("asset-cleanup");
   });
 });

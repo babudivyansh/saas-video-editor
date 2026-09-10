@@ -26,13 +26,13 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="rounded-[var(--radius-card)] border border-card-border bg-panel p-10 text-center shadow-card">
-      <h2 className="text-base font-semibold text-ink">Couldn&apos;t load your analytics</h2>
-      <p className="mx-auto mt-1 max-w-md text-sm text-ink-soft">
+    <div className="rounded-[var(--radius-card)] border border-line bg-panel p-10 text-center shadow-sm">
+      <h2 className="text-base font-semibold text-fg">Couldn&apos;t load your analytics</h2>
+      <p className="mx-auto mt-1 max-w-md text-sm text-fg-muted">
         This is on our side, not yours — your connected accounts and their history are unaffected.
       </p>
       {error.digest && (
-        <p className="mt-2 text-xs text-ink-soft">
+        <p className="mt-2 text-xs text-fg-muted">
           Reference: <code className="font-mono">{error.digest}</code>
         </p>
       )}

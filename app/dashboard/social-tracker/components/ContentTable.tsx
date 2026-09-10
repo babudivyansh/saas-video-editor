@@ -180,7 +180,7 @@ export function ContentTable({
       <div role="status" aria-live="polite" aria-busy="true" className="space-y-2">
         <span className="sr-only">Loading posts…</span>
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-14 animate-pulse rounded-xl bg-surface" />
+          <div key={i} className="h-14 animate-pulse rounded-xl bg-bg" />
         ))}
       </div>
     );
@@ -188,8 +188,8 @@ export function ContentTable({
 
   if (error) {
     return (
-      <div className="rounded-[var(--radius-card)] border border-card-border bg-panel p-8 text-center shadow-card">
-        <p className="text-sm text-ink-soft">{error}</p>
+      <div className="rounded-[var(--radius-card)] border border-line bg-panel p-8 text-center shadow-sm">
+        <p className="text-sm text-fg-muted">{error}</p>
         <div className="mt-4">
           {/* Re-runs the effect by clearing the error, rather than duplicating
               the fetch logic in a second code path. */}
@@ -204,12 +204,12 @@ export function ContentTable({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <label className="flex items-center gap-1.5 text-xs text-ink-soft">
+        <label className="flex items-center gap-1.5 text-xs text-fg-muted">
           Sort by
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value)}
-            className="rounded-lg border border-card-border bg-panel px-2 py-1 text-xs text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            className="rounded-lg border border-line bg-panel px-2 py-1 text-xs text-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
           >
             {SORTS.map((s) => (
               <option key={s.value} value={s.value}>{s.label}</option>
@@ -234,25 +234,25 @@ export function ContentTable({
       </div>
 
       {posts && posts.length === 0 ? (
-        <div className="rounded-[var(--radius-card)] border border-card-border bg-panel p-10 text-center shadow-card">
-          <p className="text-sm font-semibold text-ink">No posts tracked yet</p>
-          <p className="mt-1 text-sm text-ink-soft">
+        <div className="rounded-[var(--radius-card)] border border-line bg-panel p-10 text-center shadow-sm">
+          <p className="text-sm font-semibold text-fg">No posts tracked yet</p>
+          <p className="mt-1 text-sm text-fg-muted">
             Publish something, or widen the date range — the first sync only pulls recent history.
           </p>
         </div>
       ) : (
         <>
-          <div className="overflow-x-auto rounded-[var(--radius-card)] border border-card-border bg-panel shadow-card">
+          <div className="overflow-x-auto rounded-[var(--radius-card)] border border-line bg-panel shadow-sm">
             <table className="w-full text-sm">
               <caption className="sr-only">
                 Published posts with their performance metrics, sorted by{" "}
                 {SORTS.find((s) => s.value === sort)?.label ?? sort}.
               </caption>
               <thead>
-                <tr className="border-b border-card-border">
-                  <th scope="col" className="px-4 py-2.5 text-left text-xs font-semibold text-ink-soft">Post</th>
+                <tr className="border-b border-line">
+                  <th scope="col" className="px-4 py-2.5 text-left text-xs font-semibold text-fg-muted">Post</th>
                   {columns.map((c) => (
-                    <th key={c} scope="col" className="px-3 py-2.5 text-right text-xs font-semibold text-ink-soft whitespace-nowrap">
+                    <th key={c} scope="col" className="px-3 py-2.5 text-right text-xs font-semibold text-fg-muted whitespace-nowrap">
                       {c}
                     </th>
                   ))}
@@ -260,12 +260,12 @@ export function ContentTable({
               </thead>
               <tbody>
                 {posts?.map((p) => (
-                  <tr key={p.id} className="border-b border-card-border last:border-0 hover:bg-surface">
+                  <tr key={p.id} className="border-b border-line last:border-0 hover:bg-bg">
                     <th scope="row" className="max-w-xs px-4 py-2.5 text-left font-normal">
                       <PostCell post={p} />
                     </th>
                     {columns.map((c) => (
-                      <td key={c} className="px-3 py-2.5 text-right tabular-nums text-ink whitespace-nowrap">
+                      <td key={c} className="px-3 py-2.5 text-right tabular-nums text-fg whitespace-nowrap">
                         {cellValue(c, p)}
                       </td>
                     ))}
@@ -324,8 +324,8 @@ function PostCell({ post }: { post: ContentPost }) {
         <img src={post.thumbnailUrl} alt="" className="h-8 w-12 flex-shrink-0 rounded object-cover" />
       )}
       <span className="min-w-0">
-        <span className="block truncate text-ink">{label}</span>
-        <span className="block text-xs text-ink-soft">
+        <span className="block truncate text-fg">{label}</span>
+        <span className="block text-xs text-fg-muted">
           {date}
           {post.mediaType ? ` · ${post.mediaType}` : ""}
         </span>

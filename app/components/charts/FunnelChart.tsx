@@ -55,16 +55,16 @@ export function FunnelChart({ stages, ...frame }: FunnelChartProps) {
           return (
             <li key={stage.key}>
               <div className="mb-1 flex items-baseline justify-between gap-3 text-xs">
-                <span className="font-medium text-ink">{stage.label}</span>
+                <span className="font-medium text-fg">{stage.label}</span>
                 <span className="flex-shrink-0 tabular-nums">
                   {stage.value === null ? (
-                    <span className="text-ink-soft" title={stage.unavailableReason}>
+                    <span className="text-fg-muted" title={stage.unavailableReason}>
                       not reported
                     </span>
                   ) : (
                     <>
-                      <span className="font-semibold text-ink">{fmtByUnit(stage.value, "count")}</span>
-                      {rate !== null && <span className="ml-2 text-ink-soft">{fmtPct(rate)} of previous</span>}
+                      <span className="font-semibold text-fg">{fmtByUnit(stage.value, "count")}</span>
+                      {rate !== null && <span className="ml-2 text-fg-muted">{fmtPct(rate)} of previous</span>}
                     </>
                   )}
                 </span>
@@ -72,10 +72,10 @@ export function FunnelChart({ stages, ...frame }: FunnelChartProps) {
               {stage.value === null ? (
                 <div
                   aria-hidden="true"
-                  className="h-6 w-full rounded-lg border border-dashed border-card-border"
+                  className="h-6 w-full rounded-lg border border-dashed border-line"
                 />
               ) : (
-                <div aria-hidden="true" className="h-6 w-full overflow-hidden rounded-lg bg-surface">
+                <div aria-hidden="true" className="h-6 w-full overflow-hidden rounded-lg bg-bg">
                   <div
                     className="h-full rounded-lg"
                     style={{ width: `${(stage.value / max) * 100}%`, background: stage.color }}

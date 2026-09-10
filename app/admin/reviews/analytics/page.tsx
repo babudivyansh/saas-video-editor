@@ -12,9 +12,8 @@ import { useAuth } from "@/app/components/AuthContext";
 import { BRAND, PALETTE, TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE, TOOLTIP_STYLE, ChartContainer, ErrorCard, Skeleton } from "../../dashboard/ui";
 import { Donut, HBars } from "../../dashboard/charts";
 import { featureUsedLabel } from "@/lib/reviews/constants";
+import { CHART_AXIS_TICK as AXIS_TICK, CHART_GRID as GRID } from "@/app/components/dashboard/palette";
 
-const GRID = "var(--line)";
-const AXIS_TICK = { fontSize: 10, fill: "var(--fg-subtle)" } as const;
 const RANGES = [7, 30, 90, 365] as const;
 
 interface Analytics {

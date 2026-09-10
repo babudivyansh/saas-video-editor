@@ -37,10 +37,10 @@ export default async function ReportsPage({
   return (
     <div className="space-y-8">
       <section aria-labelledby="export-heading">
-        <h2 id="export-heading" className="mb-1 text-sm font-semibold text-ink">
+        <h2 id="export-heading" className="mb-1 text-sm font-semibold text-fg">
           Export data
         </h2>
-        <p className="mb-3 text-sm text-ink-soft">
+        <p className="mb-3 text-sm text-fg-muted">
           CSV downloads, ready for a spreadsheet.
         </p>
 
@@ -48,9 +48,9 @@ export default async function ReportsPage({
           {accounts.map((account) => (
             <div
               key={account.id}
-              className="rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card"
+              className="rounded-[var(--radius-card)] border border-line bg-panel p-4 shadow-sm"
             >
-              <p className="mb-3 font-semibold text-ink">{accountLabel(account)}</p>
+              <p className="mb-3 font-semibold text-fg">{accountLabel(account)}</p>
               <ExportButtons accountId={account.id} exports={EXPORTS} />
             </div>
           ))}

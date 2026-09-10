@@ -1,32 +1,53 @@
 "use client";
 
-// Shared primitives for the executive dashboard: formatters, the validated
-// categorical palette, animated counters, card/chart containers, leaderboards
-// and health grids. Charts themselves live in ./charts.tsx (Recharts).
-
-import { useEffect, useRef, useState } from "react";
-import { animate, useReducedMotion } from "framer-motion";
-import { Download, Maximize2, X } from "lucide-react";
-
-// Re-validated with the dataviz palette script against the DARK chart surface
-// (#0b1210) when the admin panel moved to the emerald theme. All five checks
-// still pass unchanged — lightness band, chroma floor, CVD separation,
-// normal-vision floor, contrast — so these hues are kept rather than remapped.
-// The amber↔teal tritan pair still sits in the 6–8 band, legal because every
-// categorical use direct-labels its slices/bars.
+// Admin's view of the shared dashboard kit.
 //
-// These are deliberately NOT brand colours: a categorical palette wants hue
-// spread for identity, and painting it emerald would collapse the series.
-export const PALETTE = ["#2563eb", "#0d9488", "#d97706", "#7c3aed", "#e11d48"] as const;
+// The primitives themselves moved to app/components/dashboard when the Social
+// Tracker was rebuilt on the same grammar — a customer route must not import
+// from app/admin/**, which would invert the trust direction and let an admin
+// tweak ship to paying customers without customer-facing review. This file is
+// the compatibility surface, so every existing `from "./ui"` / `from
+// "../../dashboard/ui"` import keeps resolving to the same names.
+//
+// app/admin/dashboard/ui.exports.test.ts locks that surface. Deleting a name
+// from here is a breaking change to ~11 admin pages and should fail loudly.
 
-// Single-series colour, so this one DOES read as "the product's colour" and
-// follows the brand. Not the UI's #20d68a: that is L 0.774, outside the
-// 0.48–0.67 mark band, so this is the darker step that validates.
-export const BRAND = "#00a968";
+export {
+  Band,
+  LAZY_GROUP,
+  SPAN,
+  CountUp,
+  DeltaChip,
+  Kpi,
+  MiniKpi,
+  PlaceholderKpi,
+  ErrorCard,
+  HealthDot,
+  Skeleton,
+  BRAND,
+  PALETTE,
+  compact,
+  pct,
+  timeAgo,
+  type CsvRows,
+} from "@/app/components/dashboard";
+
+// Renamed on the way out: it wraps tables, gauges and lists at least as often
+// as charts. Admin keeps calling it ChartContainer.
+export { Panel as ChartContainer } from "@/app/components/dashboard";
+
+import { downloadRowsCsv, type CsvRows } from "@/app/components/dashboard";
+
+// ── Admin-only, deliberately not lifted ──────────────────────────────────────
+
+/** Paise → ₹. Billing domain; nothing outside admin should format money. */
+export const inr = (paise: number | null | undefined) =>
+  paise == null ? "—" : `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
 
 // Recharts writes the tooltip background as a WHITE inline style by default,
 // which lands as a white card floating on the dark dashboard. A stylesheet
-// cannot reach an inline style, so every <Tooltip> has to pass these.
+// cannot reach an inline style, so every <Tooltip> has to pass these. Recharts
+// is admin-only (see app/components/charts/index.ts), so these are too.
 export const TOOLTIP_STYLE = {
   fontSize: 12,
   borderRadius: 12,
@@ -40,206 +61,17 @@ export const TOOLTIP_STYLE = {
 export const TOOLTIP_ITEM_STYLE = { color: "var(--fg)" } as const;
 export const TOOLTIP_LABEL_STYLE = { color: "var(--fg-muted)" } as const;
 
-export const inr = (paise: number | null | undefined) =>
-  paise == null ? "—" : `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
-export const compact = (n: number | null | undefined) =>
-  n == null ? "—" : Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
-export const pct = (n: number | null | undefined) => (n == null ? "—" : `${n.toFixed(1)}%`);
-
-export function timeAgo(iso: string): string {
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return "just now";
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
+/**
+ * Kept as an alias so admin call sites don't change. The implementation now
+ * appends the anchor before clicking and revokes on the next tick (Safari
+ * silently produced an empty file otherwise), and writes a UTF-8 BOM so Excel
+ * stops mangling non-ASCII labels — neither of which the old copy here did.
+ */
+export function downloadCsv(filename: string, rows: CsvRows) {
+  downloadRowsCsv(filename, rows);
 }
 
-// Animated count-up that lands on the exact formatted value. Disabled under
-// prefers-reduced-motion.
-export function CountUp({ value, format }: { value: number; format: (n: number) => string }) {
-  const reduced = useReducedMotion();
-  const [display, setDisplay] = useState(reduced ? value : 0);
-  const ref = useRef(value);
-  useEffect(() => {
-    if (reduced) {
-      setDisplay(value);
-      return;
-    }
-    const controls = animate(ref.current === value ? 0 : ref.current, value, {
-      duration: 0.8,
-      ease: "easeOut",
-      onUpdate: (v) => setDisplay(v),
-    });
-    ref.current = value;
-    return () => controls.stop();
-  }, [value, reduced]);
-  return <>{format(display)}</>;
-}
-
-export function DeltaChip({ pct: delta }: { pct: number | null | undefined }) {
-  if (delta == null) return <span className="text-[11px] text-fg-subtle">—</span>;
-  const flat = Math.abs(delta) < 0.05;
-  const up = delta > 0;
-  return (
-    <span className={`inline-flex items-center gap-0.5 text-[11px] font-semibold ${flat ? "text-fg-subtle" : up ? "text-success" : "text-error"}`}>
-      {flat ? "→" : up ? "↑" : "↓"} {Math.abs(delta).toFixed(1)}%
-    </span>
-  );
-}
-
-export function downloadCsv(filename: string, rows: Array<Record<string, string | number | null>>) {
-  if (rows.length === 0) return;
-  const header = Object.keys(rows[0]);
-  const cell = (v: string | number | null) => {
-    const s = v == null ? "" : String(v);
-    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const csv = [header.join(","), ...rows.map((r) => header.map((h) => cell(r[h])).join(","))].join("\r\n");
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-// Card wrapper: title/subtitle, CSV export, fullscreen modal, hover lift.
-export function ChartContainer({
-  title,
-  subtitle,
-  csv,
-  children,
-  className = "",
-  dashed = false,
-}: {
-  title: string;
-  subtitle?: string;
-  csv?: { filename: string; rows: Array<Record<string, string | number | null>> };
-  children: React.ReactNode;
-  className?: string;
-  /** Renders the "no data behind this yet" treatment: dashed edge, muted
-   *  title, and an explicit chip. Pair with <PlaceholderChart>. */
-  dashed?: boolean;
-}) {
-  const [full, setFull] = useState(false);
-  const shell = dashed
-    ? "border-dashed border-line-strong"
-    : "bg-panel border-line shadow-sm transition-shadow hover:shadow-md";
-  const body = (
-    <div className={`rounded-[var(--radius-card)] border p-5 ${shell} ${full ? "fixed inset-4 z-50 overflow-auto bg-panel" : className}`}>
-      <div className="flex items-start justify-between gap-2 mb-3">
-        <div>
-          <h2 className={`text-sm font-bold ${dashed ? "text-fg-muted" : "text-fg"}`}>{title}</h2>
-          {subtitle && <p className="text-[11px] text-fg-subtle">{subtitle}</p>}
-        </div>
-        <div className="flex items-center gap-1">
-          {dashed && (
-            <span className="text-[9px] font-bold uppercase tracking-wider text-fg-subtle border border-dashed border-line-strong rounded-full px-2 py-0.5">
-              needs instrumentation
-            </span>
-          )}
-          {csv && (
-            <button
-              onClick={() => downloadCsv(csv.filename, csv.rows)}
-              className="p-1.5 text-fg-subtle hover:text-brand cursor-pointer"
-              title="Export CSV"
-              aria-label={`Export ${title} as CSV`}
-            >
-              <Download size={14} />
-            </button>
-          )}
-          {!dashed && <button
-            onClick={() => setFull((f) => !f)}
-            className="p-1.5 text-fg-subtle hover:text-brand cursor-pointer"
-            title={full ? "Close fullscreen" : "Fullscreen"}
-            aria-label={full ? `Close ${title} fullscreen` : `Open ${title} fullscreen`}
-          >
-            {full ? <X size={14} /> : <Maximize2 size={14} />}
-          </button>}
-        </div>
-      </div>
-      {children}
-    </div>
-  );
-  return full ? (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/70" onClick={() => setFull(false)} aria-hidden />
-      {body}
-    </>
-  ) : (
-    body
-  );
-}
-
-export function Skeleton({ h = "h-40" }: { h?: string }) {
-  return <div className={`bg-surface-3 rounded-[var(--radius-card)] animate-pulse ${h}`} aria-label="Loading" />;
-}
-
-export function ErrorCard({ onRetry }: { onRetry: () => void }) {
-  return (
-    <div className="bg-panel rounded-[var(--radius-card)] border border-line shadow-sm p-6 text-center">
-      <p className="text-sm text-fg-muted mb-2">Couldn’t load this section.</p>
-      <button onClick={onRetry} className="text-xs font-semibold text-brand cursor-pointer">Retry</button>
-    </div>
-  );
-}
-
-export function Leaderboard({
-  title,
-  items,
-  csvName,
-}: {
-  title: string;
-  subtitleRight?: string;
-  items: Array<{ label: string; value: string; sub?: string; href?: string }>;
-  csvName?: string;
-}) {
-  return (
-    <ChartContainer
-      title={title}
-      csv={csvName ? { filename: csvName, rows: items.map((i) => ({ label: i.label, value: i.value, sub: i.sub ?? "" })) } : undefined}
-    >
-      {items.length === 0 ? (
-        <p className="text-xs text-fg-subtle py-4">No data in range.</p>
-      ) : (
-        <ol className="space-y-2">
-          {items.map((i, idx) => {
-            const inner = (
-              <div className="flex items-center gap-2.5">
-                <span className="w-6 h-6 rounded-full bg-surface-2 text-[10px] font-bold text-fg-subtle flex items-center justify-center flex-shrink-0">
-                  {idx + 1}
-                </span>
-                <span className="w-7 h-7 rounded-full bg-tint-blue text-brand text-[11px] font-bold flex items-center justify-center flex-shrink-0 uppercase">
-                  {i.label.slice(0, 1)}
-                </span>
-                <span className="flex-1 min-w-0">
-                  <span className="block text-xs font-semibold text-fg truncate">{i.label}</span>
-                  {i.sub && <span className="block text-[10px] text-fg-subtle truncate">{i.sub}</span>}
-                </span>
-                <span className="text-xs font-bold text-fg flex-shrink-0">{i.value}</span>
-              </div>
-            );
-            return (
-              <li key={`${i.label}-${idx}`}>
-                {i.href ? (
-                  <a href={i.href} className="block hover:bg-surface-2 rounded-lg -mx-1 px-1 py-0.5">{inner}</a>
-                ) : (
-                  inner
-                )}
-              </li>
-            );
-          })}
-        </ol>
-      )}
-    </ChartContainer>
-  );
-}
-
-export function HealthDot({ ok, label }: { ok: boolean; label: string }) {
-  return (
-    <div className="flex items-center gap-2 text-sm">
-      <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${ok ? "bg-success" : "bg-error"}`} aria-hidden />
-      <span className={ok ? "text-fg-muted" : "text-error font-semibold"}>{label}</span>
-      <span className="sr-only">{ok ? "healthy" : "attention needed"}</span>
-    </div>
-  );
-}
+// `Leaderboard` used to live here and was imported by nothing — the live
+// dashboard inlines its own version, because this one still used bg-tint-blue
+// for the avatar chip, which resolves to lime under the emerald theme. Deleted
+// rather than moved.

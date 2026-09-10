@@ -22,8 +22,8 @@ export function TypeBars({ items, title = "Content mix" }: { items: TypeBarsItem
   const maxCount = Math.max(...items.map((i) => i.count));
 
   return (
-    <div className="rounded-xl border border-card-border p-4">
-      <p className="mb-3 text-xs font-semibold text-ink-soft">{title}</p>
+    <div className="rounded-xl border border-line p-4">
+      <p className="mb-3 text-xs font-semibold text-fg-muted">{title}</p>
       <div className="space-y-2">
         {items.map((i) => (
           <div
@@ -32,13 +32,13 @@ export function TypeBars({ items, title = "Content mix" }: { items: TypeBarsItem
             role="img"
             aria-label={`${i.type}: ${i.count}, ${fmtPct(i.avgEngagementRate)} average`}
           >
-            <span className="w-16 truncate capitalize text-ink-soft">{i.type}</span>
-            <div className="h-4 flex-1 overflow-hidden rounded bg-surface">
+            <span className="w-16 truncate capitalize text-fg-muted">{i.type}</span>
+            <div className="h-4 flex-1 overflow-hidden rounded bg-bg">
               <div className="h-full rounded bg-brand" style={{ width: `${(i.count / maxCount) * 100}%` }} />
             </div>
-            <span className="w-8 text-right font-semibold text-ink">{i.count}</span>
-            {/* text-ink-soft, not gray-400: the old shade was 2.85:1 on white. */}
-            <span className="w-14 text-right text-ink-soft">{fmtPct(i.avgEngagementRate)}</span>
+            <span className="w-8 text-right font-semibold text-fg">{i.count}</span>
+            {/* text-fg-muted, not gray-400: the old shade was 2.85:1 on white. */}
+            <span className="w-14 text-right text-fg-muted">{fmtPct(i.avgEngagementRate)}</span>
           </div>
         ))}
       </div>

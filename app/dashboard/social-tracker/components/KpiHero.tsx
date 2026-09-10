@@ -35,12 +35,12 @@ export function KpiHero({ metrics }: { metrics: HeroMetric[] }) {
         {metrics.map((m) => (
           <article
             key={m.key}
-            className="rounded-[var(--radius-card)] border border-card-border bg-panel p-5 shadow-card"
+            className="rounded-[var(--radius-card)] border border-line bg-panel p-5 shadow-sm"
           >
-            <p className="text-[11px] font-bold uppercase tracking-widest text-ink-soft">{m.label}</p>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-fg-muted">{m.label}</p>
 
-            <p className="mt-1 text-3xl font-extrabold leading-tight text-ink">
-              {m.value === null ? <span className="text-ink-soft">—</span> : fmtByUnit(m.value, m.unit)}
+            <p className="mt-1 text-3xl font-extrabold leading-tight text-fg">
+              {m.value === null ? <span className="text-fg-muted">—</span> : fmtByUnit(m.value, m.unit)}
             </p>
 
             <div className="mt-1 flex h-6 items-center">
@@ -50,7 +50,7 @@ export function KpiHero({ metrics }: { metrics: HeroMetric[] }) {
             {m.benchmark && (
               // A rate means little without the band it should sit in. Kept in
               // the hero rather than lost on promotion.
-              <p className="mt-1 text-xs text-ink-soft">
+              <p className="mt-1 text-xs text-fg-muted">
                 typical · {m.benchmark.low}–{m.benchmark.high}%
               </p>
             )}
@@ -76,18 +76,18 @@ export function KpiHero({ metrics }: { metrics: HeroMetric[] }) {
  */
 function Delta({ pct, invert }: { pct: number | null; invert?: boolean }) {
   if (pct === null) {
-    return <span className="text-xs text-ink-soft">No comparison yet</span>;
+    return <span className="text-xs text-fg-muted">No comparison yet</span>;
   }
   const flat = Math.abs(pct) < 0.05;
   const good = invert ? pct < 0 : pct > 0;
 
   if (flat) {
-    return <span className="text-xs font-semibold text-ink-soft">→ Flat vs previous</span>;
+    return <span className="text-xs font-semibold text-fg-muted">→ Flat vs previous</span>;
   }
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${
-        good ? "bg-emerald-50 text-emerald-700" : "bg-error/10 text-error"
+        good ? "bg-tint-emerald text-emerald-bright" : "bg-error/10 text-error"
       }`}
     >
       <span aria-hidden="true">{pct > 0 ? "↑" : "↓"}</span>
