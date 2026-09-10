@@ -13,9 +13,9 @@ export interface AlertStripProps {
 }
 
 const TONE = {
-  milestone: "border-emerald-200 bg-emerald-50 text-emerald-900",
-  spike: "border-violet-200 bg-tint-violet text-ink",
-  drop: "border-amber-200 bg-amber-50 text-amber-900",
+  milestone: "border-tint-emerald-border bg-tint-emerald text-fg",
+  spike: "border-tint-blue-border bg-tint-blue text-fg",
+  drop: "border-tint-amber-border bg-tint-amber text-warning",
 } as const;
 
 const ICON = { milestone: "★", spike: "▲", drop: "▼" } as const;

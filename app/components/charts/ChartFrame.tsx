@@ -62,12 +62,12 @@ export function ChartFrame({
 
   return (
     <figure
-      className={`rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card ${className}`}
+      className={`rounded-[var(--radius-card)] border border-line bg-panel p-4 shadow-sm ${className}`}
     >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <figcaption className="text-sm font-semibold text-ink">{title}</figcaption>
-          {subtitle && <p className="mt-0.5 text-xs text-ink-soft">{subtitle}</p>}
+          <figcaption className="text-sm font-semibold text-fg">{title}</figcaption>
+          {subtitle && <p className="mt-0.5 text-xs text-fg-muted">{subtitle}</p>}
         </div>
         {actions && <div className="flex flex-shrink-0 items-center gap-1">{actions}</div>}
       </div>
@@ -75,7 +75,7 @@ export function ChartFrame({
       {showLegend && (
         <ul className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1">
           {series.map((s) => (
-            <li key={s.key} className="flex items-center gap-1.5 text-xs text-ink-soft">
+            <li key={s.key} className="flex items-center gap-1.5 text-xs text-fg-muted">
               <span
                 aria-hidden="true"
                 className="inline-block h-2 w-2 rounded-full"
@@ -92,7 +92,7 @@ export function ChartFrame({
           role="status"
           aria-live="polite"
           aria-busy="true"
-          className="h-40 animate-pulse rounded-xl bg-surface"
+          className="h-40 animate-pulse rounded-xl bg-bg"
         >
           <span className="sr-only">Loading {title}</span>
         </div>
@@ -109,7 +109,7 @@ export function ChartFrame({
           <DataTable title={title} series={series} xLabel={xLabel} formatX={formatX} />
         </>
       ) : (
-        <p className="py-10 text-center text-sm text-ink-soft">
+        <p className="py-10 text-center text-sm text-fg-muted">
           {emptyHint ?? "Not enough history yet — check back after a few syncs."}
         </p>
       )}

@@ -180,7 +180,7 @@ export function KpiGrid({ kpis, derived, sparklines, benchmark }: KpiGridProps) 
         {unavailable.length > 0 && (
           // One line, not eight dead cards. The information is the same and it
           // stops absence from being the loudest thing on the page.
-          <p className="mt-3 text-xs text-ink-soft" title={unavailableReason}>
+          <p className="mt-3 text-xs text-fg-muted" title={unavailableReason}>
             <span className="font-semibold">Not reported by this platform:</span>{" "}
             {unavailable.map(({ label }) => label.replace(/^Total /, "").toLowerCase()).join(", ")}.
           </p>

@@ -70,7 +70,7 @@ export function ChartExportMenu({ title, series, getSvg, xLabel = "Date" }: Char
             onClick={toggle}
             aria-expanded={open}
             aria-haspopup="menu"
-            className="rounded-lg px-2 py-1 text-xs text-ink-soft hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            className="rounded-lg px-2 py-1 text-xs text-fg-muted hover:bg-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
           >
             Export<span className="sr-only"> {title}</span>
           </button>

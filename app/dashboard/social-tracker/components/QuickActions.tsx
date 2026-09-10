@@ -135,7 +135,7 @@ export function QuickActions({ accountIds, disabledReason }: QuickActionsProps) 
       <p
         role="status"
         aria-live="polite"
-        className={`text-xs ${status.kind === "error" ? "text-error" : "text-ink-soft"}`}
+        className={`text-xs ${status.kind === "error" ? "text-error" : "text-fg-muted"}`}
       >
         {status.kind === "done" || status.kind === "error" ? status.message : disabledReason ?? ""}
       </p>

@@ -40,17 +40,17 @@ export function ComparisonBars({
           return (
             <li key={meta.key}>
               <div className="mb-1 flex items-baseline justify-between gap-3 text-xs">
-                <span className={`truncate ${isMine ? "font-semibold text-ink" : "text-ink-soft"}`}>
+                <span className={`truncate ${isMine ? "font-semibold text-fg" : "text-fg-muted"}`}>
                   {label}
                   {isMine && <span className="sr-only"> (your account)</span>}
                 </span>
-                <span className="flex-shrink-0 font-semibold tabular-nums text-ink">
+                <span className="flex-shrink-0 font-semibold tabular-nums text-fg">
                   {fmtByUnit(value, meta.unit)}
                 </span>
               </div>
               {/* aria-hidden: the value is already in the text above and in the
                   frame's data table. A second announcement per bar is noise. */}
-              <div aria-hidden="true" className="h-2 w-full overflow-hidden rounded-full bg-surface">
+              <div aria-hidden="true" className="h-2 w-full overflow-hidden rounded-full bg-bg">
                 <div
                   className="h-full rounded-full"
                   style={{

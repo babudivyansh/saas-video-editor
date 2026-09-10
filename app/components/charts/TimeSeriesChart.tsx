@@ -168,7 +168,7 @@ export function TimeSeriesChart({
                     cy={plot.y(v)}
                     r="4"
                     fill={line.color}
-                    stroke="#fff"
+                    stroke="var(--panel)"
                     strokeWidth="2"
                   />
                 );
@@ -218,16 +218,16 @@ function Tooltip({
   const flip = xRatio > 0.6;
   return (
     <div
-      className="pointer-events-none absolute top-2 z-10 rounded-lg border border-card-border bg-panel px-2.5 py-1.5 shadow-card"
+      className="pointer-events-none absolute top-2 z-10 rounded-lg border border-line bg-panel px-2.5 py-1.5 shadow-sm"
       style={{ left: `${xRatio * 100}%`, transform: flip ? "translateX(-100%)" : "none" }}
       aria-hidden="true"
     >
-      <p className="mb-0.5 text-xs font-semibold text-ink">{fmtDateLong(date)}</p>
+      <p className="mb-0.5 text-xs font-semibold text-fg">{fmtDateLong(date)}</p>
       {rows.map((r) => (
-        <p key={r.label} className="flex items-center gap-1.5 text-xs text-ink-soft">
+        <p key={r.label} className="flex items-center gap-1.5 text-xs text-fg-muted">
           <span className="inline-block h-2 w-2 rounded-full" style={{ background: r.color }} />
           {r.label}
-          <span className="font-semibold text-ink">{fmtByUnit(r.value, r.unit)}</span>
+          <span className="font-semibold text-fg">{fmtByUnit(r.value, r.unit)}</span>
         </p>
       ))}
     </div>

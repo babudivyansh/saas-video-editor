@@ -134,7 +134,7 @@ export function AccountSettingsList({
   return (
     <div className="space-y-6">
       <section aria-labelledby="connect-heading">
-        <h2 id="connect-heading" className="mb-3 text-sm font-semibold text-ink">
+        <h2 id="connect-heading" className="mb-3 text-sm font-semibold text-fg">
           Connect an account
         </h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -146,10 +146,10 @@ export function AccountSettingsList({
                 key={p}
                 className={`flex flex-col gap-3 rounded-[var(--radius-card)] border p-4 ${
                   configured
-                    ? "border-card-border bg-panel shadow-card"
+                    ? "border-line bg-panel shadow-sm"
                     : // Visibly inert, but still present: the platform exists,
                       // this deployment just cannot reach it yet.
-                      "border-dashed border-card-border bg-surface"
+                      "border-dashed border-line bg-bg"
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -164,7 +164,7 @@ export function AccountSettingsList({
                   >
                     {meta.name[0]}
                   </span>
-                  <p className={`font-semibold ${configured ? "text-ink" : "text-ink-soft"}`}>
+                  <p className={`font-semibold ${configured ? "text-fg" : "text-fg-muted"}`}>
                     {meta.name}
                   </p>
                 </div>
@@ -182,7 +182,7 @@ export function AccountSettingsList({
                   // Deliberately not a disabled button: there is nothing to
                   // click and nothing to wait for, and a greyed button invites
                   // the user to keep trying. State the reason instead.
-                  <p className="text-xs text-ink-soft">
+                  <p className="text-xs text-fg-muted">
                     Not enabled on this deployment yet — {meta.name} needs its API credentials
                     configured before accounts can be connected.
                   </p>
@@ -195,19 +195,19 @@ export function AccountSettingsList({
 
       {accounts.length > 0 && (
         <section aria-labelledby="connected-heading">
-          <h2 id="connected-heading" className="mb-3 text-sm font-semibold text-ink">
+          <h2 id="connected-heading" className="mb-3 text-sm font-semibold text-fg">
             Connected accounts
           </h2>
           <ul className="space-y-3">
             {accounts.map((a) => (
               <li
                 key={a.id}
-                className="space-y-3 rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card"
+                className="space-y-3 rounded-[var(--radius-card)] border border-line bg-panel p-4 shadow-sm"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate font-semibold text-ink">{a.label}</p>
-                    <p className="text-xs text-ink-soft">
+                    <p className="truncate font-semibold text-fg">{a.label}</p>
+                    <p className="text-xs text-fg-muted">
                       {PLATFORM[a.provider]?.name ?? a.provider}
                       {a.status === "needs_reauth" && " · needs reconnecting"}
                     </p>
@@ -285,8 +285,8 @@ function TimezoneField({
   const selectId = `tz-${account.id}`;
 
   return (
-    <div className="flex flex-wrap items-center gap-2 border-t border-card-border pt-3">
-      <label htmlFor={selectId} className="text-xs font-semibold text-ink-soft">
+    <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
+      <label htmlFor={selectId} className="text-xs font-semibold text-fg-muted">
         Report times in
       </label>
       <select
@@ -294,7 +294,7 @@ function TimezoneField({
         value={account.timezone ?? "UTC"}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-full border border-card-border bg-panel px-3 py-1 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        className="rounded-full border border-line bg-panel px-3 py-1 text-sm text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
       >
         {zones.map((z) => (
           <option key={z} value={z}>
@@ -305,7 +305,7 @@ function TimezoneField({
 
       {!account.timezone && (
         <>
-          <span className="text-xs text-ink-soft">
+          <span className="text-xs text-fg-muted">
             Not set — best-time-to-post is being shown in UTC.
           </span>
           {browserZone && browserZone !== "UTC" && (

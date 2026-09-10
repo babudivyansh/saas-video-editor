@@ -32,7 +32,7 @@ export function TabsNav() {
   const qs = params.toString();
 
   return (
-    <nav aria-label="Social Tracker sections" className="mb-6 border-b border-card-border">
+    <nav aria-label="Social Tracker sections" className="mb-6 border-b border-line">
       <ul className="-mb-px flex gap-1 overflow-x-auto">
         {TABS.map((tab) => {
           const href = `${ROOT}${tab.href}`;
@@ -57,7 +57,7 @@ export function TabsNav() {
                 className={`inline-block whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
                   active
                     ? "border-brand text-brand"
-                    : "border-transparent text-ink-soft hover:text-ink"
+                    : "border-transparent text-fg-muted hover:text-fg"
                 }`}
               >
                 {tab.label}

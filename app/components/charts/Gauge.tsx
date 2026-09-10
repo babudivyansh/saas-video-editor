@@ -43,9 +43,9 @@ export function Gauge({ label, value, confidence = null, components = [], classN
 
   return (
     <figure
-      className={`rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card ${className}`}
+      className={`rounded-[var(--radius-card)] border border-line bg-panel p-4 shadow-sm ${className}`}
     >
-      <figcaption className="text-sm font-semibold text-ink">{label}</figcaption>
+      <figcaption className="text-sm font-semibold text-fg">{label}</figcaption>
 
       <div className="mt-2 flex flex-wrap items-center gap-4">
         <div className="relative flex-shrink-0">
@@ -77,24 +77,24 @@ export function Gauge({ label, value, confidence = null, components = [], classN
             </g>
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-2xl font-extrabold text-ink">
+            <span className="text-2xl font-extrabold text-fg">
               {value === null ? "—" : Math.round(value)}
             </span>
-            {value !== null && <span className="text-[10px] text-ink-soft">out of 100</span>}
+            {value !== null && <span className="text-[10px] text-fg-muted">out of 100</span>}
           </div>
         </div>
 
         <div className="min-w-[8rem] flex-1">
           {value === null ? (
-            <p className="text-xs text-ink-soft">Not enough data yet to score this account.</p>
+            <p className="text-xs text-fg-muted">Not enough data yet to score this account.</p>
           ) : (
             <>
               {components.length > 0 && (
                 <ul className="space-y-1">
                   {components.map((c) => (
                     <li key={c.label} className="flex items-baseline justify-between gap-2 text-xs">
-                      <span className="text-ink-soft">{c.label}</span>
-                      <span className="font-semibold tabular-nums text-ink">
+                      <span className="text-fg-muted">{c.label}</span>
+                      <span className="font-semibold tabular-nums text-fg">
                         {c.value === null ? "no data" : Math.round(c.value)}
                       </span>
                     </li>
@@ -102,7 +102,7 @@ export function Gauge({ label, value, confidence = null, components = [], classN
                 </ul>
               )}
               {confidence !== null && confidence < 1 && (
-                <p className="mt-2 text-[11px] text-ink-soft">
+                <p className="mt-2 text-[11px] text-fg-muted">
                   Based on {fmtPct(confidence * 100)} of the usual inputs — the rest are not
                   reported for this account.
                 </p>

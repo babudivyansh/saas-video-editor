@@ -124,10 +124,10 @@ export function ShareLinkPanel({
 
   return (
     <section id="share" aria-labelledby="share-heading">
-      <h2 id="share-heading" className="mb-1 text-sm font-semibold text-ink">
+      <h2 id="share-heading" className="mb-1 text-sm font-semibold text-fg">
         Share a read-only report
       </h2>
-      <p className="mb-3 max-w-2xl text-sm text-ink-soft">
+      <p className="mb-3 max-w-2xl text-sm text-fg-muted">
         Anyone with the link can see this account&apos;s headline metrics — no sign-in needed.
         Links expire after 7 days, and you can revoke one at any time below.
       </p>
@@ -136,10 +136,10 @@ export function ShareLinkPanel({
         {accounts.map((a) => (
           <div
             key={a.id}
-            className="rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card"
+            className="rounded-[var(--radius-card)] border border-line bg-panel p-4 shadow-sm"
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="font-semibold text-ink">{a.label}</p>
+              <p className="font-semibold text-fg">{a.label}</p>
               <Button
                 variant="secondary"
                 size="sm"
@@ -155,19 +155,19 @@ export function ShareLinkPanel({
 
       {live.length > 0 && (
         <div className="mt-4">
-          <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-ink-soft">
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-fg-muted">
             Active links
           </h3>
           <ul className="space-y-2">
             {live.map((link) => (
               <li
                 key={link.id}
-                className="rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card"
+                className="rounded-[var(--radius-card)] border border-line bg-panel p-4 shadow-sm"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-ink">{labelFor(link)}</p>
-                    <p className="text-xs text-ink-soft">
+                    <p className="truncate text-sm font-semibold text-fg">{labelFor(link)}</p>
+                    <p className="text-xs text-fg-muted">
                       Expires {new Date(link.expiresAt).toLocaleDateString("en-GB")} ·{" "}
                       {link.viewCount === 0
                         ? "not opened yet"
@@ -191,7 +191,7 @@ export function ShareLinkPanel({
                       readOnly
                       value={urls[link.id]}
                       onFocus={(e) => e.currentTarget.select()}
-                      className="w-full rounded-xl border border-card-border bg-surface px-3 py-2 font-mono text-xs text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                      className="w-full rounded-xl border border-line bg-bg px-3 py-2 font-mono text-xs text-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                     />
                   </label>
                 )}

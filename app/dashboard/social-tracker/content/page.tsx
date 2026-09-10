@@ -20,7 +20,7 @@ export default async function ContentPage({
       {accounts.map((account) => (
         <section key={account.id} aria-labelledby={`content-${account.id}`}>
           {accounts.length > 1 && (
-            <h2 id={`content-${account.id}`} className="mb-3 text-sm font-semibold text-ink">
+            <h2 id={`content-${account.id}`} className="mb-3 text-sm font-semibold text-fg">
               {accountLabel(account)}
             </h2>
           )}

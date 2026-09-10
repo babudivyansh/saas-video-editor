@@ -45,8 +45,8 @@ export default async function SocialTrackerV2Layout({
             </svg>
           </span>
           <div>
-            <h1 className="text-xl font-extrabold text-ink">Social Tracker</h1>
-            <p className="text-xs text-ink-soft">
+            <h1 className="text-xl font-extrabold text-fg">Social Tracker</h1>
+            <p className="text-xs text-fg-muted">
               {accounts.length === 0
                 ? "Connect an account to start tracking"
                 : `${accounts.length} connected ${accounts.length === 1 ? "account" : "accounts"}`}

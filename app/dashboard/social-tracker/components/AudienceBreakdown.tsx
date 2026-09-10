@@ -39,9 +39,9 @@ const AUDIENCE_LABEL: Record<string, string> = {
 export function AudienceBreakdown({ rows }: { rows: AudienceRowView[] }) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-[var(--radius-card)] border border-card-border bg-panel p-10 text-center shadow-card">
-        <p className="text-sm font-semibold text-ink">No audience data yet</p>
-        <p className="mx-auto mt-1 max-w-md text-sm text-ink-soft">
+      <div className="rounded-[var(--radius-card)] border border-line bg-panel p-10 text-center shadow-sm">
+        <p className="text-sm font-semibold text-fg">No audience data yet</p>
+        <p className="mx-auto mt-1 max-w-md text-sm text-fg-muted">
           Instagram only reports demographics for accounts with at least 100 followers, and YouTube
           needs a few days of watch history. This fills in automatically.
         </p>
@@ -68,12 +68,12 @@ export function AudienceBreakdown({ rows }: { rows: AudienceRowView[] }) {
         return (
           <figure
             key={key}
-            className="rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card"
+            className="rounded-[var(--radius-card)] border border-line bg-panel p-4 shadow-sm"
           >
-            <figcaption className="text-sm font-semibold text-ink">
+            <figcaption className="text-sm font-semibold text-fg">
               {DIMENSION_LABEL[dimension] ?? dimension}
             </figcaption>
-            <p className="mt-0.5 mb-3 text-xs text-ink-soft">
+            <p className="mt-0.5 mb-3 text-xs text-fg-muted">
               Among {AUDIENCE_LABEL[audience] ?? audience}
             </p>
 
@@ -83,9 +83,9 @@ export function AudienceBreakdown({ rows }: { rows: AudienceRowView[] }) {
                 const formatted = row.unit === "count" ? fmtCompact(row.value) : fmtPct(row.value);
                 return (
                   <li key={row.bucket} className="grid grid-cols-[5rem_1fr_3rem] items-center gap-2">
-                    <span className="truncate text-xs text-ink-soft">{formatBucket(dimension, row.bucket)}</span>
+                    <span className="truncate text-xs text-fg-muted">{formatBucket(dimension, row.bucket)}</span>
                     <span
-                      className="h-2 rounded-full bg-surface"
+                      className="h-2 rounded-full bg-bg"
                       // The row already states the value in text beside it.
                       aria-hidden="true"
                     >
@@ -94,7 +94,7 @@ export function AudienceBreakdown({ rows }: { rows: AudienceRowView[] }) {
                         style={{ width: `${width.toFixed(1)}%` }}
                       />
                     </span>
-                    <span className="text-right text-xs font-semibold text-ink tabular-nums">
+                    <span className="text-right text-xs font-semibold text-fg tabular-nums">
                       {formatted}
                     </span>
                   </li>

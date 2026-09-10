@@ -44,7 +44,7 @@ export function BrushRange({
 
   return (
     <div className={`mt-2 ${className}`}>
-      <div className="mb-1 flex items-center justify-between text-[11px] text-ink-soft">
+      <div className="mb-1 flex items-center justify-between text-[11px] text-fg-muted">
         <span>{label}</span>
         <span className="tabular-nums">
           {fmtDateShort(dates[value.start])} – {fmtDateShort(dates[value.end])}
@@ -53,7 +53,7 @@ export function BrushRange({
 
       <div className="relative h-8">
         {/* Track + selected span. Decoration: the inputs below carry the state. */}
-        <div aria-hidden="true" className="absolute inset-x-0 top-3.5 h-1 rounded-full bg-surface">
+        <div aria-hidden="true" className="absolute inset-x-0 top-3.5 h-1 rounded-full bg-bg">
           <div
             className="absolute h-1 rounded-full bg-brand"
             style={{ left: `${pct(value.start)}%`, right: `${100 - pct(value.end)}%` }}

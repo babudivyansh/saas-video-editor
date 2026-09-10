@@ -59,10 +59,10 @@ export function KpiCard({
   }
   return (
     <div
-      className="rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card transition-shadow hover:shadow-card-hover"
+      className="rounded-[var(--radius-card)] border border-line bg-panel p-4 shadow-sm transition-shadow hover:shadow-md"
       data-metric={metric}
     >
-      <p className="text-xs font-medium tracking-wide text-ink-soft">{label}</p>
+      <p className="text-xs font-medium tracking-wide text-fg-muted">{label}</p>
 
       <div className="mt-1 flex items-baseline gap-2">
         <AnimatedValue value={value} unit={unit} />
@@ -70,7 +70,7 @@ export function KpiCard({
       </div>
 
       {previous != null && (
-        <p className="mt-0.5 text-xs text-ink-soft">
+        <p className="mt-0.5 text-xs text-fg-muted">
           was {fmtByUnit(previous, unit)}
         </p>
       )}
@@ -84,7 +84,7 @@ export function KpiCard({
       )}
 
       {accountsReporting != null && accountsReporting > 0 && (
-        <p className="mt-1 text-xs text-ink-soft">
+        <p className="mt-1 text-xs text-fg-muted">
           {accountsReporting} {accountsReporting === 1 ? "account" : "accounts"} reporting
         </p>
       )}
@@ -101,16 +101,16 @@ function UnavailableCard({ label, reason }: { label: string; reason?: string }) 
       <span
         tabIndex={0}
         aria-disabled="true"
-        className="block h-full rounded-[var(--radius-card)] border border-dashed border-card-border bg-surface p-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+        className="block h-full rounded-[var(--radius-card)] border border-dashed border-line bg-bg p-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
       >
         {/* Spans throughout: Tooltip wraps its children in a span, so a div
             here would be invalid HTML and React would warn in dev. */}
-        <span className="block text-xs font-medium tracking-wide text-ink-soft">{label}</span>
-        <span className="mt-1 block text-2xl font-extrabold text-ink-soft/50" aria-hidden="true">
+        <span className="block text-xs font-medium tracking-wide text-fg-muted">{label}</span>
+        <span className="mt-1 block text-2xl font-extrabold text-fg-muted/50" aria-hidden="true">
           —
         </span>
         <span className="sr-only">Not available. {explanation}</span>
-        <span className="mt-0.5 block text-xs text-ink-soft">Not available</span>
+        <span className="mt-0.5 block text-xs text-fg-muted">Not available</span>
       </span>
     </Tooltip>
   );
@@ -118,12 +118,12 @@ function UnavailableCard({ label, reason }: { label: string; reason?: string }) 
 
 function CollectingCard({ label }: { label: string }) {
   return (
-    <div className="rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card">
-      <p className="text-xs font-medium tracking-wide text-ink-soft">{label}</p>
-      <p className="mt-1 text-2xl font-extrabold text-ink-soft/60" aria-hidden="true">
+    <div className="rounded-[var(--radius-card)] border border-line bg-panel p-4 shadow-sm">
+      <p className="text-xs font-medium tracking-wide text-fg-muted">{label}</p>
+      <p className="mt-1 text-2xl font-extrabold text-fg-muted/60" aria-hidden="true">
         —
       </p>
-      <p className="mt-0.5 text-xs text-ink-soft">Collecting — check back after a few syncs.</p>
+      <p className="mt-0.5 text-xs text-fg-muted">Collecting — check back after a few syncs.</p>
     </div>
   );
 }
@@ -148,7 +148,7 @@ function AnimatedValue({ value, unit }: { value: number; unit: ValueUnit }) {
 
 function ValueText({ children }: { children: React.ReactNode }) {
   return (
-    <span className="kpi-count text-2xl font-extrabold text-ink tabular-nums">{children}</span>
+    <span className="kpi-count text-2xl font-extrabold text-fg tabular-nums">{children}</span>
   );
 }
 
@@ -208,7 +208,7 @@ export function DeltaChip({ pct, invert = false }: { pct: number; invert?: boole
   return (
     <span
       className={`inline-flex items-center gap-0.5 text-xs font-semibold ${
-        flat ? "text-ink-soft" : good ? "text-success" : "text-error"
+        flat ? "text-fg-muted" : good ? "text-success" : "text-error"
       }`}
     >
       <span aria-hidden="true">{flat ? "→" : rising ? "↑" : "↓"}</span>
@@ -231,7 +231,7 @@ function BenchmarkBar({ value, low, high }: { value: number; low: number; high: 
 
   return (
     <div className="mt-2">
-      <div className="relative h-1.5 rounded-full bg-surface" aria-hidden="true">
+      <div className="relative h-1.5 rounded-full bg-bg" aria-hidden="true">
         <div
           className="absolute inset-y-0 rounded-full bg-tint-emerald"
           style={{ left: `${bandLeft}%`, width: `${bandWidth}%` }}
@@ -241,7 +241,7 @@ function BenchmarkBar({ value, low, high }: { value: number; low: number; high: 
           style={{ left: `${pos}%` }}
         />
       </div>
-      <p className="mt-1 text-xs text-ink-soft">
+      <p className="mt-1 text-xs text-fg-muted">
         {verdict} · {low}–{high}%
       </p>
     </div>

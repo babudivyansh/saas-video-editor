@@ -73,8 +73,8 @@ export function DonutChart({
         <div className="min-w-[9rem]">
           {(centerValue || centerLabel) && (
             <p className="mb-2">
-              <span className="block text-lg font-extrabold text-ink">{centerValue}</span>
-              <span className="block text-xs text-ink-soft">{centerLabel}</span>
+              <span className="block text-lg font-extrabold text-fg">{centerValue}</span>
+              <span className="block text-xs text-fg-muted">{centerLabel}</span>
             </p>
           )}
           <ul className="space-y-1">
@@ -85,10 +85,10 @@ export function DonutChart({
                   className="inline-block h-2 w-2 flex-shrink-0 rounded-full"
                   style={{ background: meta.color }}
                 />
-                <span className="truncate text-ink-soft">{label}</span>
-                <span className="ml-auto flex-shrink-0 font-semibold tabular-nums text-ink">
+                <span className="truncate text-fg-muted">{label}</span>
+                <span className="ml-auto flex-shrink-0 font-semibold tabular-nums text-fg">
                   {fmtByUnit(value, meta.unit)}
-                  <span className="ml-1 font-normal text-ink-soft">
+                  <span className="ml-1 font-normal text-fg-muted">
                     {total > 0 ? fmtPct((value / total) * 100) : "—"}
                   </span>
                 </span>

@@ -79,14 +79,14 @@ export function AiInsightsPanel({
   return (
     <section
       aria-labelledby="ai-insights-heading"
-      className="rounded-[var(--radius-card)] border border-card-border bg-panel p-5 shadow-card"
+      className="rounded-[var(--radius-card)] border border-line bg-panel p-5 shadow-sm"
     >
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <h2 id="ai-insights-heading" className="text-sm font-semibold text-ink">
+          <h2 id="ai-insights-heading" className="text-sm font-semibold text-fg">
             {LABELS[period]} summary
           </h2>
-          <p className="text-xs text-ink-soft">
+          <p className="text-xs text-fg-muted">
             {stamp ? `Written ${new Date(stamp).toLocaleDateString("en-GB")} from ${accountLabel}'s own numbers` : `For ${accountLabel}`}
           </p>
         </div>
@@ -102,7 +102,7 @@ export function AiInsightsPanel({
       </div>
 
       {state.kind === "error" && (
-        <p role="alert" className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        <p role="alert" className="mb-3 rounded-xl border border-tint-amber-border bg-tint-amber px-3 py-2 text-sm text-warning">
           {state.message}
           {state.action && (
             <a href={state.action.href} className="ml-1.5 font-semibold underline">
@@ -115,14 +115,14 @@ export function AiInsightsPanel({
       {state.kind === "working" && (
         <div role="status" aria-live="polite" className="space-y-2">
           <span className="sr-only">Writing your summary</span>
-          <div className="h-3 w-full animate-pulse rounded bg-surface" />
-          <div className="h-3 w-4/5 animate-pulse rounded bg-surface" />
-          <div className="h-3 w-2/3 animate-pulse rounded bg-surface" />
+          <div className="h-3 w-full animate-pulse rounded bg-bg" />
+          <div className="h-3 w-4/5 animate-pulse rounded bg-bg" />
+          <div className="h-3 w-2/3 animate-pulse rounded bg-bg" />
         </div>
       )}
 
       {state.kind !== "working" && !summary && (
-        <p className="text-sm text-ink-soft">
+        <p className="text-sm text-fg-muted">
           A short written read on how {accountLabel} is doing — what moved, what worked, and what to try
           next. Every figure it quotes is one this dashboard computed; it is never asked to do arithmetic.
         </p>
@@ -130,17 +130,17 @@ export function AiInsightsPanel({
 
       {state.kind !== "working" && summary && (
         <div className="space-y-4">
-          <p className="text-sm leading-relaxed text-ink">{summary.summary}</p>
-          <Bullets title="What worked" items={summary.wins} tone="text-emerald-800" />
-          <Bullets title="What to watch" items={summary.concerns} tone="text-amber-800" />
+          <p className="text-sm leading-relaxed text-fg">{summary.summary}</p>
+          <Bullets title="What worked" items={summary.wins} tone="text-success" />
+          <Bullets title="What to watch" items={summary.concerns} tone="text-warning" />
           {summary.recommendations.length > 0 && (
             <div>
-              <h3 className="mb-1.5 text-xs font-bold uppercase tracking-widest text-ink-soft">Next steps</h3>
+              <h3 className="mb-1.5 text-xs font-bold uppercase tracking-widest text-fg-muted">Next steps</h3>
               <ul className="space-y-2">
                 {summary.recommendations.map((rec: Recommendation, i) => (
-                  <li key={i} className="rounded-xl bg-surface px-3 py-2">
-                    <p className="text-sm font-semibold text-ink">{rec.title}</p>
-                    <p className="text-xs text-ink-soft">{rec.rationale}</p>
+                  <li key={i} className="rounded-xl bg-bg px-3 py-2">
+                    <p className="text-sm font-semibold text-fg">{rec.title}</p>
+                    <p className="text-xs text-fg-muted">{rec.rationale}</p>
                   </li>
                 ))}
               </ul>
@@ -178,7 +178,7 @@ function Bullets({ title, items, tone }: { title: string; items: string[]; tone:
   if (items.length === 0) return null;
   return (
     <div>
-      <h3 className="mb-1 text-xs font-bold uppercase tracking-widest text-ink-soft">{title}</h3>
+      <h3 className="mb-1 text-xs font-bold uppercase tracking-widest text-fg-muted">{title}</h3>
       <ul className="space-y-1">
         {items.map((item, i) => (
           <li key={i} className={`text-sm ${tone}`}>

@@ -48,9 +48,9 @@ export function Heatmap({
 
   if (cells.length === 0) {
     return (
-      <figure className="rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card">
-        <figcaption className="text-sm font-semibold text-ink">{title}</figcaption>
-        <p className="py-10 text-center text-sm text-ink-soft">
+      <figure className="rounded-[var(--radius-card)] border border-line bg-panel p-4 shadow-sm">
+        <figcaption className="text-sm font-semibold text-fg">{title}</figcaption>
+        <p className="py-10 text-center text-sm text-fg-muted">
           Not enough posting history yet — publish a few more times and a pattern will appear.
         </p>
       </figure>
@@ -58,9 +58,9 @@ export function Heatmap({
   }
 
   return (
-    <figure className="rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card">
-      <figcaption className="text-sm font-semibold text-ink">{title}</figcaption>
-      {subtitle && <p className="mt-0.5 mb-3 text-xs text-ink-soft">{subtitle}</p>}
+    <figure className="rounded-[var(--radius-card)] border border-line bg-panel p-4 shadow-sm">
+      <figcaption className="text-sm font-semibold text-fg">{title}</figcaption>
+      {subtitle && <p className="mt-0.5 mb-3 text-xs text-fg-muted">{subtitle}</p>}
 
       <div className="overflow-x-auto">
         <table className="w-full border-separate border-spacing-0.5 text-xs">
@@ -75,7 +75,7 @@ export function Heatmap({
                 <th
                   key={label}
                   scope="col"
-                  className="pb-1 text-center text-xs font-medium text-ink-soft"
+                  className="pb-1 text-center text-xs font-medium text-fg-muted"
                 >
                   {label}
                 </th>
@@ -87,7 +87,7 @@ export function Heatmap({
               <tr key={rowLabel}>
                 <th
                   scope="row"
-                  className="pr-2 text-right text-xs font-medium text-ink-soft whitespace-nowrap"
+                  className="pr-2 text-right text-xs font-medium text-fg-muted whitespace-nowrap"
                 >
                   {rowLabel}
                 </th>
@@ -125,7 +125,7 @@ export function Heatmap({
                       <span
                         aria-hidden="true"
                         className={`text-[0.6875rem] font-semibold ${
-                          alpha >= 0.55 ? "text-white" : "text-ink"
+                          alpha >= 0.55 ? "text-white" : "text-fg"
                         }`}
                       >
                         {cell && cell.count >= 2 ? valueFmt(cell.value) : ""}
@@ -139,7 +139,7 @@ export function Heatmap({
         </table>
       </div>
 
-      <p className="mt-2 text-xs text-ink-soft">
+      <p className="mt-2 text-xs text-fg-muted">
         Darker means stronger {measure}. Values are shown only where at least two posts back them up.
       </p>
     </figure>
