@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { fmtCompact, fmtDateLong, fmtDuration, fmtPct } from "@/app/components/charts/format";
 import { Button } from "@/app/components/ui/Button";
+import { Panel } from "@/app/components/dashboard";
 import type { MetricKey, Support } from "@/lib/social/capabilities";
 import { useSocialApi } from "./useSocialApi";
 
@@ -234,12 +235,11 @@ export function ContentTable({
       </div>
 
       {posts && posts.length === 0 ? (
-        <div className="rounded-[var(--radius-card)] border border-line bg-panel p-10 text-center shadow-sm">
-          <p className="text-sm font-semibold text-fg">No posts tracked yet</p>
-          <p className="mt-1 text-sm text-fg-muted">
+        <Panel title="No posts tracked yet" dashed dashedNote="nothing synced yet">
+          <p className="py-2 text-xs text-fg-subtle">
             Publish something, or widen the date range — the first sync only pulls recent history.
           </p>
-        </div>
+        </Panel>
       ) : (
         <>
           <div className="overflow-x-auto rounded-[var(--radius-card)] border border-line bg-panel shadow-sm">

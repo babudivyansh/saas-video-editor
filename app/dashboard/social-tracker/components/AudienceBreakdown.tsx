@@ -7,6 +7,7 @@
 //
 // Server Component: nothing here is interactive.
 
+import { Panel } from "@/app/components/dashboard";
 import { fmtCompact, fmtPct } from "@/app/components/charts/format";
 
 export interface AudienceRowView {
@@ -39,13 +40,12 @@ const AUDIENCE_LABEL: Record<string, string> = {
 export function AudienceBreakdown({ rows }: { rows: AudienceRowView[] }) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-[var(--radius-card)] border border-line bg-panel p-10 text-center shadow-sm">
-        <p className="text-sm font-semibold text-fg">No audience data yet</p>
-        <p className="mx-auto mt-1 max-w-md text-sm text-fg-muted">
+      <Panel title="No audience data yet" dashed dashedNote="waiting on the platform">
+        <p className="max-w-md py-2 text-xs text-fg-subtle">
           Instagram only reports demographics for accounts with at least 100 followers, and YouTube
           needs a few days of watch history. This fills in automatically.
         </p>
-      </div>
+      </Panel>
     );
   }
 

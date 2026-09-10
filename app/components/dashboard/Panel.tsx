@@ -42,6 +42,7 @@ export function Panel({
   children,
   className = "",
   dashed = false,
+  dashedNote = "needs instrumentation",
 }: {
   title: string;
   subtitle?: string;
@@ -53,6 +54,14 @@ export function Panel({
   /** The "no data behind this yet" treatment: dashed edge, muted title, and an
    *  explicit chip, so an empty card can't be mistaken for a broken one. */
   dashed?: boolean;
+  /**
+   * What the dashed chip says. Defaults to admin's "needs instrumentation",
+   * which is right when WE haven't built the measurement — but wrong when the
+   * data simply hasn't arrived yet, which is the common case on a customer
+   * dashboard. "not published yet" is a different claim from "we can't measure
+   * this", and a card should make the right one.
+   */
+  dashedNote?: string;
 }) {
   const [full, setFull] = useState(false);
   const shell = dashed
@@ -73,7 +82,7 @@ export function Panel({
           {actions}
           {dashed && (
             <span className="text-[9px] font-bold uppercase tracking-wider text-fg-subtle border border-dashed border-line-strong rounded-full px-2 py-0.5">
-              needs instrumentation
+              {dashedNote}
             </span>
           )}
           {csv && (
