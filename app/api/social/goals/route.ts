@@ -8,15 +8,17 @@ import { loadAccounts, loadFollowerSeries, loadSeries } from "@/lib/social/queri
 import { goalProgress, rangeBounds, type Goal, type SeriesPoint } from "@/lib/social/metrics";
 import type { MetricKey } from "@/lib/social/capabilities";
 import { z } from "zod";
+import { MAX_GOALS, PROGRESS_WINDOW_DAYS } from "@/lib/social/goals";
 
 // GET  /api/social/goals?status=active → goals with computed progress
 // POST /api/social/goals               → create one
 //
 // Progress is computed on read, never stored: a stored percentage is stale the
 // moment the next sync lands, and there is no cheaper way to be wrong.
-const MAX_GOALS = 20;
-/** How much history the pace and projection are measured over. */
-const PROGRESS_WINDOW_DAYS = 90;
+// MAX_GOALS and PROGRESS_WINDOW_DAYS live in lib/social/goals.ts. The settings
+// UI needs the cap too — a form that only discovers it on submit wastes the
+// typing — and importing a route into a page would drag its handlers and rate
+// limiters into the page bundle.
 
 export const GET = withSocial(async (req: NextRequest, { auth }) => {
   const q = parseQuery(req, z.object({

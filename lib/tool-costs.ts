@@ -36,7 +36,6 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   "video-compressor": { creditCost: 0, costUsd: 0, costBasis: "FFmpeg (local compute only)", generationType: "utility" },
   "enhance-prompt":   { creditCost: 0, costUsd: 0, costBasis: "Google Gemini text, negligible cost", generationType: "utility" },
   "brainstormer":     { creditCost: 1, costUsd: null, costBasis: "Google Gemini text, near-zero real cost", generationType: "utility" },
-  "social-insights":  { creditCost: 2, costUsd: null, costBasis: "Google Gemini text over computed social metrics, near-zero real cost", generationType: "utility" },
   // Social Tracker v2 AI layer. All of these send a ≤2 kB factsheet of numbers
   // the deterministic engine already computed and get back a few hundred tokens
   // of prose — genuinely sub-cent per call, same basis as brainstormer above.

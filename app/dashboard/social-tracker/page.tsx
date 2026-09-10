@@ -21,6 +21,9 @@ import { PlatformOverview } from "./components/PlatformOverview";
 import { AlertStrip } from "./components/AlertStrip";
 import { GoalsStrip } from "./components/GoalsStrip";
 import { QuickActions } from "./components/QuickActions";
+import { AiInsightsPanel } from "./components/AiInsightsPanel";
+import { getToolConfig } from "@/lib/tool-config";
+import type { ExecutiveSummary } from "@/lib/social/ai/schemas";
 
 export const dynamic = "force-dynamic";
 
@@ -138,6 +141,22 @@ export default async function OverviewPage({
 
   const health = perAccount.length === 1 ? perAccount[0] : null;
 
+  // The executive summary panel. Its backend, its tests and its 402/409/502
+  // handling all shipped; nothing ever mounted it, so /api/social/summary had
+  // no caller and the tool was billable but unreachable. Price is read on the
+  // server so the button can state it BEFORE the click.
+  const [execReportCost, storedInsight] = await Promise.all([
+    getToolConfig("social-exec-report").then((c) => c.creditCost),
+    health
+      ? prisma.aiInsight.findFirst({
+          where: { accountId: health.account.id, kind: "executive_summary_weekly" },
+          orderBy: { createdAt: "desc" },
+        })
+      : Promise.resolve(null),
+  ]);
+  const storedSummary = (storedInsight?.content ?? null) as ExecutiveSummary | null;
+  const storedSummaryAt = storedInsight?.createdAt.toISOString() ?? null;
+
   // One DOM node for the rail, never two. Below 2xl the column simply stacks
   // above the bands (alerts and the sync button are what you want first on a
   // phone); at 2xl it becomes the sticky rail. Rendering it twice behind
@@ -150,6 +169,17 @@ export default async function OverviewPage({
         className="flex w-full flex-col gap-4 2xl:order-2 2xl:max-h-[calc(100vh-6rem)] 2xl:w-[320px] 2xl:flex-shrink-0 2xl:sticky 2xl:top-4 2xl:overflow-y-auto 2xl:pb-4"
       >
         <QuickActions accountIds={accounts.map((a) => a.id)} />
+        {/* Single-account only: an executive summary is written about ONE
+            account's factsheet, and there is no sensible portfolio version. */}
+        {health && (
+          <AiInsightsPanel
+            accountId={health.account.id}
+            accountLabel={health.account.displayName ?? health.account.username ?? health.account.provider}
+            cost={execReportCost}
+            initialSummary={storedSummary}
+            generatedAt={storedSummaryAt}
+          />
+        )}
         <AccountHealthPanel health={health} />
         <AlertStrip alerts={alerts} />
         <GoalsStrip goals={goals} />
@@ -165,6 +195,10 @@ export default async function OverviewPage({
               kpis={totals}
               sparklines={{ followers: followerSeries.points, views: viewsSeries.points }}
               benchmark={benchmark}
+              // Only for a single account: the drivers behind a figure summed
+              // across accounts differ per account, so one explanation would
+              // describe none of them.
+              explain={{ accountId: accounts.length === 1 ? accounts[0].id : null, range, tz }}
             />
           </div>
         </Band>

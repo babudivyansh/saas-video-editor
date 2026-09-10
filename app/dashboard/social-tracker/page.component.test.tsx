@@ -12,6 +12,13 @@ import { METRIC_KEYS, type MetricKey, type Support } from "@/lib/social/capabili
 import type { AccountContext } from "@/lib/social/queries";
 import type { ValueUnit } from "@/app/components/charts/format";
 
+// ConfirmDialog (via the AI panel) reads translations; the real layout provides
+// the provider and a bare render does not.
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string) => key,
+  useLocale: () => "en",
+}));
+
 // The page's client islands (QuickActions, KpiGrid…) reach for the auth token
 // and the toast host, which the real layout provides and a bare render does not.
 vi.mock("@/app/components/AuthContext", () => ({
@@ -41,7 +48,13 @@ vi.mock("@/lib/prisma", () => ({
     socialGoal: { findMany: vi.fn(async () => []) },
     socialAccountSnapshot: { findMany: vi.fn(async () => []) },
     socialPost: { findMany: vi.fn(async () => []) },
+    aiInsight: { findFirst: vi.fn(async () => null), findMany: vi.fn(async () => []) },
   },
+}));
+
+// Credit prices are read on the server so each button can state its cost.
+vi.mock("@/lib/tool-config", () => ({
+  getToolConfig: vi.fn(async () => ({ enabled: true, creditCost: 5 })),
 }));
 
 // The chart kit measures its own SVG; none of these assertions are about it.

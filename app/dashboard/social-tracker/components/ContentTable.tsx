@@ -13,7 +13,8 @@ import { fmtCompact, fmtDateLong, fmtDuration, fmtPct } from "@/app/components/c
 import { Button } from "@/app/components/ui/Button";
 import { Panel } from "@/app/components/dashboard";
 import type { MetricKey, Support } from "@/lib/social/capabilities";
-import { useSocialApi } from "./useSocialApi";
+import { SocialApiError, useSocialApi } from "./useSocialApi";
+import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 
 export interface ContentPost {
   id: string;
@@ -33,6 +34,8 @@ export interface ContentPost {
   avgViewPercentage: number | null;
   viralScore: number | null;
   engagementRate: number | null;
+  /** One-line "why this did what it did", written by /api/social/narrate. */
+  aiScoreReason: string | null;
 }
 
 const SORTS = [
@@ -57,9 +60,12 @@ const COLUMN_METRIC: Record<string, MetricKey> = {
 export function ContentTable({
   accountId,
   capabilities,
+  narrateCost,
 }: {
   accountId: string;
   capabilities: Record<MetricKey, Support>;
+  /** Price of one narration batch. Omitted hides the action entirely. */
+  narrateCost?: number;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -147,6 +153,9 @@ export function ContentTable({
   }, [cursor, fetchPage]);
 
   const [showAllColumns, setShowAllColumns] = useState(false);
+  const [narrating, setNarrating] = useState(false);
+  const [confirmingNarrate, setConfirmingNarrate] = useState(false);
+  const [narrateError, setNarrateError] = useState<string | null>(null);
 
   const setSort = (value: string) => {
     const next = new URLSearchParams(params.toString());
@@ -202,6 +211,37 @@ export function ContentTable({
     );
   }
 
+  // The top ten unexplained posts on screen. One batch, one model call, one
+  // charge — the route caps at ten, so the button offers exactly that.
+  const unexplained = (posts ?? []).filter((p) => !p.aiScoreReason).slice(0, 10);
+
+  async function explainTopPosts() {
+    setNarrating(true);
+    setNarrateError(null);
+    try {
+      const data = await api<{ narrations: Array<{ postId: string; verdict: string; narration: string }> }>(
+        "/api/social/narrate",
+        { method: "POST", body: JSON.stringify({ accountId, postIds: unexplained.map((p) => p.id) }) },
+      );
+      const byId = new Map(data.narrations.map((n) => [n.postId, `${n.verdict}: ${n.narration}`]));
+      setState((prev) => ({
+        ...prev,
+        posts: (prev.posts ?? []).map((p) =>
+          byId.has(p.id) ? { ...p, aiScoreReason: byId.get(p.id)! } : p,
+        ),
+      }));
+    } catch (e) {
+      setNarrateError(
+        e instanceof SocialApiError && e.status === 402
+          ? "You're out of credits. Top up and try again."
+          : "Couldn't explain these posts. You have not been charged.",
+      );
+    } finally {
+      setNarrating(false);
+      setConfirmingNarrate(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -231,6 +271,20 @@ export function ContentTable({
               ? `Hide ${empty.length} empty ${empty.length === 1 ? "column" : "columns"}`
               : `Show ${empty.length} empty ${empty.length === 1 ? "column" : "columns"} (${empty.join(", ").toLowerCase()})`}
           </button>
+        )}
+
+        {narrateCost !== undefined && unexplained.length > 0 && (
+          <Button
+            size="sm"
+            variant="secondary"
+            className={empty.length > 0 ? "" : "ml-auto"}
+            disabled={narrating}
+            onClick={() => setConfirmingNarrate(true)}
+          >
+            {narrating
+              ? "Explaining…"
+              : `Explain ${unexplained.length} ${unexplained.length === 1 ? "post" : "posts"} · ${narrateCost} credit${narrateCost === 1 ? "" : "s"}`}
+          </Button>
         )}
       </div>
 
@@ -263,6 +317,15 @@ export function ContentTable({
                   <tr key={p.id} className="border-b border-line last:border-0 hover:bg-bg">
                     <th scope="row" className="max-w-xs px-4 py-2.5 text-left font-normal">
                       <PostCell post={p} />
+                      {/* The end of a chain that was dead in all three links:
+                          nothing called /api/social/narrate, so aiScoreReason
+                          was never written, and this table — which the route's
+                          own comment says reads it — never rendered it. */}
+                      {p.aiScoreReason && (
+                        <span className="mt-1 block text-[11px] leading-relaxed text-fg-muted">
+                          {p.aiScoreReason}
+                        </span>
+                      )}
                     </th>
                     {columns.map((c) => (
                       <td key={c} className="px-3 py-2.5 text-right tabular-nums text-fg whitespace-nowrap">
@@ -289,6 +352,21 @@ export function ContentTable({
           )}
         </>
       )}
+
+      {narrateError && (
+        <p role="alert" className="text-xs text-warning">
+          {narrateError}
+        </p>
+      )}
+
+      <ConfirmDialog
+        open={confirmingNarrate}
+        title={`Explain ${unexplained.length} ${unexplained.length === 1 ? "post" : "posts"}?`}
+        message={`This spends ${narrateCost} credit${narrateCost === 1 ? "" : "s"} and writes a one-line reason onto each of them.`}
+        confirmLabel={`Spend ${narrateCost} credit${narrateCost === 1 ? "" : "s"}`}
+        onConfirm={explainTopPosts}
+        onClose={() => setConfirmingNarrate(false)}
+      />
     </div>
   );
 }

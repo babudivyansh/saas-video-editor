@@ -14,7 +14,7 @@
 import type { MetricKey, Support } from "@/lib/social/capabilities";
 import type { ValueUnit } from "@/app/components/charts/format";
 import { KpiCard } from "./KpiCard";
-import { KpiHero } from "./KpiHero";
+import { KpiHero, type ExplainContext } from "./KpiHero";
 
 export interface KpiEntry {
   current: number | null;
@@ -112,9 +112,11 @@ export function KpiHeroRow({
   kpis,
   sparklines,
   benchmark,
-}: Pick<KpiGridProps, "kpis" | "sparklines" | "benchmark">) {
+  explain,
+}: Pick<KpiGridProps, "kpis" | "sparklines" | "benchmark"> & { explain?: ExplainContext }) {
   return (
     <KpiHero
+      explain={explain}
       metrics={heroMetrics(kpis).map((metric) => ({
         key: metric,
         label: labelOf(metric),

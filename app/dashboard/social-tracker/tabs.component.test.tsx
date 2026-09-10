@@ -41,10 +41,15 @@ vi.mock("@/lib/social/queries", () => ({
   loadAudience: (...a: unknown[]) => loadAudience(...a),
 }));
 
+vi.mock("@/lib/tool-config", () => ({
+  getToolConfig: vi.fn(async () => ({ enabled: true, creditCost: 3 })),
+}));
+
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     socialPost: { findMany: vi.fn(async () => []) },
     socialGoal: { findMany: vi.fn(async () => []) },
+    aiInsight: { findFirst: vi.fn(async () => null), findMany: vi.fn(async () => []) },
     competitorProfile: { findMany: vi.fn(async () => []) },
     socialReportRun: { findMany: vi.fn(async () => []) },
     socialReportConfig: { findMany: vi.fn(async () => []) },
