@@ -179,6 +179,7 @@
     "manageApiKeys": { "label": "管理 API 密钥", "desc": "用于公共API" },
     "viewBilling": { "label": "查看账单", "desc": "套餐、积分与发票" },
     "myVideos": { "label": "我的视频", "desc": "浏览您生成的所有内容" },
+    "yourReview": { "label": "你的评价", "desc": "撰写、编辑或删除" },
     "recentSignIns": "最近登录",
     "viewAll": "查看全部 →",
     "noSignInHistory": "暂无登录记录。",

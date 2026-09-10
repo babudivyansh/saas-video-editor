@@ -179,6 +179,7 @@
     "manageApiKeys": { "label": "APIキーを管理", "desc": "公開API用" },
     "viewBilling": { "label": "請求を見る", "desc": "プラン、クレジット、請求書" },
     "myVideos": { "label": "マイ動画", "desc": "生成したすべてのコンテンツを見る" },
+    "yourReview": { "label": "あなたのレビュー", "desc": "作成・編集・削除" },
     "recentSignIns": "最近のサインイン",
     "viewAll": "すべて見る →",
     "noSignInHistory": "サインイン履歴はまだありません。",

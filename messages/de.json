@@ -179,6 +179,7 @@
     "manageApiKeys": { "label": "API-Schlüssel verwalten", "desc": "Für die öffentliche API" },
     "viewBilling": { "label": "Abrechnung ansehen", "desc": "Plan, Credits und Rechnungen" },
     "myVideos": { "label": "Meine Videos", "desc": "Alles ansehen, was Sie erstellt haben" },
+    "yourReview": { "label": "Deine Bewertung", "desc": "Schreiben, bearbeiten oder löschen" },
     "recentSignIns": "Letzte Anmeldungen",
     "viewAll": "Alle ansehen →",
     "noSignInHistory": "Noch kein Anmeldeverlauf vorhanden.",

@@ -179,6 +179,7 @@
     "manageApiKeys": { "label": "API कीज़ प्रबंधित करें", "desc": "पब्लिक API के लिए" },
     "viewBilling": { "label": "बिलिंग देखें", "desc": "प्लान, क्रेडिट, और इनवॉइस" },
     "myVideos": { "label": "मेरे वीडियो", "desc": "अपने बनाए सभी वीडियो देखें" },
+    "yourReview": { "label": "आपकी समीक्षा", "desc": "लिखें, बदलें या हटाएँ" },
     "recentSignIns": "हाल के साइन-इन",
     "viewAll": "सभी देखें →",
     "noSignInHistory": "अभी तक कोई साइन-इन हिस्ट्री नहीं है।",

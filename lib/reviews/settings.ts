@@ -13,7 +13,12 @@ const CACHE_TTL = 60; // seconds
 export interface ReviewSettings {
   /** Minimum account age before a review can be submitted. 0 = off. */
   minAccountAgeHours: number;
-  /** Require at least one completed render/generation before reviewing. */
+  /**
+   * Require at least one completed render/generation before reviewing.
+   * Off by default: any signed-in user can review straight away. Kept as a
+   * toggle rather than deleted so the gate can be turned back on from
+   * /admin/reviews/settings without a deploy if review spam ever justifies it.
+   */
   requireProductUsage: boolean;
   /** Spam score (0-100) at/above which a new review is auto-hidden instead of queued pending. */
   spamScoreAutoHideThreshold: number;
@@ -23,6 +28,10 @@ export interface ReviewSettings {
   promptThrottleDays: number;
   /** Maximum number of times a user is ever prompted, across their lifetime. */
   promptMaxLifetime: number;
+  /** Ready clips a user needs before the autoclips_milestone trigger fires. */
+  autoclipsMilestoneThreshold: number;
+  /** Completed generations before the tool_generation_complete trigger fires. */
+  toolGenerationMilestoneThreshold: number;
   /** Hours after a prompt is shown before drip Email 1 sends, if still unreviewed. */
   emailDrip1DelayHours: number;
   /** Days after Email 1 sends before Email 2 sends, if still unreviewed. */
@@ -33,11 +42,20 @@ export interface ReviewSettings {
 
 export const REVIEW_SETTINGS_DEFAULTS: ReviewSettings = {
   minAccountAgeHours: 0,
-  requireProductUsage: true,
+  requireProductUsage: false,
   spamScoreAutoHideThreshold: 90,
   autoHideReportThreshold: 3,
-  promptThrottleDays: 21,
-  promptMaxLifetime: 3,
+  // Tuned for a product still gathering its first reviews. The original
+  // 3-per-lifetime / 21-day pairing was written for a site that already had
+  // social proof to protect: combined with milestones at 5 clips and 10
+  // generations it meant most users were never asked at all. Loosened
+  // rather than removed — these are still the only thing standing between a
+  // user and a nag, and all four are admin-tunable at /admin/reviews/settings
+  // so they can be tightened again once reviews are coming in on their own.
+  promptThrottleDays: 10,
+  promptMaxLifetime: 5,
+  autoclipsMilestoneThreshold: 3,
+  toolGenerationMilestoneThreshold: 3,
   emailDrip1DelayHours: 24,
   emailDrip2DelayDays: 6,
   emailDrip3DelayDays: 12,

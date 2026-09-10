@@ -179,6 +179,7 @@
     "manageApiKeys": { "label": "Administrar claves de API", "desc": "Para la API pública" },
     "viewBilling": { "label": "Ver facturación", "desc": "Plan, créditos y facturas" },
     "myVideos": { "label": "Mis videos", "desc": "Explora todo lo que has generado" },
+    "yourReview": { "label": "Tu reseña", "desc": "Escríbela, edítala o elimínala" },
     "recentSignIns": "Inicios de sesión recientes",
     "viewAll": "Ver todo →",
     "noSignInHistory": "Aún no hay historial de inicio de sesión.",

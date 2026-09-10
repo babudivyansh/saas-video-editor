@@ -179,6 +179,7 @@
     "manageApiKeys": { "label": "إدارة مفاتيح API", "desc": "لواجهة API العامة" },
     "viewBilling": { "label": "عرض الفواتير", "desc": "الخطة، الأرصدة، والفواتير" },
     "myVideos": { "label": "مقاطع الفيديو الخاصة بي", "desc": "تصفح كل ما أنشأته" },
+    "yourReview": { "label": "تقييمك", "desc": "اكتبه أو عدّله أو احذفه" },
     "recentSignIns": "تسجيلات الدخول الأخيرة",
     "viewAll": "عرض الكل ←",
     "noSignInHistory": "لا يوجد سجل تسجيل دخول بعد.",

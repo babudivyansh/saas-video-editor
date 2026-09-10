@@ -1,0 +1,123 @@
+# Clipiro production crontab — the single source of truth for scheduled jobs.
+#
+# Why this file exists: every one of these jobs used to live only as prose in
+# SETUP.md, and twice that has gone wrong silently. A 2026-08 launch-readiness
+# audit found that all but four had never been entered into the production
+# crontab at all, so lifecycle emails, cleanup and re-engagement had simply
+# never fired. `clip-publish` was then added as a route, given a staleness
+# budget in lib/admin/metrics.ts, and still never written into the schedule —
+# meaning every clip a user scheduled sat pending forever.
+#
+# scripts/check-cron-coverage.mjs (wired into `npm run lint`) now fails the
+# build if a route under app/api/cron/ is missing from this file, so the next
+# one cannot go unscheduled.
+#
+# Install (Hostinger/cPanel shells with crontab access):
+#   crontab ops/crontab
+# cPanel's Cron Jobs UI writes to the same underlying crontab, so entering
+# these by hand there is equivalent — this file is what to enter.
+#
+# The secrets below must be exported in the crontab's own environment (cron
+# does not read your .env). Set them at the top of `crontab -e`, or inline the
+# literal values in the UI:
+#   CRON_SECRET=...
+#   SOCIAL_REFRESH_SECRET=...
+#   ASSET_CLEANUP_SECRET=...
+#
+# Every route fails CLOSED (401) when its secret is unset — an unscheduled or
+# misconfigured job is silent, so check /admin/ops/diagnostics after changing
+# anything here. It flags any job whose last recorded run is older than the
+# budget in CRON_STALE_AFTER_SEC (lib/admin/metrics.ts).
+#
+# Times are suggestions matching each route's own header comment; spread them
+# if too many land in the same minute.
+
+# Monthly credit refill + subscription expiry — daily is enough, the route
+# itself only acts on users whose nextRefillAt/subscriptionEndsAt is due.
+0 3 * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/refill-credits
+
+# Social Tracker snapshot refresh
+0 * * * * curl -s -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" https://clipiro.com/api/cron/social-refresh
+
+# Social Tracker weekly retention check
+0 3 * * 1 curl -s -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" https://clipiro.com/api/cron/social-refresh?job=retention
+
+# Social Tracker weekly digest email
+0 8 * * 1 curl -s -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" https://clipiro.com/api/cron/social-refresh?job=digest
+
+# Affiliate commission payout notifications — daily is enough; the route only
+# acts on commissions whose 30-day hold has already elapsed, so a missed day
+# self-heals on the next run. Also reachable on demand via
+# POST /api/admin/commissions/run-payout-sweep (admin-authenticated).
+0 4 * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/commission-payout
+
+# Admin weekly ops digest — same secret as social-refresh
+0 8 * * 1 curl -s -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" https://clipiro.com/api/cron/admin-digest
+
+# Daily MRR snapshot — the ONLY source of MRR history. MRR is otherwise derived
+# from current subscription state, so a day this doesn't run is a permanent
+# hole in the dashboard's MRR chart that no backfill can repair (past plan
+# assignments aren't stored). Runs just after UTC midnight; upserts on the UTC
+# date, so a retry is safe. Same secret as social-refresh.
+15 3 * * * curl -s -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" https://clipiro.com/api/cron/mrr-snapshot
+
+# Hard-delete accounts whose 30-day deactivation recovery window has passed
+0 2 * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/account-purge
+
+# Asset cleanup — orphaned S3 objects (frequent) + archived-asset retention (daily)
+*/15 * * * * curl -s -H "Authorization: Bearer $ASSET_CLEANUP_SECRET" https://clipiro.com/api/cron/asset-cleanup
+0 5 * * * curl -s -H "Authorization: Bearer $ASSET_CLEANUP_SECRET" https://clipiro.com/api/cron/asset-cleanup?job=retention
+
+# Onboarding email sequence (day 1 / 3 / 7 after signup)
+0 9 * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/onboarding
+
+# Re-engagement (7d/30d inactive win-back) + mid-month unused-credits nudge
+0 9 * * 1 curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/reengagement
+
+# Sends any admin-published FeatureAnnouncement (app/admin/announcements) to
+# all active users, gated per-recipient by the Notifications settings
+# featureReleases/newsletter toggles. Daily is enough — an announcement only
+# sends once (sentAt), so a missed day just means it goes out the next.
+0 11 * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/feature-announcements
+
+# Review request drip sequence (up to 3 emails per user, stops on submit/opt-out)
+0 10 * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/review-drip
+
+# Calendar-driven review prompt notifications (in-app + email)
+0 10 * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/review-prompts
+
+# Subscription expiry warnings (7d/3d/1d before) + expired notice
+0 6 * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/subscription-reminder
+
+# Stale Auto Clip sweep — reconciles clips stranded at queued/rendering by a
+# process crash mid-render (rerenderJob/renderJob already handle a caught
+# exception themselves; this only catches the crash case). Every 15 min is
+# enough given the 18-minute staleness window. Also reachable on demand via
+# POST /api/admin/ops/run-stale-clip-sweep (admin-authenticated).
+*/15 * * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/stale-clip-sweep
+
+# AutoClip dub sweep — finishes ElevenLabs dubbing jobs (lib/autoclip-dub.ts).
+# Until a dub-completion webhook is confirmed to exist and is registered in
+# the ElevenLabs dashboard (see app/api/webhooks/elevenlabs/route.ts), this
+# sweep IS the primary way a dub ever finishes, not a safety net — 2 minutes
+# keeps completion latency close to today's poll-based resolution. Relax to
+# match stale-clip-sweep's cadence once webhook delivery is confirmed
+# reliable in production. Also reachable on demand via
+# POST /api/admin/ops/run-dub-sweep (admin-authenticated).
+*/2 * * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/dub-sweep
+
+# Premium caption-render sweep — reconciles Submagic renders
+# (lib/caption-render-job.ts). Same 2-minute reasoning as dub-sweep, plus one
+# more: this is also where a render whose PAID create/export failed
+# inconclusively gets resolved, and until it is, that render cannot be retried
+# and the user's credits are neither spent-and-delivered nor refunded. It is
+# the only thing that finishes a caption render until Submagic's webhook is
+# confirmed live (SUBMAGIC_WEBHOOK_TOKEN set + a callback observed).
+*/2 * * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/submagic-sweep
+
+# Scheduled clip publishing — fires posts whose ClipPublish.scheduledFor has
+# arrived. A schedule is only as precise as its polling interval, hence 10
+# minutes. This was the job missing from the documented crontab entirely: the
+# route and its staleness budget both existed, so nothing complained, while
+# every scheduled post sat pending forever.
+*/10 * * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/clip-publish

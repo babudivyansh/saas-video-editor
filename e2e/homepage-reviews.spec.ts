@@ -17,7 +17,10 @@ test.describe.serial("homepage rating & testimonials", () => {
 
   test("hidden when there are no published reviews", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("link", { name: /review/i })).toHaveCount(0);
+    // Scoped to <main>: the footer's permanent "Reviews" link sits outside it
+    // and is meant to be there at any review count — it's what keeps /reviews
+    // reachable while the hero badge is still gated off.
+    await expect(page.getByRole("main").getByRole("link", { name: /review/i })).toHaveCount(0);
     await expect(page.getByText(/from real Clipiro users/i)).toHaveCount(0);
   });
 

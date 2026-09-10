@@ -462,6 +462,8 @@ export const reviewSettingsPatchSchema = z
     autoHideReportThreshold: z.number().int().min(1).max(100).optional(),
     promptThrottleDays: z.number().int().min(1).max(365).optional(),
     promptMaxLifetime: z.number().int().min(1).max(20).optional(),
+    autoclipsMilestoneThreshold: z.number().int().min(1).max(500).optional(),
+    toolGenerationMilestoneThreshold: z.number().int().min(1).max(500).optional(),
     emailDrip1DelayHours: z.number().int().min(1).max(24 * 30).optional(),
     emailDrip2DelayDays: z.number().int().min(1).max(60).optional(),
     emailDrip3DelayDays: z.number().int().min(1).max(60).optional(),

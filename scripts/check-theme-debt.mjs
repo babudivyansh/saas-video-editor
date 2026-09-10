@@ -64,6 +64,15 @@ const PATTERNS = {
   // are YouTube brand red in the downloader and its preview illustration —
   // a platform colour, like the Reddit orange, not an error state.
   "raw-red": /\b(?:bg|text|border|ring|divide|from|to|via)-red-\d{2,3}\b/g,
+  // Stock violet/fuchsia/purple. The retired brand's accent was #7C3AED, so
+  // these are the same old-accent leakage `raw-blue` covers — they were simply
+  // never measured, which is how the review modal and report modal kept a
+  // violet focus ring through the whole migration while this ratchet reported
+  // "on budget". NOT counted: the `--accent-violet` token and its
+  // `bg-tint-violet` / `text-accent-violet` utilities, which are a deliberate
+  // part of the emerald system's categorical palette (badge hues, star
+  // gradient) rather than retired-brand residue.
+  "raw-violet": /\b(?:bg|text|border|ring|divide|placeholder|from|to|via|outline|decoration|fill|stroke|accent|caret)-(?:violet|fuchsia|purple)-\d{2,3}\b/g,
   // Literal old-brand hexes in UI code. One is legitimate and permanent:
   // #7c3aed is also PALETTE[3] in app/admin/dashboard/ui.tsx, a validated
   // categorical chart hue that happens to collide with the retired accent.
@@ -106,13 +115,20 @@ const BUDGET = {
   // 65 -> 64: deleting app/components/SubtitleStylePicker.tsx (the 16-swatch
   // index-based caption grid) took its hover:ring-gray-300 with it.
   // 64 -> 63: one more went with the deleted caption tile grids.
-  "raw-gray": 36,
+  "raw-gray": 35,
   // 5 -> 4: same deletion.
   "bg-white": 1,
   "raw-slate": 9,
   "raw-zinc": 0,
   "raw-blue": 0,
   "raw-red": 11,
+  // First measurement, 2026-09-10. Not a certificate — this pocket was
+  // unmeasured until now, so nearly all of it is genuine debt spread over
+  // ~30 files (dashboard, assets, clips, settings, onboarding, admin).
+  // The review surfaces' share was paid off in the same commit that added
+  // this rule: the two modals' focus rings and the attachment drop zone's
+  // border now use `primary`, which is where a focus state belonged anyway.
+  "raw-violet": 101,
   // 51 -> 47: four of the retired brand hexes lived in the caption tile tables
   // deleted below.
   // 47 -> 43: four more went with the per-page voice lists, whose entries

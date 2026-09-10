@@ -21,12 +21,6 @@ export interface PromptCheckResult {
   trigger?: PromptTrigger;
 }
 
-// Lowest of each milestone's thresholds — crossing any of these once is
-// enough to qualify; the shared cooldown/lifetime-cap (not per-threshold
-// tracking) is what prevents repeat prompts from then on.
-const AUTOCLIPS_MILESTONE_THRESHOLD = 5;
-const TOOL_GENERATION_MILESTONE_THRESHOLD = 10;
-
 async function isThrottled(userId: string): Promise<boolean> {
   const settings = await getReviewSettings();
   const state = await prisma.reviewPromptState.findUnique({ where: { userId } });
@@ -52,18 +46,24 @@ export async function evaluatePromptTrigger(userId: string, trigger: PromptTrigg
   return { shouldPrompt: true, trigger };
 }
 
+// Crossing a milestone once is enough to qualify; the shared
+// cooldown/lifetime-cap (not per-threshold tracking) is what prevents repeat
+// prompts from then on. Both thresholds are admin-tunable — see
+// REVIEW_SETTINGS_DEFAULTS for why they were loosened.
 async function triggerQualifies(userId: string, trigger: PromptTrigger): Promise<boolean> {
   switch (trigger) {
     case "export_complete":
       // Called right after the caller's own successful export — trusted.
       return true;
     case "autoclips_milestone": {
+      const settings = await getReviewSettings();
       const count = await prisma.clip.count({ where: { project: { userId }, status: "ready" } });
-      return count >= AUTOCLIPS_MILESTONE_THRESHOLD;
+      return count >= settings.autoclipsMilestoneThreshold;
     }
     case "tool_generation_complete": {
+      const settings = await getReviewSettings();
       const count = await prisma.generation.count({ where: { userId, status: "completed" } });
-      return count >= TOOL_GENERATION_MILESTONE_THRESHOLD;
+      return count >= settings.toolGenerationMilestoneThreshold;
     }
     case "billing_success":
       // Called right after the caller's own successful checkout/webhook

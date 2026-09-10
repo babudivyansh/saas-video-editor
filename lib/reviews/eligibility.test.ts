@@ -69,6 +69,23 @@ describe("isEligibleToSubmit", () => {
     expect(result).toEqual({ eligible: true });
   });
 
+  // The shipped default (see settings.test.ts): a brand-new account that has
+  // never rendered anything can still review.
+  it("allows a user with no usage at all when requireProductUsage is off", async () => {
+    reviewSettings = { minAccountAgeHours: 0, requireProductUsage: false };
+    userById.set("u1", { firstVideoAt: null, createdAt: new Date(), trialEndsAt: null });
+    const result = await isEligibleToSubmit("u1");
+    expect(result).toEqual({ eligible: true });
+  });
+
+  it("still rejects a duplicate review when every other gate is off", async () => {
+    reviewSettings = { minAccountAgeHours: 0, requireProductUsage: false };
+    reviewByUserId.set("u1", { id: "rev-1" });
+    userById.set("u1", { firstVideoAt: null, createdAt: new Date(), trialEndsAt: null });
+    const result = await isEligibleToSubmit("u1");
+    expect(result).toEqual({ eligible: false, reason: "already_reviewed" });
+  });
+
   it("enforces minAccountAgeHours when configured", async () => {
     reviewSettings = { minAccountAgeHours: 48, requireProductUsage: true };
     userById.set("u1", { firstVideoAt: new Date(), createdAt: new Date(), trialEndsAt: null });
