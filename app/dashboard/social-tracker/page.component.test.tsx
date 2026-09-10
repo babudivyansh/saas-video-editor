@@ -138,7 +138,55 @@ describe("Social Tracker Overview", () => {
     await render_();
 
     expect(loadAccountKpis).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("gauge")).toBeInTheDocument(); // health, single-account only
+    // The bands, in order, are what the page promises to render.
+    for (const band of ["Headline performance", "Trends", "All metrics", "Connected accounts"]) {
+      expect(screen.getByRole("region", { name: band })).toBeInTheDocument();
+    }
+  });
+
+  // healthScore is written by the nightly `scores` job, which had never been
+  // scheduled in production — so this gauge was handed value={null} for every
+  // account that has ever existed. Saying so beats drawing an empty dial.
+  it("explains an unscored account instead of drawing an empty gauge", async () => {
+    const acc = account({ healthScore: null });
+    loadViewContext.mockResolvedValue({
+      userId: "u1", accounts: [acc], allAccounts: [acc],
+      filters: { range: 30, granularity: "day", scope: { kind: "one", id: acc.id } },
+    });
+    loadAccountKpis.mockResolvedValue(accountKpis(acc));
+
+    await render_();
+
+    expect(screen.getByText(/scored nightly/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("gauge")).not.toBeInTheDocument();
+  });
+
+  it("draws the gauge once the account has a score", async () => {
+    const acc = account({ healthScore: 78 });
+    loadViewContext.mockResolvedValue({
+      userId: "u1", accounts: [acc], allAccounts: [acc],
+      filters: { range: 30, granularity: "day", scope: { kind: "one", id: acc.id } },
+    });
+    loadAccountKpis.mockResolvedValue(accountKpis(acc));
+
+    await render_();
+
+    expect(screen.getByTestId("gauge")).toBeInTheDocument();
+  });
+
+  // Averaging health across accounts would describe none of them.
+  it("says why there is no single health score for a multi-account view", async () => {
+    const a = account({ id: "a" });
+    const b = account({ id: "b", displayName: "Second" });
+    loadViewContext.mockResolvedValue({
+      userId: "u1", accounts: [a, b], allAccounts: [a, b],
+      filters: { range: 30, granularity: "day", scope: { kind: "all" } },
+    });
+    loadAccountKpis.mockImplementation(async (acc: AccountContext) => accountKpis(acc));
+
+    await render_();
+
+    expect(screen.getByText(/pick a single account/i)).toBeInTheDocument();
   });
 
   // Regression: YouTube sends snapshots but no daily follower column, so the

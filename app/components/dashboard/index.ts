@@ -8,7 +8,10 @@
 // desktops. See app/components/charts/index.ts for the full argument. This
 // package is what makes the two look like one product anyway.
 
-export { Band, LAZY_GROUP, SPAN } from "./grid";
+export { Band } from "./grid";
+// Plain constants, in their own module without "use client" — a Server
+// Component reading these off a client module gets undefined. See spans.ts.
+export { LAZY_GROUP, SPAN } from "./spans";
 export { Panel, downloadRowsCsv, type CsvRows } from "./Panel";
 export { CountUp, DeltaChip, Kpi, MiniKpi, PlaceholderKpi } from "./Kpi";
 export { ErrorCard, HealthDot, Skeleton } from "./states";

@@ -14,7 +14,8 @@ import { ER_BENCHMARKS, computeAlerts, delta, goalProgress, rangeBounds, type Ac
 import { METRIC_LABELS } from "@/lib/social/ai/factsheets";
 import { prisma } from "@/lib/prisma";
 import { Gauge } from "@/app/components/charts";
-import { KpiGrid, type KpiEntry } from "./components/KpiGrid";
+import { Band, Panel, SPAN } from "@/app/components/dashboard";
+import { KpiGrid, KpiHeroRow, type KpiEntry } from "./components/KpiGrid";
 import { TrendSection } from "./components/TrendSection";
 import { PlatformOverview } from "./components/PlatformOverview";
 import { AlertStrip } from "./components/AlertStrip";
@@ -137,63 +138,132 @@ export default async function OverviewPage({
 
   const health = perAccount.length === 1 ? perAccount[0] : null;
 
+  // One DOM node for the rail, never two. Below 2xl the column simply stacks
+  // above the bands (alerts and the sync button are what you want first on a
+  // phone); at 2xl it becomes the sticky rail. Rendering it twice behind
+  // `hidden`/`2xl:hidden` would duplicate a landmark and every control in it
+  // for anyone reading the accessibility tree.
   return (
-    <div className="space-y-8">
-      <QuickActions accountIds={accounts.map((a) => a.id)} />
+    <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start">
+      <aside
+        aria-label="Actions and signals"
+        className="flex w-full flex-col gap-4 2xl:order-2 2xl:max-h-[calc(100vh-6rem)] 2xl:w-[320px] 2xl:flex-shrink-0 2xl:sticky 2xl:top-4 2xl:overflow-y-auto 2xl:pb-4"
+      >
+        <QuickActions accountIds={accounts.map((a) => a.id)} />
+        <AccountHealthPanel health={health} />
+        <AlertStrip alerts={alerts} />
+        <GoalsStrip goals={goals} />
+      </aside>
 
-      <AlertStrip alerts={alerts} />
+      {/* A plain div, not <main>: DashboardShell already renders the page's
+          <main>, and nesting a second one is invalid and announces a duplicate
+          landmark. Admin's dashboard uses a div here for the same reason. */}
+      <div className="min-w-0 flex-1 2xl:order-1">
+        <Band ariaLabel="Headline performance" label="Performance">
+          <div className={SPAN[12]}>
+            <KpiHeroRow
+              kpis={totals}
+              sparklines={{ followers: followerSeries.points, views: viewsSeries.points }}
+              benchmark={benchmark}
+            />
+          </div>
+        </Band>
 
-      <GoalsStrip goals={goals} />
+        <Band ariaLabel="Trends" label="Trends">
+          <TrendSection
+            followers={followerSeries.points}
+            views={viewsSeries.points}
+            rangeDays={range}
+            granularity={granularity}
+          />
+        </Band>
 
-      <KpiGrid
-        kpis={totals}
-        derived={{
-          averageViews: perAccount.length === 1 ? perAccount[0].derived.averageViews : undefined,
-          dailyGrowth: perAccount[0].derived.dailyGrowth,
-          weeklyGrowth: perAccount[0].derived.weeklyGrowth,
-          monthlyGrowth: perAccount[0].derived.monthlyGrowth,
-        }}
-        sparklines={{ followers: followerSeries.points, views: viewsSeries.points }}
-        benchmark={benchmark}
-      />
+        <Band ariaLabel="All metrics" label="All metrics">
+          <div className={SPAN[12]}>
+            <KpiGrid
+              kpis={totals}
+              derived={{
+                averageViews: perAccount.length === 1 ? perAccount[0].derived.averageViews : undefined,
+                dailyGrowth: perAccount[0].derived.dailyGrowth,
+                weeklyGrowth: perAccount[0].derived.weeklyGrowth,
+                monthlyGrowth: perAccount[0].derived.monthlyGrowth,
+              }}
+              sparklines={{ followers: followerSeries.points, views: viewsSeries.points }}
+              benchmark={benchmark}
+            />
+          </div>
+        </Band>
 
-      <TrendSection
-        followers={followerSeries.points}
-        views={viewsSeries.points}
-        rangeDays={range}
-        granularity={granularity}
-      />
-
-      {health && (
-        <Gauge
-          label="Account health"
-          value={health.account.healthScore}
-          confidence={health.completeness}
-          components={[
-            { label: "Engagement", value: health.kpis.engagementRate.current },
-            { label: "Growth", value: health.derived.weeklyGrowth },
-            { label: "Data completeness", value: health.completeness * 100 },
-          ]}
-        />
-      )}
-
-      <PlatformOverview
-        accounts={perAccount.map((p) => ({
-          id: p.account.id,
-          provider: p.account.provider,
-          label: p.account.displayName ?? p.account.username ?? p.account.provider,
-          avatarUrl: p.account.avatarUrl,
-          followers: p.account.followers,
-          engagementRate: p.kpis.engagementRate.current,
-          status: p.account.status,
-          lastSyncedAt: p.account.lastSyncedAt?.toISOString() ?? null,
-          lastSyncStatus: p.account.lastSyncStatus,
-          lastSyncError: p.account.lastSyncError,
-          healthScore: p.account.healthScore,
-          dataCompleteness: p.completeness,
-        }))}
-      />
+        <Band ariaLabel="Connected accounts" label="Accounts">
+          <PlatformOverview
+            accounts={perAccount.map((p) => ({
+              id: p.account.id,
+              provider: p.account.provider,
+              label: p.account.displayName ?? p.account.username ?? p.account.provider,
+              avatarUrl: p.account.avatarUrl,
+              followers: p.account.followers,
+              engagementRate: p.kpis.engagementRate.current,
+              status: p.account.status,
+              lastSyncedAt: p.account.lastSyncedAt?.toISOString() ?? null,
+              lastSyncStatus: p.account.lastSyncStatus,
+              lastSyncError: p.account.lastSyncError,
+              healthScore: p.account.healthScore,
+              dataCompleteness: p.completeness,
+            }))}
+          />
+        </Band>
+      </div>
     </div>
+  );
+}
+
+/**
+ * Account health, in a card like everything else.
+ *
+ * It used to render bare — no container, no heading — between the trend charts
+ * and the account cards, and only when exactly one account was in scope, so the
+ * page's whole silhouette changed depending on the selection.
+ *
+ * Both ways it can be absent are now said out loud rather than by disappearing.
+ * The null-score case matters most: healthScore is written by the nightly
+ * `scores` job, which had never been scheduled in production, so this gauge was
+ * being handed value={null} for every account that has ever existed.
+ */
+function AccountHealthPanel({ health }: { health: Awaited<ReturnType<typeof loadAccountKpis>> | null }) {
+  if (!health) {
+    return (
+      <Panel title="Account health" dashed>
+        <p className="py-2 text-xs text-fg-subtle">
+          Pick a single account to see its health score — averaging it across accounts would
+          describe none of them.
+        </p>
+      </Panel>
+    );
+  }
+
+  if (health.account.healthScore === null) {
+    return (
+      <Panel title="Account health" dashed>
+        <p className="py-2 text-xs text-fg-subtle">
+          Scored nightly. This account hasn&rsquo;t been scored yet — it appears after the next run.
+        </p>
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel title="Account health">
+      <Gauge
+        label="Account health"
+        value={health.account.healthScore}
+        confidence={health.completeness}
+        components={[
+          { label: "Engagement", value: health.kpis.engagementRate.current },
+          { label: "Growth", value: health.derived.weeklyGrowth },
+          { label: "Data completeness", value: health.completeness * 100 },
+        ]}
+      />
+    </Panel>
   );
 }
 

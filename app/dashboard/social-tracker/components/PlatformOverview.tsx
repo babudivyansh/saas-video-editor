@@ -9,6 +9,7 @@
 
 import { fmtCompact, fmtPct } from "@/app/components/charts/format";
 import { platformBrand, platformChipStyle } from "@/lib/social/platform-brand";
+import { SPAN } from "@/app/components/dashboard";
 
 export interface PlatformAccount {
   id: string;
@@ -33,12 +34,9 @@ export function PlatformOverview({ accounts }: { accounts: PlatformAccount[] }) 
   const total = accounts.reduce((s, a) => s + (a.followers ?? 0), 0);
 
   return (
-    <section aria-labelledby="platforms-heading" className="space-y-4">
-      <h2 id="platforms-heading" className="text-sm font-semibold text-fg">
-        Connected accounts
-      </h2>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    // Cards go straight into the enclosing Band's 12-column grid — it owns the
+    // heading and the gutters now.
+    <>
         {accounts.map((a) => {
           const meta = platformBrand(a.provider);
           const share = total > 0 && a.followers != null ? (a.followers / total) * 100 : null;
@@ -46,7 +44,7 @@ export function PlatformOverview({ accounts }: { accounts: PlatformAccount[] }) 
           return (
             <article
               key={a.id}
-              className="rounded-[var(--radius-card)] border border-line bg-panel p-4 shadow-sm"
+              className={`${SPAN[4]} rounded-[var(--radius-card)] border border-line bg-panel p-5 shadow-sm transition-shadow hover:shadow-md`}
             >
               <div className="flex items-start gap-3">
                 <span
@@ -91,8 +89,7 @@ export function PlatformOverview({ accounts }: { accounts: PlatformAccount[] }) 
             </article>
           );
         })}
-      </div>
-    </section>
+    </>
   );
 }
 

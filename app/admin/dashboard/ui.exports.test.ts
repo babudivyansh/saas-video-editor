@@ -23,7 +23,10 @@ const EXPECTED = [
   "downloadCsv",
 ].sort();
 
-describe("app/admin/dashboard/ui", () => {
+// These do a real dynamic import of the whole dashboard kit — framer-motion and
+// lucide included — which is genuinely slower than the 5s default when the
+// suite is running files in parallel. Slow, not hanging.
+describe("app/admin/dashboard/ui", { timeout: 30_000 }, () => {
   it("exports exactly the names admin imports from it", async () => {
     const mod = await import("./ui");
     // Type-only re-exports (CsvRows) leave no runtime binding, so compare

@@ -85,23 +85,53 @@ const HERO_PRIORITY: MetricKey[] = [
 
 const HERO_COUNT = 4;
 
-export function KpiGrid({ kpis, derived, sparklines, benchmark }: KpiGridProps) {
-  const labelOf = (metric: MetricKey) =>
-    CATALOGUE.find((c) => c.metric === metric)?.label ?? metric;
-
+/**
+ * Which metrics get promoted to the hero row.
+ *
+ * Shared by KpiHeroRow and KpiGrid, which now sit in different bands: the hero
+ * leads the page and the catalogue comes after the trends. They must agree on
+ * the promotion, or a metric appears twice — or, worse, in neither.
+ */
+function heroMetrics(kpis: Partial<Record<MetricKey, KpiEntry>>): MetricKey[] {
   const reports = (metric: MetricKey) => {
     const kpi = kpis[metric];
     return Boolean(kpi && kpi.available !== "unavailable");
   };
-
   // Prefer metrics that have a number; fall back to available-but-empty so the
   // row is always full rather than collapsing on a freshly connected account.
-  const heroKeys = [
+  return [
     ...HERO_PRIORITY.filter((m) => reports(m) && kpis[m]?.current !== null),
     ...HERO_PRIORITY.filter((m) => reports(m) && kpis[m]?.current === null),
   ].slice(0, HERO_COUNT);
+}
 
-  const heroSet = new Set<MetricKey>(heroKeys);
+const labelOf = (metric: MetricKey) => CATALOGUE.find((c) => c.metric === metric)?.label ?? metric;
+
+/** The four headline tiles. Rendered in its own band, above the trends. */
+export function KpiHeroRow({
+  kpis,
+  sparklines,
+  benchmark,
+}: Pick<KpiGridProps, "kpis" | "sparklines" | "benchmark">) {
+  return (
+    <KpiHero
+      metrics={heroMetrics(kpis).map((metric) => ({
+        key: metric,
+        label: labelOf(metric),
+        value: kpis[metric]!.current,
+        deltaPct: kpis[metric]!.deltaPct,
+        unit: kpis[metric]!.unit,
+        sparkline: sparklines?.[metric],
+        invertDelta: CATALOGUE.find((c) => c.metric === metric)?.invert,
+        benchmark: metric === "engagementRate" ? benchmark : undefined,
+      }))}
+    />
+  );
+}
+
+export function KpiGrid({ kpis, derived, sparklines, benchmark }: KpiGridProps) {
+
+  const heroSet = new Set<MetricKey>(heroMetrics(kpis));
 
   // Everything this platform cannot report, named once instead of occupying
   // eight cards that all say "Not available".
@@ -111,25 +141,10 @@ export function KpiGrid({ kpis, derived, sparklines, benchmark }: KpiGridProps) 
     .find((r): r is string => Boolean(r));
 
   return (
-    <div className="space-y-6">
-      <KpiHero
-        metrics={heroKeys.map((metric) => ({
-          key: metric,
-          label: labelOf(metric),
-          value: kpis[metric]!.current,
-          deltaPct: kpis[metric]!.deltaPct,
-          unit: kpis[metric]!.unit,
-          sparkline: sparklines?.[metric],
-          invertDelta: CATALOGUE.find((c) => c.metric === metric)?.invert,
-          benchmark: metric === "engagementRate" ? benchmark : undefined,
-        }))}
-      />
-
-      <section aria-labelledby="kpi-grid-heading">
-        <h2 id="kpi-grid-heading" className="sr-only">
-          Key performance indicators
-        </h2>
-
+    // No <section>/<h2> of its own any more: the Band it sits in supplies the
+    // labelled landmark, and nesting a second one just repeats it.
+    <div>
+      <div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
           {CATALOGUE.map(({ metric, label, invert }) => {
           const kpi = kpis[metric];
@@ -185,7 +200,7 @@ export function KpiGrid({ kpis, derived, sparklines, benchmark }: KpiGridProps) 
             {unavailable.map(({ label }) => label.replace(/^Total /, "").toLowerCase()).join(", ")}.
           </p>
         )}
-      </section>
+      </div>
     </div>
   );
 }

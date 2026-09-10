@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type React from "react";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { KpiCard } from "./KpiCard";
-import { KpiGrid, type KpiEntry } from "./KpiGrid";
+import { KpiGrid, KpiHeroRow, type KpiEntry } from "./KpiGrid";
 
 // framer-motion's useReducedMotion reads matchMedia, which jsdom does not
 // implement. Controlled per-test so both motion paths are exercised.
@@ -192,8 +193,20 @@ describe("KpiGrid", () => {
     ...over,
   });
 
-  it("names every metric it is given, promoted or demoted", () => {
+  // The hero row and the catalogue sit in different bands on the page now, but
+  // they still share one promotion rule and have to agree on it — a metric must
+  // not appear in both, or in neither. Rendering the pair together is what the
+  // Overview does, so it is what these assertions exercise.
+  const renderKpis = (el: React.ReactElement<React.ComponentProps<typeof KpiGrid>>) =>
     render(
+      <>
+        <KpiHeroRow kpis={el.props.kpis} sparklines={el.props.sparklines} benchmark={el.props.benchmark} />
+        {el}
+      </>,
+    );
+
+  it("names every metric it is given, promoted or demoted", () => {
+    renderKpis(
       <KpiGrid
         kpis={{
           followers: entry(),
@@ -212,7 +225,7 @@ describe("KpiGrid", () => {
   });
 
   it("collapses unreported metrics into one line instead of a wall of empty cards", () => {
-    render(
+    renderKpis(
       <KpiGrid
         kpis={{
           followers: entry(),
@@ -234,7 +247,7 @@ describe("KpiGrid", () => {
   it("promotes the headline metrics into a hero row with display-size type", () => {
     // The flat grid gave "Total followers" and "Click-through rate — not
     // available" identical weight, so the eye had nowhere to land.
-    render(
+    renderKpis(
       <KpiGrid
         kpis={{
           followers: entry({ current: 12_000 }),
@@ -253,7 +266,7 @@ describe("KpiGrid", () => {
   });
 
   it("fills the hero with reported metrics only, never with empty cards", () => {
-    render(
+    renderKpis(
       <KpiGrid
         kpis={{
           followers: entry({ current: 100 }),
@@ -267,7 +280,7 @@ describe("KpiGrid", () => {
 
   it("keeps the benchmark band when engagement rate is promoted", () => {
     // Promoting a rate must not lose the band that gives it meaning.
-    render(
+    renderKpis(
       <KpiGrid
         kpis={{ engagementRate: entry({ unit: "percent", current: 2 }) }}
         benchmark={{ low: 1, high: 3.5 }}
@@ -277,13 +290,18 @@ describe("KpiGrid", () => {
     expect(within(hero).getByText(/typical · 1–3.5%/)).toBeInTheDocument();
   });
 
-  it("has an accessible section name", () => {
-    render(<KpiGrid kpis={{ followers: entry() }} />);
-    expect(screen.getByRole("region", { name: /key performance indicators/i })).toBeInTheDocument();
+  // The catalogue used to wrap itself in a <section> with an sr-only heading.
+  // On the rebuilt Overview the enclosing Band is the labelled landmark, so
+  // keeping this one would announce the same region twice.
+  it("leaves the landmark to the band it sits in", () => {
+    renderKpis(<KpiGrid kpis={{ followers: entry() }} />);
+    expect(screen.queryByRole("region", { name: /key performance indicators/i })).not.toBeInTheDocument();
+    // The hero keeps its own, because it is a distinct thing worth jumping to.
+    expect(screen.getByRole("region", { name: /headline metrics/i })).toBeInTheDocument();
   });
 
   it("renders growth tiles from derived figures", () => {
-    render(<KpiGrid kpis={{}} derived={{ dailyGrowth: 0.8, weeklyGrowth: 5.6, monthlyGrowth: 24 }} />);
+    renderKpis(<KpiGrid kpis={{}} derived={{ dailyGrowth: 0.8, weeklyGrowth: 5.6, monthlyGrowth: 24 }} />);
     expect(screen.getByText("Daily growth")).toBeInTheDocument();
     // One decimal below 10, none above — precision where it carries information.
     expect(screen.getByText("0.8%")).toBeInTheDocument();
@@ -291,7 +309,7 @@ describe("KpiGrid", () => {
   });
 
   it("shows a benchmark band only on engagement rate", () => {
-    render(
+    renderKpis(
       <KpiGrid
         kpis={{ engagementRate: entry({ unit: "percent", current: 2 }), reach: entry() }}
         benchmark={{ low: 1, high: 3.5 }}
