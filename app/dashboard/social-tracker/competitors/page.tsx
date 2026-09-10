@@ -5,6 +5,7 @@ import { env } from "@/lib/env";
 import { compareCompetitors } from "@/lib/social/metrics";
 import { fmtCompact, fmtPct } from "@/app/components/charts/format";
 import { CompetitorManager } from "../components/CompetitorManager";
+import { EmptyAccounts } from "../components/EmptyAccounts";
 import { loadViewContext, type SearchParams } from "../shared";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,11 @@ export default async function CompetitorsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const { userId, accounts } = await loadViewContext(await searchParams);
+
+  // Every other data tab does this; competitors was the one that didn't, so
+  // with nothing connected it rendered a "how do I compare?" table with no
+  // side of the comparison — and no route to fixing that.
+  if (accounts.length === 0) return <EmptyAccounts />;
 
   // v1 returned null when the vendor was unconfigured, so the whole feature
   // silently vanished with no explanation. Say so instead.
