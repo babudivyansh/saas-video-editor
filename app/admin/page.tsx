@@ -12,15 +12,19 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { motion, useReducedMotion } from "framer-motion";
+
 import {
   CreditCard, RefreshCcw, ShieldAlert, Ticket, TrendingUp, UserPlus, Users, Zap,
 } from "lucide-react";
 import AdminShell from "./AdminShell";
 import { useAuth } from "@/app/components/AuthContext";
 import {
-  PALETTE, ChartContainer, CountUp, DeltaChip, ErrorCard, HealthDot, Skeleton,
+  PALETTE, ChartContainer, CountUp, ErrorCard, HealthDot, Skeleton,
   compact, inr, pct, timeAgo,
+  Band, LAZY_GROUP, SPAN, Kpi, MiniKpi,
+  // DeltaChip is rendered by Kpi/MiniKpi now rather than directly here, and
+  // PlaceholderKpi turned out never to have been rendered on this page at all —
+  // it was inline dead code. Both stay exported for the Social Tracker.
 } from "./dashboard/ui";
 import {
   DivergingArea, Donut, Funnel, Gauge, HBars, Heatmap, Histogram, MultiLine,
@@ -162,96 +166,8 @@ function useSection<T>(section: string, range: number, refreshKey: number, opts?
   ] as const;
 }
 
-// ── Layout atoms ─────────────────────────────────────────────────────────────
-function Band({ children, ariaLabel, label }: { children: React.ReactNode; ariaLabel: string; label?: string }) {
-  const reduced = useReducedMotion();
-  return (
-    <motion.section
-      aria-label={ariaLabel}
-      initial={reduced ? false : { opacity: 0, y: 12 }}
-      whileInView={reduced ? undefined : { opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 0.35, ease: "easeOut" }}
-      className="mb-4"
-    >
-      {label && (
-        <div className="flex items-center gap-2.5 mb-2.5 mt-1">
-          <span className="text-[10.5px] font-bold uppercase tracking-[0.14em] text-fg-subtle">{label}</span>
-          <span className="flex-1 h-px bg-line" />
-        </div>
-      )}
-      <div className="grid grid-cols-12 gap-4">{children}</div>
-    </motion.section>
-  );
-}
-
-// Wrapper for a band's lazily-fetched cards. This was `display: contents`,
-// which looked tidy — the cards became direct items of the outer grid — but
-// an element with `display: contents` generates NO BOX, and IntersectionObserver
-// measures a border box. So every observer silently never fired and every
-// lazy section below the hero KPIs stayed on its skeleton forever, in
-// production, with no error anywhere: types, build and unit tests all pass.
-//
-// A full-width NESTED grid lays the cards out identically (same 12 columns,
-// same gap) while being a real, measurable box.
-const LAZY_GROUP = "col-span-12 grid grid-cols-12 gap-4";
-
-// Tailwind needs literal class strings, so spans are named rather than built.
-const SPAN = {
-  2: "col-span-6 sm:col-span-4 xl:col-span-2",
-  3: "col-span-12 sm:col-span-6 xl:col-span-3",
-  4: "col-span-12 lg:col-span-6 xl:col-span-4",
-  5: "col-span-12 xl:col-span-5",
-  6: "col-span-12 lg:col-span-6",
-  8: "col-span-12 xl:col-span-8",
-  12: "col-span-12",
-} as const;
-
-function Kpi({
-  icon, label, value, format, delta, sub, spark, tooltip,
-}: {
-  icon?: React.ReactNode; label: string; value: number | null; format: (n: number) => string;
-  delta?: number | null; sub?: string; spark?: Spark[]; tooltip?: string;
-}) {
-  return (
-    <div className="bg-panel rounded-[var(--radius-card)] border border-line shadow-sm p-4 transition-shadow hover:shadow-md flex flex-col" title={tooltip}>
-      <div className="flex items-center gap-1.5 text-fg-subtle mb-1.5">
-        {icon && <span aria-hidden>{icon}</span>}
-        <span className="text-[11px] font-semibold">{label}</span>
-        {delta !== undefined && <span className="ml-auto"><DeltaChip pct={delta} /></span>}
-      </div>
-      <p className="text-2xl font-extrabold text-fg leading-none tracking-tight">
-        {value == null ? "—" : <CountUp value={value} format={format} />}
-      </p>
-      {sub && <p className="text-[10px] text-fg-subtle mt-1.5">{sub}</p>}
-      {spark && <div className="mt-auto pt-2.5"><SparkArea data={spark} /></div>}
-    </div>
-  );
-}
-
-function MiniKpi({ label, value, format, delta, sub }: {
-  label: string; value: number | null; format: (n: number) => string; delta?: number | null; sub?: string;
-}) {
-  return (
-    <div className="bg-panel rounded-[var(--radius-card)] border border-line shadow-sm px-4 py-3">
-      <p className="text-[9.5px] font-semibold uppercase tracking-wider text-fg-subtle truncate">{label}</p>
-      <p className="text-lg font-extrabold text-fg leading-tight mt-1">
-        {value == null ? "—" : <CountUp value={value} format={format} />}
-      </p>
-      {delta !== undefined ? <DeltaChip pct={delta} /> : sub ? <p className="text-[10px] text-fg-subtle">{sub}</p> : null}
-    </div>
-  );
-}
-
-function PlaceholderKpi({ label, needs }: { label: string; needs: string }) {
-  return (
-    <div className="rounded-[var(--radius-card)] border border-dashed border-line-strong px-4 py-3">
-      <p className="text-[9.5px] font-semibold uppercase tracking-wider text-fg-subtle truncate">{label}</p>
-      <p className="text-lg font-extrabold text-fg-subtle leading-tight mt-1">—</p>
-      <p className="text-[10px] text-fg-subtle">{needs}</p>
-    </div>
-  );
-}
+// Band, LAZY_GROUP, SPAN and the Kpi tile family now live in
+// app/components/dashboard, shared with the Social Tracker. Imported above.
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default function AdminDashboardPage() {
@@ -363,7 +279,7 @@ export default function AdminDashboardPage() {
                   <div className={SPAN[3]}>
                     <Kpi icon={<CreditCard size={13} />} label={`Revenue · ${rangeLabel}`} value={o.revenueRangeInPaise} format={inr}
                       delta={o.revenueGrowthPct} sub={`today ${inr(o.revenueTodayInPaise)} · MTD ${inr(o.revenueMtdInPaise)}`}
-                      spark={o.sparklines.revenue} />
+                      spark={<SparkArea data={o.sparklines.revenue} />} />
                   </div>
                   <div className={SPAN[3]}>
                     <Kpi icon={<Users size={13} />} label="Active paid subscribers" value={o.activeSubscribers} format={compact}
