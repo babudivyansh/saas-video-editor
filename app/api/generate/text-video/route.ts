@@ -5,12 +5,14 @@ import path from "path";
 import { getAuthUser, getUserTier } from "@/lib/auth";
 import { maxUploadBytesForTier, formatBytes } from "@/lib/plans/tiers";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { InProcessQueue } from "@/lib/job-queue";
 import { chargeCredits, refundCredits, markGenerationStatus } from "@/lib/credits";
 import { synthesizeVoice, WordTiming } from "@/utils/elevenlabs";
 import { runFFmpegArgs } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { resolveVoiceId } from "@/utils/voice-ids";
+import { musicBedVolumeExpr } from "@/lib/audio-ducking";
 import { downloadFile } from "@/utils/download";
 import { markQuestComplete } from "@/lib/quests";
 import { renderChatFrame, type CanvasTheme, type CanvasMessage } from "@/utils/chat-canvas";
@@ -162,6 +164,11 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
 
     let cursorMs = 0;
     const audioPiecesForConcat: string[] = [];
+    // Where speech actually is, for ducking the music bed. Each message is one
+    // contiguous range; the GAP_MS silences between them are what the bed gets
+    // to fill. Built here rather than from word timings because the messages
+    // are synthesised separately and never merged into one timing array.
+    const speechRanges: { start: number; end: number }[] = [];
     await setProgress(projectId, 10);
 
     for (let i = 0; i < messages.length; i++) {
@@ -177,7 +184,11 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
       msgAudioPaths.push(audioPath);
       audioPiecesForConcat.push(audioPath);
 
-      cursorMs += getTtsDurationMs(result.wordTimings);
+      const msgDurMs = getTtsDurationMs(result.wordTimings);
+      if (msgDurMs > 0) {
+        speechRanges.push({ start: cursorMs / 1000, end: (cursorMs + msgDurMs) / 1000 });
+      }
+      cursorMs += msgDurMs;
 
       // Add gap after every message except the last
       if (i < messages.length - 1) {
@@ -200,6 +211,7 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
 
     // 4. Download background music (only from our own S3 — reject third-party CDNs)
     let musicPath: string | undefined;
+    let musicUnavailable = false;
     if (bgMusicUrl && bgMusicUrl.includes(S3_HOST)) {
       logger.info("text-video", "Downloading background music...");
       const candidate = path.join(tmpDir, "music.mp3");
@@ -207,8 +219,12 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
         await downloadFile(bgMusicUrl, candidate);
         musicPath = candidate;
       } catch (err) {
+        // The render continues without music rather than failing. As of
+        // 2026-09 the bucket has no music/ prefix at all, so this fired for
+        // every track, every time — silently.
         logger.warn("text-video", "Background music unavailable, continuing without it", err);
         musicPath = undefined;
+        musicUnavailable = true;
       }
     }
 
@@ -321,7 +337,7 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
     });
     const audioSources = [`[${audioInputIdx}:a]`];
     if (musicPath && musicInputIdx > 0) {
-      filterComplex += `[${musicInputIdx}:a]volume=0.12[bgm];`;
+      filterComplex += `[${musicInputIdx}:a]volume=${musicBedVolumeExpr(speechRanges, cursorMs / 1000)}[bgm];`;
       audioSources.push("[bgm]");
     }
     popPaths.forEach((_, i) => {
@@ -370,7 +386,16 @@ async function renderTextVideoJob(payload: TextVideoPayload): Promise<void> {
     // 8. Mark complete
     await prisma.project.update({
       where: { id: projectId },
-      data: { status: "completed", videoUrl, progress: 100 },
+      data: {
+        status: "completed",
+        videoUrl,
+        progress: 100,
+        // Same channel AutoClip uses for "we shipped, but degraded" — read by
+        // PipelineNotice. JsonNull clears a warning from a previous attempt.
+        warnings: musicUnavailable
+          ? (["music_unavailable"] as unknown as Prisma.InputJsonValue)
+          : Prisma.JsonNull,
+      },
     });
     if (generationId) void markGenerationStatus(generationId, "completed");
     logger.info("text-video", `Done: ${videoUrl}`);

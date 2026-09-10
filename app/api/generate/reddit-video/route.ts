@@ -4,6 +4,7 @@ import os from "os";
 import path from "path";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { InProcessQueue } from "@/lib/job-queue";
 import { chargeCredits, refundCredits, markGenerationStatus } from "@/lib/credits";
 import { synthesizeVoice, WordTiming } from "@/utils/elevenlabs";
@@ -13,6 +14,8 @@ import { resolveCaptionCreateInput } from "@/lib/captions/createPayload";
 import { planSurfaceCaptions, requestSurfaceCaptionRender } from "@/lib/captions/surfaceRender";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { resolveVoiceId } from "@/utils/voice-ids";
+import { musicBedVolumeExpr } from "@/lib/audio-ducking";
+import { speechRangesFromWords } from "@/lib/autoclip-lite";
 import { downloadFile } from "@/utils/download";
 import { markQuestComplete } from "@/lib/quests";
 import { renderRedditCard } from "@/utils/reddit-canvas";
@@ -202,6 +205,7 @@ async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
 
     // 8. Download background music (only from our S3 — reject 3rd-party CDNs)
     let musicPath: string | undefined;
+    let musicUnavailable = false;
     if (bgMusicUrl && bgMusicUrl.includes(S3_HOST)) {
       logger.info("reddit-video", "Downloading background music...");
       const candidate = path.join(tmpDir, "music.mp3");
@@ -209,7 +213,12 @@ async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
         await downloadFile(bgMusicUrl, candidate);
         musicPath = candidate;
       } catch (err) {
+        // Recorded, not just logged. A missing track rendered as silence with
+        // nothing said: the user picked music, saw a waveform, and got a video
+        // without it. As of 2026-09 the bucket has no music/ prefix at all, so
+        // this fired for every track, every time.
         logger.warn("reddit-video", "Background music unavailable, continuing without it", err);
+        musicUnavailable = true;
       }
     }
     await setProgress(projectId, 60);
@@ -241,7 +250,14 @@ async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
 
         // Audio mixing
         if (musicPath && musicInputIdx > 0) {
-          filterComplex += `;[${musicInputIdx}:a]volume=0.12[bgm];[1:a][bgm]amix=inputs=2:duration=first[audio]`;
+          // Duck the bed under the voice instead of pinning it at a flat,
+          // inaudible 0.12 for the whole video. combinedTimings covers intro
+          // and script, already offset, so it is exactly the speech map.
+          const musicVol = musicBedVolumeExpr(
+            speechRangesFromWords(combinedTimings),
+            getTtsDurationMs(combinedTimings) / 1000,
+          );
+          filterComplex += `;[${musicInputIdx}:a]volume=${musicVol}[bgm];[1:a][bgm]amix=inputs=2:duration=first[audio]`;
         } else {
           filterComplex += ";[1:a]acopy[audio]";
         }
@@ -271,6 +287,7 @@ async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
         bgVideoPath,
         voiceAudioPath: combinedAudioPath,
         musicAudioPath: musicPath,
+        wordTimings: combinedTimings,
         assPath: burnSubs ? assPath : undefined,
         outputPath,
       });
@@ -305,7 +322,17 @@ async function renderRedditJob(payload: RedditVideoPayload): Promise<void> {
     // 11. Mark complete
     await prisma.project.update({
       where: { id: projectId },
-      data: { status: "completed", videoUrl, progress: 100 },
+      data: {
+        status: "completed",
+        videoUrl,
+        progress: 100,
+        // Same channel AutoClip uses for "we shipped, but degraded" — read by
+        // PipelineNotice. Silence about a missing track is what let this go
+        // unnoticed; JsonNull clears a warning from a previous attempt.
+        warnings: musicUnavailable
+          ? (["music_unavailable"] as unknown as Prisma.InputJsonValue)
+          : Prisma.JsonNull,
+      },
     });
     if (generationId) void markGenerationStatus(generationId, "completed");
     logger.info("reddit-video", `Done: ${videoUrl}`);

@@ -104,7 +104,9 @@ const BUDGET = {
   "raw-red": 15,
   // 51 -> 47: four of the retired brand hexes lived in the caption tile tables
   // deleted below.
-  "brand-hex": 47,
+  // 47 -> 43: four more went with the per-page voice lists, whose entries
+  // each carried a hand-assigned avatar tint.
+  "brand-hex": 43,
   "legacy-light": 0,
   // 320 -> 318: same deletion. The replacement (CaptionStyleGrid) still needs
   // two inline hex values for the swatch gradient — that is product artwork
@@ -120,7 +122,10 @@ const BUDGET = {
   // renderer defined separately and had already drifted from. All four now
   // render the shared named-template grid, which draws each swatch from the
   // template's own ASS style, so the preview and the burn-in cannot disagree.
-  "inline-hex": 152,
+  // 152 -> 112: the six hand-maintained voice lists are gone. Each entry
+  // carried a decorative colour literal, and two pages additionally held a
+  // copy of the provider's voice ids purely to build preview URLs by hand.
+  "inline-hex": 112,
 };
 
 function walk(dir, out = []) {

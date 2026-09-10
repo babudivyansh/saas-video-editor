@@ -117,10 +117,14 @@ function VoicePickerModal({
   const cachedPreviewUrls = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
-    fetch("/api/tools/voices")
-      .then(res => res.json())
-      .then((map: Record<string, string>) => {
-        cachedPreviewUrls.current = new Map(Object.entries(map));
+    fetch("/api/voices")
+      .then((res) => res.json())
+      .then((d: { voices?: { slug: string; previewUrl: string | null }[] }) => {
+        cachedPreviewUrls.current = new Map(
+          (d.voices ?? [])
+            .filter((v) => v.previewUrl)
+            .map((v) => [v.slug, v.previewUrl as string]),
+        );
       })
       .catch(() => { /* fall back to live synthesis for every voice */ });
   }, []);

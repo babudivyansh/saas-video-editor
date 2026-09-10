@@ -145,6 +145,32 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
     generationType: "video",
     requiredTier: "creator",
   },
+
+  // ── Features that charge credits but had no entry here ──────────────────
+  //
+  // Every one of these already deducted credits through spendCredits or
+  // chargeCredits with a local CREDIT_COST constant, so users were billed —
+  // but the admin AI-spend and margin dashboards aggregate Generation rows
+  // keyed off THIS map, so none of them reached cost reporting at all. The
+  // numbers below are the constants those routes already use: this makes them
+  // visible, it does not change anyone's price.
+  "generate-voice":     { creditCost: 2, costUsd: 0.10, costBasis: "$0.05/1,000 chars (ElevenLabs Flash TTS), 2,000-char cap — same price as the voiceover tool", generationType: "audio" },
+  "voice-preview":      { creditCost: 0, costUsd: 0.002, costBasis: "One ~35-char TTS sample. Free to the user; authenticated and capped at 20/hr so the cost is bounded by accounts, not IPs", generationType: "audio" },
+  "music-generate":     { creditCost: 4, costUsd: 0.075, costBasis: "ElevenLabs Music $0.15/min, 30s default bed (verify-before-ship: the Music API is paid-plan only and 402s on the current free account, so this rate is published pricing, not a measured call). Gated creator+", generationType: "audio" },
+  "split-screen":       { creditCost: 1, costUsd: null, costBasis: "Scribe/Whisper STT + FFmpeg render", generationType: "video" },
+  "streamer-video":     { creditCost: 1, costUsd: null, costBasis: "Scribe/Whisper STT + FFmpeg render", generationType: "video" },
+  "compile":            { creditCost: 1, costUsd: 0, costBasis: "FFmpeg render only — TTS is charged when the voice is generated", generationType: "video" },
+  "editor-render":      { creditCost: 1, costUsd: 0, costBasis: "FFmpeg timeline render (local compute only)", generationType: "video" },
+  "editor-captions":    { creditCost: 1, costUsd: null, costBasis: "Scribe/Whisper STT over the timeline audio", generationType: "utility" },
+  "editor-ai-text":     { creditCost: 1, costUsd: 0, costBasis: "Google Gemini text — near-zero per call", generationType: "utility" },
+  "auto-clip-rerender": { creditCost: 1, costUsd: 0, costBasis: "FFmpeg re-render of one clip (local compute only)", generationType: "video" },
+
+  // Script generation. Free until now, while brainstormer — the same class of
+  // Gemini call — charged 1. Priced to match that precedent rather than to
+  // recover cost: the real per-call spend is a fraction of a credit.
+  "script-generic":     { creditCost: 1, costUsd: 0, costBasis: "Google Gemini text (~150-200 words)", generationType: "utility" },
+  "script-reddit":      { creditCost: 1, costUsd: 0, costBasis: "Google Gemini text (150-350 words)", generationType: "utility" },
+  "script-text-video":  { creditCost: 1, costUsd: 0, costBasis: "Google Gemini text (6-10 short messages)", generationType: "utility" },
 };
 
 // "Starting at" display price for the two multi-model tools — kept in sync

@@ -62,6 +62,10 @@ export function useVideoGenerate() {
   const [error, setError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [progress, setProgress] = useState<number>(0);
+  // "Shipped, but degraded" — the same Project.warnings channel AutoClip uses.
+  // reddit-video and text-video write music_unavailable here; without this the
+  // row was recorded and never read, and a silent video looked intentional.
+  const [warnings, setWarnings] = useState<string[] | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollStartRef = useRef(0);
 
@@ -71,6 +75,7 @@ export function useVideoGenerate() {
 
   const startPolling = useCallback((projectId: string, token: string) => {
     if (pollRef.current) clearInterval(pollRef.current);
+    setWarnings(null);
     pollStartRef.current = Date.now();
     pollRef.current = setInterval(async () => {
       if (Date.now() - pollStartRef.current > MAX_POLL_DURATION_MS) {
@@ -93,11 +98,17 @@ export function useVideoGenerate() {
           return;
         }
         if (!res.ok) return; // other transient failures: keep polling
-        const { project } = await res.json() as { project: { status: string; videoUrl?: string; progress?: number } };
+        const { project } = await res.json() as { project: { status: string; videoUrl?: string; progress?: number; warnings?: unknown } };
         if (project.progress != null) setProgress(project.progress);
         if (project.status === "completed" && project.videoUrl) {
           clearInterval(pollRef.current!);
           setVideoUrl(project.videoUrl);
+          // Prisma Json — narrow it here rather than trusting the column shape.
+          setWarnings(
+            Array.isArray(project.warnings)
+              ? project.warnings.filter((w): w is string => typeof w === "string")
+              : null,
+          );
           setStatus("completed");
         } else if (project.status === "failed") {
           clearInterval(pollRef.current!);
@@ -451,7 +462,8 @@ export function useVideoGenerate() {
     setError(null);
     setProjectId(null);
     setProgress(0);
+    setWarnings(null);
   }, []);
 
-  return { status, videoUrl, error, projectId, progress, generateSplitScreen, generateStreamerVideo, generateRedditVideo, generateTextVideo, generateAutoClip, generateAutoClipForProject, reset };
+  return { status, videoUrl, error, projectId, progress, warnings, generateSplitScreen, generateStreamerVideo, generateRedditVideo, generateTextVideo, generateAutoClip, generateAutoClipForProject, reset };
 }

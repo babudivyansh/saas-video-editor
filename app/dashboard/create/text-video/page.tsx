@@ -1,7 +1,10 @@
 "use client";
 import { Suspense, useEffect, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useVoiceCatalog, playVoicePreview, ageLabel, type CatalogVoice } from "@/app/components/voices/useVoiceCatalog";
 import { useVideoGenerate, getStoredToken } from "@/app/hooks/useVideoGenerate";
+import { ACTIVE_MUSIC_TRACKS, musicUrl } from "@/lib/music/catalog";
+import PipelineNotice from "@/app/components/auto-clip/PipelineNotice";
 import { useAuth } from "@/app/components/AuthContext";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { AssetField } from "@/app/components/assets/AssetField";
@@ -182,73 +185,24 @@ const BACKGROUNDS = [
 
 // ── Voices ────────────────────────────────────────────────────────────────────
 // ElevenLabs voice IDs (mirrors utils/voice-ids.ts fallbacks) for preview URL generation
-const EL_IDS: Record<string, string> = {
-  william:   "VR6AewLTigWG4xSOukaG",
-  adam:      "pNInz6obpgDQGcFmaJgB",
-  dandan:    "TxGEqnHWrfWFTfGW9XjX",
-  natasha:   "21m00Tcm4TlvDq8ikWAM",
-  amir1:     "ZQe5CZNOzWyzPSCn5a3c",
-  amir2:     "bVMeCyTHy58xNoL34h3p",
-  spongebob: "jBpfuIE2acCO8z3wKNLl",
-  charlie:   "yoZ06aMxZJJ28mfd3POQ",
-  clyde:     "2EiwWnXFnvU5JabPnv8n",
-  daniel:    "onwK4e9ZLuTAKqWW03F9",
-  ethan:     "g5CIjZEefAph4nQFvHAz",
-  josh:      "TxGEqnHWrfWFTfGW9XjX",
-  rachel:    "21m00Tcm4TlvDq8ikWAM",
-  sarah:     "EXAVITQu4vr4xnSDxMaL",
-  alice:     "Xb7hH8MSUJpSbSDYk0k2",
-  emily:     "LcfcDJNUP1GQjkzn1xUU",
-  aria:      "9BWtsMINqrJLrRacOk9x",
-  bella:     "EXAVITQu4vr4xnSDxMaL",
-};
-const EL_PREVIEW = (slug: string) =>
-  `https://storage.googleapis.com/eleven-public-prod/premade/voices/${EL_IDS[slug] ?? ""}/preview.mp3`;
 
 // Module-level audio ref so we stop the previous clip before playing a new one
 let currentPreviewAudio: HTMLAudioElement | null = null;
 
-interface Voice { id: string; name: string; gender: "Male" | "Female"; age: string; accent: string; desc: string; }
 
-const VOICES: Voice[] = [
-  { id: "william",  name: "William",       gender: "Male",   age: "Middle aged", accent: "English",      desc: "The default narrator — clear and neutral, a safe choice for most videos" },
-  { id: "adam",     name: "Adam",          gender: "Male",   age: "Middle aged", accent: "Multilingual", desc: "Adam is one of the most recognizable voices used in many viral short-form videos" },
-  { id: "dandan",   name: "Dan Dan",       gender: "Male",   age: "Middle aged", accent: "Multilingual", desc: "Warm and conversational — suits story and commentary channels" },
-  { id: "natasha",  name: "Natasha",       gender: "Female", age: "Young",       accent: "Multilingual", desc: "Natasha is the soft voice most notably used in viral short-form videos for female voices" },
-  { id: "amir1",    name: "Amir #1",       gender: "Male",   age: "Young",       accent: "Multilingual", desc: "The one and only built-different sir Uber driver" },
-  { id: "amir2",    name: "Amir #2 (Ameer)", gender: "Male", age: "Young",       accent: "Multilingual", desc: "Amir's brother who is rivaling on doordash" },
-  { id: "spongebob",name: "Sponge Bob",    gender: "Male",   age: "Young",       accent: "Multilingual", desc: "Everyone's favorite fry cook from Bikini Bottom" },
-  { id: "charlie",  name: "Charlie",       gender: "Male",   age: "Young",       accent: "English",      desc: "A young Australian voice with a bright and energetic tone" },
-  { id: "clyde",    name: "Clyde",         gender: "Male",   age: "Middle aged", accent: "English",      desc: "Deep and authoritative American voice" },
-  { id: "daniel",   name: "Daniel",        gender: "Male",   age: "Middle aged", accent: "English",      desc: "Classic British accent, professional and clear" },
-  { id: "ethan",    name: "Ethan",         gender: "Male",   age: "Young",       accent: "English",      desc: "Young American voice, great for casual narration" },
-  { id: "josh",     name: "Josh",          gender: "Male",   age: "Young",       accent: "English",      desc: "Friendly young American voice for storytelling" },
-  { id: "rachel",   name: "Rachel",        gender: "Female", age: "Middle aged", accent: "English",      desc: "Calm and clear American female voice" },
-  { id: "sarah",    name: "Sarah",         gender: "Female", age: "Young",       accent: "English",      desc: "Young and expressive American female voice" },
-  { id: "alice",    name: "Alice",         gender: "Female", age: "Middle aged", accent: "English",      desc: "Sophisticated British female voice" },
-  { id: "emily",    name: "Emily",         gender: "Female", age: "Young",       accent: "Multilingual", desc: "Versatile young voice perfect for emotional stories" },
-  { id: "aria",     name: "Aria",          gender: "Female", age: "Middle aged", accent: "Multilingual", desc: "Smooth and professional multilingual voice" },
-  { id: "bella",    name: "Bella",         gender: "Female", age: "Young",       accent: "English",      desc: "Soft and pleasant voice ideal for lifestyle content" },
-];
 
 // ── Background Music ──────────────────────────────────────────────────────────
-const MUSIC_BASE =
-  process.env.NEXT_PUBLIC_MUSIC_BASE ??
-  "https://saas-video-editor-assets.s3.ap-south-1.amazonaws.com/music";
-
+// One shared library — lib/music/catalog.ts. This page used to derive the S3
+// key by slugifying the DISPLAY NAME, so any label that did not match its
+// object key 404’d silently. `slug` is now a real field on the entry.
 const BACKGROUND_MUSIC = [
-  { name: "No background music", duration: "",      desc: "Add your own music after generating your video in the editor" },
-  { name: "Green to Blue",       duration: "3m 8s",  desc: "waveform" },
-  { name: "Wii Shop Trap Theme", duration: "1m 0s",  desc: "waveform" },
-  { name: "Milk Cassette",       duration: "5m 8s",  desc: "waveform" },
-  { name: "Bladerunner",         duration: "3m 48s", desc: "waveform" },
-  { name: "3am Walk",            duration: "1m 0s",  desc: "waveform" },
-  { name: "Fluffing Duck",       duration: "1m 7s",  desc: "waveform" },
-  { name: "I was only temporary",duration: "1m 0s",  desc: "waveform" },
-  { name: "Phonk Drive",         duration: "2m 30s", desc: "waveform" },
-  { name: "Epic Cinematic",      duration: "3m 55s", desc: "waveform" },
-  { name: "Sad Piano",           duration: "2m 18s", desc: "waveform" },
-  { name: "Motivational Rise",   duration: "2m 40s", desc: "waveform" },
+  {
+    name: "No background music",
+    slug: "",
+    duration: "",
+    desc: "Add your own music after generating your video in the editor",
+  },
+  ...ACTIVE_MUSIC_TRACKS.map((t) => ({ ...t, desc: "waveform" })),
 ];
 
 // ── Message types ─────────────────────────────────────────────────────────────
@@ -431,18 +385,17 @@ function VoiceSettingsPanel({ settings, onChange, language, onLanguageChange }: 
 }
 
 // ── Voice Card (Text Video style) ─────────────────────────────────────────────
-function TvVoiceCard({ voice, selected, onSelect }: { voice: Voice; selected: boolean; onSelect: () => void }) {
-  function handlePlay(e: React.MouseEvent) {
+function TvVoiceCard({ voice, selected, onSelect }: { voice: CatalogVoice; selected: boolean; onSelect: () => void }) {
+  async function handlePlay(e: React.MouseEvent) {
     e.stopPropagation();
-    const previewUrl = EL_PREVIEW(voice.id);
-    if (!previewUrl) return;
     if (currentPreviewAudio) {
       currentPreviewAudio.pause();
       currentPreviewAudio = null;
     }
-    const audio = new Audio(previewUrl);
-    currentPreviewAudio = audio;
-    audio.play().catch(() => {});
+    // Plays the provider's hosted sample when there is one. This page used to
+    // build that URL by hand from a scraped CDN path plus its own copy of the
+    // provider ids; the catalogue supplies the supported one instead.
+    currentPreviewAudio = await playVoicePreview(voice);
   }
 
   return (
@@ -452,12 +405,12 @@ function TvVoiceCard({ voice, selected, onSelect }: { voice: Voice; selected: bo
       style={selected ? { borderWidth: "2px" } : { borderWidth: "1px" }}
     >
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold text-fg">{voice.name}</p>
-        <p className="text-[11px] text-fg-subtle mt-0.5 leading-snug">{voice.desc}</p>
+        <p className="text-sm font-bold text-fg">{voice.label}</p>
+        <p className="text-[11px] text-fg-subtle mt-0.5 leading-snug">{voice.description ?? ""}</p>
         <div className="flex gap-1.5 mt-1.5 flex-wrap">
           <span className="text-[10px] bg-surface-3 text-fg-muted px-2 py-0.5 rounded-md font-medium">{voice.gender}</span>
-          <span className="text-[10px] bg-surface-3 text-fg-muted px-2 py-0.5 rounded-md font-medium">{voice.age}</span>
-          <span className="text-[10px] bg-purple-50 text-purple-600 px-2 py-0.5 rounded-md font-medium">{voice.accent}</span>
+          <span className="text-[10px] bg-surface-3 text-fg-muted px-2 py-0.5 rounded-md font-medium">{ageLabel(voice.age)}</span>
+          <span className="text-[10px] bg-purple-50 text-purple-600 px-2 py-0.5 rounded-md font-medium">{voice.accent ?? "—"}</span>
         </div>
       </div>
       {/* Play preview button */}
@@ -479,8 +432,12 @@ function TvVoiceCard({ voice, selected, onSelect }: { voice: Voice; selected: bo
 // ── Voice Column (Text Video style) ──────────────────────────────────────────
 function TvVoiceColumn({ title, selected, onSelect }: { title: string; selected: string; onSelect: (id: string) => void }) {
   const [search, setSearch] = useState("");
-  const filtered = VOICES.filter(v =>
-    v.name.toLowerCase().includes(search.toLowerCase()) || v.accent.toLowerCase().includes(search.toLowerCase())
+  // The one catalogue, live. This page compiled in its own 18-entry list plus a
+  // second table of raw provider ids used to build CDN preview URLs by hand.
+  const { voices, configured } = useVoiceCatalog();
+  const q = search.toLowerCase();
+  const filtered = voices.filter((v) =>
+    v.label.toLowerCase().includes(q) || (v.accent ?? "").toLowerCase().includes(q)
   );
   return (
     <div className="flex flex-col gap-3 p-5 border-r border-line">
@@ -498,10 +455,13 @@ function TvVoiceColumn({ title, selected, onSelect }: { title: string; selected:
           className="w-full rounded-lg border border-line bg-panel pl-8 pr-3.5 py-2 text-sm focus:outline-none placeholder:text-fg-subtle" />
       </div>
       <div className="overflow-y-auto space-y-2 pr-0.5" style={{ maxHeight: "calc(100vh - 300px)" }}>
+        {!configured && (
+          <p className="text-xs text-fg-subtle">Voice generation is not configured, so generating will fail.</p>
+        )}
         {filtered.length === 0 ? (
           <p className="text-sm text-fg-subtle text-center py-4">No voices found</p>
         ) : filtered.map(v => (
-          <TvVoiceCard key={v.id} voice={v} selected={selected === v.id} onSelect={() => onSelect(v.id)} />
+          <TvVoiceCard key={v.slug} voice={v} selected={selected === v.slug} onSelect={() => onSelect(v.slug)} />
         ))}
       </div>
     </div>
@@ -679,7 +639,7 @@ function TextVideoFlow() {
   const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(DEFAULT_VS);
   const [language, setLanguage] = useState("auto");
 
-  const { status: genStatus, videoUrl, error: genError, generateTextVideo, reset, progress: renderProgress } = useVideoGenerate();
+  const { status: genStatus, videoUrl, error: genError, generateTextVideo, reset, progress: renderProgress, warnings } = useVideoGenerate();
 
   const fireReviewPrompt = useReviewPromptTrigger();
   const reviewPromptFiredRef = useRef(false);
@@ -698,7 +658,7 @@ function TextVideoFlow() {
     const bg = BACKGROUNDS[selectedBg];
     const bgVideoUrl = backgroundUrlFor(bg.title);
     const bgMusicUrl = selectedMusic > 0
-      ? `${MUSIC_BASE}/${BACKGROUND_MUSIC[selectedMusic].name.toLowerCase().replace(/\s+/g, "-")}.mp3`
+      ? musicUrl(BACKGROUND_MUSIC[selectedMusic].slug)
       : "";
     const t = THEMES[selectedTheme];
 
@@ -859,6 +819,9 @@ function TextVideoFlow() {
               className="text-sm font-semibold text-blue-600 underline">Download / View</a>
             <button onClick={reset} className="ml-auto text-xs text-fg-subtle hover:text-fg-muted">Dismiss</button>
           </div>
+        )}
+        {genStatus === "completed" && videoUrl && (
+          <div className="px-6 pt-3"><PipelineNotice warnings={warnings} /></div>
         )}
         {genStatus === "failed" && genError && (
           <div className="flex items-center gap-3 px-6 py-3 bg-error/10 border-b border-error/40">

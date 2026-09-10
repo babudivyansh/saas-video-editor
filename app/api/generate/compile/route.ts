@@ -56,6 +56,7 @@ async function renderJob(payload: RenderJobPayload): Promise<void> {
       bgVideoPath: bgPath,
       voiceAudioPath: voicePath,
       musicAudioPath: musicPath,
+      wordTimings,
       assPath,
       outputPath: outPath,
     });

@@ -47,6 +47,10 @@ export const TOOL_DEFAULTS: ToolConfigMap = {
   "reddit-video":     { enabled: true, creditCost: TOOL_COSTS["reddit-video"].creditCost },
   "text-video":       { enabled: true, creditCost: TOOL_COSTS["text-video"].creditCost },
   "enhance-speech":   { enabled: true, creditCost: TOOL_COSTS["enhance-speech"].creditCost },
+  // The legacy editor wizard's voice step. It charged nothing at all until
+  // now; an entry here gives it the same admin kill-switch every other
+  // billable tool has.
+  "generate-voice":   { enabled: true, creditCost: TOOL_COSTS["generate-voice"].creditCost },
   "video-generator":      { enabled: true, creditCost: VIDEO_GENERATOR_STARTING_CREDIT_COST },
   "youtube-downloader":     { enabled: true, creditCost: TOOL_COSTS["youtube-downloader"].creditCost },
   "instagram-downloader":   { enabled: true, creditCost: TOOL_COSTS["instagram-downloader"].creditCost },

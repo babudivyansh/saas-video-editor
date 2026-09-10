@@ -62,3 +62,40 @@ export function duckVolumeExpr(segs: DuckSegment[], fallback = 1): string {
   }
   return expr;
 }
+
+// ── The one way a render mixes a music bed under speech ───────────────────────
+//
+// Three pipelines (reddit-video, text-video, the split-screen renderer in
+// utils/ffmpeg-render.ts) each hardcoded `volume=0.12` — a flat level chosen so
+// the bed never fights the voice, which also means the bed is inaudible for the
+// whole video, including the gaps where it is the only thing playing. AutoClip
+// lite was the sole caller of the envelope builder above.
+//
+// `fullGain` is 0.35, not 1. The plan called for 1 on the grounds that 0.12 is
+// the level users already hear during speech, so nothing gets quieter; but a
+// bed at unity between sentences is not "audible", it is louder than the voice
+// that follows it. 0.35 is roughly a third down — clearly present in a gap,
+// clearly behind the speaker.
+const FLAT_MUSIC_GAIN = 0.12;
+const FULL_MUSIC_GAIN = 0.35;
+
+/**
+ * The FFmpeg `volume=` value for a music bed. Returns the historic flat gain
+ * when there are no word timings to duck against — a missing transcript must
+ * never block a render, it just costs the ducking.
+ */
+export function musicBedVolumeExpr(
+  speechRanges: { start: number; end: number }[],
+  totalDurationSec: number,
+): string {
+  if (!speechRanges.length || !Number.isFinite(totalDurationSec) || totalDurationSec <= 0) {
+    return String(FLAT_MUSIC_GAIN);
+  }
+  const segs = computeDuckEnvelope(speechRanges, totalDurationSec, {
+    duckGain: FLAT_MUSIC_GAIN,
+    fullGain: FULL_MUSIC_GAIN,
+  });
+  // eval=frame is required: without it FFmpeg evaluates the expression once, at
+  // t=0, and the whole track plays at whatever the first segment resolved to.
+  return `'${duckVolumeExpr(segs, FLAT_MUSIC_GAIN)}':eval=frame`;
+}

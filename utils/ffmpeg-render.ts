@@ -6,6 +6,8 @@ import ffmpegStatic from "ffmpeg-static";
 import { ensureExecutable } from "@/lib/ensure-executable";
 import { logger } from "@/lib/logger";
 import { resolveFontFile, escapeFilterPath } from "@/lib/editor/filtergraph";
+import { musicBedVolumeExpr } from "@/lib/audio-ducking";
+import { speechRangesFromWords } from "@/lib/autoclip-lite";
 
 /**
  * The pinned, application-owned Linux render runtime installed by
@@ -353,6 +355,13 @@ export interface RenderOptions {
   bgVideoPath: string;   // local file or s3 presigned url
   voiceAudioPath: string;
   musicAudioPath?: string;
+  /**
+   * Speech timings for the voice track. Supplied, the music bed ducks under
+   * the words and comes up in the gaps; omitted, it sits at the historic flat
+   * gain for the whole render. Never required — a render must not fail for
+   * want of a transcript.
+   */
+  wordTimings?: WordTiming[];
   /** Omit to render WITHOUT captions — see SplitScreenOptions.assPath. */
   assPath?: string;
   outputPath: string;
@@ -360,7 +369,11 @@ export interface RenderOptions {
 
 export function runFFmpeg(opts: RenderOptions, timeoutMs = DEFAULT_FFMPEG_TIMEOUT_MS): Promise<void> {
   return new Promise((resolve, reject) => {
-    const { bgVideoPath, voiceAudioPath, musicAudioPath, assPath, outputPath } = opts;
+    const { bgVideoPath, voiceAudioPath, musicAudioPath, assPath, outputPath, wordTimings } = opts;
+    const musicVol = musicBedVolumeExpr(
+      wordTimings ? speechRangesFromWords(wordTimings) : [],
+      wordTimings?.length ? wordTimings[wordTimings.length - 1].end / 1000 : 0,
+    );
 
     // Escape the ass path for the subtitles filter (forward slashes, escape colons on Windows)
     const assEscaped = assPath ? assPath.replace(/\\/g, "/").replace(/:/g, "\\:") : null;
@@ -375,7 +388,7 @@ export function runFFmpeg(opts: RenderOptions, timeoutMs = DEFAULT_FFMPEG_TIMEOU
         "-i", voiceAudioPath,
         "-i", musicAudioPath,
         "-filter_complex",
-        `[2:a]volume=0.12[bgm];[1:a][bgm]amix=inputs=2:duration=first[audio];[0:v]crop=in_h*9/16:in_h${subs}[video]`,
+        `[2:a]volume=${musicVol}[bgm];[1:a][bgm]amix=inputs=2:duration=first[audio];[0:v]crop=in_h*9/16:in_h${subs}[video]`,
         "-map", "[video]",
         "-map", "[audio]",
         ...encodeArgs(),

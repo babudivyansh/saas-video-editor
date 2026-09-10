@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAuthUser } from "@/lib/auth";
 import { resolveVoiceId } from "@/utils/voice-ids";
-import { synthesizeVoice } from "@/utils/elevenlabs";
+import { synthesizeVoice, isElevenLabsConfigured } from "@/utils/elevenlabs";
 import { logger } from "@/lib/logger";
-import { env } from "@/lib/env";
 import { withRateLimit } from "@/lib/with-rate-limit";
 
 export const maxDuration = 30;
@@ -19,7 +19,10 @@ const PREVIEW_TEXT = "This is the AI voice of BlogVerse.";
 // uses), so what a user previewed didn't represent what they'd actually get
 // or be billed for, and never retried a 429/5xx.
 async function handlePOST(req: NextRequest) {
-  if (!env.ELEVENLABS_API_KEY) {
+  const auth = await getAuthUser(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (!isElevenLabsConfigured()) {
     return NextResponse.json({ error: "Voice generation is not configured" }, { status: 503 });
   }
 
@@ -50,6 +53,7 @@ async function handlePOST(req: NextRequest) {
   }
 }
 
-// Same bucket/limit as before this was converted to the shared wrapper —
-// unauthenticated route, so this keys on IP either way.
-export const POST = withRateLimit(handlePOST, { limit: 20, windowSec: 3600, keyBy: "ip", name: "voice-preview" });
+// Keyed on the USER now that the route is authenticated: an IP key on a
+// billable endpoint is bounded by how many IPs an attacker has, not by how many
+// accounts they can create.
+export const POST = withRateLimit(handlePOST, { limit: 20, windowSec: 3600, keyBy: "user", name: "voice-preview" });
