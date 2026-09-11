@@ -65,13 +65,13 @@ export function TimeSeriesChart({
               x2={VIEW_W - PAD.right}
               y1={y}
               y2={y}
-              stroke="var(--card-border)"
+              stroke="var(--line)"
               strokeWidth="1"
             />
           ))}
 
           {/* Axis labels in a text token, never a series colour. */}
-          <text x={PAD.left - 6} y={PAD.top + 4} textAnchor="end" fontSize="10" fill="var(--ink-soft)">
+          <text x={PAD.left - 6} y={PAD.top + 4} textAnchor="end" fontSize="10" fill="var(--fg-subtle)">
             {fmtByUnit(plot.max, plot.unit)}
           </text>
           <text
@@ -79,13 +79,13 @@ export function TimeSeriesChart({
             y={height - PAD.bottom + 4}
             textAnchor="end"
             fontSize="10"
-            fill="var(--ink-soft)"
+            fill="var(--fg-subtle)"
           >
             {fmtByUnit(plot.min, plot.unit)}
           </text>
           {plot.dates.length > 0 && (
             <>
-              <text x={PAD.left} y={height - 6} fontSize="10" fill="var(--ink-soft)">
+              <text x={PAD.left} y={height - 6} fontSize="10" fill="var(--fg-subtle)">
                 {fmtDateShort(plot.dates[0])}
               </text>
               <text
@@ -93,7 +93,7 @@ export function TimeSeriesChart({
                 y={height - 6}
                 textAnchor="end"
                 fontSize="10"
-                fill="var(--ink-soft)"
+                fill="var(--fg-subtle)"
               >
                 {fmtDateShort(plot.dates[plot.dates.length - 1])}
               </text>
@@ -154,7 +154,7 @@ export function TimeSeriesChart({
                 x2={plot.x(cursor.index)}
                 y1={PAD.top}
                 y2={height - PAD.bottom}
-                stroke="var(--ink-soft)"
+                stroke="var(--line-strong)"
                 strokeWidth="1"
                 opacity={0.4}
               />

@@ -12,6 +12,23 @@ import { METRIC_KEYS, type MetricKey, type Support } from "@/lib/social/capabili
 import type { AccountContext } from "@/lib/social/queries";
 import type { ValueUnit } from "@/app/components/charts/format";
 
+// ConfirmDialog (via the AI panel) reads translations; the real layout provides
+// the provider and a bare render does not.
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string) => key,
+  useLocale: () => "en",
+}));
+vi.mock("next-intl/server", () => ({ getTranslations: async () => (key: string) => key }));
+
+// AlertStrip is an async Server Component. Next's RSC renderer awaits such a
+// child; the client renderer used here cannot, and an unresolved promise in the
+// tree blanks the whole render. Its own copy is covered in
+// components/panels.component.test.tsx.
+vi.mock("./components/AlertStrip", () => ({
+  AlertStrip: ({ alerts }: { alerts: unknown[] }) =>
+    alerts.length > 0 ? <div data-testid="alerts">{alerts.length}</div> : null,
+}));
+
 // The page's client islands (QuickActions, KpiGrid…) reach for the auth token
 // and the toast host, which the real layout provides and a bare render does not.
 vi.mock("@/app/components/AuthContext", () => ({
@@ -41,7 +58,13 @@ vi.mock("@/lib/prisma", () => ({
     socialGoal: { findMany: vi.fn(async () => []) },
     socialAccountSnapshot: { findMany: vi.fn(async () => []) },
     socialPost: { findMany: vi.fn(async () => []) },
+    aiInsight: { findFirst: vi.fn(async () => null), findMany: vi.fn(async () => []) },
   },
+}));
+
+// Credit prices are read on the server so each button can state its cost.
+vi.mock("@/lib/tool-config", () => ({
+  getToolConfig: vi.fn(async () => ({ enabled: true, creditCost: 5 })),
 }));
 
 // The chart kit measures its own SVG; none of these assertions are about it.
@@ -138,7 +161,55 @@ describe("Social Tracker Overview", () => {
     await render_();
 
     expect(loadAccountKpis).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("gauge")).toBeInTheDocument(); // health, single-account only
+    // The bands, in order, are what the page promises to render.
+    for (const band of ["Headline performance", "Trends", "All metrics", "Connected accounts"]) {
+      expect(screen.getByRole("region", { name: band })).toBeInTheDocument();
+    }
+  });
+
+  // healthScore is written by the nightly `scores` job, which had never been
+  // scheduled in production — so this gauge was handed value={null} for every
+  // account that has ever existed. Saying so beats drawing an empty dial.
+  it("explains an unscored account instead of drawing an empty gauge", async () => {
+    const acc = account({ healthScore: null });
+    loadViewContext.mockResolvedValue({
+      userId: "u1", accounts: [acc], allAccounts: [acc],
+      filters: { range: 30, granularity: "day", scope: { kind: "one", id: acc.id } },
+    });
+    loadAccountKpis.mockResolvedValue(accountKpis(acc));
+
+    await render_();
+
+    expect(screen.getByText(/scored nightly/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("gauge")).not.toBeInTheDocument();
+  });
+
+  it("draws the gauge once the account has a score", async () => {
+    const acc = account({ healthScore: 78 });
+    loadViewContext.mockResolvedValue({
+      userId: "u1", accounts: [acc], allAccounts: [acc],
+      filters: { range: 30, granularity: "day", scope: { kind: "one", id: acc.id } },
+    });
+    loadAccountKpis.mockResolvedValue(accountKpis(acc));
+
+    await render_();
+
+    expect(screen.getByTestId("gauge")).toBeInTheDocument();
+  });
+
+  // Averaging health across accounts would describe none of them.
+  it("says why there is no single health score for a multi-account view", async () => {
+    const a = account({ id: "a" });
+    const b = account({ id: "b", displayName: "Second" });
+    loadViewContext.mockResolvedValue({
+      userId: "u1", accounts: [a, b], allAccounts: [a, b],
+      filters: { range: 30, granularity: "day", scope: { kind: "all" } },
+    });
+    loadAccountKpis.mockImplementation(async (acc: AccountContext) => accountKpis(acc));
+
+    await render_();
+
+    expect(screen.getByText(/pick a single account/i)).toBeInTheDocument();
   });
 
   // Regression: YouTube sends snapshots but no daily follower column, so the

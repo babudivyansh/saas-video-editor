@@ -552,6 +552,22 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
       },
     },
   }),
+  "social-report-ready": entry({
+    id: "social-report-ready",
+    title: "Scheduled report ready",
+    group: "social",
+    category: "transactional",
+    trigger: "A report with recipients finishes building (scheduled or manual)",
+    build: social.socialReportReady,
+    samples: {
+      default: {
+        name: "Divyansh",
+        reportName: "Monthly performance",
+        period: "monthly",
+        downloadUrl: "https://clipiro.com/dashboard/social-tracker/reports",
+      },
+    },
+  }),
 
   // ── Admin ─────────────────────────────────────────────────────────────────
   "admin-ops-digest": entry({

@@ -10,6 +10,7 @@
 
 import type { ReactNode } from "react";
 import { fmtByUnit, fmtDateLong, type ValueUnit } from "./format";
+import { CHART_EMPTY_COPY } from "@/app/components/dashboard/palette";
 
 export interface ChartSeriesMeta {
   key: string;
@@ -61,13 +62,18 @@ export function ChartFrame({
   const showLegend = series.filter((s) => s.style !== "dashed").length > 1;
 
   return (
+    // Deliberately matched to app/components/dashboard/Panel, down to the
+    // padding and type scale, so a chart card and a table card sitting in the
+    // same band are indistinguishable. Not literally Panel, because that
+    // renders a <div> with an <h2>, and a chart with a caption wants
+    // <figure>/<figcaption> — the semantics differ even though the look must not.
     <figure
-      className={`rounded-[var(--radius-card)] border border-line bg-panel p-4 shadow-sm ${className}`}
+      className={`rounded-[var(--radius-card)] border border-line bg-panel p-5 shadow-sm transition-shadow hover:shadow-md ${className}`}
     >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <figcaption className="text-sm font-semibold text-fg">{title}</figcaption>
-          {subtitle && <p className="mt-0.5 text-xs text-fg-muted">{subtitle}</p>}
+          <figcaption className="text-sm font-bold text-fg">{title}</figcaption>
+          {subtitle && <p className="text-[11px] text-fg-subtle">{subtitle}</p>}
         </div>
         {actions && <div className="flex flex-shrink-0 items-center gap-1">{actions}</div>}
       </div>
@@ -92,7 +98,7 @@ export function ChartFrame({
           role="status"
           aria-live="polite"
           aria-busy="true"
-          className="h-40 animate-pulse rounded-xl bg-bg"
+          className="h-40 animate-pulse rounded-[var(--radius-card)] bg-surface-3"
         >
           <span className="sr-only">Loading {title}</span>
         </div>
@@ -109,8 +115,8 @@ export function ChartFrame({
           <DataTable title={title} series={series} xLabel={xLabel} formatX={formatX} />
         </>
       ) : (
-        <p className="py-10 text-center text-sm text-fg-muted">
-          {emptyHint ?? "Not enough history yet — check back after a few syncs."}
+        <p className="py-6 text-center text-xs text-fg-subtle">
+          {emptyHint ?? CHART_EMPTY_COPY}
         </p>
       )}
     </figure>

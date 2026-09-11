@@ -52,3 +52,36 @@ export function socialDigest(p: { name: string; accounts: SocialDigestAccount[] 
     ],
   };
 }
+
+/**
+ * A scheduled report has finished building.
+ *
+ * The link is the app's own download route, not a presigned S3 URL: presigned
+ * links expire in minutes and this email may be read hours later, and a URL
+ * that grants the bearer access to a private analytics PDF should not be
+ * sitting in an inbox at all. The route re-checks ownership on click.
+ */
+export function socialReportReady(p: {
+  name: string;
+  reportName: string;
+  period: string;
+  downloadUrl: string;
+}): EmailDocument {
+  return {
+    subject: `Your ${p.reportName} is ready`,
+    preheader: `The ${p.period} report you scheduled has finished building.`,
+    blocks: [
+      { kind: "heading", text: "Your report is ready" },
+      {
+        kind: "paragraph",
+        text: `Hi ${greet(p.name)}, the ${p.period} report you scheduled — ${p.reportName} — has finished building.`,
+      },
+      { kind: "button", href: p.downloadUrl, label: "Open the report", tone: "accent" },
+      {
+        kind: "paragraph",
+        tone: "fine",
+        text: "You're getting this because you set this report to run on a schedule. Turn it off in Social Tracker → Reports.",
+      },
+    ],
+  };
+}

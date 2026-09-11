@@ -1,7 +1,7 @@
 "use client";
 
 import { TimeSeriesChart } from "@/app/components/charts";
-import { PALETTE } from "@/app/components/dashboard";
+import { PALETTE, SPAN } from "@/app/components/dashboard";
 
 /**
  * The two trends that answer "am I growing, and is my content travelling?".
@@ -33,13 +33,12 @@ export function TrendSection({
   const trend = (points: Array<{ date: string; value: number }>) =>
     points.length > 1 ? points : [];
 
+  // Returns the two cards as direct children of the enclosing Band's 12-column
+  // grid, rather than a section with its own heading and its own nested grid —
+  // the Band supplies both, and two grids would fight over the gap.
   return (
-    <section aria-labelledby="trends-heading" className="space-y-4">
-      <h2 id="trends-heading" className="text-sm font-semibold text-fg">
-        Trends
-      </h2>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <>
+      <div className={SPAN[6]}>
         <TimeSeriesChart
           title="Follower growth"
           subtitle={period}
@@ -49,7 +48,9 @@ export function TrendSection({
           ]}
           emptyHint="Not enough history yet — follower trends appear after a few syncs."
         />
+      </div>
 
+      <div className={SPAN[6]}>
         <TimeSeriesChart
           title="Views"
           subtitle={period}
@@ -64,6 +65,6 @@ export function TrendSection({
           emptyHint="No view data for this range yet."
         />
       </div>
-    </section>
+    </>
   );
 }

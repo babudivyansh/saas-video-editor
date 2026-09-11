@@ -8,6 +8,8 @@
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { uploadBufferToS3 } from "@/utils/s3-upload";
+import { sendSocialReportReadyEmail } from "@/lib/email";
+import { appUrl } from "../oauth";
 import type { MetricKey } from "../capabilities";
 import {
   compareCompetitors, contentTypeBreakdown, goalProgress, postEngagementRate,
@@ -48,14 +50,34 @@ export async function buildReport(runId: string): Promise<BuildResult> {
       ? await prisma.socialReportConfig.findUnique({ where: { id: run.configId } })
       : null;
 
+    const sections = (config?.sections as ReportSection[]) ?? ["kpis", "trends", "content", "ai"];
+
+    // The "ai" section was in the default list but buildReport never passed
+    // `ai`, so it resolved to null and every report shipped with an empty AI
+    // block. Reports deliberately never call the model themselves; this reuses
+    // whatever /api/social/summary last produced for the period, at no charge.
+    // When there is nothing stored, the section says so rather than being
+    // silently blank — an empty heading is worse than either.
+    const aiSummary = sections.includes("ai")
+      ? await prisma.aiInsight.findFirst({
+          where: {
+            accountId: { in: config?.accountIds ?? [] },
+            kind: { startsWith: "executive_summary_" },
+            createdAt: { gte: run.periodStart },
+          },
+          orderBy: { createdAt: "desc" },
+        })
+      : null;
+
     const model = await assembleReport({
       userId: run.userId,
       accountIds: config?.accountIds ?? [],
-      sections: (config?.sections as ReportSection[]) ?? ["kpis", "trends", "content", "ai"],
+      sections,
       period: (config?.period as Period) ?? "monthly",
       periodStart: run.periodStart,
       periodEnd: run.periodEnd,
       title: config?.name,
+      ai: (aiSummary?.content ?? null) as ReportAi | null,
     });
 
     const { buffer, contentType, extension } = await render(model, run.format);
@@ -66,6 +88,37 @@ export async function buildReport(runId: string): Promise<BuildResult> {
       where: { id: runId },
       data: { status: "done", storageKey, sizeBytes: buffer.byteLength, completedAt: new Date() },
     });
+
+    // Delivery. `recipients` had never been read anywhere: reports were built,
+    // uploaded and abandoned, so a scheduled report was a file nobody was told
+    // about. Done here rather than in runScheduledReports so a manual run with
+    // recipients also delivers — this is the one place a report becomes
+    // available.
+    //
+    // Best-effort: a failed send must not fail a report that built fine and is
+    // sitting in S3, and must not mark the run failed.
+    if (config && config.recipients.length > 0) {
+      const user = await prisma.user.findUnique({
+        where: { id: run.userId },
+        select: { name: true },
+      });
+      for (const to of config.recipients) {
+        try {
+          await sendSocialReportReadyEmail(to, {
+            name: user?.name ?? "there",
+            reportName: config.name,
+            period: config.period,
+            // The app's own page, not a presigned S3 URL: presigned links
+            // expire in minutes and this may be read hours later, and a URL
+            // granting its bearer a private analytics PDF should not live in
+            // an inbox. The reports page re-checks ownership.
+            downloadUrl: `${appUrl()}/dashboard/social-tracker/reports`,
+          });
+        } catch (e) {
+          logger.warn("social-reports", `run ${runId} built but delivery to a recipient failed`, e);
+        }
+      }
+    }
 
     return { storageKey, sizeBytes: buffer.byteLength };
   } catch (e) {

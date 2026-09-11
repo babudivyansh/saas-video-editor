@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { assertOwnedAccounts, ok, parseBody, parseQuery, withSocial } from "@/lib/social/api";
+import { NotFoundError, assertOwnedAccounts, ok, parseBody, parseQuery, withSocial } from "@/lib/social/api";
 import { periodSchema, reportConfigSchema, reportFormatSchema } from "@/lib/social/schemas";
 import { periodBounds } from "@/lib/social/metrics";
 import { enqueueReport } from "@/lib/social/reports/queue";
@@ -17,8 +17,21 @@ const RUN_PAGE = 20;
 const runBodySchema = z.object({
   /** Reuse a saved config, or describe a one-off run inline. */
   configId: z.string().min(8).max(64).optional(),
-  config: reportConfigSchema.omit({ name: true, schedule: true, recipients: true }).extend({
+  // `schedule` and `recipients` used to be stripped here and hardcoded below,
+  // which made scheduled reports impossible BY CONSTRUCTION: no config could
+  // ever have schedule !== "none", so runScheduledReports queried for weekly
+  // and monthly configs and always found zero. The columns, the index serving
+  // that query, and the ?job=reports cron all existed for a feature no request
+  // could reach. lib/social/schemas.ts already defined both correctly.
+  config: reportConfigSchema.omit({ name: true, recipients: true }).extend({
     name: z.string().trim().min(1).max(120).optional(),
+    // A boolean, NOT a recipient list. The column holds addresses and the
+    // schema validates up to ten of them, but accepting arbitrary ones here
+    // would make this an open relay for report attachments — anyone could have
+    // a private analytics PDF delivered to an address they do not control.
+    // Refusing the input outright beats accepting it and quietly ignoring it.
+    // Widen to a real list once addresses are verified per account.
+    deliverToOwner: z.boolean().default(false),
   }).optional(),
   period: periodSchema.optional(),
   format: reportFormatSchema.optional(),
@@ -57,7 +70,12 @@ export const POST = withSocial(async (req: NextRequest, { auth }) => {
     : null;
   // A configId that is not ours is indistinguishable from one that does not
   // exist, same rule as assertOwnedAccount.
-  if (body.configId && !config) return ok({ error: "Report not found" }, { status: 404 });
+  //
+  // Thrown, not returned: ok() wraps its argument in { data }, so returning
+  // here produced {"data":{"error":"Report not found"}} with a 404 status —
+  // and useSocialApi reads body.error on a failure, so the client showed the
+  // generic "Request failed (404)" instead of the message this line wrote.
+  if (body.configId && !config) throw new NotFoundError("Report not found");
 
   const accountIds = config?.accountIds ?? body.config?.accountIds ?? [];
   if (accountIds.length > 0) await assertOwnedAccounts(auth.userId, accountIds);
@@ -80,8 +98,8 @@ export const POST = withSocial(async (req: NextRequest, { auth }) => {
             period,
             sections: body.config.sections,
             format,
-            schedule: "none",
-            recipients: [],
+            schedule: body.config.schedule,
+            recipients: body.config.deliverToOwner ? [auth.email] : [],
           },
         })
       : null);

@@ -32,7 +32,7 @@ export default async function SocialTrackerV2Layout({
     // itself the same way), and useToast throws without it. Server-rendered
     // children pass straight through as a prop.
     <ToastProvider>
-    <div className="mx-auto w-full max-w-[1600px] flex-1 p-4 sm:p-8">
+    <div className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-5 sm:px-6">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <span
@@ -45,8 +45,8 @@ export default async function SocialTrackerV2Layout({
             </svg>
           </span>
           <div>
-            <h1 className="text-xl font-extrabold text-fg">Social Tracker</h1>
-            <p className="text-xs text-fg-muted">
+            <h1 className="text-xl font-bold text-fg">Social Tracker</h1>
+            <p className="text-[11px] text-fg-subtle">
               {accounts.length === 0
                 ? "Connect an account to start tracking"
                 : `${accounts.length} connected ${accounts.length === 1 ? "account" : "accounts"}`}
@@ -56,12 +56,12 @@ export default async function SocialTrackerV2Layout({
       </header>
 
       {/* useSearchParams needs a Suspense boundary in a server-rendered tree. */}
-      <Suspense fallback={<div className="mb-6 h-12" />}>
+      <Suspense fallback={<div className="mb-6 h-12 animate-pulse rounded-xl bg-surface-3" aria-label="Loading" />}>
         <TabsNav />
       </Suspense>
 
       {accounts.length > 0 && (
-        <Suspense fallback={<div className="mb-6 h-14" />}>
+        <Suspense fallback={<div className="mb-6 h-14 animate-pulse rounded-xl bg-surface-3" aria-label="Loading" />}>
           <FilterBar
             accounts={accounts.map((a) => ({
               id: a.id,

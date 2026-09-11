@@ -1059,8 +1059,9 @@ model CompetitorProfile {
   handle       String // public @handle / channel handle
   displayName  String?
   avatarUrl    String?
-  category     String? // vendor-reported niche, when available
-  bio          String?
+  // (category and bio lived here and were never written — normalizeProfile only
+  // ever returned displayName, avatarUrl and followers. Dropped rather than
+  // left as columns a future UI could be built against by mistake.)
   followers    Int? // convenience copy of the latest snapshot
   lastSyncedAt DateTime?
   createdAt    DateTime             @default(now())
@@ -1080,7 +1081,7 @@ model CompetitorSnapshot {
   competitor     CompetitorProfile @relation(fields: [competitorId], references: [id], onDelete: Cascade)
   capturedAt     DateTime          @default(now())
   followers      Int?
-  following      Int?
+  // (`following` was never written by the vendor adapter either.)
   postsCount     Int?
   avgLikes       Float?
   avgComments    Float?

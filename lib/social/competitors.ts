@@ -4,6 +4,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { isFeatureEnabled } from "@/lib/flags";
 import {
   BudgetExhaustedError, COMPETITOR_PROVIDERS, fetchPublicProfile, fetchRecentPublicPosts, isConfigured,
   type CompetitorProvider, type PublicPost,
@@ -53,13 +54,29 @@ export function computeEngagementStats(posts: PublicPost[], followers: number | 
   return { postsCount: posts.length || null, avgLikes, avgComments, engagementRate, postsPerWeek };
 }
 
-// A second vendor call beyond fetchPublicProfile, so this doubles the
-// monthly budget cost per competitor add/refresh. Deliberately isolated
-// from the profile fetch's own error handling: a failure here (including
-// hitting the budget on this specific call) degrades to "no post-level
-// stats yet" rather than blocking the followers-tracking flow that already
-// works today.
+// A second vendor call beyond fetchPublicProfile, so this DOUBLES the monthly
+// budget cost per competitor add/refresh. Deliberately isolated from the
+// profile fetch's own error handling: a failure here (including hitting the
+// budget on this specific call) degrades to "no post-level stats yet" rather
+// than blocking the followers-tracking flow that already works today.
+//
+// Off by default. competitor-source.ts flags its own endpoint URLs as NOT
+// verified against ScrapeCreators' documentation — it guessed the
+// /v1/{provider}/{resource} shape from the profile endpoint — so this call
+// most likely fails closed and returns nulls while still spending budget on
+// every refresh. Paying double for a column that renders as an em dash is the
+// worst of both. Turn on `social_competitor_post_stats` at /admin/ops once the
+// endpoint is confirmed against the vendor's real docs.
+// TODO(verify): https://docs.scrapecreators.com — confirm path and response
+// shape, then flip the default here to true and delete this note.
+const POST_STATS_FLAG = "social_competitor_post_stats";
+
+const NO_STATS: EngagementStats = {
+  postsCount: null, avgLikes: null, avgComments: null, engagementRate: null, postsPerWeek: null,
+};
+
 async function fetchEngagementStats(provider: CompetitorProvider, handle: string, followers: number | null): Promise<EngagementStats> {
+  if (!(await isFeatureEnabled(POST_STATS_FLAG, false))) return NO_STATS;
   try {
     const posts = await fetchRecentPublicPosts(provider, handle);
     return computeEngagementStats(posts, followers);

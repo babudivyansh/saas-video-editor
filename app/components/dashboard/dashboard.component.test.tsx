@@ -12,20 +12,6 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Band, LAZY_GROUP, SPAN, Panel, Kpi, MiniKpi, PlaceholderKpi, DeltaChip, ErrorCard, Skeleton, HealthDot } from "./index";
 
-// framer-motion's whileInView needs an IntersectionObserver in jsdom.
-vi.stubGlobal(
-  "IntersectionObserver",
-  class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-    takeRecords() { return []; }
-    root = null;
-    rootMargin = "";
-    thresholds = [];
-  },
-);
-
 describe("Band", () => {
   it("renders an eyebrow label over a 12-column grid", () => {
     render(

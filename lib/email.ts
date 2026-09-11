@@ -341,6 +341,19 @@ export async function sendSocialDigestEmail(
   await sendTemplate("social-digest", to, { name, accounts });
 }
 
+/**
+ * A scheduled report finished building.
+ *
+ * Transactional, so it is not gated behind a notification category: the user
+ * explicitly scheduled this and is waiting for it.
+ */
+export async function sendSocialReportReadyEmail(
+  to: string,
+  p: { name: string; reportName: string; period: string; downloadUrl: string },
+): Promise<void> {
+  await sendTemplate("social-report-ready", to, p);
+}
+
 export async function sendAdminDigestEmail(to: string, d: AdminDigestData): Promise<void> {
   await sendTemplate("admin-ops-digest", to, d);
 }

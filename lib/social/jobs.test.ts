@@ -26,6 +26,15 @@ const updatePost = vi.fn(async () => ({}));
 const updateAccount = vi.fn(async () => ({}));
 const updateGoal = vi.fn(async () => ({}));
 
+interface ReportConfig {
+  id: string; userId: string; schedule: string; period: string; format: string;
+  lastRunAt: Date | null;
+}
+let reportConfigs: ReportConfig[] = [];
+const updateReportConfig = vi.fn(async () => ({}));
+const createReportRun = vi.fn(async () => ({ id: "run1" }));
+vi.mock("./reports/queue", () => ({ enqueueReport: vi.fn(async () => ({ driver: "in-process" })) }));
+
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     socialAccount: {
@@ -49,10 +58,15 @@ vi.mock("@/lib/prisma", () => ({
       ),
       update: updateGoal,
     },
+    socialReportConfig: {
+      findMany: vi.fn(async () => reportConfigs),
+      update: updateReportConfig,
+    },
+    socialReportRun: { create: createReportRun },
   },
 }));
 
-const { evaluateGoals, recomputeScores, syncDailyMetrics } = await import("./jobs");
+const { evaluateGoals, recomputeScores, syncDailyMetrics, runScheduledReports } = await import("./jobs");
 
 const NOW = new Date("2026-08-04T12:00:00Z");
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 86_400_000);
@@ -75,6 +89,9 @@ beforeEach(() => {
   followerDays = [];
   accounts = [{ id: "acc1", userId: "u1", provider: "instagram", lastDailyMetricDate: null }];
   goals = [];
+  reportConfigs = [];
+  updateReportConfig.mockClear();
+  createReportRun.mockClear();
 });
 
 describe("syncDailyMetrics", () => {
@@ -165,5 +182,51 @@ describe("evaluateGoals", () => {
     const result = await evaluateGoals(NOW);
     expect(result).toMatchObject({ evaluated: 1, hit: 0, missed: 0 });
     expect(updateGoal).not.toHaveBeenCalled();
+  });
+});
+
+describe("runScheduledReports", () => {
+  const config = (over: Partial<ReportConfig> = {}): ReportConfig => ({
+    id: "cfg1", userId: "u1", schedule: "weekly", period: "weekly", format: "pdf",
+    lastRunAt: null,
+    ...over,
+  });
+
+  it("queues a config that has never run", async () => {
+    reportConfigs = [config()];
+    const result = await runScheduledReports(NOW);
+    expect(result).toEqual({ due: 1, queued: 1 });
+    expect(createReportRun).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves a weekly config alone three days after its last run", async () => {
+    reportConfigs = [config({ lastRunAt: daysAgo(3) })];
+    const result = await runScheduledReports(NOW);
+    expect(result).toEqual({ due: 0, queued: 0 });
+    expect(createReportRun).not.toHaveBeenCalled();
+  });
+
+  it("queues a weekly config eight days after its last run", async () => {
+    reportConfigs = [config({ lastRunAt: daysAgo(8) })];
+    expect(await runScheduledReports(NOW)).toEqual({ due: 1, queued: 1 });
+  });
+
+  it("holds a monthly config at eight days and releases it at thirty", async () => {
+    reportConfigs = [config({ schedule: "monthly", period: "monthly", lastRunAt: daysAgo(8) })];
+    expect(await runScheduledReports(NOW)).toEqual({ due: 0, queued: 0 });
+
+    reportConfigs = [config({ schedule: "monthly", period: "monthly", lastRunAt: daysAgo(30) })];
+    expect(await runScheduledReports(NOW)).toEqual({ due: 1, queued: 1 });
+  });
+
+  // The invariant the job's own header states and nothing checked. Stamping at
+  // completion instead would re-queue the same config on every cron tick for as
+  // long as the build takes — and a failed build would re-queue it forever.
+  it("stamps lastRunAt at enqueue, not at completion", async () => {
+    reportConfigs = [config()];
+    await runScheduledReports(NOW);
+    expect(updateReportConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "cfg1" }, data: { lastRunAt: NOW } }),
+    );
   });
 });
