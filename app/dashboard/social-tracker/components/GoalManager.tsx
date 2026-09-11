@@ -53,6 +53,9 @@ export function GoalManager({
   const [metric, setMetric] = useState<string>("");
   const [target, setTarget] = useState("");
   const [dueAt, setDueAt] = useState("");
+  // Earliest pickable due date (tomorrow). Read once: Date.now() in the render
+  // body is impure and fails the react-hooks/purity lint.
+  const [minDueDate] = useState(() => new Date(Date.now() + 86400_000).toISOString().slice(0, 10));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<GoalRow | null>(null);
@@ -209,7 +212,7 @@ export function GoalManager({
               id="goal-due"
               type="date"
               value={dueAt}
-              min={new Date(Date.now() + 86400_000).toISOString().slice(0, 10)}
+              min={minDueDate}
               onChange={(e) => setDueAt(e.target.value)}
             />
           </div>
