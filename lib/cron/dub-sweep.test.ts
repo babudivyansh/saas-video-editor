@@ -5,6 +5,7 @@ let inFlightDubs: Array<{
   dubbingId: string | null;
   userId: string | null;
   refId: string | null;
+  status?: string;
   createdAt: Date;
   clip: { projectId: string };
 }> = [];
@@ -17,7 +18,11 @@ let statusByDubbingId: Record<string, "dubbing" | "dubbed" | "failed" | Error> =
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     clipDub: {
-      findMany: vi.fn(async () => inFlightDubs),
+      // Honours the two filters the sweep queries by, like real Prisma.
+      findMany: vi.fn(async (args: { where: { dubbingId: null | { not: null }; createdAt?: { lt: Date } } }) =>
+        inFlightDubs.filter((d) =>
+          (args.where.dubbingId === null ? d.dubbingId === null : d.dubbingId !== null) &&
+          (!args.where.createdAt || d.createdAt < args.where.createdAt.lt))),
       update: vi.fn(async (args: { where: { id: string }; data: Record<string, unknown> }) => {
         dubUpdates.push(args);
         return {};
@@ -56,6 +61,7 @@ function makeDub(overrides: Partial<(typeof inFlightDubs)[number]> = {}): (typeo
     dubbingId: "el-dub-1",
     userId: "u1",
     refId: "ref1",
+    status: "dubbing",
     createdAt: new Date(),
     clip: { projectId: "p1" },
     ...overrides,
@@ -169,5 +175,35 @@ describe("runDubSweep", () => {
     expect(result.failed).toBe(1);
     expect(restoreSpendCalls).toEqual([]);
     expect(dubUpdates).toEqual([{ where: { id: "dub6" }, data: { status: "failed" } }]);
+  });
+});
+
+describe("runDubSweep — rows nothing else would ever finish", () => {
+  const stale = () => new Date(Date.now() - (DUB_STALE_TIMEOUT_MINUTES + 5) * 60 * 1000);
+
+  it("fails and refunds a stale row whose start job was lost (no dubbingId)", async () => {
+    // Nothing to poll, so the sweep's query skipped these entirely.
+    inFlightDubs = [makeDub({ id: "lost", dubbingId: null, createdAt: stale() })];
+    const result = await runDubSweep();
+    expect(restoreSpendCalls).toEqual([expect.objectContaining({ userId: "u1", refId: "ref1" })]);
+    expect(dubUpdates[0]).toMatchObject({ where: { id: "lost" }, data: { status: "failed" } });
+    expect(result.failed).toBe(1);
+  });
+
+  it("leaves a fresh row with no dubbingId alone — its start job may still be running", async () => {
+    inFlightDubs = [makeDub({ id: "new", dubbingId: null })];
+    await runDubSweep();
+    expect(restoreSpendCalls).toHaveLength(0);
+  });
+
+  it("fails a long-claimed 'processing' row whose finish job never ran", async () => {
+    // ElevenLabs says dubbed, the claim is already taken, so claimAndEnqueue
+    // returns false — and the old `continue` skipped the staleness check.
+    inFlightDubs = [makeDub({ status: "processing", createdAt: stale() })];
+    statusByDubbingId = { "el-dub-1": "dubbed" };
+    claimAndEnqueueFinishReturns = false;
+    const result = await runDubSweep();
+    expect(result.failed).toBe(1);
+    expect(restoreSpendCalls).toHaveLength(1);
   });
 });

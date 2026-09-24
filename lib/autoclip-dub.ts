@@ -24,6 +24,7 @@ import { runFFmpegArgs, styleIndexToSubtitleStyle, generateASS } from "@/utils/f
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { startDubbing, getDubbingStatus, getDubbedAudio, forcedAlign } from "@/utils/elevenlabs";
 import { translateTranscript } from "@/lib/caption-translate";
+import { sanitizeCaptionWord } from "@/lib/caption-sanitize";
 import { restoreSpend } from "@/lib/credits";
 import { createRenderQueue } from "@/lib/render-queue";
 import { logger } from "@/lib/logger";
@@ -180,7 +181,15 @@ export async function finishDubJob(payload: FinishDubPayload): Promise<void> {
     await downloadFile(dub.clip.videoUrl!, sourceVideoPath);
 
     let hasCaptions = dub.clip.hasCaptions;
-    const words = dub.clip.transcriptJson as unknown as WordTiming[] | null;
+    // The stored transcript is on the clip's source window; the dub is laid
+    // over the RENDERED clip, which silence/filler trimming may have made
+    // shorter. Dynamically imported: the pipeline module is heavy.
+    const sourceWords = dub.clip.transcriptJson as unknown as WordTiming[] | null;
+    const words = sourceWords && sourceWords.length > 0
+      ? (await import("@/lib/autoclip-pipeline")).wordsOnRenderedTimeline(
+          sourceWords, dub.clip.endSec - dub.clip.startSec, dub.clip.silenceSettings,
+        )
+      : sourceWords;
 
     if (hasCaptions && words && words.length > 0) {
       try {
@@ -205,7 +214,9 @@ export async function finishDubJob(payload: FinishDubPayload): Promise<void> {
         if (customStyle) {
           style = { ...style, ...customStyle };
         }
-        generateASS(alignedWords, style, assPath);
+        // Model output going into an ASS Dialogue line, where `{`, `\` and
+        // newlines are markup — the same sanitising user-edited words get.
+        generateASS(alignedWords.map((w) => ({ ...w, word: sanitizeCaptionWord(w.word) })), style, assPath);
       } catch (err) {
         hasCaptions = false;
         logger.warn("auto-clip-dub", `Subtitle translation failed for ${clipDubId}, rendering without subtitles`, err);
@@ -231,7 +242,9 @@ export async function finishDubJob(payload: FinishDubPayload): Promise<void> {
       ]);
     }
 
-    const videoUrl = await uploadFileToS3(outputPath, `renders/${dub.clip.projectId}/clip-${dub.clip.index}-${dub.targetLang}.mp4`, "video/mp4");
+    // Per dub: a second dub in the same language used to overwrite the first's
+    // file, which its own ClipDub row still pointed at.
+    const videoUrl = await uploadFileToS3(outputPath, `renders/${dub.clip.projectId}/clip-${dub.clip.index}-${dub.targetLang}-${clipDubId}.mp4`, "video/mp4");
     await prisma.clipDub.update({ where: { id: clipDubId }, data: { status: "ready", videoUrl } });
   } catch (err) {
     logger.error("auto-clip-dub", `dub ${clipDubId} failed to finish`, err);

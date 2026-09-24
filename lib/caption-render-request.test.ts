@@ -40,6 +40,7 @@ vi.mock("@/lib/prisma", () => ({
       update: vi.fn(async () => ({})),
     },
     config: { findUnique: vi.fn(async () => null) },
+    clip: { findUnique: vi.fn(async () => ({ rerenderCount: 0 })) },
   },
 }));
 

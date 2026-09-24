@@ -65,6 +65,15 @@ export interface IdempotencyInputs {
   exportWidth?: number;
   exportHeight?: number;
   exportFps?: number;
+  /**
+   * Which rendering of the SOURCE video this captions. A re-render replaces
+   * the clip's video in place, but left every other input here unchanged, so
+   * the provider render for the new video hashed to the old job and came back
+   * as a "duplicate" — the fresh render shipped with no captions at all.
+   * Optional and appended only when set, so every key minted before this
+   * field existed still hashes the same.
+   */
+  sourceRevision?: string | null;
 }
 
 /**
@@ -97,6 +106,7 @@ export function buildIdempotencyKey(input: IdempotencyInputs): string {
     input.exportWidth ?? 1080,
     input.exportHeight ?? 1920,
     input.exportFps ?? 30,
+    ...(input.sourceRevision != null ? [input.sourceRevision] : []),
   ]);
   return createHash("sha256").update(canonical).digest("hex");
 }

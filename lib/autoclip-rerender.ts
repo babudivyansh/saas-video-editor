@@ -215,7 +215,12 @@ export async function requestRerender(args: RequestRerenderArgs): Promise<Rerend
 
   try {
     await applyPatch(clip, patch, attempt);
-    await rerenderQueue.enqueue(`${clipId}-${attempt}`, { projectId, clipId });
+    // A fresh job id per request, and awaited to REJECT: credits may already
+    // be spent. `${clipId}-${attempt}` repeated after a failed re-render
+    // (the refund decrements the attempt counter), and BullMQ silently drops
+    // an add whose id it still retains — charged, "queued" forever. And an
+    // enqueue that only logged on failure left the charge in place too.
+    await rerenderQueue.enqueue(`${clipId}-${attempt}-${Date.now().toString(36)}`, { projectId, clipId }, { rejectOnFailure: true });
   } catch (err) {
     logger.error("auto-clip", `rerender request failed for ${clipId} (${reason})`, err);
     await refund();

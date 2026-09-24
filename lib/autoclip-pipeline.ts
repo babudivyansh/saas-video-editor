@@ -225,6 +225,81 @@ export async function refundRunCharge(userId: string, projectId: string, reason:
   });
 }
 
+/**
+ * Brings what is held for a run down to what its DELIVERED clips cost.
+ *
+ * Idempotent by construction: it computes a target ("the ready clips, at
+ * their post-trim durations, less the analysis advance") and refunds only
+ * what is held above it. The refunds it replaces were deltas — a proportional
+ * "failed clips" refund and a separate trimmed-duration refund — and a delta
+ * applied twice pays twice. renderJob, its retries and the stale-clip sweep
+ * can all reach the end of a run; now it doesn't matter which, or how often.
+ *
+ * With nothing delivered, the analysis advance goes back as well: it is an
+ * advance against clips, and there are none.
+ */
+export async function settleDeliveredRun(projectId: string, userId: string): Promise<number> {
+  const ready = await prisma.clip.findMany({
+    where: { projectId, status: "ready" },
+    select: { durationSec: true },
+  });
+  let refunded = 0;
+  if (ready.length === 0) {
+    refunded += await restoreSpend({ userId, refId: analysisRefId(projectId), reason: "refund:auto-clip-nothing-delivered" })
+      .catch(() => 0);
+  }
+  const pricing = await getAutoClipPricing();
+  const gross = ready.length > 0
+    ? computeCreditCost(ready.length, ready.reduce((s, c) => s + c.durationSec, 0), pricing)
+    : 0;
+  const analysisPaid = await getAnalysisCreditsPaid(userId, projectId);
+  const target = Math.max(gross - analysisPaid, 0);
+  const held = await creditsSpentOnRun(userId, projectId);
+  if (held > target) {
+    refunded += await restoreSpend({
+      userId, refId: `auto-clip:${projectId}`, amount: held - target, reason: "refund:auto-clip-settle",
+    }).catch((e) => {
+      logger.error("auto-clip", `settle refund failed for ${projectId}`, e);
+      return 0;
+    });
+  }
+  return refunded;
+}
+
+/**
+ * The single way a run ends: settle the money, then move the project out of
+ * "rendering" to completed (any clip ready) or failed (none) — exactly once.
+ *
+ * The status flip is a conditional update, so only the caller that actually
+ * moved the project sends the notification and email. renderJob, a retry of
+ * it, and the stale-clip sweep can all arrive here; previously each one that
+ * did sent its own "your clips are ready" (or "failed").
+ */
+export async function finalizeRun(projectId: string, userId: string, failureReason?: string): Promise<void> {
+  await settleDeliveredRun(projectId, userId);
+
+  const ready = await prisma.clip.findMany({
+    where: { projectId, status: "ready", videoUrl: { not: null } },
+    select: { videoUrl: true, score: true },
+  });
+  if (ready.length > 0) {
+    const best = ready.reduce((a, b) => ((b.score ?? 0) > (a.score ?? 0) ? b : a));
+    const moved = await prisma.project.updateMany({
+      where: { id: projectId, status: "rendering" },
+      data: { status: "completed", videoUrl: best.videoUrl, failureReason: null },
+    });
+    if (moved.count > 0) await notifyRenderOutcome(projectId, userId, "completed", { readyCount: ready.length });
+    return;
+  }
+  const moved = await prisma.project.updateMany({
+    where: { id: projectId, status: "rendering" },
+    data: { status: "failed", ...(failureReason ? { failureReason } : {}) },
+  });
+  if (moved.count > 0) {
+    await notifyRenderOutcome(projectId, userId, "failed", failureReason ? { reason: failureReason } : undefined);
+  }
+}
+
 export async function refundCredits(projectId: string, amount: number): Promise<void> {
   if (amount <= 0) return;
   try {
@@ -772,9 +847,20 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   if (!project?.uploadedVideoUrl) throw new Error(`Project ${projectId} missing uploadedVideoUrl`);
 
+  // Mark the moment work actually starts. The stale-clip sweep fails runs left
+  // on "analyzing", measured from updatedAt; without this touch, time spent
+  // WAITING in the queue (production's in-process driver runs one pick at a
+  // time) was indistinguishable from time spent hung.
+  await prisma.project.updateMany({ where: { id: projectId, status: "analyzing" }, data: { status: "analyzing" } })
+    .catch(() => {});
+
+  // Per attempt, not per project: an overlapping retry (or a re-run while a
+  // slow first attempt was still going) shared these paths and deleted the
+  // other's source in its `finally`.
   const tmp = os.tmpdir();
-  const videoPath = path.join(tmp, `${projectId}-src.mp4`);
-  const audioPath = path.join(tmp, `${projectId}-audio.mp3`);
+  const runTag = `${projectId}-${Date.now().toString(36)}`;
+  const videoPath = path.join(tmp, `${runTag}-src.mp4`);
+  const audioPath = path.join(tmp, `${runTag}-audio.mp3`);
   let analysisCharged = 0;
 
   // Every individual step in this job is time-bounded, but a NEW unbounded
@@ -1418,6 +1504,35 @@ function shiftTime(tMs: number, keeps: KeepSegment[]): number {
   return prevKeptDuration;
 }
 
+/**
+ * A clip's transcript as it lines up with the RENDERED video.
+ *
+ * Clip.transcriptJson is kept on the clip's source window — the same timeline
+ * as startSec/endSec, the crop keyframes and the signal track — because every
+ * re-render recomputes silence/filler trimming from it. When trimming is on,
+ * the rendered file is shorter than that window, so anything laying words over
+ * the RENDERED file (the editor hand-off, dub captions) needs them shifted.
+ * With trimming off, or nothing to cut, this returns the words unchanged.
+ */
+export function wordsOnRenderedTimeline(
+  words: WordTiming[],
+  windowSec: number,
+  silenceSettings: unknown,
+): WordTiming[] {
+  const opts = (silenceSettings ?? {}) as { removeSilence?: boolean; silenceThresholdMs?: number; removeFillers?: boolean };
+  const removeSilence = !!opts.removeSilence;
+  const removeFillers = !!opts.removeFillers;
+  if (words.length === 0 || (!removeSilence && !removeFillers)) return words;
+  const { keeps, cuts } = computeKeeps(words, windowSec, removeSilence, opts.silenceThresholdMs ?? 400, removeFillers);
+  if (cuts.length === 0) return words;
+  return words
+    .filter((w) => {
+      const mid = (w.start + w.end) / 2;
+      return keeps.some((k) => mid >= k.startMs && mid <= k.endMs);
+    })
+    .map((w) => ({ ...w, start: shiftTime(w.start, keeps), end: shiftTime(w.end, keeps) }));
+}
+
 // ── Per-clip render (shared by the batch render job and single-clip re-render) ─
 
 /**
@@ -1592,7 +1707,9 @@ async function renderOneClip(
     let finalDurationSec = clip.durationSec;
 
     if (words && words.length > 0 && (removeSilence || removeFillers)) {
-      const result = computeKeeps(words, clip.durationSec, removeSilence, silenceThresholdMs, removeFillers);
+      // The WINDOW, not durationSec: durationSec is the rendered (trimmed)
+      // length once a clip has rendered, and the words are on the window.
+      const result = computeKeeps(words, clip.endSec - clip.startSec, removeSilence, silenceThresholdMs, removeFillers);
       if (result.cuts.length > 0) {
         keeps = result.keeps;
         isTrimmed = true;
@@ -1636,15 +1753,15 @@ async function renderOneClip(
 
         finalDurationSec = keeps.reduce((s, k) => s + (k.endMs - k.startMs), 0) / 1000;
 
-        // Update database with the trimmed duration, transcript, and keyframes
-        await prisma.clip.update({
-          where: { id: clip.id },
-          data: {
-            durationSec: finalDurationSec,
-            transcriptJson: words as unknown as Prisma.InputJsonValue,
-            cropKeyframes: (stored ? stored : Prisma.JsonNull) as unknown as Prisma.InputJsonValue,
-          },
-        });
+        // The shifted words and keyframes are used for THIS render only and
+        // deliberately not written back. They used to be, while startSec/
+        // endSec kept the original window — so the next re-render ran the
+        // trim again over already-trimmed timings against the untrimmed
+        // source: the tail was cut off and captions drifted, worse on every
+        // re-render. The stored transcript stays on the source window, and
+        // durationSec (written with the final status below) records the
+        // trimmed length. wordsOnRenderedTimeline gives the shifted view to
+        // anything that lays words over the rendered file.
       }
     }
 
@@ -1882,15 +1999,29 @@ async function renderOneClip(
     const breakdown = calibrateScore(sub, analysis, finalDurationSec, words?.length ?? 0, weights);
 
     await prisma.clip.update({ where: { id: clip.id }, data: { progress: 90 } });
-    const videoUrl = await uploadFileToS3(clipPath, `renders/${projectId}/clip-${clip.index}.mp4`, "video/mp4");
+    // A key per RENDER, not per clip slot. Every re-render used to overwrite
+    // renders/{project}/clip-{i}.mp4 in place, so an asset the editor had
+    // already adopted from that key silently changed content underneath it,
+    // and deleting a clip could delete the object Project.videoUrl pointed at.
+    // The previous object stays with whatever still references it (the asset
+    // library owns adopted renders; see linkClipProvenance).
+    const renderTag = `${clip.index}-r${clip.rerenderCount}-${Date.now().toString(36)}`;
+    const videoUrl = await uploadFileToS3(clipPath, `renders/${projectId}/clip-${renderTag}.mp4`, "video/mp4");
     const thumbnailUrl = fs.existsSync(thumbPath)
-      ? await uploadFileToS3(thumbPath, `renders/${projectId}/clip-${clip.index}.jpg`, "image/jpeg").catch(() => null)
+      ? await uploadFileToS3(thumbPath, `renders/${projectId}/clip-${renderTag}.jpg`, "image/jpeg").catch(() => null)
       : null;
 
     // Waveform peaks for the editor scrubber, computed here from the finished
     // clip so the browser never has to decode audio (a multi-hour source would
     // hang the tab) and so they match exactly what the user is looking at.
     const audioPeaks = await computeAudioPeaks(clipPath);
+
+    // The project's cover points at its best clip's video; if that was this
+    // clip's previous render, follow it to the new one.
+    if (clip.videoUrl && clip.videoUrl !== videoUrl) {
+      await prisma.project.updateMany({ where: { id: projectId, videoUrl: clip.videoUrl }, data: { videoUrl } })
+        .catch(() => {});
+    }
 
     await prisma.clip.update({
       where: { id: clip.id },
@@ -1989,25 +2120,21 @@ export async function renderJob(payload: RenderPayload, ctx: JobContext = SINGLE
 
   const clips = await prisma.clip.findMany({ where: { projectId, status: "queued" }, orderBy: { index: "asc" } });
   if (clips.length === 0) {
-    await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } });
-    await notifyRenderOutcome(projectId, project.userId, "failed");
+    // Nothing left to render. On a retry after partial work this is the
+    // NORMAL case — the previous attempt rendered the clips and then died —
+    // and it used to mark a project full of finished clips "failed" and tell
+    // the user so. finalizeRun looks at what actually exists.
+    await finalizeRun(projectId, project.userId);
     return;
   }
 
-  const tmp = os.tmpdir();
-  const videoPath = path.join(tmp, `${projectId}-src-render.mp4`);
+  // Per job, not per project: two renders of one project (a retry overlapping
+  // a slow first attempt) shared this path and deleted each other's source.
+  const videoPath = path.join(os.tmpdir(), `${projectId}-src-render-${Date.now().toString(36)}.mp4`);
 
   try {
     await downloadFile(await freshSourceUrl(project.uploadedVideoUrl, project.userId), videoPath);
 
-    let readyCount = 0;
-    let bestUrl: string | null = null;
-    let bestScore = -1;
-    // Pre-trim (charged, per confirm/route.ts) vs. post-trim (actually
-    // rendered) total duration across successfully-rendered clips — feeds
-    // the trimmed-duration refund below.
-    let preTrimTotalSec = 0;
-    let postTrimTotalSec = 0;
     // Tier decided once per run, inside the worker, so it's correct even for
     // jobs queued across an upgrade.
     const { getUserTier } = await import("@/lib/auth");
@@ -2042,61 +2169,17 @@ export async function renderJob(payload: RenderPayload, ctx: JobContext = SINGLE
       for (;;) {
         const clip = queue.shift();
         if (!clip) return;
-        const { ok } = await renderOneClip(projectId, clip, videoPath, watermark, target);
-        if (!ok) continue;
-        const updated = await prisma.clip.findUnique({
-          where: { id: clip.id },
-          select: { videoUrl: true, score: true, durationSec: true },
-        });
-        // Mutating shared counters is safe here: Node is single-threaded, and
-        // there is no await between reading and writing them.
-        readyCount++;
-        if (updated?.videoUrl && (updated.score ?? 0) > bestScore) {
-          bestScore = updated.score ?? 0;
-          bestUrl = updated.videoUrl;
-        }
-        // clip.durationSec here is still the pre-render (reviewed/charged)
-        // value — renderOneClip only mutates the DB row, not this in-memory
-        // `clip`, so capturing it now is exactly the "what was charged" figure.
-        preTrimTotalSec += clip.durationSec;
-        postTrimTotalSec += updated?.durationSec ?? clip.durationSec;
+        await renderOneClip(projectId, clip, videoPath, watermark, target);
       }
     };
     await Promise.all(Array.from({ length: poolSize }, runWorker));
 
-    // Partial-failure refund (P0.5) — proportional to what actually failed,
-    // instead of only refunding when every single clip failed.
-    const failedCount = clips.length - readyCount;
-    if (failedCount > 0) {
-      const totalDurationSec = clips.reduce((s, c) => s + c.durationSec, 0);
-      const pricing = await getAutoClipPricing();
-      const charged = computeCreditCost(clips.length, totalDurationSec, pricing);
-      const refundAmount = Math.round(charged * (failedCount / clips.length));
-      await refundCredits(projectId, refundAmount);
-    }
-
-    // Trimmed-duration refund — filler/silence removal (computeKeeps, applied
-    // inside renderOneClip) runs *after* confirm/route.ts has already charged
-    // for the reviewed, pre-trim clip windows, so a clip that gets
-    // substantially shortened by auto-trimming was still billed at its
-    // original length. Only the per-two-minutes portion of the price is
-    // duration-sensitive (the per-clip charge is unaffected either way), so
-    // refund exactly that delta in credit-block terms.
-    if (postTrimTotalSec < preTrimTotalSec) {
-      const pricing = await getAutoClipPricing();
-      const blockDelta = Math.ceil(preTrimTotalSec / 120) - Math.ceil(postTrimTotalSec / 120);
-      if (blockDelta > 0) {
-        await refundCredits(projectId, blockDelta * pricing.perTwoMinutes);
-      }
-    }
-
-    if (readyCount === 0) {
-      await prisma.project.update({ where: { id: projectId }, data: { status: "failed" } });
-      await notifyRenderOutcome(projectId, project.userId, "failed");
-    } else {
-      await prisma.project.update({ where: { id: projectId }, data: { status: "completed", videoUrl: bestUrl } });
-      await notifyRenderOutcome(projectId, project.userId, "completed", { readyCount });
-    }
+    // Settle and finish from what was ACTUALLY delivered — the ready clips and
+    // their post-trim durations — rather than from counters kept in this
+    // attempt. That makes it safe to run twice: a retry, the stale-clip sweep
+    // and this line can all reach it, and the second one finds nothing left
+    // to refund and no status left to flip.
+    await finalizeRun(projectId, project.userId);
   } catch (err) {
     logger.error("auto-clip", `render failed for ${projectId} (attempt ${ctx.attempt})`, err);
     // Everything below happens on the FINAL failure only. A retryable error is
@@ -2108,49 +2191,13 @@ export async function renderJob(payload: RenderPayload, ctx: JobContext = SINGLE
       // would fail them later — but it only reconciles projects still marked
       // "rendering", so it never refunded this one. That is how a run that
       // died on its source download kept every credit it had been charged.
-      const unreached = await prisma.clip.findMany({
-        where: { projectId, status: { in: ["queued", "rendering"] } },
-        select: { id: true },
-      }).catch(() => [] as { id: string }[]);
       await prisma.clip.updateMany({
-        where: { id: { in: unreached.map((c) => c.id) } },
+        where: { projectId, status: { in: ["queued", "rendering"] } },
         data: { status: "failed", failureReason: userFacingFailure(err) },
       }).catch(() => {});
-      const readyClips = await prisma.clip
-        .findMany({ where: { projectId, status: "ready" }, select: { videoUrl: true, score: true } })
-        .catch(() => []);
-      if (readyClips.length === 0) {
-        await prisma.project.update({
-          where: { id: projectId },
-          data: { status: "failed", failureReason: userFacingFailure(err) },
-        }).catch(() => {});
-        // Nothing to show for the run: return all of it. Capped at net held,
-        // so this is safe after any partial refund that already ran.
-        await refundRunCharge(project.userId, projectId, "refund:auto-clip-render-failed");
-        await notifyRenderOutcome(projectId, project.userId, "failed", { reason: userFacingFailure(err) });
-      } else {
-        // Clips DID render. Calling the run failed would hide finished,
-        // paid-for clips behind an error. The per-clip loop refunds the clips
-        // it reached and failed; the ones it never reached (a throw before or
-        // during the loop, e.g. on a retry) are refunded here, by the same
-        // proportional formula.
-        if (unreached.length > 0) {
-          try {
-            const all = await prisma.clip.findMany({ where: { projectId }, select: { durationSec: true } });
-            const pricing = await getAutoClipPricing();
-            const charged = computeCreditCost(all.length, all.reduce((s, c) => s + c.durationSec, 0), pricing);
-            await refundCredits(projectId, Math.round(charged * (unreached.length / all.length)));
-          } catch (e) {
-            logger.error("auto-clip", `unreached-clip refund failed for ${projectId}`, e);
-          }
-        }
-        const best = readyClips.reduce((a, b) => ((b.score ?? 0) > (a.score ?? 0) ? b : a));
-        await prisma.project.update({
-          where: { id: projectId },
-          data: { status: "completed", videoUrl: best.videoUrl },
-        }).catch(() => {});
-        await notifyRenderOutcome(projectId, project.userId, "completed", { readyCount: readyClips.length });
-      }
+      await finalizeRun(projectId, project.userId, userFacingFailure(err)).catch((e) =>
+        logger.error("auto-clip", `could not finalize failed run ${projectId}`, e),
+      );
     }
     // See pickJob's matching comment — rethrow so BullMQ's attempts:3/backoff
     // actually retries transient failures instead of stopping after one try.
@@ -2205,7 +2252,11 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
         emphasisWords: [], emphasisWordIndexes: [], brollCues: [],
       };
 
-      const cropKeyframes = clip.brollUrl ? null : computeStoredCrop(allFaces, dummySeg, clip.aspectRatio as Aspect, srcW, srcH, {
+      // Computed with B-roll too. The initial pick stopped dropping speaker
+      // tracking for B-roll clips (the inserts are ordinary crops in the same
+      // graph), but this path still did — so re-rendering such a clip, for any
+      // reason, silently froze its camera.
+      const cropKeyframes = computeStoredCrop(allFaces, dummySeg, clip.aspectRatio as Aspect, srcW, srcH, {
         preset,
         smartAutoReframe: silenceOpts.smartAutoReframe !== false,
         zoomStrength: silenceOpts.zoomStrength ?? "medium",
@@ -2244,18 +2295,13 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
     // each step is wrapped. (Caught in CI — a missing method threw a TypeError
     // that replaced the real error and made the true cause unreportable, which
     // is precisely the class of blindness this P0-3 work exists to remove.)
+    // The reason goes on the CLIP. It used to go on the project, because Clip
+    // had no failureReason column at the time — so one clip's failed re-render
+    // put an error banner over a completed project full of good clips.
     try {
-      await prisma.clip.update({ where: { id: clipId }, data: { status: "failed" } });
+      await prisma.clip.update({ where: { id: clipId }, data: { status: "failed", failureReason: userMessage } });
     } catch (e) {
       logger.error("auto-clip", `could not mark clip ${clipId} failed`, e);
-    }
-    // P0-3: a failed re-render used to leave failureReason null, so neither the
-    // user nor an operator could tell what broke. Clip has no failureReason
-    // column, so the sanitized classification is recorded on the project.
-    try {
-      await prisma.project.update({ where: { id: projectId }, data: { failureReason: userMessage } });
-    } catch (e) {
-      logger.error("auto-clip", `could not record failureReason for project ${projectId}`, e);
     }
     try {
       await refundFailedRerender(clipId);

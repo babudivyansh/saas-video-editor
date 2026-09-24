@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
@@ -19,8 +18,13 @@ import type { WordTiming } from "@/utils/elevenlabs";
 
 const bodySchema = z.object({
   targetLang: z.string().min(2).max(8),
-  /** Keep the original transcript so the user can switch back without re-running STT. */
-  keepOriginal: z.boolean().default(true),
+  /**
+   * Accepted for compatibility and ignored. It stashed the source transcript
+   * inside liteEdits, which nothing ever read back — and liteEdits is a STRICT
+   * schema, so the unknown key made every later parse fail and silently
+   * dropped the clip's speed, music and fades on its next render.
+   */
+  keepOriginal: z.boolean().optional(),
 }).strict();
 
 export async function GET(req: NextRequest) {
@@ -38,16 +42,23 @@ async function handlePOST(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid request" }, { status: 400 });
   }
-  const { targetLang, keepOriginal } = parsed.data;
+  const { targetLang } = parsed.data;
   if (!isSupportedCaptionLanguage(targetLang)) {
     return NextResponse.json({ error: "That language isn't supported for captions yet" }, { status: 400 });
   }
 
   const clip = await prisma.clip.findFirst({
     where: { id: clipId, project: { id: projectId, userId: auth.userId } },
-    select: { id: true, transcriptJson: true, liteEdits: true },
+    select: { id: true, transcriptJson: true, status: true },
   });
   if (!clip) return NextResponse.json({ error: "Clip not found" }, { status: 404 });
+
+  // Checked BEFORE the model call. requestRerender's claim below is still the
+  // real guard, but a busy clip used to get a free Gemini translation and then
+  // a 409 — an unmetered translator, one click at a time.
+  if (clip.status === "queued" || clip.status === "rendering") {
+    return NextResponse.json({ error: "This clip is already rendering — try again when it finishes." }, { status: 409 });
+  }
 
   const words = (clip.transcriptJson as unknown as WordTiming[] | null) ?? [];
   if (words.length === 0) {
@@ -63,18 +74,6 @@ async function handlePOST(req: NextRequest, { params }: { params: Promise<{ id: 
   } catch (err) {
     logger.error("caption-translate", `translation failed for clip ${clipId}`, err);
     return NextResponse.json({ error: "Translation failed — please try again" }, { status: 503 });
-  }
-
-  // Stash the source transcript before overwriting, so switching language (or
-  // back to the original) never needs STT to run again.
-  if (keepOriginal) {
-    const existing = (clip.liteEdits as Record<string, unknown>) ?? {};
-    if (!existing.originalTranscript) {
-      await prisma.clip.update({
-        where: { id: clipId },
-        data: { liteEdits: { ...existing, originalTranscript: words } as unknown as Prisma.InputJsonValue },
-      }).catch(() => { /* non-fatal: translation still applies */ });
-    }
   }
 
   // Goes through the shared re-render path, so it claims, charges and

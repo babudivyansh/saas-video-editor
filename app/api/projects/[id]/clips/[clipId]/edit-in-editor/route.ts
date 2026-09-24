@@ -97,8 +97,14 @@ async function handlePOST(req: NextRequest, { params }: { params: Promise<{ id: 
     volume: 1,
     muted: false,
   };
+  // The stored transcript is on the clip's source window; the editor lays
+  // captions over the RENDERED file, which trimming may have shortened.
   const textClips = clip.hasCaptions && clip.transcriptJson
-    ? wordsToCaptionClips(clip.transcriptJson as unknown as WordTiming[])
+    ? wordsToCaptionClips(
+        (await import("@/lib/autoclip-pipeline")).wordsOnRenderedTimeline(
+          clip.transcriptJson as unknown as WordTiming[], clip.endSec - clip.startSec, clip.silenceSettings,
+        ),
+      )
     : [];
   const editorDoc: TimelineDoc = {
     version: 1,

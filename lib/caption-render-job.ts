@@ -252,6 +252,15 @@ export async function requestCaptionRender(
     exportWidth: DEFAULT_CAPTION_EXPORT.width,
     exportHeight: DEFAULT_CAPTION_EXPORT.height,
     exportFps: DEFAULT_CAPTION_EXPORT.fps,
+    // A clip's rendering changes on every re-render (rerenderCount bumps);
+    // see sourceRevision in lib/captions/pricing.ts.
+    sourceRevision: source.owner.type === "clip"
+      ? await prisma.clip
+          .findUnique({ where: { id: source.owner.id }, select: { rerenderCount: true } })
+          // Null for a clip never re-rendered, so its key matches every job
+          // requested before this field existed.
+          .then((c) => (c && c.rerenderCount > 0 ? `render-${c.rerenderCount}` : null))
+      : null,
   });
 
   // Cheap pre-check. Not the guard — the UNIQUE constraint below is, because
