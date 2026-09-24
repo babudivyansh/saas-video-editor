@@ -128,7 +128,7 @@ const BUDGET = {
   // 65 -> 64: deleting app/components/SubtitleStylePicker.tsx (the 16-swatch
   // index-based caption grid) took its hover:ring-gray-300 with it.
   // 64 -> 63: one more went with the deleted caption tile grids.
-  "raw-gray": 35,
+  "raw-gray": 32, // AutoClip audit stage 6: clips library skeletons + scrubber
   // 5 -> 4: same deletion.
   "bg-white": 1,
   "raw-slate": 9,
@@ -141,13 +141,13 @@ const BUDGET = {
   // The review surfaces' share was paid off in the same commit that added
   // this rule: the two modals' focus rings and the attachment drop zone's
   // border now use `primary`, which is where a focus state belonged anyway.
-  "raw-violet": 100,
+  "raw-violet": 91, // AutoClip stage 6: old-system violet focus rings + hovers
   // First measurement, 2026-09-10, taken AFTER the Social Tracker's share was
   // paid off in the same commit that added the rule. The 138 that remain are
   // spread over ~30 files — pricing (11), PlansModal (10), admin/ops (8),
   // admin/reviews (7) — and are genuine debt, not a certificate. Every one is
   // a near-white pill or a hue that ignores the theme.
-  "raw-emerald": 138,
+  "raw-emerald": 130, // AutoClip stage 6: light amber/emerald cards and chips
   // 51 -> 47: four of the retired brand hexes lived in the caption tile tables
   // deleted below.
   // 47 -> 43: four more went with the per-page voice lists, whose entries
@@ -171,7 +171,7 @@ const BUDGET = {
   // 152 -> 112: the six hand-maintained voice lists are gone. Each entry
   // carried a decorative colour literal, and two pages additionally held a
   // copy of the provider's voice ids purely to build preview URLs by hand.
-  "inline-hex": 55,
+  "inline-hex": 44, // AutoClip stage 6: score bands, poster gradients, drop zone
 };
 
 function walk(dir, out = []) {

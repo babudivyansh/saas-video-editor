@@ -169,9 +169,11 @@ function fmtTime(sec: number): string {
 // A single number badge means nothing on its own. A labelled band + icon + colour
 // makes the keep/post decision scannable, and survives colour-blindness/greyscale.
 function scoreBand(score: number | null): { label: string; icon: string; text: string; bg: string; border: string } {
-  if (score != null && score >= 75) return { label: "High potential", icon: "▲", text: "#15803d", bg: "#ecfdf5", border: "#d1fae5" };
-  if (score != null && score >= 50) return { label: "Good potential", icon: "◆", text: "#a16207", bg: "#fffbeb", border: "#fde68a" };
-  return { label: "Needs review", icon: "•", text: "#475569", bg: "#f1f5f9", border: "#e5e7eb" };
+  // Tokens, not hex: these were light-theme pastels, and the "Why this clip
+  // works" card set near-white body text on top of them — unreadable.
+  if (score != null && score >= 75) return { label: "High potential", icon: "▲", text: "var(--success)", bg: "var(--tint-emerald)", border: "var(--tint-emerald-border)" };
+  if (score != null && score >= 50) return { label: "Good potential", icon: "◆", text: "var(--warning)", bg: "var(--tint-amber)", border: "var(--tint-amber-border)" };
+  return { label: "Needs review", icon: "•", text: "var(--fg-muted)", bg: "var(--surface-3)", border: "var(--line)" };
 }
 function arCss(aspect: string): string {
   return aspect === "16:9" ? "16/9" : aspect === "1:1" ? "1/1" : "9/16";
@@ -259,7 +261,7 @@ export function DubPanel({ projectId, clip, embedded }: { projectId: string; cli
   return (
     <div className="w-full space-y-2 rounded-xl border border-card-border p-3">
       <div className="flex items-center gap-2">
-        <select value={selected} onChange={(e) => setSelected(e.target.value)} className="flex-1 rounded-lg border border-card-border px-2 py-1.5 text-xs bg-panel">
+        <select aria-label="Dub language" value={selected} onChange={(e) => setSelected(e.target.value)} className="flex-1 rounded-lg border border-card-border px-2 py-1.5 text-xs bg-panel">
           {langs.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
         </select>
         <button onClick={() => startDubMutation.mutate()} disabled={startDubMutation.isPending} className="text-xs font-semibold py-1.5 px-3 rounded-lg grad-brand text-on-primary shadow-glow disabled:opacity-50">{startDubMutation.isPending ? "…" : "Dub (1 credit)"}</button>
@@ -337,7 +339,7 @@ export function PublishPanel({ projectId, clip, embedded }: { projectId: string;
           <div>
             <h4 className="text-[12px] font-bold text-ink-soft uppercase tracking-wider mb-2">Publish directly</h4>
             <div className="rounded-xl border border-card-border p-3 space-y-2.5">
-              <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="w-full rounded-lg border border-card-border px-2 py-1.5 text-xs bg-panel">
+              <select aria-label="Account to publish to" value={accountId} onChange={(e) => setAccountId(e.target.value)} className="w-full rounded-lg border border-card-border px-2 py-1.5 text-xs bg-panel">
                 {accounts.map((a) => <option key={a.id} value={a.id}>{a.provider} — {a.displayName ?? a.username ?? a.id.slice(0, 6)}</option>)}
               </select>
               {isYoutube ? (
@@ -470,7 +472,7 @@ function ClipCard({ projectId, clip, onChanged, onOpen }: {
 
   return (
     <div ref={cardRef} className="ac-card rounded-2xl bg-panel overflow-hidden flex flex-col shadow-card">
-      <div className="relative" style={{ aspectRatio: arCss(clip.aspectRatio), background: "linear-gradient(160deg,#243447,#0f172a 65%,#111827)" }}>
+      <div className="relative" style={{ aspectRatio: arCss(clip.aspectRatio), background: "linear-gradient(160deg, var(--surface-3), var(--bg) 70%)" }}>
         {clip.thumbnailUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={clip.thumbnailUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
@@ -480,7 +482,7 @@ function ClipCard({ projectId, clip, onChanged, onOpen }: {
           <span aria-hidden>{band.icon}</span>{band.label}
           {clip.score != null && <span className="opacity-60 tabular-nums">{clip.score}</span>}
         </span>
-        <span className="absolute top-2.5 right-2.5 z-10 px-1.5 py-0.5 rounded-md text-[11px] font-semibold text-white pointer-events-none" style={{ background: "rgba(15,23,42,.6)" }}>{fmtTime(clip.durationSec)}</span>
+        <span className="absolute top-2.5 right-2.5 z-10 px-1.5 py-0.5 rounded-md text-[11px] font-semibold text-white pointer-events-none bg-black/60">{fmtTime(clip.durationSec)}</span>
 
         {ready ? (
           <button type="button" onClick={() => openWith("edit")} aria-label={`Open ${clip.title || `clip ${clip.index + 1}`}`} className="group absolute inset-0 w-full h-full text-left">
@@ -644,9 +646,29 @@ function ClipWorkspace({
   const [copied, setCopied] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
 
-  // Esc closes the workspace.
+  // A modal dialog in behaviour, not just in looks. It covered the whole
+  // page but focus stayed on the card behind it, Tab walked out into the
+  // hidden grid, and closing dropped focus on <body>. Now focus moves in on
+  // open, Tab cycles inside, Esc closes, and focus returns to what opened it.
+  const dialogRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const opener = document.activeElement as HTMLElement | null;
+    dialogRef.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+    return () => { opener?.focus?.(); };
+  }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { onClose(); return; }
+      if (e.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )).filter((el) => el.offsetParent !== null);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
@@ -923,28 +945,30 @@ function ClipWorkspace({
   const panelTitle: Record<WorkspaceTab, string> = { edit: "Edit", captions: "Captions", reframe: "Reframe & Audio", insights: "Insights", transcript: "Transcript", related: "Related", publish: "Publish" };
 
   return (
-    <div className="fixed inset-0 z-50 ac-expand" style={{ background: "var(--surface)", transformOrigin: expandOrigin }}>
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="ac-workspace-title" className="fixed inset-0 z-50 ac-expand" style={{ background: "var(--surface)", transformOrigin: expandOrigin }}>
       <div className="h-full flex flex-col">
         {/* Header */}
         <div className="ac-rise h-[60px] flex-shrink-0 border-b border-card-border bg-panel flex items-center gap-3 px-4">
-          <button onClick={onClose} className="inline-flex items-center gap-2 min-h-[40px] px-3.5 rounded-lg border border-card-border bg-panel text-ink text-[13px] font-semibold hover:bg-tint-blue transition-colors">
+          <button data-autofocus onClick={onClose} className="inline-flex items-center gap-2 min-h-[40px] px-3.5 rounded-lg border border-card-border bg-panel text-ink text-[13px] font-semibold hover:bg-tint-blue transition-colors">
             <IcChevronLeft /> Back to clips
           </button>
           <div className="w-px h-6 bg-card-border" />
-          <span className="text-sm font-bold text-ink truncate max-w-[38ch]">{clip.title || `Clip ${clip.index + 1}`}</span>
+          <h2 id="ac-workspace-title" className="text-sm font-bold text-ink truncate max-w-[38ch]">{clip.title || `Clip ${clip.index + 1}`}</h2>
           <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: band.bg, color: band.text }}>
             <span aria-hidden>{band.icon}</span>{band.label}
             {clip.score != null && <span className="opacity-60 tabular-nums" title="Virality score out of 99">{clip.score}</span>}
           </span>
           <div className="flex-1" />
           <span className="hidden md:block text-xs text-ink-soft/70">Esc to close</span>
-          <a href={`/api/projects/${projectId}/clips/${clip.id}/download`} download className="text-[13px] font-semibold px-3.5 py-2 rounded-lg border border-card-border bg-panel text-ink hover:bg-tint-blue transition-colors">Download</a>
+          {/* Hidden on phones: the tools panel's footer has the same button,
+              and two crowded a 375px header. */}
+          <a href={`/api/projects/${projectId}/clips/${clip.id}/download`} download className="hidden md:inline-block text-[13px] font-semibold px-3.5 py-2 rounded-lg border border-card-border bg-panel text-ink hover:bg-tint-blue transition-colors">Download</a>
         </div>
 
         {/* Body: stage + tools panel */}
-        <div className="flex-1 relative overflow-hidden" style={{ background: "#0b1220" }}>
+        <div className="flex-1 relative overflow-hidden" style={{ background: "var(--bg)" }}>
           {isRendering && (
-            <div className="absolute inset-0 z-30 bg-black/50 backdrop-blur-[1px] flex flex-col items-center justify-center gap-3">
+            <div role="status" aria-live="polite" className="absolute inset-0 z-30 bg-black/50 backdrop-blur-[1px] flex flex-col items-center justify-center gap-3">
               <div className="w-10 h-10 border-[3.5px] border-white/25 border-t-white rounded-full animate-spin" />
               <p className="text-sm font-semibold text-white">Applying changes…</p>
               <p className="text-xs text-white/60">{clip.status === "queued" ? "Queued" : `${clip.progress}% rendered`}</p>
@@ -960,14 +984,14 @@ function ClipWorkspace({
                     type="button"
                     onClick={() => setPlaying(true)}
                     className="group relative h-full rounded-2xl overflow-hidden"
-                    style={{ aspectRatio: arCss(clip.aspectRatio), background: "linear-gradient(160deg,#243447,#0f172a 65%,#111827)", boxShadow: "0 24px 70px rgba(0,0,0,.5)" }}
+                    style={{ aspectRatio: arCss(clip.aspectRatio), background: "linear-gradient(160deg, var(--surface-3), var(--bg) 70%)", boxShadow: "0 24px 70px rgba(0,0,0,.5)" }}
                   >
                     {clip.thumbnailUrl && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={clip.thumbnailUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
                     )}
                     <span className="absolute inset-0 flex items-center justify-center">
-                      <span className="w-16 h-16 rounded-full bg-white/90 text-ink flex items-center justify-center group-hover:scale-105 transition-transform"><IcPlay /></span>
+                      <span className="w-16 h-16 rounded-full bg-fg/90 text-bg flex items-center justify-center group-hover:scale-105 transition-transform"><IcPlay /></span>
                     </span>
                   </button>
                 )}
@@ -990,16 +1014,31 @@ function ClipWorkspace({
                 <p className="flex-1 text-sm font-bold text-ink">{panelTitle[tab]}</p>
                 <button onClick={() => setPanelOpen(false)} aria-label="Hide tools" className="w-8 h-8 rounded-lg border border-card-border bg-panel text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors flex items-center justify-center"><IcChevronRight /></button>
               </div>
-              <div className="flex flex-wrap gap-1 px-3 py-2.5 border-b border-card-border">
+              {/* Real tabs: role/aria-selected and arrow-key movement, not
+                  aria-current on a row of buttons. On phones they scroll in
+                  one row instead of wrapping to three. */}
+              <div
+                role="tablist"
+                aria-label="Clip tools"
+                className="flex flex-nowrap md:flex-wrap overflow-x-auto gap-1 px-3 py-2.5 border-b border-card-border"
+                onKeyDown={(e) => {
+                  if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+                  e.preventDefault();
+                  const i = TABS.findIndex((t) => t.id === tab);
+                  const next = TABS[(i + (e.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length];
+                  setTab(next.id);
+                  (e.currentTarget.querySelector(`[data-tab="${next.id}"]`) as HTMLElement | null)?.focus();
+                }}
+              >
                 {TABS.map((t) => (
-                  <button key={t.id} onClick={() => setTab(t.id)} aria-current={tab === t.id ? "true" : undefined}
-                    className={`min-h-[36px] px-3 rounded-full text-[12.5px] font-bold transition-colors ${tab === t.id ? "bg-ink text-white" : "text-ink-soft hover:bg-tint-blue hover:text-ink"}`}>
+                  <button key={t.id} data-tab={t.id} role="tab" id={`ac-tab-${t.id}`} aria-selected={tab === t.id} aria-controls="ac-tab-panel" tabIndex={tab === t.id ? 0 : -1} onClick={() => setTab(t.id)}
+                    className={`shrink-0 min-h-[36px] px-3 rounded-full text-[12.5px] font-bold transition-colors ${tab === t.id ? "bg-brand text-on-primary" : "text-fg-muted hover:bg-surface-3 hover:text-fg"}`}>
                     {t.label}
                   </button>
                 ))}
               </div>
 
-              <div className="flex-1 overflow-y-auto p-5">
+              <div id="ac-tab-panel" role="tabpanel" aria-labelledby={`ac-tab-${tab}`} className="flex-1 overflow-y-auto p-5">
                 {tab === "edit" && (
                   <div className="ac-panel-in">
                     <LiteEditTab
@@ -1196,9 +1235,9 @@ function ClipWorkspace({
 
                 {tab === "insights" && (
                   transcriptionFailed ? (
-                    <div className="ac-panel-in rounded-xl border border-amber-200 bg-amber-50 p-4">
-                      <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider mb-1.5">Insights unavailable</h4>
-                      <p className="text-sm text-amber-800 leading-relaxed">This video couldn&apos;t be transcribed, so the AI never read its content. Virality scores and suggested captions would just be guesses, so they&apos;re hidden. Add a working transcription key and re-run the analysis to get genuine insights.</p>
+                    <div className="ac-panel-in rounded-xl border border-warning/40 bg-tint-amber p-4">
+                      <h4 className="text-xs font-bold text-warning uppercase tracking-wider mb-1.5">Insights unavailable</h4>
+                      <p className="text-sm text-fg leading-relaxed">This video couldn&apos;t be transcribed, so the AI never read its content. Virality scores and suggested captions would just be guesses, so they&apos;re hidden. Add a working transcription key and re-run the analysis to get genuine insights.</p>
                     </div>
                   ) : (
                     <div className="ac-panel-in space-y-4">
@@ -1269,7 +1308,7 @@ function ClipWorkspace({
                             {caption && <p className="text-[12.5px] text-ink italic">&quot;{caption}&quot;</p>}
                             {bd?.hashtags && bd.hashtags.length > 0 && (
                               <div className="flex gap-1.5 flex-wrap">
-                                {bd.hashtags.map((h) => <span key={h} className="px-2 py-0.5 rounded-md text-[10.5px] font-bold" style={{ background: "var(--tint-blue)", color: "#3730a3" }}>{h}</span>)}
+                                {bd.hashtags.map((h) => <span key={h} className="px-2 py-0.5 rounded-md text-[10.5px] font-bold" style={{ background: "var(--tint-emerald)", color: "var(--brand)" }}>{h}</span>)}
                               </div>
                             )}
                           </div>
@@ -1500,14 +1539,16 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
     const heading = failedHard ? "Something went wrong" : status === "uploading" ? "Uploading your video…" : "Finding your strongest moments";
     return (
       <div className="max-w-xl mx-auto px-6 pt-20 pb-32 text-center">
-        <div className="relative w-[180px] mx-auto mb-8 rounded-2xl overflow-hidden shadow-card" style={{ aspectRatio: "9/16", background: "linear-gradient(160deg,#1e293b,#0f172a)" }}>
+        <div className="relative w-[180px] mx-auto mb-8 rounded-2xl overflow-hidden shadow-card" style={{ aspectRatio: "9/16", background: "linear-gradient(160deg, var(--surface-3), var(--bg))" }}>
           <div className="ac-shimmer absolute inset-0" />
           <div className="absolute left-0 right-0 bottom-0 p-3.5 text-left">
             <div className="h-2 w-[70%] rounded bg-white/35 mb-1.5" />
             <div className="h-2 w-[45%] rounded bg-white/20" />
           </div>
         </div>
-        <h1 className="text-2xl font-extrabold text-ink mb-2">{heading}</h1>
+        {/* Announced: this is the only signal a screen-reader user gets that the
+            run moved from upload to analysis. */}
+        <h1 role="status" aria-live="polite" className="text-2xl font-extrabold text-ink mb-2">{heading}</h1>
         <p className="text-[15px] text-ink-soft mb-7">{status === "uploading" ? "Uploading your source video…" : `Analyzing speech, pacing and engagement${fileName ? ` across ${fileName}` : ""}.`}</p>
         <div className="h-1.5 rounded-full bg-brand-soft overflow-hidden max-w-[360px] mx-auto mb-2.5 relative">
           <div className="ac-shimmer absolute inset-0" style={{ background: "linear-gradient(90deg, transparent, var(--brand), transparent)" }} />
@@ -1556,14 +1597,14 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
       {/* Header */}
       <div className="flex items-end justify-between gap-6 flex-wrap mb-6">
         <div>
-          <h1 className="text-[28px] font-extrabold tracking-tight text-ink mb-1.5">{allDone ? "Your clips are ready 🎉" : "Generating your clips"}</h1>
+          <h1 role="status" aria-live="polite" className="text-[28px] font-extrabold tracking-tight text-ink mb-1.5">{allDone ? "Your clips are ready 🎉" : "Generating your clips"}</h1>
           <p className="text-sm text-ink-soft">
             {`${ready} of ${total} ready${fileName ? ` · ${fileName}` : ""}`}
           </p>
         </div>
         {readyClips.length > 1 && (
           <div className="flex items-center gap-4">
-            <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className="border-0 bg-transparent py-1.5 text-[13px] font-semibold text-ink-soft cursor-pointer">
+            <select aria-label="Sort clips" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className="border-0 bg-transparent py-1.5 text-[13px] font-semibold text-ink-soft cursor-pointer">
               <option value="score">Best first</option>
               <option value="order">Order in video</option>
               <option value="duration">Longest first</option>
@@ -1594,7 +1635,7 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
             ))
           : Array.from({ length: Math.max(1, expectedCount) }).map((_, i) => (
               <div key={i} className="rounded-2xl bg-panel overflow-hidden shadow-card">
-                <div className="relative" style={{ aspectRatio: "9/16", background: "linear-gradient(160deg,#1e293b,#0f172a)" }}><div className="ac-shimmer absolute inset-0" /></div>
+                <div className="relative" style={{ aspectRatio: "9/16", background: "linear-gradient(160deg, var(--surface-3), var(--bg))" }}><div className="ac-shimmer absolute inset-0" /></div>
                 <div className="p-3.5 space-y-2"><div className="h-3 bg-surface-3 rounded animate-pulse" /><div className="h-2 w-1/2 bg-surface-3 rounded animate-pulse" /></div>
               </div>
             ))}
@@ -1991,7 +2032,7 @@ function AutoClipFlow() {
               )}
               <div>
                 <label className="text-[12px] font-bold text-ink-soft uppercase tracking-wider block mb-2">Instructions (optional)</label>
-                <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={3} maxLength={MAX_INSTRUCTIONS_CHARS} placeholder="e.g. Focus on funny moments, avoid silent parts, prioritize high-energy sections…" className="w-full rounded-xl border border-card-border bg-panel px-3 py-3 text-sm text-ink placeholder:text-ink-soft/50 focus:outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all resize-none" />
+                <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={3} maxLength={MAX_INSTRUCTIONS_CHARS} placeholder="e.g. Focus on funny moments, avoid silent parts, prioritize high-energy sections…" className="w-full rounded-xl border border-card-border bg-panel px-3 py-3 text-sm text-ink placeholder:text-ink-soft/50 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/30 transition-all resize-none" />
               </div>
             </div>
           )}
@@ -2036,7 +2077,7 @@ function AutoClipFlow() {
 
 export default function AutoClipPage() {
   return (
-    <Suspense fallback={<div className="flex h-screen items-center justify-center"><div className="w-8 h-8 border-4 border-brand/40 border-t-blue-600 rounded-full animate-spin" /></div>}>
+    <Suspense fallback={<div className="flex h-screen items-center justify-center"><div className="w-8 h-8 border-4 border-brand/30 border-t-brand rounded-full animate-spin" /></div>}>
       <AutoClipFlow />
     </Suspense>
   );

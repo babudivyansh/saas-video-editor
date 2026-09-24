@@ -209,7 +209,7 @@ function ClipsTab() {
             aria-pressed={favorite}
             className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
               favorite
-                ? "bg-tint-amber text-amber-700 border border-amber-200"
+                ? "bg-tint-amber text-warning border border-warning/40"
                 : "bg-panel border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
             }`}
           >
@@ -222,7 +222,7 @@ function ClipsTab() {
             value={sort}
             onChange={(e) => setSort(e.target.value as ClipSort)}
             aria-label="Sort clips"
-            className="text-xs font-semibold px-3 py-2 rounded-full bg-panel border border-card-border text-ink-soft outline-none focus:border-violet-300 cursor-pointer"
+            className="text-xs font-semibold px-3 py-2 rounded-full bg-panel border border-card-border text-ink-soft outline-none focus:border-brand cursor-pointer"
           >
             {SORTS.map((s) => (
               <option key={s.id} value={s.id}>{s.label}</option>
@@ -234,7 +234,7 @@ function ClipsTab() {
               value={rawQuery}
               onChange={(e) => setRawQuery(e.target.value)}
               placeholder="Search clips…"
-              className="w-full text-sm bg-panel border border-card-border rounded-full pl-9 pr-4 py-2 text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
+              className="w-full text-sm bg-panel border border-card-border rounded-full pl-9 pr-4 py-2 text-ink placeholder:text-ink-soft/50 outline-none focus:border-brand focus:ring-2 focus:ring-brand/30 transition-all"
             />
           </div>
         </div>
@@ -251,7 +251,7 @@ function ClipsTab() {
       {isLoading && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           {Array.from({ length: 10 }).map((_, i) => (
-            <div key={i} className="rounded-[var(--radius-card)] bg-gray-200/60 animate-pulse aspect-[9/16]" />
+            <div key={i} className="rounded-[var(--radius-card)] bg-surface-3 animate-pulse aspect-[9/16]" />
           ))}
         </div>
       )}
@@ -450,7 +450,7 @@ function ProjectsTab() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search projects…"
-                className="w-full text-sm bg-panel border border-card-border rounded-full pl-9 pr-4 py-2 text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
+                className="w-full text-sm bg-panel border border-card-border rounded-full pl-9 pr-4 py-2 text-ink placeholder:text-ink-soft/50 outline-none focus:border-brand focus:ring-2 focus:ring-brand/30 transition-all"
               />
             </div>
           </div>
@@ -465,7 +465,7 @@ function ProjectsTab() {
 
       {!projects && !projectsQuery.error && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-52 rounded-[var(--radius-card)] bg-gray-200/60 animate-pulse" />)}
+          {Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-52 rounded-[var(--radius-card)] bg-surface-3 animate-pulse" />)}
         </div>
       )}
 
@@ -494,14 +494,14 @@ function ProjectsTab() {
             <Card
               key={p.id}
               href={`/dashboard/create/auto-clip?project=${p.id}`}
-              className="group relative hover:border-violet-200"
+              className="group relative hover:border-brand/40"
             >
               <CardMenuButton
                 label="Project actions"
                 onClick={(e) => projectActions.openMenu(e, { id: p.id, title: p.title })}
               />
               <div className={`relative h-24 bg-gradient-to-br ${COVER_GRADIENTS[i % COVER_GRADIENTS.length]} flex items-end p-3 overflow-hidden`}>
-                <div className="absolute -top-6 -right-6 w-20 h-20 rounded-full bg-white/15 blur-xl pointer-events-none" />
+                <div className="absolute -top-6 -right-6 w-20 h-20 rounded-full bg-brand/10 blur-xl pointer-events-none" />
                 <span className="relative inline-flex items-center gap-1.5 text-[11px] font-bold text-white bg-black/25 backdrop-blur-sm rounded-full px-2.5 py-1">
                   <IcFilm /> {p._count.clips} clip{p._count.clips === 1 ? "" : "s"}
                 </span>

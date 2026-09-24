@@ -585,6 +585,12 @@ body {
 .ac-card:hover .ac-reveal, .ac-card:focus-within .ac-reveal { opacity: 1; }
 .ac-rise-in { transform: translateY(6px); transition: transform .18s cubic-bezier(0.16,1,0.3,1); }
 .ac-card:hover .ac-rise-in, .ac-card:focus-within .ac-rise-in { transform: translateY(0); }
+/* A touch screen has no hover: the card's reason line and "Open clip" were
+   simply never seen on a phone. */
+@media (hover: none) {
+  .ac-reveal { opacity: 1; }
+  .ac-rise-in { transform: none; }
+}
 
 /* Honest indeterminate loading sheen (processing / skeletons). */
 .ac-shimmer { background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.55) 50%, rgba(255,255,255,0) 100%); background-size: 200% 100%; animation: ac-shimmer 1.6s linear infinite; }
@@ -592,14 +598,17 @@ body {
 /* Workspace stage: on desktop the video shifts left when the tools panel is
    docked; on phones the video shrinks up and the panel is a bottom sheet. */
 .ac-stage { position: absolute; inset: 0; display: flex; flex-direction: column; transition: padding .22s cubic-bezier(0.16,1,0.3,1); }
-.ac-stage-open { padding-bottom: 58vh; }
-@media (min-width: 768px) { .ac-stage-open { padding-bottom: 0; padding-right: 400px; } }
+/* On phones the tools take the whole screen (Hide tools brings the video
+   back). A 58vh sheet under a 60px header left a ~190px video and a tab row
+   wrapped across three lines — neither usable. */
+.ac-stage-open { padding-bottom: 0; }
+@media (min-width: 768px) { .ac-stage-open { padding-right: 400px; } }
 
 /* Contextual tools panel: bottom sheet on phones, right drawer on desktop. */
 .ac-tools-panel {
-  position: absolute; left: 0; right: 0; bottom: 0; top: auto;
-  max-height: 58vh;
-  border-top-left-radius: 20px; border-top-right-radius: 20px;
+  position: absolute; left: 0; right: 0; bottom: 0; top: 0;
+  max-height: none;
+  border-top-left-radius: 0; border-top-right-radius: 0;
   box-shadow: 0 -20px 60px rgba(0,0,0,.28);
   animation: ac-sheet .22s cubic-bezier(0.16,1,0.3,1) both;
 }
