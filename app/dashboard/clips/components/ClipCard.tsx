@@ -28,9 +28,9 @@ function IcStar({ filled }: { filled: boolean }) {
  */
 function Score({ score }: { score: number }) {
   const tone =
-    score >= 80 ? "bg-tint-emerald text-emerald-700"
+    score >= 80 ? "bg-tint-emerald text-success"
       : score >= 60 ? "bg-tint-blue text-brand"
-        : "bg-tint-amber text-amber-700";
+        : "bg-tint-amber text-warning";
   return (
     <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full ${tone}`} title="Virality score out of 99">
       {score}
@@ -76,7 +76,7 @@ export function ClipCard({
   const title = clip.title || `Clip ${clip.index + 1}`;
 
   return (
-    <div className="group relative rounded-[var(--radius-card)] border border-card-border bg-panel overflow-hidden hover:border-violet-200 transition-colors">
+    <div className="group relative rounded-[var(--radius-card)] border border-card-border bg-panel overflow-hidden hover:border-brand/40 transition-colors">
       <CardMenuButton label="Clip actions" onClick={onMenu} />
 
       <Link

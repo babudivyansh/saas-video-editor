@@ -27,3 +27,24 @@ async function handlePOST(req: NextRequest) {
 }
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "generate:auto-clip" });
+
+// GET — the prices a run will actually be charged at, plus the caller's
+// balance. The create form priced runs with the DEFAULT prices bundled into
+// the page, while this route charges with the admin-set ones, so after any
+// repricing the figure beside Generate was simply wrong. Reads only; the
+// estimate itself is still computed client-side with the same estimateRunCost.
+async function handleGET(req: NextRequest) {
+  const auth = await getAuthUser(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const [{ getAutoClipPricing }, { getCaptionRenderPricing }, { getBalances }] = await Promise.all([
+    import("@/lib/autoclip-pipeline"),
+    import("@/lib/captions/pricing"),
+    import("@/lib/credits"),
+  ]);
+  const [pricing, captionPricing, balances] = await Promise.all([
+    getAutoClipPricing(), getCaptionRenderPricing(), getBalances(auth.userId),
+  ]);
+  return NextResponse.json({ pricing, captionPricing, balance: balances.total });
+}
+
+export const GET = withRateLimit(handleGET, { limit: 60, windowSec: 60, keyBy: "user", name: "generate:auto-clip:pricing" });

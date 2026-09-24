@@ -88,7 +88,7 @@ export function ClipScrubber({
             return (
               <div
                 key={i}
-                className={`flex-1 rounded-sm transition-colors ${inRange ? "bg-brand/70" : "bg-gray-300"}`}
+                className={`flex-1 rounded-sm transition-colors ${inRange ? "bg-brand/70" : "bg-line-strong"}`}
                 style={{ height: `${Math.max(6, Math.min(100, p * 100))}%` }}
               />
             );
@@ -96,8 +96,8 @@ export function ClipScrubber({
         </div>
 
         {/* Excluded regions */}
-        <div className="absolute inset-y-0 left-0 bg-white/65 pointer-events-none" style={{ width: `${pct(startSec)}%` }} />
-        <div className="absolute inset-y-0 right-0 bg-white/65 pointer-events-none" style={{ width: `${100 - pct(endSec)}%` }} />
+        <div className="absolute inset-y-0 left-0 bg-bg/65 pointer-events-none" style={{ width: `${pct(startSec)}%` }} />
+        <div className="absolute inset-y-0 right-0 bg-bg/65 pointer-events-none" style={{ width: `${100 - pct(endSec)}%` }} />
 
         {/* Trim handles */}
         {(["start", "end"] as const).map((edge) => (
@@ -106,8 +106,26 @@ export function ClipScrubber({
             type="button"
             disabled={disabled}
             aria-label={edge === "start" ? "Trim start" : "Trim end"}
+            // A slider to assistive tech, and movable from the keyboard — the
+            // handles were pointer-only, so trimming was impossible without a
+            // mouse. Arrows nudge 0.1s, Shift+arrows 1s.
+            role="slider"
+            aria-valuemin={edge === "start" ? 0 : startSec}
+            aria-valuemax={edge === "start" ? endSec : durationSec}
+            aria-valuenow={Number((edge === "start" ? startSec : endSec).toFixed(1))}
+            aria-valuetext={fmt(edge === "start" ? startSec : endSec)}
+            onKeyDown={(e) => {
+              if (disabled || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
+              e.preventDefault();
+              const step = (e.shiftKey ? 1 : 0.1) * (e.key === "ArrowRight" ? 1 : -1);
+              if (edge === "start") {
+                onChange({ startSec: Math.max(0, Math.min(startSec + step, endSec - 1)), endSec });
+              } else {
+                onChange({ startSec, endSec: Math.min(durationSec, Math.max(endSec + step, startSec + 1)) });
+              }
+            }}
             onPointerDown={(e) => { e.stopPropagation(); if (!disabled) setDragging(edge); }}
-            className="absolute inset-y-0 w-3 -ml-1.5 flex items-center justify-center cursor-ew-resize touch-none disabled:cursor-not-allowed"
+            className="absolute inset-y-0 w-3 -ml-1.5 flex items-center justify-center cursor-ew-resize touch-none disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-fg"
             style={{ left: `${pct(edge === "start" ? startSec : endSec)}%` }}
           >
             <span className="h-full w-1 rounded-full bg-brand shadow" />

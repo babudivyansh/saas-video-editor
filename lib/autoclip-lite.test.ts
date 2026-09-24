@@ -35,10 +35,25 @@ describe("liteEditsSchema", () => {
     expect(liteEditsSchema.safeParse({ speed: 1.5 }).success).toBe(true);
   });
 
-  it("rejects a B-roll window that ends before it starts", () => {
+  // The B-roll "swap" and B-roll transitions were validated and saved, and
+  // never rendered. New input may not set them…
+  it("rejects the retired B-roll swap on new input", () => {
     expect(liteEditsSchema.safeParse({
-      broll: { url: "https://videos.pexels.com/v.mp4", startSec: 5, endSec: 3, source: "pexels" },
+      broll: { url: "https://videos.pexels.com/v.mp4", startSec: 1, endSec: 3, source: "pexels" },
     }).success).toBe(false);
+    expect(liteEditsSchema.safeParse({ transition: { brollIn: "fade" } }).success).toBe(false);
+  });
+
+  // …but a row saved while they existed must not lose its real edits: the
+  // schema is strict, so one leftover key used to fail the whole parse.
+  it("still reads an old row that carries them, keeping its speed and fades", () => {
+    const parsed = parseLiteEdits({
+      v: 1, speed: 1.25,
+      transition: { brollIn: "fade", fadeInSec: 0.3 },
+      broll: { url: "https://videos.pexels.com/v.mp4", startSec: 1, endSec: 3, source: "pexels" },
+    });
+    expect(parsed).toMatchObject({ speed: 1.25, transition: { fadeInSec: 0.3 } });
+    expect(parsed).not.toHaveProperty("broll");
   });
 
   it("rejects unknown keys rather than silently dropping them", () => {

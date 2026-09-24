@@ -8,11 +8,9 @@
 // two systems that must stay pixel-identical and won't.
 
 import { z } from "zod";
-import { SPEED_OPTIONS, TRANSITION_PRESETS } from "@/lib/editor/types";
+import { SPEED_OPTIONS } from "@/lib/editor/types";
 import type { WordTiming } from "@/utils/elevenlabs";
 import { isAllowedStockUrl } from "@/lib/stock-hosts";
-
-const transitionNames = Object.keys(TRANSITION_PRESETS) as [string, ...string[]];
 
 export const liteEditsSchema = z.object({
   v: z.literal(1).default(1),
@@ -37,27 +35,38 @@ export const liteEditsSchema = z.object({
     duck: z.boolean().default(true),
   }).strict().optional(),
   transition: z.object({
-    brollIn: z.enum(transitionNames).optional(),
-    brollOut: z.enum(transitionNames).optional(),
     /** Fade from/to black at the clip edges. */
     fadeInSec: z.number().min(0).max(2).optional(),
     fadeOutSec: z.number().min(0).max(2).optional(),
   }).strict().optional(),
-  broll: z.object({
-    url: z.string().url().refine((u) => isAllowedStockUrl(u, "video"), {
-      message: "B-roll must come from the stock search",
-    }),
-    startSec: z.number().min(0).max(3600),
-    endSec: z.number().min(0).max(3600),
-    source: z.enum(["pexels", "generated", "upload"]).default("pexels"),
-  }).strict().refine((b) => b.endSec > b.startSec, { message: "B-roll end must follow its start" }).optional(),
+  // No `broll` "swap" and no B-roll transitions: both were validated and
+  // saved, and planLitePass never read either. A setting that does nothing
+  // is worse than no setting. Clip-level B-roll lives on the clip itself
+  // (brollWindows), chosen at pick time.
 }).strict();
+
+/** Keys older rows may still carry from the removed B-roll swap. */
+function withoutRetiredKeys(value: unknown): unknown {
+  if (!value || typeof value !== "object") return value;
+  const { broll: _broll, ...rest } = value as Record<string, unknown>;
+  void _broll;
+  const t = rest.transition;
+  if (t && typeof t === "object") {
+    const { brollIn: _in, brollOut: _out, ...fades } = t as Record<string, unknown>;
+    void _in; void _out;
+    rest.transition = fades;
+  }
+  return rest;
+}
 
 export type LiteEdits = z.infer<typeof liteEditsSchema>;
 
 export function parseLiteEdits(value: unknown): LiteEdits | null {
   if (!value) return null;
-  const parsed = liteEditsSchema.safeParse(value);
+  // Stored rows are read leniently about the retired keys — the schema is
+  // strict, and one of them would otherwise drop the clip's speed, music and
+  // fades on its next render. New input (the lite route) is still strict.
+  const parsed = liteEditsSchema.safeParse(withoutRetiredKeys(value));
   return parsed.success ? parsed.data : null;
 }
 

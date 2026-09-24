@@ -7,7 +7,8 @@
 // selected them — and both uploaded the same clip to YouTube.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { claim, upload } = vi.hoisted(() => ({
+const { claim, upload, staleClaims } = vi.hoisted(() => ({
+  staleClaims: vi.fn(async (_a: unknown) => ({ count: 0 })),
   claim: vi.fn(async (_a: unknown) => ({ count: 1 })),
   upload: vi.fn(async (..._a: unknown[]) => ({ videoId: "yt1" })),
 }));
@@ -22,7 +23,8 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     clipPublish: {
       findMany: vi.fn(async () => [dueRow]),
-      updateMany: vi.fn(async (a: { where: { id?: string } }) => (a.where.id ? claim(a) : { count: 0 })),
+      updateMany: vi.fn(async (a: { where: { id?: string; status?: string } }) =>
+        a.where.id ? claim(a) : a.where.status === "publishing" ? staleClaims(a) : { count: 0 }),
       update: vi.fn(async () => ({})),
     },
   },
@@ -57,5 +59,17 @@ describe("publishDueClips", () => {
     const result = await publishDueClips();
     expect(upload).not.toHaveBeenCalled();
     expect(result.skipped).toBe(1);
+  });
+});
+
+describe("publishDueClips — abandoned claims", () => {
+  it("fails a publish claim held long past its start, instead of leaving it forever", async () => {
+    // Put back to pending instead, a clip that DID reach YouTube before the
+    // crash would be uploaded twice. Failed, with the reason saying to check.
+    await publishDueClips();
+    const args = staleClaims.mock.calls[0][0] as { where: { status: string }; data: { status: string; failureReason: string } };
+    expect(args.where.status).toBe("publishing");
+    expect(args.data.status).toBe("failed");
+    expect(args.data.failureReason).toMatch(/Check your YouTube channel/);
   });
 });
