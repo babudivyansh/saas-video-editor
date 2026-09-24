@@ -17,7 +17,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const {
   mockEnv, spendCredits, logToolGeneration, toolEnabled,
   projectFindFirst, projectUpdateMany, projectUpdate, enqueue, rateLimitAllowed, userTier,
+  releaseRateLimit, restoreSpend,
 } = vi.hoisted(() => ({
+  releaseRateLimit: vi.fn(async (_key: string) => {}),
+  restoreSpend: vi.fn(async (_p: unknown) => 0),
   mockEnv: { GEMINI_API_KEY: "test-key" } as Record<string, string | undefined>,
   spendCredits: vi.fn(async () => ({ ok: true as const, balances: { bonus: 0, subscription: 0, purchased: 0, total: 100 }, breakdown: {} })),
   logToolGeneration: vi.fn(async () => {}),
@@ -48,10 +51,14 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("@/lib/credits", () => ({
   spendCredits: (...a: unknown[]) => spendCredits(...(a as [])),
   logToolGeneration: (...a: unknown[]) => logToolGeneration(...(a as [])),
+  restoreSpend: (p: unknown) => restoreSpend(p),
 }));
 vi.mock("@/lib/tool-config", () => ({ getToolConfig: (...a: unknown[]) => toolEnabled(...(a as [])) }));
 vi.mock("@/lib/render-queue", () => ({ createRenderQueue: () => ({ enqueue, driver: "in-process" }) }));
-vi.mock("@/lib/rate-limit", () => ({ rateLimit: (...a: unknown[]) => rateLimitAllowed(...(a as [])) }));
+vi.mock("@/lib/rate-limit", () => ({
+  rateLimit: (...a: unknown[]) => rateLimitAllowed(...(a as [])),
+  releaseRateLimit: (key: string) => releaseRateLimit(key),
+}));
 vi.mock("@/lib/quests", () => ({ markQuestComplete: vi.fn() }));
 vi.mock("@/lib/with-rate-limit", () => ({ withRateLimit: (h: unknown) => h }));
 vi.mock("@/lib/autoclip-pipeline", () => ({
@@ -68,6 +75,8 @@ const { POST } = await import("./route");
 
 const req = (body: Record<string, unknown>) =>
   ({ json: async () => body, headers: new Headers(), nextUrl: new URL("http://t/api") }) as never;
+const badJsonReq = () =>
+  ({ json: async () => { throw new SyntaxError("bad"); }, headers: new Headers(), nextUrl: new URL("http://t/api") }) as never;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -77,6 +86,7 @@ beforeEach(() => {
   spendCredits.mockResolvedValue({ ok: true, balances: { bonus: 0, subscription: 0, purchased: 0, total: 100 }, breakdown: {} });
   rateLimitAllowed.mockResolvedValue({ allowed: true });
   userTier.mockResolvedValue("pro");
+  enqueue.mockResolvedValue(undefined);
 });
 
 describe("the admin kill-switch", () => {
@@ -172,5 +182,102 @@ describe("caption selection", () => {
   it("carries captions-off through as the -1 sentinel with no template", async () => {
     await POST(req({ projectId: "p1", captionStyleIndex: -1 }));
     expect(enqueue.mock.calls[0][1]).toMatchObject({ captionStyleIndex: -1, templateId: null });
+  });
+});
+
+describe("input validation — the charged run and the delivered run must be the same run", () => {
+  it.each([
+    ["a string maxDuration (billed at 60s while Gemini was asked for 300s)", { maxDuration: "300" }],
+    ["minDuration above maxDuration", { minDuration: 90, maxDuration: 30 }],
+    ["zero clips (billed as 1, produced none)", { clipCount: 0 }],
+    ["more clips than a run allows", { clipCount: 50 }],
+    ["an unknown aspect ratio (failed three times at render)", { aspectRatio: "4:5" }],
+    ["instructions long enough to be a Gemini cost amplifier", { instructions: "x".repeat(501) }],
+  ])("rejects %s with 400 and charges nothing", async (_label, extra) => {
+    const res = await POST(req({ projectId: "p1", ...extra }));
+    expect(res.status).toBe(400);
+    expect(spendCredits).not.toHaveBeenCalled();
+    expect(projectUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("answers malformed JSON with 400, not 500", async () => {
+    const res = await POST(badJsonReq());
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("the enqueue", () => {
+  it("uses a fresh, colon-free job id per run", async () => {
+    // BullMQ silently ignores an add whose jobId it still retains, so keying
+    // on the projectId meant a retried project was charged and never ran —
+    // and BullMQ throws on a custom id containing ":".
+    await POST(req({ projectId: "p1" }));
+    await new Promise((r) => setTimeout(r, 2));
+    await POST(req({ projectId: "p1" }));
+    const [a, b] = enqueue.mock.calls.map((c) => (c as unknown[])[0] as string);
+    expect(a).not.toBe("p1");
+    expect(a).not.toBe(b);
+    expect(a).not.toContain(":");
+    expect((enqueue.mock.calls[0] as unknown[])[2]).toMatchObject({ rejectOnFailure: true });
+  });
+
+  it("refunds and releases the project when the job can't be queued", async () => {
+    // Used to be fire-and-forget: a Redis outage left the user charged, with
+    // nothing queued and the project on "analyzing" forever.
+    enqueue.mockRejectedValueOnce(new Error("redis down"));
+    const res = await POST(req({ projectId: "p1" }));
+    expect(res.status).toBe(503);
+    expect(restoreSpend).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1", refId: "auto-clip:p1" }));
+    expect(projectUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: { status: "draft" } }));
+    expect(logToolGeneration).not.toHaveBeenCalled();
+  });
+});
+
+describe("the free tier's monthly allowance", () => {
+  beforeEach(() => userTier.mockResolvedValue("free"));
+
+  it("refuses with free_limit_reached once the allowance is used", async () => {
+    rateLimitAllowed.mockResolvedValueOnce({ allowed: false });
+    const res = await POST(req({ projectId: "p1" }));
+    expect(res.status).toBe(402);
+    expect((await res.json()).error).toBe("free_limit_reached");
+    expect(spendCredits).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a lost double-submit claim", () => { projectUpdateMany.mockResolvedValueOnce({ count: 0 }); }],
+    ["insufficient credits", () => {
+      spendCredits.mockResolvedValueOnce({
+        ok: false, reason: "insufficient_credits", balances: { bonus: 0, subscription: 0, purchased: 0, total: 0 },
+      } as never);
+    }],
+    ["a failed enqueue", () => { enqueue.mockRejectedValueOnce(new Error("down")); }],
+  ])("gives the free run back after %s", async (_label, arrange) => {
+    arrange();
+    await POST(req({ projectId: "p1" }));
+    expect(releaseRateLimit).toHaveBeenCalledWith("autoclip-free:u1");
+  });
+
+  it("keeps the free run when the run actually starts", async () => {
+    const res = await POST(req({ projectId: "p1" }));
+    expect(res.status).toBe(200);
+    expect(releaseRateLimit).not.toHaveBeenCalled();
+  });
+});
+
+describe("the create form's own request", () => {
+  it("is accepted as-is — the schema must never reject what the dashboard sends", async () => {
+    // Mirrors useVideoGenerate.generateAutoClip's body with the form's
+    // defaults and the extremes of its controls (the "long" length preset, the
+    // silence slider's top end, captions off via a null template).
+    const res = await POST(req({
+      projectId: "p1", minDuration: 60, maxDuration: 120, clipCount: 8, aspectRatio: "9:16",
+      instructions: "Focus on funny moments", captionStyleIndex: 0, captionTemplateId: null,
+      reframingPreset: "balanced", removeSilence: true, silenceThresholdMs: 1000, removeFillers: true,
+      smartAutoReframe: true, zoomStrength: "high", speakerMode: "auto", smoothness: 50, trackingSpeed: 50,
+      animatedCaptions: false,
+    }));
+    expect(res.status).toBe(200);
+    expect(enqueue).toHaveBeenCalledTimes(1);
   });
 });

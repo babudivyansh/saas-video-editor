@@ -6,7 +6,7 @@
 
 import { Prisma, type Clip } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { AUTOCLIP_PRICING_DEFAULTS, computeCreditCost, computeAnalysisCost, analysisRefId, type AutoClipPricing } from "@/lib/autoclip-pricing";
+import { AUTOCLIP_PRICING_DEFAULTS, computeCreditCost, computeAnalysisCost, analysisRefId, parseAutoClipPricing, type AutoClipPricing } from "@/lib/autoclip-pricing";
 import { restoreSpend, grantCredits, spendCredits } from "@/lib/credits";
 import { resolveFontFile } from "@/lib/editor/filtergraph";
 import { downloadFile } from "@/utils/download";
@@ -29,7 +29,7 @@ import { type WordTiming } from "@/utils/elevenlabs";
 import { transcribe } from "@/lib/transcription";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { withRetry } from "@/lib/with-retry";
-import { NonRetryableError } from "@/lib/render-queue";
+import { NonRetryableError, type JobContext } from "@/lib/render-queue";
 import { logger } from "@/lib/logger";
 import { notify } from "@/lib/notify";
 import { sendClipsReadyEmail } from "@/lib/email";
@@ -126,8 +126,7 @@ export async function getAutoClipPricing(): Promise<AutoClipPricing> {
   try {
     const row = await prisma.config.findUnique({ where: { key: "autoclip_pricing" } });
     if (!row) return AUTOCLIP_PRICING_DEFAULTS;
-    const parsed = JSON.parse(row.value) as Partial<AutoClipPricing>;
-    return { ...AUTOCLIP_PRICING_DEFAULTS, ...parsed };
+    return parseAutoClipPricing(JSON.parse(row.value));
   } catch {
     return AUTOCLIP_PRICING_DEFAULTS;
   }
@@ -198,6 +197,28 @@ async function creditsSpentOnRun(userId: string, projectId: string): Promise<num
   });
   // Spends are negative, refunds positive — the net is what is still held.
   return Math.max(0, -rows.reduce((sum, r) => sum + r.delta, 0));
+}
+
+/** Used when a job function is called directly (tests, scripts) rather than by a queue. */
+const SINGLE_ATTEMPT: JobContext = { attempt: 1, isFinal: true };
+
+/**
+ * Returns EVERYTHING still held for a run — the up-front charge the create
+ * route took under `auto-clip:{projectId}`. restoreSpend with no amount is
+ * capped at the net held, so calling this after a partial refund, or twice,
+ * never pays out more than was taken.
+ *
+ * This did not exist. The create route charges a worst case before analysis
+ * even starts, and the only thing that ever gave any of it back was
+ * settleRunCost — on the SUCCESS path. A run that failed analysis (too short,
+ * over the plan's length cap, a Gemini outage) or failed its render kept the
+ * whole charge, while the UI told the user "you haven't been charged".
+ */
+export async function refundRunCharge(userId: string, projectId: string, reason: string): Promise<number> {
+  return restoreSpend({ userId, refId: `auto-clip:${projectId}`, reason }).catch((e) => {
+    logger.error("auto-clip", `run-charge refund failed for ${projectId}`, e);
+    return 0;
+  });
 }
 
 export async function refundCredits(projectId: string, amount: number): Promise<void> {
@@ -517,7 +538,12 @@ ${sharedRules}`;
     .filter((c) => typeof c.start === "number" && typeof c.end === "number" && c.end > c.start)
     .map((c, i) => {
       const start = Math.max(0, Math.min(c.start, durationSec - 1));
-      const end = Math.min(c.end, durationSec);
+      // The top of the user's clip-length band is a HARD ceiling, not a hint
+      // in the prompt. The create route charged for clips of at most
+      // maxDuration and settleRunCost only ever refunds, so a longer segment
+      // — a drifting model, or instructions asking for "one clip, 0 to 3600s"
+      // — was an hour-long render billed as fifteen seconds.
+      const end = Math.min(c.end, durationSec, start + maxDuration);
       const brollQuery = (typeof c.brollQuery === "string" && c.brollQuery.trim()) ? c.brollQuery.trim().slice(0, 60) : null;
       const brollOffsetSec = (brollQuery && typeof c.brollOffsetSec === "number" && Number.isFinite(c.brollOffsetSec))
         ? Math.max(0, Math.min(c.brollOffsetSec, end - start))
@@ -731,7 +757,7 @@ export interface PickPayload {
   animatedCaptions?: boolean;
 }
 
-export async function pickJob(payload: PickPayload): Promise<void> {
+export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATTEMPT): Promise<void> {
   const {
     projectId, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionStyleIndex,
     templateId = null,
@@ -769,6 +795,9 @@ export async function pickJob(payload: PickPayload): Promise<void> {
     void (async () => {
       logger.error("auto-clip", `pick watchdog fired for ${projectId} after ${WATCHDOG_MS}ms — failing the job`);
       await refundAnalysis("refund:auto-clip-analysis-timeout");
+      // Final by construction: the body throws NonRetryableError once it sees
+      // `aborted`, so no later attempt can run on the money refunded here.
+      await refundRunCharge(project.userId, projectId, "refund:auto-clip-timeout");
       await prisma.clip.deleteMany({ where: { projectId, status: "queued" } }).catch(() => {});
       await prisma.project.update({
         where: { id: projectId },
@@ -1074,24 +1103,39 @@ export async function pickJob(payload: PickPayload): Promise<void> {
       import("@/lib/auth"),
     ]);
     await createRenderQueue<RenderPayload>("auto-clip-render", renderJob).enqueue(
-      projectId,
+      // Per-run id: BullMQ silently drops an add whose jobId it still retains,
+      // so a re-run of this project keyed on projectId alone never rendered.
+      `${projectId}-render-${Date.now().toString(36)}`,
       { projectId },
       { priority: tierPriority(await getUserTier(project.userId)), rejectOnFailure: true },
     );
   } catch (err) {
-    // If the watchdog already fired, it has done the cleanup — don't repeat it
-    // (and don't double-refund; refundAnalysis is single-shot regardless).
-    if (aborted) throw err;
-    logger.error("auto-clip", `pick failed for ${projectId}`, err);
-    // A failed analysis is never billed.
+    // If the watchdog already fired, it has done the cleanup and the refunds.
+    // NonRetryable so no queue retries a job the user was told had failed and
+    // been refunded for — a retry would render on money already given back.
+    if (aborted) throw new NonRetryableError(err instanceof Error ? err.message : "Analysis stopped");
+    logger.error("auto-clip", `pick failed for ${projectId} (attempt ${ctx.attempt})`, err);
+    // A failed analysis is never billed. Safe on every attempt: the next one
+    // takes the analysis charge again before doing any work.
     await refundAnalysis("refund:auto-clip-analysis-failed");
     // Clean up any clips from a prior attempt on this project so a retry
     // doesn't accumulate duplicates alongside the ones about to be re-picked.
     await prisma.clip.deleteMany({ where: { projectId, status: "queued" } }).catch(() => {});
-    await prisma.project.update({
-      where: { id: projectId },
-      data: { status: "failed", failureReason: userFacingFailure(err) },
-    }).catch(() => {});
+
+    const final = ctx.isFinal || err instanceof NonRetryableError;
+    if (final) {
+      // The run charge only on the LAST attempt. Refunding it before a retry
+      // that then succeeds would render every clip for free.
+      await refundRunCharge(project.userId, projectId, "refund:auto-clip-failed");
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { status: "failed", failureReason: userFacingFailure(err) },
+      }).catch(() => {});
+    }
+    // Not final: leave the project on "analyzing". Flipping it to "failed"
+    // between attempts showed an error for a run that was about to succeed,
+    // and let the user click Generate again and be charged a second time
+    // while the retry was still coming.
     // Rethrow (after the cleanup above already ran) so createRenderQueue's
     // wrapper sees a real failure and BullMQ's attempts:3/backoff actually
     // retries transient errors (a flaky Gemini/S3 call) instead of stopping
@@ -1917,7 +1961,7 @@ async function renderOneClip(
 
 export interface RenderPayload { projectId: string }
 
-export async function renderJob(payload: RenderPayload): Promise<void> {
+export async function renderJob(payload: RenderPayload, ctx: JobContext = SINGLE_ATTEMPT): Promise<void> {
   const { projectId } = payload;
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   if (!project?.uploadedVideoUrl) throw new Error(`Project ${projectId} missing uploadedVideoUrl`);
@@ -2033,16 +2077,59 @@ export async function renderJob(payload: RenderPayload): Promise<void> {
       await notifyRenderOutcome(projectId, project.userId, "completed", { readyCount });
     }
   } catch (err) {
-    logger.error("auto-clip", `render failed for ${projectId}`, err);
-    await prisma.project.update({
-      where: { id: projectId },
-      data: { status: "failed", failureReason: userFacingFailure(err) },
-    }).catch(() => {});
-    // Notify only on a FINAL failure. A retryable error is about to be retried
-    // by BullMQ (attempts:3), so notifying here would send a false "failed"
-    // before a later attempt succeeds; a NonRetryableError won't be retried.
-    if (err instanceof NonRetryableError) {
-      await notifyRenderOutcome(projectId, project.userId, "failed", { reason: userFacingFailure(err) });
+    logger.error("auto-clip", `render failed for ${projectId} (attempt ${ctx.attempt})`, err);
+    // Everything below happens on the FINAL failure only. A retryable error is
+    // about to be retried, and that attempt picks up the still-"queued" clips:
+    // failing the project, refunding or notifying now would all be undone —
+    // or worse, not undone — by an attempt that then succeeds.
+    if (ctx.isFinal || err instanceof NonRetryableError) {
+      // Clips this run never reached. Left "queued", the stale-clip sweep
+      // would fail them later — but it only reconciles projects still marked
+      // "rendering", so it never refunded this one. That is how a run that
+      // died on its source download kept every credit it had been charged.
+      const unreached = await prisma.clip.findMany({
+        where: { projectId, status: { in: ["queued", "rendering"] } },
+        select: { id: true },
+      }).catch(() => [] as { id: string }[]);
+      await prisma.clip.updateMany({
+        where: { id: { in: unreached.map((c) => c.id) } },
+        data: { status: "failed", failureReason: userFacingFailure(err) },
+      }).catch(() => {});
+      const readyClips = await prisma.clip
+        .findMany({ where: { projectId, status: "ready" }, select: { videoUrl: true, score: true } })
+        .catch(() => []);
+      if (readyClips.length === 0) {
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { status: "failed", failureReason: userFacingFailure(err) },
+        }).catch(() => {});
+        // Nothing to show for the run: return all of it. Capped at net held,
+        // so this is safe after any partial refund that already ran.
+        await refundRunCharge(project.userId, projectId, "refund:auto-clip-render-failed");
+        await notifyRenderOutcome(projectId, project.userId, "failed", { reason: userFacingFailure(err) });
+      } else {
+        // Clips DID render. Calling the run failed would hide finished,
+        // paid-for clips behind an error. The per-clip loop refunds the clips
+        // it reached and failed; the ones it never reached (a throw before or
+        // during the loop, e.g. on a retry) are refunded here, by the same
+        // proportional formula.
+        if (unreached.length > 0) {
+          try {
+            const all = await prisma.clip.findMany({ where: { projectId }, select: { durationSec: true } });
+            const pricing = await getAutoClipPricing();
+            const charged = computeCreditCost(all.length, all.reduce((s, c) => s + c.durationSec, 0), pricing);
+            await refundCredits(projectId, Math.round(charged * (unreached.length / all.length)));
+          } catch (e) {
+            logger.error("auto-clip", `unreached-clip refund failed for ${projectId}`, e);
+          }
+        }
+        const best = readyClips.reduce((a, b) => ((b.score ?? 0) > (a.score ?? 0) ? b : a));
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { status: "completed", videoUrl: best.videoUrl },
+        }).catch(() => {});
+        await notifyRenderOutcome(projectId, project.userId, "completed", { readyCount: readyClips.length });
+      }
     }
     // See pickJob's matching comment — rethrow so BullMQ's attempts:3/backoff
     // actually retries transient failures instead of stopping after one try.

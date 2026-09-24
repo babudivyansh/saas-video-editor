@@ -6,7 +6,7 @@
 // mechanically. Progress is published to Redis (`render:{id}`) for the status
 // endpoint regardless of driver.
 
-import { InProcessQueue, NonRetryableError } from "@/lib/job-queue";
+import { InProcessQueue, NonRetryableError, type JobContext, type JobHandler } from "@/lib/job-queue";
 import { redis } from "@/lib/redis";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
@@ -16,7 +16,7 @@ export type RenderStage = "queued" | "downloading" | "rendering" | "uploading" |
 // Defined in lib/job-queue.ts so BOTH drivers can honour it (this module
 // imports that one, so it can't live here). Re-exported to keep the existing
 // `from "@/lib/render-queue"` import sites working.
-export { NonRetryableError } from "@/lib/job-queue";
+export { NonRetryableError, type JobContext } from "@/lib/job-queue";
 
 export interface RenderProgress {
   stage: RenderStage;
@@ -91,7 +91,7 @@ export const KNOWN_RENDER_QUEUE_NAMES = [
 ] as const;
 export type RenderQueueName = typeof KNOWN_RENDER_QUEUE_NAMES[number];
 
-type Handler<T> = (payload: T) => Promise<void>;
+type Handler<T> = JobHandler<T>;
 
 // Cached by queue name (via globalThis, so it survives Next.js dev hot-reload
 // like the job Maps elsewhere in this codebase) so both instrumentation.ts
@@ -106,10 +106,10 @@ export function createRenderQueue<T extends { projectId: string }>(name: string,
   const cached = queueCache.get(name);
   if (cached) return cached as RenderQueue<T>;
 
-  const wrapped: Handler<T> = async (payload) => {
+  const wrapped: Handler<T> = async (payload, ctx) => {
     await setRenderProgress(payload.projectId, "queued");
     try {
-      await handler(payload);
+      await handler(payload, ctx);
       await setRenderProgress(payload.projectId, "completed");
     } catch (e) {
       await setRenderProgress(payload.projectId, "failed");
@@ -150,9 +150,12 @@ function makeBullQueue<T extends { projectId: string }>(name: string, handler: H
   // One in-process worker per server; concurrency controls parallel renders.
   const worker = new Worker(
     name,
-    async (job: { data: T }) => {
+    async (job: { data: T; attemptsMade: number; opts: { attempts?: number } }) => {
+      // attemptsMade counts the attempts BEFORE this one.
+      const attempt = job.attemptsMade + 1;
+      const ctx: JobContext = { attempt, isFinal: attempt >= (job.opts.attempts ?? 1) };
       try {
-        await handler(job.data);
+        await handler(job.data, ctx);
       } catch (err) {
         // BullMQ stops retrying only for UnrecoverableError — translate ours
         // so "video too short" fails once instead of three times.

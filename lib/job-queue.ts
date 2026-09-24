@@ -27,7 +27,22 @@ export class NonRetryableError extends Error {
   }
 }
 
-type JobHandler<T> = (payload: T) => Promise<void>;
+/**
+ * Which attempt this is. Handlers that charged credits need it: refunding on
+ * a failure that is about to be RETRIED would let the later, successful
+ * attempt run for free, while never refunding strands the charge when the
+ * last attempt fails too. So refunds belong to the final attempt only — see
+ * pickJob/renderJob in lib/autoclip-pipeline.ts. A NonRetryableError is
+ * always final, whatever this says.
+ */
+export interface JobContext {
+  /** 1-based. */
+  attempt: number;
+  /** True when a failure of this attempt will not be retried. */
+  isFinal: boolean;
+}
+
+export type JobHandler<T> = (payload: T, ctx: JobContext) => Promise<void>;
 
 interface Job<T> {
   id: string;
@@ -55,7 +70,10 @@ export class InProcessQueue<T> {
     while (this.queue.length > 0) {
       const job = this.queue.shift()!;
       try {
-        await this.handler(job.payload);
+        await this.handler(job.payload, {
+          attempt: job.retries + 1,
+          isFinal: job.retries >= this.MAX_RETRIES,
+        });
       } catch (err) {
         logger.error(this.name, `Job ${job.id} failed`, err);
         // A video that is too short (or a plan limit, or missing credits) will

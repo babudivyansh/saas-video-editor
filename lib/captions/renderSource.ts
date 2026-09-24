@@ -157,9 +157,21 @@ export function ownedJobWhere(jobId: string, userId: string): Prisma.CaptionRend
   };
 }
 
-/** The ledger refId. Owner-typed, or a clip and a project could collide. */
-export function renderRefId(owner: RenderOwnerRef, revision: number): string {
-  return owner.type === "clip"
+/**
+ * The ledger refId. Owner-typed, or a clip and a project could collide.
+ *
+ * `requestKey` makes it unique PER REQUEST. Without it every render of one
+ * owner at one caption revision — template A, then template B, or two copies
+ * of a double-click — spent under the SAME refId, and a refund of one
+ * (restoreSpend with no amount returns everything held under a refId) paid
+ * back all of them: a failed B refunded a completed A, and the losing half of
+ * a double-click refunded the winner, making the render free. The refId is
+ * stored on the job row, which is where every refund reads it from, so it
+ * never has to be reconstructed.
+ */
+export function renderRefId(owner: RenderOwnerRef, revision: number, requestKey?: string): string {
+  const base = owner.type === "clip"
     ? `caption-render:${owner.id}:${revision}`
     : `caption-render:project:${owner.id}:${revision}`;
+  return requestKey ? `${base}:${requestKey}` : base;
 }

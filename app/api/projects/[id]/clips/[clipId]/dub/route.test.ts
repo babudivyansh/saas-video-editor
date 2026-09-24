@@ -56,7 +56,11 @@ vi.mock("@/lib/prisma", () => ({
 
 vi.mock("@/lib/redis", () => ({ redis: { get: vi.fn(), set: vi.fn(), del: vi.fn() } }));
 vi.mock("@/lib/env", () => ({ env: { ELEVENLABS_API_KEY: "test-key" } }));
-vi.mock("@/lib/credits", () => ({ spendCredits: vi.fn(), logToolGeneration: vi.fn() }));
+vi.mock("@/lib/credits", () => ({ spendCredits: vi.fn(), restoreSpend: vi.fn(), logToolGeneration: vi.fn() }));
+vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
+// The handlers are wrapped in withRateLimit, which reaches Redis; this suite is
+// about tenant scoping, so the wrapper is a pass-through here.
+vi.mock("@/lib/with-rate-limit", () => ({ withRateLimit: (h: unknown) => h }));
 vi.mock("@/lib/plans/tiers", () => ({ tierAtLeast: vi.fn(() => true) }));
 vi.mock("@/lib/tool-costs", () => ({ TOOL_COSTS: {} }));
 vi.mock("@/lib/autoclip-pipeline", () => ({ getAutoClipPricing: vi.fn(async () => ({})) }));
