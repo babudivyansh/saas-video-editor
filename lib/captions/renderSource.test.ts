@@ -152,6 +152,16 @@ describe("renderRefId", () => {
     expect(renderRefId({ type: "clip", id: "abc" }, 0))
       .not.toBe(renderRefId({ type: "project", id: "abc" }, 0));
   });
+
+  it("is unique per request, so refunding one render can never refund another", () => {
+    // Same owner, same revision: template A then template B, or both halves of
+    // a double-click. They used to share one refId, and restoreSpend with no
+    // amount returns everything held under it.
+    const a = renderRefId({ type: "clip", id: "abc" }, 3, "req-a");
+    const b = renderRefId({ type: "clip", id: "abc" }, 3, "req-b");
+    expect(a).not.toBe(b);
+    expect(a.startsWith("caption-render:abc:3:")).toBe(true);
+  });
 });
 
 describe("ownedJobWhere", () => {

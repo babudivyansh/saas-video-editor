@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { redis } from "@/lib/redis";
 import { env } from "@/lib/env";
-import { spendCredits, logToolGeneration } from "@/lib/credits";
+import { spendCredits, restoreSpend, logToolGeneration } from "@/lib/credits";
+import { logger } from "@/lib/logger";
+import { withRateLimit } from "@/lib/with-rate-limit";
 import { getUserTier } from "@/lib/auth";
 import { tierAtLeast } from "@/lib/plans/tiers";
 import { TOOL_COSTS } from "@/lib/tool-costs";
@@ -13,7 +14,7 @@ import { dubStartQueue, computeDubCost } from "@/lib/autoclip-dub";
 import { DUB_LANGUAGES } from "@/utils/elevenlabs";
 
 // GET /api/projects/[id]/clips/[clipId]/dub — list dub jobs for a clip.
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string; clipId: string }> }) {
+async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: string; clipId: string }> }) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id: projectId, clipId } = await params;
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 // POST /api/projects/[id]/clips/[clipId]/dub { targetLang }
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string; clipId: string }> }) {
+async function handlePOST(req: NextRequest, { params }: { params: Promise<{ id: string; clipId: string }> }) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id: projectId, clipId } = await params;
@@ -75,12 +76,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const pricing = await getAutoClipPricing();
   const creditCost = computeDubCost(clip.durationSec, pricing.dubPerMinute);
 
-  const cachedCredits = await redis.get(`credits:${auth.userId}`);
-  const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
-  if (cached !== null && cached < creditCost) {
-    return NextResponse.json({ error: `Insufficient credits (need ${creditCost})` }, { status: 402 });
+  // Claim BEFORE charging. The row is the claim: a clip can have one dub per
+  // language in flight, checked and created under a row lock on the clip so
+  // two concurrent requests can't both pass the check. This used to charge
+  // first under a Date.now() refId with no claim at all, so a double-click
+  // bought two ElevenLabs dubs.
+  const claimed = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Clip" WHERE id = ${clipId} FOR UPDATE`;
+    const inFlight = await tx.clipDub.findFirst({
+      where: { clipId, targetLang, status: { in: ["dubbing", "processing"] } },
+      select: { id: true },
+    });
+    if (inFlight) return null;
+    return tx.clipDub.create({ data: { clipId, targetLang, status: "dubbing", userId: auth.userId } });
+  });
+  if (!claimed) {
+    return NextResponse.json({ error: "A dub in this language is already in progress for this clip." }, { status: 409 });
   }
-  const refId = `auto-clip-dub:${clipId}:${Date.now()}`;
+
+  // Deterministic, per dub row — so the webhook, the sweep and the failure
+  // paths below all refund exactly this dub and nothing else.
+  const refId = `auto-clip-dub:${claimed.id}`;
   const spend = await spendCredits({
     userId: auth.userId,
     amount: creditCost,
@@ -88,19 +104,35 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     refId,
   });
   if (!spend.ok) {
-    return NextResponse.json({ error: `Insufficient credits (need ${creditCost})` }, { status: 402 });
+    await prisma.clipDub.delete({ where: { id: claimed.id } }).catch(() => {});
+    return NextResponse.json(
+      { error: "insufficient_credits", required: creditCost, balance: spend.balances.total },
+      { status: 402 },
+    );
+  }
+
+  let dub;
+  try {
+    dub = await prisma.clipDub.update({ where: { id: claimed.id }, data: { refId } });
+    // Awaited, and rejecting: credits are already spent, so a dropped enqueue
+    // must refund rather than leave a paid dub that never starts.
+    await dubStartQueue.enqueue(dub.id, { projectId, clipDubId: dub.id, userId: auth.userId, refId }, { rejectOnFailure: true });
+  } catch (e) {
+    logger.error("auto-clip-dub", `could not start dub ${claimed.id}; refunding`, e);
+    await restoreSpend({ userId: auth.userId, refId, reason: "refund:auto-clip-dub-failed" }).catch(() => {});
+    await prisma.clipDub.update({ where: { id: claimed.id }, data: { status: "failed" } }).catch(() => {});
+    return NextResponse.json({ error: "Couldn't start the dub right now — you haven't been charged." }, { status: 503 });
   }
 
   // Ledger rows alone don't reach the AI-spend dashboards — those aggregate
-  // Generation. Without this the whole AutoClip surface was invisible to margin
-  // analytics while being the most expensive thing the product runs.
+  // Generation. Logged once the dub has actually started.
   void logToolGeneration({
     userId: auth.userId, toolSlug: "clip-dub", creditsCost: creditCost,
     generationType: "audio", refId,
   });
 
-  const dub = await prisma.clipDub.create({ data: { clipId, targetLang, status: "dubbing", userId: auth.userId, refId } });
-  dubStartQueue.enqueue(dub.id, { projectId, clipDubId: dub.id, userId: auth.userId, refId });
-
   return NextResponse.json({ dub, creditCost, creditsRemaining: spend.balances.total }, { status: 201 });
 }
+
+export const GET = withRateLimit(handleGET, { limit: 120, windowSec: 60, keyBy: "user", name: "auto-clip:dub:list" });
+export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "auto-clip:dub" });

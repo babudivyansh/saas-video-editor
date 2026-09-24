@@ -47,3 +47,30 @@ export function computeAnalysisCost(sourceDurationSec: number, pricing: AutoClip
 }
 
 export const analysisRefId = (projectId: string) => `auto-clip-analysis:${projectId}`;
+
+/**
+ * The lowest value each price may take. perClip/perTwoMinutes/dubPerMinute
+ * are what a run or a dub actually costs, so 0 would make them free — a
+ * misclick in admin, not a promotion (a promo belongs in a coupon, not the
+ * base price). A free first re-render and a zero analysis advance are real
+ * product choices, so those two may be 0.
+ */
+export const AUTOCLIP_PRICE_FLOORS: Record<keyof AutoClipPricing, number> = {
+  perClip: 1, perTwoMinutes: 1, analysisPerHalfHour: 0, rerender: 0, dubPerMinute: 1,
+};
+
+/**
+ * Reads the stored `autoclip_pricing` Config row field by field. A field that
+ * is missing, not an integer, or below its floor falls back to its default
+ * rather than being trusted: this used to be a bare spread of the parsed JSON,
+ * so a `null` or a string stored in the row priced every run at zero.
+ */
+export function parseAutoClipPricing(raw: unknown): AutoClipPricing {
+  const src = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const out = { ...AUTOCLIP_PRICING_DEFAULTS };
+  for (const key of Object.keys(AUTOCLIP_PRICING_DEFAULTS) as (keyof AutoClipPricing)[]) {
+    const v = src[key];
+    if (typeof v === "number" && Number.isInteger(v) && v >= AUTOCLIP_PRICE_FLOORS[key]) out[key] = v;
+  }
+  return out;
+}

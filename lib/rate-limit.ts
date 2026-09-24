@@ -40,3 +40,15 @@ export async function rateLimit(key: string, max: number, windowSeconds: number)
   const count = await redis.incrWithExpire(`ratelimit:${key}`, windowSeconds);
   return { allowed: count <= max, remaining: Math.max(0, max - count) };
 }
+
+/**
+ * Hands back one slot taken by rateLimit() for a request that did not go
+ * ahead. For QUOTAS rather than abuse limits — e.g. the free tier's monthly
+ * AutoClip runs, where a run refused for being a double-submit, or for lack of
+ * credits, must not count as one of the user's free videos. Consuming first
+ * and giving back on failure (rather than checking, then consuming) keeps two
+ * concurrent requests from both slipping under the limit.
+ */
+export async function releaseRateLimit(key: string): Promise<void> {
+  await redis.decrFloor(`ratelimit:${key}`);
+}

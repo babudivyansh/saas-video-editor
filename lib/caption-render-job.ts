@@ -30,6 +30,7 @@
 import os from "os";
 import path from "path";
 import fs from "fs";
+import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { spendCredits, restoreSpend, logToolGeneration } from "@/lib/credits";
@@ -260,7 +261,9 @@ export async function requestCaptionRender(
 
   const pricing = await getCaptionRenderPricing();
   const creditCost = estimateCaptionRenderCredits(durationSec, pricing);
-  const refId = renderRefId(source.owner, captionRevision);
+  // Per-request, so refunding this request can only ever touch this request's
+  // charge — see renderRefId.
+  const refId = renderRefId(source.owner, captionRevision, randomUUID().slice(0, 12));
 
   // Charge BEFORE the paid provider call (§24 "do not render first and charge
   // later"). spendCredits is atomic and returns ok:false rather than going

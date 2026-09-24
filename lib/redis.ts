@@ -207,6 +207,22 @@ export const redis = {
       return fallbackIncr(key, ttlSeconds);
     }
   },
+  /**
+   * Gives back one unit taken by incrWithExpire — for a quota slot consumed by
+   * a request that then did not go ahead. Never takes a counter below zero,
+   * and leaves the TTL alone so the window doesn't reset.
+   */
+  async decrFloor(key: string): Promise<void> {
+    try {
+      await ready();
+      const n = await client.decr(key);
+      if (n < 0) await client.set(key, "0", "KEEPTTL");
+    } catch (err) {
+      logFallback("DECR", err);
+      const entry = counterFallback.get(key);
+      if (entry && entry.count > 0) entry.count -= 1;
+    }
+  },
   // ── List ops ──────────────────────────────────────────────────────────
   // Used by lib/pipeline-metrics.ts for bounded ring buffers of stage
   // samples. The in-memory fallback keeps the same shape so a Redis outage

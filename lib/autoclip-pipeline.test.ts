@@ -167,6 +167,24 @@ describe("getAutoClipPricing", () => {
     configRow = { key: "autoclip_pricing", value: "{not valid json" };
     expect(await getAutoClipPricing()).toEqual(AUTOCLIP_PRICING_DEFAULTS);
   });
+
+  // This was a bare spread of the parsed row, so any junk value in it won —
+  // and null or a string times a clip count is 0, i.e. every run free.
+  it.each([
+    ["null", { perClip: null }],
+    ["a string", { perClip: "3" }],
+    ["zero, which would make every run free", { perClip: 0, perTwoMinutes: 0 }],
+    ["a negative", { dubPerMinute: -2 }],
+    ["a fraction", { perTwoMinutes: 1.5 }],
+  ])("ignores %s and keeps the default for that field", async (_label, stored) => {
+    configRow = { key: "autoclip_pricing", value: JSON.stringify(stored) };
+    expect(await getAutoClipPricing()).toEqual(AUTOCLIP_PRICING_DEFAULTS);
+  });
+
+  it("still allows a free first re-render and a zero analysis advance", async () => {
+    configRow = { key: "autoclip_pricing", value: JSON.stringify({ rerender: 0, analysisPerHalfHour: 0 }) };
+    expect(await getAutoClipPricing()).toEqual({ ...AUTOCLIP_PRICING_DEFAULTS, rerender: 0, analysisPerHalfHour: 0 });
+  });
 });
 
 describe("buildBrollFilterComplex", () => {

@@ -22,6 +22,7 @@ import { hexToASS, assToHex } from "@/lib/ass-color";
 import { indexForTemplateId, DEFAULT_TEMPLATE_ID } from "@/lib/captions/legacyStyleIndex";
 import { estimateRunCost, bandMaxSeconds } from "@/lib/captions/runEstimate";
 import { AUTOCLIP_PRICING_DEFAULTS } from "@/lib/autoclip-pricing";
+import { MAX_INSTRUCTIONS_CHARS } from "@/lib/autoclip-create-input";
 import { CAPTION_RENDER_PRICING_DEFAULTS } from "@/lib/captions/pricingDefaults";
 import {
   RelatedSection, RelatedRail, RelatedList, RelatedEmpty, RelatedLoading,
@@ -1864,7 +1865,7 @@ function AutoClipFlow() {
               )}
               <div>
                 <label className="text-[12px] font-bold text-ink-soft uppercase tracking-wider block mb-2">Instructions (optional)</label>
-                <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={3} placeholder="e.g. Focus on funny moments, avoid silent parts, prioritize high-energy sections…" className="w-full rounded-xl border border-card-border bg-panel px-3 py-3 text-sm text-ink placeholder:text-ink-soft/50 focus:outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all resize-none" />
+                <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={3} maxLength={MAX_INSTRUCTIONS_CHARS} placeholder="e.g. Focus on funny moments, avoid silent parts, prioritize high-energy sections…" className="w-full rounded-xl border border-card-border bg-panel px-3 py-3 text-sm text-ink placeholder:text-ink-soft/50 focus:outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all resize-none" />
               </div>
             </div>
           )}

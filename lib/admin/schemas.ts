@@ -240,15 +240,18 @@ export const toolPatchSchema = z
   .strict()
   .refine((v) => v.enabled !== undefined || v.creditCost !== undefined, { message: "Nothing to update" });
 
+// Floors match AUTOCLIP_PRICE_FLOORS in lib/autoclip-pricing.ts: a run and a
+// dub may not be priced at zero (that is every run free, not a promotion).
 export const autoclipPricingSchema = z
   .object({
-    perClip: z.number().int().min(0).max(10_000).optional(),
-    perTwoMinutes: z.number().int().min(0).max(10_000).optional(),
+    perClip: z.number().int().min(1).max(10_000).optional(),
+    perTwoMinutes: z.number().int().min(1).max(10_000).optional(),
     analysisPerHalfHour: z.number().int().min(0).max(10_000).optional(),
     rerender: z.number().int().min(0).max(10_000).optional(),
-    dubPerMinute: z.number().int().min(0).max(10_000).optional(),
+    dubPerMinute: z.number().int().min(1).max(10_000).optional(),
   })
-  .strict();
+  .strict()
+  .refine((v) => Object.keys(v).length > 0, { message: "Nothing to update" });
 
 export const autoclipCalibrationSchema = z
   .object({
