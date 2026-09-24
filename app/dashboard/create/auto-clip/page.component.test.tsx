@@ -12,7 +12,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { DubPanel, PublishPanel } from "./page";
+import { DubPanel, PublishPanel } from "./_components/ClipActions";
 
 vi.mock("@/app/hooks/useVideoGenerate", () => ({
   getStoredToken: () => "test-token",
@@ -54,6 +54,10 @@ describe("DubPanel", () => {
     renderWithClient(<DubPanel projectId="proj-1" clip={CLIP} embedded />);
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    // Wait for the languages to RENDER, not just for the request to start —
+    // Dub needs a selected language, and clicking before the list arrives was
+    // a race that failed under a loaded parallel run.
+    await waitFor(() => expect(screen.getByRole("option", { name: "Spanish" })).toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: "Dub (1 credit)" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3)); // 1 GET + 1 POST + 1 refetch GET
