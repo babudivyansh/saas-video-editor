@@ -70,6 +70,13 @@ vi.mock("@/lib/prisma", () => ({
     project: {
       findUnique: vi.fn(async () => project),
       update: vi.fn(async ({ data }: { data: Partial<typeof project> }) => Object.assign(project, data)),
+      // Conditional, like real Prisma: only moves the project if it is in the
+      // status the caller expects — which is what makes finishing idempotent.
+      updateMany: vi.fn(async ({ where, data }: { where: { status?: string }; data: Partial<typeof project> }) => {
+        if (where.status && project.status !== where.status) return { count: 0 };
+        Object.assign(project, data);
+        return { count: 1 };
+      }),
     },
     clip: {
       findMany: vi.fn(async ({ where }: { where: Parameters<typeof inIds>[0] }) => clips.filter(inIds(where))),
@@ -83,7 +90,13 @@ vi.mock("@/lib/prisma", () => ({
         return { count: hit.length };
       }),
     },
-    creditTransaction: { findMany: vi.fn(async () => []), count: vi.fn(async () => 1) },
+    // The pipeline reads the ledger directly to work out what is held; derive
+    // it from the same in-memory map the credits mock writes.
+    creditTransaction: {
+      findMany: vi.fn(async ({ where }: { where: { refId: string } }) =>
+        held.has(where.refId) ? [{ delta: -(held.get(where.refId) ?? 0) }] : []),
+      count: vi.fn(async () => 1),
+    },
   },
 }));
 
@@ -144,6 +157,9 @@ describe("pickJob — a failed analysis", () => {
 });
 
 describe("renderJob — a failed render", () => {
+  // renderJob only ever runs on a project the pick moved to "rendering".
+  beforeEach(() => { project.status = "rendering"; });
+
   const queued = (): ClipRow[] => [
     { id: "c1", status: "queued", durationSec: 30, videoUrl: null, score: 60 },
     { id: "c2", status: "queued", durationSec: 30, videoUrl: null, score: 70 },
@@ -174,8 +190,8 @@ describe("renderJob — a failed render", () => {
 
   it("shows finished clips as finished when a late failure follows real renders", async () => {
     // One clip rendered on an earlier attempt, the final attempt then died
-    // before reaching the other: the run is completed, not failed, and only
-    // the unreached clip is refunded.
+    // before reaching the other: the run is completed, not failed, and the
+    // user ends up paying for exactly the clip they got.
     clips = [
       { id: "c1", status: "ready", durationSec: 30, videoUrl: "https://s3/c1.mp4", score: 80 },
       { id: "c2", status: "queued", durationSec: 30, videoUrl: null, score: 50 },
@@ -184,7 +200,45 @@ describe("renderJob — a failed render", () => {
     await expect(renderJob({ projectId: "p1" }, FINAL)).rejects.toThrow("source gone");
     expect(project.status).toBe("completed");
     expect(clips.find((c) => c.id === "c2")!.status).toBe("failed");
-    // Default pricing: 2 clips × 1 + 1 two-minute block × 1 = 3; half unreached.
-    expect(held.get(RUN)).toBe(20 - Math.round(3 * 0.5));
+    // Default pricing for the one delivered 30s clip: 1 clip × 1 + 1 block × 1.
+    expect(held.get(RUN)).toBe(2);
+  });
+});
+
+describe("finalizeRun — the one way a run ends", () => {
+  it("is safe to reach twice: one refund, one status change, one notification", async () => {
+    // renderJob, a retry of it, and the stale-clip sweep can all arrive here.
+    // Each used to refund its own delta and send its own "clips are ready".
+    const { finalizeRun } = await import("./autoclip-pipeline");
+    project.status = "rendering";
+    clips = [
+      { id: "c1", status: "ready", durationSec: 30, videoUrl: "https://s3/c1.mp4", score: 80 },
+      { id: "c2", status: "failed", durationSec: 30, videoUrl: null, score: 50 },
+    ];
+    await finalizeRun("p1", "u1");
+    await finalizeRun("p1", "u1");
+    expect(held.get(RUN)).toBe(2);
+    expect(project.status).toBe("completed");
+    expect(notify).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns the analysis advance too when nothing was delivered", async () => {
+    const { finalizeRun } = await import("./autoclip-pipeline");
+    held.set("auto-clip-analysis:p1", 1);
+    project.status = "rendering";
+    clips = [{ id: "c1", status: "failed", durationSec: 30, videoUrl: null, score: 50 }];
+    await finalizeRun("p1", "u1", "boom");
+    expect(held.get(RUN)).toBe(0);
+    expect(held.get("auto-clip-analysis:p1")).toBe(0);
+    expect(project.status).toBe("failed");
+  });
+
+  it("marks a retry that finds every clip already rendered as completed, not failed", async () => {
+    // The previous attempt rendered everything and then died; the retry
+    // finds no queued clips. It used to fail the project and say so.
+    clips = [{ id: "c1", status: "ready", durationSec: 30, videoUrl: "https://s3/c1.mp4", score: 80 }];
+    project.status = "rendering";
+    await renderJob({ projectId: "p1" }, NOT_FINAL);
+    expect(project.status).toBe("completed");
   });
 });

@@ -43,20 +43,41 @@ export interface DubSweepResult {
 }
 
 export async function runDubSweep(): Promise<DubSweepResult> {
+  const cutoff = new Date(Date.now() - DUB_STALE_TIMEOUT_MINUTES * 60 * 1000);
+  let enqueued = 0;
+  let failed = 0;
+
+  // Rows that never got a dubbingId: the start job was lost (a restart
+  // dropped the in-process queue) before ElevenLabs was ever called. There is
+  // nothing to poll, so the query below skipped them — for good, with the
+  // credits held. Past the budget they are failed and refunded.
+  const neverStarted = await prisma.clipDub.findMany({
+    where: { status: { in: ["dubbing", "processing"] }, dubbingId: null, createdAt: { lt: cutoff } },
+    select: { id: true, userId: true, refId: true },
+  });
+  for (const dub of neverStarted) {
+    await failDub(dub);
+    failed++;
+  }
+
   const inFlight = await prisma.clipDub.findMany({
     where: { status: { in: ["dubbing", "processing"] }, dubbingId: { not: null } },
     include: { clip: { select: { projectId: true } } },
   });
 
-  const cutoff = new Date(Date.now() - DUB_STALE_TIMEOUT_MINUTES * 60 * 1000);
-  let enqueued = 0;
-  let failed = 0;
-
   for (const dub of inFlight) {
     try {
       const status = await getDubbingStatus(dub.dubbingId!);
       if (status === "dubbed") {
-        if (await claimAndEnqueueFinish(dub)) enqueued++;
+        if (await claimAndEnqueueFinish(dub)) {
+          enqueued++;
+        } else if (dub.status === "processing" && dub.createdAt < cutoff) {
+          // Claimed long ago, and the finish job never wrote a terminal
+          // state — it was lost. `continue` here used to skip the staleness
+          // check below, so this row stayed "processing", charged, forever.
+          await failDub(dub);
+          failed++;
+        }
         continue;
       }
       if (status === "failed") {
@@ -82,7 +103,7 @@ export async function runDubSweep(): Promise<DubSweepResult> {
     logger.warn("cron/dub-sweep", `checked ${inFlight.length}, enqueued ${enqueued}, failed ${failed}`);
   }
 
-  return { ok: true, checked: inFlight.length, enqueued, failed, at: new Date().toISOString() };
+  return { ok: true, checked: inFlight.length + neverStarted.length, enqueued, failed, at: new Date().toISOString() };
 }
 
 async function failDub(dub: { id: string; userId: string | null; refId: string | null }): Promise<void> {
