@@ -20,7 +20,7 @@ async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: s
     where: { id, userId: auth.userId },
     select: {
       id: true, status: true, warnings: true, failureReason: true,
-      autoClipCaptionStyle: true, uploadedVideoUrl: true,
+      autoClipCaptionStyle: true, uploadedVideoUrl: true, updatedAt: true,
     },
   });
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -39,6 +39,9 @@ async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: s
       // small numbers per clip — an order of magnitude smaller than the
       // transcript, which stays behind the ?clipId= detail fetch.
       liteEdits: true, audioPeaks: true,
+      // Why a clip failed. Selected nowhere, so the grid could only say "Failed
+      // to render" while the reason sat on the row.
+      failureReason: true,
     },
   });
 
@@ -57,6 +60,8 @@ async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: s
       failureReason: project.failureReason,
       captionStyleIndex: project.autoClipCaptionStyle,
       uploadedVideoUrl: project.uploadedVideoUrl,
+      // Lets the page tell a slow analysis from a stranded one.
+      updatedAt: project.updatedAt,
     },
     clips,
     ...(detail ? { detail } : {}),

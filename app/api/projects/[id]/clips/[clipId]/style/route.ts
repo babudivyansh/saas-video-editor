@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { getAuthUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import {
   requestRerender, subtitleStyleOverrideSchema, silenceSettingsSchema,
@@ -22,6 +24,13 @@ const bodySchema = z.object({
   captionStyleIndex: z.number().int().min(-1).max(64).optional(),
   subtitleStyleOverride: subtitleStyleOverrideSchema.optional(),
   silenceSettings: silenceSettingsSchema.optional(),
+  /**
+   * false = save the style on the clip WITHOUT re-rendering (or charging).
+   * This is what "Apply to all" sends for the sibling clips: it promised to
+   * copy the style only, but every sibling went through requestRerender and
+   * was charged a paid re-render after its free one, with the 402s hidden.
+   */
+  render: z.boolean().optional(),
 }).strict();
 
 async function handlePUT(req: NextRequest, { params }: { params: Promise<{ id: string; clipId: string }> }) {
@@ -34,11 +43,36 @@ async function handlePUT(req: NextRequest, { params }: { params: Promise<{ id: s
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid request" }, { status: 400 });
   }
 
+  if (parsed.data.render === false) {
+    // Style only — merged exactly like requestRerender merges it, so the next
+    // real render of this clip picks it up.
+    const clip = await prisma.clip.findFirst({
+      where: { id: clipId, projectId, project: { userId: auth.userId } },
+      select: { id: true, subtitleStyleOverride: true },
+    });
+    if (!clip) return NextResponse.json({ error: "Clip not found" }, { status: 404 });
+    if (!parsed.data.subtitleStyleOverride) {
+      return NextResponse.json({ error: "Nothing to save" }, { status: 400 });
+    }
+    await prisma.clip.update({
+      where: { id: clip.id },
+      data: {
+        subtitleStyleOverride: {
+          ...((clip.subtitleStyleOverride as Record<string, unknown>) ?? {}),
+          ...parsed.data.subtitleStyleOverride,
+        } as Prisma.InputJsonValue,
+      },
+    });
+    return NextResponse.json({ status: "saved", creditsCharged: 0 });
+  }
+
+  const { render: _render, ...patch } = parsed.data;
+  void _render;
   const result = await requestRerender({
     userId: auth.userId,
     projectId,
     clipId,
-    patch: parsed.data,
+    patch,
     reason: "style",
   });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });

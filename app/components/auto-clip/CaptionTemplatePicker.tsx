@@ -332,14 +332,17 @@ export function CaptionRenderControls({
         <Switch
           checked={applyToAll}
           onChange={onApplyToAllChange}
-          label="Apply this style to all selected clips"
+          label="Apply this style to every clip in this run"
           disabled={disabled}
         />
         {/* Saying this out loud matters: applying a style to twenty clips and
             silently rendering twenty paid clips would be a very expensive
-            surprise. Apply-to-all changes the SETTING only. */}
+            surprise. Apply-to-all changes the SETTING only — the server now
+            enforces that (render:false on the style route). The old wording
+            promised a render "when you export", which nothing does. */}
         <p className="text-[10px] text-ink-soft mt-1">
-          Updates the style on every selected clip. Nothing is rendered until you export.
+          Saves this style on the other clips without re-rendering them, so it costs nothing now.
+          Each one shows the new style after its next re-render.
         </p>
       </div>
     </div>

@@ -90,7 +90,7 @@ describe("CaptionRenderControls", () => {
     // A button that silently spends credits on twenty clips is a trap. The
     // copy has to say the render is separate.
     render(<CaptionRenderControls {...props} />);
-    expect(screen.getByText(/Nothing is rendered until you export/i)).toBeInTheDocument();
+    expect(screen.getByText(/without re-rendering them, so it costs nothing now/i)).toBeInTheDocument();
   });
 
   it("exposes caption position as a labelled control", () => {

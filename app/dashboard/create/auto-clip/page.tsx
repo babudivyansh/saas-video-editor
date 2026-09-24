@@ -9,6 +9,7 @@ import { LiteEditTab, type LiteEdits } from "@/app/components/auto-clip/LiteEdit
 import { CaptionTemplatePicker, CaptionRenderControls, TranslateCaptions } from "@/app/components/auto-clip/CaptionTemplatePicker";
 import { CAPTION_TEMPLATES } from "@/lib/caption-templates";
 import { discardDraftProject } from "@/lib/discard-draft-project";
+import { useInsufficientCredits } from "@/app/components/billing/CreditModalContext";
 import { UrlImportField } from "@/app/components/auto-clip/UrlImportField";
 import { ScorePerformanceBanner } from "@/app/components/auto-clip/ScorePerformanceBanner";
 import { Switch } from "@/app/components/ui/Switch";
@@ -21,9 +22,9 @@ import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptPro
 import { hexToASS, assToHex } from "@/lib/ass-color";
 import { indexForTemplateId, DEFAULT_TEMPLATE_ID } from "@/lib/captions/legacyStyleIndex";
 import { estimateRunCost, bandMaxSeconds } from "@/lib/captions/runEstimate";
-import { AUTOCLIP_PRICING_DEFAULTS } from "@/lib/autoclip-pricing";
+import { AUTOCLIP_PRICING_DEFAULTS, type AutoClipPricing } from "@/lib/autoclip-pricing";
 import { MAX_INSTRUCTIONS_CHARS } from "@/lib/autoclip-create-input";
-import { CAPTION_RENDER_PRICING_DEFAULTS } from "@/lib/captions/pricingDefaults";
+import { CAPTION_RENDER_PRICING_DEFAULTS, type CaptionRenderPricing } from "@/lib/captions/pricingDefaults";
 import {
   RelatedSection, RelatedRail, RelatedList, RelatedEmpty, RelatedLoading,
   SourceWindowBar, fmtDuration,
@@ -117,6 +118,8 @@ export interface ClipItem {
   liteEdits: LiteEdits | null;
   audioPeaks: number[] | null;
   rerenderCount: number;
+  /** Why this clip failed, in words a creator can act on. */
+  failureReason?: string | null;
 }
 interface ScoreBreakdownWithInsights extends ScoreBreakdown {
   // All nullable: the pipeline no longer substitutes invented text when the
@@ -156,7 +159,7 @@ function RerenderCostNote({ clip }: { clip: ClipItem }) {
     </p>
   );
 }
-export interface ProjectMeta { status: string; warnings: string[] | null; failureReason: string | null; captionStyleIndex: number | null; uploadedVideoUrl: string | null }
+export interface ProjectMeta { status: string; warnings: string[] | null; failureReason: string | null; captionStyleIndex: number | null; uploadedVideoUrl: string | null; updatedAt?: string }
 
 function fmtTime(sec: number): string {
   const s = Math.max(0, Math.round(sec));
@@ -398,8 +401,10 @@ function RetryClipButton({ projectId, clip, onQueued }: { projectId: string; cli
 
   return (
     <div className="flex flex-col items-center gap-1">
-      <button onClick={retry} disabled={busy} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white/90 hover:bg-panel text-ink transition-colors disabled:opacity-50">
-        {busy ? "Retrying…" : "Retry"}
+      {/* States its price: a retry is a re-render, free the first time and
+          charged after. It said only "Retry". */}
+      <button onClick={retry} disabled={busy} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-panel border border-line hover:bg-surface-2 text-fg transition-colors disabled:opacity-50">
+        {busy ? "Retrying…" : clip.rerenderCount === 0 ? "Retry (free)" : "Retry (1 credit)"}
       </button>
       {err && <span className="text-[10px] text-error">{err}</span>}
     </div>
@@ -489,8 +494,11 @@ function ClipCard({ projectId, clip, onChanged, onOpen }: {
             </span>
           </button>
         ) : failed ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/55 text-white text-xs font-medium">
-            <span>Failed to render</span>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 text-white text-xs font-medium px-4 text-center">
+            <span className="font-semibold">Failed to render</span>
+            {/* The reason was on the row and never selected, so every failure
+                read the same. */}
+            {clip.failureReason && <span className="text-[11px] text-white/80 leading-snug line-clamp-3">{clip.failureReason}</span>}
             <RetryClipButton projectId={projectId} clip={clip} onQueued={onChanged} />
           </div>
         ) : (
@@ -825,14 +833,16 @@ function ClipWorkspace({
       // "Apply to all" copies the STYLE to the sibling clips and nothing more.
       // It deliberately does not trigger a render on any of them: applying a
       // premium style to twenty clips and silently starting twenty paid
-      // renders would be a very expensive surprise (§26/§38). Each clip is
-      // rendered only when its owner exports it.
+      // renders would be a very expensive surprise (§26/§38). The siblings
+      // pick the style up on their next re-render.
       if (applyToAll && siblingClipIds.length > 0) {
         await Promise.allSettled(
           siblingClipIds.map((id) =>
             apiFetch(`/api/projects/${projectId}/clips/${id}/style`, {
               method: "PUT",
-              body: JSON.stringify({ subtitleStyleOverride }),
+              // render:false — the server now honours what this comment always
+              // promised. Without it every sibling was a charged re-render.
+              body: JSON.stringify({ subtitleStyleOverride, render: false }),
             }),
           ),
         );
@@ -1343,7 +1353,13 @@ function ClipWorkspace({
 // useQuery call, so the "when do we stop polling" decision is testable
 // without needing real or faked timers — react-query calls this itself on
 // its own schedule; the test only needs to check what it WOULD return.
-export function autoClipPollIntervalMs(data: { project: ProjectMeta; clips: ClipItem[] } | undefined): number | false {
+export function autoClipPollIntervalMs(
+  data: { project: ProjectMeta; clips: ClipItem[] } | undefined,
+  error?: unknown,
+): number | false {
+  // A project that isn't there (deleted, or discarded after a refused start)
+  // will not appear by asking again. This polled a 404 every 2.5s forever.
+  if (error instanceof ApiError && error.status === 404) return false;
   if (!data) return 2500;
   const settled = data.project.status === "completed" || data.project.status === "failed";
   const inFlight = data.clips.some((c) => c.status === "queued" || c.status === "rendering");
@@ -1353,13 +1369,15 @@ export function autoClipPollIntervalMs(data: { project: ProjectMeta; clips: Clip
 const DEFAULT_PROJECT_META: ProjectMeta = { status: "rendering", warnings: null, failureReason: null, captionStyleIndex: null, uploadedVideoUrl: null };
 const EMPTY_CLIPS: ClipItem[] = [];
 
-export function ClipsResults({ projectId, status, error, expectedCount, fileName, onReset, initialClipId }: {
+export function ClipsResults({ projectId, status, error, expectedCount, fileName, onReset, onRetry, initialClipId }: {
   projectId: string | null;
   status: GenerateStatus;
   error: string | null;
   expectedCount: number;
   fileName: string | null;
   onReset: () => void;
+  /** Re-run this (failed) project from the form, keeping its settings. */
+  onRetry?: (fileName: string | null) => void;
   /** Deep link target — opens this clip's workspace once the clip exists. */
   initialClipId?: string | null;
 }) {
@@ -1371,7 +1389,7 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
     // fetch (including a failed one, which leaves .data at its last good
     // value: same "silently keep polling on a transient error" behavior the
     // old setInterval had, without a bare catch swallowing the error).
-    refetchInterval: (query) => autoClipPollIntervalMs(query.state.data),
+    refetchInterval: (query) => autoClipPollIntervalMs(query.state.data, query.state.error),
   });
   // Stable fallback references, not inline `?? []` / `?? {...}` literals —
   // the edits-seeding effect below depends on `clips` by reference, and a
@@ -1422,6 +1440,16 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
   // spinner. The old `pending_review` arm went with the review step.
   const settledEmpty = clips.length === 0 && projectStatus === "completed";
   const analyzing = clips.length === 0 && !failedHard && !settledEmpty;
+  // Twenty minutes with no sign of life from the pick job. The clock ticks
+  // once a minute from an effect — reading Date.now() during render is impure
+  // (react-hooks/purity), and is the exact error that failed CI on #228.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  const analysisIsSlow = analyzing && projectStatus === "analyzing" && !!project.updatedAt
+    && nowMs - new Date(project.updatedAt).getTime() > 20 * 60 * 1000;
   const allDone = projectStatus === "completed";
 
   useEffect(() => {
@@ -1437,6 +1465,18 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
 
   const openClip = (clip: ClipItem, tab: WorkspaceTab = "edit", origin = "50% 50%") => { setOpenId(clip.id); setOpenTab(tab); setOpenOrigin(origin); };
   const transcriptionFailed = project.warnings?.includes("transcription_failed") ?? false;
+
+  if (clipsQuery.error instanceof ApiError && clipsQuery.error.status === 404) {
+    return (
+      <div className="max-w-lg mx-auto text-center py-20 px-6 space-y-4">
+        <h2 className="text-xl font-extrabold text-fg">This run isn&apos;t here any more</h2>
+        <p className="text-sm text-fg-muted leading-relaxed">It may have been deleted, or it never started. Nothing was charged for a run that didn&apos;t start.</p>
+        <div className="flex items-center justify-center gap-2 pt-1">
+          <Button variant="secondary" onClick={onReset}>Start a new run</Button>
+        </div>
+      </div>
+    );
+  }
 
   // ── Processing (upload + analysis) — honest, single state ──
   if (settledEmpty) {
@@ -1473,6 +1513,14 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
           <div className="ac-shimmer absolute inset-0" style={{ background: "linear-gradient(90deg, transparent, var(--brand), transparent)" }} />
         </div>
         <p className="text-[13px] text-ink-soft mb-8">Usually 2–5 minutes for an hour of video.</p>
+        {analysisIsSlow && (
+          // Said, not spun: a run can wait in the queue, and a stranded one is
+          // failed and fully refunded by the sweep. It used to spin forever.
+          <div role="status" className="mb-6 mx-auto max-w-md rounded-xl border border-warning/40 bg-tint-amber px-4 py-3 text-[13px] text-fg text-left">
+            This is taking longer than usual, most likely because other videos are ahead of it in the queue.
+            If it doesn&apos;t finish, it will be stopped automatically and you&apos;ll get every credit back.
+          </div>
+        )}
         <div className="inline-flex items-center gap-2.5 rounded-xl border border-card-border bg-panel px-4 py-3 text-[13px] text-ink-soft">
           <span className="text-brand"><IcClock /></span>
           You can leave this page — your clips will be ready when you return.
@@ -1487,7 +1535,15 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
       <div className="max-w-xl mx-auto px-6 pt-20 pb-32 text-center">
         <h1 className="text-2xl font-extrabold text-ink mb-2">Something went wrong</h1>
         <p className="text-[15px] text-ink-soft mb-7">{project.failureReason ?? error ?? "We couldn't generate clips from this video. Please try again."}</p>
-        <button onClick={onReset} className="inline-flex items-center gap-2 grad-brand shadow-glow text-on-primary text-sm font-bold px-6 py-3 rounded-xl">Create another</button>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {/* A failed run is re-runnable on the same video: the create route
+              re-claims a "failed" project. This used to offer only "Create
+              another", which threw the settings away too. */}
+          {onRetry && projectId && projectStatus === "failed" && (
+            <button onClick={() => onRetry(fileName)} className="inline-flex items-center gap-2 grad-brand shadow-glow text-on-primary text-sm font-bold px-6 py-3 rounded-xl">Try again</button>
+          )}
+          <Button variant="secondary" onClick={onReset}>Start over</Button>
+        </div>
       </div>
     );
   }
@@ -1607,18 +1663,24 @@ function AutoClipFlow() {
   const captionStyleIndex = indexForTemplateId(captionTemplateId);
   const isPremiumStyle = captionsOn && premiumTemplateIds.has(captionTemplateId);
 
-  // Priced client-side with the same helper and the same defaults the create
-  // route uses, so the figure shown here is the figure charged. Both sides read
-  // pricing that an admin can change, so this is an estimate of an estimate —
-  // it is deliberately labelled "~" and the server is the authority.
+  // Priced with the same helper the create route uses, and now the same
+  // PRICES: the route's GET returns the admin-set ones. This used the bundled
+  // defaults, so after any repricing the figure beside Generate was not the
+  // figure charged. The defaults remain only as the first-paint fallback.
+  const pricingQuery = useQuery({
+    queryKey: ["auto-clip-pricing"],
+    queryFn: () => apiFetch<{ pricing: AutoClipPricing; captionPricing: CaptionRenderPricing; balance: number }>("/api/generate/auto-clip"),
+    staleTime: 60_000,
+  });
+  const balance = pricingQuery.data?.balance ?? null;
   const runCost = useMemo(
     () =>
       estimateRunCost(
         { clipCount, maxDurationSec: bandMaxSeconds(minDuration, maxDuration), premiumCaptions: isPremiumStyle },
-        AUTOCLIP_PRICING_DEFAULTS,
-        CAPTION_RENDER_PRICING_DEFAULTS,
+        pricingQuery.data?.pricing ?? AUTOCLIP_PRICING_DEFAULTS,
+        pricingQuery.data?.captionPricing ?? CAPTION_RENDER_PRICING_DEFAULTS,
       ),
-    [clipCount, minDuration, maxDuration, isPremiumStyle],
+    [clipCount, minDuration, maxDuration, isPremiumStyle, pricingQuery.data],
   );
 
   const [reframingPreset, setReframingPreset] = useState("balanced");
@@ -1633,7 +1695,32 @@ function AutoClipFlow() {
   const [animatedCaptions, setAnimatedCaptions] = useState(true);
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
-  const { status: genStatus, error: genError, projectId: genProjectId, generateAutoClip, generateAutoClipForProject, reset } = useVideoGenerate();
+  const {
+    status: genStatus, error: genError, projectId: genProjectId, paymentBlock,
+    generateAutoClip, generateAutoClipForProject, reset, clearPaymentBlock,
+  } = useVideoGenerate();
+  const creditModal = useInsufficientCredits();
+
+  // A run refused for credits opens the top-up modal straight away — the
+  // user asked to spend, so the next step is paying, not reading an error.
+  useEffect(() => {
+    if (paymentBlock?.kind === "credits") {
+      creditModal.open({ required: paymentBlock.required, balance: paymentBlock.balance, action: "Auto Clips" });
+    }
+  }, [paymentBlock, creditModal]);
+
+  // A failed project the user chose to try again. Its video is already on our
+  // side, so Generate re-runs THAT project (the create route re-claims a
+  // "failed" project) instead of asking for the file again.
+  const [retryProject, setRetryProject] = useState<{ id: string; name: string | null } | null>(null);
+
+  // Put the run in the URL the moment it starts. It never was, so refreshing
+  // mid-run dropped the user back on an empty form with no way back to it.
+  useEffect(() => {
+    if (genStatus === "rendering" && genProjectId && !resumeProjectId) {
+      router.replace(`/dashboard/create/auto-clip?project=${encodeURIComponent(genProjectId)}`);
+    }
+  }, [genStatus, genProjectId, resumeProjectId, router]);
 
   useEffect(() => { return () => { if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl); }; }, [videoPreviewUrl]);
 
@@ -1657,19 +1744,31 @@ function AutoClipFlow() {
   const handleGenerate = useCallback(async () => {
     const token = getStoredToken();
     if (!token) return;
+    const settings = {
+      minDuration, maxDuration, clipCount, aspectRatio, instructions,
+      captionStyleIndex: captionsOn ? captionStyleIndex : -1,
+      captionTemplateId: captionsOn ? captionTemplateId : null,
+      reframingPreset, removeSilence, silenceThresholdMs, removeFillers,
+      smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions,
+    };
+    if (!file && retryProject) {
+      setImportError(null);
+      try {
+        await generateAutoClipForProject({ projectId: retryProject.id, token, ...settings });
+      } catch (e) {
+        setImportError(e instanceof Error ? e.message : "Couldn't start the run again");
+      }
+      return;
+    }
     if (!file && pickedAsset) {
       setImportError(null);
       let createdId: string | null = null;
       try {
         const created = await apiFetch<{ project: { id: string } }>("/api/projects", { method: "POST", body: JSON.stringify({ title: pickedAsset.name, uploadedVideoUrl: pickedAsset.url, productType: "auto-clip" }) });
         createdId = created.project.id;
-        await generateAutoClipForProject({
-          projectId: createdId, token, minDuration, maxDuration, clipCount, aspectRatio, instructions,
-          captionStyleIndex: captionsOn ? captionStyleIndex : -1,
-          captionTemplateId: captionsOn ? captionTemplateId : null,
-          reframingPreset, removeSilence, silenceThresholdMs, removeFillers,
-          smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions,
-        });
+        const outcome = await generateAutoClipForProject({ projectId: createdId, token, ...settings });
+        // Refused for payment: nothing ran, so the draft is an empty shell.
+        if (outcome === "payment_blocked") await discardDraftProject(createdId, token);
       } catch (e) {
         // If analysis never started, the project is an empty shell — drop it
         // rather than leaving a "0 clips" draft on the dashboard.
@@ -1685,13 +1784,8 @@ function AutoClipFlow() {
         const created = await apiFetch<{ project: { id: string } }>("/api/projects", { method: "POST", body: JSON.stringify({ title: importedTitle ?? "Imported video", productType: "auto-clip" }) });
         projectId = created.project.id;
         await apiFetch(`/api/projects/${projectId}/import-url`, { method: "POST", body: JSON.stringify({ url: importedUrl }) });
-        await generateAutoClipForProject({
-          projectId, token, minDuration, maxDuration, clipCount, aspectRatio, instructions,
-          captionStyleIndex: captionsOn ? captionStyleIndex : -1,
-          captionTemplateId: captionsOn ? captionTemplateId : null,
-          reframingPreset, removeSilence, silenceThresholdMs, removeFillers,
-          smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions,
-        });
+        const outcome = await generateAutoClipForProject({ projectId, token, ...settings });
+        if (outcome === "payment_blocked") await discardDraftProject(projectId, token);
       } catch (e) {
         // A URL that fails to import is the most common way this path breaks,
         // and it used to leave a draft named after the source video behind on
@@ -1702,19 +1796,13 @@ function AutoClipFlow() {
       return;
     }
     if (!file) return;
-    await generateAutoClip({
-      file, minDuration, maxDuration, clipCount, aspectRatio, instructions,
-      captionStyleIndex: captionsOn ? captionStyleIndex : -1,
-      captionTemplateId: captionsOn ? captionTemplateId : null,
-      token, reframingPreset, removeSilence, silenceThresholdMs, removeFillers,
-      smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions,
-    });
-  }, [file, pickedAsset, importedUrl, importedTitle, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionsOn, captionStyleIndex, captionTemplateId, reframingPreset, removeSilence, silenceThresholdMs, removeFillers, smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions, generateAutoClip, generateAutoClipForProject]);
+    await generateAutoClip({ file, token, ...settings });
+  }, [file, retryProject, pickedAsset, importedUrl, importedTitle, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionsOn, captionStyleIndex, captionTemplateId, reframingPreset, removeSilence, silenceThresholdMs, removeFillers, smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions, generateAutoClip, generateAutoClipForProject]);
 
   const handleReset = useCallback(() => {
     reset();
     handleClearFile();
-    setImportedUrl(null); setImportedTitle(null); setImportError(null); setPickedAsset(null);
+    setImportedUrl(null); setImportedTitle(null); setImportError(null); setPickedAsset(null); setRetryProject(null);
     setMinDuration(15); setMaxDuration(60); setClipCount(8); setAspectRatio("9:16");
     setInstructions(""); setCaptionsOn(true); setCaptionTemplateId(DEFAULT_TEMPLATE_ID);
     setReframingPreset("balanced"); setRemoveSilence(false); setSilenceThresholdMs(400); setRemoveFillers(false);
@@ -1725,12 +1813,23 @@ function AutoClipFlow() {
 
   const showOverlay = !!resumeProjectId || genStatus !== "idle";
   const activeProjectId = resumeProjectId ?? genProjectId;
-  const canGenerate = !!file || !!importedUrl || !!pickedAsset;
+  const canGenerate = !!file || !!importedUrl || !!pickedAsset || !!retryProject;
+
+  // "Try again" on a failed run: back to the form with this session's settings
+  // kept (it used to offer only "Create another", which wiped them), and the
+  // failed project as the source.
+  const handleRetry = useCallback((name: string | null) => {
+    if (!activeProjectId) return;
+    setRetryProject({ id: activeProjectId, name });
+    setFile(null); setImportedUrl(null); setPickedAsset(null); setImportError(null);
+    reset();
+    router.push("/dashboard/create/auto-clip");
+  }, [activeProjectId, reset, router]);
 
   if (showOverlay) {
     return (
       <div className="h-full overflow-y-auto" style={{ background: "var(--surface)" }}>
-        <ClipsResults projectId={activeProjectId} status={resumeProjectId ? "rendering" : genStatus} error={genError} expectedCount={clipCount} fileName={file?.name ?? importedTitle ?? pickedAsset?.name ?? null} onReset={handleReset} initialClipId={deepLinkClipId} />
+        <ClipsResults projectId={activeProjectId} status={resumeProjectId ? "rendering" : genStatus} error={genError} expectedCount={clipCount} fileName={file?.name ?? importedTitle ?? pickedAsset?.name ?? retryProject?.name ?? null} onReset={handleReset} onRetry={handleRetry} initialClipId={deepLinkClipId} />
       </div>
     );
   }
@@ -1755,6 +1854,15 @@ function AutoClipFlow() {
             <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-ink truncate">{importedTitle}</p><p className="text-xs text-ink-soft mt-0.5">Downloaded from your link when analysis starts.</p></div>
             <button onClick={() => { setImportedUrl(null); setImportedTitle(null); }} aria-label="Use a different source" className="w-9 h-9 rounded-lg border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors flex items-center justify-center"><IcX /></button>
           </div>
+        ) : retryProject ? (
+          <div className="rounded-[20px] border border-line bg-panel p-4 flex items-center gap-4">
+            <span className="w-12 h-12 rounded-xl bg-tint-emerald text-brand flex items-center justify-center"><IcFilm /></span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-fg truncate">{retryProject.name ?? "Your video"}</p>
+              <p className="text-xs text-fg-muted mt-0.5">Trying this video again. Adjust anything below, then Generate.</p>
+            </div>
+            <button onClick={() => setRetryProject(null)} aria-label="Use a different source" className="w-9 h-9 rounded-lg border border-line text-fg-muted hover:bg-surface-2 hover:text-fg transition-colors flex items-center justify-center"><IcX /></button>
+          </div>
         ) : pickedAsset ? (
           <div className="rounded-[20px] border border-card-border bg-panel p-4 flex items-center gap-4">
             <video src={pickedAsset.url} className="w-28 rounded-xl object-cover bg-black" style={{ aspectRatio: "16/9" }} />
@@ -1763,18 +1871,21 @@ function AutoClipFlow() {
           </div>
         ) : (
           <>
-            <div
+            {/* A real button, so it is reachable by keyboard and announced. It
+                was a clickable div with an inline #fff background, which on the
+                dark theme put near-white text on white: an invisible heading. */}
+            <button
+              type="button"
               onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
               onDragLeave={() => setDragging(false)}
               onDrop={(e) => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files?.[0]) handleFile(e.dataTransfer.files[0]); }}
               onClick={() => inputRef.current?.click()}
-              className="rounded-[20px] border border-dashed bg-panel px-6 py-11 flex flex-col items-center gap-3 text-center cursor-pointer transition-colors"
-              style={{ borderColor: dragging ? "var(--brand)" : "#cbd5e1", background: dragging ? "var(--tint-blue)" : "#fff" }}
+              className={`w-full rounded-[20px] border border-dashed px-6 py-11 flex flex-col items-center gap-3 text-center cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${dragging ? "border-brand bg-tint-emerald" : "border-line bg-surface-2 hover:border-brand"}`}
             >
-              <span className="w-12 h-12 rounded-2xl bg-tint-blue text-brand flex items-center justify-center"><IcCloud /></span>
-              <p className="text-base font-semibold text-ink">Drop a video here, or choose a file</p>
-              <p className="text-[13px] text-ink-soft">MP4, MOV or WebM · up to 500 MB · 1 min to 1 h 30 m</p>
-            </div>
+              <span className="w-12 h-12 rounded-2xl bg-tint-emerald text-brand flex items-center justify-center"><IcCloud /></span>
+              <span className="text-base font-semibold text-fg">Drop a video here, or choose a file</span>
+              <span className="text-[13px] text-fg-muted">MP4, MOV or WebM · up to 500 MB · 1 min to 1 h 30 m</span>
+            </button>
             <div className="flex items-center justify-center gap-2.5 mt-4">
               <AssetField accept={["video"]} label="Choose from Assets" onSelect={(asset) => { handleClearFile(); setImportedUrl(null); setImportedTitle(null); setPickedAsset(asset); }} />
             </div>
@@ -1787,7 +1898,22 @@ function AutoClipFlow() {
           </>
         )}
 
-        {importError && <p className="mt-3 rounded-xl border border-error/40 bg-error/10 px-3 py-2 text-xs font-medium text-error">{importError}</p>}
+        {importError && <p role="alert" className="mt-3 rounded-xl border border-error/40 bg-error/10 px-3 py-2 text-xs font-medium text-error">{importError}</p>}
+        {paymentBlock && (
+          <div role="alert" className="mt-3 rounded-xl border border-warning/40 bg-tint-amber px-4 py-3 flex flex-wrap items-center gap-3 text-sm">
+            <p className="flex-1 min-w-[16rem] text-fg">
+              {paymentBlock.kind === "free_limit"
+                ? paymentBlock.message
+                : `You need ${paymentBlock.required ?? "more"} credits to start this run${paymentBlock.balance != null ? ` and you have ${paymentBlock.balance}` : ""}. Nothing was charged.`}
+            </p>
+            {paymentBlock.kind === "free_limit" ? (
+              <a href={paymentBlock.upgradeUrl} className="font-bold text-brand hover:underline">See plans</a>
+            ) : (
+              <Button size="sm" onClick={() => creditModal.open({ required: paymentBlock.required, balance: paymentBlock.balance, action: "Auto Clips" })}>Top up</Button>
+            )}
+            <button onClick={clearPaymentBlock} aria-label="Dismiss" className="text-fg-muted hover:text-fg"><IcX /></button>
+          </div>
+        )}
 
         {/* Essentials */}
         <div className="mt-8 rounded-[20px] border border-card-border bg-panel p-6 flex flex-col gap-6">
@@ -1889,8 +2015,14 @@ function AutoClipFlow() {
                 {runCost.captionCredits > 0 && <> · premium captions {runCost.captionCredits}</>}
                 <span className="block text-[12px] mt-0.5">
                   Charged up front and rendered straight through. Unused credits are returned
-                  once the real clip lengths are known.
+                  once the real clip lengths are known, and all of it if the run fails.
                 </span>
+                {balance != null && (
+                  <span className={`block text-[12px] mt-0.5 ${balance < runCost.total + 1 ? "text-warning font-semibold" : ""}`}>
+                    Your balance: {balance} credit{balance === 1 ? "" : "s"}
+                    {balance < runCost.total + 1 && " (not enough for this run)"}
+                  </span>
+                )}
               </>
             ) : (
               "Analysis costs 1 credit."

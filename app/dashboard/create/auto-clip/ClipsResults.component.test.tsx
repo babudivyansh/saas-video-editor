@@ -110,3 +110,68 @@ describe("autoClipPollIntervalMs — the polling stop condition", () => {
 // The 402 case did NOT just disappear: it was the only coverage of AutoClip's
 // insufficient-credits response, and it moved to the create route, which is
 // where the charge now happens. See app/api/generate/auto-clip/route.test.ts.
+
+// ── Rendering ClipsResults itself ─────────────────────────────────────────
+// This file used to test only the pure polling function; the component —
+// the part a user actually looks at when a run fails or stalls — had no
+// coverage at all, which is how several of its dead ends went unnoticed.
+describe("ClipsResults — what the user sees", () => {
+  const base = {
+    projectId: "p1", status: "rendering" as const, error: null, expectedCount: 3,
+    fileName: "talk.mp4", onReset: vi.fn(),
+  };
+
+  function serve(body: unknown, status = 200) {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(body, status)));
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("offers to TRY AGAIN on a failed run, not only to start over", async () => {
+    serve({ project: makeProject({ status: "failed", failureReason: "Video is too short (4.0s)" }), clips: [] });
+    const onRetry = vi.fn();
+    renderWithClient(<ClipsResults {...base} onRetry={onRetry} />);
+    expect(await screen.findByText(/Video is too short/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(onRetry).toHaveBeenCalledWith("talk.mp4");
+    expect(screen.getByRole("button", { name: "Start over" })).toBeInTheDocument();
+  });
+
+  it("says why a clip failed, and what retrying it costs", async () => {
+    serve({
+      project: makeProject({ status: "completed" }),
+      clips: [
+        makeClip({ id: "ok", status: "ready", videoUrl: "https://s3/ok.mp4" }),
+        makeClip({ id: "bad", index: 1, status: "failed", failureReason: "The source video couldn't be read.", rerenderCount: 1 }),
+      ],
+    });
+    renderWithClient(<ClipsResults {...base} />);
+    expect(await screen.findByText("The source video couldn't be read.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry (1 credit)" })).toBeInTheDocument();
+  });
+
+  it("says a run is gone instead of polling a 404 forever", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ error: "Not found" }, 404));
+    vi.stubGlobal("fetch", fetchMock);
+    renderWithClient(<ClipsResults {...base} />);
+    expect(await screen.findByText(/isn.t here any more/)).toBeInTheDocument();
+    const calls = fetchMock.mock.calls.length;
+    await new Promise((r) => setTimeout(r, 2800));
+    expect(fetchMock.mock.calls.length).toBe(calls);
+  }, 10_000);
+
+  it("tells the user a stalled analysis will be stopped and refunded", async () => {
+    const longAgo = new Date(Date.now() - 45 * 60 * 1000).toISOString();
+    serve({ project: makeProject({ status: "analyzing", updatedAt: longAgo }), clips: [] });
+    renderWithClient(<ClipsResults {...base} />);
+    expect(await screen.findByText(/taking longer than usual/)).toBeInTheDocument();
+    expect(screen.getByText(/every credit back/)).toBeInTheDocument();
+  });
+
+  it("does not warn about a run that only just started", async () => {
+    serve({ project: makeProject({ status: "analyzing", updatedAt: new Date().toISOString() }), clips: [] });
+    renderWithClient(<ClipsResults {...base} />);
+    expect(await screen.findByText("Finding your strongest moments")).toBeInTheDocument();
+    expect(screen.queryByText(/taking longer than usual/)).not.toBeInTheDocument();
+  });
+});
