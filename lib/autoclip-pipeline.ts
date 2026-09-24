@@ -77,6 +77,10 @@ import { calibrateScore, getViralityWeights, type SubScores } from "@/lib/virali
 import { parseS3Url } from "@/lib/s3-url";
 import { adoptExistingS3Object } from "@/lib/asset-service";
 import { computeBrollWindow, pickBroll, planBrollWindows, type BrollCue } from "@/lib/broll";
+import { isAllowedStockHost } from "@/lib/stock-hosts";
+
+/** A music bed is a few minutes of MP3; anything past this isn't one. */
+const MAX_MUSIC_BYTES = 50 * 1024 * 1024;
 import { TARGET_RES } from "@/lib/reframe";
 import os from "os";
 import path from "path";
@@ -1438,7 +1442,13 @@ async function applyLiteEditsPass(args: {
   let downloadedMusic: string | null = null;
   if (lite.music?.url) {
     try {
-      await downloadFile(lite.music.url, musicPath);
+      // Re-checked here, not only in the schema: a row saved before the
+      // allowlist existed still carries whatever URL it was given, and every
+      // redirect hop has to stay on an allowed host too.
+      await downloadFile(lite.music.url, musicPath, undefined, {
+        maxBytes: MAX_MUSIC_BYTES,
+        allowHost: (host) => isAllowedStockHost(host, "audio"),
+      });
       downloadedMusic = musicPath;
     } catch (err) {
       logger.warn("auto-clip", "music bed download failed, rendering without it", err);
@@ -1686,10 +1696,21 @@ async function renderOneClip(
     // this file. Costs one module resolution per clip render, against an ffmpeg
     // encode; the static import cost a Redis client in every test that touches
     // this module.
+    //
+    // The TIER must be passed. Without it the factory skipped its tier check,
+    // so a free user's provider template was deferred here — captions left
+    // off — and then requestCaptionRender, which does check the tier, refused
+    // the provider render. The clip shipped with no captions, on every render.
     const deferCaptions = templateId
-      ? await import("@/lib/captions/deferral").then((m) =>
-          m.shouldDeferCaptionsToProvider({ clipId: clip.id, templateId, durationSec: finalDurationSec }),
-        )
+      ? await (async () => {
+          const [{ shouldDeferCaptionsToProvider }, { getUserTier }] = await Promise.all([
+            import("@/lib/captions/deferral"),
+            import("@/lib/auth"),
+          ]);
+          const owner = await prisma.project.findUnique({ where: { id: projectId }, select: { userId: true } });
+          const tier = owner ? await getUserTier(owner.userId) : undefined;
+          return shouldDeferCaptionsToProvider({ clipId: clip.id, templateId, durationSec: finalDurationSec, tier });
+        })()
       : false;
 
     let assEscaped: string | null = null;

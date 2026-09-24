@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { downloadFile } from "@/utils/download";
+import { isAllowedStockHost, isAllowedStockUrl } from "@/lib/stock-hosts";
 import { uploadFileToS3, getAssetReadUrl } from "@/utils/s3-upload";
 import { auditAssetAction } from "@/lib/asset-audit";
 import { logger } from "@/lib/logger";
@@ -14,28 +15,9 @@ import { randomUUID } from "crypto";
 export const maxDuration = 120;
 
 // Only fetch from the stock providers we actually search — the downloadUrl
-// is client-supplied (it's just what our own /stock/search returned), but
-// without this allowlist a crafted request could turn this route into an
-// open server-side fetch proxy (SSRF against internal/cloud-metadata hosts).
-const ALLOWED_HOSTS = [
-  "images.pexels.com",
-  "videos.pexels.com",
-  "player.vimeo.com",
-  "prod.jamendo.com",
-  "media.jamendo.com",
-  /\.jamendo\.com$/,
-  /\.giphy\.com$/,
-];
-
-function hostAllowed(url: string): boolean {
-  let hostname: string;
-  try {
-    hostname = new URL(url).hostname;
-  } catch {
-    return false;
-  }
-  return ALLOWED_HOSTS.some((h) => (typeof h === "string" ? h === hostname : h.test(hostname)));
-}
+// is client-supplied (it's just what our own /stock/search returned). The list
+// lives in lib/stock-hosts.ts, shared with every other stock fetch, and is
+// re-checked on every redirect hop by downloadFile's allowHost.
 
 const KIND_EXT: Record<string, string> = { image: "jpg", video: "mp4", audio: "mp3" };
 const KIND_MIME: Record<string, string> = { image: "image/jpeg", video: "video/mp4", audio: "audio/mpeg" };
@@ -62,13 +44,20 @@ async function handlePOST(req: NextRequest) {
   if (!downloadUrl || !kind || !(kind in KIND_EXT)) {
     return NextResponse.json({ error: "downloadUrl and a valid kind are required" }, { status: 400 });
   }
-  if (!hostAllowed(downloadUrl)) {
+  if (!isAllowedStockUrl(downloadUrl)) {
     return NextResponse.json({ error: "Unsupported source host" }, { status: 400 });
   }
 
   const tmpPath = path.join(os.tmpdir(), `stock-${randomUUID()}.${KIND_EXT[kind]}`);
   try {
-    await downloadFile(downloadUrl, tmpPath);
+    // Cap enforced DURING the transfer (the size check below only ran after the
+    // whole file had landed on disk), and every redirect hop must stay on an
+    // allowed host — an allowed host redirecting to an internal address was
+    // the hole the up-front check alone left open.
+    await downloadFile(downloadUrl, tmpPath, undefined, {
+      maxBytes: MAX_BYTES,
+      allowHost: (host) => isAllowedStockHost(host),
+    });
 
     const stat = fs.statSync(tmpPath);
     if (stat.size > MAX_BYTES) {

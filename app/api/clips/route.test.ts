@@ -92,6 +92,14 @@ describe("GET /api/clips", () => {
     expect(lastArgs.take).toBe(61); // 60 cap + 1 lookahead
   });
 
+  // take went to 0 or negative, then the cursor read the last item of an
+  // empty page — a 500 from a query string.
+  it.each(["0", "-5"])("floors limit=%s at one item instead of throwing", async (limit) => {
+    const res = await GET(req(`?limit=${limit}`));
+    expect(res.status).toBe(200);
+    expect(lastArgs.take).toBe(2); // 1 + 1 lookahead
+  });
+
   it("falls back to a sane page size when limit is not a number", async () => {
     await GET(req("?limit=banana"));
     expect(lastArgs.take).toBe(31);

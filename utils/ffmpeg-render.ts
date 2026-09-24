@@ -303,7 +303,10 @@ export function generateASS(
   style: SubtitleStyle,
   assPath: string
 ): void {
-  const fontName = style.fontName ?? "Outfit";
+  // Belt to the route schema's braces: this is the one value interpolated raw
+  // into the Style line, and older stored overrides predate that schema. Only
+  // characters a family name uses survive; anything else falls back.
+  const fontName = /^[A-Za-z0-9][A-Za-z0-9 -]{0,63}$/.test(style.fontName ?? "") ? style.fontName! : "Outfit";
   const fontSize = style.fontSize ?? 80;
   const highlight = style.highlightColor ?? "&H0000FFFF";
   const base = style.baseColor ?? "&H00FFFFFF";

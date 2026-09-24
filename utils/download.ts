@@ -20,6 +20,14 @@ export interface DownloadLimits {
    * Omitted = unbounded, the historical behaviour, which is fine for our own S3.
    */
   maxBytes?: number;
+  /**
+   * For a URL the CLIENT supplied: a predicate every hop's hostname must pass,
+   * the first request AND each redirect. Checking only the URL you were handed
+   * is not enough — an allowed host that redirects to 169.254.169.254 or an
+   * internal service would still be followed. When set, plain http is refused
+   * too. Omitted = any host, which is fine for URLs we generated ourselves.
+   */
+  allowHost?: (hostname: string) => boolean;
   /** Internal: remaining redirect budget. */
   redirectsLeft?: number;
 }
@@ -35,8 +43,16 @@ export function downloadFile(
   timeoutMs = 5 * 60 * 1000,
   limits: DownloadLimits = {},
 ): Promise<void> {
-  const { maxBytes } = limits;
+  const { maxBytes, allowHost } = limits;
   const redirectsLeft = limits.redirectsLeft ?? MAX_REDIRECTS;
+
+  if (allowHost) {
+    let parsed: URL | null = null;
+    try { parsed = new URL(url); } catch { /* rejected below */ }
+    if (!parsed || parsed.protocol !== "https:" || !allowHost(parsed.hostname)) {
+      return Promise.reject(new Error(`Download refused: ${parsed ? parsed.host : "unparseable URL"} is not an allowed source`));
+    }
+  }
 
   return new Promise((resolve, reject) => {
     const dir = path.dirname(destPath);
@@ -66,7 +82,14 @@ export function downloadFile(
           reject(new Error(`Download failed: too many redirects for ${url}`));
           return;
         }
-        downloadFile(redirectUrl, destPath, timeoutMs, { maxBytes, redirectsLeft: redirectsLeft - 1 })
+        // Resolved against the current URL: a relative Location is legal, and
+        // `new URL(relative)` alone would throw.
+        let next: string;
+        try { next = new URL(redirectUrl, url).toString(); } catch {
+          reject(new Error(`Download failed: invalid redirect location for ${url}`));
+          return;
+        }
+        downloadFile(next, destPath, timeoutMs, { maxBytes, allowHost, redirectsLeft: redirectsLeft - 1 })
           .then(resolve)
           .catch(reject);
         return;

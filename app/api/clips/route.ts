@@ -38,7 +38,9 @@ async function handleGET(req: NextRequest) {
   const sort = searchParams.get("sort") ?? "date";
   const cursor = searchParams.get("cursor") ?? undefined;
   const limitParam = parseInt(searchParams.get("limit") ?? "30", 10);
-  const limit = Math.min(Number.isNaN(limitParam) ? 30 : limitParam, MAX_LIMIT);
+  // Floored at 1: limit=0 or a negative made `take` non-positive and the
+  // cursor read items[items.length - 1] on an empty page — a 500.
+  const limit = Math.max(1, Math.min(Number.isNaN(limitParam) ? 30 : limitParam, MAX_LIMIT));
 
   const minScoreParam = searchParams.get("minScore");
   const minScore = minScoreParam !== null ? Number(minScoreParam) : null;

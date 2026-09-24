@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withApi, parseBody } from "@/lib/api-handler";
 import { withRateLimit } from "@/lib/with-rate-limit";
+import { prisma } from "@/lib/prisma";
 import { requestCaptionRender } from "@/lib/caption-render-job";
 import { serializeCaptionRenderJob } from "@/lib/captions/serialize";
 
@@ -39,6 +40,15 @@ const bodySchema = z
  */
 const handler = withApi<{ id: string; clipId: string }>(async (req, { auth, params }) => {
   const body = await parseBody(req, bodySchema);
+
+  // The clip must belong to the project named in the path — ownership alone
+  // (which requestCaptionRender enforces) let a clip be charged for under any
+  // project URL the caller owned.
+  const inProject = await prisma.clip.findFirst({
+    where: { id: params.clipId, projectId: params.id, project: { userId: auth.userId } },
+    select: { id: true },
+  });
+  if (!inProject) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const result = await requestCaptionRender({
     clipId: params.clipId,

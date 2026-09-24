@@ -44,6 +44,8 @@ const clipUpdate = vi.fn(async (args: { data: Record<string, unknown> }) => ({
 }));
 const clipDelete = vi.fn(async () => ({}));
 const assetFindMany = vi.fn(async () => referencingAssets);
+let activeCaptionJobs = 0;
+let activeDubs = 0;
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -54,6 +56,8 @@ vi.mock("@/lib/prisma", () => ({
       delete: (a: never) => clipDelete(a),
     },
     asset: { findMany: () => assetFindMany() },
+    captionRenderJob: { count: vi.fn(async () => activeCaptionJobs) },
+    clipDub: { count: vi.fn(async () => activeDubs) },
   },
 }));
 
@@ -77,6 +81,8 @@ beforeEach(() => {
     status: "ready",
   };
   referencingAssets = [];
+  activeCaptionJobs = 0;
+  activeDubs = 0;
   vi.clearAllMocks();
 });
 
@@ -141,6 +147,27 @@ describe("DELETE .../clips/[clipId]", () => {
     const res = await DELETE(delReq(), ctx("p1", "c1"));
     // A worker is writing to this row; pulling it out from underneath produces
     // a confusing queue crash rather than a clean cancellation.
+    expect(res.status).toBe(409);
+    expect(clipDelete).not.toHaveBeenCalled();
+  });
+
+  // A queued clip is usually a PAID re-render waiting its turn; deleting it
+  // took the charge with it, because the failure path that refunds reads the
+  // clip row. Same for in-progress caption renders and dubs, which the delete
+  // cascades to.
+  it("refuses to delete a clip that is queued for a paid re-render", async () => {
+    clipRow = { ...clipRow, status: "queued" };
+    const res = await DELETE(delReq(), ctx("p1", "c1"));
+    expect(res.status).toBe(409);
+    expect(clipDelete).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a caption render", () => { activeCaptionJobs = 1; }],
+    ["a dub", () => { activeDubs = 1; }],
+  ])("refuses while %s is still in progress for the clip", async (_label, arrange) => {
+    arrange();
+    const res = await DELETE(delReq(), ctx("p1", "c1"));
     expect(res.status).toBe(409);
     expect(clipDelete).not.toHaveBeenCalled();
   });
