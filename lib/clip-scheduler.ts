@@ -33,6 +33,9 @@ export interface SchedulerResult {
   skipped: number;
 }
 
+/** How long a "publishing" claim may be held before it is presumed dead. */
+export const STALE_PUBLISHING_HOURS = 2;
+
 export async function publishDueClips(limit = 25): Promise<SchedulerResult> {
   const now = new Date();
   const earliest = new Date(now.getTime() - MAX_LATENESS_HOURS * 3600 * 1000);
@@ -124,6 +127,29 @@ export async function publishDueClips(limit = 25): Promise<SchedulerResult> {
     } finally {
       try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch {}
     }
+  }
+
+  // A "publishing" claim is taken right before an upload that takes minutes.
+  // One still held long after it started means the process died mid-upload
+  // (a restart, an OOM) and nothing will ever finish it. It is failed, not put
+  // back to pending: the upload may well have reached YouTube before the
+  // crash, and retrying it would post the clip twice.
+  const claimCutoff = new Date(now.getTime() - STALE_PUBLISHING_HOURS * 3600 * 1000);
+  const stuck = await prisma.clipPublish.updateMany({
+    where: {
+      status: "publishing",
+      OR: [
+        { scheduledFor: { lt: claimCutoff } },
+        { scheduledFor: null, createdAt: { lt: claimCutoff } },
+      ],
+    },
+    data: {
+      status: "failed",
+      failureReason: "We couldn't confirm this upload finished. Check your YouTube channel before posting it again.",
+    },
+  });
+  if (stuck.count > 0) {
+    logger.warn("clip-scheduler", `failed ${stuck.count} publish claim(s) abandoned mid-upload`);
   }
 
   // A post that slipped past the lateness window is stale — publishing a
