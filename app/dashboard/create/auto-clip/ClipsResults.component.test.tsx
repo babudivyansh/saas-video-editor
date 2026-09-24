@@ -12,7 +12,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ClipsResults, autoClipPollIntervalMs, type ClipItem, type ProjectMeta } from "./page";
+import { ClipsResults, autoClipPollIntervalMs } from "./_components/ClipsResults";
+import type { ClipItem, ProjectMeta } from "./_components/shared";
 
 // A queued/rendering project never "settles" (matches the original,
 // unchanged shouldPoll semantics — this refactor preserves that, not
