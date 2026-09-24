@@ -63,6 +63,18 @@ describe("buildIdempotencyKey", () => {
     expect(buildIdempotencyKey(base)).toBe(buildIdempotencyKey(base));
   });
 
+  // A re-render replaces the clip's video in place; without the source
+  // revision the new provider render hashed to the old job and came back as a
+  // "duplicate", so the fresh render shipped with no captions.
+  it("gives a re-rendered clip's video a new key", () => {
+    expect(buildIdempotencyKey({ ...base, sourceRevision: "render-1" }))
+      .not.toBe(buildIdempotencyKey({ ...base, sourceRevision: "render-2" }));
+  });
+
+  it("keeps every key minted before sourceRevision existed", () => {
+    expect(buildIdempotencyKey({ ...base, sourceRevision: null })).toBe(buildIdempotencyKey(base));
+  });
+
   it("treats an omitted position and an explicit null as the same render", () => {
     expect(buildIdempotencyKey(base)).toBe(
       buildIdempotencyKey({ ...base, positionX: null, positionY: null }),

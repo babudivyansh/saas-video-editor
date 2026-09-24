@@ -55,6 +55,7 @@ vi.mock("@/lib/autoclip-rerender", () => ({ refundFailedRerender: vi.fn(async ()
 const {
   sliceWordsForClip, rebaseClipWords, computeCreditCost, getAutoClipPricing, AUTOCLIP_PRICING_DEFAULTS,
   buildBrollFilterComplex, computeKeeps, enforceNonOverlapping, rerenderJob, notifyRenderOutcome,
+  wordsOnRenderedTimeline,
 } = await import("./autoclip-pipeline");
 
 describe("sliceWordsForClip", () => {
@@ -322,18 +323,22 @@ describe("rerenderJob error handling", () => {
     projectUpdates = [];
     await expect(rerenderJob({ projectId: "project-1", clipId: "clip-1" })).rejects.toThrow("source unreachable");
     expect(clipUpdates).toContainEqual(
-      expect.objectContaining({ where: { id: "clip-1" }, data: { status: "failed" } }),
+      expect.objectContaining({ where: { id: "clip-1" }, data: expect.objectContaining({ status: "failed" }) }),
     );
   }, 30_000);
 
   // P0-3: this failure used to leave failureReason null, so a production P0
   // had no diagnosable reason on the record.
-  it("records a sanitized failureReason on the project instead of leaving it null", async () => {
+  // On the CLIP, not the project: one clip's failed re-render used to put an
+  // error banner over a completed project full of good clips.
+  it("records a sanitized failureReason on the clip, and leaves the project alone", async () => {
     clipUpdates = [];
     projectUpdates = [];
     await expect(rerenderJob({ projectId: "project-1", clipId: "clip-1" })).rejects.toThrow();
-    const reason = projectUpdates.find((u) => "failureReason" in u.data)?.data.failureReason as string | undefined;
+    const reason = (clipUpdates.find((u) => typeof u.data === "object" && u.data !== null && "failureReason" in u.data)
+      ?.data as { failureReason?: string } | undefined)?.failureReason;
     expect(reason).toBeTruthy();
+    expect(projectUpdates.some((u) => "failureReason" in u.data)).toBe(false);
     // Sanitized: never the raw error, a URL, a signature or a temp path.
     expect(reason).not.toMatch(/source unreachable|https?:|X-Amz|\/tmp\//i);
   });
@@ -389,5 +394,38 @@ describe("notifyRenderOutcome — clips-ready email", () => {
     expect(sendClipsReadyEmail).not.toHaveBeenCalled();
 
     userRow = { email: "creator@test.co", firstName: "Ada", name: null }; // restore for later tests
+  });
+});
+
+// The stored transcript stays on the clip's source window so every re-render
+// can recompute silence/filler trimming from it. Writing the SHIFTED words
+// back (as renders used to) made the next re-render trim already-trimmed
+// timings against the untrimmed source: tail cut off, captions drifting
+// further on every re-render. This is the shifted VIEW, for anything that
+// lays words over the rendered file.
+describe("wordsOnRenderedTimeline", () => {
+  const words = [
+    { word: "hello", start: 0, end: 400 },
+    { word: "there", start: 3000, end: 3400 }, // 2.6s of silence before it
+  ];
+
+  it("returns the words untouched when trimming is off", () => {
+    expect(wordsOnRenderedTimeline(words, 4, { removeSilence: false, removeFillers: false })).toBe(words);
+    expect(wordsOnRenderedTimeline(words, 4, null)).toBe(words);
+  });
+
+  it("pulls words after a removed silence earlier, by the silence removed", () => {
+    const shifted = wordsOnRenderedTimeline(words, 4, { removeSilence: true, silenceThresholdMs: 400 });
+    expect(shifted[0].start).toBe(0);
+    expect(shifted[1].start).toBeLessThan(3000);
+    expect(shifted[1].end - shifted[1].start).toBe(400);
+  });
+
+  it("is a view, not a mutation: the same source always gives the same result", () => {
+    const opts = { removeSilence: true, silenceThresholdMs: 400 };
+    const a = wordsOnRenderedTimeline(words, 4, opts);
+    const b = wordsOnRenderedTimeline(words, 4, opts);
+    expect(a).toEqual(b);
+    expect(words[1].start).toBe(3000);
   });
 });

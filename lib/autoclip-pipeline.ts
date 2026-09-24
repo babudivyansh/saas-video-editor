@@ -1500,6 +1500,35 @@ function shiftTime(tMs: number, keeps: KeepSegment[]): number {
   return prevKeptDuration;
 }
 
+/**
+ * A clip's transcript as it lines up with the RENDERED video.
+ *
+ * Clip.transcriptJson is kept on the clip's source window — the same timeline
+ * as startSec/endSec, the crop keyframes and the signal track — because every
+ * re-render recomputes silence/filler trimming from it. When trimming is on,
+ * the rendered file is shorter than that window, so anything laying words over
+ * the RENDERED file (the editor hand-off, dub captions) needs them shifted.
+ * With trimming off, or nothing to cut, this returns the words unchanged.
+ */
+export function wordsOnRenderedTimeline(
+  words: WordTiming[],
+  windowSec: number,
+  silenceSettings: unknown,
+): WordTiming[] {
+  const opts = (silenceSettings ?? {}) as { removeSilence?: boolean; silenceThresholdMs?: number; removeFillers?: boolean };
+  const removeSilence = !!opts.removeSilence;
+  const removeFillers = !!opts.removeFillers;
+  if (words.length === 0 || (!removeSilence && !removeFillers)) return words;
+  const { keeps, cuts } = computeKeeps(words, windowSec, removeSilence, opts.silenceThresholdMs ?? 400, removeFillers);
+  if (cuts.length === 0) return words;
+  return words
+    .filter((w) => {
+      const mid = (w.start + w.end) / 2;
+      return keeps.some((k) => mid >= k.startMs && mid <= k.endMs);
+    })
+    .map((w) => ({ ...w, start: shiftTime(w.start, keeps), end: shiftTime(w.end, keeps) }));
+}
+
 // ── Per-clip render (shared by the batch render job and single-clip re-render) ─
 
 /**
@@ -1668,7 +1697,9 @@ async function renderOneClip(
     let finalDurationSec = clip.durationSec;
 
     if (words && words.length > 0 && (removeSilence || removeFillers)) {
-      const result = computeKeeps(words, clip.durationSec, removeSilence, silenceThresholdMs, removeFillers);
+      // The WINDOW, not durationSec: durationSec is the rendered (trimmed)
+      // length once a clip has rendered, and the words are on the window.
+      const result = computeKeeps(words, clip.endSec - clip.startSec, removeSilence, silenceThresholdMs, removeFillers);
       if (result.cuts.length > 0) {
         keeps = result.keeps;
         isTrimmed = true;
@@ -1712,15 +1743,15 @@ async function renderOneClip(
 
         finalDurationSec = keeps.reduce((s, k) => s + (k.endMs - k.startMs), 0) / 1000;
 
-        // Update database with the trimmed duration, transcript, and keyframes
-        await prisma.clip.update({
-          where: { id: clip.id },
-          data: {
-            durationSec: finalDurationSec,
-            transcriptJson: words as unknown as Prisma.InputJsonValue,
-            cropKeyframes: (stored ? stored : Prisma.JsonNull) as unknown as Prisma.InputJsonValue,
-          },
-        });
+        // The shifted words and keyframes are used for THIS render only and
+        // deliberately not written back. They used to be, while startSec/
+        // endSec kept the original window — so the next re-render ran the
+        // trim again over already-trimmed timings against the untrimmed
+        // source: the tail was cut off and captions drifted, worse on every
+        // re-render. The stored transcript stays on the source window, and
+        // durationSec (written with the final status below) records the
+        // trimmed length. wordsOnRenderedTimeline gives the shifted view to
+        // anything that lays words over the rendered file.
       }
     }
 
@@ -1947,15 +1978,29 @@ async function renderOneClip(
     const breakdown = calibrateScore(sub, analysis, finalDurationSec, words?.length ?? 0, weights);
 
     await prisma.clip.update({ where: { id: clip.id }, data: { progress: 90 } });
-    const videoUrl = await uploadFileToS3(clipPath, `renders/${projectId}/clip-${clip.index}.mp4`, "video/mp4");
+    // A key per RENDER, not per clip slot. Every re-render used to overwrite
+    // renders/{project}/clip-{i}.mp4 in place, so an asset the editor had
+    // already adopted from that key silently changed content underneath it,
+    // and deleting a clip could delete the object Project.videoUrl pointed at.
+    // The previous object stays with whatever still references it (the asset
+    // library owns adopted renders; see linkClipProvenance).
+    const renderTag = `${clip.index}-r${clip.rerenderCount}-${Date.now().toString(36)}`;
+    const videoUrl = await uploadFileToS3(clipPath, `renders/${projectId}/clip-${renderTag}.mp4`, "video/mp4");
     const thumbnailUrl = fs.existsSync(thumbPath)
-      ? await uploadFileToS3(thumbPath, `renders/${projectId}/clip-${clip.index}.jpg`, "image/jpeg").catch(() => null)
+      ? await uploadFileToS3(thumbPath, `renders/${projectId}/clip-${renderTag}.jpg`, "image/jpeg").catch(() => null)
       : null;
 
     // Waveform peaks for the editor scrubber, computed here from the finished
     // clip so the browser never has to decode audio (a multi-hour source would
     // hang the tab) and so they match exactly what the user is looking at.
     const audioPeaks = await computeAudioPeaks(clipPath);
+
+    // The project's cover points at its best clip's video; if that was this
+    // clip's previous render, follow it to the new one.
+    if (clip.videoUrl && clip.videoUrl !== videoUrl) {
+      await prisma.project.updateMany({ where: { id: projectId, videoUrl: clip.videoUrl }, data: { videoUrl } })
+        .catch(() => {});
+    }
 
     await prisma.clip.update({
       where: { id: clip.id },
@@ -2186,7 +2231,11 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
         emphasisWords: [], emphasisWordIndexes: [], brollCues: [],
       };
 
-      const cropKeyframes = clip.brollUrl ? null : computeStoredCrop(allFaces, dummySeg, clip.aspectRatio as Aspect, srcW, srcH, {
+      // Computed with B-roll too. The initial pick stopped dropping speaker
+      // tracking for B-roll clips (the inserts are ordinary crops in the same
+      // graph), but this path still did — so re-rendering such a clip, for any
+      // reason, silently froze its camera.
+      const cropKeyframes = computeStoredCrop(allFaces, dummySeg, clip.aspectRatio as Aspect, srcW, srcH, {
         preset,
         smartAutoReframe: silenceOpts.smartAutoReframe !== false,
         zoomStrength: silenceOpts.zoomStrength ?? "medium",
@@ -2225,18 +2274,13 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
     // each step is wrapped. (Caught in CI — a missing method threw a TypeError
     // that replaced the real error and made the true cause unreportable, which
     // is precisely the class of blindness this P0-3 work exists to remove.)
+    // The reason goes on the CLIP. It used to go on the project, because Clip
+    // had no failureReason column at the time — so one clip's failed re-render
+    // put an error banner over a completed project full of good clips.
     try {
-      await prisma.clip.update({ where: { id: clipId }, data: { status: "failed" } });
+      await prisma.clip.update({ where: { id: clipId }, data: { status: "failed", failureReason: userMessage } });
     } catch (e) {
       logger.error("auto-clip", `could not mark clip ${clipId} failed`, e);
-    }
-    // P0-3: a failed re-render used to leave failureReason null, so neither the
-    // user nor an operator could tell what broke. Clip has no failureReason
-    // column, so the sanitized classification is recorded on the project.
-    try {
-      await prisma.project.update({ where: { id: projectId }, data: { failureReason: userMessage } });
-    } catch (e) {
-      logger.error("auto-clip", `could not record failureReason for project ${projectId}`, e);
     }
     try {
       await refundFailedRerender(clipId);
