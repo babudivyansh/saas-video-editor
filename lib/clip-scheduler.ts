@@ -77,6 +77,20 @@ export async function publishDueClips(limit = 25): Promise<SchedulerResult> {
       continue;
     }
 
+    // Claim the row before uploading. Nothing did: a run that outlasted the
+    // 10-minute cron interval (a slow download, a big clip) was still holding
+    // "pending" rows when the next run selected them, and both uploaded the
+    // same clip to YouTube. Only the run that flips pending -> publishing
+    // goes ahead.
+    const claimed = await prisma.clipPublish.updateMany({
+      where: { id: row.id, status: "pending" },
+      data: { status: "publishing" },
+    });
+    if (claimed.count === 0) {
+      result.skipped++;
+      continue;
+    }
+
     const tmpPath = path.join(os.tmpdir(), `sched-${row.id}.mp4`);
     try {
       await downloadFile(row.clip.videoUrl, tmpPath);

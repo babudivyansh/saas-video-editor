@@ -6,6 +6,14 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import { parseS3Url } from "@/lib/s3-url";
 import { deleteS3Object } from "@/utils/s3-upload";
 import { logger } from "@/lib/logger";
+import type { CaptionRenderStatus } from "@/lib/captions/types";
+
+/** Caption-render states where a worker or the provider is doing paid work.
+ *  ready_to_edit/editing wait on the USER, so they don't block a delete. */
+const CAPTION_JOB_IN_FLIGHT: readonly CaptionRenderStatus[] = [
+  "queued", "submitting", "transcribing", "export_queued", "rendering", "downloading", "uploading",
+  "needs_reconciliation",
+];
 
 // PATCH / DELETE for a single clip.
 //
@@ -77,12 +85,27 @@ async function handleDELETE(
   const clip = await getOwnedClip(projectId, clipId, auth.userId);
   if (!clip) return NextResponse.json({ error: "Clip not found" }, { status: 404 });
 
-  // A clip mid-render has a worker writing to it; deleting the row underneath
-  // that produces a confusing "record not found" crash in the queue rather
-  // than a clean cancellation, which isn't built yet.
-  if (clip.status === "rendering") {
+  // A clip with work in flight can't be deleted yet. Deleting the row
+  // underneath a worker crashes the queue with "record not found" rather than
+  // cancelling cleanly — and, worse, it takes the refund with it: a QUEUED
+  // clip is often a paid re-render, and the cascade also removes in-progress
+  // caption renders and dubs, whose failure paths refund by reading those
+  // very rows. So "queued" counts as busy too, as do those child jobs.
+  if (clip.status === "rendering" || clip.status === "queued") {
     return NextResponse.json(
       { error: "This clip is still rendering. Wait for it to finish, then delete it." },
+      { status: 409 },
+    );
+  }
+  const [activeCaption, activeDub] = await Promise.all([
+    prisma.captionRenderJob.count({
+      where: { clipId, status: { in: [...CAPTION_JOB_IN_FLIGHT] } },
+    }),
+    prisma.clipDub.count({ where: { clipId, status: { in: ["dubbing", "processing"] } } }),
+  ]);
+  if (activeCaption > 0 || activeDub > 0) {
+    return NextResponse.json(
+      { error: activeDub > 0 ? "This clip is still being dubbed. Wait for it to finish, then delete it." : "Captions are still being added to this clip. Wait for them to finish, then delete it." },
       { status: 409 },
     );
   }

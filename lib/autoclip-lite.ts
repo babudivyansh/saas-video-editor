@@ -10,6 +10,7 @@
 import { z } from "zod";
 import { SPEED_OPTIONS, TRANSITION_PRESETS } from "@/lib/editor/types";
 import type { WordTiming } from "@/utils/elevenlabs";
+import { isAllowedStockUrl } from "@/lib/stock-hosts";
 
 const transitionNames = Object.keys(TRANSITION_PRESETS) as [string, ...string[]];
 
@@ -21,7 +22,12 @@ export const liteEditsSchema = z.object({
     message: "unsupported speed",
   }).optional(),
   music: z.object({
-    url: z.string().url(),
+    // Fetched SERVER-side at render time, so it must be a stock host we search
+    // (lib/stock-hosts.ts). It was any URL at all: an SSRF into internal
+    // services and the metadata endpoint, and a way to fill /tmp.
+    url: z.string().url().refine((u) => isAllowedStockUrl(u, "audio"), {
+      message: "Music must come from the music search",
+    }),
     title: z.string().max(200).optional(),
     /** Jamendo requires attribution to be shown; carried so the UI can. */
     attribution: z.string().max(300).optional(),
@@ -38,7 +44,9 @@ export const liteEditsSchema = z.object({
     fadeOutSec: z.number().min(0).max(2).optional(),
   }).strict().optional(),
   broll: z.object({
-    url: z.string().url(),
+    url: z.string().url().refine((u) => isAllowedStockUrl(u, "video"), {
+      message: "B-roll must come from the stock search",
+    }),
     startSec: z.number().min(0).max(3600),
     endSec: z.number().min(0).max(3600),
     source: z.enum(["pexels", "generated", "upload"]).default("pexels"),

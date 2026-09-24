@@ -56,7 +56,12 @@ const assColor = z.string().regex(/^&H[0-9A-Fa-f]{2,8}$/, "expected an ASS colou
 export const subtitleStyleOverrideSchema = z.object({
   /** Named caption template (lib/caption-templates.ts); individual fields below still win. */
   templateId: z.string().min(1).max(40).optional(),
-  fontName: z.string().min(1).max(64).optional(),
+  // Written verbatim into the ASS `Style:` line, where a comma starts the
+  // next field and a newline starts a new line — so a font name carrying
+  // either could inject whole styles or Dialogue events. Real family names
+  // ("Bebas Neue", "Playfair Display", a brand kit's font) are letters,
+  // digits, spaces and hyphens; that is all this lets through.
+  fontName: z.string().min(1).max(64).regex(/^[A-Za-z0-9][A-Za-z0-9 -]*$/, "unsupported font name").optional(),
   fontSize: z.number().int().min(8).max(300).optional(),
   highlightColor: assColor.optional(),
   baseColor: assColor.optional(),

@@ -24,7 +24,7 @@ describe("liteEditsSchema", () => {
     const parsed = liteEditsSchema.safeParse({
       v: 1,
       speed: 1.25,
-      music: { url: "https://example.com/a.mp3", volume: 0.2, startSec: 0, duck: true },
+      music: { url: "https://prod-1.storage.jamendo.com/a.mp3", volume: 0.2, startSec: 0, duck: true },
       transition: { fadeInSec: 0.3, fadeOutSec: 0.4 },
     });
     expect(parsed.success).toBe(true);
@@ -37,7 +37,7 @@ describe("liteEditsSchema", () => {
 
   it("rejects a B-roll window that ends before it starts", () => {
     expect(liteEditsSchema.safeParse({
-      broll: { url: "https://e.com/v.mp4", startSec: 5, endSec: 3, source: "pexels" },
+      broll: { url: "https://videos.pexels.com/v.mp4", startSec: 5, endSec: 3, source: "pexels" },
     }).success).toBe(false);
   });
 
@@ -46,7 +46,18 @@ describe("liteEditsSchema", () => {
   });
 
   it("rejects a music volume outside 0..1", () => {
-    expect(liteEditsSchema.safeParse({ music: { url: "https://e.com/a.mp3", volume: 4 } }).success).toBe(false);
+    expect(liteEditsSchema.safeParse({ music: { url: "https://prod-1.storage.jamendo.com/a.mp3", volume: 4 } }).success).toBe(false);
+  });
+
+  // The music bed is downloaded SERVER-side at render time. It accepted any
+  // URL: an SSRF into internal services and the cloud metadata endpoint.
+  it.each([
+    "http://169.254.169.254/latest/meta-data/",
+    "https://internal.service.local/secret",
+    "http://prod.jamendo.com/a.mp3",
+    "https://videos.pexels.com/not-music.mp4",
+  ])("rejects a music URL that isn't from the music search: %s", (url) => {
+    expect(liteEditsSchema.safeParse({ music: { url, volume: 0.2 } }).success).toBe(false);
   });
 
   it("parseLiteEdits returns null for junk instead of throwing", () => {
@@ -117,7 +128,7 @@ describe("planLitePass", () => {
 
   it("mixes a music bed and keeps the clip's own length authoritative", () => {
     const plan = planLitePass(
-      { v: 1, music: { url: "https://e.com/a.mp3", volume: 0.2, startSec: 0, duck: false } },
+      { v: 1, music: { url: "https://prod-1.storage.jamendo.com/a.mp3", volume: 0.2, startSec: 0, duck: false } },
       10,
       { musicPath: "/tmp/a.mp3" },
     );
@@ -128,7 +139,7 @@ describe("planLitePass", () => {
 
   it("applies a duck envelope to the bed when one is supplied", () => {
     const plan = planLitePass(
-      { v: 1, music: { url: "https://e.com/a.mp3", volume: 0.2, startSec: 0, duck: true } },
+      { v: 1, music: { url: "https://prod-1.storage.jamendo.com/a.mp3", volume: 0.2, startSec: 0, duck: true } },
       10,
       { musicPath: "/tmp/a.mp3", duckExpr: "if(between(t,0,1),0.05,0.2)" },
     );
@@ -137,7 +148,7 @@ describe("planLitePass", () => {
 
   it("ignores a music bed whose file could not be downloaded", () => {
     const plan = planLitePass(
-      { v: 1, music: { url: "https://e.com/a.mp3", volume: 0.2, startSec: 0, duck: true } },
+      { v: 1, music: { url: "https://prod-1.storage.jamendo.com/a.mp3", volume: 0.2, startSec: 0, duck: true } },
       10,
       { musicPath: null },
     );
@@ -211,7 +222,7 @@ d("lite pass — executed through ffmpeg", () => {
 
   it("renders a ducked music mix", () => {
     const plan = planLitePass(
-      { v: 1, music: { url: "https://e.com/a.mp3", volume: 0.2, startSec: 0, duck: true } },
+      { v: 1, music: { url: "https://prod-1.storage.jamendo.com/a.mp3", volume: 0.2, startSec: 0, duck: true } },
       2,
       { musicPath: "music", duckExpr: "if(between(t,0,1),0.05,0.2)" },
     );
@@ -222,7 +233,7 @@ d("lite pass — executed through ffmpeg", () => {
 
   it("renders speed and music together", () => {
     const plan = planLitePass(
-      { v: 1, speed: 1.5, music: { url: "https://e.com/a.mp3", volume: 0.2, startSec: 0, duck: false } },
+      { v: 1, speed: 1.5, music: { url: "https://prod-1.storage.jamendo.com/a.mp3", volume: 0.2, startSec: 0, duck: false } },
       2,
       { musicPath: "music" },
     );

@@ -9,6 +9,11 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await getApiKeyAuth(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized — missing or invalid API key" }, { status: 401 });
+  // Scopes are enforced on write but were never checked on read, so a key
+  // created as write-only could still read every clip and download URL.
+  if (!auth.scopes.includes("read")) {
+    return NextResponse.json({ error: "This API key does not have read access" }, { status: 403 });
+  }
   const { id } = await params;
 
   const clip = await prisma.clip.findFirst({

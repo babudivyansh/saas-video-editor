@@ -24,7 +24,10 @@ const handler = withApi<{ id: string; clipId: string }>(async (_req, { auth, par
   }
 
   const clip = await prisma.clip.findFirst({
-    where: { id: params.clipId, project: { userId: auth.userId } },
+    // Scoped to the project in the PATH as well as to the user: otherwise any
+    // project id the caller owns "worked" for any of their clips, so the URL
+    // stopped meaning what it says.
+    where: { id: params.clipId, projectId: params.id, project: { userId: auth.userId } },
     select: { transcriptJson: true, title: true },
   });
   if (!clip) return NextResponse.json({ error: "Not found" }, { status: 404 });

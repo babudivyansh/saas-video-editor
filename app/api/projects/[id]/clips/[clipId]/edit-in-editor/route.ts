@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { getAuthUser } from "@/lib/auth";
+import { withRateLimit } from "@/lib/with-rate-limit";
 import { prisma } from "@/lib/prisma";
 import { parseS3Url } from "@/lib/s3-url";
 import { adoptExistingS3Object } from "@/lib/asset-service";
@@ -46,7 +47,7 @@ function wordsToCaptionClips(words: WordTiming[]): TextClip[] {
 // already in S3), then seeds a fresh productType:"editor" Project with one
 // VideoClip pointing at it. Returns the new project id so the client can
 // redirect to /dashboard/editor?projectId=<id>.
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string; clipId: string }> }) {
+async function handlePOST(req: NextRequest, { params }: { params: Promise<{ id: string; clipId: string }> }) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id: projectId, clipId } = await params;
@@ -126,3 +127,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // and no visible video) until a manual reload.
   return NextResponse.json({ editorProjectId: editorProject.id, asset: await serializeOneAsset(asset) });
 }
+
+// Every call creates a new editor project and adopts an asset, so it was an
+// unbounded write — the only paid-adjacent clip route with no limit at all.
+export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "auto-clip:edit-in-editor" });

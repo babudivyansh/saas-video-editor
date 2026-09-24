@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withApi, parseBody } from "@/lib/api-handler";
+import { withRateLimit } from "@/lib/with-rate-limit";
 import { prisma } from "@/lib/prisma";
 import { ownedJobWhere } from "@/lib/captions/renderSource";
 import { logger } from "@/lib/logger";
@@ -44,7 +45,7 @@ const bodySchema = z
  * different job under the idempotency key, so an edit can be re-rendered while
  * a double-click still cannot.
  */
-export const PUT = withApi<{ id: string }>(async (req, { auth, params }) => {
+const handlePUT = withApi<{ id: string }>(async (req, { auth, params }) => {
   const { transcript } = await parseBody(req, bodySchema);
 
   const job = await prisma.captionRenderJob.findFirst({
@@ -101,3 +102,6 @@ export const PUT = withApi<{ id: string }>(async (req, { auth, params }) => {
 
   return NextResponse.json({ job: serializeCaptionRenderJob(updated), words: words.length });
 });
+
+// Autosave from the caption editor — generous, but no longer unbounded.
+export const PUT = withRateLimit(handlePUT, { limit: 60, windowSec: 60, keyBy: "user", name: "caption-renders:transcript" });

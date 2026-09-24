@@ -763,7 +763,7 @@ model ClipPublish {
   // expired          — a scheduled publish went past its lateness window
   // The last two are written by lib/clip-scheduler.ts and were undocumented,
   // which is why the UI rendered one of them raw as "Awaiting_manual".
-  status          String        @default("pending") // pending | linked | failed | awaiting_manual | expired
+  status          String        @default("pending") // pending | publishing | linked | failed | awaiting_manual | expired
   /**
    * Why a publish failed, in words a creator can act on. This used to be
    * stuffed into metricsJson, which is owned by the metrics refresh — so the

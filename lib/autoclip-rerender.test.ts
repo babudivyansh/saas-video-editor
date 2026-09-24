@@ -123,6 +123,26 @@ describe("validation", () => {
     expect(subtitleStyleOverrideSchema.safeParse({ baseColor: "&H00FFFFFF" }).success).toBe(true);
   });
 
+  // fontName is written raw into the ASS Style line: a comma starts the next
+  // field and a newline a new line, so it could inject whole events.
+  it.each([
+    "Arial,200,&H00FFFFFF",
+    "Arial\n[Events]\nDialogue: 0,0:00:00.00,9:59:59.00,Default,,0,0,0,,INJECTED",
+    "{\\pos(0,0)}Arial",
+    "Arial\\N",
+  ])("rejects a font name carrying ASS syntax: %s", async (fontName) => {
+    const { subtitleStyleOverrideSchema } = await import("./autoclip-rerender");
+    expect(subtitleStyleOverrideSchema.safeParse({ fontName }).success).toBe(false);
+  });
+
+  it.each(["Arial", "Bebas Neue", "Playfair Display", "Times New Roman", "Noto-Sans 2"])(
+    "accepts a real family name: %s",
+    async (fontName) => {
+      const { subtitleStyleOverrideSchema } = await import("./autoclip-rerender");
+      expect(subtitleStyleOverrideSchema.safeParse({ fontName }).success).toBe(true);
+    },
+  );
+
   it("bounds the transcript array", async () => {
     const { transcriptSchema } = await import("./autoclip-rerender");
     const huge = Array.from({ length: 20_001 }, () => ({ word: "a", start: 0, end: 1 }));
