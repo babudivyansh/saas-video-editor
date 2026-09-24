@@ -478,7 +478,7 @@ function ClipCard({ projectId, clip, onChanged, onOpen }: {
           <img src={clip.thumbnailUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
         )}
         {/* Band + duration (non-interactive, under the open button) */}
-        <span className="absolute top-2.5 left-2.5 z-10 inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-bold shadow-sm pointer-events-none" style={{ background: "rgba(255,255,255,.94)", color: band.text }}>
+        <span className="absolute top-2.5 left-2.5 z-10 inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-bold shadow-sm pointer-events-none bg-black/65 backdrop-blur-sm" style={{ color: band.text }}>
           <span aria-hidden>{band.icon}</span>{band.label}
           {clip.score != null && <span className="opacity-60 tabular-nums">{clip.score}</span>}
         </span>
