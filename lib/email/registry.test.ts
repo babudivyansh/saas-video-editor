@@ -9,6 +9,8 @@
 import { describe, it, expect } from "vitest";
 import { EMAIL_REGISTRY, type NotificationCategory as RegistryCategory } from "./templates/registry";
 import type { NotificationCategory } from "@/lib/notifications";
+import { renderEmail } from "./layout";
+import { LEGAL } from "./tokens";
 
 // Type-level: fails to compile if either union gains or loses a member.
 type Assert<T extends true> = T;
@@ -65,6 +67,19 @@ describe("email registry", () => {
         // soup as the body and shipped a literal "&apos;" to inboxes.
         expect(doc.subject, `${id}/${name} subject has an entity`).not.toMatch(/&[a-z]+;/i);
         expect(doc.subject, `${id}/${name} subject has markup`).not.toMatch(/[<>]/);
+      }
+    }
+  });
+
+  it("prints the registered business name and address in every footer", () => {
+    for (const [id, entry] of entries) {
+      for (const [name, props] of Object.entries(entry.samples)) {
+        const { html, text } = renderEmail(entry.build(props as never));
+        for (const [part, body] of [["html", html], ["text", text]] as const) {
+          expect(body, `${id}/${name} ${part} entity`).toContain(LEGAL.entity);
+          expect(body, `${id}/${name} ${part} address`).toContain("Noida, Uttar Pradesh 201301");
+          expect(body, `${id}/${name} ${part} placeholder`).not.toMatch(/\[(LEGAL ENTITY|REGISTERED ADDRESS)/);
+        }
       }
     }
   });
