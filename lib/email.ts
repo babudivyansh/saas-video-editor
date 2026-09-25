@@ -136,6 +136,12 @@ export async function sendPaymentFailedEmail(
   await sendTemplate("payment-failed", to, { name, reason, attempt });
 }
 
+export async function sendTrialStartedEmail(
+  to: string, name: string, planName: string, priceInPaise: number, trialCredits: number, endsAt: Date,
+): Promise<void> {
+  await sendTemplate("trial-started", to, { name, planName, priceInPaise, trialCredits, endsAt });
+}
+
 export async function sendTrialEndingEmail(
   to: string, name: string, planName: string, priceInPaise: number, endsAt: Date | null,
 ): Promise<void> {

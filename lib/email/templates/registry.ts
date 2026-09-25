@@ -222,6 +222,18 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
       "no reason": { name: "Divyansh", reason: null, attempt: 1 },
     },
   }),
+  "trial-started": entry({
+    id: "trial-started",
+    title: "Trial started",
+    group: "billing",
+    category: "transactional",
+    trigger: "subscription.authenticated webhook for a 7-day trial subscription",
+    build: billing.trialStarted,
+    samples: {
+      default: { name: "Divyansh", planName: "Pro", priceInPaise: 219900, trialCredits: 25, endsAt: SOON },
+      "no price": { name: "Divyansh", planName: "Pro", priceInPaise: 0, trialCredits: 25, endsAt: SOON },
+    },
+  }),
   "trial-ending": entry({
     id: "trial-ending",
     title: "Trial ending",

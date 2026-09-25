@@ -15,7 +15,13 @@ vi.mock("@/lib/env", () => ({
 }));
 vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/redis", () => ({ redis: { set: vi.fn(async () => {}) } }));
-vi.mock("@/lib/email", () => ({ sendReviewPromptEmail: vi.fn(async () => {}) }));
+const trialStartedEmails: Array<{ to: string; endsAt: Date }> = [];
+vi.mock("@/lib/email", () => ({
+  sendReviewPromptEmail: vi.fn(async () => {}),
+  sendTrialStartedEmail: vi.fn(async (to: string, _n: string, _p: string, _price: number, _c: number, endsAt: Date) => {
+    trialStartedEmails.push({ to, endsAt });
+  }),
+}));
 vi.mock("@/lib/notify", () => ({ notify: vi.fn(async () => {}) }));
 vi.mock("@/lib/notifications", () => ({ shouldSendCategory: vi.fn(async () => false) }));
 vi.mock("@/lib/reviews/prompt-triggers", () => ({
@@ -70,7 +76,7 @@ vi.mock("@/lib/prisma", () => {
     },
     user: {
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) =>
-        where.id === user.id ? { ...user } : null),
+        where.id === user.id ? { ...user, email: "trial@test.com", firstName: "T", name: null } : null),
       update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
         if (updateShouldFail) throw new Error("db down");
         for (const k of Object.keys(data)) (user as Record<string, unknown>)[k] = data[k];
@@ -137,6 +143,7 @@ beforeEach(() => {
   updateShouldFail = false;
   purchaseCount = 0;
   cancelled.length = 0;
+  trialStartedEmails.length = 0;
   vi.clearAllMocks();
 });
 
@@ -247,6 +254,8 @@ describe("subscription.authenticated (7-day trial)", () => {
     expect(user.trialUsedAt).toBeInstanceOf(Date);
     expect(grants).toEqual([{ amount: 25, reason: "grant:trial" }]);
     expect(cancelled).toEqual([]);
+    // They authorised a mandate while paying ₹0 — say when the first charge is.
+    expect(trialStartedEmails).toEqual([{ to: "trial@test.com", endsAt: new Date(START_AT * 1000) }]);
   });
 
   it("is idempotent across a redelivered authentication — and never cancels its own trial", async () => {
@@ -256,6 +265,7 @@ describe("subscription.authenticated (7-day trial)", () => {
     expect(res.status).toBe(200);
     expect(grants).toEqual([]);
     expect(cancelled).toEqual([]);
+    expect(trialStartedEmails).toHaveLength(1); // not re-sent on redelivery
   });
 
   it("cancels a trial for an account that has paid before, granting nothing", async () => {

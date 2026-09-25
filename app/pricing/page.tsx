@@ -156,7 +156,12 @@ function PricingPageInner() {
       planId: checkoutPlan.slug,
       trial: checkoutTrial,
       currency,
-      onSuccess: () => { window.location.href = "/pricing?success=1"; },
+      // A trial start charges ₹0, so "Payment successful!" was the wrong
+      // message — land on Billing, which says the trial has started, when it
+      // ends, what it costs after, and how to cancel.
+      onSuccess: () => {
+        window.location.href = checkoutTrial ? "/dashboard?billing=1&success=trial" : "/pricing?success=1";
+      },
       onError: setCheckoutError,
     });
   };

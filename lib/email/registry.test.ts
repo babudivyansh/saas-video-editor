@@ -35,8 +35,10 @@ describe("email registry", () => {
   // 46 → 47: social-report-ready. A scheduled report used to be built,
   // uploaded to S3 and abandoned — `recipients` was never read by anything —
   // so there was nothing to tell the user their report existed.
+  // 47 → 48: trial-started. A trial customer authorised a mandate while paying
+  // ₹0 and was told nothing about when the first charge would come.
   it("covers every send function in lib/email.ts", () => {
-    expect(entries).toHaveLength(47);
+    expect(entries).toHaveLength(48);
   });
 
   it("keys match each entry's declared id", () => {
@@ -103,6 +105,8 @@ describe("email registry", () => {
       "subscription-renewed",
       "payment-failed",
       "subscription-cancelled",
+      // Discloses a mandate's first charge — must reach even opted-out users.
+      "trial-started",
       "newsletter-confirm",
       "clips-ready",
     ];

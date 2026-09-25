@@ -133,6 +133,7 @@ export function BillingOverlay({ state, onClose }: { state: BillingOverlayState;
         <BillingPanel
           initialTab={tab}
           success={success}
+          trialStarted={!!state.trialStarted}
           autotopupSlug={state.autotopupSlug ?? null}
           onTabChange={setTab}
           onOpenManage={() => setView("manage")}
