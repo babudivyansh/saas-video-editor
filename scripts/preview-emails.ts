@@ -262,7 +262,7 @@ function indexPage(rendered: Rendered[]): string {
   <p>All <span class="count">${emailCount}</span> emails the product can send, rebuilt on one shared layout — table-based and Outlook-safe, responsive, dark-mode aware, and carrying a preheader, a plain-text part and a legal footer on every send.</p>
 </header>
 <div class="warn">
-  <strong>Two placeholders are deliberate.</strong> The footer shows <code>[LEGAL ENTITY NAME]</code> and <code>[REGISTERED ADDRESS]</code> — real values are legally required before any marketing email ships. The logo is a stand-in SVG here; production uses a hosted PNG, because Outlook drops inline SVG.
+  <strong>One stand-in is deliberate.</strong> The logo is a stand-in SVG here; production uses a hosted PNG, because Outlook drops inline SVG.
 </div>
 <nav>${nav}</nav>
 ${groups}

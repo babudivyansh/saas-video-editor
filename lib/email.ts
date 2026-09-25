@@ -23,7 +23,7 @@
 
 import { MIN_PAYOUT_AMOUNT } from "@/lib/affiliate-constants";
 import { signTrackToken } from "@/lib/reviews/email-track-token";
-import { sendTemplate } from "@/lib/email/send";
+import { sendTemplate, type EmailAttachment } from "@/lib/email/send";
 import { APP_URL } from "@/lib/email/tokens";
 import type { SocialDigestAccount } from "@/lib/email/templates/social";
 import type { AdminDigestData, ContactMessageData } from "@/lib/email/templates/admin";
@@ -91,6 +91,19 @@ export interface PurchaseEmailData {
   orderId: string;
   isSubscription: boolean;
   refill?: { monthlyCredits: number; remainingMonths: number };
+  /** GST tax invoice for this payment — its number is quoted and the PDF attached. */
+  invoice?: InvoiceAttachment;
+}
+
+/** A rendered GST tax invoice to attach to a payment email. */
+export interface InvoiceAttachment {
+  number: string;
+  filename: string;
+  pdf: Buffer;
+}
+
+function invoiceAttachments(invoice?: InvoiceAttachment): EmailAttachment[] | undefined {
+  return invoice ? [{ filename: invoice.filename, content: invoice.pdf, contentType: "application/pdf" }] : undefined;
 }
 
 export async function sendPurchaseConfirmationEmail(data: PurchaseEmailData): Promise<void> {
@@ -102,13 +115,19 @@ export async function sendPurchaseConfirmationEmail(data: PurchaseEmailData): Pr
     orderId: data.orderId,
     isSubscription: data.isSubscription,
     refill: data.refill,
-  });
+    invoiceNumber: data.invoice?.number,
+  }, { attachments: invoiceAttachments(data.invoice) });
 }
 
 export async function sendSubscriptionRenewedEmail(
   to: string, name: string, amountInPaise: number, creditsAdded: number, nextChargeAt: Date | null,
+  invoice?: InvoiceAttachment,
 ): Promise<void> {
-  await sendTemplate("subscription-renewed", to, { name, amountInPaise, creditsAdded, nextChargeAt });
+  await sendTemplate(
+    "subscription-renewed", to,
+    { name, amountInPaise, creditsAdded, nextChargeAt, invoiceNumber: invoice?.number },
+    { attachments: invoiceAttachments(invoice) },
+  );
 }
 
 export async function sendPaymentFailedEmail(

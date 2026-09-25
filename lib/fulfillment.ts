@@ -1,7 +1,11 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
-import { sendPurchaseConfirmationEmail, sendAffiliateCommissionEmail, sendSubscriptionRenewedEmail } from "@/lib/email";
+import {
+  sendPurchaseConfirmationEmail, sendAffiliateCommissionEmail, sendSubscriptionRenewedEmail, type InvoiceAttachment,
+} from "@/lib/email";
+import { tryEnsureInvoice } from "@/lib/invoice/issue";
+import { invoiceFilename, renderInvoicePdf } from "@/lib/invoice/pdf";
 import { markQuestComplete } from "@/lib/quests";
 import { grantCredits, getBalances } from "@/lib/credits";
 import { logger } from "@/lib/logger";
@@ -10,6 +14,28 @@ import { logger } from "@/lib/logger";
 // BOTH the client-side verify endpoint (app/api/billing/verify) and the webhook
 // (app/api/webhooks/razorpay) so whichever arrives first fulfills, and the other
 // no-ops. Idempotency is enforced by claiming the RazorpayEvent row first.
+
+/** Razorpay's ISO currency code, upper-cased; INR when the caller had none. */
+function normalizeCurrency(currency: string | undefined): string {
+  return (currency ?? "INR").toUpperCase();
+}
+
+/**
+ * Issue the GST tax invoice for a just-committed purchase and render it for
+ * the receipt email. Runs AFTER the payment transaction on purpose — see
+ * lib/invoice/issue.ts — and never throws: a missing invoice here is re-issued
+ * the next time the customer opens the receipt.
+ */
+async function invoiceForEmail(purchaseId: string): Promise<InvoiceAttachment | undefined> {
+  const invoice = await tryEnsureInvoice(purchaseId);
+  if (!invoice) return undefined;
+  try {
+    return { number: invoice.number, filename: invoiceFilename(invoice), pdf: await renderInvoicePdf(invoice) };
+  } catch (e) {
+    logger.error("fulfillment", `invoice PDF render failed for ${purchaseId}`, e);
+    return undefined;
+  }
+}
 
 export interface FulfillNotes {
   userId?: string;
@@ -27,6 +53,8 @@ export interface FulfillArgs {
   paymentId: string;
   orderId: string | null;
   amountInPaise: number;
+  /** Razorpay's currency for the payment ("INR" | "USD"). */
+  currency?: string;
   notes: FulfillNotes | undefined;
   /** The webhook passes its own event name; the verify endpoint passes "payment.captured". */
   eventName?: string;
@@ -50,6 +78,8 @@ export interface SubscriptionChargeArgs {
   /** Razorpay payment id (pay_...) — idempotency key via RazorpayEvent. */
   paymentId: string;
   amountInPaise: number;
+  /** Razorpay's currency for the payment ("INR" | "USD"). */
+  currency?: string;
   eventName?: string;
   /**
    * `notes.userId` from the subscription entity, set at checkout. Used only to
@@ -74,6 +104,7 @@ export interface SubscriptionChargeArgs {
  */
 export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): Promise<FulfillResult> {
   const { subscriptionId, paymentId, amountInPaise, notesUserId, notesPlanId } = args;
+  const currency = normalizeCurrency(args.currency);
   if (!subscriptionId || !paymentId) return { fulfilled: false, alreadyProcessed: false };
 
   const SELECT = {
@@ -176,7 +207,7 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
       },
     });
     await tx.purchase.create({
-      data: { id: paymentId, userId: user.id, planId: resolvedPlanId, amountInPaise, credits: applied, status: "captured" },
+      data: { id: paymentId, userId: user.id, planId: resolvedPlanId, amountInPaise, currency, credits: applied, status: "captured" },
     });
     return { alreadyProcessed: false, applied, endsAt };
   });
@@ -205,6 +236,7 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
       amountInPaise,
       result.applied ?? 0,
       result.endsAt ?? null,
+      await invoiceForEmail(paymentId),
     ).catch((e: unknown) => logger.error("fulfillment", `renewal email failed for ${user.id}`, e));
   }
 
@@ -214,6 +246,7 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
 export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> {
   const { paymentId, orderId, amountInPaise, notes } = args;
   if (!paymentId) return { fulfilled: false, alreadyProcessed: false };
+  const currency = normalizeCurrency(args.currency);
 
   const userId = notes?.userId;
   const planSlug = notes?.planId ?? notes?.packId;
@@ -281,7 +314,7 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
         },
       });
       await tx.purchase.create({
-        data: { id: paymentId, userId, planId: plan.id, amountInPaise, credits: totalCredits, status: "captured" },
+        data: { id: paymentId, userId, planId: plan.id, amountInPaise, currency, credits: totalCredits, status: "captured" },
       });
       return { status: "granted", kind, credits: totalCredits };
     }
@@ -291,7 +324,7 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
     if (credits > 0) {
       await grantCredits({ userId, bucket: "purchased", amount: credits, reason: "grant:pack", refId: paymentId, tx });
       await tx.purchase.create({
-        data: { id: paymentId, userId, planId: plan?.id ?? null, amountInPaise, credits, status: "captured" },
+        data: { id: paymentId, userId, planId: plan?.id ?? null, amountInPaise, currency, credits, status: "captured" },
       });
     }
     return { status: "granted", kind, credits };
@@ -342,6 +375,7 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
         orderId: orderId ?? paymentId,
         isSubscription,
         refill,
+        invoice: await invoiceForEmail(paymentId),
       });
     }
   } catch (err) {

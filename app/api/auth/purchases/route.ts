@@ -20,10 +20,12 @@ export async function GET(req: NextRequest) {
     select: {
       id: true,
       amountInPaise: true,
+      currency: true,
       credits: true,
       status: true,
       createdAt: true,
       plan: { select: { name: true, slug: true } },
+      invoice: { select: { number: true } },
     },
   });
   return NextResponse.json({ purchases });

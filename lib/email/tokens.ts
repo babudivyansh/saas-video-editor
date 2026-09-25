@@ -138,15 +138,17 @@ export const LOGO_WIDTH = 120;
 export const LOGO_HEIGHT = 41;
 
 /**
- * Footer legal block.
+ * Footer legal block — the registered business, as on the GST registration.
  *
- * ⚠ PLACEHOLDERS. CAN-SPAM and the Gmail/Yahoo bulk-sender rules both require a
- * real registered postal address in the footer of marketing mail. These must be
- * filled in before any non-transactional email is sent to a real recipient.
+ * CAN-SPAM and the Gmail/Yahoo bulk-sender rules both require a real registered
+ * postal address in the footer of marketing mail; every email footer reads it
+ * from here. The GST invoice reuses the same values, so this is the single
+ * place the seller's identity is defined.
  */
 export const LEGAL = {
-  entity: "[LEGAL ENTITY NAME]",
-  address: "[REGISTERED ADDRESS — street, city, state, postcode, country]",
+  entity: "Clipiro Technologies",
+  address: "B1-1208, Futech Gateway, Sector-75, Noida, Uttar Pradesh 201301, India",
+  gstin: "09DAWPB8753E1Z7",
   supportEmail: "support@clipiro.com",
   unsubscribeMailbox: "unsubscribe@clipiro.com",
 } as const;

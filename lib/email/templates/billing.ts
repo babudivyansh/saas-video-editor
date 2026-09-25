@@ -21,6 +21,8 @@ export function purchaseConfirmation(p: {
   /** Set for multi-month prepaid terms, so the receipt can explain that the
    *  remaining months arrive as monthly refills rather than looking short. */
   refill?: { monthlyCredits: number; remainingMonths: number };
+  /** Set when a GST tax invoice was issued — its PDF rides along as an attachment. */
+  invoiceNumber?: string;
 }): EmailDocument {
   const amount = formatPaise(p.amountInPaise);
   return {
@@ -46,13 +48,16 @@ export function purchaseConfirmation(p: {
             : []),
           { label: "Amount paid", value: amount },
           { label: "Order ID", value: p.orderId, mono: true },
+          ...(p.invoiceNumber ? [{ label: "Tax invoice", value: p.invoiceNumber, mono: true }] : []),
         ],
       },
       { kind: "button", href: `${APP_URL}/dashboard`, label: "Go to dashboard" },
       {
         kind: "paragraph",
         tone: "fine",
-        text: "Keep this email as your receipt. Questions? Just reply and we'll get back to you within 24 hours.",
+        text: p.invoiceNumber
+          ? `Your GST tax invoice ${p.invoiceNumber} is attached as a PDF. You can also download it any time from Billing history. Questions? Just reply and we'll get back to you within 24 hours.`
+          : "Keep this email as your receipt. Questions? Just reply and we'll get back to you within 24 hours.",
       },
     ],
   };
@@ -63,6 +68,8 @@ export function subscriptionRenewed(p: {
   amountInPaise: number;
   creditsAdded: number;
   nextChargeAt: Date | null;
+  /** Set when a GST tax invoice was issued — its PDF rides along as an attachment. */
+  invoiceNumber?: string;
 }): EmailDocument {
   const amount = formatPaise(p.amountInPaise);
   return {
@@ -83,6 +90,15 @@ export function subscriptionRenewed(p: {
               kind: "paragraph",
               tone: "fine",
               text: `Your next payment is due on ${formatDate(p.nextChargeAt)}.`,
+            },
+          ] as const)
+        : []),
+      ...(p.invoiceNumber
+        ? ([
+            {
+              kind: "paragraph",
+              tone: "fine",
+              text: `Your GST tax invoice ${p.invoiceNumber} is attached as a PDF, and is always available from Billing history.`,
             },
           ] as const)
         : []),

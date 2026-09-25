@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
       payment?: {
         entity: {
           id: string; order_id: string; amount: number; notes: FulfillNotes;
+          currency?: string;
           invoice_id?: string | null;
           error_description?: string | null;
           error_reason?: string | null;
@@ -179,6 +180,7 @@ export async function POST(req: NextRequest) {
         subscriptionId: subEntity.id,
         paymentId: paymentEntity.id,
         amountInPaise: paymentEntity.amount ?? 0,
+        currency: paymentEntity.currency,
         eventName: event.event,
         // Lets fulfilment recover if the local subscription link was lost.
         notesUserId: subEntity.notes?.userId,
@@ -247,6 +249,7 @@ export async function POST(req: NextRequest) {
         paymentId: entity.id,
         orderId: entity.order_id ?? null,
         amountInPaise: entity.amount ?? 0,
+        currency: entity.currency,
         notes: entity.notes,
         eventName: event.event,
       });
