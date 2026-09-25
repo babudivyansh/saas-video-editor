@@ -145,10 +145,22 @@ model User {
 
   notificationPreference NotificationPreference?
 
+  // ── GST billing details (2026-09) ──
+  // Optional, customer-entered, printed on the GST tax invoice. billingState is
+  // the 2-digit GST state code ("09" = Uttar Pradesh) — it decides CGST+SGST vs
+  // IGST. billingGstin lets a registered business claim input tax credit.
+  // Each invoice SNAPSHOTS these at issue, so editing them never rewrites one.
+  billingName         String?
+  billingAddress      String?
+  billingState        String?
+  billingPincode      String?
+  billingGstin        String?
+
   createdAt           DateTime             @default(now())
   projects            Project[]
   assets              Asset[]
   purchases           Purchase[]
+  invoices            Invoice[]
   creditTransactions  CreditTransaction[]
   quests              UserQuest[]
   claimedRankRewards  String[]             @default([])
@@ -411,15 +423,82 @@ model Purchase {
   user          User     @relation(fields: [userId], references: [id], onDelete: Restrict)
   planId        String?
   plan          Plan?    @relation(fields: [planId], references: [id])
+  // Minor units of `currency` — paise for INR, cents for USD. The column name
+  // predates USD checkout; read it together with `currency`.
   amountInPaise Int
+  // ISO code from Razorpay ("INR" | "USD"). Rows written before this column
+  // existed default to INR, which is wrong for any historical USD payment —
+  // but those all predate GST go-live, so no invoice is ever issued for them.
+  currency      String   @default("INR")
   credits       Int
   status        String   @default("captured")
   createdAt     DateTime @default(now())
+  invoice       Invoice?
 
   // Admin dashboards aggregate purchases by day and by (status, window)
   // constantly — these keep the metrics endpoint fast as rows grow.
   @@index([createdAt])
   @@index([status, createdAt])
+}
+
+// GST tax invoice (Rule 46, CGST Rules 2017). One per INR purchase on or after
+// GST go-live; see lib/invoice/.
+//
+// Every printed value is a SNAPSHOT taken at issue. A tax invoice is a document
+// of record: it must read the same in five years, whatever happens to the
+// customer's billing details, the plan's name, or our own address.
+model Invoice {
+  id            String   @id @default(uuid())
+  /// e.g. "CLP/2627/000001" — unique, gapless within a financial year.
+  number        String   @unique
+  /// Financial year key, "2627" = 1 Apr 2026 – 31 Mar 2027.
+  fy            String
+  seq           Int
+  purchaseId    String   @unique
+  // Restrict for the same reason as Purchase: financial records never cascade.
+  purchase      Purchase @relation(fields: [purchaseId], references: [id], onDelete: Restrict)
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  issuedAt      DateTime @default(now())
+  /// When the payment was captured (the date of supply).
+  paidAt        DateTime
+
+  sellerName    String
+  sellerAddress String
+  sellerGstin   String
+  sellerState   String
+
+  buyerName     String
+  buyerEmail    String
+  buyerAddress  String?
+  buyerState    String?
+  buyerPincode  String?
+  buyerGstin    String?
+  /// 2-digit GST state code of the place of supply.
+  placeOfSupply String
+
+  description   String
+  sac           String
+  currency      String   @default("INR")
+  /// All amounts in paise. taxable + cgst + sgst + igst == total, exactly.
+  taxable       Int
+  cgst          Int      @default(0)
+  sgst          Int      @default(0)
+  igst          Int      @default(0)
+  total         Int
+  paymentRef    String
+
+  @@unique([fy, seq])
+  @@index([userId, issuedAt])
+}
+
+// Per-financial-year invoice sequence. `last` is the most recently issued seq;
+// it is bumped with INSERT … ON CONFLICT DO UPDATE in the same transaction that
+// inserts the Invoice, so a failed insert rolls the bump back and the series
+// stays gapless.
+model InvoiceCounter {
+  fy   String @id
+  last Int
 }
 
 // Admin-created discount codes applied at checkout. The discount lowers the

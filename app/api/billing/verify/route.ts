@@ -42,7 +42,7 @@ async function handlePOST(req: NextRequest) {
   }
 
   // Read the trusted order notes (set by /api/billing/checkout) from Razorpay.
-  let order: { notes?: FulfillNotes; amount?: number; amount_paid?: number };
+  let order: { notes?: FulfillNotes; amount?: number; amount_paid?: number; currency?: string };
   try {
     order = (await razorpay.orders.fetch(orderId)) as typeof order;
   } catch {
@@ -55,7 +55,7 @@ async function handlePOST(req: NextRequest) {
   }
 
   const amountInPaise = order.amount_paid ?? order.amount ?? 0;
-  const result = await fulfillPayment({ paymentId, orderId, amountInPaise, notes });
+  const result = await fulfillPayment({ paymentId, orderId, amountInPaise, currency: order.currency, notes });
 
   return NextResponse.json({ success: true, fulfilled: result.fulfilled, alreadyProcessed: result.alreadyProcessed });
 }

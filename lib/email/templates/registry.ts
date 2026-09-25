@@ -182,6 +182,15 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
         orderId: "order_QxYz9876wxyz",
         isSubscription: false,
       },
+      "with GST invoice": {
+        userName: "Divyansh",
+        planName: "Studio Monthly",
+        creditsAdded: 500,
+        amountInPaise: 129900,
+        orderId: "order_QxYz1234abcd",
+        isSubscription: true,
+        invoiceNumber: "CLP/2627/000001",
+      },
     },
   }),
   "subscription-renewed": entry({
@@ -194,6 +203,10 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     samples: {
       default: { name: "Divyansh", amountInPaise: 129900, creditsAdded: 500, nextChargeAt: D("2026-09-05") },
       "no next charge": { name: "Divyansh", amountInPaise: 129900, creditsAdded: 500, nextChargeAt: null },
+      "with GST invoice": {
+        name: "Divyansh", amountInPaise: 129900, creditsAdded: 500, nextChargeAt: D("2026-09-05"),
+        invoiceNumber: "CLP/2627/000002",
+      },
     },
   }),
   "payment-failed": entry({

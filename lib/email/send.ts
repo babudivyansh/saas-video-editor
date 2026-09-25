@@ -39,6 +39,14 @@ export interface SendOptions {
   userId?: string;
   locale?: LocaleCode;
   replyTo?: string;
+  /** Files to attach — e.g. the GST tax invoice PDF on a payment receipt. */
+  attachments?: EmailAttachment[];
+}
+
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType: string;
 }
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
@@ -98,6 +106,7 @@ interface Payload {
   text: string;
   headers: Record<string, string>;
   replyTo?: string;
+  attachments?: EmailAttachment[];
 }
 
 /**
@@ -127,6 +136,15 @@ async function viaResend(p: Payload): Promise<{ id: string }> {
           text: p.text,
           headers: p.headers,
           ...(p.replyTo ? { reply_to: p.replyTo } : {}),
+          ...(p.attachments?.length
+            ? {
+                attachments: p.attachments.map((a) => ({
+                  filename: a.filename,
+                  content: a.content.toString("base64"),
+                  content_type: a.contentType,
+                })),
+              }
+            : {}),
         }),
       });
 
@@ -260,6 +278,7 @@ export async function sendTemplate<P>(
       text: rendered.text,
       headers,
       replyTo: opts.replyTo ?? LEGAL.supportEmail,
+      attachments: opts.attachments,
     };
 
     // Remembered so a provider REFUSAL is never reported as "no provider
@@ -293,6 +312,7 @@ export async function sendTemplate<P>(
         text: payload.text,
         replyTo: payload.replyTo,
         headers: payload.headers,
+        attachments: payload.attachments,
       });
       await logEmail({
         recipient: to, templateId: id, status: "sent", channel: "smtp",

@@ -20,6 +20,16 @@ vi.mock("@/lib/email", () => ({
   sendAffiliateCommissionEmail: vi.fn(async () => {}),
 }));
 
+// Invoice issuance is covered by lib/invoice/issue.test.ts; here it is a
+// controllable stub, so these tests can assert WHEN it runs and what the
+// receipt email does with its result.
+const tryEnsureInvoice = vi.fn(async (_purchaseId: string): Promise<{ number: string } | null> => null);
+vi.mock("@/lib/invoice/issue", () => ({ tryEnsureInvoice: (id: string) => tryEnsureInvoice(id) }));
+vi.mock("@/lib/invoice/pdf", () => ({
+  renderInvoicePdf: vi.fn(async () => Buffer.from("%PDF-stub")),
+  invoiceFilename: (inv: { number: string }) => `Clipiro-Invoice-${inv.number.replace(/\//g, "-")}.pdf`,
+}));
+
 interface Db {
   razorpayEvents: Set<string>;
   users: Map<string, { credits: number; email: string; firstName: string | null; name: string | null }>;
@@ -52,7 +62,7 @@ vi.mock("@/lib/prisma", () => {
         const staged = {
           events: new Set<string>(),
           userUpdates: [] as Array<{ userId: string; credits: number }>,
-          purchases: [] as Array<{ id: string; userId: string; planId: string | null; amountInPaise: number; credits: number; status: string }>,
+          purchases: [] as Array<{ id: string; userId: string; planId: string | null; amountInPaise: number; currency?: string; credits: number; status: string }>,
         };
 
         const tx = {
@@ -89,7 +99,7 @@ vi.mock("@/lib/prisma", () => {
             create: vi.fn(async () => ({})),
           },
           purchase: {
-            create: vi.fn(async ({ data }: { data: { id: string; userId: string; planId: string | null; amountInPaise: number; credits: number; status: string } }) => {
+            create: vi.fn(async ({ data }: { data: { id: string; userId: string; planId: string | null; amountInPaise: number; currency?: string; credits: number; status: string } }) => {
               staged.purchases.push(data);
             }),
           },
@@ -213,5 +223,47 @@ describe("purchase confirmation receipt", () => {
     expect(sendPurchaseConfirmationEmail).toHaveBeenCalledWith(
       expect.objectContaining({ creditsAdded: 60, isSubscription: false, refill: undefined }),
     );
+  });
+});
+
+// GST tax invoice (2026-09): issued after the payment commits, attached to
+// the receipt email, and never allowed to break fulfilment.
+describe("GST invoice on the receipt", () => {
+  beforeEach(() => { resetDb(); tryEnsureInvoice.mockReset(); tryEnsureInvoice.mockResolvedValue(null); });
+  afterEach(() => vi.clearAllMocks());
+
+  const args = { paymentId: "pay_gst", orderId: "order_gst", amountInPaise: 79900, notes: { userId: "user-1", planId: "pack_starter" } };
+
+  it("records the payment currency on the purchase", async () => {
+    await fulfillPayment({ ...args, currency: "usd" });
+    expect(db.purchases.get("pay_gst")).toMatchObject({ currency: "USD" });
+  });
+
+  it("defaults the currency to INR when Razorpay gave none", async () => {
+    await fulfillPayment(args);
+    expect(db.purchases.get("pay_gst")).toMatchObject({ currency: "INR" });
+  });
+
+  it("issues the invoice only after the purchase has committed, and attaches it", async () => {
+    tryEnsureInvoice.mockImplementation(async (id: string) => {
+      expect(db.purchases.has(id)).toBe(true); // committed, not staged
+      return { number: "CLP/2627/000007" };
+    });
+    const { sendPurchaseConfirmationEmail } = await import("@/lib/email");
+    await fulfillPayment(args);
+
+    expect(tryEnsureInvoice).toHaveBeenCalledWith("pay_gst");
+    expect(sendPurchaseConfirmationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        invoice: { number: "CLP/2627/000007", filename: "Clipiro-Invoice-CLP-2627-000007.pdf", pdf: expect.any(Buffer) },
+      }),
+    );
+  });
+
+  it("still sends the receipt, without an attachment, when no invoice is issued", async () => {
+    const { sendPurchaseConfirmationEmail } = await import("@/lib/email");
+    const result = await fulfillPayment(args);
+    expect(result).toEqual({ fulfilled: true, alreadyProcessed: false });
+    expect(sendPurchaseConfirmationEmail).toHaveBeenCalledWith(expect.objectContaining({ invoice: undefined }));
   });
 });
