@@ -75,8 +75,8 @@ const doc: LegalDoc = {
               payment processing error.
             </li>
             <li>
-              <strong>Purchase within 48 hours with zero usage:</strong> If you purchased a credit pack within the past
-              48 hours and have not used any of the purchased credits (free credits may have been used), you may request
+              <strong>Purchase within 3 days with zero usage:</strong> If you purchased a credit pack within the past
+              3 days (72 hours) and have not used any of the purchased credits (free credits may have been used), you may request
               a full refund.
             </li>
             <li>
@@ -98,7 +98,7 @@ const doc: LegalDoc = {
             <li>
               Dissatisfaction with the quality of AI-generated output (scripts, voiceovers, or video rendering)
             </li>
-            <li>Change of mind after more than 48 hours of purchase</li>
+            <li>Change of mind more than 3 days after purchase</li>
             <li>Account termination due to violation of our Terms of Service</li>
             <li>Failure to use credits before account deactivation initiated by the user</li>
             <li>Requests made more than 14 days after the purchase date</li>

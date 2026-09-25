@@ -95,7 +95,7 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
       <PageHero
         // Both claims are already made on /pricing, so neither is a new
         // assertion we would have to stand behind.
-        badge={isFree ? "Free — no card required" : "48-hour money-back guarantee"}
+        badge={isFree ? "Free — no card required" : "3-day money-back guarantee"}
         eyebrow={categoryLabel}
         title={content.h1}
         lede={content.lede}

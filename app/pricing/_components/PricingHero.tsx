@@ -99,7 +99,7 @@ export function PricingHero({ term, onTerm, currency, onCurrency, savePct }: {
 
 export function TrustRow() {
   const items: { label: string; icon: React.ReactNode }[] = [
-    { label: "48-hour money-back guarantee", icon: <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" /> },
+    { label: "3-day money-back guarantee", icon: <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" /> },
     { label: "Cancel anytime", icon: <><circle cx="12" cy="12" r="9" /><path d="M9 12l2 2 4-4" /></> },
     { label: "UPI, cards & wallets via Razorpay", icon: <><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18" /></> },
     { label: "Commercial license on every plan", icon: <path d="M4 12h16M12 4v16" /> },

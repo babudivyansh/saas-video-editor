@@ -41,7 +41,7 @@ const FAQS = [
   },
   {
     question: "Do you offer refunds?",
-    answer: "Yes. Request within 48 hours of purchase, before spending any of the purchased credits, and we refund you in full. See the Refund Policy for details.",
+    answer: "Yes. Request within 3 days of purchase, before spending any of the purchased credits, and we refund you in full. See the Refund Policy for details.",
   },
   {
     question: "Can I switch plans later?",
