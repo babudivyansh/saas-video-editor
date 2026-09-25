@@ -15,7 +15,7 @@ onto one dark token set, and re-accented the editor to match.
   `--fg-muted`, `--fg-subtle`, `--line`, `--primary`, `--on-primary`,
   `--emerald-brand`, `--emerald-bright`, `--success/warning/error/info`,
   `--tint-*` and their `--tint-*-border` pairs, `--elev-*`, the radius scale.
-- Components: `app/components/ui/*` — 24 primitives. **If a component you need
+- Components: `app/components/ui/*` — 22 primitives. **If a component you need
   doesn't exist there yet, add it there** rather than one-off styling a page.
 - A surface opts into the dark theme with `theme-emerald` on its shell root.
   See `docs/DESIGN_SYSTEM.md` §1 for why that is per-subtree rather than at
