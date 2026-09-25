@@ -24,6 +24,7 @@ import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContex
 import { Button } from "@/app/components/ui/Button";
 import { CreditsPill } from "@/app/components/ui/CreditsPill";
 import { Skeleton } from "@/app/components/ui/Skeleton";
+import { trialStatus } from "@/lib/billing/trial-status";
 
 function IcSearch() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>;
@@ -278,10 +279,13 @@ export default function DashboardHeader() {
   // one thing while getUserTier says another.
   const planState = effectivePlan(user);
   const hasActivePlan = planState.isActive;
-  const planName = planDisplayName(user, {
+  const basePlanName = planDisplayName(user, {
     free: t("freePlanFallback"),
     activeFallback: t("proPlanFallback"),
   });
+  // A trial must be visible at a glance — the chip used to read plain "Pro",
+  // so nothing in the app said the plan was a free trial about to convert.
+  const planName = trialStatus(user) ? `${basePlanName} · Trial` : basePlanName;
 
   // Affiliate Program points at the user's own affiliate dashboard
   // (/dashboard/referral) instead of the public marketing page — this header

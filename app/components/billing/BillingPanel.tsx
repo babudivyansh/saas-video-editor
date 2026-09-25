@@ -23,6 +23,8 @@ import { StatTile } from "@/app/components/ui/StatTile";
 import { UsageBarChart } from "@/app/components/ui/UsageBarChart";
 import { formatDate, formatINR } from "@/lib/format";
 import { formatMoney, inferCurrencyFromLocale, type Currency } from "@/lib/currency-shared";
+import { trialStatus, trialDaysLeftLabel, type TrialStatus } from "@/lib/billing/trial-status";
+import { TRIAL_CREDITS } from "@/lib/plans/tiers";
 
 interface DbPlan {
   id: string;
@@ -126,6 +128,8 @@ export interface BillingPanelProps {
   initialTab?: TabKey;
   /** True when ?success=1 is present — reveals the post-purchase banner. */
   success?: boolean;
+  /** True when the purchase was a free-trial start (?success=trial). */
+  trialStarted?: boolean;
   /** Pack slug from ?autotopup=, preselected in the Top Up tab. */
   autotopupSlug?: string | null;
   /** Mirrors tab changes back into the URL so the overlay stays deep-linkable. */
@@ -141,7 +145,7 @@ export interface BillingPanelProps {
 }
 
 export function BillingPanel({
-  initialTab = "overview", success = false, autotopupSlug = null,
+  initialTab = "overview", success = false, trialStarted = false, autotopupSlug = null,
   onTabChange, onOpenManage, onOpenPlans, onPurchaseSuccess,
 }: BillingPanelProps) {
   // Tab state is local now; the URL is a mirror rather than the source, because
@@ -241,8 +245,12 @@ export function BillingPanel({
   const endsAt = user?.subscriptionEndsAt ? new Date(user.subscriptionEndsAt) : null;
   const hasActivePlan = !!endsAt && endsAt > new Date();
   const daysLeft = endsAt ? daysUntil(endsAt) : 0;
+  const trial = trialStatus(user);
 
-  const allowance = user?.monthlyCredits ?? 0;
+  // During the trial only TRIAL_CREDITS were granted, not the plan's monthly
+  // allowance — measuring against 160 showed a brand-new trialist "135 / 160
+  // used" before they had done anything.
+  const allowance = trial ? TRIAL_CREDITS : user?.monthlyCredits ?? 0;
   const balance = user?.credits ?? 0;
   // "Used this cycle" must come from the *subscription* bucket alone. Deriving
   // it from the total (`allowance - credits`) counted purchased and bonus
@@ -282,6 +290,21 @@ export function BillingPanel({
       onError: setError,
     });
   }
+
+  // A trial is granted by the subscription.authenticated webhook, which can land
+  // a few seconds after Razorpay hands the customer back. Re-read the account
+  // briefly so the "trial started" banner and badge appear without a reload.
+  const trialPending = trialStarted && !trial;
+  useEffect(() => {
+    if (!trialPending) return;
+    let tries = 0;
+    const id = setInterval(() => {
+      tries += 1;
+      void refreshUser();
+      if (tries >= 10) clearInterval(id);
+    }, 3000);
+    return () => clearInterval(id);
+  }, [trialPending, refreshUser]);
 
   async function handleCancelSubscription() {
     if (!token) return;
@@ -372,7 +395,11 @@ export function BillingPanel({
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4 flex-shrink-0">
             <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          Payment successful — credits will appear in your account shortly!
+          {trialStarted
+            ? trial
+              ? `Your 7-day free trial has started — ${TRIAL_CREDITS} credits added. It's free until ${formatDate(trial.endsAt.toISOString())}; cancel before then and you won't be charged.`
+              : "Starting your free trial — this takes a few seconds…"
+            : "Payment successful — credits will appear in your account shortly!"}
         </div>
       )}
       {cancelSuccess && (
@@ -380,7 +407,9 @@ export function BillingPanel({
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4 flex-shrink-0">
             <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          Subscription cancelled — you&apos;ll keep access until {user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "the end of your billing period"}.
+          {trial
+            ? <>Free trial cancelled — you won&apos;t be charged. {user?.plan?.name ?? "Your plan"} stays available until {formatDate(trial.endsAt.toISOString())}.</>
+            : <>Subscription cancelled — you&apos;ll keep access until {user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "the end of your billing period"}.</>}
         </div>
       )}
       {/* Dunning banner. Without this the page kept saying "Renews in N days"
@@ -453,6 +482,7 @@ export function BillingPanel({
           onManagePlan={onOpenManage}
           onGoToTopup={() => setTab("topup")}
           currency={currency}
+          trial={trial}
           onCancelClick={() => setCancelDialogOpen(true)}
         />
         </div>
@@ -503,9 +533,11 @@ export function BillingPanel({
           a yes/no prompt rather than a place you work. */}
       <ConfirmDialog
         open={cancelDialogOpen}
-        title="Cancel subscription?"
-        message={`You'll keep access to your plan until ${user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "the end of your billing period"} — you just won't be charged again after that.`}
-        confirmLabel={cancelling ? "Cancelling…" : "Cancel subscription"}
+        title={trial ? "Cancel your free trial?" : "Cancel subscription?"}
+        message={trial
+          ? `You won't be charged anything. ${user?.plan?.name ?? "Your plan"} stays available until ${formatDate(trial.endsAt.toISOString())}, when the trial ends.`
+          : `You'll keep access to your plan until ${user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "the end of your billing period"} — you just won't be charged again after that.`}
+        confirmLabel={cancelling ? "Cancelling…" : trial ? "Cancel trial" : "Cancel subscription"}
         danger
         onConfirm={handleCancelSubscription}
         onClose={() => setCancelDialogOpen(false)}
@@ -515,7 +547,7 @@ export function BillingPanel({
 }
 
 // ── Overview tab ─────────────────────────────────────────────────────────────
-function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, summary, onViewPlans, onManagePlan, onGoToTopup, onCancelClick, currency }: {
+function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, summary, onViewPlans, onManagePlan, onGoToTopup, onCancelClick, currency, trial }: {
   user: ReturnType<typeof useAuth>["user"];
   hasActivePlan: boolean;
   daysLeft: number;
@@ -528,8 +560,11 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
   onGoToTopup: () => void;
   onCancelClick: () => void;
   currency: Currency;
+  /** Set while the account is in its 7-day free trial. */
+  trial: TrialStatus | null;
 }) {
-  const expiringSoon = hasActivePlan && daysLeft <= 7;
+  // A trial ends in 7 days by design — that isn't "expiring soon" in red.
+  const expiringSoon = hasActivePlan && daysLeft <= 7 && !trial;
   const memberSince = user?.createdAt ? formatDate(user.createdAt) : "—";
   const cancelled = !!user?.subscriptionCancelledAt;
   const generationsThisMonth = summary?.byTool.reduce((s, t) => s + t.count, 0) ?? 0;
@@ -543,7 +578,7 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <span className="inline-block bg-tint-emerald text-success text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wide">
-                  Active Plan
+                  {trial ? "Free trial" : "Active Plan"}
                 </span>
                 <span className="text-sm font-semibold text-ink truncate">{user?.plan?.name ?? "Subscription"}</span>
                 {cancelled && (
@@ -553,7 +588,7 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
                 )}
               </div>
               <p className={`text-sm font-medium ${expiringSoon ? "text-error" : "text-ink-soft"}`}>
-                {renewalLabel(daysLeft, cancelled)}
+                {trial ? `Free trial · ${trialDaysLeftLabel(trial.daysLeft)}` : renewalLabel(daysLeft, cancelled)}
               </p>
               <p className="text-xs text-ink-soft mt-1">Member since {memberSince}</p>
               <div className="flex items-center gap-4 mt-2">
@@ -565,7 +600,7 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
                 </button>
                 {!cancelled && (
                   <button onClick={onCancelClick} className="text-xs text-ink-soft hover:text-error font-medium transition-colors cursor-pointer">
-                    Cancel subscription
+                    {trial ? "Cancel free trial" : "Cancel subscription"}
                   </button>
                 )}
               </div>
@@ -575,7 +610,7 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
               <div className="flex items-center gap-4 bg-tint-violet rounded-2xl px-5 py-4">
                 <CreditRing used={used} total={allowance} />
                 <div>
-                  <p className="text-xs text-ink-soft font-medium">Monthly credits</p>
+                  <p className="text-xs text-ink-soft font-medium">{trial ? "Trial credits" : "Monthly credits"}</p>
                   <p className="text-sm font-bold text-ink mt-0.5">{used} / {allowance} used</p>
                   <p className="text-xs text-ink-soft mt-0.5">Total balance: <span className="font-semibold text-ink">{balance}</span></p>
                   {/* The three buckets behave differently — subscription credits
@@ -602,6 +637,25 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
             )}
           </div>
 
+          {/* The one thing a trial customer must never be unsure about: when the
+              first real charge happens, how much, and how to avoid it. */}
+          {trial && (
+            <div className="rounded-2xl border border-tint-emerald-border bg-tint-emerald px-4 py-3">
+              {trial.cancelled ? (
+                <p className="text-xs text-ink">
+                  <span className="font-semibold">Trial cancelled — you won&apos;t be charged.</span>{" "}
+                  {user?.plan?.name ?? "Your plan"} stays available until {formatDate(trial.endsAt.toISOString())}.
+                </p>
+              ) : (
+                <p className="text-xs text-ink">
+                  <span className="font-semibold">Free until {formatDate(trial.endsAt.toISOString())}.</span>{" "}
+                  {user?.plan ? <>Then {planPrice(user.plan, currency)}/month, renewing automatically. </> : null}
+                  Cancel before then and you won&apos;t be charged anything.
+                </p>
+              )}
+            </div>
+          )}
+
           {lowBalance && (
             <div className="flex items-center justify-between gap-3 bg-tint-amber border border-amber-100 rounded-2xl px-4 py-3">
               <p className="text-xs text-ink font-medium">Running low on credits ({balance} left).</p>
@@ -612,9 +666,13 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
           )}
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            <StatTile label="Monthly credits" value={allowance || "—"} accent="blue" />
             <StatTile
-              label={cancelled ? "Access until" : "Renews"}
+              label={trial ? "Trial credits" : "Monthly credits"}
+              value={trial && !trial.cancelled && user?.monthlyCredits ? `${allowance}, then ${user.monthlyCredits}/mo` : allowance || "—"}
+              accent="blue"
+            />
+            <StatTile
+              label={trial ? "Trial ends" : cancelled ? "Access until" : "Renews"}
               value={user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "—"}
               accent="violet"
             />
@@ -626,7 +684,7 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
               quoting a "next charge" for one was simply untrue. */}
           {!cancelled && user?.plan?.priceInPaise && user?.razorpaySubscriptionId ? (
             <p className="text-xs text-ink-soft">
-              Next charge {planPrice(user.plan, currency)} on {user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "—"}.
+              {trial ? "First charge" : "Next charge"} {planPrice(user.plan, currency)} on {user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "—"}.
             </p>
           ) : null}
         </Card>

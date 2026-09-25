@@ -141,6 +141,54 @@ export function paymentFailed(p: { name: string; reason: string | null; attempt:
   };
 }
 
+/**
+ * Sent when the trial starts (the mandate is authenticated). The customer has
+ * just authorised a mandate while paying ₹0, so the one thing they must not be
+ * left unsure about is when — and how much — the first real charge will be,
+ * and how to avoid it.
+ */
+export function trialStarted(p: {
+  name: string;
+  planName: string;
+  priceInPaise: number;
+  trialCredits: number;
+  endsAt: Date;
+}): EmailDocument {
+  const when = formatDateShort(p.endsAt);
+  const amount = p.priceInPaise ? formatPaise(p.priceInPaise) : "";
+  return {
+    subject: `Your ${PRODUCT_NAME} free trial has started`,
+    preheader: `${p.trialCredits} credits added. Free until ${when}${amount ? `, then ${amount}/month` : ""}.`,
+    blocks: [
+      { kind: "heading", text: `Your 7-day ${p.planName} trial has started` },
+      {
+        kind: "paragraph",
+        text: html`Hi ${greet(p.name)}, you now have ${p.planName} and <strong>${p.trialCredits} free credits</strong> to try it with.`,
+      },
+      {
+        kind: "kv",
+        title: "Your trial",
+        rows: [
+          { label: "Plan", value: p.planName },
+          { label: "Trial credits", value: `+${p.trialCredits} credits`, tone: "success" },
+          { label: "Free until", value: when },
+          ...(amount ? [{ label: "Then", value: `${amount} / month, renews automatically` }] : []),
+        ],
+      },
+      {
+        kind: "paragraph",
+        text: html`Not for you? <strong>Cancel before ${when}</strong> and you won't be charged anything — you'll keep ${p.planName} until the trial ends.`,
+      },
+      { kind: "button", href: `${BILLING_URL}&view=manage`, label: "Manage trial" },
+      {
+        kind: "paragraph",
+        tone: "fine",
+        text: "We'll also email you the day before your trial ends.",
+      },
+    ],
+  };
+}
+
 export function trialEnding(p: {
   name: string;
   planName: string;

@@ -28,6 +28,9 @@ export interface OpenBillingOptions {
   autotopupSlug?: string | null;
   /** Show the post-purchase success banner (?success=1). */
   success?: boolean;
+  /** The purchase was a free-trial start (?success=trial) — nothing was
+   *  charged, so the banner must not say "Payment successful". */
+  trialStarted?: boolean;
 }
 
 export interface BillingOverlayState extends OpenBillingOptions {
@@ -76,7 +79,8 @@ export function BillingOverlayProvider({ children }: { children: React.ReactNode
       tab: (["overview", "usage", "topup", "history"] as const).find(t => t === tab) ?? "overview",
       view: (["billing", "manage", "plans"] as const).find(v => v === view) ?? "billing",
       autotopupSlug: params.get("autotopup"),
-      success: params.get("success") === "1",
+      success: params.get("success") === "1" || params.get("success") === "trial",
+      trialStarted: params.get("success") === "trial",
     });
   }, []);
 

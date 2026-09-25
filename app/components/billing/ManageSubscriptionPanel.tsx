@@ -14,6 +14,8 @@ import Link from "next/link";
 import { Button } from "@/app/components/ui/Button";
 import { formatMoney, type Currency } from "@/lib/currency-shared";
 import type { AuthUser } from "@/app/components/useAuthUser";
+import { trialStatus, trialDaysLeftLabel } from "@/lib/billing/trial-status";
+import { TRIAL_CREDITS } from "@/lib/plans/tiers";
 
 interface Purchase {
   id: string;
@@ -57,6 +59,7 @@ export function ManageSubscriptionPanel({
   const [resumeNeedsNewPlan, setResumeNeedsNewPlan] = useState(false);
 
   const cancelled = !!user?.subscriptionCancelledAt;
+  const trial = trialStatus(user);
   const endsAt = user?.subscriptionEndsAt ? new Date(user.subscriptionEndsAt) : null;
   // "Recurring" means an actual Razorpay mandate, not merely having a plan: a
   // legacy prepaid term lapses instead of renewing, so it has no next charge.
@@ -96,27 +99,34 @@ export function ManageSubscriptionPanel({
             <span className="text-sm font-bold text-ink">{user?.plan?.name ?? "Subscription"}</span>
             {cancelled ? (
               <span className="bg-surface-3 text-ink-soft text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
-                Cancelling
+                {trial ? "Trial cancelled" : "Cancelling"}
               </span>
             ) : (
               <span className="bg-tint-emerald text-success text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
-                Active
+                {trial ? "Free trial" : "Active"}
               </span>
+            )}
+            {trial && !cancelled && (
+              <span className="text-[11px] text-ink-soft">{trialDaysLeftLabel(trial.daysLeft)}</span>
             )}
           </div>
 
           <div className="rounded-2xl border border-card-border px-4 py-1">
-            <Row label="Monthly credits" value={user?.monthlyCredits || "—"} />
+            {trial ? (
+              <Row label="Credits" value={trial.cancelled ? `${TRIAL_CREDITS} for the trial` : `${TRIAL_CREDITS} during the trial, then ${user?.monthlyCredits || "—"} a month`} />
+            ) : (
+              <Row label="Monthly credits" value={user?.monthlyCredits || "—"} />
+            )}
             <Row
-              label={cancelled ? "Access until" : "Renews on"}
+              label={trial ? "Trial ends" : cancelled ? "Access until" : "Renews on"}
               value={endsAt ? formatDate(endsAt) : "—"}
             />
             <Row
-              label="Next charge"
+              label={trial ? "First charge" : "Next charge"}
               value={
-                cancelled ? "None — cancelled"
+                cancelled ? (trial ? "None — trial cancelled" : "None — cancelled")
                   : !recurring ? "None — access ends on the date above"
-                  : priceMinor ? formatMoney(priceMinor, currency)
+                  : priceMinor ? (trial && endsAt ? `${formatMoney(priceMinor, currency)} on ${formatDate(endsAt)}` : formatMoney(priceMinor, currency))
                   : "—"
               }
               muted={cancelled || !recurring}
@@ -135,7 +145,10 @@ export function ManageSubscriptionPanel({
             Change plan
           </Button>
 
-          {cancelled ? (
+          {/* A trial cancelled during the trial is cancelled outright at
+              Razorpay (it has no billing cycle to run out), so there is nothing
+              to resume — Change plan above is how to subscribe after all. */}
+          {cancelled && trial ? null : cancelled ? (
             <>
               <Button variant="secondary" size="lg" onClick={resume} disabled={resuming} className="w-full">
                 {resuming ? "Turning renewal on…" : "Resume subscription"}
@@ -159,13 +172,19 @@ export function ManageSubscriptionPanel({
               onClick={onCancelClick}
               className="w-full text-center text-xs text-ink-soft hover:text-error font-medium transition-colors cursor-pointer py-2"
             >
-              Cancel subscription
+              {trial ? "Cancel free trial — you won't be charged" : "Cancel subscription"}
             </button>
+          )}
+
+          {trial && !cancelled && endsAt && (
+            <p className="text-xs text-ink-soft text-center">
+              Your free trial ends on {formatDate(endsAt)}. Cancel before then and nothing is charged.
+            </p>
           )}
 
           {cancelled && endsAt && (
             <p className="text-xs text-ink-soft text-center">
-              Your plan and credits stay available until {formatDate(endsAt)}.
+              {trial ? "You won't be charged. " : ""}Your plan and credits stay available until {formatDate(endsAt)}.
             </p>
           )}
         </section>

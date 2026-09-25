@@ -18,6 +18,7 @@ import { logger } from "@/lib/logger";
 import { grantCredits } from "@/lib/credits";
 import { isTrialPlan, TRIAL_CREDITS, TRIAL_DAYS } from "@/lib/plans/tiers";
 import { cancelExistingSubscriptionForSwitch } from "./subscription-switch";
+import { sendTrialStartedEmail } from "@/lib/email";
 import { trialEligibility, type TrialIneligible } from "./trial-eligibility";
 
 export interface AuthenticatedSubscription {
@@ -105,5 +106,15 @@ export async function startTrialOnAuthentication(sub: AuthenticatedSubscription)
   await prisma.subscriptionEvent
     .create({ data: { userId, subscriptionId: sub.id, type: "trial_started" } })
     .catch(() => {});
+
+  // Tell them plainly what they just agreed to: free until when, then how
+  // much. They authorised a mandate while paying ₹0 — the first real charge
+  // must never be a surprise. Non-fatal: the trial itself has been granted.
+  const recipient = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, firstName: true, name: true } });
+  if (recipient) {
+    await sendTrialStartedEmail(
+      recipient.email, recipient.firstName ?? recipient.name ?? "", plan.name, plan.priceInPaise, TRIAL_CREDITS, startAt,
+    ).catch((e: unknown) => logger.error("billing/trial", `trial-started email failed for ${userId}`, e));
+  }
   return { status: "started" };
 }
