@@ -7,6 +7,7 @@ import { getPlanPriceMinor, type Currency } from "@/lib/currency";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { withRateLimit } from "@/lib/with-rate-limit";
+import { syncRazorpayPlan } from "@/lib/billing/razorpay-plans";
 
 const razorpay = new Razorpay({
   key_id: env.RAZORPAY_KEY_ID,
@@ -96,11 +97,34 @@ async function handlePOST(req: NextRequest) {
     }
   }
 
-  // ── Recurring flow: subscription-kind plans with a synced Razorpay Plan id
-  // for the requested currency go through Subscriptions (true auto-renewal +
-  // optional trial). Plans not yet synced fall back to the legacy one-time
-  // order below, so rollout can happen plan-by-plan without breaking checkout.
-  const razorpayPlanId = currency === "USD" ? basePlan.razorpayPlanIdUsd : basePlan.razorpayPlanIdInr;
+  // ── Recurring flow: EVERY plan purchase is a Razorpay Subscription, so every
+  // one registers a payment mandate (card e-mandate / UPI Autopay) and renews
+  // automatically. Unsynced plans used to fall back to a one-time order: the
+  // customer paid once, got no mandate, and silently lapsed at term end. A plan
+  // with no Razorpay Plan for this currency is now synced on its first checkout
+  // (syncRazorpayPlan is idempotent), instead of waiting on someone to press
+  // the sync button in /admin/pricing.
+  let razorpayPlanId = currency === "USD" ? basePlan.razorpayPlanIdUsd : basePlan.razorpayPlanIdInr;
+  if (basePlan.kind === "subscription" && !razorpayPlanId) {
+    const synced = await syncRazorpayPlan(basePlan, currency);
+    if (synced.ok) {
+      razorpayPlanId = synced.razorpayPlanId;
+    } else if (currency === "INR") {
+      logger.error("billing/checkout", `could not sync ${basePlan.slug} (INR) to Razorpay: ${synced.error}`);
+      return NextResponse.json(
+        { error: "This plan can't be purchased right now. Please try again in a few minutes." },
+        { status: 503 },
+      );
+    } else {
+      // USD recurring needs international recurring enabled on the Razorpay
+      // account. If Razorpay refuses the plan, keep selling it one-time rather
+      // than blocking every USD plan sale — loudly, so it gets fixed.
+      logger.error(
+        "billing/checkout",
+        `USD plan ${basePlan.slug} could not be synced (${synced.error}) — selling it ONE-TIME, with no mandate or renewal`,
+      );
+    }
+  }
 
   // Trials only exist on the recurring flow. Falling through to the one-time
   // order below would charge the full amount today, which is the opposite of
