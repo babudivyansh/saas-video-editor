@@ -30,9 +30,12 @@ export type SubscriptionSwitchResult =
 //     subscription they already had, with subscriptionCancelledAt unset so the
 //     billing UI still promised a renewal.
 //   - PATCH /api/admin/users/[id], when an admin clears a user's plan.
+// Also used by lib/billing/trial.ts to kill a trial subscription that turns
+// out to be ineligible before it can reach its first charge.
 export async function cancelExistingSubscriptionForSwitch(
   userId: string,
   existingRazorpaySubscriptionId: string | null,
+  reason = "plan_switch",
 ): Promise<SubscriptionSwitchResult> {
   if (!existingRazorpaySubscriptionId) return { ok: true };
 
@@ -57,7 +60,7 @@ export async function cancelExistingSubscriptionForSwitch(
         userId,
         subscriptionId: existingRazorpaySubscriptionId,
         type: "cancelled",
-        reason: "plan_switch",
+        reason,
       },
     })
     .catch(() => {});

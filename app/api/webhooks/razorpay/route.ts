@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { fulfillPayment, fulfillSubscriptionCharge, type FulfillNotes } from "@/lib/fulfillment";
 import { recordSubscriptionFailure, recordSubscriptionLifecycle } from "@/lib/dunning";
 import { cancelExistingSubscriptionForSwitch } from "@/lib/billing/subscription-switch";
+import { startTrialOnAuthentication } from "@/lib/billing/trial";
 import { prisma } from "@/lib/prisma";
 import { grantCredits } from "@/lib/credits";
 import { TRIAL_CREDITS } from "@/lib/plans/tiers";
@@ -70,13 +71,31 @@ export async function POST(req: NextRequest) {
         };
       };
       refund?: { entity: { id: string; payment_id: string; amount: number } };
-      subscription?: { entity: { id: string; notes?: { userId?: string; planId?: string; trial?: string } } };
+      subscription?: { entity: { id: string; start_at?: number | null; notes?: { userId?: string; planId?: string; trial?: string } } };
     };
   };
 
   // Subscription lifecycle events (recurring flow) — handled before
   // payment.captured so a subscription-invoice payment doesn't also get
   // routed to the one-time fulfillPayment path below (double grant guard).
+  // A trial subscription (start_at = now + 7 days) reaches `authenticated` the
+  // moment the customer approves the mandate, and only becomes `activated` on
+  // day 7 together with its first charge — so this, not activation, is when a
+  // trial starts. See lib/billing/trial.ts. Non-trial subscriptions start
+  // immediately, go straight to activated + charged, and need nothing here.
+  if (event.event === "subscription.authenticated") {
+    const sub = event.payload?.subscription?.entity;
+    if (sub?.id) {
+      try {
+        await startTrialOnAuthentication(sub);
+      } catch (e) {
+        logger.error("webhook", `subscription.authenticated failed for ${sub.id}`, e);
+        return NextResponse.json({ error: "trial start failed" }, { status: 500 });
+      }
+    }
+    return NextResponse.json({ received: true });
+  }
+
   if (event.event === "subscription.activated") {
     const sub = event.payload?.subscription?.entity;
     const userId = sub?.notes?.userId;
@@ -91,8 +110,12 @@ export async function POST(req: NextRequest) {
       if (plan && user) {
         const endsAt = new Date();
         endsAt.setDate(endsAt.getDate() + 7); // covers the trial window; extended for real on first charge
-        // Trial grant: exactly TRIAL_CREDITS, once per account, hard-capped —
-        // it does NOT establish a subscription bucket base for rollover.
+        // Activation of a trial subscription means the trial is OVER — this is
+        // day 7, and the first charge arrives alongside. The trial itself was
+        // granted on subscription.authenticated (lib/billing/trial.ts), which
+        // set trialUsedAt, so this only still grants for a trial that was
+        // authenticated before that handler existed. Either way trialEndsAt is
+        // cleared: it must never point past a charge that has happened.
         const grantTrial = isTrial && !user.trialUsedAt;
         // Only ever push the term outwards. A replayed activation arriving
         // after the first real charge would otherwise pull a paid term back to
@@ -150,7 +173,8 @@ export async function POST(req: NextRequest) {
                 // unconditionally meant a redelivered webhook silently
                 // resurrected a subscription the user had deliberately cancelled.
                 ...(user.razorpaySubscriptionId !== sub.id ? { subscriptionCancelledAt: null } : {}),
-                ...(grantTrial ? { trialUsedAt: new Date(), trialEndsAt: endsAt } : {}),
+                ...(grantTrial ? { trialUsedAt: new Date() } : {}),
+                ...(isTrial ? { trialEndsAt: null } : {}),
               },
             });
 

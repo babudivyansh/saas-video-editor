@@ -156,12 +156,21 @@ export const TIER_MAX_AUTOCLIP_SOURCE_SECONDS: Record<TierId, number> = {
 // Free-tier Auto Clip allowance: watermarked runs per rolling 30 days.
 export const FREE_TIER_AUTOCLIP_RUNS_PER_MONTH = 2;
 
-// Credits granted once when the 7-day Pro trial activates. Hard-capped and
-// deliberately NOT a subscription-bucket base for rollover — see the
-// subscription.activated handler in app/api/webhooks/razorpay/route.ts. Exported
-// so the pricing CTA can state the figure instead of offering an unquantified
-// "free trial".
+// Credits granted once when the 7-day Pro trial starts (the mandate is
+// authenticated — see lib/billing/trial.ts). Hard-capped and deliberately NOT a
+// subscription-bucket base for rollover. Exported so the pricing CTA can state
+// the figure instead of offering an unquantified "free trial".
 export const TRIAL_CREDITS = 25;
+
+export const TRIAL_DAYS = 7;
+
+/** Only the MONTHLY Pro plan carries a trial — an annual Pro trial would end in
+ *  a ₹17,680 auto-debit, above RBI's ₹15,000 no-OTP e-mandate limit, which the
+ *  bank will not let through unattended. Client-safe: the pricing page uses it
+ *  to decide which card offers the trial. */
+export function isTrialPlan(plan: { kind: string; tier: string | null; intervalMonths: number | null }): boolean {
+  return plan.kind === "subscription" && plan.tier === "pro" && (plan.intervalMonths ?? 1) === 1;
+}
 
 // Monthly bonus-credit grant for users without an active subscription.
 // Bonus credits expire 30 days after the latest bonus grant.

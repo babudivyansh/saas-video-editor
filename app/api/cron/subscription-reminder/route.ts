@@ -204,7 +204,10 @@ export async function GET(req: NextRequest) {
     // Deduped by the one-day window against a daily cron, the same basis the
     // 7d/3d/1d warnings use — there's no separate marker column for trials.
     const endingTrials = await prisma.user.findMany({
-      where: { trialEndsAt: { gte: windowStart, lte: windowEnd } },
+      // A cancelled trial will never be charged (the subscription was cancelled
+      // outright — see POST /api/billing/cancel), so "you'll be charged
+      // tomorrow" would be false and alarming.
+      where: { trialEndsAt: { gte: windowStart, lte: windowEnd }, subscriptionCancelledAt: null },
       select: { id: true, email: true, firstName: true, name: true, trialEndsAt: true, plan: { select: { name: true, priceInPaise: true } } },
     });
 

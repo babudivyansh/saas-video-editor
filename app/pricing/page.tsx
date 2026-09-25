@@ -8,7 +8,7 @@ import { ToastProvider, useToast } from "@/app/components/ui/Toast";
 import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 import {
-  PURCHASABLE_TIER_ORDER, TIER_LABEL, TRIAL_CREDITS,
+  PURCHASABLE_TIER_ORDER, TIER_LABEL, TRIAL_CREDITS, isTrialPlan,
   FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_AUTOCLIP_RUNS_PER_MONTH, SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER,
 } from "@/lib/plans/tiers";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
@@ -141,10 +141,11 @@ function PricingPageInner() {
   // that silently does nothing server-side — same rule as PlansModal.
   const couponsAvailable = currency === "INR";
 
-  // The 7-day trial is Pro-only and once per account, matching what
-  // /api/billing/checkout will actually accept. Signed-out visitors see it
-  // too — a new account is always eligible — and are sent to register first.
-  const trialEligible = !user || (!user.trialUsedAt && !hasActivePlan);
+  // The 7-day trial is a first-purchase offer on the monthly Pro plan — the
+  // same rule /api/billing/checkout enforces (lib/billing/trial.ts). Signed-out
+  // visitors see it too — a new account is always eligible — and are sent to
+  // register first.
+  const trialEligible = !user || (!user.trialUsedAt && !user.hasPurchased && !hasActivePlan);
 
   const clearCoupon = () => { setAppliedCoupon(null); setCouponError(""); };
 
@@ -275,7 +276,7 @@ function PricingPageInner() {
             <FreeCard currency={currency} />
             {cards.map(plan => {
               const isPro = plan.tier === "pro";
-              const offerTrial = isPro && trialEligible;
+              const offerTrial = isTrialPlan(plan) && trialEligible;
               const perMonth = formatMoney(Math.round(minorUnits(plan, currency) / (plan.intervalMonths ?? 1)), currency);
               return (
                 <PlanCard

@@ -46,6 +46,9 @@ export async function GET(req: NextRequest) {
       // will reject.
       trialUsedAt: true,
       trialEndsAt: true,
+      // The trial is a first-purchase offer (lib/billing/trial.ts): any past
+      // Purchase — plan, renewal or credit pack — rules it out.
+      _count: { select: { purchases: true } },
       // Dunning state, so the billing page can tell the user their card failed
       // instead of continuing to show "Renews in N days".
       paymentFailedAt: true,
@@ -61,6 +64,7 @@ export async function GET(req: NextRequest) {
     },
   });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  const { _count, ...userFields } = user;
 
   // Effective plan tier, resolved with the same rule as getUserTier() so the
   // client can size things like the video-duration cap (TIER_MAX_DURATION_SECONDS)
@@ -77,7 +81,8 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     user: {
-      ...user,
+      ...userFields,
+      hasPurchased: _count.purchases > 0,
       plan,
       tier,
       creditBalances: {

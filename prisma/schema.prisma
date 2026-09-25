@@ -876,7 +876,7 @@ model SubscriptionEvent {
   userId         String
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   subscriptionId String // Razorpay sub_...
-  type           String // "payment_failed" | "pending" | "halted" | "cancelled" | "paused" | "resumed" | "charged" | "activated"
+  type           String // "payment_failed" | "pending" | "halted" | "cancelled" | "paused" | "resumed" | "charged" | "activated" | "trial_started"
   /// Failure reason / error code from the provider, when it gave one.
   reason         String?
   metadata       Json?

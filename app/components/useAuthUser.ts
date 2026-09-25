@@ -40,6 +40,8 @@ export interface AuthUser {
   monthlyCredits: number;
   trialUsedAt: string | null;
   trialEndsAt: string | null;
+  /** Any Purchase ever (plan, renewal or pack) — rules out the first-purchase trial. */
+  hasPurchased?: boolean;
   paymentFailedAt: string | null;
   paymentFailureCount: number;
   /**

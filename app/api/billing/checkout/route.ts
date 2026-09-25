@@ -7,6 +7,8 @@ import { getPlanPriceMinor, type Currency } from "@/lib/currency";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { withRateLimit } from "@/lib/with-rate-limit";
+import { trialEligibility } from "@/lib/billing/trial-eligibility";
+import { isTrialPlan, TRIAL_DAYS } from "@/lib/plans/tiers";
 
 const razorpay = new Razorpay({
   key_id: env.RAZORPAY_KEY_ID,
@@ -112,13 +114,32 @@ async function handlePOST(req: NextRequest) {
     );
   }
 
+  // Trial eligibility is decided HERE and refused loudly. It used to degrade
+  // silently: an ineligible trial request became an ordinary subscription that
+  // charged the full price at once, straight after a modal that said "Due
+  // today ₹0". The same rule is re-checked when the mandate is authenticated
+  // (lib/billing/trial.ts), since two parallel checkouts both pass this one.
+  if (body.trial === true) {
+    const reason = isTrialPlan(basePlan) ? await trialEligibility(auth.userId) : "not-trial-plan";
+    if (reason) {
+      return NextResponse.json(
+        {
+          error: reason === "not-trial-plan"
+            ? "The free trial is only available on the monthly Pro plan."
+            : "The free trial is for first-time subscribers only. You can still subscribe normally.",
+          code: "trial_ineligible",
+        },
+        { status: 409 },
+      );
+    }
+  }
+
   if (basePlan.kind === "subscription" && razorpayPlanId) {
     const user = await prisma.user.findUnique({
       where: { id: auth.userId },
-      select: { trialUsedAt: true, subscriptionEndsAt: true },
+      select: { subscriptionEndsAt: true },
     });
-    // Trial: Pro-tier only, once per account, requested explicitly by the client.
-    const wantsTrial = body.trial === true && basePlan.tier === "pro" && !user?.trialUsedAt;
+    const wantsTrial = body.trial === true;
 
     // Set only from the billing dunning banner's "View plans" (a failed
     // payment retry, not a normal upgrade) — the customer already paid for
@@ -155,7 +176,7 @@ async function handlePOST(req: NextRequest) {
         ...(deferStart
           ? { start_at: deferStart }
           : wantsTrial
-            ? { start_at: Math.floor(Date.now() / 1000) + 7 * 86400 }
+            ? { start_at: Math.floor(Date.now() / 1000) + TRIAL_DAYS * 86400 }
             : {}),
         notes: {
           userId: auth.userId,

@@ -30,6 +30,7 @@ const SUB_PLAN = {
 };
 
 let subscriptionEndsAt: Date | null = null;
+let purchaseCount = 0;
 const findUniquePlan = vi.fn(async () => SUB_PLAN);
 const findUniqueUser = vi.fn(async () => ({ trialUsedAt: new Date(), subscriptionEndsAt }));
 vi.mock("@/lib/prisma", () => ({
@@ -39,6 +40,7 @@ vi.mock("@/lib/prisma", () => ({
       findMany: vi.fn(async () => []),
     },
     user: { findUnique: (...a: unknown[]) => (findUniqueUser as unknown as (...x: unknown[]) => unknown)(...a) },
+    purchase: { count: vi.fn(async () => purchaseCount) },
   },
 }));
 
@@ -62,6 +64,7 @@ function post(body: unknown): NextRequest {
 
 beforeEach(() => {
   subscriptionEndsAt = null;
+  purchaseCount = 0;
   vi.clearAllMocks();
   findUniquePlan.mockResolvedValue(SUB_PLAN);
   findUniqueUser.mockImplementation(async () => ({ trialUsedAt: new Date(), subscriptionEndsAt }));
@@ -92,5 +95,42 @@ describe("POST /api/billing/checkout — resumeFromPeriodEnd", () => {
     expect(res.status).toBe(200);
     const call = subscriptionsCreate.mock.calls[0][0];
     expect(call.start_at).toBeUndefined();
+  });
+});
+
+// The trial is a first-purchase offer on the monthly Pro plan. An ineligible
+// request used to fall through to an ordinary subscription that charged the
+// full price at once — after a modal that said "Due today ₹0".
+describe("POST /api/billing/checkout — 7-day trial", () => {
+  const fresh = () => findUniqueUser.mockImplementation(async () => ({ trialUsedAt: null, subscriptionEndsAt }));
+
+  it("defers the first charge 7 days for a first-time customer", async () => {
+    fresh();
+    const res = await POST(post({ planId: "pro-monthly", trial: true }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).trial).toBe(true);
+    const call = subscriptionsCreate.mock.calls[0][0] as { start_at: number; notes: { trial: string } };
+    expect(call.notes.trial).toBe("1");
+    expect(call.start_at - Math.floor(Date.now() / 1000)).toBeGreaterThanOrEqual(7 * 86400 - 5);
+  });
+
+  it.each([
+    ["has used a trial", () => findUniqueUser.mockImplementation(async () => ({ trialUsedAt: new Date(), subscriptionEndsAt: null }))],
+    ["has bought anything before", () => { fresh(); purchaseCount = 1; }],
+    ["has an active plan", () => { subscriptionEndsAt = new Date(Date.now() + 86400_000); fresh(); }],
+  ])("refuses with 409, creating nothing, when the account %s", async (_label, setup) => {
+    setup();
+    const res = await POST(post({ planId: "pro-monthly", trial: true }));
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("trial_ineligible");
+    expect(subscriptionsCreate).not.toHaveBeenCalled();
+  });
+
+  it("refuses a trial on an annual plan", async () => {
+    fresh();
+    findUniquePlan.mockResolvedValue({ ...SUB_PLAN, intervalMonths: 12 } as typeof SUB_PLAN);
+    const res = await POST(post({ planId: "pro-monthly", trial: true }));
+    expect(res.status).toBe(409);
+    expect(subscriptionsCreate).not.toHaveBeenCalled();
   });
 });
