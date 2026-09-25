@@ -23,7 +23,7 @@ import { FreeCard } from "./_components/FreeCard";
 import { CreditsExplainer } from "./_components/CreditsExplainer";
 import { AddonStrip } from "./_components/AddonStrip";
 import { CompareTable } from "./_components/CompareTable";
-import { CheckoutModal, type AppliedCoupon } from "./_components/CheckoutModal";
+import { CheckoutModal } from "./_components/CheckoutModal";
 import type { DbPlan, ToolCost } from "./_components/types";
 
 // Both ends of the image-price range, derived rather than asserted — the FAQ
@@ -72,7 +72,7 @@ export default function PricingPage() {
 }
 
 function PricingPageInner() {
-  const { user, token, openAuthModal, isLoading: authLoading } = useAuth();
+  const { user, openAuthModal, isLoading: authLoading } = useAuth();
   const { startCheckout, activeId } = useRazorpayCheckout();
   const { showToast } = useToast();
   const [plans, setPlans] = useState<DbPlan[]>([]);
@@ -86,17 +86,12 @@ function PricingPageInner() {
   }, []);
   const [toolCosts, setToolCosts] = useState<ToolCost[]>([]);
 
-  // Checkout state
-  const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
+  // Checkout state. A subscription checkout is exactly its plan — no add-on
+  // bundling, no coupon: both were shown here but never charged or applied
+  // (see app/pricing/_components/CheckoutModal.tsx).
   const [checkoutPlan, setCheckoutPlan] = useState<DbPlan | null>(null);
   const [checkoutTrial, setCheckoutTrial] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
-
-  // Coupon state (scoped to the checkout modal)
-  const [couponInput, setCouponInput] = useState("");
-  const [couponApplying, setCouponApplying] = useState(false);
-  const [couponError, setCouponError] = useState("");
-  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
 
   // Derived loading flags from the shared checkout hook.
   const checkoutLoading = checkoutPlan != null && activeId === checkoutPlan.slug;
@@ -136,33 +131,16 @@ function PricingPageInner() {
   const hasActivePlan =
     !!user?.subscriptionEndsAt && new Date(user.subscriptionEndsAt) > new Date();
 
-  // Coupons are INR-native (validated and discounted against the stored
-  // priceInPaise), so hide the coupon UI on USD rather than showing a field
-  // that silently does nothing server-side — same rule as PlansModal.
-  const couponsAvailable = currency === "INR";
-
   // The 7-day trial is a first-purchase offer on the monthly Pro plan — the
   // same rule /api/billing/checkout enforces (lib/billing/trial.ts). Signed-out
   // visitors see it too — a new account is always eligible — and are sent to
   // register first.
   const trialEligible = !user || (!user.trialUsedAt && !user.hasPurchased && !hasActivePlan);
 
-  const clearCoupon = () => { setAppliedCoupon(null); setCouponError(""); };
-
-  const toggleAddon = (slug: string) => {
-    setSelectedAddons(prev =>
-      prev.includes(slug) ? prev.filter(s => s !== slug) : [...prev, slug]
-    );
-    // Cart total changed → invalidate any applied coupon so it re-validates.
-    clearCoupon();
-  };
-
   const openCheckout = (plan: DbPlan, trial = false) => {
     setCheckoutPlan(plan);
     setCheckoutTrial(trial);
     setCheckoutError("");
-    setCouponInput("");
-    clearCoupon();
   };
 
   const selectPlan = (plan: DbPlan, trial = false) => {
@@ -171,37 +149,11 @@ function PricingPageInner() {
     else openAuthModal("register", plan.tier ? TIER_LABEL[plan.tier] : plan.name);
   };
 
-  const applyCoupon = async () => {
-    if (!checkoutPlan || !couponInput.trim()) return;
-    setCouponApplying(true);
-    setCouponError("");
-    try {
-      const res = await fetch("/api/coupons/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ planId: checkoutPlan.slug, addonIds: selectedAddons, code: couponInput.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        setAppliedCoupon(null);
-        setCouponError(data.error ?? "Could not apply coupon.");
-        return;
-      }
-      setAppliedCoupon({ code: data.code, label: data.label, discountInPaise: data.discountInPaise });
-    } catch {
-      setCouponError("Could not apply coupon. Try again.");
-    } finally {
-      setCouponApplying(false);
-    }
-  };
-
   const handlePay = () => {
     if (!checkoutPlan) return;
     setCheckoutError("");
     startCheckout({
       planId: checkoutPlan.slug,
-      addonIds: selectedAddons,
-      couponCode: couponsAvailable ? appliedCoupon?.code : undefined,
       trial: checkoutTrial,
       currency,
       onSuccess: () => { window.location.href = "/pricing?success=1"; },
@@ -210,6 +162,10 @@ function PricingPageInner() {
   };
 
   const handleBuyPack = (pack: DbPlan) => {
+    if (authLoading) return;
+    // Packs are open to everyone now (no bundle-with-a-plan toggle), including
+    // signed-out visitors — send them to register rather than erroring.
+    if (!user) { openAuthModal("register", pack.name); return; }
     setCheckoutError("");
     startCheckout({
       planId: pack.slug,
@@ -218,20 +174,6 @@ function PricingPageInner() {
       onError: (msg) => showToast(msg, "error"),
     });
   };
-
-  // Cart totals in the selected currency's minor units, so the summary matches
-  // the figures on the cards instead of always quoting rupees.
-  const totalDueMinor =
-    (checkoutPlan ? minorUnits(checkoutPlan, currency) : 0) +
-    selectedAddons.reduce((s, slug) => {
-      const pack = packs.find(p => p.slug === slug);
-      return s + (pack ? minorUnits(pack, currency) : 0);
-    }, 0);
-
-  // Coupon discounts are stored in paise and only offered on INR checkout.
-  const discountedTotalMinor = appliedCoupon && couponsAvailable
-    ? Math.max(100, totalDueMinor - appliedCoupon.discountInPaise)
-    : totalDueMinor;
 
   const cards = PURCHASABLE_TIER_ORDER
     .map(tier => subs.find(p => p.tier === tier && p.intervalMonths === term))
@@ -245,7 +187,7 @@ function PricingPageInner() {
         term={term}
         onTerm={setTerm}
         currency={currency}
-        onCurrency={c => { setCurrency(c); clearCoupon(); }}
+        onCurrency={setCurrency}
         savePct={savePct}
       />
 
@@ -328,9 +270,6 @@ function PricingPageInner() {
         <AddonStrip
           packs={packs}
           currency={currency}
-          selected={selectedAddons}
-          onToggle={toggleAddon}
-          hasActivePlan={hasActivePlan}
           buyingPack={buyingPack}
           onBuy={handleBuyPack}
         />
@@ -399,20 +338,7 @@ function PricingPageInner() {
           plan={checkoutPlan}
           trial={checkoutTrial}
           currency={currency}
-          packs={packs}
-          selectedAddons={selectedAddons}
-          onToggleAddon={toggleAddon}
           activePlanEndsAt={hasActivePlan && user?.subscriptionEndsAt ? user.subscriptionEndsAt : null}
-          couponsAvailable={couponsAvailable}
-          couponInput={couponInput}
-          onCouponInput={v => { setCouponInput(v); setCouponError(""); }}
-          couponApplying={couponApplying}
-          couponError={couponError}
-          appliedCoupon={appliedCoupon}
-          onApplyCoupon={applyCoupon}
-          onClearCoupon={clearCoupon}
-          totalDueMinor={totalDueMinor}
-          discountedTotalMinor={discountedTotalMinor}
           loading={checkoutLoading}
           error={checkoutError}
           onPay={handlePay}

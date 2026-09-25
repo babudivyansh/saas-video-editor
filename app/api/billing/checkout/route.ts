@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Razorpay from "razorpay";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { validateCoupon } from "@/lib/coupons";
+import { validateCoupon, SUBSCRIPTION_COUPON_ERROR } from "@/lib/coupons";
 import { getPlanPriceMinor, type Currency } from "@/lib/currency";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
@@ -61,6 +61,21 @@ async function handlePOST(req: NextRequest) {
   let appliedCouponId: string | null = null;
   let appliedDiscount = 0;
   const couponCode: string = typeof body.couponCode === "string" ? body.couponCode.trim() : "";
+
+  // A subscription is exactly its plan. It is billed at the synced Razorpay
+  // plan amount, so add-ons and coupon discounts shown in the modal were never
+  // charged or applied — the customer paid full price and got no add-on
+  // credits. Both are refused rather than silently dropped. Packs are still
+  // sold on their own (with pack coupons), to anyone.
+  if (basePlan.kind === "subscription") {
+    if (addonSlugs.length > 0) {
+      return NextResponse.json(
+        { error: "Credit packs can't be bundled with a subscription. Buy them separately after subscribing." },
+        { status: 400 },
+      );
+    }
+    if (couponCode) return NextResponse.json({ error: SUBSCRIPTION_COUPON_ERROR }, { status: 400 });
+  }
 
   if (currency === "USD") {
     // Reject rather than ignore. Silently dropping the code meant a client that
