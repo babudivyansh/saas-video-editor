@@ -49,11 +49,19 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 const subscriptionsCreate = vi.fn(async () => ({ id: "sub_new" }));
+const ordersCreate = vi.fn(async (o: { amount: number; currency: string }) => ({ id: "order_new", amount: o.amount, currency: o.currency }));
 vi.mock("razorpay", () => ({
   default: class {
     subscriptions = { create: subscriptionsCreate };
-    orders = { create: vi.fn() };
+    orders = { create: ordersCreate };
   },
+}));
+
+type SyncResult = { ok: true; currency: string; razorpayPlanId: string; created: boolean } | { ok: false; currency: string; error: string };
+const syncRazorpayPlan = vi.fn(async (_plan: unknown, currency: string): Promise<SyncResult> =>
+  ({ ok: true, currency, razorpayPlanId: `plan_synced_${currency}`, created: true }));
+vi.mock("@/lib/billing/razorpay-plans", () => ({
+  syncRazorpayPlan: (...a: unknown[]) => (syncRazorpayPlan as unknown as (...x: unknown[]) => unknown)(...a),
 }));
 
 const { POST } = await import("./route");
@@ -161,5 +169,53 @@ describe("POST /api/billing/checkout — subscription is exactly its plan", () =
     findUniquePlan.mockResolvedValue({ ...SUB_PLAN, razorpayPlanIdInr: null } as unknown as typeof SUB_PLAN);
     const res = await POST(post({ planId: "pro-monthly", couponCode: "LAUNCH30" }));
     expect(res.status).toBe(400);
+  });
+});
+
+// Every plan purchase is a Razorpay Subscription (and so registers a mandate).
+// Unsynced plans used to be sold as one-time orders that never renewed.
+describe("POST /api/billing/checkout — plans are always recurring", () => {
+  const unsynced = { ...SUB_PLAN, razorpayPlanIdInr: null, razorpayPlanIdUsd: null };
+
+  it("uses the stored Razorpay Plan without re-syncing", async () => {
+    const res = await POST(post({ planId: "pro-monthly" }));
+    expect(res.status).toBe(200);
+    expect(syncRazorpayPlan).not.toHaveBeenCalled();
+    expect(subscriptionsCreate).toHaveBeenCalledWith(expect.objectContaining({ plan_id: "plan_inr_1" }));
+  });
+
+  it("syncs an unsynced plan on its first checkout and subscribes to it", async () => {
+    findUniquePlan.mockResolvedValue(unsynced as unknown as typeof SUB_PLAN);
+    const res = await POST(post({ planId: "pro-monthly" }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).mode).toBe("subscription");
+    expect(subscriptionsCreate).toHaveBeenCalledWith(expect.objectContaining({ plan_id: "plan_synced_INR" }));
+    expect(ordersCreate).not.toHaveBeenCalled();
+  });
+
+  it("refuses an INR plan it cannot sync — never a one-time order without a mandate", async () => {
+    findUniquePlan.mockResolvedValue(unsynced as unknown as typeof SUB_PLAN);
+    syncRazorpayPlan.mockResolvedValueOnce({ ok: false, currency: "INR", error: "Razorpay rejected" });
+    const res = await POST(post({ planId: "pro-monthly" }));
+    expect(res.status).toBe(503);
+    expect(subscriptionsCreate).not.toHaveBeenCalled();
+    expect(ordersCreate).not.toHaveBeenCalled();
+  });
+
+  it("falls back to a one-time order for USD when Razorpay refuses the USD plan", async () => {
+    findUniquePlan.mockResolvedValue(unsynced as unknown as typeof SUB_PLAN);
+    syncRazorpayPlan.mockResolvedValueOnce({ ok: false, currency: "USD", error: "international recurring disabled" });
+    const res = await POST(post({ planId: "pro-monthly", currency: "USD" }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).mode).toBe("order");
+    expect(subscriptionsCreate).not.toHaveBeenCalled();
+  });
+
+  it("still sells credit packs as one-time orders, with no sync", async () => {
+    findUniquePlan.mockResolvedValue({ ...SUB_PLAN, kind: "pack", tier: null, razorpayPlanIdInr: null } as unknown as typeof SUB_PLAN);
+    const res = await POST(post({ planId: "pack_mini" }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).mode).toBe("order");
+    expect(syncRazorpayPlan).not.toHaveBeenCalled();
   });
 });
