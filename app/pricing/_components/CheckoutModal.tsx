@@ -215,7 +215,7 @@ export function CheckoutModal(props: {
               ) : trial ? "Start free trial" : `Pay ${formatMoney(dueNow, currency)}`}
             </button>
             <p className="text-center text-xs leading-relaxed text-fg-subtle">
-              Secure payment via Razorpay · 48-hour money-back
+              Secure payment via Razorpay · 3-day money-back
               <br />
               By continuing you agree to the{" "}
               <Link href="/terms" className="underline hover:text-fg">Terms</Link> and{" "}
