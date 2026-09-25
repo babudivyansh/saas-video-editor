@@ -10,6 +10,7 @@ import { sendCreditsRefilledEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import Razorpay from "razorpay";
+import { nextRefillAfter } from "@/lib/billing/term";
 
 // Constructed on first use, not at module load: this route is imported by
 // tests and by the scheduler, and the SDK throws at construction time when
@@ -61,23 +62,24 @@ export async function GET(req: NextRequest) {
   let freeGranted = 0;
 
   // ── 1. Paid refills with rollover cap ───────────────────────────────────────
-  // Grandfathering: users on a real Razorpay Subscription renew via the
-  // subscription.charged webhook (lib/fulfillment.ts fulfillSubscriptionCharge),
-  // never via this cron — nextRefillAt is set to null for them at grant time,
-  // but excluding by razorpaySubscriptionId here too guards against any state
-  // where both would otherwise fire.
+  // Recurring subscribers are included. A monthly plan's credits come with each
+  // charge (fulfillSubscriptionCharge leaves nextRefillAt null), but an ANNUAL
+  // plan is charged once a year and its months 2–12 arrive here. Excluding every
+  // razorpaySubscriptionId user — as this used to — left annual subscribers
+  // with one month of credits for a year's payment. nextRefillAfter() stops the
+  // schedule before the renewal date, so a refill can never double up with the
+  // renewal charge's own grant.
   const due = await prisma.user.findMany({
-    where: { nextRefillAt: { not: null, lte: now }, razorpaySubscriptionId: null },
-    select: { id: true, monthlyCredits: true, nextRefillAt: true, subscriptionEndsAt: true },
+    where: { nextRefillAt: { not: null, lte: now } },
+    select: { id: true, monthlyCredits: true, nextRefillAt: true, subscriptionEndsAt: true, razorpaySubscriptionId: true },
   });
 
   for (const u of due) {
     const grant = u.monthlyCredits ?? 0;
 
-    // Advance nextRefillAt by one month; null it out once it would pass term end.
-    const next = new Date(u.nextRefillAt!);
-    next.setMonth(next.getMonth() + 1);
-    const nextRefillAt = u.subscriptionEndsAt && next >= u.subscriptionEndsAt ? null : next;
+    // Advance nextRefillAt by one month; null it out once it would reach the
+    // end of the paid term.
+    const nextRefillAt = nextRefillAfter(u.nextRefillAt!, u.subscriptionEndsAt, !!u.razorpaySubscriptionId);
 
     // Rollover: subscription bucket = min(current + grant, cap × grant). The
     // ledger records only the credits actually applied.
