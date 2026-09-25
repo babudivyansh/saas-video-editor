@@ -36,6 +36,7 @@ interface UserRow {
   razorpaySubscriptionId: string | null;
   planId: string | null;
   monthlyCredits: number;
+  nextRefillAt?: Date | null;
 }
 let user: UserRow;
 let events: Set<string>;
@@ -206,6 +207,23 @@ describe("subscription.activated", () => {
     const retry = await post(activated());
     expect(retry.status).toBe(200);
     expect(user.planId).toBe("plan-pro");
+  });
+
+  // Razorpay doesn't order webhooks. An annual plan's charge can land first and
+  // schedule monthly refills; the later activation must not wipe them.
+  it("keeps the refill schedule a charge already set when activation arrives second", async () => {
+    const refill = new Date(Date.now() + 30 * 86400_000);
+    user.razorpaySubscriptionId = "sub_1";
+    user.nextRefillAt = refill;
+    await post(activated("sub_1"));
+    expect(user.nextRefillAt).toEqual(refill);
+  });
+
+  it("clears a prepaid term's refill schedule when a new subscription takes over", async () => {
+    user.razorpaySubscriptionId = null;
+    user.nextRefillAt = new Date(Date.now() + 5 * 86400_000);
+    await post(activated("sub_new"));
+    expect(user.nextRefillAt).toBeNull();
   });
 });
 

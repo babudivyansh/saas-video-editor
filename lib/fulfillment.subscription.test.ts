@@ -76,6 +76,8 @@ vi.mock("@/lib/prisma", () => {
       findUnique: vi.fn(async ({ where }: { where: { slug: string } }) => {
         // notes.planId slug resolves to the same 160-credit Pro plan.
         if (where.slug === "plan-pro-slug") return { id: "plan-pro", monthlyCredits: 160, credits: 160 };
+        if (where.slug === "plan-pro-monthly") return { id: "plan-pro", monthlyCredits: 160, credits: 160, intervalMonths: 1 };
+        if (where.slug === "plan-pro-annual") return { id: "plan-pro-yr", monthlyCredits: 160, credits: 1920, intervalMonths: 12 };
         return null;
       }),
     },
@@ -206,5 +208,41 @@ describe("fulfillSubscriptionCharge", () => {
     expect(res).toEqual({ fulfilled: false, alreadyProcessed: false });
     expect(user.razorpaySubscriptionId).toBe("sub_other");
     expect(user.subscriptionCredits).toBe(0);
+  });
+});
+
+// Annual plans are Razorpay `yearly` plans — charged once a year. The charge
+// used to extend access by one month and switch refills off, so an annual
+// subscriber lost access ~33 days into a paid year.
+describe("fulfillSubscriptionCharge — term length", () => {
+  const MONTH_MS = 30 * 86_400_000;
+  const monthsFromNow = (d: Date | null) => (d ? (d.getTime() - Date.now()) / MONTH_MS : NaN);
+
+  it("gives an annual charge the whole year, first month's credits now, month 2 via the refill cron", async () => {
+    await fulfillSubscriptionCharge({
+      subscriptionId: "sub_1", paymentId: "pay_yr", amountInPaise: 1768000, notesPlanId: "plan-pro-annual",
+    });
+    expect(user.subscriptionCredits).toBe(160); // one month, not the year's 1,920
+    expect(monthsFromNow(user.subscriptionEndsAt)).toBeGreaterThan(12);
+    expect(monthsFromNow(user.subscriptionEndsAt)).toBeLessThan(12.5);
+    expect(monthsFromNow(user.nextRefillAt)).toBeGreaterThan(0.9);
+    expect(monthsFromNow(user.nextRefillAt)).toBeLessThan(1.1);
+    expect(user.planId).toBe("plan-pro"); // existing link kept; activated owns plan switches
+  });
+
+  it("gives a monthly charge one month and leaves refills to the next charge", async () => {
+    await fulfillSubscriptionCharge({
+      subscriptionId: "sub_1", paymentId: "pay_mo", amountInPaise: 219900, notesPlanId: "plan-pro-monthly",
+    });
+    expect(monthsFromNow(user.subscriptionEndsAt)).toBeLessThan(1.3);
+    expect(user.nextRefillAt).toBeNull();
+  });
+
+  it("uses the subscription's own plan, not a stale one on the user row", async () => {
+    // The row still holds the monthly plan being switched away from.
+    await fulfillSubscriptionCharge({
+      subscriptionId: "sub_1", paymentId: "pay_switch", amountInPaise: 1768000, notesPlanId: "plan-pro-annual",
+    });
+    expect(monthsFromNow(user.subscriptionEndsAt)).toBeGreaterThan(12);
   });
 });

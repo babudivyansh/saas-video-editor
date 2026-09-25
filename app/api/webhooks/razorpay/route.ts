@@ -167,7 +167,12 @@ export async function POST(req: NextRequest) {
                 razorpaySubscriptionId: sub.id,
                 monthlyCredits: plan.monthlyCredits ?? plan.credits,
                 ...(extendsTerm ? { subscriptionEndsAt: endsAt } : {}),
-                nextRefillAt: null,
+                // Clears a prepaid term's refill schedule when a NEW recurring
+                // subscription takes over. Left alone when this subscription is
+                // already linked — i.e. its charge webhook arrived first (Razorpay
+                // doesn't order them) and set an annual plan's monthly refills,
+                // which wiping here would silently cancel.
+                ...(user.razorpaySubscriptionId !== sub.id ? { nextRefillAt: null } : {}),
                 // Clearing a pending cancel-at-cycle-end is only right when this
                 // activation is genuinely a NEW subscription. Doing it
                 // unconditionally meant a redelivered webhook silently

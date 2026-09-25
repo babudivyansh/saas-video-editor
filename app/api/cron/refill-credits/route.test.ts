@@ -64,7 +64,11 @@ vi.mock("@/lib/prisma", () => ({
       findMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
         const now = new Date();
         if ("nextRefillAt" in where) {
-          return users.filter((u) => u.nextRefillAt !== null && u.nextRefillAt <= now && u.razorpaySubscriptionId === null);
+          // Mirror the real query: filter on razorpaySubscriptionId only if the
+          // route asks to (it no longer does — annual recurring plans refill here).
+          const onlyPrepaid = "razorpaySubscriptionId" in where;
+          return users.filter((u) => u.nextRefillAt !== null && u.nextRefillAt <= now
+            && (!onlyPrepaid || u.razorpaySubscriptionId === null));
         }
         if ("bonusCreditsExpireAt" in where) {
           return users.filter((u) => u.bonusCreditsExpireAt !== null && u.bonusCreditsExpireAt <= now && u.bonusCredits > 0);
@@ -263,6 +267,39 @@ describe("cron refill", () => {
     await run();
     expect(u.credits).toBe(140);
     expect(u.nextRefillAt).toBeNull();
+  });
+
+  // Annual plans are Razorpay `yearly` plans: one charge a year, months 2–12
+  // from this cron. Recurring users used to be excluded outright, so an annual
+  // subscriber got one month of credits for a year's payment.
+  it("refills a recurring annual subscriber between yearly charges", async () => {
+    const u = user({
+      razorpaySubscriptionId: "sub_annual",
+      nextRefillAt: new Date(Date.now() - DAY),
+      subscriptionEndsAt: new Date(Date.now() + 200 * DAY),
+    });
+    await run();
+    expect(u.credits).toBe(140);
+    expect(u.nextRefillAt!.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("stops a recurring term's refills before the renewal date — the renewal charge grants that month", async () => {
+    // Renewal due in ~28 days (+3-day grace on subscriptionEndsAt): the refill
+    // a month from now would coincide with the renewal charge's own grant.
+    const u = user({
+      razorpaySubscriptionId: "sub_annual",
+      nextRefillAt: new Date(Date.now() - DAY),
+      subscriptionEndsAt: new Date(Date.now() + 31 * DAY),
+    });
+    await run();
+    expect(u.credits).toBe(140); // this month's refill still lands
+    expect(u.nextRefillAt).toBeNull();
+  });
+
+  it("leaves a monthly recurring subscriber alone (nextRefillAt null — the charge is the refill)", async () => {
+    const u = user({ razorpaySubscriptionId: "sub_monthly", nextRefillAt: null });
+    await run();
+    expect(u.credits).toBe(0);
   });
 
   it("expires lapsed subscriptions, zeroes only the subscription bucket", async () => {
