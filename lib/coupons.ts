@@ -6,14 +6,8 @@ import { prisma } from "@/lib/prisma";
 
 const RAZORPAY_MIN_PAISE = 100; // Razorpay rejects orders below ₹1.
 
-/**
- * Hard ceiling on how much of a SUBSCRIPTION order a coupon can take off,
- * whatever the coupon row says. See the rationale at the clamp site below.
- * Deliberately permissive enough for the live launch coupons (30% and 40%) —
- * it exists to bound the next one somebody creates in the admin panel, where
- * couponCreateSchema otherwise allows anything up to 100%.
- */
-export const MAX_SUBSCRIPTION_DISCOUNT_PCT = 40;
+/** Shown wherever a coupon meets a subscription cart. */
+export const SUBSCRIPTION_COUPON_ERROR = "Coupons can't be used on subscription plans — they apply to credit packs.";
 
 export interface ValidateCouponArgs {
   code: string;
@@ -38,6 +32,15 @@ export async function validateCoupon(args: ValidateCouponArgs): Promise<Validate
   const code = args.code.trim().toUpperCase();
   if (!code) return { ok: false, error: "Enter a coupon code." };
 
+  // Subscriptions take no coupons (2026-09-25 decision). A recurring plan is a
+  // Razorpay Subscription billed at its synced plan amount, so a discount
+  // computed here was shown in the checkout modal and then never applied —
+  // the customer was charged full price. Refused up front, for every
+  // subscription cart, so the UI and the charge can't disagree again. This
+  // retired the subscription-only launch coupons (LAUNCH30, FOUNDERS50) and the
+  // subscription discount ceiling that bounded them.
+  if (args.cartKind === "subscription") return { ok: false, error: SUBSCRIPTION_COUPON_ERROR };
+
   const coupon = await prisma.coupon.findUnique({ where: { code } });
   if (!coupon || !coupon.active) {
     return { ok: false, error: "This coupon code is not valid." };
@@ -51,12 +54,11 @@ export async function validateCoupon(args: ValidateCouponArgs): Promise<Validate
     return { ok: false, error: "This coupon has reached its redemption limit." };
   }
 
-  // Targeting by cart kind. "addon" purchases are treated like packs for coupon
-  // purposes (a standalone Veo3 unlock). "all" matches everything.
-  const cartGroup = args.cartKind === "subscription" ? "subscription" : "pack";
-  if (coupon.appliesTo !== "all" && coupon.appliesTo !== cartGroup) {
-    const target = coupon.appliesTo === "subscription" ? "subscription plans" : "credit top-ups";
-    return { ok: false, error: `This coupon only applies to ${target}.` };
+  // Targeting. Only pack-type carts reach this point ("addon" purchases count
+  // as packs); a coupon still marked subscription-only can no longer be
+  // redeemed anywhere.
+  if (coupon.appliesTo === "subscription") {
+    return { ok: false, error: "This coupon is no longer valid." };
   }
 
   // Restrict to specific plan slugs if configured.
@@ -95,35 +97,14 @@ export async function validateCoupon(args: ValidateCouponArgs): Promise<Validate
       ? Math.floor((args.amountInPaise * coupon.discountValue) / 100)
       : coupon.discountValue;
 
-  // Policy ceiling on subscription carts (2026-09 pricing audit). A plan's price
-  // per credit IS the margin on every generation that plan pays for, so a deep
-  // subscription discount reprices the whole credit economy for that customer —
-  // unlike a pack discount, which only ever moves one top-up.
-  //
-  // Worked example that motivated this: Studio Yearly lists at ₹8.37/credit
-  // ($0.0952, the floor the model registries are priced against). At 40% off it
-  // becomes $0.057, and the affiliate program's 20% first-payment commission
-  // takes it to ~$0.052 — at which Seedance 1080p bills 1.6x its provider cost
-  // before GPU, S3 and transcription are counted at all. Capping the discount
-  // keeps the worst realistic stack above 2x.
-  //
-  // This is a floor under the data, not a replacement for it: the launch coupons
-  // are also scoped to monthly SKUs via Coupon.planSlugs (prisma/seed.ts), which
-  // is what actually protects the yearly rows. This cap is what stops the next
-  // hand-made coupon from quietly undoing that.
-  if (cartGroup === "subscription") {
-    const ceiling = Math.floor((args.amountInPaise * MAX_SUBSCRIPTION_DISCOUNT_PCT) / 100);
-    discountInPaise = Math.min(discountInPaise, ceiling);
-  }
-
   // Never discount below the Razorpay minimum, and never go negative.
   const maxDiscount = Math.max(0, args.amountInPaise - RAZORPAY_MIN_PAISE);
   discountInPaise = Math.min(Math.max(0, discountInPaise), maxDiscount);
 
   const finalPaise = args.amountInPaise - discountInPaise;
   // Label the discount the customer actually receives. Quoting the coupon's
-  // nominal value after the cap has trimmed it would show a saving the order
-  // total doesn't match.
+  // nominal value after the Razorpay-minimum clamp has trimmed it would show a
+  // saving the order total doesn't match.
   const effectivePct = args.amountInPaise > 0 ? (discountInPaise / args.amountInPaise) * 100 : 0;
   const label =
     coupon.discountType === "percent"

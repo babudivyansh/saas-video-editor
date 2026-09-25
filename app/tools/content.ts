@@ -43,7 +43,7 @@ const CREDITS_FAQ: ToolFaq = {
 const CANCEL_FAQ: ToolFaq = {
   question: "Can I cancel anytime?",
   answer:
-    "Yes. Plans are month-to-month with no lock-in, and there is a 48-hour money-back guarantee on every paid plan. You keep access until the end of the period you have already paid for.",
+    "Yes. Plans are month-to-month with no lock-in, and there is a 3-day money-back guarantee on every paid plan. You keep access until the end of the period you have already paid for.",
 };
 
 const COMMERCIAL_FAQ: ToolFaq = {

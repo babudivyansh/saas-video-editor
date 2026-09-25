@@ -22,7 +22,7 @@ async function handlePOST(req: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { id: auth.userId },
-    select: { subscriptionEndsAt: true, razorpaySubscriptionId: true, subscriptionCancelledAt: true },
+    select: { subscriptionEndsAt: true, razorpaySubscriptionId: true, subscriptionCancelledAt: true, trialEndsAt: true },
   });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
@@ -40,9 +40,17 @@ async function handlePOST(req: NextRequest) {
   // never auto-charge — the term just lapses at subscriptionEndsAt via the
   // refill-credits cron — so there's nothing to call Razorpay for; marking
   // subscriptionCancelledAt below is purely informational for those.
+  // Inside the 7-day trial the subscription is still `authenticated` — its
+  // first billing cycle hasn't begun — and Razorpay REFUSES cancel-at-cycle-end
+  // for it. Cancel it outright instead: nothing has been charged, nothing ever
+  // will be, and Pro access still runs to the trial's end (subscriptionEndsAt).
+  // Before this, cancelling a trial failed, and the customer was billed on day
+  // 7 despite the checkout promise of "Cancel any time before it ends".
+  const inTrial = !!user.trialEndsAt && user.trialEndsAt > new Date();
+
   if (user.razorpaySubscriptionId) {
     try {
-      await razorpay.subscriptions.cancel(user.razorpaySubscriptionId, true);
+      await razorpay.subscriptions.cancel(user.razorpaySubscriptionId, !inTrial);
     } catch (e) {
       logger.error("billing/cancel", `Razorpay cancel failed for sub ${user.razorpaySubscriptionId}`, e);
       return NextResponse.json({ error: "Couldn't reach the payment provider — please try again." }, { status: 502 });
@@ -57,7 +65,10 @@ async function handlePOST(req: NextRequest) {
 
   if (user.razorpaySubscriptionId) {
     await prisma.subscriptionEvent.create({
-      data: { userId: auth.userId, subscriptionId: user.razorpaySubscriptionId, type: "cancelled", reason: "user_requested" },
+      data: {
+        userId: auth.userId, subscriptionId: user.razorpaySubscriptionId, type: "cancelled",
+        reason: inTrial ? "user_requested_trial" : "user_requested",
+      },
     }).catch(() => {});
   }
 

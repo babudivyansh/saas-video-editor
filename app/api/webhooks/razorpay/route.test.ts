@@ -36,11 +36,21 @@ interface UserRow {
   razorpaySubscriptionId: string | null;
   planId: string | null;
   monthlyCredits: number;
+  nextRefillAt?: Date | null;
 }
 let user: UserRow;
 let events: Set<string>;
 const grants: Array<{ amount: number; reason: string }> = [];
 let updateShouldFail = false;
+let purchaseCount = 0;
+const cancelled: Array<{ subId: string; reason: string }> = [];
+
+vi.mock("@/lib/billing/subscription-switch", () => ({
+  cancelExistingSubscriptionForSwitch: vi.fn(async (_userId: string, subId: string, reason = "plan_switch") => {
+    cancelled.push({ subId, reason });
+    return { ok: true };
+  }),
+}));
 
 vi.mock("@/lib/credits", () => ({
   grantCredits: vi.fn(async ({ amount, reason }: { amount: number; reason: string }) => {
@@ -53,8 +63,10 @@ vi.mock("@/lib/prisma", () => {
     plan: {
       findUnique: vi.fn(async ({ where }: { where: { slug: string } }) =>
         where.slug === "sub_pro_1mo"
-          ? { id: "plan-pro", slug: "sub_pro_1mo", monthlyCredits: 160, credits: 160 }
-          : null),
+          ? { id: "plan-pro", slug: "sub_pro_1mo", kind: "subscription", tier: "pro", intervalMonths: 1, monthlyCredits: 160, credits: 160 }
+          : where.slug === "sub_pro_12mo"
+            ? { id: "plan-pro-yr", slug: "sub_pro_12mo", kind: "subscription", tier: "pro", intervalMonths: 12, monthlyCredits: 160, credits: 1920 }
+            : null),
     },
     user: {
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) =>
@@ -65,6 +77,8 @@ vi.mock("@/lib/prisma", () => {
         return { ...user };
       }),
     },
+    purchase: { count: vi.fn(async () => purchaseCount) },
+    subscriptionEvent: { create: vi.fn(async () => ({})) },
     razorpayEvent: {
       create: vi.fn(async ({ data }: { data: { id: string } }) => {
         if (events.has(data.id)) {
@@ -121,6 +135,8 @@ beforeEach(() => {
   events = new Set();
   grants.length = 0;
   updateShouldFail = false;
+  purchaseCount = 0;
+  cancelled.length = 0;
   vi.clearAllMocks();
 });
 
@@ -191,5 +207,102 @@ describe("subscription.activated", () => {
     const retry = await post(activated());
     expect(retry.status).toBe(200);
     expect(user.planId).toBe("plan-pro");
+  });
+
+  // Razorpay doesn't order webhooks. An annual plan's charge can land first and
+  // schedule monthly refills; the later activation must not wipe them.
+  it("keeps the refill schedule a charge already set when activation arrives second", async () => {
+    const refill = new Date(Date.now() + 30 * 86400_000);
+    user.razorpaySubscriptionId = "sub_1";
+    user.nextRefillAt = refill;
+    await post(activated("sub_1"));
+    expect(user.nextRefillAt).toEqual(refill);
+  });
+
+  it("clears a prepaid term's refill schedule when a new subscription takes over", async () => {
+    user.razorpaySubscriptionId = null;
+    user.nextRefillAt = new Date(Date.now() + 5 * 86400_000);
+    await post(activated("sub_new"));
+    expect(user.nextRefillAt).toBeNull();
+  });
+});
+
+// The trial starts when the mandate is AUTHENTICATED (day 0), not on
+// activation (day 7, alongside the first charge) — see lib/billing/trial.ts.
+describe("subscription.authenticated (7-day trial)", () => {
+  const START_AT = Math.floor(Date.now() / 1000) + 7 * 86400;
+  const authenticated = (subId = "sub_t", notes: Record<string, string> = {}) => ({
+    event: "subscription.authenticated",
+    payload: { subscription: { entity: {
+      id: subId, start_at: START_AT, notes: { userId: "u1", planId: "sub_pro_1mo", trial: "1", ...notes },
+    } } },
+  });
+
+  it("starts the trial immediately: Pro access until the first charge, 25 credits once", async () => {
+    const res = await post(authenticated());
+    expect(res.status).toBe(200);
+    expect(user).toMatchObject({ planId: "plan-pro", razorpaySubscriptionId: "sub_t", monthlyCredits: 160 });
+    expect(user.subscriptionEndsAt).toEqual(new Date(START_AT * 1000));
+    expect(user.trialEndsAt).toEqual(new Date(START_AT * 1000));
+    expect(user.trialUsedAt).toBeInstanceOf(Date);
+    expect(grants).toEqual([{ amount: 25, reason: "grant:trial" }]);
+    expect(cancelled).toEqual([]);
+  });
+
+  it("is idempotent across a redelivered authentication — and never cancels its own trial", async () => {
+    await post(authenticated());
+    grants.length = 0;
+    const res = await post(authenticated());
+    expect(res.status).toBe(200);
+    expect(grants).toEqual([]);
+    expect(cancelled).toEqual([]);
+  });
+
+  it("cancels a trial for an account that has paid before, granting nothing", async () => {
+    purchaseCount = 1;
+    await post(authenticated());
+    expect(grants).toEqual([]);
+    expect(user.planId).toBeNull();
+    expect(cancelled).toEqual([{ subId: "sub_t", reason: "trial_ineligible" }]);
+  });
+
+  it("cancels a second, parallel trial subscription after the first has started", async () => {
+    await post(authenticated("sub_first"));
+    grants.length = 0;
+    await post(authenticated("sub_second"));
+    expect(grants).toEqual([]);
+    expect(user.razorpaySubscriptionId).toBe("sub_first");
+    expect(cancelled).toEqual([{ subId: "sub_second", reason: "trial_ineligible" }]);
+  });
+
+  it("cancels a trial on a non-monthly plan", async () => {
+    await post(authenticated("sub_yr", { planId: "sub_pro_12mo" }));
+    expect(grants).toEqual([]);
+    expect(cancelled).toEqual([{ subId: "sub_yr", reason: "trial_ineligible" }]);
+  });
+
+  it("ignores a non-trial subscription (it starts on activation)", async () => {
+    await post(authenticated("sub_paid", { trial: "0" }));
+    expect(grants).toEqual([]);
+    expect(user.planId).toBeNull();
+    expect(cancelled).toEqual([]);
+  });
+
+  it("then on day-7 activation ends the trial without granting it again", async () => {
+    await post(authenticated("sub_t"));
+    grants.length = 0;
+    await post(activated("sub_t"));
+    expect(grants).toEqual([]);
+    expect(user.trialEndsAt).toBeNull();
+    expect(user.planId).toBe("plan-pro");
+  });
+
+  it("returns 500 so Razorpay retries when the trial grant fails", async () => {
+    updateShouldFail = true;
+    const res = await post(authenticated());
+    expect(res.status).toBe(500);
+    updateShouldFail = false;
+    expect((await post(authenticated())).status).toBe(200);
+    expect(grants).toEqual([{ amount: 25, reason: "grant:trial" }]);
   });
 });

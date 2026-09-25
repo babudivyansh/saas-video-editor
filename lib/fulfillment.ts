@@ -9,6 +9,7 @@ import { invoiceFilename, renderInvoicePdf } from "@/lib/invoice/pdf";
 import { markQuestComplete } from "@/lib/quests";
 import { grantCredits, getBalances } from "@/lib/credits";
 import { logger } from "@/lib/logger";
+import { recurringTerm } from "@/lib/billing/term";
 
 // Single source of truth for granting a captured Razorpay payment. Called by
 // BOTH the client-side verify endpoint (app/api/billing/verify) and the webhook
@@ -97,10 +98,17 @@ export interface SubscriptionChargeArgs {
 }
 
 /**
- * Grant a recurring `subscription.charged` webhook: monthly credits into the
- * subscription bucket WITH the 2x rollover cap, term extended one month
- * (+3 days grace so a slow retry doesn't lapse the account), Purchase row
- * recorded. Idempotent via the same RazorpayEvent claim as one-time payments.
+ * Grant a recurring `subscription.charged` webhook: the first month's credits
+ * into the subscription bucket WITH the 2x rollover cap, the term extended by
+ * the plan's whole interval (+ RENEWAL_GRACE_DAYS so a slow retry doesn't lapse
+ * the account), Purchase row recorded. Idempotent via the same RazorpayEvent
+ * claim as one-time payments.
+ *
+ * The interval matters: an annual plan is billed once a year (a Razorpay
+ * `yearly` plan), and this used to extend access by ONE month and stop there —
+ * an annual subscriber lost access about 33 days into a year they had paid
+ * for. Now the term runs the full year and the refill cron delivers months
+ * 2–12 at nextRefillAt, exactly as for a prepaid annual term.
  */
 export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): Promise<FulfillResult> {
   const { subscriptionId, paymentId, amountInPaise, notesUserId, notesPlanId } = args;
@@ -109,7 +117,7 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
 
   const SELECT = {
     id: true, planId: true, monthlyCredits: true, razorpaySubscriptionId: true,
-    plan: { select: { id: true, monthlyCredits: true, credits: true } },
+    plan: { select: { id: true, monthlyCredits: true, credits: true, intervalMonths: true } },
   } as const;
 
   let user = await prisma.user.findUnique({
@@ -146,20 +154,18 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
     return { fulfilled: false, alreadyProcessed: false };
   }
 
-  let monthlyCredits = user.plan?.monthlyCredits ?? user.monthlyCredits ?? 0;
-  // A `subscription.charged` that lands before `subscription.activated` finds
-  // the user row with no plan yet (planId/monthlyCredits unset), which used to
-  // make the first month grant exactly 0 credits — paid, nothing delivered.
-  // The subscription carries its plan slug in notes.planId, so resolve the
-  // grant (and the plan link) from it when the row itself can't supply one.
-  let resolvedPlanId: string | null = user.plan?.id ?? user.planId ?? null;
-  if (monthlyCredits <= 0 && notesPlanId) {
-    const plan = await prisma.plan.findUnique({ where: { slug: notesPlanId } });
-    if (plan) {
-      monthlyCredits = plan.monthlyCredits ?? plan.credits;
-      resolvedPlanId = plan.id;
-    }
-  }
+  // The plan this charge pays for. The subscription's own notes.planId is
+  // authoritative: the user row can be stale — a `subscription.charged` can land
+  // before `subscription.activated` has written the plan (the first month then
+  // granted exactly 0 credits), or while the row still holds the plan being
+  // switched away from (wrong credits AND the wrong term length). The row is
+  // the fallback for older subscriptions created without notes.
+  const notesPlan = notesPlanId ? await prisma.plan.findUnique({ where: { slug: notesPlanId } }) : null;
+  const monthlyCredits = notesPlan
+    ? notesPlan.monthlyCredits ?? notesPlan.credits
+    : user.plan?.monthlyCredits ?? user.monthlyCredits ?? 0;
+  const resolvedPlanId: string | null = notesPlan?.id ?? user.plan?.id ?? user.planId ?? null;
+  const intervalMonths = notesPlan ? notesPlan.intervalMonths : user.plan?.intervalMonths;
 
   const result = await prisma.$transaction(async (tx) => {
     try {
@@ -185,20 +191,19 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
       });
     }
 
-    const endsAt = new Date();
-    endsAt.setMonth(endsAt.getMonth() + 1);
-    endsAt.setDate(endsAt.getDate() + 3); // grace for slow renewals
+    const term = recurringTerm(new Date(), intervalMonths);
     await tx.user.update({
       where: { id: user.id },
       data: {
-        subscriptionEndsAt: endsAt,
+        subscriptionEndsAt: term.accessUntil,
         monthlyCredits,
         // Persist the plan link if this charge resolved it from notes before
         // activated ran, so tier gating and later renewals see it immediately.
         ...(resolvedPlanId && !user.planId ? { planId: resolvedPlanId } : {}),
         lowCreditEmailSentAt: null,
-        // Recurring subs never cron-refill; renewal IS the refill.
-        nextRefillAt: null,
+        // Monthly plans: the next charge IS the refill. Longer terms: months
+        // 2..N arrive via the refill cron, stopping before the renewal date.
+        nextRefillAt: term.nextRefillAt,
         trialEndsAt: null,
         // A successful charge ends any dunning state — the card worked.
         paymentFailedAt: null,
@@ -209,7 +214,7 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
     await tx.purchase.create({
       data: { id: paymentId, userId: user.id, planId: resolvedPlanId, amountInPaise, currency, credits: applied, status: "captured" },
     });
-    return { alreadyProcessed: false, applied, endsAt };
+    return { alreadyProcessed: false, applied, nextChargeAt: term.paidUntil };
   });
 
   if (result.alreadyProcessed) return { fulfilled: false, alreadyProcessed: true };
@@ -235,7 +240,7 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
       recipient.firstName ?? recipient.name ?? "",
       amountInPaise,
       result.applied ?? 0,
-      result.endsAt ?? null,
+      result.nextChargeAt ?? null,
       await invoiceForEmail(paymentId),
     ).catch((e: unknown) => logger.error("fulfillment", `renewal email failed for ${user.id}`, e));
   }

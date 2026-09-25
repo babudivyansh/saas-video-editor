@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import Razorpay from "razorpay";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { validateCoupon } from "@/lib/coupons";
+import { validateCoupon, SUBSCRIPTION_COUPON_ERROR } from "@/lib/coupons";
 import { getPlanPriceMinor, type Currency } from "@/lib/currency";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { withRateLimit } from "@/lib/with-rate-limit";
+import { trialEligibility } from "@/lib/billing/trial-eligibility";
+import { isTrialPlan, TRIAL_DAYS } from "@/lib/plans/tiers";
+import { syncRazorpayPlan } from "@/lib/billing/razorpay-plans";
 
 const razorpay = new Razorpay({
   key_id: env.RAZORPAY_KEY_ID,
@@ -60,6 +63,21 @@ async function handlePOST(req: NextRequest) {
   let appliedDiscount = 0;
   const couponCode: string = typeof body.couponCode === "string" ? body.couponCode.trim() : "";
 
+  // A subscription is exactly its plan. It is billed at the synced Razorpay
+  // plan amount, so add-ons and coupon discounts shown in the modal were never
+  // charged or applied — the customer paid full price and got no add-on
+  // credits. Both are refused rather than silently dropped. Packs are still
+  // sold on their own (with pack coupons), to anyone.
+  if (basePlan.kind === "subscription") {
+    if (addonSlugs.length > 0) {
+      return NextResponse.json(
+        { error: "Credit packs can't be bundled with a subscription. Buy them separately after subscribing." },
+        { status: 400 },
+      );
+    }
+    if (couponCode) return NextResponse.json({ error: SUBSCRIPTION_COUPON_ERROR }, { status: 400 });
+  }
+
   if (currency === "USD") {
     // Reject rather than ignore. Silently dropping the code meant a client that
     // had shown the customer a discounted total went on to charge full price
@@ -96,11 +114,34 @@ async function handlePOST(req: NextRequest) {
     }
   }
 
-  // ── Recurring flow: subscription-kind plans with a synced Razorpay Plan id
-  // for the requested currency go through Subscriptions (true auto-renewal +
-  // optional trial). Plans not yet synced fall back to the legacy one-time
-  // order below, so rollout can happen plan-by-plan without breaking checkout.
-  const razorpayPlanId = currency === "USD" ? basePlan.razorpayPlanIdUsd : basePlan.razorpayPlanIdInr;
+  // ── Recurring flow: EVERY plan purchase is a Razorpay Subscription, so every
+  // one registers a payment mandate (card e-mandate / UPI Autopay) and renews
+  // automatically. Unsynced plans used to fall back to a one-time order: the
+  // customer paid once, got no mandate, and silently lapsed at term end. A plan
+  // with no Razorpay Plan for this currency is now synced on its first checkout
+  // (syncRazorpayPlan is idempotent), instead of waiting on someone to press
+  // the sync button in /admin/pricing.
+  let razorpayPlanId = currency === "USD" ? basePlan.razorpayPlanIdUsd : basePlan.razorpayPlanIdInr;
+  if (basePlan.kind === "subscription" && !razorpayPlanId) {
+    const synced = await syncRazorpayPlan(basePlan, currency);
+    if (synced.ok) {
+      razorpayPlanId = synced.razorpayPlanId;
+    } else if (currency === "INR") {
+      logger.error("billing/checkout", `could not sync ${basePlan.slug} (INR) to Razorpay: ${synced.error}`);
+      return NextResponse.json(
+        { error: "This plan can't be purchased right now. Please try again in a few minutes." },
+        { status: 503 },
+      );
+    } else {
+      // USD recurring needs international recurring enabled on the Razorpay
+      // account. If Razorpay refuses the plan, keep selling it one-time rather
+      // than blocking every USD plan sale — loudly, so it gets fixed.
+      logger.error(
+        "billing/checkout",
+        `USD plan ${basePlan.slug} could not be synced (${synced.error}) — selling it ONE-TIME, with no mandate or renewal`,
+      );
+    }
+  }
 
   // Trials only exist on the recurring flow. Falling through to the one-time
   // order below would charge the full amount today, which is the opposite of
@@ -112,13 +153,32 @@ async function handlePOST(req: NextRequest) {
     );
   }
 
+  // Trial eligibility is decided HERE and refused loudly. It used to degrade
+  // silently: an ineligible trial request became an ordinary subscription that
+  // charged the full price at once, straight after a modal that said "Due
+  // today ₹0". The same rule is re-checked when the mandate is authenticated
+  // (lib/billing/trial.ts), since two parallel checkouts both pass this one.
+  if (body.trial === true) {
+    const reason = isTrialPlan(basePlan) ? await trialEligibility(auth.userId) : "not-trial-plan";
+    if (reason) {
+      return NextResponse.json(
+        {
+          error: reason === "not-trial-plan"
+            ? "The free trial is only available on the monthly Pro plan."
+            : "The free trial is for first-time subscribers only. You can still subscribe normally.",
+          code: "trial_ineligible",
+        },
+        { status: 409 },
+      );
+    }
+  }
+
   if (basePlan.kind === "subscription" && razorpayPlanId) {
     const user = await prisma.user.findUnique({
       where: { id: auth.userId },
-      select: { trialUsedAt: true, subscriptionEndsAt: true },
+      select: { subscriptionEndsAt: true },
     });
-    // Trial: Pro-tier only, once per account, requested explicitly by the client.
-    const wantsTrial = body.trial === true && basePlan.tier === "pro" && !user?.trialUsedAt;
+    const wantsTrial = body.trial === true;
 
     // Set only from the billing dunning banner's "View plans" (a failed
     // payment retry, not a normal upgrade) — the customer already paid for
@@ -155,7 +215,7 @@ async function handlePOST(req: NextRequest) {
         ...(deferStart
           ? { start_at: deferStart }
           : wantsTrial
-            ? { start_at: Math.floor(Date.now() / 1000) + 7 * 86400 }
+            ? { start_at: Math.floor(Date.now() / 1000) + TRIAL_DAYS * 86400 }
             : {}),
         notes: {
           userId: auth.userId,

@@ -29,7 +29,7 @@ interface Coupon {
 
 const EMPTY = {
   code: "", description: "", discountType: "percent", discountValue: 10,
-  appliesTo: "subscription", minAmountInPaise: 0, maxRedemptions: "",
+  appliesTo: "pack", minAmountInPaise: 0, maxRedemptions: "",
   perUserLimit: 1, firstPurchaseOnly: false, featured: false, expiresAt: "",
 };
 const input = "w-full bg-surface-2 border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40";
@@ -225,8 +225,8 @@ export default function AdminCouponsPage() {
                 <div>
                   <label className="text-xs font-semibold text-fg-subtle block mb-1">Applies to</label>
                   <select className={input} value={c.appliesTo} onChange={e => edit(c.id, { appliesTo: e.target.value })}>
-                    <option value="all">all</option>
-                    <option value="subscription">subscription</option>
+                    <option value="all">all (packs)</option>
+                    <option value="subscription" disabled>subscription — not redeemable</option>
                     <option value="pack">pack (top-ups)</option>
                   </select>
                 </div>
@@ -277,7 +277,7 @@ export default function AdminCouponsPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <label className="text-xs font-semibold text-fg-subtle block mb-1">Code</label>
-                <input className={`${input} font-mono uppercase`} placeholder="LAUNCH30" value={form.code} onChange={e => setForm({ ...form, code: e.target.value.toUpperCase() })} required />
+                <input className={`${input} font-mono uppercase`} placeholder="TOPUP15" value={form.code} onChange={e => setForm({ ...form, code: e.target.value.toUpperCase() })} required />
               </div>
               <div>
                 <label className="text-xs font-semibold text-fg-subtle block mb-1">Type</label>
@@ -293,10 +293,10 @@ export default function AdminCouponsPage() {
               <div>
                 <label className="text-xs font-semibold text-fg-subtle block mb-1">Applies to</label>
                 <select className={input} value={form.appliesTo} onChange={e => setForm({ ...form, appliesTo: e.target.value })}>
-                  <option value="all">all</option>
-                  <option value="subscription">subscription</option>
+                  <option value="all">all (packs)</option>
                   <option value="pack">pack (top-ups)</option>
                 </select>
+                <p className="text-[11px] text-fg-subtle mt-1">Subscriptions don&apos;t take coupons — codes apply to credit packs.</p>
               </div>
               <div>
                 <label className="text-xs font-semibold text-fg-subtle block mb-1">Min order (paise)</label>
