@@ -73,6 +73,20 @@ export function tierSavePct(plan: DisplayPlan, subs: DisplayPlan[], currency: Cu
   return Math.round(((full - total) / full) * 100);
 }
 
+/** One-line "who is this for" under each tier name on the plan cards. */
+export const TIER_TAGLINE: Record<TierId, string> = {
+  free: "Try every tool, no card",
+  creator: "For a steady posting habit",
+  pro: "Premium models, more output",
+  studio: "High volume, fastest queue",
+};
+
+/** The same tier's monthly row — what a yearly card strikes through. */
+export function monthlyCounterpart(plan: DisplayPlan, subs: DisplayPlan[]): DisplayPlan | null {
+  if (!plan.tier || (plan.intervalMonths ?? 1) <= 1) return null;
+  return subs.find(p => p.tier === plan.tier && p.intervalMonths === 1) ?? null;
+}
+
 const hours = (sec: number) => Math.round(sec / 3600);
 
 export const modelCount = (tier: Exclude<TierId, "free">) =>

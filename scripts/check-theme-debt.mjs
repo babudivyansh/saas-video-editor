@@ -128,7 +128,7 @@ const BUDGET = {
   // 65 -> 64: deleting app/components/SubtitleStylePicker.tsx (the 16-swatch
   // index-based caption grid) took its hover:ring-gray-300 with it.
   // 64 -> 63: one more went with the deleted caption tile grids.
-  "raw-gray": 32, // AutoClip audit stage 6: clips library skeletons + scrubber
+  "raw-gray": 31, // 32 -> 31: /pricing redesign dropped the coupon button's hover:bg-gray-800
   // 5 -> 4: same deletion.
   "bg-white": 1,
   "raw-slate": 9,
@@ -147,7 +147,9 @@ const BUDGET = {
   // spread over ~30 files — pricing (11), PlansModal (10), admin/ops (8),
   // admin/reviews (7) — and are genuine debt, not a certificate. Every one is
   // a near-white pill or a hue that ignores the theme.
-  "raw-emerald": 130, // AutoClip stage 6: light amber/emerald cards and chips
+  // 130 -> 119: the /pricing redesign paid off its 11 (amber renewal warning,
+  // green coupon chip, amber calculator notes, emerald success banner).
+  "raw-emerald": 119,
   // 51 -> 47: four of the retired brand hexes lived in the caption tile tables
   // deleted below.
   // 47 -> 43: four more went with the per-page voice lists, whose entries

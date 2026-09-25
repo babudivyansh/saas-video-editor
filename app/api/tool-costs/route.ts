@@ -25,6 +25,12 @@ const LABELS: Record<string, string> = {
   "face-swap": "AI Face Swap",
   "auto-clip": "Auto Clips",
   "clip-dub": "Clip Dubbing",
+  "caption-render": "Animated Captions",
+  "social-exec-report": "Social Tracker: Exec Report",
+  "social-content-recs": "Social Tracker: Content Ideas",
+  "social-caption": "Social Tracker: AI Caption",
+  "social-post-narration": "Social Tracker: Post Insights",
+  "social-kpi-explain": "Social Tracker: KPI Explainer",
 };
 
 // image-generator/video-generator have multiple swappable models with wildly
@@ -48,10 +54,12 @@ const RANGES: Record<string, { min: number; max: number }> = {
 export async function GET() {
   const cfg = await getAllToolConfigs();
   const tools = Object.entries(cfg)
-    .filter(([, c]) => c.enabled)
+    // Only user-facing tools: internal billing keys (compile, editor-render,
+    // voice-preview…) have no label and used to leak onto /pricing as raw slugs.
+    .filter(([slug, c]) => c.enabled && slug in LABELS)
     .map(([slug, c]) => ({
       slug,
-      label: LABELS[slug] ?? slug,
+      label: LABELS[slug],
       service: TOOL_SERVICE[slug] ?? "",
       creditCost: c.creditCost,
       creditCostMin: RANGES[slug]?.min,
