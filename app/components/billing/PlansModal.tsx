@@ -41,10 +41,14 @@ interface PlansModalProps {
 // users never leave whatever they were doing to subscribe or upgrade. The plan
 // cards themselves come from components/billing/PlanCard, shared with /pricing.
 // Purchase logic (useRazorpayCheckout, /api/billing/checkout,
-// /api/billing/verify, /api/coupons/validate) is reused as-is, not
-// reimplemented.
+// /api/billing/verify) is reused as-is, not reimplemented.
+//
+// A subscription checkout is exactly its plan. This modal used to bundle
+// add-on packs and take a coupon at plan checkout, but a subscription is billed
+// at its synced Razorpay plan amount, so neither was ever charged or applied.
+// Packs now have their own Buy buttons (2026-09-25).
 export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: PlansModalProps) {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const { startCheckout, activeId } = useRazorpayCheckout();
 
   const [plans, setPlans] = useState<DbPlan[]>([]);
@@ -55,14 +59,8 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: P
     setCurrency(inferCurrencyFromLocale(typeof navigator !== "undefined" ? navigator.language : null));
   }, []);
 
-  const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const [checkoutPlan, setCheckoutPlan] = useState<DbPlan | null>(null);
   const [renewalWarningDismissed, setRenewalWarningDismissed] = useState(false);
-
-  const [couponInput, setCouponInput] = useState("");
-  const [couponApplying, setCouponApplying] = useState(false);
-  const [couponError, setCouponError] = useState("");
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; label: string; discountInPaise: number } | null>(null);
 
   useEffect(() => {
     fetch("/api/plans")
@@ -78,68 +76,19 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: P
   const hasActivePlan = !!user?.subscriptionEndsAt && new Date(user.subscriptionEndsAt) > new Date();
   const checkoutLoading = checkoutPlan != null && activeId === checkoutPlan.slug;
 
-  function toggleAddon(slug: string) {
-    setSelectedAddons(prev => (prev.includes(slug) ? prev.filter(s => s !== slug) : [...prev, slug]));
-    setAppliedCoupon(null);
-    setCouponError("");
-  }
-
   function openCheckout(plan: DbPlan) {
     setCheckoutPlan(plan);
     setRenewalWarningDismissed(false);
-    setCouponInput("");
-    setCouponError("");
-    setAppliedCoupon(null);
   }
-
-  // Coupons are INR-native (validated/discounted against the stored
-  // priceInPaise) — hide the coupon UI on USD checkout instead of showing a
-  // code that silently does nothing server-side.
-  const couponsAvailable = currency === "INR";
 
   function backToBrowse() {
     setCheckoutPlan(null);
-  }
-
-  function clearCoupon() {
-    setAppliedCoupon(null);
-    setCouponError("");
-  }
-
-  async function applyCoupon() {
-    if (!checkoutPlan || !couponInput.trim()) return;
-    setCouponApplying(true);
-    setCouponError("");
-    try {
-      const res = await fetch("/api/coupons/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ planId: checkoutPlan.slug, addonIds: selectedAddons, code: couponInput.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        setAppliedCoupon(null);
-        setCouponError(data.error ?? "Could not apply coupon.");
-        return;
-      }
-      setAppliedCoupon({ code: data.code, label: data.label, discountInPaise: data.discountInPaise });
-    } catch {
-      setCouponError("Could not apply coupon. Try again.");
-    } finally {
-      setCouponApplying(false);
-    }
   }
 
   function handlePay() {
     if (!checkoutPlan) return;
     startCheckout({
       planId: checkoutPlan.slug,
-      addonIds: selectedAddons,
-      // Coupons are INR-native and the server REJECTS a code sent with USD, so
-      // a coupon applied in rupees and then left over after a currency switch
-      // hard-failed checkout — with the coupon UI hidden on USD, the customer
-      // had no way to remove it.
-      couponCode: couponsAvailable ? appliedCoupon?.code : undefined,
       currency,
       resumeFromPeriodEnd,
       onSuccess: () => {
@@ -148,17 +97,10 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: P
     });
   }
 
-  const totalDueMinor =
-    (checkoutPlan ? minorUnits(checkoutPlan, currency) : 0) +
-    selectedAddons.reduce((s, slug) => {
-      const pack = packs.find(p => p.slug === slug);
-      return s + (pack ? minorUnits(pack, currency) : 0);
-    }, 0);
-  // discountInPaise is exactly that — paise. Subtracting it from a USD cents
-  // total showed a ~88x over-discount before the server refused the order.
-  const discountedTotalMinor = appliedCoupon && couponsAvailable
-    ? Math.max(1, totalDueMinor - appliedCoupon.discountInPaise)
-    : totalDueMinor;
+  // A credit pack is its own one-time purchase — no plan required.
+  function handleBuyPack(pack: DbPlan) {
+    startCheckout({ planId: pack.slug, currency, onSuccess: () => { onPurchaseSuccess(); } });
+  }
 
   // Renders bare — BillingOverlay supplies the dialog, backdrop and close
   // button. This used to be a hand-rolled `fixed inset-0` overlay with no focus
@@ -169,26 +111,13 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: P
         {checkoutPlan ? (
           <CheckoutStep
             plan={checkoutPlan}
-            packs={packs}
             currency={currency}
-            selectedAddons={selectedAddons}
-            onToggleAddon={toggleAddon}
             onBack={backToBrowse}
             hasActivePlan={hasActivePlan}
             subscriptionEndsAt={user?.subscriptionEndsAt ?? null}
             resumeFromPeriodEnd={resumeFromPeriodEnd}
             renewalWarningDismissed={renewalWarningDismissed}
             onDismissRenewalWarning={() => setRenewalWarningDismissed(true)}
-            couponsAvailable={couponsAvailable}
-            couponInput={couponInput}
-            onCouponInputChange={(v) => { setCouponInput(v.toUpperCase()); setCouponError(""); }}
-            couponApplying={couponApplying}
-            couponError={couponError}
-            appliedCoupon={appliedCoupon}
-            onApplyCoupon={applyCoupon}
-            onClearCoupon={clearCoupon}
-            totalDueMinor={totalDueMinor}
-            discountedTotalMinor={discountedTotalMinor}
             checkoutLoading={checkoutLoading}
             onPay={handlePay}
           />
@@ -200,12 +129,9 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: P
             term={term}
             onTermChange={setTerm}
             currency={currency}
-            // Switching currency invalidates any applied coupon: the discount is
-            // INR paise and the coupon UI is hidden on USD, so leaving it applied
-            // strands the customer with a total they can't correct.
-            onCurrencyChange={(c) => { setCurrency(c); clearCoupon(); }}
-            selectedAddons={selectedAddons}
-            onToggleAddon={toggleAddon}
+            onCurrencyChange={setCurrency}
+            buyingPack={activeId}
+            onBuyPack={handleBuyPack}
             onSelectPlan={openCheckout}
             currentPlanSlug={user?.plan?.slug ?? null}
           />
@@ -215,7 +141,7 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: P
 }
 
 // ── Browse step ──────────────────────────────────────────────────────────────
-function BrowseStep({ plansLoading, subs, packs, term, onTermChange, currency, onCurrencyChange, selectedAddons, onToggleAddon, onSelectPlan, currentPlanSlug }: {
+function BrowseStep({ plansLoading, subs, packs, term, onTermChange, currency, onCurrencyChange, buyingPack, onBuyPack, onSelectPlan, currentPlanSlug }: {
   plansLoading: boolean;
   subs: DbPlan[];
   packs: DbPlan[];
@@ -223,8 +149,8 @@ function BrowseStep({ plansLoading, subs, packs, term, onTermChange, currency, o
   onTermChange: (months: number) => void;
   currency: Currency;
   onCurrencyChange: (c: Currency) => void;
-  selectedAddons: string[];
-  onToggleAddon: (slug: string) => void;
+  buyingPack: string | null;
+  onBuyPack: (pack: DbPlan) => void;
   onSelectPlan: (plan: DbPlan) => void;
   currentPlanSlug: string | null;
 }) {
@@ -308,29 +234,26 @@ function BrowseStep({ plansLoading, subs, packs, term, onTermChange, currency, o
             <p className="text-xs font-bold text-fg-subtle uppercase tracking-widest whitespace-nowrap">Top-up credit packs</p>
             <div className="h-px flex-1 bg-surface-3" />
           </div>
-          <p className="text-center text-xs text-fg-subtle mb-4">Select any packs to bundle with a plan at checkout.</p>
+          <p className="text-center text-xs text-fg-subtle mb-4">Top up any time, with or without a plan. Pack credits never expire.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {packs.map(pack => {
-              const checked = selectedAddons.includes(pack.slug);
+              const price = formatMoney(minorUnits(pack, currency), currency);
               return (
-                <label
-                  key={pack.id}
-                  className={`flex items-start gap-3 p-4 bg-panel rounded-xl border-2 cursor-pointer transition-all ${
-                    checked ? "border-brand shadow-sm bg-tint-blue/20" : "border-line hover:border-line"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => onToggleAddon(pack.slug)}
-                    className="mt-0.5 w-4 h-4 accent-[color:var(--brand)] flex-shrink-0"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-fg text-sm">{pack.name}</p>
-                    <p className="text-xs text-fg-muted mt-0.5">{pack.credits} credits</p>
-                    <p className="font-bold text-fg mt-1.5">{formatMoney(minorUnits(pack, currency), currency)}</p>
-                  </div>
-                </label>
+                <div key={pack.id} className="flex flex-col p-4 bg-panel rounded-xl border-2 border-line">
+                  <p className="font-semibold text-fg text-sm">{pack.name}</p>
+                  <p className="text-xs text-fg-muted mt-0.5">{pack.credits} credits</p>
+                  <p className="font-bold text-fg mt-1.5">{price}</p>
+                  <button
+                    type="button"
+                    onClick={() => onBuyPack(pack)}
+                    disabled={!!buyingPack}
+                    className="mt-3 flex min-h-9 items-center justify-center gap-1.5 rounded-full bg-surface-3 text-sm font-semibold text-fg ring-1 ring-inset ring-line-strong hover:bg-panel-raised disabled:opacity-60"
+                  >
+                    {buyingPack === pack.slug ? (
+                      <><span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-fg/30 border-t-fg" />Buying…</>
+                    ) : `Buy for ${price}`}
+                  </button>
+                </div>
               );
             })}
           </div>
@@ -342,35 +265,21 @@ function BrowseStep({ plansLoading, subs, packs, term, onTermChange, currency, o
 
 // ── Checkout step ────────────────────────────────────────────────────────────
 function CheckoutStep({
-  plan, packs, currency, selectedAddons, onToggleAddon, onBack, hasActivePlan, subscriptionEndsAt,
-  resumeFromPeriodEnd, renewalWarningDismissed, onDismissRenewalWarning, couponsAvailable, couponInput, onCouponInputChange,
-  couponApplying, couponError, appliedCoupon, onApplyCoupon, onClearCoupon,
-  totalDueMinor, discountedTotalMinor, checkoutLoading, onPay,
+  plan, currency, onBack, hasActivePlan, subscriptionEndsAt,
+  resumeFromPeriodEnd, renewalWarningDismissed, onDismissRenewalWarning, checkoutLoading, onPay,
 }: {
   plan: DbPlan;
-  packs: DbPlan[];
   currency: Currency;
-  selectedAddons: string[];
-  onToggleAddon: (slug: string) => void;
   onBack: () => void;
   hasActivePlan: boolean;
   subscriptionEndsAt: string | null;
   resumeFromPeriodEnd: boolean;
   renewalWarningDismissed: boolean;
   onDismissRenewalWarning: () => void;
-  couponsAvailable: boolean;
-  couponInput: string;
-  onCouponInputChange: (v: string) => void;
-  couponApplying: boolean;
-  couponError: string;
-  appliedCoupon: { code: string; label: string; discountInPaise: number } | null;
-  onApplyCoupon: () => void;
-  onClearCoupon: () => void;
-  totalDueMinor: number;
-  discountedTotalMinor: number;
   checkoutLoading: boolean;
   onPay: () => void;
 }) {
+  const priceMinor = minorUnits(plan, currency);
   return (
     <div className="flex flex-col md:flex-row overflow-y-auto flex-1 min-h-0">
       <div className="flex-1 p-8 bg-surface-2 overflow-y-auto">
@@ -429,35 +338,9 @@ function CheckoutStep({
           )
         )}
 
-        {packs.length > 0 && (
-          <>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-px flex-1 bg-surface-3" />
-              <p className="text-xs font-bold text-fg-subtle uppercase tracking-widest whitespace-nowrap">Bundle Add-ons</p>
-              <div className="h-px flex-1 bg-surface-3" />
-            </div>
-            <div className="space-y-3">
-              {packs.map(pack => {
-                const checked = selectedAddons.includes(pack.slug);
-                return (
-                  <label
-                    key={pack.id}
-                    className={`flex items-start gap-3 p-4 bg-panel rounded-xl border-2 cursor-pointer transition-all ${
-                      checked ? "border-brand shadow-sm bg-tint-blue/20" : "border-line hover:border-line"
-                    }`}
-                  >
-                    <input type="checkbox" checked={checked} onChange={() => onToggleAddon(pack.slug)} className="mt-0.5 w-4 h-4 accent-[color:var(--brand)] flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-fg text-sm">{pack.name}</p>
-                      <p className="text-xs text-fg-muted mt-0.5">{pack.credits} credits · never expire</p>
-                    </div>
-                    <p className="font-bold text-fg whitespace-nowrap">{formatMoney(minorUnits(pack, currency), currency)}</p>
-                  </label>
-                );
-              })}
-            </div>
-          </>
-        )}
+        <p className="text-xs text-fg-subtle">
+          Need extra credits? Credit packs never expire and have their own Buy buttons on the plans screen.
+        </p>
       </div>
 
       <div className="w-full md:w-72 p-8 flex flex-col border-t md:border-t-0 md:border-l border-line flex-shrink-0">
@@ -468,73 +351,13 @@ function CheckoutStep({
               <p className="text-sm font-medium text-fg truncate">{plan.name}</p>
               <p className="text-xs text-fg-subtle">Subscription plan</p>
             </div>
-            <p className="text-sm font-semibold text-fg whitespace-nowrap">{formatMoney(minorUnits(plan, currency), currency)}</p>
+            <p className="text-sm font-semibold text-fg whitespace-nowrap">{formatMoney(priceMinor, currency)}</p>
           </div>
-
-          {selectedAddons.map(slug => {
-            const pack = packs.find(p => p.slug === slug);
-            if (!pack) return null;
-            return (
-              <div key={slug} className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-fg truncate">{pack.name}</p>
-                  <p className="text-xs text-fg-subtle">{pack.credits} credits · add-on</p>
-                </div>
-                <p className="text-sm font-semibold text-fg whitespace-nowrap">{formatMoney(minorUnits(pack, currency), currency)}</p>
-              </div>
-            );
-          })}
-
-          {couponsAvailable && (
-          <div className="border-t border-line pt-4">
-            {appliedCoupon ? (
-              <div className="flex items-center justify-between gap-2 bg-tint-emerald border border-tint-emerald-border rounded-lg px-3 py-2">
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-success truncate">🎟 {appliedCoupon.code} applied</p>
-                  <p className="text-[11px] text-success">{appliedCoupon.label}</p>
-                </div>
-                <button onClick={onClearCoupon} className="text-xs text-success hover:text-emerald-bright hover:text-emerald-bright underline flex-shrink-0">Remove</button>
-              </div>
-            ) : (
-              <div>
-                <div className="flex gap-2">
-                  <input
-                    value={couponInput}
-                    onChange={e => onCouponInputChange(e.target.value)}
-                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); onApplyCoupon(); } }}
-                    placeholder="Coupon code"
-                    className="flex-1 min-w-0 bg-surface-2 border border-line rounded-lg px-3 py-2 text-sm font-semibold tracking-wide uppercase focus:outline-none focus:ring-2 focus:ring-brand/40"
-                  />
-                  <button
-                    onClick={onApplyCoupon}
-                    disabled={couponApplying || !couponInput.trim()}
-                    className="px-3 py-2 rounded-lg bg-fg text-bg text-sm font-semibold hover:bg-gray-800 disabled:opacity-40 transition-colors"
-                  >
-                    {couponApplying ? "…" : "Apply"}
-                  </button>
-                </div>
-                {couponError && <p className="text-xs text-error mt-1.5">{couponError}</p>}
-              </div>
-            )}
-          </div>
-          )}
 
           <div className="border-t border-line pt-4 mt-2">
-            {appliedCoupon && appliedCoupon.discountInPaise > 0 && (
-              <>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-fg-muted">Subtotal</span>
-                  <span className="text-fg-muted">{formatMoney(totalDueMinor, currency)}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm mt-1">
-                  <span className="text-success font-medium">Discount ({appliedCoupon.code})</span>
-                  <span className="text-success font-medium">−{formatMoney(appliedCoupon.discountInPaise, currency)}</span>
-                </div>
-              </>
-            )}
             <div className="flex items-center justify-between mt-2">
               <p className="font-bold text-fg">Total Due</p>
-              <p className="text-xl font-black text-fg">{formatMoney(discountedTotalMinor, currency)}</p>
+              <p className="text-xl font-black text-fg">{formatMoney(priceMinor, currency)}</p>
             </div>
             <p className="text-xs text-fg-subtle mt-1">Secure payment via Razorpay</p>
           </div>

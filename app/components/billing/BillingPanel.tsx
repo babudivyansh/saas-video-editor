@@ -347,7 +347,7 @@ export function BillingPanel({
             <div className="min-w-0">
               <p className="text-[11px] font-bold uppercase tracking-widest text-white/80">🚀 Launch Special</p>
               <p className="mt-1 font-bold leading-snug">
-                {launch.description ?? `${launch.discountValue}% off your plan`}
+                {launch.description ?? `${launch.discountValue}% off credit packs`}
               </p>
               {launch.expiresAt && (
                 <p className="text-xs text-white/70 mt-0.5">

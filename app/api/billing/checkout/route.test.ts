@@ -14,7 +14,11 @@ vi.mock("@/lib/rate-limit", () => ({
 vi.mock("@/lib/auth", () => ({ getAuthUser: vi.fn(async () => ({ userId: "u1" })) }));
 vi.mock("@/lib/env", () => ({ env: { RAZORPAY_KEY_ID: "key", RAZORPAY_KEY_SECRET: "secret" } }));
 vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn() } }));
-vi.mock("@/lib/coupons", () => ({ validateCoupon: vi.fn() }));
+const validateCoupon = vi.fn();
+vi.mock("@/lib/coupons", () => ({
+  validateCoupon: (...a: unknown[]) => (validateCoupon as unknown as (...x: unknown[]) => unknown)(...a),
+  SUBSCRIPTION_COUPON_ERROR: "Coupons can't be used on subscription plans — they apply to credit packs.",
+}));
 vi.mock("@/lib/currency", () => ({ getPlanPriceMinor: vi.fn(async (_slug: string, paise: number) => paise) }));
 
 const SUB_PLAN = {
@@ -92,5 +96,30 @@ describe("POST /api/billing/checkout — resumeFromPeriodEnd", () => {
     expect(res.status).toBe(200);
     const call = subscriptionsCreate.mock.calls[0][0];
     expect(call.start_at).toBeUndefined();
+  });
+});
+
+// A subscription is billed at its synced Razorpay plan amount: add-ons and
+// coupon discounts shown in the checkout modal were never charged or applied.
+describe("POST /api/billing/checkout — subscription is exactly its plan", () => {
+  it("refuses add-on packs on a subscription, creating nothing", async () => {
+    const res = await POST(post({ planId: "pro-monthly", addonIds: ["pack_mini"] }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/can't be bundled/);
+    expect(subscriptionsCreate).not.toHaveBeenCalled();
+  });
+
+  it("refuses a coupon on a subscription without consulting the coupon table", async () => {
+    const res = await POST(post({ planId: "pro-monthly", couponCode: "LAUNCH30" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/subscription plans/);
+    expect(validateCoupon).not.toHaveBeenCalled();
+    expect(subscriptionsCreate).not.toHaveBeenCalled();
+  });
+
+  it("refuses them on an unsynced subscription plan too (the one-time order path)", async () => {
+    findUniquePlan.mockResolvedValue({ ...SUB_PLAN, razorpayPlanIdInr: null } as unknown as typeof SUB_PLAN);
+    const res = await POST(post({ planId: "pro-monthly", couponCode: "LAUNCH30" }));
+    expect(res.status).toBe(400);
   });
 });

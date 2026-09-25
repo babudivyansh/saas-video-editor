@@ -8,6 +8,9 @@ export async function GET() {
     where: {
       active: true,
       featured: true,
+      // Subscriptions take no coupons (lib/coupons.ts) — never advertise one
+      // that checkout would refuse.
+      appliesTo: { not: "subscription" },
       OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
     },
     orderBy: { createdAt: "desc" },
@@ -21,6 +24,5 @@ export async function GET() {
     },
   });
 
-  // Drop any that have hit their global redemption cap.
   return NextResponse.json({ coupons });
 }
