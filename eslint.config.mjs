@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // /design-sync tooling: previews import the sync-only @clipiro/ui package
+    // (built into gitignored .ds-pkg/); the rest are generated bundles.
+    ".design-sync/**",
+    ".ds-pkg/**",
+    ".ds-sync/**",
+    "ds-bundle/**",
   ]),
   {
     rules: {
