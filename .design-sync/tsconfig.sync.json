@@ -1,0 +1,18 @@
+{
+  // Path aliases for the design-sync BUNDLE only (read by the converter's
+  // tsconfig-paths plugin, never by the app). Named tsconfig.sync.json on
+  // purpose: esbuild auto-loads files called exactly tsconfig.json, and the
+  // repo root's one must keep supplying jsx: react-jsx to every component.
+  //
+  // Order matters: exact keys come before "@/*" because the plugin takes the
+  // first rule that matches. See .design-sync/NOTES.md for why each shim exists.
+  "compilerOptions": {
+    "baseUrl": "..",
+    "paths": {
+      "next/link": [".design-sync/shims/next-link"],
+      "next-intl": [".design-sync/shims/next-intl"],
+      "@/app/components/billing/BillingOverlayContext": [".design-sync/shims/billing-overlay"],
+      "@/*": ["./*"]
+    }
+  }
+}

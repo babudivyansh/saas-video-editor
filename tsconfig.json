@@ -36,6 +36,10 @@
     "vitest.config.ts",
     "vitest.setup.ts",
     "playwright.config.ts",
+    ".design-sync",
+    ".ds-pkg",
+    ".ds-sync",
+    "ds-bundle",
     "**/*.test.ts",
     "**/*.test.tsx"
   ]

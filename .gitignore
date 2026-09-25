@@ -66,3 +66,11 @@ next-env.d.ts
 # scripts/install-render-ffmpeg.mjs at install time. ~80MB executable;
 # never commit it (see docs/editor-release-gate-stage1-production-verification.md).
 /vendor/
+
+# design-sync (claude.ai/design) — staged scripts, generated package view, build output, machine state
+.ds-sync/
+.ds-pkg/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules

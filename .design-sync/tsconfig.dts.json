@@ -1,0 +1,17 @@
+{
+  // Declaration emit for the design-sync package view (.ds-pkg/). Extends the
+  // app's real tsconfig so types resolve exactly as they do in the app.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "noEmitOnError": false,
+    "incremental": false,
+    "rootDir": "..",
+    "outDir": "../.ds-pkg/types",
+    "plugins": []
+  },
+  "include": [],
+  "files": ["../.ds-pkg/index.ts"]
+}

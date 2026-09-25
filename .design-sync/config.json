@@ -1,0 +1,74 @@
+{
+  "projectId": "fa669734-decd-4017-9a4b-8a063f688203",
+  "shape": "package",
+  "pkg": "@clipiro/ui",
+  "globalName": "ClipiroUI",
+  "buildCmd": "node .design-sync/build-pkg.mjs",
+  "tsconfig": "../.design-sync/tsconfig.sync.json",
+  "cssEntry": "styles.css",
+  "srcDir": "../app/components/ui",
+  "componentSrcMap": {
+    "FieldLabel": "../app/components/ui/Field.tsx",
+    "Input": "../app/components/ui/Field.tsx",
+    "Textarea": "../app/components/ui/Field.tsx",
+    "DropdownItem": "../app/components/ui/Dropdown.tsx",
+    "ContextMenuItem": "../app/components/ui/Dropdown.tsx",
+    "SkeletonCard": "../app/components/ui/Skeleton.tsx",
+    "SkeletonGrid": "../app/components/ui/Skeleton.tsx",
+    "ToastProvider": "../app/components/ui/Toast.tsx"
+  },
+  "overrides": {
+    "Modal": {
+      "cardMode": "single",
+      "primaryStory": "Dialog",
+      "viewport": "720x480"
+    },
+    "ConfirmDialog": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "640x420"
+    },
+    "Dropdown": {
+      "cardMode": "single",
+      "primaryStory": "ProjectActions",
+      "viewport": "480x320"
+    },
+    "DropdownItem": {
+      "cardMode": "single",
+      "primaryStory": "WithIconsAndDanger",
+      "viewport": "480x300"
+    },
+    "ContextMenu": {
+      "cardMode": "single",
+      "primaryStory": "AssetMenu",
+      "viewport": "480x300"
+    },
+    "ContextMenuItem": {
+      "cardMode": "single",
+      "primaryStory": "InMenu",
+      "viewport": "480x280"
+    },
+    "ToastProvider": {
+      "cardMode": "single",
+      "primaryStory": "SuccessAndError",
+      "viewport": "640x320"
+    },
+    "SkeletonGrid": {
+      "cardMode": "column"
+    },
+    "ToolCard": {
+      "cardMode": "column"
+    },
+    "StatTile": {
+      "cardMode": "column"
+    }
+  },
+  "extraFonts": [
+    "../.design-sync/fonts/geist.css"
+  ],
+  "extraEntries": [
+    "../.design-sync/preview-support.ts"
+  ],
+  "docsDir": "../.design-sync/docs",
+  "readmeHeader": ".design-sync/conventions.md"
+}
