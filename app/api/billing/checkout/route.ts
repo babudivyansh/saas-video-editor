@@ -10,6 +10,7 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import { trialEligibility } from "@/lib/billing/trial-eligibility";
 import { isTrialPlan, TRIAL_DAYS } from "@/lib/plans/tiers";
 import { syncRazorpayPlan } from "@/lib/billing/razorpay-plans";
+import { describeRazorpayError, isMissingRazorpayPlan } from "@/lib/billing/razorpay-errors";
 
 const razorpay = new Razorpay({
   key_id: env.RAZORPAY_KEY_ID,
@@ -202,12 +203,13 @@ async function handlePOST(req: NextRequest) {
     // before that handler overwrites razorpaySubscriptionId (the orphaned
     // auto-charging mandate this guards against).
 
-    let subscription;
-    try {
-      subscription = await razorpay.subscriptions.create({
-        plan_id: razorpayPlanId,
+    const createSubscription = (planId: string) => razorpay.subscriptions.create({
+        plan_id: planId,
         customer_notify: 1,
-        total_count: 120, // ~10 years of monthly cycles; Razorpay requires a bound
+        // ~10 years whatever the period. Razorpay requires a bound and caps a
+        // subscription at 100 years, so the flat 120 this used to send asked a
+        // YEARLY plan (lib/billing/razorpay-plans.ts) for 120 years — refused.
+        total_count: (basePlan.intervalMonths ?? 1) === 1 ? 120 : 10,
         // Trial delay and resume-from-period-end are mutually exclusive in
         // practice (a dunning customer won't also be trial-eligible), but kept
         // as explicit separate branches rather than merged into one condition
@@ -223,9 +225,35 @@ async function handlePOST(req: NextRequest) {
           trial: wantsTrial ? "1" : "0",
         },
       });
+
+    let subscription;
+    try {
+      subscription = await createSubscription(razorpayPlanId);
     } catch (e) {
-      logger.error("billing/checkout", `subscriptions.create failed for ${basePlan.slug}`, e);
-      return NextResponse.json({ error: "Could not start checkout. Please try again." }, { status: 502 });
+      // Self-heal a plan id from the OTHER Razorpay mode. Test and live keep
+      // separate Plans, so an id minted under live keys doesn't exist once the
+      // deployment runs on test keys (or vice versa) — and since an id was
+      // stored, nothing ever re-minted it: every plan checkout 502'd. Mint a
+      // fresh Razorpay Plan for these keys and retry exactly once.
+      if (!isMissingRazorpayPlan(e)) {
+        logger.error("billing/checkout", `subscriptions.create failed for ${basePlan.slug}: ${describeRazorpayError(e)}`, e);
+        return NextResponse.json({ error: "Could not start checkout. Please try again." }, { status: 502 });
+      }
+      logger.warn(
+        "billing/checkout",
+        `Razorpay plan ${razorpayPlanId} for ${basePlan.slug} (${currency}) doesn't exist for these keys — re-minting`,
+      );
+      const resynced = await syncRazorpayPlan(basePlan, currency, { force: true });
+      if (!resynced.ok) {
+        logger.error("billing/checkout", `re-mint failed for ${basePlan.slug} (${currency}): ${resynced.error}`);
+        return NextResponse.json({ error: "Could not start checkout. Please try again." }, { status: 502 });
+      }
+      try {
+        subscription = await createSubscription(resynced.razorpayPlanId);
+      } catch (retryError) {
+        logger.error("billing/checkout", `subscriptions.create failed after re-mint for ${basePlan.slug}: ${describeRazorpayError(retryError)}`, retryError);
+        return NextResponse.json({ error: "Could not start checkout. Please try again." }, { status: 502 });
+      }
     }
 
     return NextResponse.json({

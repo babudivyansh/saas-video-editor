@@ -13,7 +13,7 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 vi.mock("@/lib/auth", () => ({ getAuthUser: vi.fn(async () => ({ userId: "u1" })) }));
 vi.mock("@/lib/env", () => ({ env: { RAZORPAY_KEY_ID: "key", RAZORPAY_KEY_SECRET: "secret" } }));
-vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn() } }));
+vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn() } }));
 const validateCoupon = vi.fn();
 vi.mock("@/lib/coupons", () => ({
   validateCoupon: (...a: unknown[]) => (validateCoupon as unknown as (...x: unknown[]) => unknown)(...a),
@@ -217,5 +217,48 @@ describe("POST /api/billing/checkout — plans are always recurring", () => {
     expect(res.status).toBe(200);
     expect((await res.json()).mode).toBe("order");
     expect(syncRazorpayPlan).not.toHaveBeenCalled();
+  });
+});
+
+// Razorpay test and live mode keep separate Plans. A plan id minted under one
+// set of keys "does not exist" under the other — after a test/live switch every
+// subscription checkout 502'd, and nothing re-minted because an id was stored.
+describe("POST /api/billing/checkout — plan id from the other Razorpay mode", () => {
+  const missingPlan = { statusCode: 400, error: { code: "BAD_REQUEST_ERROR", description: "The id provided does not exist" } };
+
+  it("re-mints the Razorpay Plan for the current keys and retries once", async () => {
+    subscriptionsCreate.mockRejectedValueOnce(missingPlan).mockResolvedValueOnce({ id: "sub_healed" });
+    const res = await POST(post({ planId: "pro-monthly" }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).subscriptionId).toBe("sub_healed");
+    expect(syncRazorpayPlan).toHaveBeenCalledWith(expect.anything(), "INR", { force: true });
+    expect(subscriptionsCreate).toHaveBeenLastCalledWith(expect.objectContaining({ plan_id: "plan_synced_INR" }));
+  });
+
+  it("does not re-mint on an unrelated Razorpay error", async () => {
+    subscriptionsCreate.mockRejectedValueOnce({ statusCode: 500, error: { code: "SERVER_ERROR", description: "Internal error" } });
+    const res = await POST(post({ planId: "pro-monthly" }));
+    expect(res.status).toBe(502);
+    expect(syncRazorpayPlan).not.toHaveBeenCalled();
+    expect(subscriptionsCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives up with 502 if the retry also fails", async () => {
+    subscriptionsCreate.mockRejectedValueOnce(missingPlan).mockRejectedValueOnce(missingPlan);
+    const res = await POST(post({ planId: "pro-monthly" }));
+    expect(res.status).toBe(502);
+    expect(subscriptionsCreate).toHaveBeenCalledTimes(2);
+  });
+});
+
+// Razorpay caps a subscription at 100 years; a yearly plan with the old flat
+// total_count of 120 asked for 120 years and was refused.
+describe("POST /api/billing/checkout — total_count", () => {
+  it("bounds a monthly plan at 120 cycles and a yearly plan at 10", async () => {
+    await POST(post({ planId: "pro-monthly" }));
+    expect(subscriptionsCreate).toHaveBeenLastCalledWith(expect.objectContaining({ total_count: 120 }));
+    findUniquePlan.mockResolvedValue({ ...SUB_PLAN, intervalMonths: 12 } as typeof SUB_PLAN);
+    await POST(post({ planId: "pro-yearly" }));
+    expect(subscriptionsCreate).toHaveBeenLastCalledWith(expect.objectContaining({ total_count: 10 }));
   });
 });
