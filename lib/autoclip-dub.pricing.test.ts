@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { computeDubCost } from "./autoclip-dub";
 import { AUTOCLIP_PRICING_DEFAULTS } from "./autoclip-pipeline";
 import { TOOL_COSTS } from "./tool-costs";
+import { REVENUE_FLOOR_USD_PER_CREDIT } from "./plans/tiers";
 
 // Dubbing shipped at a flat 1 credit per dub against an ElevenLabs call billed
 // per minute of audio — the same shape as the pre-audit ai-creator price that
@@ -36,11 +37,17 @@ describe("computeDubCost", () => {
 });
 
 describe("clip-dub cost policy", () => {
-  it("is gated while the provider rate is unconfirmed", () => {
-    // Same mitigation as subtitle-remover and face-swap: an unknown provider cost
-    // is absorbed by pro-tier credit revenue until it's confirmed.
-    expect(TOOL_COSTS["clip-dub"].costUsd).toBeNull();
+  it("stays gated while the published rate is not invoice-confirmed", () => {
+    // Same mitigation as subtitle-remover and face-swap: pro-tier credit revenue
+    // absorbs any gap between the published and the invoiced rate.
     expect(TOOL_COSTS["clip-dub"].requiredTier).toBe("pro");
+  });
+
+  it("bills at least 3x the published per-minute rate at the NET revenue floor", () => {
+    // Was 2 cr/min against $0.50/min — ~0.3x, a loss on every dub.
+    const costUsd = TOOL_COSTS["clip-dub"].costUsd!;
+    expect(costUsd).toBeGreaterThanOrEqual(0.5);
+    expect(RATE * REVENUE_FLOOR_USD_PER_CREDIT).toBeGreaterThanOrEqual(costUsd * 3);
   });
 
   it("publishes a price for AutoClip itself, which had none at all", () => {

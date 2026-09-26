@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAllToolConfigs, TOOL_SERVICE } from "@/lib/tool-config";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
 import { VIDEO_MODELS } from "@/lib/models/videoModels";
+import { AUTOCLIP_PRICING_DEFAULTS } from "@/lib/autoclip-pricing";
 
 // Public: live per-feature credit costs for the pricing page "what each feature
 // costs" table. Reads the same admin-editable tool config used for billing.
@@ -48,7 +49,8 @@ const RANGES: Record<string, { min: number; max: number }> = {
   // misleading on the public page. Ranges describe a typical short run through
   // a long one at the default AutoClip rates.
   "auto-clip": { min: 3, max: 40 },
-  "clip-dub": { min: 2, max: 12 },
+  // A <=1-minute dub up to a 6-minute one, at the default per-minute rate.
+  "clip-dub": { min: AUTOCLIP_PRICING_DEFAULTS.dubPerMinute, max: AUTOCLIP_PRICING_DEFAULTS.dubPerMinute * 6 },
 };
 
 export async function GET() {

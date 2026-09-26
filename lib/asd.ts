@@ -11,12 +11,13 @@
 // position.
 //
 // Everything here is best-effort and degrades in three steps:
-//   ASD (GPU)  ->  Rekognition (AWS)  ->  []  (static centre crop)
+//   ASD (GPU)  ->  Rekognition (AWS, only if gpu_routing.rekognitionFallback)
+//              ->  []  (static centre crop)
 // which is the same contract lib/reframe.ts already documents for Rekognition
 // alone, just with one more rung on top.
 
 import { runAsd, GpuServiceError } from "@/lib/gpu-service";
-import { shouldUseAsd } from "@/lib/render-target";
+import { shouldUseAsd, shouldUseRekognitionFallback } from "@/lib/render-target";
 import { detectFaceTimeline, type FaceBox, type FaceTimelineResult } from "@/lib/reframe";
 import { classifySource } from "@/lib/source-url";
 import { logger } from "@/lib/logger";
@@ -97,12 +98,17 @@ export async function getFaceTimeline(userId: string, videoUrl: string): Promise
       logger.warn("asd", "ASD returned no tracks, falling back to Rekognition");
     } catch (err) {
       // An "input"-class failure means the media itself is the problem, so
-      // Rekognition will very likely fail too — but it's cheap to let it try,
-      // and this must never be the thing that fails a render.
+      // Rekognition would very likely fail too. This must never be the thing
+      // that fails a render.
       const cls = err instanceof GpuServiceError ? err.errorClass : "transport";
       logger.warn("asd", `ASD unavailable (${cls}), falling back to Rekognition`, err);
     }
   }
+  // Rekognition is NOT cheap: it bills $0.10 per minute of the whole source,
+  // ~9x the rest of an AutoClip run combined. It runs only when an admin has
+  // turned the fallback on (gpu_routing.rekognitionFallback); otherwise the
+  // renderer uses the static centre crop.
+  if (!(await shouldUseRekognitionFallback())) return { boxes: [], failure: "unconfigured" };
   // Rekognition reads the object with OUR IAM credentials, so it runs only for
   // media we have proven the user owns. An external URL is not a Rekognition
   // input in the first place (the job takes an S3 object in our own account),

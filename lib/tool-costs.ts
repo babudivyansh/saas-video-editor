@@ -90,25 +90,25 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
     costBasis: "ElevenLabs/Whisper STT + Gemini selection + GPU render + S3; scales with source length, no single per-run figure",
     generationType: "video",
   },
-  // TODO verify-before-ship: ElevenLabs Dubbing is billed per minute of audio and
-  // the exact rate could not be confirmed. Shipped at a flat 1 credit per dub
-  // regardless of clip length, which is the same shape as the pre-audit
-  // ai-creator price that turned out to be loss-making. Now duration-scaled
-  // (dubPerMinute in AUTOCLIP_PRICING_DEFAULTS, admin-editable) and gated pro+
-  // until the real figure is confirmed — pro-tier credit revenue gives enough
-  // margin buffer for an unknown per-minute cost, exactly the mitigation
-  // subtitle-remover and face-swap already use.
+  // TODO verify-before-ship: ElevenLabs Dubbing is billed per minute of audio.
+  // $0.50/min (no watermark) is the PUBLISHED API rate as of 2026-09-26, not a
+  // measured invoice — the account is on the free tier. Duration-scaled
+  // (dubPerMinute in AUTOCLIP_PRICING_DEFAULTS, admin-editable) at
+  // ceil(0.50*3/0.0784) = 20 cr/min; it was 2 cr/min, a loss on every dub.
+  // Stays gated pro+ until an invoice confirms the rate.
   "clip-dub": {
-    creditCost: 2, // display price for a <=1 minute clip (dubPerMinute x 1)
-    costUsd: null,
-    costBasis: "ElevenLabs Dubbing API, billed per minute of audio — rate not yet confirmed",
+    creditCost: 20, // display price for a <=1 minute clip (dubPerMinute x 1)
+    costUsd: 0.50,
+    costBasis: "ElevenLabs Dubbing API, $0.50 per source minute (published rate, not yet invoice-confirmed)",
     generationType: "audio",
     requiredTier: "pro",
   },
-  // TODO verify-before-ship: Submagic does not publish a per-minute API rate,
-  // and confirming one requires an invoice against real usage — creating a
-  // project is the billable act, so it cannot be probed for free. Two
-  // mitigations, the same pair clip-dub and subtitle-remover already use:
+  // TODO verify-before-ship: Submagic's pricing page lists $0.69/min for
+  // pay-per-minute API use (checked 2026-09-26), but confirming what WE are
+  // billed requires an invoice against real usage — creating a project is the
+  // billable act, so it cannot be probed for free. Priced at
+  // ceil(0.69*3/0.0784) = 27 cr per billable minute (was 8, below cost after
+  // GST). Two mitigations, the same pair clip-dub and subtitle-remover use:
   //
   //   1. Gated creator+ (see SUBMAGIC_ROUTING_DEFAULTS.tiers in
   //      lib/captions/CaptionRendererFactory.ts), so credit revenue absorbs an
@@ -125,9 +125,9 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   // per lib/models/videoModels.ts's header — then drop the tier gate and shrink
   // the allowlist entry in scripts/check-unverified-costs.mjs back to 2.
   "caption-render": {
-    creditCost: 8, // display price for a <=1 minute clip (perBillableMinute x 1)
-    costUsd: null,
-    costBasis: "Submagic animated-caption render, billed per billable minute — rate not published, not yet confirmed",
+    creditCost: 27, // display price for a <=1 minute clip (perBillableMinute x 1)
+    costUsd: 0.69,
+    costBasis: "Submagic animated-caption render, $0.69 per billable minute (published PAYG rate, not yet invoice-confirmed)",
     generationType: "video",
     requiredTier: "creator",
   },

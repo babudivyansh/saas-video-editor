@@ -5,11 +5,9 @@ import { ImageModelEntry } from "./types";
 // read this registry generically).
 //
 // creditCost is computed as ceil(costUsd * margin / REVENUE_FLOOR_USD_PER_CREDIT),
-// the revenue-per-credit floor at the cheapest live SKU — $0.0952, derived and
-// documented in lib/plans/tiers.ts (Studio Yearly, ₹8.37/credit at 88 INR/USD).
-// The old "$0.099 / ₹9.41 at ₹95/$1" figure here went stale when the grants moved
-// to 60/160/400 and the FX default moved to 88. Margin is 3x standard / 4-5x
-// flagship. A few entries deliberately
+// the NET revenue-per-credit floor at the cheapest live SKU — $0.0784, derived and
+// documented in lib/plans/tiers.ts (Studio Yearly, after 18% GST and the gateway
+// fee). Margin is 3x standard / 4-5x flagship. A few entries deliberately
 // keep a higher price than the formula would compute (see inline notes) —
 // don't cut revenue on an already-profitable model just because the formula
 // says you could charge less.
@@ -22,7 +20,7 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     category: "image",
     integration: "direct-gemini",
     costUsd: 0.04, // Google direct API
-    creditCost: 2, // ceil(0.04*3/0.0952); default/free model, raised from 1
+    creditCost: 2, // ceil(0.04*3/0.0784); default/free model, raised from 1
     allowedTiers: ["free", "creator", "pro", "studio"],
     supportedParameters: ["prompt"],
     defaultValues: {},
@@ -90,7 +88,7 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     integration: "fal",
     falEndpoint: "fal-ai/nano-banana-2",
     costUsd: 0.08,
-    creditCost: 4, // ceil(0.08*4/0.0952); raised from 2, was underpriced at 2.48x margin
+    creditCost: 5, // ceil(0.08*4/0.0784); 2 -> 4 (2026-07), 4 -> 5 on the net floor (2026-09-26)
     allowedTiers: ["pro", "studio"],
     supportedParameters: ["prompt", "aspectRatio"],
     defaultValues: { aspectRatio: "1:1" },
@@ -142,7 +140,7 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     integration: "fal",
     falEndpoint: "fal-ai/nano-banana-pro",
     costUsd: 0.15, // 1K output
-    creditCost: 8, // ceil(0.15*5/0.0952); raised from 4, flagship, studio-exclusive
+    creditCost: 10, // ceil(0.15*5/0.0784); flagship, studio-exclusive (8 -> 10 on the net floor)
     allowedTiers: ["studio"],
     supportedParameters: ["prompt", "aspectRatio"],
     defaultValues: { aspectRatio: "1:1" },
