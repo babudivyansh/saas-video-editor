@@ -16,7 +16,7 @@ interface RzpOptions {
   amount?: number;
   order_id?: string;
   subscription_id?: string;
-  handler: (r: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => void;
+  handler: (r: { razorpay_payment_id: string; razorpay_order_id?: string; razorpay_subscription_id?: string; razorpay_signature: string }) => Promise<void> | void;
 }
 
 function Harness({ onError }: { onError?: (msg: string) => void }) {
@@ -86,6 +86,27 @@ describe("useRazorpayCheckout", () => {
     expect(options.subscription_id).toBe("sub_1");
     expect(options.amount).toBeUndefined();
     expect(options.order_id).toBeUndefined();
+  });
+
+  // The trial must not depend solely on the subscription.authenticated
+  // webhook: on success the handler verifies the subscription server-side.
+  it("posts a subscription's signed ids to /api/billing/verify-subscription on success", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ mode: "subscription", subscriptionId: "sub_1", keyId: "rzp_test_x", packName: "Pro", credits: 160, trial: true }) })
+      .mockResolvedValue({ ok: true, json: async () => ({ status: "started" }) });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    render(<Harness />);
+    await userEvent.click(screen.getByText("Buy"));
+    await waitFor(() => expect(rzpConstructor).toHaveBeenCalled());
+
+    const options = rzpConstructor.mock.calls[0][0] as RzpOptions;
+    await options.handler({ razorpay_payment_id: "pay_1", razorpay_subscription_id: "sub_1", razorpay_signature: "sig" });
+
+    const call = fetchMock.mock.calls.find((c) => c[0] === "/api/billing/verify-subscription");
+    expect(call).toBeDefined();
+    expect(JSON.parse(call![1].body)).toEqual({ razorpay_payment_id: "pay_1", razorpay_subscription_id: "sub_1", razorpay_signature: "sig" });
+    expect(fetchMock.mock.calls.some((c) => c[0] === "/api/billing/verify")).toBe(false);
   });
 
   it("surfaces a checkout error via onError instead of opening Razorpay", async () => {
