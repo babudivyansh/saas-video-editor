@@ -14,6 +14,16 @@
 const DEFAULT_LOCALE = "en-IN";
 
 /** Paise → "₹1,299". Amounts in email are always what was actually charged. */
+/** Minor units of INR or USD — for charge amounts that can be either. */
+export function formatMinor(minor: number, currency: "INR" | "USD" = "INR", locale = DEFAULT_LOCALE): string {
+  if (currency === "INR") return formatPaise(minor, locale);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: minor % 100 === 0 ? 0 : 2,
+  }).format(minor / 100);
+}
+
 export function formatPaise(paise: number, locale = DEFAULT_LOCALE): string {
   return new Intl.NumberFormat(locale, {
     style: "currency",

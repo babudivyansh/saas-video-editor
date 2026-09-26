@@ -262,3 +262,12 @@ describe("POST /api/billing/checkout — total_count", () => {
     expect(subscriptionsCreate).toHaveBeenLastCalledWith(expect.objectContaining({ total_count: 10 }));
   });
 });
+
+// Everything downstream (trial start, activation, billing's charge lines)
+// learns the subscription's currency from these notes.
+describe("POST /api/billing/checkout — subscription currency", () => {
+  it("records the checkout currency in the subscription notes", async () => {
+    await POST(post({ planId: "pro-monthly" }));
+    expect(subscriptionsCreate).toHaveBeenLastCalledWith(expect.objectContaining({ notes: expect.objectContaining({ currency: "INR" }) }));
+  });
+});

@@ -5,6 +5,7 @@ import { fulfillPayment, fulfillSubscriptionCharge, type FulfillNotes } from "@/
 import { recordSubscriptionFailure, recordSubscriptionLifecycle } from "@/lib/dunning";
 import { cancelExistingSubscriptionForSwitch } from "@/lib/billing/subscription-switch";
 import { startTrialOnAuthentication } from "@/lib/billing/trial";
+import { parseCurrency } from "@/lib/currency-shared";
 import { prisma } from "@/lib/prisma";
 import { grantCredits } from "@/lib/credits";
 import { TRIAL_CREDITS } from "@/lib/plans/tiers";
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
         };
       };
       refund?: { entity: { id: string; payment_id: string; amount: number } };
-      subscription?: { entity: { id: string; start_at?: number | null; notes?: { userId?: string; planId?: string; trial?: string } } };
+      subscription?: { entity: { id: string; start_at?: number | null; notes?: { userId?: string; planId?: string; trial?: string; currency?: string } } };
     };
   };
 
@@ -166,6 +167,7 @@ export async function POST(req: NextRequest) {
                 planId: plan.id,
                 razorpaySubscriptionId: sub.id,
                 monthlyCredits: plan.monthlyCredits ?? plan.credits,
+                ...(parseCurrency(sub.notes?.currency) ? { subscriptionCurrency: parseCurrency(sub.notes?.currency) } : {}),
                 ...(extendsTerm ? { subscriptionEndsAt: endsAt } : {}),
                 // Clears a prepaid term's refill schedule when a NEW recurring
                 // subscription takes over. Left alone when this subscription is

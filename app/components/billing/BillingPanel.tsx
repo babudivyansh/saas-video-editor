@@ -649,7 +649,7 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
               ) : (
                 <p className="text-xs text-ink">
                   <span className="font-semibold">Free until {formatDate(trial.endsAt.toISOString())}.</span>{" "}
-                  {user?.plan ? <>Then {planPrice(user.plan, currency)}/month, renewing automatically. </> : null}
+                  {user?.plan ? <>Then {planPrice(user.plan, user.subscriptionCurrency ?? currency)}/month, renewing automatically. </> : null}
                   Cancel before then and you won&apos;t be charged anything.
                 </p>
               )}
@@ -684,7 +684,7 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
               quoting a "next charge" for one was simply untrue. */}
           {!cancelled && user?.plan?.priceInPaise && user?.razorpaySubscriptionId ? (
             <p className="text-xs text-ink-soft">
-              {trial ? "First charge" : "Next charge"} {planPrice(user.plan, currency)} on {user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "—"}.
+              {trial ? "First charge" : "Next charge"} {planPrice(user.plan, user.subscriptionCurrency ?? currency)} on {user?.subscriptionEndsAt ? formatDate(user.subscriptionEndsAt) : "—"}.
             </p>
           ) : null}
         </Card>

@@ -3,7 +3,7 @@
 
 import type { EmailDocument } from "../layout";
 import { html } from "../html";
-import { formatDate, formatDateShort, formatPaise, greet, plural } from "../format";
+import { formatDate, formatDateShort, formatMinor, formatPaise, greet, plural } from "../format";
 import { APP_URL, PRODUCT_NAME } from "../tokens";
 
 const BILLING_URL = `${APP_URL}/dashboard?billing=1`;
@@ -150,12 +150,15 @@ export function paymentFailed(p: { name: string; reason: string | null; attempt:
 export function trialStarted(p: {
   name: string;
   planName: string;
+  /** Minor units of `currency` — paise for INR, cents for USD. */
   priceInPaise: number;
   trialCredits: number;
   endsAt: Date;
+  /** The currency the subscription bills in. Defaults to INR. */
+  currency?: "INR" | "USD";
 }): EmailDocument {
   const when = formatDateShort(p.endsAt);
-  const amount = p.priceInPaise ? formatPaise(p.priceInPaise) : "";
+  const amount = p.priceInPaise ? formatMinor(p.priceInPaise, p.currency) : "";
   return {
     subject: `Your ${PRODUCT_NAME} free trial has started`,
     preheader: `${p.trialCredits} credits added. Free until ${when}${amount ? `, then ${amount}/month` : ""}.`,
@@ -192,13 +195,16 @@ export function trialStarted(p: {
 export function trialEnding(p: {
   name: string;
   planName: string;
+  /** Minor units of `currency` — paise for INR, cents for USD. */
   priceInPaise: number;
   endsAt: Date | null;
+  /** The currency the subscription bills in. Defaults to INR. */
+  currency?: "INR" | "USD";
 }): EmailDocument {
   // Carries its own preposition: with no end date the fallback is the bare word
   // "tomorrow", and "finishes on tomorrow" is not a sentence.
   const when = p.endsAt ? `on ${formatDateShort(p.endsAt)}` : "tomorrow";
-  const amount = p.priceInPaise ? formatPaise(p.priceInPaise) : "";
+  const amount = p.priceInPaise ? formatMinor(p.priceInPaise, p.currency) : "";
   return {
     subject: `Your ${PRODUCT_NAME} trial ends tomorrow`,
     preheader: `Your trial finishes ${when}. Cancel before then if it isn't for you.`,

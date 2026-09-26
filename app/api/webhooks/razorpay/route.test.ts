@@ -15,11 +15,14 @@ vi.mock("@/lib/env", () => ({
 }));
 vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/redis", () => ({ redis: { set: vi.fn(async () => {}) } }));
-const trialStartedEmails: Array<{ to: string; endsAt: Date }> = [];
+const trialStartedEmails: Array<{ to: string; endsAt: Date; price?: number; currency?: string }> = [];
+vi.mock("@/lib/currency", () => ({
+  getPlanPriceMinor: vi.fn(async (_slug: string, paise: number, currency: string) => (currency === "USD" ? 2900 : paise)),
+}));
 vi.mock("@/lib/email", () => ({
   sendReviewPromptEmail: vi.fn(async () => {}),
-  sendTrialStartedEmail: vi.fn(async (to: string, _n: string, _p: string, _price: number, _c: number, endsAt: Date) => {
-    trialStartedEmails.push({ to, endsAt });
+  sendTrialStartedEmail: vi.fn(async (to: string, _n: string, _p: string, price: number, _c: number, endsAt: Date, currency?: string) => {
+    trialStartedEmails.push({ to, endsAt, ...(currency === "USD" ? { price, currency } : {}) });
   }),
 }));
 vi.mock("@/lib/notify", () => ({ notify: vi.fn(async () => {}) }));
@@ -289,6 +292,12 @@ describe("subscription.authenticated (7-day trial)", () => {
     await post(authenticated("sub_yr", { planId: "sub_pro_12mo" }));
     expect(grants).toEqual([]);
     expect(cancelled).toEqual([{ subId: "sub_yr", reason: "trial_ineligible" }]);
+  });
+
+  it("records a USD trial's currency and quotes the charge in dollars", async () => {
+    await post(authenticated("sub_usd", { currency: "USD" }));
+    expect((user as unknown as { subscriptionCurrency?: string }).subscriptionCurrency).toBe("USD");
+    expect(trialStartedEmails).toEqual([{ to: "trial@test.com", endsAt: new Date(START_AT * 1000), price: 2900, currency: "USD" }]);
   });
 
   it("ignores a non-trial subscription (it starts on activation)", async () => {

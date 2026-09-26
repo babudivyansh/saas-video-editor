@@ -223,6 +223,9 @@ async function handlePOST(req: NextRequest) {
           userId: auth.userId,
           planId: basePlan.slug,
           trial: wantsTrial ? "1" : "0",
+          // The currency this subscription bills in — copied onto the user on
+          // trial start / activation so "first charge" lines quote it.
+          currency,
         },
       });
 

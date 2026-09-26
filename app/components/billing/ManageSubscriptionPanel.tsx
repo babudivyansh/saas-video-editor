@@ -64,7 +64,11 @@ export function ManageSubscriptionPanel({
   // "Recurring" means an actual Razorpay mandate, not merely having a plan: a
   // legacy prepaid term lapses instead of renewing, so it has no next charge.
   const recurring = !!user?.razorpaySubscriptionId && !!endsAt;
-  const priceMinor = currency === "USD"
+  // A charge line quotes what the subscription actually bills in, not the
+  // viewer's display currency — an INR subscriber on an en-US browser was told
+  // "First charge $29". Falls back to the display currency when unknown.
+  const chargeCurrency: Currency = user?.subscriptionCurrency ?? currency;
+  const priceMinor = chargeCurrency === "USD"
     ? (user?.plan?.usdPriceInCents ?? 0)
     : (user?.plan?.priceInPaise ?? 0);
 
@@ -126,7 +130,7 @@ export function ManageSubscriptionPanel({
               value={
                 cancelled ? (trial ? "None — trial cancelled" : "None — cancelled")
                   : !recurring ? "None — access ends on the date above"
-                  : priceMinor ? (trial && endsAt ? `${formatMoney(priceMinor, currency)} on ${formatDate(endsAt)}` : formatMoney(priceMinor, currency))
+                  : priceMinor ? (trial && endsAt ? `${formatMoney(priceMinor, chargeCurrency)} on ${formatDate(endsAt)}` : formatMoney(priceMinor, chargeCurrency))
                   : "—"
               }
               muted={cancelled || !recurring}

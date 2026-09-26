@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getPlanPriceMinor } from "@/lib/currency";
 import { effectivePlan } from "@/lib/plans/effective-plan";
+import { parseCurrency } from "@/lib/currency-shared";
 
 export async function GET(req: NextRequest) {
   const auth = await getAuthUser(req);
@@ -39,6 +40,7 @@ export async function GET(req: NextRequest) {
       // Distinguishes a true recurring mandate from a legacy prepaid term. The
       // billing UI promised a "next charge" for both; only the former has one.
       razorpaySubscriptionId: true,
+      subscriptionCurrency: true,
       nextRefillAt: true,
       monthlyCredits: true,
       // Lets the client hide the "start free trial" CTA for accounts that have
@@ -66,6 +68,19 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
   const { _count, ...userFields } = user;
 
+  // The currency "next charge" lines must quote. Stored since 2026-09; older
+  // subscribers fall back to their latest plan purchase's currency. Null
+  // means unknown — the client then uses the viewer's currency as before.
+  let subscriptionCurrency = parseCurrency(user.subscriptionCurrency);
+  if (!subscriptionCurrency && user.subscriptionEndsAt) {
+    const last = await prisma.purchase.findFirst({
+      where: { userId: auth.userId, plan: { kind: "subscription" } },
+      orderBy: { createdAt: "desc" },
+      select: { currency: true },
+    });
+    subscriptionCurrency = parseCurrency(last?.currency);
+  }
+
   // Effective plan tier, resolved with the same rule as getUserTier() so the
   // client can size things like the video-duration cap (TIER_MAX_DURATION_SECONDS)
   // to exactly what the server will bill. "free" for no/expired subscription.
@@ -82,6 +97,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     user: {
       ...userFields,
+      subscriptionCurrency,
       hasPurchased: _count.purchases > 0,
       plan,
       tier,
