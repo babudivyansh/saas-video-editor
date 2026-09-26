@@ -962,8 +962,9 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
     // neither the transcript nor Gemini's output — kick it off now and run it
     // concurrently with STT + Gemini below instead of waiting on it after
     // they've already finished.
-    // Prefers the GPU active-speaker model and falls back to Rekognition, then
-    // to nothing (static centre crop) — see lib/asd.ts. Timelines are cached
+    // Prefers the GPU active-speaker model, then Rekognition only if an admin
+    // enabled that ($0.10/source-minute) fallback, then nothing (static centre
+    // crop) — see lib/asd.ts. Timelines are cached
     // via loadFaceTimeline/saveFaceTimeline, which keeps the samples in an S3
     // sidecar rather than a Postgres JSON column: a multi-hour source produces
     // six figures of samples, which is not a column value.

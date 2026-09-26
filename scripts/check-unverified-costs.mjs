@@ -28,17 +28,18 @@ const ALLOWLIST = {
   // ideogram-4 tier-slug ambiguity (`/fast` vs `/instant`) — cheap either way.
   "lib/models/imageModels.ts": 1,
   // pixverse (v5.6) — weak cost/slug data (~$0.01/s reported); priced at a
-  // conservative 3 cr/s (>=3x either way) and creator+ gated. The other video
+  // conservative 4 cr/s (>=3x at the net floor either way) and creator+ gated. The other video
   // models had their fal costs confirmed in the 2026-08 audit (per-resolution
   // rates now in resolutionCredits), so their markers were removed.
   "lib/models/videoModels.ts": 1,
   // Three markers, all mitigated the same way — costUsd unknown, so the tool is
   // tier-gated where the credit revenue absorbs the uncertainty:
   //   1. subtitle-remover (per-frame OCR cost unconfirmed)
-  //   2. clip-dub (ElevenLabs Dubbing per-minute rate unconfirmed)
-  //   3. caption-render (Submagic per-minute rate is not published, and the
+  //   2. clip-dub ($0.50/min is ElevenLabs' published rate; not yet confirmed
+  //      against an invoice. Priced 20 cr/min = 3x at the net floor, gated pro+)
+  //   3. caption-render ($0.69/min is Submagic's published PAYG rate; the
   //      billable act — creating a project — cannot be probed for free, so it
-  //      needs a real invoice to confirm. Gated creator+ and priced per
+  //      needs a real invoice to confirm. Priced 27 cr/min, gated creator+ and priced per
   //      billable MINUTE rather than per render, because providers in this
   //      category round a partial minute up to a whole one.)
   //   4. music-generate (ElevenLabs Music is paid-plan only — every call 402s

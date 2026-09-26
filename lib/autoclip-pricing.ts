@@ -30,11 +30,10 @@ export interface AutoClipPricing {
 
 export const AUTOCLIP_PRICING_DEFAULTS: AutoClipPricing = {
   perClip: 1, perTwoMinutes: 1, analysisPerHalfHour: 1, rerender: 1,
-  // Dubbing was a flat 1 credit per dub at any length. 2 credits per minute is a
-  // conservative placeholder, NOT a researched price — the real ElevenLabs
-  // Dubbing per-minute cost is still unconfirmed, which is why clip-dub is
-  // Pro-gated in lib/tool-costs.ts until it is.
-  dubPerMinute: 2,
+  // ElevenLabs Dubbing API: $0.50 per source minute without a watermark
+  // (elevenlabs.io/pricing/api, checked 2026-09-26). The old 2 cr/min billed
+  // ~$0.16 against that — 0.3x, a loss on every dub. ceil(0.50*3/0.0784) = 20.
+  dubPerMinute: 20,
 };
 
 export function computeCreditCost(clipCount: number, totalDurationSec: number, pricing: AutoClipPricing): number {

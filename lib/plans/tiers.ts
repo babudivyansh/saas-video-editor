@@ -122,8 +122,38 @@ export function formatBytes(bytes: number): string {
  *
  * NOTE: this is the LIST-price floor. Coupons cut it further, which is why
  * lib/coupons.ts caps the discount a subscription cart can take.
+ *
+ * GROSS, i.e. what the customer pays. Prices are GST-inclusive (see
+ * lib/invoice/seller.ts), so this is not what we keep — price against
+ * REVENUE_FLOOR_USD_PER_CREDIT below.
  */
-export const REVENUE_FLOOR_USD_PER_CREDIT = 0.0952;
+export const REVENUE_FLOOR_GROSS_USD_PER_CREDIT = 0.0952;
+
+/** GST on the service, percent. Mirrors GST_RATE_PERCENT in lib/invoice/seller.ts
+ *  (not imported: that module pulls in email tokens, and this one is client-safe).
+ *  lib/plans/tiers.test.ts fails if the two ever disagree. */
+export const PRICING_GST_RATE_PERCENT = 18;
+
+/** Razorpay's domestic fee (2%) plus 18% GST on that fee, as a share of gross. */
+export const PAYMENT_GATEWAY_FEE_SHARE = 0.02 * 1.18;
+
+/**
+ * NET revenue per credit at the cheapest live SKU — the floor every credit
+ * price is checked against (lib/models/pricing.test.ts).
+ *
+ *   $0.0952 / 1.18 (GST)          = $0.08068
+ *   − $0.0952 x 2.36% (gateway)   = $0.00225
+ *                                  = $0.0784 per credit
+ *
+ * The 2026-09-26 pricing audit found every "3x" price had been set against the
+ * GROSS figure, so the real margin after tax was ~2.4x. Pricing formula for any
+ * credit-billed feature: ceil(costUsd x margin / REVENUE_FLOOR_USD_PER_CREDIT).
+ */
+export const REVENUE_FLOOR_USD_PER_CREDIT =
+  Math.floor(
+    (REVENUE_FLOOR_GROSS_USD_PER_CREDIT / (1 + PRICING_GST_RATE_PERCENT / 100) -
+      REVENUE_FLOOR_GROSS_USD_PER_CREDIT * PAYMENT_GATEWAY_FEE_SHARE) * 10000,
+  ) / 10000;
 
 // Subscription credits roll over month to month, capped at this multiple of
 // the monthly grant. On refill: subscriptionCredits = min(current + grant,
