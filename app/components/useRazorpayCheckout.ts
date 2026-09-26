@@ -7,7 +7,10 @@ import { loadRazorpayScript } from "@/lib/razorpay";
 // Razorpay attaches its constructor to window once the checkout script loads.
 interface RazorpaySuccess {
   razorpay_payment_id: string;
-  razorpay_order_id: string;
+  /** Present for one-time orders. */
+  razorpay_order_id?: string;
+  /** Present for subscriptions (incl. the ₹5 trial authorisation). */
+  razorpay_subscription_id?: string;
   razorpay_signature: string;
 }
 declare global {
@@ -106,11 +109,24 @@ export function useRazorpayCheckout(): UseRazorpayCheckout {
             ? { amount: data.amount, currency: data.currency, order_id: data.orderId }
             : { subscription_id: data.subscriptionId, recurring: 1 }),
           handler: async (response: RazorpaySuccess) => {
-            // One-time orders need explicit server-side verification; a
-            // subscription's first charge is granted entirely by the
-            // subscription.activated / subscription.charged webhooks, so
-            // there's nothing to verify here.
+            // One-time orders are verified and fulfilled here. A subscription
+            // is verified too: for a free trial this starts the trial at once
+            // (/api/billing/verify-subscription), instead of depending solely
+            // on the subscription.authenticated webhook — which, misconfigured
+            // or late, left a customer who had authorised the mandate with
+            // nothing. Paid subscriptions are still granted by the webhooks.
             try {
+              if (data.mode === "subscription" && response.razorpay_subscription_id) {
+                await fetch("/api/billing/verify-subscription", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                  body: JSON.stringify({
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_subscription_id: response.razorpay_subscription_id,
+                    razorpay_signature: response.razorpay_signature,
+                  }),
+                });
+              }
               if (data.mode === "order") {
                 await fetch("/api/billing/verify", {
                   method: "POST",
