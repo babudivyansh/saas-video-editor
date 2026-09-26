@@ -5,6 +5,12 @@
 
 export type Currency = "INR" | "USD";
 
+/** A stored/foreign currency string as a Currency, or null if it isn't one. */
+export function parseCurrency(value: unknown): Currency | null {
+  const v = typeof value === "string" ? value.toUpperCase() : "";
+  return v === "INR" || v === "USD" ? v : null;
+}
+
 export function formatMoney(minorUnits: number, currency: Currency): string {
   const major = minorUnits / 100;
   if (currency === "USD") {

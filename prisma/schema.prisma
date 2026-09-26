@@ -37,6 +37,12 @@ model User {
   // Null = legacy prepaid subscriber (one-time orders; cron-refilled).
   // Set = renewals arrive via the subscription.charged webhook.
   razorpaySubscriptionId   String?   @unique
+  // ISO currency ("INR" | "USD") the recurring subscription is billed in.
+  // Set from the subscription's notes.currency (written by checkout) on trial
+  // start / activation, and from each charge. Every "next charge" / "first
+  // charge" line reads this — it used to follow the BROWSER's locale, so an
+  // INR subscriber on an en-US browser was told "First charge $29".
+  subscriptionCurrency     String?
   razorpayCustomerId       String?
   // 7-day Pro trial: once per account, card-authorized upfront.
   trialUsedAt              DateTime?

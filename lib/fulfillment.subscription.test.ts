@@ -66,7 +66,7 @@ vi.mock("@/lib/prisma", () => {
             if (op.increment) user[k] += op.increment;
           }
         }
-        for (const k of ["subscriptionEndsAt", "monthlyCredits", "planId", "lowCreditEmailSentAt", "nextRefillAt", "trialEndsAt", "razorpaySubscriptionId"] as const) {
+        for (const k of ["subscriptionEndsAt", "monthlyCredits", "planId", "lowCreditEmailSentAt", "nextRefillAt", "trialEndsAt", "razorpaySubscriptionId", "subscriptionCurrency"] as const) {
           if (k in data) (user as Record<string, unknown>)[k] = data[k];
         }
         return { ...user };
@@ -244,5 +244,19 @@ describe("fulfillSubscriptionCharge — term length", () => {
       subscriptionId: "sub_1", paymentId: "pay_switch", amountInPaise: 1768000, notesPlanId: "plan-pro-annual",
     });
     expect(monthsFromNow(user.subscriptionEndsAt)).toBeGreaterThan(12);
+  });
+});
+
+// Each charge records the currency it was taken in, so billing quotes the
+// next one correctly (an INR subscriber on an en-US browser saw "$29").
+describe("fulfillSubscriptionCharge — currency", () => {
+  it("stores the charge's currency on the subscriber", async () => {
+    await fulfillSubscriptionCharge({ subscriptionId: "sub_1", paymentId: "pay_usd", amountInPaise: 2900, currency: "usd" });
+    expect((user as unknown as { subscriptionCurrency?: string }).subscriptionCurrency).toBe("USD");
+  });
+
+  it("leaves it alone when Razorpay gave no currency", async () => {
+    await fulfillSubscriptionCharge({ subscriptionId: "sub_1", paymentId: "pay_none", amountInPaise: 219900 });
+    expect((user as unknown as { subscriptionCurrency?: string }).subscriptionCurrency).toBeUndefined();
   });
 });

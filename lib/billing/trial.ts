@@ -19,13 +19,15 @@ import { grantCredits } from "@/lib/credits";
 import { isTrialPlan, TRIAL_CREDITS, TRIAL_DAYS } from "@/lib/plans/tiers";
 import { cancelExistingSubscriptionForSwitch } from "./subscription-switch";
 import { sendTrialStartedEmail } from "@/lib/email";
+import { parseCurrency } from "@/lib/currency-shared";
+import { getPlanPriceMinor } from "@/lib/currency";
 import { trialEligibility, type TrialIneligible } from "./trial-eligibility";
 
 export interface AuthenticatedSubscription {
   id: string;
   /** Unix seconds — when the first real charge (and the paid term) begins. */
   start_at?: number | null;
-  notes?: { userId?: string; planId?: string; trial?: string };
+  notes?: { userId?: string; planId?: string; trial?: string; currency?: string };
 }
 
 export type TrialStartResult =
@@ -96,6 +98,7 @@ export async function startTrialOnAuthentication(sub: AuthenticatedSubscription)
         nextRefillAt: null,
         trialUsedAt: now,
         trialEndsAt: startAt,
+        ...(parseCurrency(sub.notes?.currency) ? { subscriptionCurrency: parseCurrency(sub.notes?.currency) } : {}),
       },
     });
     await grantCredits({ userId, bucket: "subscription", amount: TRIAL_CREDITS, reason: "grant:trial", refId: sub.id, tx });
@@ -112,8 +115,16 @@ export async function startTrialOnAuthentication(sub: AuthenticatedSubscription)
   // must never be a surprise. Non-fatal: the trial itself has been granted.
   const recipient = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, firstName: true, name: true } });
   if (recipient) {
+    // Quote the price in the currency the subscription bills in.
+    // If the USD price can't be resolved, quote INR rather than a rupee figure
+    // labelled in dollars.
+    let currency = parseCurrency(sub.notes?.currency) ?? "INR";
+    let price = plan.priceInPaise;
+    if (currency === "USD") {
+      try { price = await getPlanPriceMinor(plan.slug, plan.priceInPaise, "USD"); } catch { currency = "INR"; }
+    }
     await sendTrialStartedEmail(
-      recipient.email, recipient.firstName ?? recipient.name ?? "", plan.name, plan.priceInPaise, TRIAL_CREDITS, startAt,
+      recipient.email, recipient.firstName ?? recipient.name ?? "", plan.name, price, TRIAL_CREDITS, startAt, currency,
     ).catch((e: unknown) => logger.error("billing/trial", `trial-started email failed for ${userId}`, e));
   }
   return { status: "started" };

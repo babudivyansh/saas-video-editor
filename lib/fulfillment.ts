@@ -10,6 +10,7 @@ import { markQuestComplete } from "@/lib/quests";
 import { grantCredits, getBalances } from "@/lib/credits";
 import { logger } from "@/lib/logger";
 import { recurringTerm } from "@/lib/billing/term";
+import { parseCurrency } from "@/lib/currency-shared";
 
 // Single source of truth for granting a captured Razorpay payment. Called by
 // BOTH the client-side verify endpoint (app/api/billing/verify) and the webhook
@@ -196,6 +197,8 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
       where: { id: user.id },
       data: {
         subscriptionEndsAt: term.accessUntil,
+        // The charge's own currency is the ground truth for what renewals bill in.
+        ...(parseCurrency(args.currency) ? { subscriptionCurrency: parseCurrency(args.currency) } : {}),
         monthlyCredits,
         // Persist the plan link if this charge resolved it from notes before
         // activated ran, so tier gating and later renewals see it immediately.
@@ -316,6 +319,7 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
           // to Razorpay Subscriptions' subscription.charged for true recurring).
           nextRefillAt: months > 1 ? nextRefill : null,
           monthlyCredits,
+          subscriptionCurrency: currency,
         },
       });
       await tx.purchase.create({

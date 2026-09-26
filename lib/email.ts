@@ -138,14 +138,16 @@ export async function sendPaymentFailedEmail(
 
 export async function sendTrialStartedEmail(
   to: string, name: string, planName: string, priceInPaise: number, trialCredits: number, endsAt: Date,
+  currency: "INR" | "USD" = "INR",
 ): Promise<void> {
-  await sendTemplate("trial-started", to, { name, planName, priceInPaise, trialCredits, endsAt });
+  await sendTemplate("trial-started", to, { name, planName, priceInPaise, trialCredits, endsAt, currency });
 }
 
 export async function sendTrialEndingEmail(
   to: string, name: string, planName: string, priceInPaise: number, endsAt: Date | null,
+  currency: "INR" | "USD" = "INR",
 ): Promise<void> {
-  await sendTemplate("trial-ending", to, { name, planName, priceInPaise, endsAt });
+  await sendTemplate("trial-ending", to, { name, planName, priceInPaise, endsAt, currency });
 }
 
 export async function sendSubscriptionCancelledEmail(

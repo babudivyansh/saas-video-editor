@@ -232,6 +232,7 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     samples: {
       default: { name: "Divyansh", planName: "Pro", priceInPaise: 219900, trialCredits: 25, endsAt: SOON },
       "no price": { name: "Divyansh", planName: "Pro", priceInPaise: 0, trialCredits: 25, endsAt: SOON },
+      USD: { name: "Divyansh", planName: "Pro", priceInPaise: 2900, trialCredits: 25, endsAt: SOON, currency: "USD" },
     },
   }),
   "trial-ending": entry({
@@ -244,6 +245,7 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     samples: {
       default: { name: "Divyansh", planName: "Studio", priceInPaise: 129900, endsAt: SOON },
       "no price": { name: "Divyansh", planName: "Studio", priceInPaise: 0, endsAt: null },
+      USD: { name: "Divyansh", planName: "Pro", priceInPaise: 2900, endsAt: SOON, currency: "USD" },
     },
   }),
   "subscription-cancelled": entry({

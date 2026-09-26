@@ -36,6 +36,8 @@ export interface AuthUser {
   dismissedHints: string[];
   subscriptionEndsAt: string | null;
   subscriptionCancelledAt: string | null;
+  /** Currency the recurring subscription bills in; null when unknown. */
+  subscriptionCurrency?: "INR" | "USD" | null;
   nextRefillAt: string | null;
   monthlyCredits: number;
   trialUsedAt: string | null;

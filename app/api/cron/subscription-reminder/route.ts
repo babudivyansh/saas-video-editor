@@ -6,6 +6,8 @@ import {
   sendTrialEndingEmail,
 } from "@/lib/email";
 import { shouldSendCategory } from "@/lib/notifications";
+import { parseCurrency } from "@/lib/currency-shared";
+import { getPlanPriceMinor } from "@/lib/currency";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 
@@ -208,20 +210,31 @@ export async function GET(req: NextRequest) {
       // outright — see POST /api/billing/cancel), so "you'll be charged
       // tomorrow" would be false and alarming.
       where: { trialEndsAt: { gte: windowStart, lte: windowEnd }, subscriptionCancelledAt: null },
-      select: { id: true, email: true, firstName: true, name: true, trialEndsAt: true, plan: { select: { name: true, priceInPaise: true } } },
+      select: {
+        id: true, email: true, firstName: true, name: true, trialEndsAt: true, subscriptionCurrency: true,
+        plan: { select: { name: true, slug: true, priceInPaise: true } },
+      },
     });
 
     for (const u of endingTrials) {
       try {
-        if (await shouldSendCategory(u.id, "creditAlerts")) {
-          await sendTrialEndingEmail(
-            u.email,
-            u.firstName ?? u.name ?? "",
-            u.plan?.name ?? "Pro",
-            u.plan?.priceInPaise ?? 0,
-            u.trialEndsAt,
-          );
+        // Not gated on a notification preference: this is the notice of a
+        // mandate's first charge (the template is registered transactional),
+        // and it used to be skipped for anyone who had turned off credit
+        // alerts — they were charged with no warning at all.
+        let currency = parseCurrency(u.subscriptionCurrency) ?? "INR";
+        let price = u.plan?.priceInPaise ?? 0;
+        if (currency === "USD" && u.plan) {
+          try { price = await getPlanPriceMinor(u.plan.slug, u.plan.priceInPaise, "USD"); } catch { currency = "INR"; }
         }
+        await sendTrialEndingEmail(
+          u.email,
+          u.firstName ?? u.name ?? "",
+          u.plan?.name ?? "Pro",
+          price,
+          u.trialEndsAt,
+          currency,
+        );
         results.trialEnding++;
       } catch (e) {
         logger.error("cron/sub-reminder", `trial-ending email error for ${u.id}`, e);
