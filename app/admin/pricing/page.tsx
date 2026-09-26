@@ -287,8 +287,27 @@ export default function AdminPricingPage() {
                     </span>
                   ))}
                   <Button variant="secondary" size="sm" onClick={() => syncMutation.mutate({ id: p.id })} disabled={syncMutation.isPending}>
-                    {syncMutation.isPending && syncMutation.variables?.id === p.id ? "Syncing…" : "Sync"}
+                    {syncMutation.isPending && syncMutation.variables?.id === p.id && !syncMutation.variables?.force ? "Syncing…" : "Sync"}
                   </Button>
+                  {/* Sync is a no-op when an id is already stored — including an
+                      id minted under the OTHER Razorpay mode (test and live keep
+                      separate Plans). Recreate mints fresh ones for the current
+                      keys; checkout also does this by itself on a "plan doesn't
+                      exist" rejection. Existing subscribers keep their own plan. */}
+                  {(p.razorpayPlanIdInr || p.razorpayPlanIdUsd) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm("Create fresh Razorpay Plans for this plan with the current API keys? Use this after switching Razorpay between test and live mode. Existing subscribers are not affected.")) {
+                          syncMutation.mutate({ id: p.id, force: true });
+                        }
+                      }}
+                      disabled={syncMutation.isPending}
+                      className="text-xs font-semibold text-fg-muted underline-offset-2 hover:text-fg hover:underline disabled:opacity-50"
+                    >
+                      {syncMutation.isPending && syncMutation.variables?.id === p.id && syncMutation.variables?.force ? "Recreating…" : "Recreate (after test/live switch)"}
+                    </button>
+                  )}
                 </div>
               )}
 
