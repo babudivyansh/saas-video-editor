@@ -30,6 +30,15 @@ model User {
   purchasedCredits         Int       @default(0)
   bonusCredits             Int       @default(0)
   bonusCreditsExpireAt     DateTime?
+  // ── Clip Minutes (second meter, 2026-09-26 pricing plan) ──
+  // AutoClip bills in minutes of uploaded source; credits above pay for the AI
+  // extras. Same bucket model and drain order as credits, maintained ONLY by
+  // lib/minutes.ts (minutes = denormalized total), ledgered in MinuteTransaction.
+  minutes                  Int       @default(0)
+  subscriptionMinutes      Int       @default(0)
+  purchasedMinutes         Int       @default(0)
+  bonusMinutes             Int       @default(0)
+  bonusMinutesExpireAt     DateTime?
   // Free-tier monthly grant anchor: users without an active plan get a small
   // bonus-credit refill each month (cron step 4). Null for subscribers.
   freeCreditsRefillAt      DateTime?
@@ -91,6 +100,7 @@ model User {
   subscriptionEndsAt       DateTime? // when the prepaid term expires (null = no active sub)
   nextRefillAt             DateTime? // when the next monthly credit grant is due
   monthlyCredits           Int       @default(0) // credits granted on each refill for the active tier
+  monthlyMinutes           Int       @default(0) // Clip Minutes granted on each refill for the active tier
   // Affiliate program
   referredBy               String? // affiliateId that referred this user
   // Email lifecycle tracking
@@ -168,6 +178,7 @@ model User {
   purchases           Purchase[]
   invoices            Invoice[]
   creditTransactions  CreditTransaction[]
+  minuteTransactions  MinuteTransaction[]
   quests              UserQuest[]
   claimedRankRewards  String[]             @default([])
   // Last time the user was shown their rank-reward credit grants, so the
@@ -409,6 +420,10 @@ model Plan {
   razorpayPlanIdUsd String?
   intervalMonths    Int? // subscription term length: 1 / 3 / 6 / 12
   monthlyCredits    Int? // credits granted each month of the term
+  monthlyMinutes    Int? // Clip Minutes granted each month of the term (subscriptions)
+  // Clip Minutes a one-time kind="minute_pack" purchase grants. 0 for every
+  // other kind (credits carries their grant).
+  minutes           Int        @default(0)
   // "creator" | "pro" | "studio" — meaningful only when kind == "subscription";
   // null for pack/addon rows. See lib/plans/tiers.ts for the TierId union and
   // gating helpers. "free" is not a Plan row — it's the sentinel tier for a
@@ -437,6 +452,8 @@ model Purchase {
   // but those all predate GST go-live, so no invoice is ever issued for them.
   currency      String   @default("INR")
   credits       Int
+  // Clip Minutes this payment granted (subscription month or minute pack).
+  minutes       Int      @default(0)
   status        String   @default("captured")
   createdAt     DateTime @default(now())
   invoice       Invoice?
@@ -913,6 +930,25 @@ model CreditTransaction {
   @@index([userId, createdAt])
   @@index([refId])
   // Credit-economy chart: granted-vs-spent per day across all users.
+  @@index([createdAt])
+}
+
+// Clip Minutes ledger — the CreditTransaction shape, for the second meter.
+// Kept a separate table on purpose: refunds are keyed on refId, and a shared
+// ledger would let a minute refund restore credits (or vice versa) the moment
+// anything reused a refId across meters. See lib/minutes.ts.
+model MinuteTransaction {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bucket    String // "bonus" | "subscription" | "purchased"
+  delta     Int // positive = grant, negative = spend/expire
+  reason    String // "spend:auto-clip" | "grant:subscription" | "grant:refill" | "grant:minute-pack" | "refund" | "lapse" | ...
+  refId     String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([refId])
   @@index([createdAt])
 }
 
