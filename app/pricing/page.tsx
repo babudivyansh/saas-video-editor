@@ -124,6 +124,7 @@ function PricingPageInner() {
   }, [showToast]);
 
   const packs = plans.filter(p => p.kind === "pack");
+  const minutePacks = plans.filter(p => p.kind === "minute_pack");
   const subs  = plans.filter(p => p.kind === "subscription");
   const savePct = yearlySavePct(subs, currency);
 
@@ -268,6 +269,16 @@ function PricingPageInner() {
             document.getElementById("plans")?.scrollIntoView({ behavior: "smooth" });
             selectPlan(plan);
           }}
+        />
+      )}
+
+      {!plansLoading && (
+        <AddonStrip
+          packs={minutePacks}
+          unit="minutes"
+          currency={currency}
+          buyingPack={buyingPack}
+          onBuy={handleBuyPack}
         />
       )}
 

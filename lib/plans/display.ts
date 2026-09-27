@@ -26,7 +26,7 @@ export interface DisplayPlan {
   currency: string;
   credits: number;
   features: string[];
-  kind: "subscription" | "pack" | "addon";
+  kind: "subscription" | "pack" | "addon" | "minute_pack";
   intervalMonths: number | null;
   monthlyCredits: number | null;
   /** Clip Minutes per month (subscriptions). */

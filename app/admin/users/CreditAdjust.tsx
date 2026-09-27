@@ -21,9 +21,12 @@ interface Props {
   headers: () => Record<string, string>;
   /** Query keys to invalidate once the balance changes. */
   invalidateKeys?: unknown[][];
+  /** Which meter to adjust: AI credits (default) or Clip Minutes. */
+  meter?: "credits" | "minutes";
 }
 
-export function CreditAdjust({ userId, headers, invalidateKeys }: Props) {
+export function CreditAdjust({ userId, headers, invalidateKeys, meter = "credits" }: Props) {
+  const label = meter === "minutes" ? "Clip Minutes" : "credits";
   const queryClient = useQueryClient();
   const [delta, setDelta] = useState("");
   const [reason, setReason] = useState("");
@@ -33,7 +36,7 @@ export function CreditAdjust({ userId, headers, invalidateKeys }: Props) {
     mutationFn: async () => {
       const n = parseInt(delta, 10);
       if (!Number.isInteger(n) || n === 0) throw new Error("Enter a non-zero integer (negative to deduct).");
-      const res = await fetch(`/api/admin/users/${userId}/credits`, {
+      const res = await fetch(`/api/admin/users/${userId}/${meter}`, {
         method: "POST", headers: headers(), body: JSON.stringify({ delta: n, reason: reason.trim() }),
       });
       const d = await res.json().catch(() => ({}));
@@ -53,10 +56,10 @@ export function CreditAdjust({ userId, headers, invalidateKeys }: Props) {
 
   return (
     <div className="pt-2 border-t border-line">
-      <p className="text-xs font-semibold text-fg-muted mb-1.5">Adjust credits (audited)</p>
+      <p className="text-xs font-semibold text-fg-muted mb-1.5">Adjust {label} (audited)</p>
       <div className="flex gap-1.5">
         <input value={delta} onChange={(e) => setDelta(e.target.value)} placeholder="±100" inputMode="numeric"
-          className="w-16 text-xs border border-line rounded-lg px-2 py-1.5" aria-label="Credit delta" />
+          className="w-16 text-xs border border-line rounded-lg px-2 py-1.5" aria-label={`${label} delta`} />
         <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (required)"
           className="flex-1 text-xs border border-line rounded-lg px-2 py-1.5" aria-label="Reason" />
         <Button onClick={() => adjustMutation.mutate()} disabled={adjustMutation.isPending || reason.trim().length < 3} variant="primary" size="sm">

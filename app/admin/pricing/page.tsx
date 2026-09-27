@@ -21,6 +21,10 @@ interface Plan {
   kind: string;
   intervalMonths: number | null;
   monthlyCredits: number | null;
+  /** Clip Minutes per month (subscriptions) — see the 2026-09-26 pricing model. */
+  monthlyMinutes: number | null;
+  /** Clip Minutes a minute_pack grants. */
+  minutes: number;
   tier: string | null;
   // Razorpay Plans are immutable, so these are the plan the customer is
   // actually charged against. Null = this currency falls back to a one-time
@@ -31,7 +35,7 @@ interface Plan {
 
 const EMPTY = {
   slug: "", name: "", priceInPaise: 0, credits: 0, features: "", sortOrder: 0,
-  kind: "pack", intervalMonths: "", monthlyCredits: "", tier: "",
+  kind: "pack", intervalMonths: "", monthlyCredits: "", tier: "", monthlyMinutes: "", minutes: 0,
 };
 const input = "w-full bg-surface-2 border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40";
 
@@ -106,6 +110,7 @@ export default function AdminPricingPage() {
           name: p.name, priceInPaise: p.priceInPaise, credits: p.credits, features: p.features,
           active: p.active, sortOrder: p.sortOrder, kind: p.kind,
           intervalMonths: p.intervalMonths ?? null, monthlyCredits: p.monthlyCredits ?? null, tier: p.tier ?? null,
+          monthlyMinutes: p.monthlyMinutes ?? null, minutes: p.minutes ?? 0,
         }),
       });
       const d = await res.json().catch(() => ({}));
@@ -170,6 +175,8 @@ export default function AdminPricingPage() {
           sortOrder: Number(form.sortOrder), kind: form.kind,
           intervalMonths: form.intervalMonths !== "" ? Number(form.intervalMonths) : null,
           monthlyCredits: form.monthlyCredits !== "" ? Number(form.monthlyCredits) : null,
+          monthlyMinutes: form.monthlyMinutes !== "" ? Number(form.monthlyMinutes) : null,
+          minutes: Number(form.minutes) || 0,
           tier: form.tier !== "" ? form.tier : null,
           features: form.features.split("\n").map(s => s.trim()).filter(Boolean),
         }),
@@ -249,8 +256,15 @@ export default function AdminPricingPage() {
                     <option value="pack">pack</option>
                     <option value="subscription">subscription</option>
                     <option value="addon">addon</option>
+                    <option value="minute_pack">minute_pack</option>
                   </select>
                 </div>
+                {p.kind === "minute_pack" && (
+                  <div>
+                    <label className="text-xs font-semibold text-fg-subtle block mb-1">Clip Minutes</label>
+                    <input type="number" className={input} value={p.minutes ?? 0} onChange={e => edit(p.id, { minutes: Number(e.target.value) || 0 })} />
+                  </div>
+                )}
                 {p.kind === "subscription" && (
                   <>
                     <div>
@@ -260,6 +274,10 @@ export default function AdminPricingPage() {
                     <div>
                       <label className="text-xs font-semibold text-fg-subtle block mb-1">Monthly Credits</label>
                       <input type="number" className={input} value={p.monthlyCredits ?? ""} onChange={e => edit(p.id, { monthlyCredits: e.target.value ? Number(e.target.value) : null })} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-fg-subtle block mb-1">Monthly Clip Minutes</label>
+                      <input type="number" className={input} value={p.monthlyMinutes ?? ""} onChange={e => edit(p.id, { monthlyMinutes: e.target.value ? Number(e.target.value) : null })} />
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-fg-subtle block mb-1">Tier</label>
@@ -435,6 +453,12 @@ export default function AdminPricingPage() {
                   <option value="addon">addon</option>
                 </select>
               </div>
+              {form.kind === "minute_pack" && (
+                <div>
+                  <label className="text-xs font-semibold text-fg-subtle block mb-1">Clip Minutes</label>
+                  <input type="number" className={input} value={form.minutes} onChange={e => setForm({ ...form, minutes: Number(e.target.value) || 0 })} />
+                </div>
+              )}
               {form.kind === "subscription" && (
                 <>
                   <div>
@@ -444,6 +468,10 @@ export default function AdminPricingPage() {
                   <div>
                     <label className="text-xs font-semibold text-fg-subtle block mb-1">Monthly Credits</label>
                     <input type="number" className={input} value={form.monthlyCredits} onChange={e => setForm({ ...form, monthlyCredits: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-fg-subtle block mb-1">Monthly Clip Minutes</label>
+                    <input type="number" className={input} value={form.monthlyMinutes} onChange={e => setForm({ ...form, monthlyMinutes: e.target.value })} />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-fg-subtle block mb-1">Tier</label>

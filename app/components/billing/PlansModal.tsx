@@ -72,6 +72,7 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: P
 
   const subs = plans.filter(p => p.kind === "subscription");
   const packs = plans.filter(p => p.kind === "pack");
+  const minutePacks = plans.filter(p => p.kind === "minute_pack");
 
   const hasActivePlan = !!user?.subscriptionEndsAt && new Date(user.subscriptionEndsAt) > new Date();
   const checkoutLoading = checkoutPlan != null && activeId === checkoutPlan.slug;
@@ -126,6 +127,7 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: P
             plansLoading={plansLoading}
             subs={subs}
             packs={packs}
+            minutePacks={minutePacks}
             term={term}
             onTermChange={setTerm}
             currency={currency}
@@ -141,10 +143,11 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: P
 }
 
 // ── Browse step ──────────────────────────────────────────────────────────────
-function BrowseStep({ plansLoading, subs, packs, term, onTermChange, currency, onCurrencyChange, buyingPack, onBuyPack, onSelectPlan, currentPlanSlug }: {
+function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange, currency, onCurrencyChange, buyingPack, onBuyPack, onSelectPlan, currentPlanSlug }: {
   plansLoading: boolean;
   subs: DbPlan[];
   packs: DbPlan[];
+  minutePacks: DbPlan[];
   term: number;
   onTermChange: (months: number) => void;
   currency: Currency;
@@ -227,38 +230,73 @@ function BrowseStep({ plansLoading, subs, packs, term, onTermChange, currency, o
         </div>
       )}
 
-      {!plansLoading && packs.length > 0 && (
-        <div className="mt-10">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="h-px flex-1 bg-surface-3" />
-            <p className="text-xs font-bold text-fg-subtle uppercase tracking-widest whitespace-nowrap">Top-up credit packs</p>
-            <div className="h-px flex-1 bg-surface-3" />
-          </div>
-          <p className="text-center text-xs text-fg-subtle mb-4">Top up any time, with or without a plan. Pack credits never expire.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {packs.map(pack => {
-              const price = formatMoney(minorUnits(pack, currency), currency);
-              return (
-                <div key={pack.id} className="flex flex-col p-4 bg-panel rounded-xl border-2 border-line">
-                  <p className="font-semibold text-fg text-sm">{pack.name}</p>
-                  <p className="text-xs text-fg-muted mt-0.5">{pack.credits} credits</p>
-                  <p className="font-bold text-fg mt-1.5">{price}</p>
-                  <button
-                    type="button"
-                    onClick={() => onBuyPack(pack)}
-                    disabled={!!buyingPack}
-                    className="mt-3 flex min-h-9 items-center justify-center gap-1.5 rounded-full bg-surface-3 text-sm font-semibold text-fg ring-1 ring-inset ring-line-strong hover:bg-panel-raised disabled:opacity-60"
-                  >
-                    {buyingPack === pack.slug ? (
-                      <><span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-fg/30 border-t-fg" />Buying…</>
-                    ) : `Buy for ${price}`}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      {!plansLoading && (
+        <PackGrid
+          title="Clip Minute packs"
+          blurb="For Auto Clips — 1 minute per minute of video. Pack minutes never expire."
+          packs={minutePacks}
+          amount={(p) => `${p.minutes ?? 0} Clip Minutes`}
+          currency={currency}
+          buyingPack={buyingPack}
+          onBuyPack={onBuyPack}
+        />
       )}
+      {!plansLoading && (
+        <PackGrid
+          title="Top-up credit packs"
+          blurb="Top up any time, with or without a plan. Pack credits never expire."
+          packs={packs}
+          amount={(p) => `${p.credits} credits`}
+          currency={currency}
+          buyingPack={buyingPack}
+          onBuyPack={onBuyPack}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Pack grid (credit packs and Clip Minute packs) ──────────────────────────
+function PackGrid({ title, blurb, packs, amount, currency, buyingPack, onBuyPack }: {
+  title: string;
+  blurb: string;
+  packs: DbPlan[];
+  amount: (pack: DbPlan) => string;
+  currency: Currency;
+  buyingPack: string | null;
+  onBuyPack: (pack: DbPlan) => void;
+}) {
+  if (packs.length === 0) return null;
+  return (
+    <div className="mt-10">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="h-px flex-1 bg-surface-3" />
+        <p className="text-xs font-bold text-fg-subtle uppercase tracking-widest whitespace-nowrap">{title}</p>
+        <div className="h-px flex-1 bg-surface-3" />
+      </div>
+      <p className="text-center text-xs text-fg-subtle mb-4">{blurb}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {packs.map(pack => {
+          const price = formatMoney(minorUnits(pack, currency), currency);
+          return (
+            <div key={pack.id} className="flex flex-col p-4 bg-panel rounded-xl border-2 border-line">
+              <p className="font-semibold text-fg text-sm">{pack.name}</p>
+              <p className="text-xs text-fg-muted mt-0.5">{amount(pack)}</p>
+              <p className="font-bold text-fg mt-1.5">{price}</p>
+              <button
+                type="button"
+                onClick={() => onBuyPack(pack)}
+                disabled={!!buyingPack}
+                className="mt-3 flex min-h-9 items-center justify-center gap-1.5 rounded-full bg-surface-3 text-sm font-semibold text-fg ring-1 ring-inset ring-line-strong hover:bg-panel-raised disabled:opacity-60"
+              >
+                {buyingPack === pack.slug ? (
+                  <><span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-fg/30 border-t-fg" />Buying…</>
+                ) : `Buy for ${price}`}
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

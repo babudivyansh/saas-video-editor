@@ -228,7 +228,7 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
     await tx.purchase.create({
       data: { id: paymentId, userId: user.id, planId: resolvedPlanId, amountInPaise, currency, credits: applied, minutes: appliedMinutes, status: "captured" },
     });
-    return { alreadyProcessed: false, applied, nextChargeAt: term.paidUntil };
+    return { alreadyProcessed: false, applied, appliedMinutes, nextChargeAt: term.paidUntil };
   });
 
   if (result.alreadyProcessed) return { fulfilled: false, alreadyProcessed: true };
@@ -256,6 +256,7 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
       result.applied ?? 0,
       result.nextChargeAt ?? null,
       await invoiceForEmail(paymentId),
+      result.appliedMinutes ?? 0,
     ).catch((e: unknown) => logger.error("fulfillment", `renewal email failed for ${user.id}`, e));
   }
 
@@ -371,7 +372,7 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
 
   if (result.status === "already-processed") return { fulfilled: false, alreadyProcessed: true };
   if (result.status === "no-target") return { fulfilled: false, alreadyProcessed: false };
-  const { kind, credits } = result;
+  const { kind, credits, minutes } = result;
   // Guaranteed defined past the "no-target" check above (that's exactly the
   // case where either was missing).
   const uid = userId as string;
@@ -403,13 +404,18 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
       const termMonths = planForEmail?.intervalMonths ?? 1;
       const refill =
         isSubscription && termMonths > 1 && planForEmail?.monthlyCredits
-          ? { monthlyCredits: planForEmail.monthlyCredits, remainingMonths: termMonths - 1 }
+          ? {
+              monthlyCredits: planForEmail.monthlyCredits,
+              remainingMonths: termMonths - 1,
+              monthlyMinutes: planForEmail.monthlyMinutes ?? undefined,
+            }
           : undefined;
       await sendPurchaseConfirmationEmail({
         userEmail: user.email,
         userName: user.firstName ?? user.name ?? "",
-        planName: planForEmail?.name ?? planSlug ?? "Credit Pack",
+        planName: planForEmail?.name ?? planSlug ?? (kind === "minute_pack" ? "Clip Minutes" : "Credit Pack"),
         creditsAdded: creditsForEmail,
+        minutesAdded: minutes,
         amountInPaise,
         orderId: orderId ?? paymentId,
         isSubscription,

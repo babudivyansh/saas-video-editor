@@ -36,6 +36,15 @@ export const USD_PRICE_BOOK_DEFAULTS: Record<string, number> = {
   sub_creator_12mo: 11999, // vs $180 at 12x monthly -> 33% off
   sub_pro_12mo: 23299,     // vs $348 -> 33% off
   sub_studio_12mo: 47399,  // vs $708 -> 33% off
+  // Clip Minute packs (2026-09-26). Without an entry these fell through to a
+  // plain FX conversion ($8.99 / $22.99 / $67.99), while the subscriptions
+  // above are USD-anchored at a premium — so in USD a pack undercut the plan
+  // it's meant to top up (1,000 min at $0.068/min vs Creator's $0.10/min).
+  // These keep the same ratio to Creator's per-minute price that the INR
+  // packs have (₹7.99 / ₹6.66 / ₹6.00 against ₹6.66): 1.2x, 1.0x, 0.9x.
+  minutes_100: 1199,   // $0.120/min
+  minutes_300: 2999,   // $0.100/min
+  minutes_1000: 8999,  // $0.090/min
 };
 
 async function loadFx(): Promise<FxConfig> {

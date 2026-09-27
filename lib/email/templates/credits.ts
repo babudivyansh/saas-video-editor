@@ -13,13 +13,35 @@ export function creditsRefilled(p: {
   name: string;
   creditsAdded: number;
   newBalance: number;
+  /** Clip Minutes that landed with this refill, and the new minutes balance. */
+  minutesAdded?: number;
+  minutesBalance?: number;
 }): EmailDocument {
+  const withMinutes = (p.minutesAdded ?? 0) > 0;
   return {
-    subject: `Your ${p.creditsAdded} ${PRODUCT_NAME} credits have been refreshed`,
-    preheader: `Your monthly refill landed. Balance is now ${p.newBalance} credits.`,
+    subject: withMinutes
+      ? `Your ${PRODUCT_NAME} Clip Minutes and credits have been refreshed`
+      : `Your ${p.creditsAdded} ${PRODUCT_NAME} credits have been refreshed`,
+    preheader: withMinutes
+      ? `Your monthly refill landed: ${p.minutesBalance ?? p.minutesAdded} Clip Minutes and ${p.newBalance} credits.`
+      : `Your monthly refill landed. Balance is now ${p.newBalance} credits.`,
     blocks: [
-      { kind: "heading", text: `Your ${p.creditsAdded} credits have been refreshed` },
-      { kind: "paragraph", text: `Hi ${greet(p.name)}, your monthly credit refill is here. Time to create.` },
+      {
+        kind: "heading",
+        text: withMinutes
+          ? `+${p.minutesAdded} Clip Minutes and +${p.creditsAdded} credits`
+          : `Your ${p.creditsAdded} credits have been refreshed`,
+      },
+      { kind: "paragraph", text: `Hi ${greet(p.name)}, your monthly refill is here. Time to create.` },
+      ...(withMinutes
+        ? ([{
+            kind: "hero",
+            label: "Clip Minutes",
+            value: String(p.minutesBalance ?? p.minutesAdded),
+            caption: "for Auto Clips",
+            tone: "brand",
+          }] as const)
+        : []),
       {
         kind: "hero",
         label: "Current balance",

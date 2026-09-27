@@ -87,10 +87,11 @@ export interface PurchaseEmailData {
   userName: string;
   planName: string;
   creditsAdded: number;
+  minutesAdded?: number;
   amountInPaise: number;
   orderId: string;
   isSubscription: boolean;
-  refill?: { monthlyCredits: number; remainingMonths: number };
+  refill?: { monthlyCredits: number; remainingMonths: number; monthlyMinutes?: number };
   /** GST tax invoice for this payment — its number is quoted and the PDF attached. */
   invoice?: InvoiceAttachment;
 }
@@ -111,6 +112,7 @@ export async function sendPurchaseConfirmationEmail(data: PurchaseEmailData): Pr
     userName: data.userName,
     planName: data.planName,
     creditsAdded: data.creditsAdded,
+    minutesAdded: data.minutesAdded,
     amountInPaise: data.amountInPaise,
     orderId: data.orderId,
     isSubscription: data.isSubscription,
@@ -122,10 +124,11 @@ export async function sendPurchaseConfirmationEmail(data: PurchaseEmailData): Pr
 export async function sendSubscriptionRenewedEmail(
   to: string, name: string, amountInPaise: number, creditsAdded: number, nextChargeAt: Date | null,
   invoice?: InvoiceAttachment,
+  minutesAdded?: number,
 ): Promise<void> {
   await sendTemplate(
     "subscription-renewed", to,
-    { name, amountInPaise, creditsAdded, nextChargeAt, invoiceNumber: invoice?.number },
+    { name, amountInPaise, creditsAdded, minutesAdded, nextChargeAt, invoiceNumber: invoice?.number },
     { attachments: invoiceAttachments(invoice) },
   );
 }
@@ -174,8 +177,11 @@ export async function sendSubscriptionExpiredEmail(
 
 export async function sendCreditsRefilledEmail(
   to: string, name: string, creditsAdded: number, newBalance: number,
+  minutes?: { added: number; balance: number },
 ): Promise<void> {
-  await sendTemplate("credits-refilled", to, { name, creditsAdded, newBalance });
+  await sendTemplate("credits-refilled", to, {
+    name, creditsAdded, newBalance, minutesAdded: minutes?.added, minutesBalance: minutes?.balance,
+  });
 }
 
 export async function sendQuestRankRewardEmail(

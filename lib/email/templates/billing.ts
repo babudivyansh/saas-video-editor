@@ -15,35 +15,48 @@ export function purchaseConfirmation(p: {
   /** Credits granted BY THIS PAYMENT — for a prepaid annual term that is one
    *  month's allowance, not the term total. */
   creditsAdded: number;
+  /** Clip Minutes granted by this payment (a subscription month or a minute
+   *  pack). Optional so older callers and samples still render. */
+  minutesAdded?: number;
   amountInPaise: number;
   orderId: string;
   isSubscription: boolean;
   /** Set for multi-month prepaid terms, so the receipt can explain that the
    *  remaining months arrive as monthly refills rather than looking short. */
-  refill?: { monthlyCredits: number; remainingMonths: number };
+  refill?: { monthlyCredits: number; remainingMonths: number; monthlyMinutes?: number };
   /** Set when a GST tax invoice was issued — its PDF rides along as an attachment. */
   invoiceNumber?: string;
 }): EmailDocument {
   const amount = formatPaise(p.amountInPaise);
+  const minutes = p.minutesAdded ?? 0;
+  // What landed, in words — a minute pack adds no credits, and saying
+  // "0 credits added" on its receipt would read as a failed purchase.
+  const added = [
+    minutes > 0 ? `${minutes} Clip Minutes` : null,
+    p.creditsAdded > 0 || minutes === 0 ? `${p.creditsAdded} credits` : null,
+  ].filter(Boolean).join(" and ");
   return {
     subject: `Payment confirmed — ${p.planName} activated`,
-    preheader: `${amount} paid. ${p.creditsAdded} credits added to your account.`,
+    preheader: `${amount} paid. ${added} added to your account.`,
     blocks: [
       { kind: "heading", text: `Hi ${greet(p.userName)} — payment confirmed` },
       {
         kind: "paragraph",
-        text: `Your ${p.isSubscription ? "subscription" : "credit pack"} is active and ready to use.`,
+        text: `Your ${p.isSubscription ? "subscription" : minutes > 0 && p.creditsAdded === 0 ? "Clip Minutes pack" : "credit pack"} is active and ready to use.`,
       },
       {
         kind: "kv",
         title: "Receipt",
         rows: [
           { label: "Plan", value: p.planName },
-          { label: "Credits added", value: `+${p.creditsAdded} credits`, tone: "success" },
+          ...(minutes > 0 ? [{ label: "Clip Minutes added", value: `+${minutes} minutes`, tone: "success" as const }] : []),
+          ...(p.creditsAdded > 0 || minutes === 0
+            ? [{ label: "Credits added", value: `+${p.creditsAdded} credits`, tone: "success" as const }]
+            : []),
           ...(p.refill && p.refill.remainingMonths > 0
             ? [{
                 label: "Then",
-                value: `+${p.refill.monthlyCredits} credits a month for ${plural(p.refill.remainingMonths, "more month")}`,
+                value: `+${p.refill.monthlyMinutes ? `${p.refill.monthlyMinutes} Clip Minutes and ` : ""}${p.refill.monthlyCredits} credits a month for ${plural(p.refill.remainingMonths, "more month")}`,
               }]
             : []),
           { label: "Amount paid", value: amount },
@@ -67,6 +80,8 @@ export function subscriptionRenewed(p: {
   name: string;
   amountInPaise: number;
   creditsAdded: number;
+  /** Clip Minutes granted by this renewal (after the rollover cap). */
+  minutesAdded?: number;
   nextChargeAt: Date | null;
   /** Set when a GST tax invoice was issued — its PDF rides along as an attachment. */
   invoiceNumber?: string;
@@ -74,7 +89,9 @@ export function subscriptionRenewed(p: {
   const amount = formatPaise(p.amountInPaise);
   return {
     subject: `Your ${PRODUCT_NAME} subscription renewed — ${amount}`,
-    preheader: `${amount} paid. ${p.creditsAdded} credits added.`,
+    preheader: p.minutesAdded
+      ? `${amount} paid. ${p.minutesAdded} Clip Minutes and ${p.creditsAdded} credits added.`
+      : `${amount} paid. ${p.creditsAdded} credits added.`,
     blocks: [
       { kind: "heading", text: "Your subscription renewed" },
       {
@@ -82,6 +99,9 @@ export function subscriptionRenewed(p: {
         text: html`Hi ${greet(p.name)}, we've received your payment of <strong>${amount}</strong> and topped your
           account back up.`,
       },
+      ...(p.minutesAdded
+        ? ([{ kind: "hero", label: "Clip Minutes added", value: String(p.minutesAdded), tone: "brand" }] as const)
+        : []),
       { kind: "hero", label: "Credits added", value: String(p.creditsAdded), tone: "brand" },
       { kind: "button", href: BILLING_URL, label: "View billing" },
       ...(p.nextChargeAt

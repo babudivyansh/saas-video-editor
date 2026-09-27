@@ -43,8 +43,11 @@ describe("clip-dub cost policy", () => {
     expect(TOOL_COSTS["clip-dub"].requiredTier).toBe("pro");
   });
 
-  it("publishes a price for AutoClip itself, which had none at all", () => {
+  it("publishes a cost basis for AutoClip itself, which had none at all", () => {
+    // Billed in Clip Minutes since 2026-09-26, so it spends no credits — but
+    // its real per-source-minute cost must still reach the margin dashboards.
     expect(TOOL_COSTS["auto-clip"]).toBeDefined();
-    expect(TOOL_COSTS["auto-clip"].creditCost).toBeGreaterThan(0);
+    expect(TOOL_COSTS["auto-clip"].creditCost).toBe(0);
+    expect(TOOL_COSTS["auto-clip"].costUsd).toBeGreaterThan(0);
   });
 });

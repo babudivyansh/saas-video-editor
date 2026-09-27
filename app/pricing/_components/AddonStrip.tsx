@@ -11,26 +11,41 @@ import { formatMoney, type Currency } from "@/lib/currency-shared";
 import { minorUnits } from "@/lib/plans/display";
 import type { DbPlan } from "./types";
 
-export function AddonStrip({ packs, currency, buyingPack, onBuy }: {
+// Also sells Clip Minute packs (2026-09-26): same strip, `unit="minutes"`.
+const COPY = {
+  credits: {
+    title: "Need more credits?",
+    blurb: "Top up any time, with or without a plan. Pack credits stack with your plan and never expire.",
+    amount: (p: DbPlan) => `${p.credits} credits`,
+  },
+  minutes: {
+    title: "Need more Clip Minutes?",
+    blurb: "For Auto Clips — 1 minute per minute of video. Pack minutes stack with your plan and never expire.",
+    amount: (p: DbPlan) => `${p.minutes ?? 0} min`,
+  },
+} as const;
+
+export function AddonStrip({ packs, currency, buyingPack, onBuy, unit = "credits" }: {
   packs: DbPlan[];
   currency: Currency;
   buyingPack: string | null;
   onBuy: (pack: DbPlan) => void;
+  unit?: "credits" | "minutes";
 }) {
   if (packs.length === 0) return null;
-  // The largest pack carries the best per-credit price; mark it rather than
+  const copy = COPY[unit];
+  const qty = (p: DbPlan) => Math.max(1, unit === "minutes" ? p.minutes ?? 0 : p.credits);
+  // The largest pack carries the best per-unit price; mark it rather than
   // asserting it, in case admin pricing ever changes the order.
   const best = packs.reduce((a, b) =>
-    minorUnits(b, currency) / b.credits < minorUnits(a, currency) / a.credits ? b : a);
+    minorUnits(b, currency) / qty(b) < minorUnits(a, currency) / qty(a) ? b : a);
 
   return (
     <section className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-6 rounded-[var(--radius-card)] border border-line bg-surface-1 p-6 sm:p-8 lg:flex-row lg:items-center lg:gap-10">
         <div className="flex flex-col gap-2 lg:w-72 lg:flex-shrink-0">
-          <h2 className="text-xl font-semibold tracking-[-0.015em] text-fg sm:text-2xl">Need more credits?</h2>
-          <p className="text-sm leading-relaxed text-fg-muted">
-            Top up any time, with or without a plan. Pack credits stack with your plan and never expire.
-          </p>
+          <h2 className="text-xl font-semibold tracking-[-0.015em] text-fg sm:text-2xl">{copy.title}</h2>
+          <p className="text-sm leading-relaxed text-fg-muted">{copy.blurb}</p>
         </div>
         <div className="grid flex-1 grid-cols-2 gap-3 lg:grid-cols-4">
           {packs.map(pack => {
@@ -39,10 +54,10 @@ export function AddonStrip({ packs, currency, buyingPack, onBuy }: {
             return (
               <div key={pack.id} className="flex flex-col gap-1 rounded-2xl border border-line bg-surface-2 p-4">
                 <span className="text-[13px] text-fg-muted">
-                  {pack.name.replace(/\s*Pack$/i, "")}
+                  {unit === "minutes" ? "Minute pack" : pack.name.replace(/\s*Pack$/i, "")}
                   {pack.id === best.id && packs.length > 1 && <span className="font-semibold text-success"> · best value</span>}
                 </span>
-                <span className="text-xl font-semibold text-fg sm:text-[22px]">{pack.credits} credits</span>
+                <span className="text-xl font-semibold text-fg sm:text-[22px]">{copy.amount(pack)}</span>
                 <span className="text-sm text-fg-muted">{price}</span>
                 <button
                   type="button"

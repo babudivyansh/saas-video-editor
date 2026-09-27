@@ -17,7 +17,7 @@ export const GET = withAdmin<{ id: string }>(async (_req, { params }) => {
     where: { id },
     select: {
       id: true, email: true, name: true, firstName: true, lastName: true,
-      credits: true, monthlyCredits: true, role: true, createdAt: true,
+      credits: true, monthlyCredits: true, minutes: true, monthlyMinutes: true, role: true, createdAt: true,
       lastLoginAt: true, suspendedAt: true, adminNotes: true,
       subscriptionEndsAt: true, nextRefillAt: true,
       plan: { select: { id: true, name: true, slug: true, kind: true } },
@@ -31,7 +31,7 @@ export const GET = withAdmin<{ id: string }>(async (_req, { params }) => {
         where: { userId: id },
         orderBy: { createdAt: "desc" },
         take: 20,
-        select: { id: true, amountInPaise: true, credits: true, status: true, createdAt: true, plan: { select: { name: true, kind: true } } },
+        select: { id: true, amountInPaise: true, credits: true, minutes: true, status: true, createdAt: true, plan: { select: { name: true, kind: true } } },
       }),
       prisma.generation.findMany({
         where: { userId: id },

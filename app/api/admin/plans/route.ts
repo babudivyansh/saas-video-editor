@@ -21,6 +21,8 @@ export const POST = withAdmin(async (req, { admin }) => {
     monthlyCredits: body.monthlyCredits ?? null,
     credits: body.credits,
     tier: body.tier ?? null,
+    monthlyMinutes: body.monthlyMinutes ?? null,
+    minutes: body.minutes ?? 0,
   });
   if (shapeError) return NextResponse.json({ error: shapeError }, { status: 400 });
 
@@ -37,6 +39,8 @@ export const POST = withAdmin(async (req, { admin }) => {
       kind: body.kind ?? "pack",
       intervalMonths: body.intervalMonths ?? null,
       monthlyCredits: body.monthlyCredits ?? null,
+      monthlyMinutes: body.monthlyMinutes ?? null,
+      minutes: body.minutes ?? 0,
       tier: body.tier ?? null,
     },
   });

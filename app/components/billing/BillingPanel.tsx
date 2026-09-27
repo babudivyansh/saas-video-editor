@@ -35,6 +35,8 @@ interface DbPlan {
   usdPriceInCents: number;
   currency: string;
   credits: number;
+  /** Clip Minutes a kind="minute_pack" row grants. */
+  minutes?: number;
   kind: string;
 }
 
@@ -174,6 +176,7 @@ export function BillingPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [packs, setPacks] = useState<DbPlan[]>([]);
+  const [minutePacks, setMinutePacks] = useState<DbPlan[]>([]);
   const [addons, setAddons] = useState<DbPlan[]>([]);
   const [launch, setLaunch] = useState<LaunchCoupon | null>(null);
   const [copied, setCopied] = useState(false);
@@ -215,6 +218,7 @@ export function BillingPanel({
     ]).then(([plansData, couponData, summaryData, historyData, purchasesData]) => {
       const all: DbPlan[] = plansData.plans ?? [];
       setPacks(all.filter(p => p.kind === "pack"));
+      setMinutePacks(all.filter(p => p.kind === "minute_pack"));
       setAddons(all.filter(p => p.kind === "addon"));
       const featured: LaunchCoupon[] = couponData.coupons ?? [];
       if (featured.length > 0) setLaunch(featured[0]);
@@ -507,6 +511,7 @@ export function BillingPanel({
           onCurrencyChange={setCurrency}
           hasActivePlan={hasActivePlan}
           packs={packs}
+          minutePacks={minutePacks}
           addons={addons}
           activeId={activeId}
           onBuy={handleBuy}
@@ -665,7 +670,13 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
             </div>
           )}
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {/* Clip Minutes (2026-09-26): the balance Auto Clips spend. */}
+            <StatTile
+              label="Clip Minutes"
+              value={user?.monthlyMinutes ? `${user.minutes ?? 0} of ${user.monthlyMinutes}/mo` : String(user?.minutes ?? 0)}
+              accent="emerald"
+            />
             <StatTile
               label={trial ? "Trial credits" : "Monthly credits"}
               value={trial && !trial.cancelled && user?.monthlyCredits ? `${allowance}, then ${user.monthlyCredits}/mo` : allowance || "—"}
@@ -911,9 +922,46 @@ function AutoTopupToggle({ packs }: { packs: DbPlan[] }) {
 }
 
 // ── Top Up tab ───────────────────────────────────────────────────────────────
-function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onViewPlans, highlightSlug, currency, onCurrencyChange }: {
+// Clip Minute packs (2026-09-26 pricing model) — Auto Clips' meter. Listed
+// first on the Top Up tab: running out of minutes is what sends most people here.
+function MinutePacksSection({ packs, activeId, onBuy, currency }: {
+  packs: DbPlan[];
+  activeId: string | null;
+  onBuy: (slug: string) => void;
+  currency: Currency;
+}) {
+  if (packs.length === 0) return null;
+  return (
+    <section aria-labelledby="minute-packs-heading">
+      <h2 id="minute-packs-heading" className="text-lg font-extrabold text-ink">Top-up Clip Minutes</h2>
+      <p className="text-sm text-ink-soft mt-0.5 mb-4">
+        For Auto Clips — 1 minute per minute of video. One-time purchase · never expire · added instantly.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {packs.map((pack) => {
+          const minor = currency === "USD" ? pack.usdPriceInCents : pack.priceInPaise;
+          const price = planPrice(pack, currency);
+          const perMin = formatMoney(Math.round(minor / Math.max(1, pack.minutes ?? 1)), currency);
+          return (
+            <div key={pack.id} className="bg-panel rounded-[var(--radius-card)] border border-card-border p-5 flex flex-col gap-1">
+              <p className="text-2xl font-extrabold text-ink">{(pack.minutes ?? 0).toLocaleString("en-IN")} <span className="text-sm font-semibold text-ink-soft">min</span></p>
+              <p className="text-sm font-semibold text-ink">{price}</p>
+              <p className="text-xs text-ink-soft">{perMin} per minute</p>
+              <Button variant="primary" size="md" onClick={() => onBuy(pack.slug)} disabled={!!activeId} className="mt-3 w-full">
+                {activeId === pack.slug ? "Buying…" : `Buy for ${price}`}
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function TopupTab({ hasActivePlan, packs, minutePacks, addons, activeId, onBuy, coupon, onViewPlans, highlightSlug, currency, onCurrencyChange }: {
   hasActivePlan: boolean;
   packs: DbPlan[];
+  minutePacks: DbPlan[];
   addons: DbPlan[];
   activeId: string | null;
   onBuy: (slug: string) => void;
@@ -925,7 +973,12 @@ function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onVie
   onCurrencyChange: (c: Currency) => void;
 }) {
   if (!hasActivePlan) {
+    // Minute packs are sold to everyone (checkout never required a plan for a
+    // pack), and a free user who has run out of minutes is exactly who the
+    // AutoClip "Top up minutes" button sends here.
     return (
+      <div className="space-y-6">
+      <MinutePacksSection packs={minutePacks} activeId={activeId} onBuy={onBuy} currency={currency} />
       <Card tint="violet" className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <p className="font-semibold text-ink">Top-up packs require an active subscription</p>
@@ -933,11 +986,13 @@ function TopupTab({ hasActivePlan, packs, addons, activeId, onBuy, coupon, onVie
         </div>
         <Button variant="primary" size="lg" onClick={onViewPlans} className="flex-shrink-0">View Plans</Button>
       </Card>
+      </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      <MinutePacksSection packs={minutePacks} activeId={activeId} onBuy={onBuy} currency={currency} />
       <AutoTopupToggle packs={packs} />
       <section>
         <div className="mb-5 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">

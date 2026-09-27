@@ -87,13 +87,13 @@ const PACKS: SeedPlan[] = [
 
 // ── Clip Minutes packs (2026-09-26 pricing plan) ────────────────────────────
 // One-time, never expire, open to everyone. Priced at or above Creator's
-// ₹6.66/min so a pack never undercuts the subscription. INACTIVE until the
-// minutes UI ships (checkout refuses inactive plans), so nobody can buy a
-// balance they can't see or spend yet.
+// ₹6.66/min so a pack never undercuts the subscription. Active since the
+// minutes UI shipped (Stage 4): /pricing, the plans modal and Billing > Top Up
+// all sell them, and the receipt reports minutes rather than "0 credits".
 const MINUTE_PACKS: SeedPlan[] = [
-  { slug: "minutes_100",  name: "100 Clip Minutes",   priceInPaise: 79900,  credits: 0, minutes: 100,  sortOrder: 50, kind: "minute_pack", active: false, features: ["100 Clip Minutes", "One-time top-up", "Never expires"] },
-  { slug: "minutes_300",  name: "300 Clip Minutes",   priceInPaise: 199900, credits: 0, minutes: 300,  sortOrder: 51, kind: "minute_pack", active: false, features: ["300 Clip Minutes", "One-time top-up", "Never expires"] },
-  { slug: "minutes_1000", name: "1,000 Clip Minutes", priceInPaise: 599900, credits: 0, minutes: 1000, sortOrder: 52, kind: "minute_pack", active: false, features: ["1,000 Clip Minutes", "Best value", "Never expires"] },
+  { slug: "minutes_100",  name: "100 Clip Minutes",   priceInPaise: 79900,  credits: 0, minutes: 100,  sortOrder: 50, kind: "minute_pack", active: true, features: ["100 Clip Minutes", "One-time top-up", "Never expires"] },
+  { slug: "minutes_300",  name: "300 Clip Minutes",   priceInPaise: 199900, credits: 0, minutes: 300,  sortOrder: 51, kind: "minute_pack", active: true, features: ["300 Clip Minutes", "One-time top-up", "Never expires"] },
+  { slug: "minutes_1000", name: "1,000 Clip Minutes", priceInPaise: 599900, credits: 0, minutes: 1000, sortOrder: 52, kind: "minute_pack", active: true, features: ["1,000 Clip Minutes", "Best value", "Never expires"] },
 ];
 
 const PLANS: SeedPlan[] = [...SUBSCRIPTIONS, ...PACKS, ...MINUTE_PACKS];

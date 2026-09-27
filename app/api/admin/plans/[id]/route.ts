@@ -21,6 +21,8 @@ export const PATCH = withAdmin<{ id: string }>(async (req, { admin, params }) =>
     monthlyCredits: merged.monthlyCredits,
     credits: merged.credits,
     tier: merged.tier,
+    monthlyMinutes: merged.monthlyMinutes,
+    minutes: merged.minutes,
   });
   if (shapeError) return NextResponse.json({ error: shapeError }, { status: 400 });
 
