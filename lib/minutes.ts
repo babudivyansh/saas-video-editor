@@ -1,7 +1,9 @@
 import { Prisma } from "@prisma/client";
 import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
-import { SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER } from "@/lib/plans/tiers";
+import {
+  SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER, FREE_TIER_MONTHLY_BONUS_MINUTES, BONUS_MINUTES_EXPIRY_DAYS,
+} from "@/lib/plans/tiers";
 
 // Clip Minutes — the second meter (2026-09-26 pricing plan). AutoClip bills
 // in minutes of uploaded source video; AI Credits (lib/credits.ts) pay for the
@@ -65,11 +67,8 @@ export async function getMinuteBalances(userId: string, tx: Tx | typeof prisma =
   return { bonus, subscription, purchased, total: bonus + subscription + purchased };
 }
 
-/** Whole minutes a source of `durationSec` bills: rounded UP, never below 1. */
-export function billableSourceMinutes(durationSec: number): number {
-  if (!Number.isFinite(durationSec) || durationSec <= 0) return 1;
-  return Math.max(1, Math.ceil(durationSec / 60));
-}
+// Lives in the leaf pricing module so the create page can quote with it.
+export { billableSourceMinutes } from "@/lib/autoclip-pricing";
 
 export interface GrantMinutesParams {
   userId: string;
@@ -139,6 +138,22 @@ export async function grantMonthlyMinutes(params: {
   const applied = await prisma.$transaction(run);
   if (applied > 0) await refreshMinuteCache(userId, (await getMinuteBalances(userId)).total);
   return applied;
+}
+
+/**
+ * The free tier's monthly Clip Minutes: bonus minutes that expire, granted at
+ * signup and by the refill cron's free drip. One helper so the amount and the
+ * expiry can't drift between those call sites.
+ */
+export async function grantFreeTierMinutes(userId: string, reason: string, tx?: Tx): Promise<MinuteBalances> {
+  return grantMinutes({
+    userId,
+    bucket: "bonus",
+    amount: FREE_TIER_MONTHLY_BONUS_MINUTES,
+    reason,
+    bonusExpiresAt: new Date(Date.now() + BONUS_MINUTES_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
+    tx,
+  });
 }
 
 export interface SpendMinutesParams {

@@ -26,12 +26,16 @@ import { redis } from "@/lib/redis";
 import { spendCredits, restoreSpend, getBalances } from "@/lib/credits";
 import { createRenderQueue } from "@/lib/render-queue";
 import { logger } from "@/lib/logger";
+import { rateLimit } from "@/lib/rate-limit";
 import {
   rerenderJob, getAutoClipPricing, rebaseClipWords,
   type RerenderPayload, type Aspect,
 } from "@/lib/autoclip-pipeline";
 import { REFRAME_PRESETS, ZOOM_STRENGTHS, SPEAKER_MODES } from "@/lib/reframe";
 import { liteEditsSchema } from "@/lib/autoclip-lite";
+
+/** Free re-renders per clip per day (fair use — see the check in the request path). */
+export const RERENDER_FAIR_USE_PER_DAY = 10;
 import type { WordTiming } from "@/utils/elevenlabs";
 
 const rerenderQueue = createRenderQueue<RerenderPayload>("auto-clip-rerender", rerenderJob);
@@ -190,6 +194,20 @@ export async function requestRerender(args: RequestRerenderArgs): Promise<Rerend
   const attempt = clip.rerenderCount;
   const cost = attempt === 0 ? 0 : pricing.rerender;
   const refId = rerenderRefId(clipId, attempt);
+
+  // Re-renders are free since the Clip Minutes switch (they are FFmpeg work
+  // on a source already paid for), so a free one needs a fair-use ceiling or
+  // it is unlimited CPU. The first re-render stays outside the cap.
+  if (cost === 0 && attempt > 0) {
+    const { allowed } = await rateLimit(`autoclip-rerender:${clipId}`, RERENDER_FAIR_USE_PER_DAY, 24 * 60 * 60);
+    if (!allowed) {
+      await releaseClaim();
+      return {
+        ok: false, status: 429,
+        error: `You've re-rendered this clip ${RERENDER_FAIR_USE_PER_DAY} times today. Try again tomorrow.`,
+      };
+    }
+  }
 
   if (cost > 0) {
     // Fast-path rejection off the Redis balance cache before touching the ledger.

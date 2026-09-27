@@ -29,6 +29,7 @@ const minutes = vi.hoisted(() => ({
   grantMonthlyMinutes: vi.fn(async () => 0),
   setSubscriptionMinutes: vi.fn(async () => {}),
   expireBonusMinutes: vi.fn(async () => 0),
+  grantFreeTierMinutes: vi.fn(async () => ({ bonus: 30, subscription: 0, purchased: 0, total: 30 })),
 }));
 vi.mock("@/lib/minutes", () => minutes);
 
@@ -385,6 +386,8 @@ describe("cron refill", () => {
     expect(u.bonusCredits).toBe(10);
     expect(u.bonusCreditsExpireAt).not.toBeNull();
     expect(u.freeCreditsRefillAt!.getTime()).toBeGreaterThan(Date.now());
+    // ...and the free tier's monthly Clip Minutes on the same anchor.
+    expect(minutes.grantFreeTierMinutes).toHaveBeenCalledWith(u.id, "grant:free-tier");
   });
 
   it("does not grant the free drip to active subscribers", async () => {

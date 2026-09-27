@@ -8,18 +8,25 @@
 // attempt's failureReason on the project. The routes now differ only in how
 // the caller authenticates.
 //
-// Every exit after something was consumed puts it back: the free-tier slot,
-// the project claim, and — once charged — the credits. That last one is new:
+// Every exit after something was consumed puts it back: the project claim
+// and — once charged — the premium-caption credit hold.
+//
+// Since the Clip Minutes switch (2026-09-26) the run itself is paid in minutes,
+// charged in pickJob once the source duration is exact (lib/autoclip-minutes.ts).
+// When the duration is already known here, a pre-check refuses a run the user
+// can't pay for before anything is claimed or queued. The free tier no longer
+// has a "2 runs a month" quota: it gets monthly bonus minutes like everyone
+// else gets plan minutes, and its watermark comes from the tier as before. That last one is new:
 // the enqueue used to be fire-and-forget, so a Redis outage left the user
 // charged with nothing queued and the project on "analyzing" for good.
 
 import { prisma } from "@/lib/prisma";
 import { getUserTier } from "@/lib/auth";
-import { rateLimit, releaseRateLimit } from "@/lib/rate-limit";
-import { FREE_TIER_AUTOCLIP_RUNS_PER_MONTH, tierPriority } from "@/lib/plans/tiers";
+import { tierPriority } from "@/lib/plans/tiers";
 import { env } from "@/lib/env";
 import { createRenderQueue } from "@/lib/render-queue";
-import { pickJob, getAutoClipPricing, type PickPayload } from "@/lib/autoclip-pipeline";
+import { pickJob, type PickPayload } from "@/lib/autoclip-pipeline";
+import { precheckRunMinutes } from "@/lib/autoclip-minutes";
 import { REFRAME_PRESETS, ZOOM_STRENGTHS, SPEAKER_MODES, sanitizeReframeEnum, sanitizeReframePercent } from "@/lib/reframe";
 import { resolveCaptionCreateInput } from "@/lib/captions/createPayload";
 import { estimateRunCost, bandMaxSeconds } from "@/lib/captions/runEstimate";
@@ -48,30 +55,33 @@ export async function startAutoClipRun(userId: string, rawBody: unknown): Promis
   const input = parsed.data;
   const { projectId } = input;
 
-  const project = await prisma.project.findFirst({ where: { id: projectId, userId } });
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, userId },
+    include: { sourceAsset: { select: { duration: true } } },
+  });
   if (!project) return fail(404, { error: "Project not found" });
   if (!project.uploadedVideoUrl) return fail(400, { error: "Project has no uploaded video" });
 
-  // Free tier gets a small watermarked allowance (rolling 30 days) so the core
-  // product is tasteable before paying. Consumed first so two concurrent
-  // requests can't both slip under it, and handed back on every exit below
-  // that doesn't start a run — a double-submit or a 402 is not a used video.
   const tier = await getUserTier(userId);
-  const quotaKey = `autoclip-free:${userId}`;
-  let quotaTaken = false;
-  if (tier === "free") {
-    const { allowed } = await rateLimit(quotaKey, FREE_TIER_AUTOCLIP_RUNS_PER_MONTH, 30 * 86400);
-    quotaTaken = true;
-    if (!allowed) {
-      await releaseRateLimit(quotaKey);
+
+  // Minutes pre-check — only possible when the source length is already known
+  // (an uploaded or library file). Charges nothing; pickJob does. A URL import
+  // is checked there instead, after the probe and before any provider spend.
+  const knownDuration = project.sourceAsset?.duration ?? null;
+  if (knownDuration != null && knownDuration > 0) {
+    const pre = await precheckRunMinutes({
+      userId, projectId, uploadedVideoUrl: project.uploadedVideoUrl, durationSec: knownDuration,
+      allowCreditOverflow: input.allowCreditOverflow,
+    });
+    if (!pre.ok) {
       return fail(402, {
-        error: "free_limit_reached",
-        message: `You've used your ${FREE_TIER_AUTOCLIP_RUNS_PER_MONTH} free Auto Clip videos this month. Upgrade for unlimited, watermark-free clips.`,
-        upgradeUrl: "/pricing",
+        error: "insufficient_minutes",
+        required: pre.needed,
+        balance: pre.available,
+        overflowCredits: pre.overflowCredits,
       });
     }
   }
-  const giveBackQuota = () => (quotaTaken ? releaseRateLimit(quotaKey).catch(() => {}) : Promise.resolve());
 
   // Atomic double-submit guard — the transition itself is the check, since two
   // concurrent requests would both pass a stale read.
@@ -81,14 +91,12 @@ export async function startAutoClipRun(userId: string, rawBody: unknown): Promis
     data: { status: "analyzing", failureReason: null },
   });
   if (claimed.count === 0) {
-    await giveBackQuota();
     return fail(409, { error: "Analysis already in progress or already run for this project" });
   }
   // The project is now "analyzing"; leaving it there on a failed start would
   // make the run unretryable.
   const release = async () => {
     await prisma.project.update({ where: { id: projectId }, data: { status: "draft" } }).catch(() => {});
-    await giveBackQuota();
   };
 
   // The admin kill-switch.
@@ -101,20 +109,20 @@ export async function startAutoClipRun(userId: string, rawBody: unknown): Promis
     captionStyleIndex: input.captionStyleIndex,
     captionTemplateId: input.captionTemplateId,
   });
-  const [pricing, captionPricing] = await Promise.all([getAutoClipPricing(), getCaptionRenderPricing()]);
+  const captionPricing = await getCaptionRenderPricing();
   const estimate = estimateRunCost(
     {
       clipCount: input.clipCount,
       maxDurationSec: bandMaxSeconds(input.minDuration, input.maxDuration),
       premiumCaptions: caption.templateId ? isPremiumTemplateId(caption.templateId) : false,
+      sourceDurationSec: knownDuration,
     },
-    pricing,
     captionPricing,
   );
 
-  // Charged here because there is no later confirm step. Deliberately a worst
-  // case — settleRunCost() refunds the difference once real durations exist,
-  // and pickJob/renderJob refund it all if the run fails.
+  // The premium-caption HOLD, in credits (0 for a native caption style). A
+  // worst case, returned when the run settles — each caption render charges
+  // its own refId. The run itself is paid in minutes, in pickJob.
   const refId = `auto-clip:${projectId}`;
   if (estimate.total > 0) {
     const spend = await spendCredits({ userId, amount: estimate.total, reason: "spend:auto-clip", refId });
@@ -142,6 +150,7 @@ export async function startAutoClipRun(userId: string, rawBody: unknown): Promis
     smoothness: sanitizeReframePercent(input.smoothness) ?? 50,
     trackingSpeed: sanitizeReframePercent(input.trackingSpeed) ?? 50,
     animatedCaptions: input.animatedCaptions,
+    allowCreditOverflow: input.allowCreditOverflow,
   };
 
   try {

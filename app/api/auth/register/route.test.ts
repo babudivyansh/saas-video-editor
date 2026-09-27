@@ -1,4 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Signup grants the free tier's Clip Minutes through lib/minutes (ledgered);
+// its engine has its own real-database suite, so it's a spy here.
+const grantFreeTierMinutes = vi.hoisted(() => vi.fn(async () => ({ bonus: 30, subscription: 0, purchased: 0, total: 30 })));
+vi.mock("@/lib/minutes", () => ({ grantFreeTierMinutes }));
 import { NextRequest } from "next/server";
 
 let rateLimitAllowed = true;
@@ -74,6 +79,19 @@ describe("POST /api/auth/register", () => {
     const res = await post({ ...VALID_BODY, referralCode: "SOME-CODE" });
     expect(res.status).toBe(409);
     expect(attributeReferral).not.toHaveBeenCalled();
+  });
+
+  it("grants the free tier's Clip Minutes at signup", async () => {
+    grantFreeTierMinutes.mockClear();
+    const res = await post(VALID_BODY);
+    expect(res.status).toBe(201);
+    expect(grantFreeTierMinutes).toHaveBeenCalledWith(expect.any(String), "grant:signup");
+  });
+
+  it("still creates the account if the minutes grant fails", async () => {
+    grantFreeTierMinutes.mockRejectedValueOnce(new Error("db blip"));
+    const res = await post(VALID_BODY);
+    expect(res.status).toBe(201);
   });
 
   it("creates the account and includes the referral outcome when a code is applied", async () => {

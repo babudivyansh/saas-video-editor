@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { expireBonusCredits, getBalances, grantCredits, setSubscriptionCredits } from "@/lib/credits";
-import { expireBonusMinutes, grantMonthlyMinutes, setSubscriptionMinutes } from "@/lib/minutes";
+import { expireBonusMinutes, grantFreeTierMinutes, grantMonthlyMinutes, setSubscriptionMinutes } from "@/lib/minutes";
 import {
   BONUS_CREDITS_EXPIRY_DAYS,
   FREE_TIER_MONTHLY_BONUS_CREDITS,
@@ -215,6 +215,8 @@ export async function GET(req: NextRequest) {
       reason: "grant:free-tier",
       bonusExpiresAt: new Date(now.getTime() + BONUS_CREDITS_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
     });
+    // ...and the free tier's monthly Clip Minutes, on the same anchor.
+    await grantFreeTierMinutes(u.id, "grant:free-tier");
     await prisma.user.update({ where: { id: u.id }, data: { freeCreditsRefillAt: anchor } });
     freeGranted++;
   }

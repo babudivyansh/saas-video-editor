@@ -28,8 +28,13 @@ export interface AutoClipPricing {
   dubPerMinute: number;
 }
 
+// Since the Clip Minutes switch (2026-09-26) a run is billed in minutes
+// (lib/autoclip-minutes.ts), so perClip / perTwoMinutes / analysisPerHalfHour
+// no longer price anything — they stay in the shape only so a stored admin
+// Config row keeps parsing until Stage 4 removes them from the admin form.
+// Re-renders are free, under a daily fair-use cap (lib/autoclip-rerender.ts).
 export const AUTOCLIP_PRICING_DEFAULTS: AutoClipPricing = {
-  perClip: 1, perTwoMinutes: 1, analysisPerHalfHour: 1, rerender: 1,
+  perClip: 1, perTwoMinutes: 1, analysisPerHalfHour: 1, rerender: 0,
   // Dubbing was a flat 1 credit per dub at any length. 2 credits per minute is a
   // conservative placeholder, NOT a researched price — the real ElevenLabs
   // Dubbing per-minute cost is still unconfirmed, which is why clip-dub is
@@ -73,4 +78,15 @@ export function parseAutoClipPricing(raw: unknown): AutoClipPricing {
     if (typeof v === "number" && Number.isInteger(v) && v >= AUTOCLIP_PRICE_FLOORS[key]) out[key] = v;
   }
   return out;
+}
+
+/**
+ * Clip Minutes a source of `durationSec` bills: whole minutes, rounded UP,
+ * never below 1 (2026-09-26 pricing plan — a run costs 1 minute per source
+ * minute, however many clips it yields). Shared by the server charge
+ * (lib/autoclip-minutes.ts) and the create page's quote.
+ */
+export function billableSourceMinutes(durationSec: number): number {
+  if (!Number.isFinite(durationSec) || durationSec <= 0) return 1;
+  return Math.max(1, Math.ceil(durationSec / 60));
 }
