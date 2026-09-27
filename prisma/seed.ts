@@ -222,13 +222,25 @@ async function main() {
   }
 
   // ── Test user ────────────────────────────────────────────────────────────
-  const hash = await bcrypt.hash("password123", 12);
-  const user = await prisma.user.upsert({
-    where: { email: "test@example.com" },
-    update: {},
-    create: { email: "test@example.com", passwordHash: hash, credits: 30, purchasedCredits: 30 },
-  });
-  console.log("Seeded test user:", user.email, "| credits:", user.credits);
+  // Local databases only. The seed is also run against production (it is how
+  // plan rows are updated — see the Clip Minutes switch-day runbook), and a
+  // known-password account there is a standing way in. SEED_TEST_USER=1
+  // forces it for a non-local test database.
+  const dbHost = (() => {
+    try { return new URL(process.env.DATABASE_URL ?? "").hostname; } catch { return ""; }
+  })();
+  const localDb = ["localhost", "127.0.0.1", "::1", "postgres"].includes(dbHost);
+  if (localDb || process.env.SEED_TEST_USER === "1") {
+    const hash = await bcrypt.hash("password123", 12);
+    const user = await prisma.user.upsert({
+      where: { email: "test@example.com" },
+      update: {},
+      create: { email: "test@example.com", passwordHash: hash, credits: 30, purchasedCredits: 30 },
+    });
+    console.log("Seeded test user:", user.email, "| credits:", user.credits);
+  } else {
+    console.log(`Skipped test user: ${dbHost || "unknown host"} is not a local database (set SEED_TEST_USER=1 to force).`);
+  }
 
   // ── Admin bootstrap ──────────────────────────────────────────────────────
   // Promote the owner account to ADMIN. If it doesn't exist yet, create it with
