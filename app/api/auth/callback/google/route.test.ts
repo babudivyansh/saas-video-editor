@@ -5,6 +5,11 @@
 // OAuth exchange itself, only where the route sends the user afterward.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Signup grants the free tier's Clip Minutes through lib/minutes (ledgered);
+// its engine has its own real-database suite, so it's a spy here.
+const grantFreeTierMinutes = vi.hoisted(() => vi.fn(async () => ({ bonus: 30, subscription: 0, purchased: 0, total: 30 })));
+vi.mock("@/lib/minutes", () => ({ grantFreeTierMinutes }));
 import { NextRequest } from "next/server";
 import { encodeOAuthState } from "@/lib/oauth-state";
 

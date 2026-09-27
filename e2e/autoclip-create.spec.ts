@@ -29,13 +29,13 @@ async function signIn(page: Page, baseURL: string | undefined) {
   await page.route("**/api/caption-templates", (r) => r.fulfill(json({ templates: [] })));
   await page.route("**/api/reviews/prompt-check", (r) => r.fulfill(json({ show: false })));
   await page.route("**/api/projects/clips/score-performance", (r) => r.fulfill(json({ items: [] })));
-  // The real prices and balance — the form shows both beside Generate.
+  // The real caption price and both balances — the form shows them beside Generate.
   await page.route("**/api/generate/auto-clip", (r) =>
     r.request().method() === "GET"
       ? r.fulfill(json({
-          pricing: { perClip: 1, perTwoMinutes: 1, analysisPerHalfHour: 1, rerender: 1, dubPerMinute: 2 },
           captionPricing: { perBillableMinute: 8, perRender: 0 },
           balance: 5,
+          minutes: 4,
         }))
       : r.fallback(),
   );
@@ -48,7 +48,7 @@ async function signIn(page: Page, baseURL: string | undefined) {
   }]);
 }
 
-test("a run refused for credits stays on the form, says why, and leaves no draft behind", async ({ page, baseURL }) => {
+test("a run refused for Clip Minutes stays on the form, says why, and leaves no draft behind", async ({ page, baseURL }) => {
   await signIn(page, baseURL);
   await page.route("**/api/assets?**", (r) => r.fulfill(json({
     assets: [{
@@ -62,7 +62,7 @@ test("a run refused for credits stays on the form, says why, and leaves no draft
   );
   await page.route("**/api/generate/auto-clip", (r) =>
     r.request().method() === "POST"
-      ? r.fulfill(json({ error: "insufficient_credits", required: 12, balance: 5 }, 402))
+      ? r.fulfill(json({ error: "insufficient_minutes", required: 10, balance: 4, overflowCredits: 2 }, 402))
       : r.fallback(),
   );
   const deleted: string[] = [];
@@ -72,16 +72,19 @@ test("a run refused for credits stays on the form, says why, and leaves no draft
   });
 
   await page.goto("/dashboard/create/auto-clip");
-  await expect(page.getByText(/Your balance: 5 credits/)).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByText(/Your balance: 4 Clip Minutes · 5 AI credits/)).toBeVisible({ timeout: 90_000 });
 
   await page.getByRole("button", { name: "Choose from Assets" }).first().click();
   await page.getByText("e2e-source.mp4").click();
+  // The library asset's stored 600s duration prices the run before Generate.
+  await expect(page.getByText("Uses 10 Clip Minutes")).toBeVisible();
+  await expect(page.getByText(/(6 short)/)).toBeVisible();
   await page.getByRole("button", { name: /Generate clips/ }).click();
 
   // Never the raw error code.
-  await expect(page.getByText("insufficient_credits")).toHaveCount(0);
+  await expect(page.getByText("insufficient_minutes")).toHaveCount(0);
   const banner = page.getByRole("alert").filter({ hasText: "Nothing was charged" });
-  await expect(banner).toContainText("You need 12 credits to start this run and you have 5");
+  await expect(banner).toContainText("This video needs 10 Clip Minutes and you have 4");
   await expect(page).not.toHaveURL(/project=/);
   await expect.poll(() => deleted.length).toBe(1);
 });

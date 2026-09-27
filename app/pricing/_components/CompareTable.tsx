@@ -8,7 +8,7 @@
 import { useState } from "react";
 import {
   TIER_ORDER, TIER_LABEL, TIER_MAX_DURATION_SECONDS, TIER_MAX_AUTOCLIP_SOURCE_SECONDS, STORAGE_LIMIT_GB,
-  FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_AUTOCLIP_RUNS_PER_MONTH, tierAtLeast, type TierId,
+  FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_MONTHLY_BONUS_MINUTES, tierAtLeast, type TierId,
 } from "@/lib/plans/tiers";
 import { TOOL_COSTS } from "@/lib/tool-costs";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
@@ -49,7 +49,9 @@ function buildGroups(subs: DbPlan[], term: number): { core: Group; more: Group[]
     title: "Credits & limits",
     rows: [
       { label: "Credits / month", cells: byTier(credits) },
-      { label: "Auto Clip runs", cells: byTier(t => (t === "free" ? `${FREE_TIER_AUTOCLIP_RUNS_PER_MONTH} / month` : "Unlimited")) },
+      { label: "Clip Minutes / month", cells: byTier(t => t === "free"
+        ? `${FREE_TIER_MONTHLY_BONUS_MINUTES} (watermarked)`
+        : String(subs.find(p => p.tier === t && p.intervalMonths === term)?.monthlyMinutes ?? "—")) },
       { label: "Auto Clip upload length", cells: byTier(t => {
         const mins = TIER_MAX_AUTOCLIP_SOURCE_SECONDS[t] / 60;
         return mins < 60 ? `${mins} min` : `${mins / 60} hr`;

@@ -21,6 +21,8 @@ export async function GET() {
       kind: true,
       intervalMonths: true,
       monthlyCredits: true,
+      monthlyMinutes: true,
+      minutes: true,
       tier: true,
     },
   });

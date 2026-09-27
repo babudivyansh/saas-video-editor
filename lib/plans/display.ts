@@ -29,6 +29,10 @@ export interface DisplayPlan {
   kind: "subscription" | "pack" | "addon";
   intervalMonths: number | null;
   monthlyCredits: number | null;
+  /** Clip Minutes per month (subscriptions). */
+  monthlyMinutes?: number | null;
+  /** Clip Minutes a minute pack grants. */
+  minutes?: number;
   tier: Exclude<TierId, "free"> | null;
 }
 
