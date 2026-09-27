@@ -8,7 +8,7 @@
 //   adoptUploadedBytes    — bytes are in hand (a multipart form upload, a
 //                           decoded base64 payload). Uploads to S3 itself.
 //   adoptExistingS3Object — the file is ALREADY in S3 (a URL import, a
-//                           reference-image upload, a stock re-host). Creates
+//                           stock re-host). Creates
 //                           an Asset that references the existing key —
 //                           never copies the physical object (one media
 //                           object -> many feature references).

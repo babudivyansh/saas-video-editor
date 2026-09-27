@@ -95,7 +95,6 @@
       "firstClip": { "title": "创建您的第一个片段", "desc": "使用简易编辑器创建您的第一个片段。" },
       "hearYourselfOut": { "title": "听听自己的声音", "desc": "生成您的第一个AI配音。" },
       "pictureThis": { "title": "看看这个", "desc": "生成您的第一张AI图片。" },
-      "firstVideo": { "title": "生成您的第一个视频", "desc": "使用AI视频生成器制作一个视频。" },
       "firstExport": { "title": "导出一个项目", "desc": "从编辑器导出一个已完成的项目。" },
       "upgradedPlan": { "title": "升级您的套餐", "desc": "订阅付费套餐。" },
       "exploreToolbox": { "title": "探索工具箱", "desc": "试用任意 AI 工具 — Face Swap、Background Remover、Voice Changer 或 Vocal Remover。" },
@@ -122,7 +121,6 @@
       "aiFaceSwap": "AI 换脸",
       "voiceoverGenerator": "配音生成器",
       "backgroundRemover": "背景移除工具",
-      "veo3Generator": "VEO3 生成器",
       "youtubeDownloader": "YouTube 下载器"
     }
   },
@@ -140,7 +138,6 @@
       "imageGenerator": { "title": "AI 图片生成器", "desc": "使用AI在几秒钟内生成高质量图片。" },
       "voiceover": { "title": "AI 配音生成器", "desc": "使用50多种配音，几秒钟内制作高质量配音。" },
       "speechEnhancer": { "title": "AI 语音增强器", "desc": "使用AI提升任何音频或视频文件的质量。" },
-      "videoGenerator": { "title": "AI 视频生成器", "desc": "VEO3 是一款可让您使用AI创建视频的工具。" },
       "vocalRemover": { "title": "AI 人声移除工具", "desc": "使用AI从任何音频或视频文件中移除人声。" },
       "brainstormer": { "title": "AI 创意生成器", "desc": "根据您的细分领域生成病毒式内容创意。" }
     }

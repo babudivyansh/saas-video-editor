@@ -142,7 +142,8 @@ const BUDGET = {
   // The review surfaces' share was paid off in the same commit that added
   // this rule: the two modals' focus rings and the attachment drop zone's
   // border now use `primary`, which is where a focus state belonged anyway.
-  "raw-violet": 91, // AutoClip stage 6: old-system violet focus rings + hovers
+  // 91 -> 90: the AI video generator removal took its tool-card preview.
+  "raw-violet": 90, // AutoClip stage 6: old-system violet focus rings + hovers
   // First measurement, 2026-09-10, taken AFTER the Social Tracker's share was
   // paid off in the same commit that added the rule. The 138 that remain are
   // spread over ~30 files — pricing (11), PlansModal (10), admin/ops (8),
@@ -150,12 +151,15 @@ const BUDGET = {
   // a near-white pill or a hue that ignores the theme.
   // 130 -> 119: the /pricing redesign paid off its 11 (amber renewal warning,
   // green coupon chip, amber calculator notes, emerald success banner).
-  "raw-emerald": 119,
+  // 119 -> 111: the AI video generator removal (its tool page, dashboard tile
+  // and onboarding goal chip).
+  "raw-emerald": 111,
   // 51 -> 47: four of the retired brand hexes lived in the caption tile tables
   // deleted below.
   // 47 -> 43: four more went with the per-page voice lists, whose entries
   // each carried a hand-assigned avatar tint.
-  "brand-hex": 37,
+  // 37 -> 33: the video generator quest and preview colours went with it.
+  "brand-hex": 33,
   "legacy-light": 0,
   // 320 -> 318: same deletion. The replacement (CaptionStyleGrid) still needs
   // two inline hex values for the swatch gradient — that is product artwork
@@ -174,7 +178,8 @@ const BUDGET = {
   // 152 -> 112: the six hand-maintained voice lists are gone. Each entry
   // carried a decorative colour literal, and two pages additionally held a
   // copy of the provider's voice ids purely to build preview URLs by hand.
-  "inline-hex": 44, // AutoClip stage 6: score bands, poster gradients, drop zone
+  // 44 -> 41: AI video generator removal.
+  "inline-hex": 41, // AutoClip stage 6: score bands, poster gradients, drop zone
 };
 
 function walk(dir, out = []) {

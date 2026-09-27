@@ -91,7 +91,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: "The AI tools, at a glance",
     summary: "What each tool in the toolbox does and roughly what it costs.",
     paragraphs: [
-      { text: "Beyond Auto Clips, the Tools section covers one-shot jobs: background remover, speech enhancement, vocal remover, voice changer, voiceover generation, image and video generation, face swap, subtitle remover, and downloaders for your own social content." },
+      { text: "Beyond Auto Clips, the Tools section covers one-shot jobs: background remover, speech enhancement, vocal remover, voice changer, voiceover generation, image generation, face swap, subtitle remover, and downloaders for your own social content." },
       { lead: "Costs.", text: "Each tool page shows its credit cost before you run it. Duration-based tools (audio/video processing) scale with input length; generation tools charge per output." },
       { lead: "Free tools.", text: "The compressor, MP3 converter, and audio balancer are free and don't touch your credit balance." },
       { text: "If a tool is temporarily disabled you'll see a notice instead of a charge — this happens during upstream provider incidents and resolves without action from you." },

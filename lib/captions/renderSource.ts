@@ -102,7 +102,8 @@ export async function resolveRenderSource(
       ready: project.status === "completed" && Boolean(project.videoUrl),
       transcript: (project.captionsJson as unknown as WordTiming[] | null) ?? [],
       // The Asset library's provenance vocabulary has no per-product value
-      // for these three; "video-generator" is the bucket they already share.
+      // for these legacy projects; "video-generator" is the bucket they already
+      // share (a legacy value — the AI video generator itself was removed).
       sourceFeature: "video-generator",
       };
   }

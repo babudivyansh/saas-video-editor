@@ -180,17 +180,6 @@ const CASES: RouteCase[] = [
       return f;
     },
   },
-  {
-    label: "Reference Image",
-    modulePath: "./upload-reference-image/route",
-    feature: "reference-image",
-    featureCapBytes: 10 * 1024 * 1024,
-    buildOversizedForm: (over) => {
-      const f = new FormData();
-      f.append("image", file(10 * 1024 * 1024 + over, "a.png", "image/png"));
-      return f;
-    },
-  },
 ];
 
 beforeEach(() => {

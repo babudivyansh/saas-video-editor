@@ -33,7 +33,9 @@ const SOURCE_LABELS: Record<string, string> = {
   autoclip: "AutoClip",
   "url-import": "Imported from a URL",
   editor: "Editor",
-  "video-generator": "Video Generator",
+  // Legacy value: now only caption renders of pre-AutoClip projects (see
+  // lib/captions/renderSource.ts). The AI video generator itself was removed.
+  "video-generator": "Legacy project",
   avatar: "Avatar",
   stock: "Stock library",
 };

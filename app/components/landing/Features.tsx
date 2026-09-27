@@ -54,8 +54,8 @@ const PILLARS: Pillar[] = [
     imageAspect: "1200 / 675",
     title: "AI Creation Tools",
     description:
-      "Generate what you're missing: AI images, lifelike voiceovers, AI video, face swaps, background removal, and more — all in one place.",
-    bullets: ["50+ AI narrator voices", "AI video generation", "Image, audio & video enhancers"],
+      "Generate what you're missing: AI images, lifelike voiceovers, face swaps, background removal, and more — all in one place.",
+    bullets: ["50+ AI narrator voices", "AI image generation", "Image, audio & video enhancers"],
     cta: "Explore AI tools",
     href: "/dashboard/tools",
     accent: "from-cyan-300 to-teal-500",

@@ -10,7 +10,7 @@ export interface CaptionRenderPricing {
    * Credits per BILLABLE minute (not per clip-minute — see billableMinutes).
    *
    * Set from Submagic's published $0.69/min PAYG rate via the margin formula
-   * in lib/models/videoModels.ts's header (cost x 3 / REVENUE_FLOOR_USD_PER_CREDIT).
+   * next to REVENUE_FLOOR_USD_PER_CREDIT in lib/plans/tiers.ts (cost x 3 / floor).
    * That rate is published, not invoiced, which is why "caption-render" keeps
    * its tier gate in lib/tool-costs.ts. Confirm against an invoice, then
    * recompute and drop the gate.

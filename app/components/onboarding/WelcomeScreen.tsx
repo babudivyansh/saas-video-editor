@@ -27,7 +27,6 @@ interface WelcomeScreenProps {
 
 const GOAL_TINT: Record<PrimaryGoalId, string> = {
   "auto-clip": "bg-tint-blue text-brand border-line",
-  video: "bg-tint-emerald text-emerald-500 border-emerald-100",
   image: "bg-tint-fuchsia text-accent-fuchsia border-fuchsia-100",
   voiceover: "bg-tint-violet text-accent-violet border-violet-100",
   editor: "bg-tint-amber text-warning border-amber-100",

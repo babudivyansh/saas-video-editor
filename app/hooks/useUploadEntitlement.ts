@@ -13,8 +13,7 @@ export type UploadFeature =
   | "audio-balancer"
   | "mp3-converter"
   | "video-compressor"
-  | "cut-and-crop"
-  | "reference-image";
+  | "cut-and-crop";
 
 export interface UploadEntitlement {
   effectiveMaxBytes: number;

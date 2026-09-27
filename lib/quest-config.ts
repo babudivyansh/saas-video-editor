@@ -3,7 +3,6 @@ export const QUEST_DEFINITIONS = [
   { id: "first-clip",        title: "Create your first clip", xp: 300, trigger: "auto" as const },
   { id: "hear-yourself-out", title: "Hear yourself out",    xp: 200, trigger: "auto"   as const },
   { id: "picture-this",      title: "Picture this",         xp: 200, trigger: "auto"   as const },
-  { id: "first-video",       title: "Generate your first video", xp: 200, trigger: "auto" as const },
   { id: "first-export",      title: "Export a project",     xp: 200, trigger: "auto"   as const },
   { id: "upgraded-plan",     title: "Upgrade your plan",    xp: 300, trigger: "auto"   as const },
   { id: "explore-toolbox",   title: "Explore the toolbox",  xp: 150, trigger: "auto"   as const },

@@ -2,9 +2,9 @@ import { withRetry } from "@/lib/with-retry";
 import { env } from "@/lib/env";
 
 // Generic FAL queue client — submit a job, poll it to completion, and extract
-// the result URL. Generalized from the hand-rolled submit/poll pair that used
-// to live inline in app/api/tools/video-generator/route.ts (and is duplicated,
-// not yet migrated, in face-swap/background-remover/vocal-remover routes).
+// the result URL. Used by the image generator; a hand-rolled copy of the same
+// submit/poll pair is still duplicated, not yet migrated, in the
+// face-swap/background-remover/vocal-remover routes.
 
 export function falAuth() {
   return { Authorization: `Key ${env.FAL_KEY}` };

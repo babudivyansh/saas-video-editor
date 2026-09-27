@@ -60,17 +60,17 @@ describe("GET /api/quests", () => {
 
     const body = await (await GET(req())).json();
 
-    expect(body.quests).toHaveLength(11);
+    expect(body.quests).toHaveLength(10);
     expect(body.earnedXp).toBe(500);
-    expect(body.totalXp).toBe(2800);
-    expect(body.remaining).toBe(10);
+    expect(body.totalXp).toBe(2600);
+    expect(body.remaining).toBe(9);
     expect(body.level).toBe("Creator");
     expect(body.allComplete).toBe(false);
   });
 
   it("reports allComplete once nothing is left", async () => {
     const ids = [
-      "join-community", "first-clip", "hear-yourself-out", "picture-this", "first-video",
+      "join-community", "first-clip", "hear-yourself-out", "picture-this",
       "first-export", "upgraded-plan", "explore-toolbox", "complete-profile", "track-account",
       "refer-friend",
     ];
@@ -80,7 +80,7 @@ describe("GET /api/quests", () => {
 
     expect(body.remaining).toBe(0);
     expect(body.allComplete).toBe(true);
-    expect(body.earnedXp).toBe(2800);
+    expect(body.earnedXp).toBe(2600);
     expect(body.level).toBe("Clipiro Master");
   });
 
@@ -117,7 +117,7 @@ describe("GET /api/quests", () => {
     userRow = { claimedRankRewards: ["Creator"], rankRewardsSeenAt: new Date("2026-09-03") };
 
     const second = await (await GET(req())).json();
-    expect(second.quests).toHaveLength(11);
+    expect(second.quests).toHaveLength(10);
     expect(second.newRankRewards).toEqual([]);
   });
 });

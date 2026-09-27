@@ -93,7 +93,7 @@ async function falPollUntilDone(requestId: string): Promise<string> {
   // orphaning the job (stuck "processing" forever, credit never refunded)
   // instead of this function's own catch block ever getting a chance to
   // run. Same fix already applied to face-swap/background-remover/
-  // video-generator/image-generator this engagement.
+  // image-generator this engagement.
   const deadline = Date.now() + 240 * 1000;
   while (Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 5000));

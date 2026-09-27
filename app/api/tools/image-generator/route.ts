@@ -152,8 +152,8 @@ async function handlePOST(req: NextRequest) {
         }, 3000);
         let raw: unknown;
         try {
-          // Must stay safely under this route's maxDuration (120s) — see the
-          // identical note in app/api/tools/video-generator/route.ts.
+          // Must stay safely under this route's maxDuration (120s), so the
+          // route's own catch can refund instead of the platform killing it.
           raw = await falPollUntilDone(modelEntry.falEndpoint, requestId, { deadlineMs: 90_000 });
         } finally {
           clearInterval(ticker);

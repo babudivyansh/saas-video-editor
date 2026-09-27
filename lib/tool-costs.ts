@@ -1,32 +1,21 @@
 import type { TierId } from "@/lib/plans/tiers";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
-import { VIDEO_MODELS, cheapestRunCredits } from "@/lib/models/videoModels";
 
 export interface ToolCost {
-  /** Flat credits per generation — most of the non-registry tools. For
-   *  durational tools (ai-creator) this is a representative price at
-   *  defaultDurationSeconds, used only for display (tool-costs/admin UI);
-   *  actual billing uses creditsPerSecond. */
+  /** Flat credits per generation (per unit for the duration-scaled audio tools). */
   creditCost: number;
-  /** Set only for durational (video-like) tools. Real billing multiplies this
-   *  by the clamped requested duration, same as lib/models/videoModels.ts. */
-  creditsPerSecond?: number;
-  minDurationSeconds?: number;
-  maxDurationSeconds?: number;
-  defaultDurationSeconds?: number;
   /** Real provider $ cost — null where no reliable figure exists yet. */
   costUsd: number | null;
   costBasis: string;
   generationType: "image" | "video" | "audio" | "utility";
-  /** Omit = open to everyone (incl. free). Set on ai-creator plus tools whose
-   * provider cost is unverified (subtitle-remover, face-swap). */
+  /** Omit = open to everyone (incl. free). Set on tools whose provider cost
+   * is unverified (subtitle-remover, face-swap). */
   requiredTier?: TierId;
 }
 
-// Source of truth for every AI tool's credit cost EXCEPT image-generator and
-// video-generator, which read per-model costs from lib/models/imageModels.ts
-// / videoModels.ts instead (they have multiple swappable providers; these
-// tools each have exactly one). lib/tool-config.ts's TOOL_DEFAULTS re-exports
+// Source of truth for every AI tool's credit cost EXCEPT image-generator,
+// which reads per-model costs from lib/models/imageModels.ts instead (it has
+// multiple swappable providers; these tools each have exactly one). lib/tool-config.ts's TOOL_DEFAULTS re-exports
 // creditCost from here so there's a single source of truth for the number —
 // previously TOOL_DEFAULTS hardcoded its own copy, disconnected from the
 // cost-rationale comments already living in each route.
@@ -67,7 +56,7 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   "vocal-remover":    { creditCost: 1, costUsd: 0.021, costBasis: "Per 30 seconds: $0.0007/s (fal.ai Demucs), 5-min cap", generationType: "audio" },
   // Fixed in Phase 1: was 2cr flat (≈$0.20 revenue) against real cost that could
   // run $1-2/generation uncapped — a confirmed loss-making price. Now
-  // duration-scaled and gated to Pro+, like the video-generator models.
+  // duration-scaled.
   "voice-changer":    { creditCost: 8, costUsd: 0.20, costBasis: "Per minute: ~$0.20/min (ElevenLabs speech-to-speech), 90s cap", generationType: "audio" },
   "enhance-speech":   { creditCost: 8, costUsd: 0.20, costBasis: "Per minute: ~$0.20/min (ElevenLabs voice isolation), 90s cap", generationType: "audio" },
   "youtube-downloader":   { creditCost: 1, costUsd: 0, costBasis: "yt-dlp, bandwidth only", generationType: "utility" },
@@ -133,7 +122,7 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   // creditCost here is display-only; real billing is duration-scaled through
   // getCaptionRenderPricing (admin-editable, no deploy). Replace the null with
   // the confirmed rate — computed as cost x margin / REVENUE_FLOOR_USD_PER_CREDIT
-  // per lib/models/videoModels.ts's header — then drop the tier gate and shrink
+  // (see lib/plans/tiers.ts) — then drop the tier gate and shrink
   // the allowlist entry in scripts/check-unverified-costs.mjs back to 2.
   "caption-render": {
     creditCost: 27, // display price for a <=1 minute clip (perBillableMinute x 1)
@@ -168,11 +157,7 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   "script-generic":     { creditCost: 0, costUsd: 0.0005, costBasis: "Google Gemini text (~150-200 words)", generationType: "utility" },
 };
 
-// "Starting at" display price for the two multi-model tools — kept in sync
-// with the cheapest model in each registry so the public/admin display never
-// drifts from what a user could actually pay. Video's "starting at" is the
-// cheapest run a user can actually start: a model's shortest provider-accepted
-// length at its cheapest offered resolution (it used to multiply by a minimum
-// length the provider rejected, quoting "from 8" for a run that could not exist).
+// "Starting at" display price for the multi-model image tool — kept in sync
+// with the cheapest model in the registry so the public/admin display never
+// drifts from what a user could actually pay.
 export const IMAGE_GENERATOR_STARTING_CREDIT_COST = Math.min(...IMAGE_MODELS.map((m) => m.creditCost));
-export const VIDEO_GENERATOR_STARTING_CREDIT_COST = Math.min(...VIDEO_MODELS.map(cheapestRunCredits));

@@ -322,20 +322,6 @@ const PRIMARY: Record<string, ReactNode> = {
     </g>
   ),
 
-  // A prompt resolving into a vertical clip with a duration chip.
-  "ai-video-generator": (
-    <g>
-      <Panel x={130} y={92} w={340} h={72} r={18} />
-      <Bar x={162} y={114} w={224} h={10} fill="rgba(51,92,255,0.5)" />
-      <Bar x={162} y={134} w={140} h={10} fill="rgba(51,92,255,0.3)" />
-      <Sparkle cx={300} cy={216} r={30} />
-      <Arrow x={500} y={200} w={56} stroke={INK} />
-      <Phone x={600} y={44} h={312} />
-      <PlayMark cx={688} cy={200} r={30} />
-      <rect x={620} y={300} width={64} height={24} rx={12} fill={INK} />
-    </g>
-  ),
-
   // Source portrait, swap control, result portrait.
   "ai-face-swap": (
     <g>
@@ -566,7 +552,6 @@ const DESCRIPTIONS: Record<string, string> = {
   "cut-and-crop": "a video frame above a waveform with an in and out selection",
   "ai-image-generator": "a prompt box resolving into a row of generated images",
   "ai-voiceover": "a script feeding a list of voices, one of them playing",
-  "ai-video-generator": "a prompt resolving into a short vertical clip",
   "ai-face-swap": "a source portrait and a result portrait either side of a swap control",
   "background-remover": "a subject on a background beside the same subject on transparency",
   "ai-voice-changer": "a recorded waveform converted into a chosen AI voice",

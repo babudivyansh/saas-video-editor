@@ -50,7 +50,6 @@ export const VIDEO_TOOLS: FeatureLink[] = [
 export const AI_TOOLS: FeatureLink[] = [
   { title: "AI Image Generator", desc: "High-quality AI images in seconds", href: "/dashboard/tools/image-generator", slug: "ai-image-generator", category: "ai" },
   { title: "AI Voiceover", desc: "Lifelike voiceovers · 50+ narrators", href: "/dashboard/tools/voiceover", slug: "ai-voiceover", category: "ai" },
-  { title: "AI Video Generator", desc: "Generate AI videos with Google Veo3", href: "/dashboard/tools/video-generator", slug: "ai-video-generator", category: "ai" },
   { title: "AI Face Swap", desc: "Swap faces in photos & videos", href: "/dashboard/tools/face-swap", slug: "ai-face-swap", category: "ai" },
   { title: "Background Remover", desc: "Remove image / video backgrounds", href: "/dashboard/tools/background-remover", slug: "background-remover", category: "ai" },
   { title: "AI Voice Changer", desc: "Change any voice with AI", href: "/dashboard/tools/voice-changer", slug: "ai-voice-changer", category: "ai" },

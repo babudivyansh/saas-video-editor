@@ -1468,7 +1468,8 @@ model SocialReportLink {
 
 // Usage ledger for AI-tool generations — records what a user generated, with
 // which model, for how many credits, and at what real provider cost. Phase 1
-// only writes rows from image-generator, video-generator, and ai-creator; the
+// only writes rows from image-generator (video-generator and ai-creator, which
+// also wrote here, have been removed); the
 // other tool routes are an explicit fast-follow once they migrate onto
 // lib/credits.ts's chargeCredits() (see lib/credits.ts doc comment).
 model Generation {

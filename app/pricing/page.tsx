@@ -34,7 +34,7 @@ const MAX_IMAGE_COST = Math.max(...IMAGE_MODELS.map(m => m.creditCost));
 const FAQS = [
   {
     question: "What is a credit?",
-    answer: `Credits pay for AI tools, and each tool has a set price: ${cheapestImageCost}-${MAX_IMAGE_COST} credits for an image, ${AUDIO_RATE_LABEL.voiceover} for a voiceover, per-second pricing for video. Subscription credits refill monthly and unused ones roll over, up to ${SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER}× your allowance. Add-on pack credits never expire, even if your subscription lapses.`,
+    answer: `Credits pay for AI tools, and each tool has a set price: ${cheapestImageCost}-${MAX_IMAGE_COST} credits for an image, ${AUDIO_RATE_LABEL.voiceover} for a voiceover. Subscription credits refill monthly and unused ones roll over, up to ${SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER}× your allowance. Add-on pack credits never expire, even if your subscription lapses.`,
   },
   {
     question: "Can I cancel anytime?",

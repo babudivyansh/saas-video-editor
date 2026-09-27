@@ -7,7 +7,7 @@ import { QuestCard, type QuestData } from "./QuestCard";
 vi.mock("next-intl", () => ({ useTranslations: () => (k: string) => k }));
 
 const ALL_IDS = [
-  "join-community", "first-clip", "hear-yourself-out", "picture-this", "first-video",
+  "join-community", "first-clip", "hear-yourself-out", "picture-this",
   "first-export", "upgraded-plan", "explore-toolbox", "complete-profile", "track-account",
   "refer-friend",
 ];

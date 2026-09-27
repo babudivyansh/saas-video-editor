@@ -95,7 +95,6 @@
       "firstClip": { "title": "最初のクリップを作成", "desc": "シンプルエディターで最初のクリップを作成しましょう。" },
       "hearYourselfOut": { "title": "自分の声を聞いてみよう", "desc": "最初のAIボイスオーバーを生成しましょう。" },
       "pictureThis": { "title": "画像を生成してみよう", "desc": "最初のAI画像を生成しましょう。" },
-      "firstVideo": { "title": "最初の動画を生成", "desc": "AI動画ジェネレーターで動画を作成しましょう。" },
       "firstExport": { "title": "プロジェクトをエクスポート", "desc": "エディターから完成したプロジェクトをエクスポートしましょう。" },
       "upgradedPlan": { "title": "プランをアップグレード", "desc": "有料プランに登録しましょう。" },
       "exploreToolbox": { "title": "ツールを探索", "desc": "AIツールを試そう — Face Swap、Background Remover、Voice Changer、Vocal Remover。" },
@@ -122,7 +121,6 @@
       "aiFaceSwap": "AIフェイススワップ",
       "voiceoverGenerator": "ボイスオーバージェネレーター",
       "backgroundRemover": "背景リムーバー",
-      "veo3Generator": "VEO3ジェネレーター",
       "youtubeDownloader": "YouTubeダウンローダー"
     }
   },
@@ -140,7 +138,6 @@
       "imageGenerator": { "title": "AI画像ジェネレーター", "desc": "AIで数秒で高品質な画像を生成します。" },
       "voiceover": { "title": "AIボイスオーバージェネレーター", "desc": "50以上のナレーターで数秒で高品質なボイスオーバーを作成します。" },
       "speechEnhancer": { "title": "AI音声エンハンサー", "desc": "AIで音声・動画ファイルの品質を向上させます。" },
-      "videoGenerator": { "title": "AI動画ジェネレーター", "desc": "VEO3はAIで動画を作成できるツールです。" },
       "vocalRemover": { "title": "AIボーカルリムーバー", "desc": "AIで音声・動画ファイルからボーカルを除去します。" },
       "brainstormer": { "title": "AIブレインストーマー", "desc": "ニッチに基づいてバイラルコンテンツのアイデアを生成します。" }
     }

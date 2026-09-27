@@ -95,6 +95,10 @@ const nextConfig: NextConfig = {
       // (see proxy.ts), and the query string forwards automatically, so
       // proxy.ts still sees ?ref= on the resulting /register request.
       { source: "/signup", destination: "/register", permanent: true },
+      // The AI video generator was removed (2026-09-27). Its public page was
+      // indexed and its dashboard route was linked from emails and quests.
+      { source: "/tools/ai-video-generator", destination: "/tools", permanent: true },
+      { source: "/dashboard/tools/video-generator", destination: "/dashboard/tools", permanent: true },
     ];
   },
 };

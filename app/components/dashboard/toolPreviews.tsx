@@ -154,29 +154,6 @@ export function SpeechEnhancerPreview() {
   );
 }
 
-export function VideoGenPreview() {
-  return (
-    <div className="h-[212px] bg-surface-2 flex flex-col gap-2.5 p-4 overflow-hidden">
-      <p className="text-[10px] font-bold text-fg-muted">Write a prompt</p>
-      <div className="bg-panel rounded-lg border border-violet-200 px-3 py-2.5 flex items-center gap-2 shadow-sm">
-        <span className="text-brand text-xs">✦</span>
-        <div className="h-1.5 rounded-full bg-brand-soft flex-1" />
-      </div>
-      <div className="flex gap-1.5">
-        <span className="text-[9px] font-semibold text-on-primary grad-brand rounded-md px-2 py-1">✦ Generate</span>
-        <span className="text-[9px] font-semibold text-fg-muted border border-line bg-panel rounded-md px-2 py-1">✦ Prompt Generator</span>
-      </div>
-      <div className="flex gap-1.5 mt-auto items-center">
-        <div className="w-10 h-16 rounded-lg bg-surface-3 border border-line" />
-        <div className="flex-1 h-[78px] rounded-lg bg-gradient-to-br from-amber-300 to-orange-500 border border-black/5 flex items-center justify-center">
-          <span className="w-7 h-7 rounded-full bg-white/80 flex items-center justify-center text-fg text-xs">▶</span>
-        </div>
-        <div className="w-10 h-16 rounded-lg bg-surface-3 border border-line" />
-      </div>
-    </div>
-  );
-}
-
 export function VocalRemoverPreview() {
   const wave = [10, 20, 14, 28, 18, 34, 12, 26, 16, 30, 22, 36, 14, 24, 18, 32, 20, 28, 12, 34, 16, 26, 20, 30, 14, 24, 18, 28];
   return (
