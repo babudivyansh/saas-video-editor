@@ -3,37 +3,24 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/AuthContext";
-import { ProjectStatusBadge } from "@/app/components/dashboard/ProjectStatusBadge";
 import { Button } from "@/app/components/ui/Button";
-import { Card } from "@/app/components/ui/Card";
 import { EmptyState } from "@/app/components/ui/EmptyState";
 import { ToastProvider, useToast } from "@/app/components/ui/Toast";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { ContextMenu, ContextMenuItem, useContextMenu } from "@/app/components/ui/ContextMenu";
-import { CardMenuButton } from "@/app/components/dashboard/CardMenuButton";
 import { useProjectActions } from "@/app/components/dashboard/useProjectActions";
 import { Tabs } from "@/app/components/ui/Tabs";
 import { useIsWideLayout } from "@/app/components/dashboard/useIsWideLayout";
 import { ClipList } from "./components/ClipList";
 import { ClipInspector } from "./components/ClipInspector";
 import { IcStar, clipHref } from "./components/clipUi";
+import { ProjectList } from "./components/ProjectList";
+import { ProjectInspector } from "./components/ProjectInspector";
+import { ACTIVE_STATUSES, projectHref, type ProjectRow } from "./components/projectUi";
 import {
   useClipsLibrary, useClipMutations,
   type ClipFilters, type ClipRow, type ClipSort,
 } from "./hooks/useClipsLibrary";
-
-interface ProjectRow {
-  id: string;
-  title: string;
-  status: string;
-  progress: number;
-  createdAt: string;
-  _count: { clips: number };
-}
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-}
 
 function IcPlus() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4"><path d="M12 5v14M5 12h14"/></svg>;
@@ -44,18 +31,6 @@ function IcSearch() {
 function IcFilm() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><rect x="2" y="2" width="20" height="20" rx="2.18"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M17 7h5M2 17h5M17 17h5"/></svg>;
 }
-
-// Card cover gradients cycle so the project grid reads colorful without thumbnails.
-const COVER_GRADIENTS = [
-  "from-brand to-accent-violet",
-  "from-accent-violet to-accent-fuchsia",
-  "from-accent-fuchsia to-accent-pink",
-  "from-emerald-bright to-brand",
-  "from-fuchsia-400 to-accent-violet",
-  "from-emerald-bright to-emerald-bright",
-];
-
-const ACTIVE_STATUSES = ["draft", "analyzing", "rendering"];
 
 const PROJECT_FILTERS = [
   { id: "all", label: "All" },
@@ -383,14 +358,17 @@ function ClipsTab() {
 
 function ProjectsTab() {
   const { token, user } = useAuth();
+  const router = useRouter();
+  const isWide = useIsWideLayout();
   const [filter, setFilter] = useState<FilterId>("all");
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<"newest" | "oldest">("newest");
+  const [sort, setSort] = useState<"newest" | "oldest" | "clips">("newest");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const projectsQuery = useQuery({
-    queryKey: ["projects", "auto-clip"],
+    queryKey: ["projects", "auto-clip", "cover"],
     queryFn: async (): Promise<ProjectRow[]> => {
-      const res = await fetch("/api/projects?productType=auto-clip", {
+      const res = await fetch("/api/projects?productType=auto-clip&cover=1", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) throw new Error(`Request failed (${res.status})`);
@@ -423,49 +401,48 @@ function ProjectsTab() {
     if (!projects) return null;
     const q = query.trim().toLowerCase();
     const rows = projects.filter((p) => matchesFilter(p, filter) && (!q || p.title.toLowerCase().includes(q)));
-    // API returns newest-first; flip a copy for oldest-first.
-    return sort === "newest" ? rows : rows.slice().reverse();
+    // API returns newest-first.
+    if (sort === "oldest") return rows.slice().reverse();
+    if (sort === "clips") return rows.slice().sort((a, b) => b._count.clips - a._count.clips);
+    return rows;
   }, [projects, filter, query, sort]);
 
   const countFor = (id: FilterId) => projects?.filter((p) => matchesFilter(p, id)).length ?? 0;
+  const selected = filtered ? filtered.find((p) => p.id === selectedId) ?? filtered[0] ?? null : null;
 
   return (
     <div className="space-y-5">
       {projects && projects.length > 0 && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex items-center gap-0.5 p-1 rounded-full bg-surface-2 border border-line w-fit flex-wrap" role="group" aria-label="Filter projects">
             {PROJECT_FILTERS.map((f) => (
-              <button
-                key={f.id}
-                onClick={() => setFilter(f.id)}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
-                  filter === f.id
-                    ? "grad-brand text-on-primary shadow-glow"
-                    : "bg-panel border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
-                }`}
-              >
-                {f.label} <span className={filter === f.id ? "text-white/70" : "text-ink-soft/60"}>({countFor(f.id)})</span>
-              </button>
+              <SegButton key={f.id} active={filter === f.id} onClick={() => setFilter(f.id)}>
+                {f.label} <span className={filter === f.id ? "text-fg-muted" : "text-fg-subtle"}>{countFor(f.id)}</span>
+              </SegButton>
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSort((s) => (s === "newest" ? "oldest" : "newest"))}
-              title="Toggle sort order"
-              className="flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded-full bg-panel border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors whitespace-nowrap"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M11 5h10M11 9h7M11 13h4M3 17l3 3 3-3M6 18V4"/></svg>
-              {sort === "newest" ? "Newest" : "Oldest"}
-            </button>
-            <div className="relative sm:w-64">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft/50"><IcSearch /></span>
+            <div className="relative flex-1 sm:w-64 sm:flex-none">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-fg-subtle"><IcSearch /></span>
               <input
+                type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search projects…"
-                className="w-full text-sm bg-panel border border-card-border rounded-full pl-9 pr-4 py-2 text-ink placeholder:text-ink-soft/50 outline-none focus:border-brand focus:ring-2 focus:ring-brand/30 transition-all"
+                placeholder="Search projects"
+                aria-label="Search projects"
+                className="w-full h-10 text-sm bg-surface-2 border border-line rounded-xl pl-10 pr-4 text-fg placeholder:text-fg-subtle outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all"
               />
             </div>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as typeof sort)}
+              aria-label="Sort projects"
+              className="h-10 text-sm px-3 rounded-xl bg-surface-2 border border-line text-fg outline-none focus:border-primary/60 cursor-pointer"
+            >
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+              <option value="clips">Most clips</option>
+            </select>
           </div>
         </div>
       )}
@@ -477,8 +454,8 @@ function ProjectsTab() {
       )}
 
       {!projects && !projectsQuery.error && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-52 rounded-[var(--radius-card)] bg-surface-3 animate-pulse" />)}
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-[80px] rounded-2xl bg-surface-2 animate-pulse" />)}
         </div>
       )}
 
@@ -494,48 +471,30 @@ function ProjectsTab() {
       )}
 
       {projects && projects.length > 0 && filtered && filtered.length === 0 && (
-        <EmptyState
-          icon={<IcSearch />}
-          title="No projects match"
-          subtitle="Try a different filter or search term."
-        />
+        <EmptyState icon={<IcSearch />} title="No projects match" subtitle="Try a different filter or search term." />
       )}
 
       {filtered && filtered.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {filtered.map((p, i) => (
-            <Card
-              key={p.id}
-              href={`/dashboard/create/auto-clip?project=${p.id}`}
-              className="group relative hover:border-brand/40"
-            >
-              <CardMenuButton
-                label="Project actions"
-                onClick={(e) => projectActions.openMenu(e, { id: p.id, title: p.title })}
+        <div className="grid xl:grid-cols-[minmax(0,1fr)_380px] gap-6 items-start">
+          <div className="min-w-0">
+            <ProjectList
+              projects={filtered}
+              selectedId={isWide ? selected?.id ?? null : null}
+              // Below xl there is no panel, so a row opens the project, as
+              // the old card did.
+              onSelect={(p) => (isWide ? setSelectedId(p.id) : router.push(projectHref(p)))}
+              onMenu={(e, p) => projectActions.openMenu(e, { id: p.id, title: p.title })}
+            />
+          </div>
+          {isWide && selected && (
+            <div className="sticky top-6">
+              <ProjectInspector
+                project={selected}
+                onRename={() => projectActions.startRename({ id: selected.id, title: selected.title })}
+                onDelete={() => projectActions.startDelete({ id: selected.id, title: selected.title })}
               />
-              <div className={`relative h-24 bg-gradient-to-br ${COVER_GRADIENTS[i % COVER_GRADIENTS.length]} flex items-end p-3 overflow-hidden`}>
-                <div className="absolute -top-6 -right-6 w-20 h-20 rounded-full bg-brand/10 blur-xl pointer-events-none" />
-                <span className="relative inline-flex items-center gap-1.5 text-[11px] font-bold text-white bg-black/25 backdrop-blur-sm rounded-full px-2.5 py-1">
-                  <IcFilm /> {p._count.clips} clip{p._count.clips === 1 ? "" : "s"}
-                </span>
-              </div>
-              <div className="p-4 flex flex-col gap-1.5">
-                <p className="text-sm font-semibold text-ink line-clamp-2 group-hover:text-brand transition-colors">{p.title}</p>
-                <div className="flex items-center justify-between pt-1">
-                  <p className="text-xs text-ink-soft">{fmtDate(p.createdAt)}</p>
-                  <ProjectStatusBadge status={p.status} />
-                </div>
-                {p.status === "rendering" && (
-                  <div className="flex items-center gap-2 pt-1">
-                    <div className="h-1 bg-surface-3 rounded-full flex-1 overflow-hidden">
-                      <div className="h-full grad-brand rounded-full transition-all duration-500" style={{ width: `${p.progress}%` }} />
-                    </div>
-                    <span className="text-[10px] font-bold text-ink-soft">{p.progress}%</span>
-                  </div>
-                )}
-              </div>
-            </Card>
-          ))}
+            </div>
+          )}
         </div>
       )}
       {projectActions.overlays}
