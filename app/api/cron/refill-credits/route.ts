@@ -91,11 +91,11 @@ export async function GET(req: NextRequest) {
       await grantCredits({ userId: u.id, bucket: "subscription", amount: applied, reason: "grant:refill" });
     }
     // The month's Clip Minutes, under the same 2x rollover cap.
-    await grantMonthlyMinutes({ userId: u.id, monthlyMinutes: u.monthlyMinutes ?? 0, reason: "grant:refill" });
+    const minutesApplied = await grantMonthlyMinutes({ userId: u.id, monthlyMinutes: u.monthlyMinutes ?? 0, reason: "grant:refill" });
     const updated = await prisma.user.update({
       where: { id: u.id },
       data: { nextRefillAt, lowCreditEmailSentAt: null },
-      select: { email: true, firstName: true, name: true, credits: true },
+      select: { email: true, firstName: true, name: true, credits: true, minutes: true },
     });
 
     // ── Credits refill notification (non-fatal) ────────────────────
@@ -104,6 +104,7 @@ export async function GET(req: NextRequest) {
       updated.firstName ?? updated.name ?? "",
       applied,
       updated.credits,
+      minutesApplied > 0 ? { added: minutesApplied, balance: updated.minutes } : undefined,
     ).catch((e) => logger.error("cron/refill-credits", `email error for ${u.id}`, e));
 
     refilled++;

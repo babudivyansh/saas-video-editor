@@ -426,7 +426,7 @@ export default function DashboardHeader() {
               {planName}
             </button>
             <div data-tour="credits-pill" className="flex items-center">
-              <CreditsPill credits={user.credits ?? 0} />
+              <CreditsPill credits={user.credits ?? 0} minutes={user.minutes ?? 0} />
             </div>
 
             <NotificationBell className="hidden xl:flex" />
@@ -572,7 +572,7 @@ export default function DashboardHeader() {
                 </span>
                 <div className="flex items-center gap-1.5">
                   <NotificationBell />
-                  <CreditsPill credits={user.credits ?? 0} />
+                  <CreditsPill credits={user.credits ?? 0} minutes={user.minutes ?? 0} />
                 </div>
               </div>
               <div className="px-3 pt-1 pb-2">

@@ -84,10 +84,15 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   // duration- and clip-count-scaled through getAutoClipPricing (see
   // computeCreditCost / computeAnalysisCost in lib/autoclip-pipeline.ts), and
   // the value below is a representative 5-clip run.
+  // Since 2026-09-26 a run is billed in CLIP MINUTES (1 per source minute, see
+  // lib/autoclip-minutes.ts), so it spends no credits: creditCost is 0 and the
+  // public cost table labels it in minutes (app/api/tool-costs). costUsd is
+  // the audited cost PER SOURCE MINUTE on the GPU face-tracking path — Scribe
+  // $0.0037 + RunPod ASD ~$0.0058 (estimate) + Gemini + render/S3.
   "auto-clip": {
-    creditCost: 8, // representative: 5 clips + ~5 min output, at the default rates
-    costUsd: null,
-    costBasis: "ElevenLabs/Whisper STT + Gemini selection + GPU render + S3; scales with source length, no single per-run figure",
+    creditCost: 0,
+    costUsd: 0.0125,
+    costBasis: "Per source minute: ElevenLabs Scribe STT + RunPod ASD face tracking (estimate) + Gemini selection + render/S3",
     generationType: "video",
   },
   // TODO verify-before-ship: ElevenLabs Dubbing is billed per minute of audio and
@@ -145,7 +150,9 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   "music-generate":     { creditCost: 4, costUsd: 0.075, costBasis: "ElevenLabs Music $0.15/min, 30s default bed (verify-before-ship: the Music API is paid-plan only and 402s on the current free account, so this rate is published pricing, not a measured call). Gated creator+", generationType: "audio" },
   "compile":            { creditCost: 1, costUsd: 0, costBasis: "FFmpeg render only — TTS is charged when the voice is generated", generationType: "video" },
   "editor-render":      { creditCost: 1, costUsd: 0, costBasis: "FFmpeg timeline render (local compute only)", generationType: "video" },
-  "editor-captions":    { creditCost: 1, costUsd: null, costBasis: "Scribe/Whisper STT over the timeline audio", generationType: "utility" },
+  // Billed in Clip Minutes since 2026-09-26 (1 per minute of each asset, see
+  // app/api/editor/captions/route.ts); creditCost 0 because it spends no credits.
+  "editor-captions":    { creditCost: 0, costUsd: 0.0037, costBasis: "Scribe STT at $0.22/hour of the whole asset — billed 1 Clip Minute per minute", generationType: "utility" },
   "editor-ai-text":     { creditCost: 1, costUsd: 0, costBasis: "Google Gemini text — near-zero per call", generationType: "utility" },
   "auto-clip-rerender": { creditCost: 1, costUsd: 0, costBasis: "FFmpeg re-render of one clip (local compute only)", generationType: "video" },
 

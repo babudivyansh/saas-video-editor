@@ -65,6 +65,45 @@ export async function refundPurchase(params: {
 
 // Manual credit grant/deduct — the audited alternative to silently editing the
 // credits number. Deductions floor at zero.
+/**
+ * The Clip Minutes twin of adjustCredits: an audited grant or deduction with a
+ * mandatory reason, through lib/minutes.ts (bucket-aware, ledgered). Grants
+ * land in the never-expiring purchased bucket; deductions floor at zero.
+ */
+export async function adjustMinutes(params: {
+  userId: string;
+  delta: number;
+  actorId: string;
+  reason: string;
+  ip?: string;
+}): Promise<{ ok: true; balance: number } | { ok: false; error: string; status: number }> {
+  const { userId, delta, actorId, reason, ip } = params;
+  const { grantMinutes, clawbackMinutes } = await import("@/lib/minutes");
+
+  const result = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.findUnique({ where: { id: userId }, select: { minutes: true } });
+    if (!user) return { ok: false as const, error: "User not found", status: 404 };
+    let applied: number;
+    if (delta >= 0) {
+      applied = delta;
+      await grantMinutes({ userId, bucket: "purchased", amount: delta, reason: "grant:admin-adjust", tx });
+    } else {
+      applied = -(await clawbackMinutes({ userId, amount: -delta, reason: "clawback:admin-adjust", tx }));
+    }
+    return { ok: true as const, before: user.minutes, applied, balance: user.minutes + applied };
+  });
+  if (!result.ok) return result;
+
+  await redis.set(`minutes:${userId}`, String(result.balance), "EX", 3600).catch(() => {});
+  await auditAdminAction(actorId, delta >= 0 ? "minutes.granted" : "minutes.deducted", userId, {
+    before: { minutes: result.before },
+    after: { minutes: result.balance, applied: result.applied },
+    reason,
+    ip,
+  });
+  return { ok: true, balance: result.balance };
+}
+
 export async function adjustCredits(params: {
   userId: string;
   delta: number; // positive = grant, negative = deduct

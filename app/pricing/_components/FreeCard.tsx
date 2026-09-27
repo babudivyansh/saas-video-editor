@@ -16,7 +16,7 @@ import { CheckIcon } from "@/app/components/billing/PlanCard";
 export function FreeCard({ currency }: { currency: Currency }) {
   const perks = [
     "All free tools: compressor, MP3, downloaders",
-    `${FREE_TIER_MONTHLY_BONUS_MINUTES} Clip Minutes / month (watermarked)`,
+    "Auto Clips from your minutes (watermarked)",
     `${STORAGE_LIMIT_GB.free * 1000} MB storage`,
   ];
   return (
@@ -47,7 +47,7 @@ export function FreeCard({ currency }: { currency: Currency }) {
       </div>
 
       <div className="flex flex-1 flex-col gap-3 border-t border-line pt-5">
-        <p className="text-sm font-semibold text-fg">{FREE_TIER_MONTHLY_BONUS_CREDITS} credits every month</p>
+        <p className="text-sm font-semibold text-fg">{FREE_TIER_MONTHLY_BONUS_MINUTES} Clip Minutes + {FREE_TIER_MONTHLY_BONUS_CREDITS} AI credits every month</p>
         <ul className="space-y-3">
           {perks.map(p => (
             <li key={p} className="flex items-start gap-2.5 text-sm text-fg-muted">

@@ -20,6 +20,14 @@ import {
   type DisplayPlan,
 } from "@/lib/plans/display";
 
+
+/** "150 min" -> "2.5 hrs"; under an hour stays in minutes. */
+function minutesAsHours(min: number): string {
+  if (min < 60) return `${min} min`;
+  const h = min / 60;
+  return `${Number.isInteger(h) ? h : h.toFixed(1)} hrs`;
+}
+
 export function CheckIcon({ className = "" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
@@ -139,8 +147,20 @@ export function PlanCard({
       <div className={`flex flex-1 flex-col gap-3 border-t pt-5 ${
         highlighted ? "border-[color-mix(in_oklab,var(--primary)_18%,transparent)]" : "border-line"
       }`}>
+        {/* Clip Minutes lead (2026-09-26 model): Auto Clips is what most people
+            buy a plan for, and it now spends minutes, not credits. */}
+        {plan.monthlyMinutes != null && plan.monthlyMinutes > 0 && (
+          <div className="flex flex-col gap-0.5">
+            <p className="text-sm font-semibold text-fg">{plan.monthlyMinutes.toLocaleString("en-IN")} Clip Minutes every month</p>
+            <p className="text-xs text-fg-subtle">
+              ≈ {minutesAsHours(plan.monthlyMinutes)} of video for Auto Clips · any number of clips
+            </p>
+          </div>
+        )}
         <div className="flex flex-col gap-0.5">
-          <p className="text-sm font-semibold text-fg">{plan.monthlyCredits} credits every month</p>
+          <p className="text-sm font-semibold text-fg">
+            {plan.monthlyMinutes ? "+ " : ""}{plan.monthlyCredits} {plan.monthlyMinutes ? "AI credits" : "credits"} every month
+          </p>
           {/* Credits→output estimate sits under the figure it qualifies. */}
           {plan.monthlyCredits != null && plan.tier && (() => {
             const perRender = cheapestVideoCostPerRender(plan.tier);

@@ -182,6 +182,24 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
         orderId: "order_QxYz9876wxyz",
         isSubscription: false,
       },
+      "minute pack": {
+        userName: "Divyansh",
+        planName: "300 Clip Minutes",
+        creditsAdded: 0,
+        minutesAdded: 300,
+        amountInPaise: 199900,
+        orderId: "order_QxYzMin300",
+        isSubscription: false,
+      },
+      "subscription with Clip Minutes": {
+        userName: "Divyansh",
+        planName: "Pro (Monthly)",
+        creditsAdded: 160,
+        minutesAdded: 400,
+        amountInPaise: 219900,
+        orderId: "order_QxYzPro",
+        isSubscription: true,
+      },
       "with GST invoice": {
         userName: "Divyansh",
         planName: "Studio Monthly",
@@ -202,6 +220,7 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     build: billing.subscriptionRenewed,
     samples: {
       default: { name: "Divyansh", amountInPaise: 129900, creditsAdded: 500, nextChargeAt: D("2026-09-05") },
+      "with Clip Minutes": { name: "Divyansh", amountInPaise: 499900, creditsAdded: 400, minutesAdded: 1000, nextChargeAt: D("2026-10-05") },
       "no next charge": { name: "Divyansh", amountInPaise: 129900, creditsAdded: 500, nextChargeAt: null },
       "with GST invoice": {
         name: "Divyansh", amountInPaise: 129900, creditsAdded: 500, nextChargeAt: D("2026-09-05"),
@@ -287,7 +306,10 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     category: "creditAlerts",
     trigger: "Monthly refill cron",
     build: credits.creditsRefilled,
-    samples: { default: { name: "Divyansh", creditsAdded: 500, newBalance: 542 } },
+    samples: {
+      default: { name: "Divyansh", creditsAdded: 500, newBalance: 542 },
+      "with Clip Minutes": { name: "Divyansh", creditsAdded: 400, newBalance: 431, minutesAdded: 1000, minutesBalance: 1240 },
+    },
   }),
   "quest-rank-reward": entry({
     id: "quest-rank-reward",

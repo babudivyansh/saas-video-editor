@@ -1,7 +1,7 @@
 "use client";
 
 import type { Currency } from "@/lib/currency-shared";
-import { FREE_TIER_MONTHLY_BONUS_CREDITS } from "@/lib/plans/tiers";
+import { FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_MONTHLY_BONUS_MINUTES } from "@/lib/plans/tiers";
 
 interface SegmentOption<T> { value: T; label: React.ReactNode }
 
@@ -54,8 +54,9 @@ export function PricingHero({ term, onTerm, currency, onCurrency, savePct }: {
           Turn long videos into clips.<br className="hidden sm:block" /> Pay only for what you make.
         </h1>
         <p className="max-w-xl text-base leading-relaxed text-fg-muted sm:text-lg">
-          One credit balance for every AI tool. Start free with {FREE_TIER_MONTHLY_BONUS_CREDITS} credits a
-          month, then upgrade when you need more.
+          Clip Minutes for Auto Clips — 1 minute per minute of video, any number of clips — and AI credits
+          for everything else. Start free with {FREE_TIER_MONTHLY_BONUS_MINUTES} minutes and{" "}
+          {FREE_TIER_MONTHLY_BONUS_CREDITS} credits a month.
         </p>
 
         <div className="mt-2 flex flex-wrap items-center justify-center gap-3">

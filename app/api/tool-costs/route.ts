@@ -39,6 +39,12 @@ const LABELS: Record<string, string> = {
 // tool's shape is untouched.
 const IMAGE_COSTS = IMAGE_MODELS.map(m => m.creditCost);
 const VIDEO_COSTS = VIDEO_MODELS.map(m => m.creditsPerSecond * m.minDurationSeconds);
+// Billed in Clip Minutes, not credits (2026-09-26 pricing model): shown with
+// their own label and no credit figure.
+const MINUTE_BILLED: Record<string, string> = {
+  "auto-clip": "1 Clip Minute per minute of video",
+};
+
 const RANGES: Record<string, { min: number; max: number }> = {
   "image-generator": { min: Math.min(...IMAGE_COSTS), max: Math.max(...IMAGE_COSTS) },
   "video-generator": { min: Math.min(...VIDEO_COSTS), max: Math.max(...VIDEO_COSTS) },
@@ -47,7 +53,6 @@ const RANGES: Record<string, { min: number; max: number }> = {
   // Both bill by duration rather than per run, so a single figure would be
   // misleading on the public page. Ranges describe a typical short run through
   // a long one at the default AutoClip rates.
-  "auto-clip": { min: 3, max: 40 },
   "clip-dub": { min: 2, max: 12 },
 };
 
@@ -61,9 +66,10 @@ export async function GET() {
       slug,
       label: LABELS[slug],
       service: TOOL_SERVICE[slug] ?? "",
-      creditCost: c.creditCost,
+      creditCost: slug in MINUTE_BILLED ? 0 : c.creditCost,
       creditCostMin: RANGES[slug]?.min,
       creditCostMax: RANGES[slug]?.max,
+      ...(slug in MINUTE_BILLED ? { priceLabel: MINUTE_BILLED[slug] } : {}),
     }))
     .sort((a, b) => a.creditCost - b.creditCost || a.label.localeCompare(b.label));
 

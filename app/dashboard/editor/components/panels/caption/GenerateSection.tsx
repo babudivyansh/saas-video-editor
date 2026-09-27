@@ -29,15 +29,18 @@ export default function GenerateSection() {
 
   const hasCaptions = doc.tracks.caption.length > 0;
   const plan = planCaptionGeneration(doc);
-  const creditCost = plan.length;
+  // Billed in Clip Minutes: 1 per minute of each unique video, rounded up,
+  // charged by the server once it knows each file's length. The client only
+  // knows the floor — at least 1 minute per video — so that's the pre-check.
+  const minMinutes = plan.length;
 
   const generate = async (replace: boolean) => {
     if (plan.length === 0) {
       setError("Add a video clip to the timeline first.");
       return;
     }
-    if ((user?.credits ?? 0) < creditCost) {
-      setError(`Not enough credits (${creditCost} needed — one per unique video).`);
+    if ((user?.minutes ?? 0) < minMinutes) {
+      setError(`Not enough Clip Minutes — captions use 1 minute per minute of video (at least ${minMinutes} here).`);
       return;
     }
     setWorking(true);
@@ -76,13 +79,14 @@ export default function GenerateSection() {
     <div className="flex flex-col gap-2">
       <SelectField label="Language" value={language} options={LANGUAGE_OPTIONS} onChange={setLanguage} />
       <Button variant="primary" onClick={() => generate(false)} disabled={working}>
-        {working ? progress || "Transcribing…" : `Generate Captions (${creditCost || 1} credit${creditCost === 1 ? "" : "s"})`}
+        {working ? progress || "Transcribing…" : "Generate Captions"}
       </Button>
       {hasCaptions && (
         <Button variant="subtle" size="sm" onClick={() => generate(true)} disabled={working}>
           Regenerate
         </Button>
       )}
+      <p className="text-[11px] text-fg-subtle">Uses 1 Clip Minute per minute of each video on the timeline.</p>
       {error && <p className="text-xs text-red-400">{error}</p>}
     </div>
   );

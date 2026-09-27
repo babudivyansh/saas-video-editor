@@ -6,8 +6,10 @@ import CaptionStyleGrid from "@/app/components/auto-clip/CaptionStyleGrid";
 import { ReframeAndCutsControls } from "@/app/components/auto-clip/ReframeAndCutsControls";
 import { discardDraftProject } from "@/lib/discard-draft-project";
 import { useInsufficientCredits } from "@/app/components/billing/CreditModalContext";
+import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
 import { UrlImportField } from "@/app/components/auto-clip/UrlImportField";
 import { Switch } from "@/app/components/ui/Switch";
+import { Checkbox } from "@/app/components/ui/Checkbox";
 import { Button } from "@/app/components/ui/Button";
 import { AssetField } from "@/app/components/assets/AssetField";
 import type { PickerAsset } from "@/app/components/assets/assetPickerData";
@@ -115,6 +117,7 @@ function AutoClipFlow() {
     generateAutoClip, generateAutoClipForProject, reset, clearPaymentBlock,
   } = useVideoGenerate();
   const creditModal = useInsufficientCredits();
+  const { openBilling } = useBillingOverlay();
 
   // A run refused for credits opens the top-up modal straight away — the
   // user asked to spend, so the next step is paying, not reading an error.
@@ -337,8 +340,11 @@ function AutoClipFlow() {
                   ? `This video needs ${paymentBlock.required ?? "more"} Clip Minutes${paymentBlock.balance != null ? ` and you have ${paymentBlock.balance}` : ""}. Nothing was charged.${paymentBlock.overflowCredits ? ` Tick "pay the rest in AI credits" below to cover it with ${paymentBlock.overflowCredits} credit${paymentBlock.overflowCredits === 1 ? "" : "s"}.` : ""}`
                   : `You need ${paymentBlock.required ?? "more"} credits to start this run${paymentBlock.balance != null ? ` and you have ${paymentBlock.balance}` : ""}. Nothing was charged.`}
             </p>
-            {paymentBlock.kind === "free_limit" || paymentBlock.kind === "minutes" ? (
-              <a href={paymentBlock.kind === "free_limit" ? paymentBlock.upgradeUrl : "/pricing"} className="font-bold text-brand hover:underline">See plans</a>
+            {paymentBlock.kind === "minutes" ? (
+              // Minute packs sell on the billing overlay's Top Up tab.
+              <Button size="sm" onClick={() => openBilling({ tab: "topup" })}>Top up minutes</Button>
+            ) : paymentBlock.kind === "free_limit" ? (
+              <a href={paymentBlock.upgradeUrl} className="font-bold text-brand hover:underline">See plans</a>
             ) : (
               <Button size="sm" onClick={() => creditModal.open({ required: paymentBlock.required, balance: paymentBlock.balance, action: "Auto Clips" })}>Top up</Button>
             )}
@@ -454,16 +460,15 @@ function AutoClipFlow() {
                 {minutesShort > 0 && ` (${minutesShort} short)`}
               </span>
             )}
-            <label className="mt-1.5 flex items-center gap-2 text-[12px] cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={allowCreditOverflow}
-                onChange={(e) => setAllowCreditOverflow(e.target.checked)}
-                className="accent-[var(--emerald-brand)]"
-              />
-              If I run out of minutes, pay the rest in AI credits ({OVERFLOW_MINUTES_PER_CREDIT} minutes = 1 credit
-              {minutesShort > 0 ? `, ${overflowCreditsFor(minutesShort)} credit${overflowCreditsFor(minutesShort) === 1 ? "" : "s"} for this video` : ""})
-            </label>
+            <Checkbox
+              className="mt-1.5 text-[12px]"
+              checked={allowCreditOverflow}
+              onChange={setAllowCreditOverflow}
+              showLabel
+              label={`If I run out of minutes, pay the rest in AI credits (${OVERFLOW_MINUTES_PER_CREDIT} minutes = 1 credit${
+                minutesShort > 0 ? `, ${overflowCreditsFor(minutesShort)} credit${overflowCreditsFor(minutesShort) === 1 ? "" : "s"} for this video` : ""
+              })`}
+            />
           </div>
         </div>
       </div>

@@ -83,9 +83,13 @@ const planFields = {
   features: z.array(z.string().max(200)).max(20),
   active: z.boolean(),
   sortOrder: z.number().int().min(0).max(1000),
-  kind: z.enum(["pack", "subscription", "addon"]),
+  kind: z.enum(["pack", "subscription", "addon", "minute_pack"]),
   intervalMonths: z.union([z.literal(1), z.literal(3), z.literal(6), z.literal(12)]).nullable(),
   monthlyCredits: credits.nullable(),
+  // Clip Minutes (2026-09-26): a subscription's monthly minutes, and what a
+  // one-time minute_pack grants.
+  monthlyMinutes: z.number().int().min(0).max(1_000_000).nullable(),
+  minutes: z.number().int().min(0).max(1_000_000),
   tier: z.enum(["creator", "pro", "studio"]).nullable(),
 };
 export const planCreateSchema = z
@@ -101,6 +105,8 @@ export const planCreateSchema = z
     kind: planFields.kind.optional(),
     intervalMonths: planFields.intervalMonths.optional(),
     monthlyCredits: planFields.monthlyCredits.optional(),
+    monthlyMinutes: planFields.monthlyMinutes.optional(),
+    minutes: planFields.minutes.optional(),
     tier: planFields.tier.optional(),
   })
   .strict();
@@ -116,6 +122,8 @@ export const planPatchSchema = z
     kind: planFields.kind.optional(),
     intervalMonths: planFields.intervalMonths.optional(),
     monthlyCredits: planFields.monthlyCredits.optional(),
+    monthlyMinutes: planFields.monthlyMinutes.optional(),
+    minutes: planFields.minutes.optional(),
     tier: planFields.tier.optional(),
   })
   .strict()
@@ -148,6 +156,8 @@ export interface PlanShape {
   monthlyCredits?: number | null;
   credits: number;
   tier?: string | null;
+  monthlyMinutes?: number | null;
+  minutes?: number | null;
 }
 
 export function validatePlanShape(p: PlanShape): string | null {
@@ -163,12 +173,20 @@ export function validatePlanShape(p: PlanShape): string | null {
     }
     return null;
   }
-  // Packs and add-ons are one-time credit grants: a tier or a monthly allowance
-  // on one is dead data that the tier gate and the refill cron both ignore.
+  // Packs and add-ons are one-time grants: a tier or a monthly allowance on
+  // one is dead data that the tier gate and the refill cron both ignore.
   if (p.tier) return "Only subscription plans carry a tier.";
-  if (p.intervalMonths || p.monthlyCredits) {
-    return "Only subscription plans have an interval or a monthly credit allowance.";
+  if (p.intervalMonths || p.monthlyCredits || p.monthlyMinutes) {
+    return "Only subscription plans have an interval or a monthly allowance.";
   }
+  // A minute pack grants minutes and nothing else; fulfilment reads only
+  // Plan.minutes for it, so credits on one would be silently never granted.
+  if (p.kind === "minute_pack") {
+    if (!p.minutes || p.minutes <= 0) return "A Clip Minutes pack needs a number of minutes.";
+    if (p.credits !== 0) return "A Clip Minutes pack grants minutes only — set credits to 0.";
+    return null;
+  }
+  if (p.minutes) return "Only Clip Minutes packs grant one-time minutes.";
   return null;
 }
 
