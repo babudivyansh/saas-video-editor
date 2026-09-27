@@ -8,7 +8,7 @@ import { ToastProvider, useToast } from "@/app/components/ui/Toast";
 import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 import {
-  PURCHASABLE_TIER_ORDER, TIER_LABEL, TRIAL_CREDITS, isTrialPlan,
+  PURCHASABLE_TIER_ORDER, TIER_LABEL, TRIAL_CREDITS, TRIAL_MINUTES, isTrialPlan,
   FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_MONTHLY_BONUS_MINUTES, SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER,
 } from "@/lib/plans/tiers";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
@@ -240,7 +240,7 @@ function PricingPageInner() {
                   footer={
                     offerTrial ? (
                       <p className="text-center text-xs text-fg-muted">
-                        {TRIAL_CREDITS} trial credits · then {perMonth}/mo ·{" "}
+                        {TRIAL_MINUTES} Clip Minutes + {TRIAL_CREDITS} credits to try · then {perMonth}/mo ·{" "}
                         <button type="button" onClick={() => selectPlan(plan)} className="font-medium text-primary underline-offset-2 hover:underline">
                           or buy now
                         </button>

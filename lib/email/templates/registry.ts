@@ -211,6 +211,34 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
       },
     },
   }),
+  "clip-minutes-launch": entry({
+    id: "clip-minutes-launch",
+    title: "Auto Clips move to Clip Minutes (switch-day notice)",
+    group: "billing",
+    // A change to what a paying subscriber receives is a service notice owed to
+    // them regardless of marketing opt-outs — see the template's own comment.
+    category: "transactional",
+    trigger: "One-off: scripts/send-clip-minutes-announcement.ts on switch day",
+    build: billing.clipMinutesLaunch,
+    samples: {
+      creator: {
+        name: "Divyansh", tier: "creator", monthlyMinutes: 150, minutesBalance: 150,
+        newMonthlyCredits: 50, currentMonthlyCredits: 60, renewsAt: D("2026-10-20"),
+      },
+      "annual pro": {
+        name: "Divyansh", tier: "pro", monthlyMinutes: 400, minutesBalance: 400,
+        newMonthlyCredits: 150, currentMonthlyCredits: 160, renewsAt: D("2027-03-02"),
+      },
+      "studio (no credit change)": {
+        name: "Divyansh", tier: "studio", monthlyMinutes: 1000, minutesBalance: 1000,
+        newMonthlyCredits: 400, currentMonthlyCredits: 400, renewsAt: D("2026-10-11"),
+      },
+      free: {
+        name: "Divyansh", tier: "free", monthlyMinutes: 30, minutesBalance: 30,
+        newMonthlyCredits: 10, currentMonthlyCredits: 10, renewsAt: null,
+      },
+    },
+  }),
   "subscription-renewed": entry({
     id: "subscription-renewed",
     title: "Subscription renewed",

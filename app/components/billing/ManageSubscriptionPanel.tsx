@@ -15,7 +15,7 @@ import { Button } from "@/app/components/ui/Button";
 import { formatMoney, type Currency } from "@/lib/currency-shared";
 import type { AuthUser } from "@/app/components/useAuthUser";
 import { trialStatus, trialDaysLeftLabel } from "@/lib/billing/trial-status";
-import { TRIAL_CREDITS } from "@/lib/plans/tiers";
+import { TRIAL_CREDITS, TRIAL_MINUTES } from "@/lib/plans/tiers";
 
 interface Purchase {
   id: string;
@@ -117,9 +117,15 @@ export function ManageSubscriptionPanel({
 
           <div className="rounded-2xl border border-card-border px-4 py-1">
             {trial ? (
-              <Row label="Credits" value={trial.cancelled ? `${TRIAL_CREDITS} for the trial` : `${TRIAL_CREDITS} during the trial, then ${user?.monthlyCredits || "—"} a month`} />
+              <>
+                <Row label="Clip Minutes" value={trial.cancelled ? `${TRIAL_MINUTES} for the trial` : `${TRIAL_MINUTES} during the trial, then ${user?.monthlyMinutes || "—"} a month`} />
+                <Row label="Credits" value={trial.cancelled ? `${TRIAL_CREDITS} for the trial` : `${TRIAL_CREDITS} during the trial, then ${user?.monthlyCredits || "—"} a month`} />
+              </>
             ) : (
-              <Row label="Monthly credits" value={user?.monthlyCredits || "—"} />
+              <>
+                <Row label="Monthly Clip Minutes" value={user?.monthlyMinutes || "—"} />
+                <Row label="Monthly credits" value={user?.monthlyCredits || "—"} />
+              </>
             )}
             <Row
               label={trial ? "Trial ends" : cancelled ? "Access until" : "Renews on"}
