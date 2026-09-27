@@ -30,11 +30,19 @@ vi.mock("@/lib/invoice/pdf", () => ({
   invoiceFilename: (inv: { number: string }) => `Clipiro-Invoice-${inv.number.replace(/\//g, "-")}.pdf`,
 }));
 
+// The Clip Minutes engine has its own real-database suite (lib/minutes.test.ts);
+// here we assert fulfilment asks it for the right grant.
+const minutes = vi.hoisted(() => ({
+  grantMonthlyMinutes: vi.fn(async ({ monthlyMinutes }: { monthlyMinutes: number }) => monthlyMinutes),
+  grantMinutes: vi.fn(async () => ({ bonus: 0, subscription: 0, purchased: 0, total: 0 })),
+}));
+vi.mock("@/lib/minutes", () => minutes);
+
 interface Db {
   razorpayEvents: Set<string>;
   users: Map<string, { credits: number; email: string; firstName: string | null; name: string | null }>;
   purchases: Map<string, unknown>;
-  plans: Map<string, { id: string; slug: string; kind: string; credits: number; name: string; intervalMonths: number | null; monthlyCredits: number | null }>;
+  plans: Map<string, { id: string; slug: string; kind: string; credits: number; name: string; intervalMonths: number | null; monthlyCredits: number | null; monthlyMinutes?: number | null; minutes?: number }>;
 }
 
 let db: Db;
@@ -228,6 +236,54 @@ describe("purchase confirmation receipt", () => {
 
 // GST tax invoice (2026-09): issued after the payment commits, attached to
 // the receipt email, and never allowed to break fulfilment.
+describe("Clip Minutes grants", () => {
+  beforeEach(() => {
+    resetDb();
+    minutes.grantMinutes.mockClear();
+    minutes.grantMonthlyMinutes.mockClear();
+    db.plans.set("sub_pro_1mo", {
+      id: "plan-pro", slug: "sub_pro_1mo", kind: "subscription",
+      credits: 160, name: "Pro (Monthly)", intervalMonths: 1, monthlyCredits: 160, monthlyMinutes: 400,
+    });
+    db.plans.set("minutes_300", {
+      id: "plan-min", slug: "minutes_300", kind: "minute_pack",
+      credits: 0, name: "300 Clip Minutes", intervalMonths: null, monthlyCredits: null, minutes: 300,
+    });
+  });
+
+  it("grants the plan's monthly minutes with a subscription and records them on the purchase", async () => {
+    await fulfillPayment({
+      paymentId: "pay_min_sub", orderId: "order_min_sub", amountInPaise: 219900,
+      notes: { userId: "user-1", planId: "sub_pro_1mo", kind: "subscription" },
+    });
+    expect(minutes.grantMonthlyMinutes).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user-1", monthlyMinutes: 400, refId: "pay_min_sub" }),
+    );
+    expect(db.purchases.get("pay_min_sub")).toMatchObject({ credits: 160, minutes: 400 });
+  });
+
+  it("grants a minute pack into purchased minutes and no credits", async () => {
+    const before = db.users.get("user-1")!.credits;
+    await fulfillPayment({
+      paymentId: "pay_min_pack", orderId: "order_min_pack", amountInPaise: 199900,
+      notes: { userId: "user-1", planId: "minutes_300" },
+    });
+    expect(minutes.grantMinutes).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user-1", bucket: "purchased", amount: 300, reason: "grant:minute-pack" }),
+    );
+    expect(db.users.get("user-1")!.credits).toBe(before);
+    expect(db.purchases.get("pay_min_pack")).toMatchObject({ credits: 0, minutes: 300 });
+  });
+
+  it("never grants minutes from order notes when the plan row is missing", async () => {
+    await fulfillPayment({
+      paymentId: "pay_min_ghost", orderId: "order_min_ghost", amountInPaise: 199900,
+      notes: { userId: "user-1", planId: "minutes_ghost", kind: "minute_pack", credits: "999" },
+    });
+    expect(minutes.grantMinutes).not.toHaveBeenCalled();
+  });
+});
+
 describe("GST invoice on the receipt", () => {
   beforeEach(() => { resetDb(); tryEnsureInvoice.mockReset(); tryEnsureInvoice.mockResolvedValue(null); });
   afterEach(() => vi.clearAllMocks());

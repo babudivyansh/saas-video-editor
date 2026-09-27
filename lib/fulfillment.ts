@@ -8,6 +8,7 @@ import { tryEnsureInvoice } from "@/lib/invoice/issue";
 import { invoiceFilename, renderInvoicePdf } from "@/lib/invoice/pdf";
 import { markQuestComplete } from "@/lib/quests";
 import { grantCredits, getBalances } from "@/lib/credits";
+import { grantMinutes, grantMonthlyMinutes } from "@/lib/minutes";
 import { logger } from "@/lib/logger";
 import { recurringTerm } from "@/lib/billing/term";
 import { parseCurrency } from "@/lib/currency-shared";
@@ -70,7 +71,7 @@ export interface FulfillResult {
 type GrantResult =
   | { status: "already-processed" }
   | { status: "no-target" }
-  | { status: "granted"; kind: string; credits: number };
+  | { status: "granted"; kind: string; credits: number; minutes: number };
 
 // ── Razorpay Subscriptions (recurring) ──────────────────────────────────────
 
@@ -117,8 +118,8 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
   if (!subscriptionId || !paymentId) return { fulfilled: false, alreadyProcessed: false };
 
   const SELECT = {
-    id: true, planId: true, monthlyCredits: true, razorpaySubscriptionId: true,
-    plan: { select: { id: true, monthlyCredits: true, credits: true, intervalMonths: true } },
+    id: true, planId: true, monthlyCredits: true, monthlyMinutes: true, razorpaySubscriptionId: true,
+    plan: { select: { id: true, monthlyCredits: true, monthlyMinutes: true, credits: true, intervalMonths: true } },
   } as const;
 
   let user = await prisma.user.findUnique({
@@ -165,6 +166,10 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
   const monthlyCredits = notesPlan
     ? notesPlan.monthlyCredits ?? notesPlan.credits
     : user.plan?.monthlyCredits ?? user.monthlyCredits ?? 0;
+  // Clip Minutes resolve exactly like credits: the charge's own plan first.
+  const monthlyMinutes = notesPlan
+    ? notesPlan.monthlyMinutes ?? 0
+    : user.plan?.monthlyMinutes ?? user.monthlyMinutes ?? 0;
   const resolvedPlanId: string | null = notesPlan?.id ?? user.plan?.id ?? user.planId ?? null;
   const intervalMonths = notesPlan ? notesPlan.intervalMonths : user.plan?.intervalMonths;
 
@@ -192,6 +197,11 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
       });
     }
 
+    // Same 2x rollover cap as credits, applied by the shared minutes helper.
+    const appliedMinutes = await grantMonthlyMinutes({
+      userId: user.id, monthlyMinutes, reason: "grant:subscription-charge", refId: paymentId, tx,
+    });
+
     const term = recurringTerm(new Date(), intervalMonths);
     await tx.user.update({
       where: { id: user.id },
@@ -200,6 +210,7 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
         // The charge's own currency is the ground truth for what renewals bill in.
         ...(parseCurrency(args.currency) ? { subscriptionCurrency: parseCurrency(args.currency) } : {}),
         monthlyCredits,
+        monthlyMinutes,
         // Persist the plan link if this charge resolved it from notes before
         // activated ran, so tier gating and later renewals see it immediately.
         ...(resolvedPlanId && !user.planId ? { planId: resolvedPlanId } : {}),
@@ -215,7 +226,7 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
       },
     });
     await tx.purchase.create({
-      data: { id: paymentId, userId: user.id, planId: resolvedPlanId, amountInPaise, currency, credits: applied, status: "captured" },
+      data: { id: paymentId, userId: user.id, planId: resolvedPlanId, amountInPaise, currency, credits: applied, minutes: appliedMinutes, status: "captured" },
     });
     return { alreadyProcessed: false, applied, nextChargeAt: term.paidUntil };
   });
@@ -305,6 +316,10 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
       // Monthly grant goes to the subscription bucket; bundled add-on packs
       // are purchased credits (never expire).
       await grantCredits({ userId, bucket: "subscription", amount: monthlyCredits, reason: "grant:subscription", refId: paymentId, tx });
+      const monthlyMinutes = plan.monthlyMinutes ?? 0;
+      const grantedMinutes = await grantMonthlyMinutes({
+        userId, monthlyMinutes, reason: "grant:subscription", refId: paymentId, tx,
+      });
       if (addonCredits > 0) {
         await grantCredits({ userId, bucket: "purchased", amount: addonCredits, reason: "grant:pack-addon", refId: paymentId, tx });
       }
@@ -319,13 +334,28 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
           // to Razorpay Subscriptions' subscription.charged for true recurring).
           nextRefillAt: months > 1 ? nextRefill : null,
           monthlyCredits,
+          monthlyMinutes,
           subscriptionCurrency: currency,
         },
       });
       await tx.purchase.create({
-        data: { id: paymentId, userId, planId: plan.id, amountInPaise, currency, credits: totalCredits, status: "captured" },
+        data: { id: paymentId, userId, planId: plan.id, amountInPaise, currency, credits: totalCredits, minutes: grantedMinutes, status: "captured" },
       });
-      return { status: "granted", kind, credits: totalCredits };
+      return { status: "granted", kind, credits: totalCredits, minutes: grantedMinutes };
+    }
+
+    // One-time Clip Minutes pack: minutes into the never-expiring bucket. Only
+    // a real Plan row can grant minutes — there is no notes fallback, because
+    // order notes are client-influenced and minutes have no legacy orders.
+    if (kind === "minute_pack") {
+      const minutes = plan?.minutes ?? 0;
+      if (plan && minutes > 0) {
+        await grantMinutes({ userId, bucket: "purchased", amount: minutes, reason: "grant:minute-pack", refId: paymentId, tx });
+        await tx.purchase.create({
+          data: { id: paymentId, userId, planId: plan.id, amountInPaise, currency, credits: 0, minutes, status: "captured" },
+        });
+      }
+      return { status: "granted", kind, credits: 0, minutes };
     }
 
     // One-time top-up pack: add credits to the standard pool.
@@ -336,7 +366,7 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
         data: { id: paymentId, userId, planId: plan?.id ?? null, amountInPaise, currency, credits, status: "captured" },
       });
     }
-    return { status: "granted", kind, credits };
+    return { status: "granted", kind, credits, minutes: 0 };
   });
 
   if (result.status === "already-processed") return { fulfilled: false, alreadyProcessed: true };
