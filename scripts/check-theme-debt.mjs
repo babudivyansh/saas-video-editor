@@ -143,7 +143,9 @@ const BUDGET = {
   // this rule: the two modals' focus rings and the attachment drop zone's
   // border now use `primary`, which is where a focus state belonged anyway.
   // 91 -> 90: the AI video generator removal took its tool-card preview.
-  "raw-violet": 90, // AutoClip stage 6: old-system violet focus rings + hovers
+  // 90 -> 83: the clips/assets library redesign replaced the assets sidebar,
+  // toolbar and drop zone.
+  "raw-violet": 83, // AutoClip stage 6: old-system violet focus rings + hovers
   // First measurement, 2026-09-10, taken AFTER the Social Tracker's share was
   // paid off in the same commit that added the rule. The 138 that remain are
   // spread over ~30 files — pricing (11), PlansModal (10), admin/ops (8),

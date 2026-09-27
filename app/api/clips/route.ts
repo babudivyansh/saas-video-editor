@@ -27,6 +27,13 @@ function orderFor(sort: string) {
   return [{ createdAt: "desc" as const }, { id: "asc" as const }];
 }
 
+async function resign(url: string | null): Promise<string | null> {
+  if (!url) return null;
+  const loc = parseS3Url(url);
+  if (!loc) return url;
+  return getAssetReadUrl(loc.key).catch(() => url);
+}
+
 async function handleGET(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -71,6 +78,7 @@ async function handleGET(req: NextRequest) {
       endSec: true,
       aspectRatio: true,
       thumbnailUrl: true,
+      videoUrl: true,
       failureReason: true,
       createdAt: true,
       project: { select: { title: true, status: true } },
@@ -89,11 +97,10 @@ async function handleGET(req: NextRequest) {
     items.map(async (c) => {
       // Renders are stored with permanent unsigned URLs; re-sign so a listing
       // never hands out a durable link to unreleased content.
-      let thumbnailUrl = c.thumbnailUrl;
-      if (thumbnailUrl) {
-        const loc = parseS3Url(thumbnailUrl);
-        if (loc) thumbnailUrl = await getAssetReadUrl(loc.key).catch(() => thumbnailUrl);
-      }
+      const thumbnailUrl = await resign(c.thumbnailUrl);
+      // The library's preview panel plays the clip inline, and only a finished
+      // render has a file worth handing out.
+      const videoUrl = c.status === "ready" ? await resign(c.videoUrl) : null;
       return {
         id: c.id,
         projectId: c.projectId,
@@ -110,6 +117,7 @@ async function handleGET(req: NextRequest) {
         endSec: c.endSec,
         aspectRatio: c.aspectRatio,
         thumbnailUrl,
+        videoUrl,
         failureReason: c.failureReason,
         createdAt: c.createdAt.toISOString(),
       };

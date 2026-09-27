@@ -126,6 +126,16 @@ describe("GET /api/clips", () => {
     expect(body.clips[0].thumbnailUrl).toContain("sig=xyz");
   });
 
+  it("signs the video for a finished render only", async () => {
+    const video = "https://bucket.s3.ap-south-1.amazonaws.com/renders/p1/clip-0.mp4";
+    rows = [row({ id: "a", status: "ready", videoUrl: video }), row({ id: "b", status: "rendering", videoUrl: video })];
+    const body = await (await GET(req())).json();
+
+    expect(getAssetReadUrl).toHaveBeenCalledWith("renders/p1/clip-0.mp4");
+    expect(body.clips[0].videoUrl).toContain("sig=xyz");
+    expect(body.clips[1].videoUrl).toBeNull();
+  });
+
   it("passes through a thumbnail it cannot parse rather than dropping it", async () => {
     rows = [row({ thumbnailUrl: "https://cdn.example.com/t.jpg" })];
     const body = await (await GET(req())).json();

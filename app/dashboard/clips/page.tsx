@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/AuthContext";
 import { ProjectStatusBadge } from "@/app/components/dashboard/ProjectStatusBadge";
 import { Button } from "@/app/components/ui/Button";
@@ -11,7 +12,11 @@ import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { ContextMenu, ContextMenuItem, useContextMenu } from "@/app/components/ui/ContextMenu";
 import { CardMenuButton } from "@/app/components/dashboard/CardMenuButton";
 import { useProjectActions } from "@/app/components/dashboard/useProjectActions";
-import { ClipCard } from "./components/ClipCard";
+import { Tabs } from "@/app/components/ui/Tabs";
+import { useIsWideLayout } from "@/app/components/dashboard/useIsWideLayout";
+import { ClipList } from "./components/ClipList";
+import { ClipInspector } from "./components/ClipInspector";
+import { IcStar, clipHref } from "./components/clipUi";
 import {
   useClipsLibrary, useClipMutations,
   type ClipFilters, type ClipRow, type ClipSort,
@@ -92,18 +97,15 @@ export default function ClipsLibraryPage() {
   );
 }
 
-type Tab = "clips" | "projects";
-
 function ClipsLibraryPageInner() {
-  const [tab, setTab] = useState<Tab>("clips");
-
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 sm:px-8 pt-6 pb-12 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-8 pt-6 pb-12 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold grad-text inline-block">My Clips</h1>
-          <p className="text-sm text-ink-soft mt-1">
-            Every clip AutoClip has cut for you, newest first.
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-fg-subtle">Library</p>
+          <h1 className="mt-1.5 text-3xl font-semibold tracking-tight text-fg">My Clips</h1>
+          <p className="text-sm text-fg-muted mt-1.5">
+            Every clip AutoClip has cut for you. Pick one to preview it.
           </p>
         </div>
         <Button variant="primary" size="md" href="/dashboard/create/auto-clip" icon={<IcPlus />}>
@@ -111,26 +113,32 @@ function ClipsLibraryPageInner() {
         </Button>
       </div>
 
-      {/* This page was called "My Clips" but listed projects and never rendered
-          a single clip — the clips themselves had no home anywhere in the app.
-          Clips are the default view now; projects stay available as a tab. */}
-      <div className="flex items-center gap-1 p-1 rounded-full bg-surface w-fit">
-        {(["clips", "projects"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            aria-current={tab === t ? "page" : undefined}
-            className={`text-xs font-bold px-4 py-1.5 rounded-full transition-colors ${
-              tab === t ? "bg-panel text-ink shadow-sm" : "text-ink-soft hover:text-ink"
-            }`}
-          >
-            {t === "clips" ? "Clips" : "Projects"}
-          </button>
-        ))}
-      </div>
-
-      {tab === "clips" ? <ClipsTab /> : <ProjectsTab />}
+      {/* Clips are the default view; projects stay available as a tab. */}
+      <Tabs
+        label="Library view"
+        items={[
+          { id: "clips", label: "Clips", content: <ClipsTab /> },
+          { id: "projects", label: "Projects", content: <ProjectsTab /> },
+        ]}
+      />
     </div>
+  );
+}
+
+function SegButton({
+  active, onClick, pressed, children,
+}: { active: boolean; onClick: () => void; pressed?: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={pressed ?? active}
+      className={`inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full text-[13px] font-medium transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary/70 ${
+        active ? "bg-surface-3 text-fg" : "text-fg-muted hover:text-fg"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -187,61 +195,63 @@ function ClipsTab() {
     }
   }
 
+  const router = useRouter();
+  const isWide = useIsWideLayout();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Fall back to the first clip whenever the selection is gone — first load,
+  // a filter that hid it, or a delete.
+  const selected = clips.find((c) => c.id === selectedId) ?? clips[0] ?? null;
+
+  // Rank by score among what is loaded. Only claimed when every clip is
+  // loaded; "#2 of 30" would be a lie with more pages still on the server.
+  const rank = useMemo(() => {
+    if (!selected || typeof selected.score !== "number" || hasNextPage) return null;
+    return 1 + clips.filter((c) => (c.score ?? -1) > selected.score!).length;
+  }, [clips, selected, hasNextPage]);
+
+  function toggleFavorite(clip: ClipRow) {
+    mutations.toggleFavorite.mutate({ projectId: clip.projectId, clipId: clip.id, isFavorite: !clip.isFavorite });
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-center gap-0.5 p-1 rounded-full bg-surface-2 border border-line w-fit flex-wrap" role="group" aria-label="Filter clips">
           {CLIP_STATUS_FILTERS.map((f) => (
-            <button
-              key={f.label}
-              onClick={() => setStatus(f.id)}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
-                status === f.id
-                  ? "grad-brand text-on-primary shadow-glow"
-                  : "bg-panel border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
-              }`}
-            >
-              {f.label}
-            </button>
+            <SegButton key={f.label} active={status === f.id} onClick={() => setStatus(f.id)}>{f.label}</SegButton>
           ))}
-          <button
-            onClick={() => setFavorite((v) => !v)}
-            aria-pressed={favorite}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
-              favorite
-                ? "bg-tint-amber text-warning border border-warning/40"
-                : "bg-panel border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
-            }`}
-          >
-            ★ Starred
-          </button>
+          <SegButton active={favorite} onClick={() => setFavorite((v) => !v)} pressed={favorite}>
+            <IcStar filled={favorite} className="w-3.5 h-3.5" /> Starred
+          </SegButton>
         </div>
 
         <div className="flex items-center gap-2">
+          <div className="relative flex-1 sm:w-64 sm:flex-none">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-fg-subtle"><IcSearch /></span>
+            <input
+              type="search"
+              value={rawQuery}
+              onChange={(e) => setRawQuery(e.target.value)}
+              placeholder="Search clips"
+              aria-label="Search clips"
+              className="w-full h-10 text-sm bg-surface-2 border border-line rounded-xl pl-10 pr-4 text-fg placeholder:text-fg-subtle outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all"
+            />
+          </div>
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as ClipSort)}
             aria-label="Sort clips"
-            className="text-xs font-semibold px-3 py-2 rounded-full bg-panel border border-card-border text-ink-soft outline-none focus:border-brand cursor-pointer"
+            className="h-10 text-sm px-3 rounded-xl bg-surface-2 border border-line text-fg outline-none focus:border-primary/60 cursor-pointer"
           >
             {SORTS.map((s) => (
               <option key={s.id} value={s.id}>{s.label}</option>
             ))}
           </select>
-          <div className="relative sm:w-64">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft/50"><IcSearch /></span>
-            <input
-              value={rawQuery}
-              onChange={(e) => setRawQuery(e.target.value)}
-              placeholder="Search clips…"
-              className="w-full text-sm bg-panel border border-card-border rounded-full pl-9 pr-4 py-2 text-ink placeholder:text-ink-soft/50 outline-none focus:border-brand focus:ring-2 focus:ring-brand/30 transition-all"
-            />
-          </div>
         </div>
       </div>
 
-      {/* A failed request is now visibly a failure. The old page swallowed
-          non-2xx responses and rendered the "nothing here yet" empty state. */}
+      {/* A failed request is visibly a failure, never the "nothing here yet"
+          empty state. */}
       {error && (
         <div className="rounded-2xl border border-error/40 bg-error/10 px-4 py-3 text-sm text-error">
           We couldn&apos;t load your clips. {(error as Error).message}
@@ -249,9 +259,9 @@ function ClipsTab() {
       )}
 
       {isLoading && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-          {Array.from({ length: 10 }).map((_, i) => (
-            <div key={i} className="rounded-[var(--radius-card)] bg-surface-3 animate-pulse aspect-[9/16]" />
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-[110px] rounded-2xl bg-surface-2 animate-pulse" />
           ))}
         </div>
       )}
@@ -272,36 +282,39 @@ function ClipsTab() {
       )}
 
       {clips.length > 0 && (
-        <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-            {clips.map((clip) => (
-              <ClipCard
-                key={clip.id}
-                clip={clip}
-                onToggleFavorite={() =>
-                  mutations.toggleFavorite.mutate({
-                    projectId: clip.projectId,
-                    clipId: clip.id,
-                    isFavorite: !clip.isFavorite,
-                  })
-                }
-                onMenu={(e) => menu.show(e, clip)}
-              />
-            ))}
+        <div className="grid xl:grid-cols-[minmax(0,1fr)_380px] gap-6 items-start">
+          <div className="min-w-0 space-y-4">
+            <ClipList
+              clips={clips}
+              selectedId={isWide ? selected?.id ?? null : null}
+              // No room for the preview panel below xl, so a row opens the
+              // clip itself — what the old grid card did.
+              onSelect={(clip) => (isWide ? setSelectedId(clip.id) : router.push(clipHref(clip)))}
+              onToggleFavorite={toggleFavorite}
+              onMenu={(e, clip) => menu.show(e, clip)}
+            />
+            {hasNextPage && (
+              <div className="flex justify-center pt-2">
+                <Button variant="secondary" onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
+                  {isFetchingNextPage ? "Loading…" : "Load more"}
+                </Button>
+              </div>
+            )}
           </div>
 
-          {hasNextPage && (
-            <div className="flex justify-center pt-2">
-              <Button
-                variant="secondary"
-                onClick={() => fetchNextPage()}
-                disabled={isFetchingNextPage}
-              >
-                {isFetchingNextPage ? "Loading…" : "Load more"}
-              </Button>
+          {isWide && selected && (
+            <div className="sticky top-6">
+              <ClipInspector
+                clip={selected}
+                rank={rank}
+                total={clips.length}
+                onToggleFavorite={() => toggleFavorite(selected)}
+                onRename={() => { setRenameValue(selected.title ?? ""); setRenaming(selected); }}
+                onDelete={() => setDeleting(selected)}
+              />
             </div>
           )}
-        </>
+        </div>
       )}
 
       <ContextMenu open={menu.open} x={menu.x} y={menu.y} onClose={menu.close}>

@@ -19,6 +19,8 @@ export interface ClipRow {
   endSec: number;
   aspectRatio: string;
   thumbnailUrl: string | null;
+  /** Signed, and only present once the clip has finished rendering. */
+  videoUrl: string | null;
   failureReason: string | null;
   createdAt: string;
 }
