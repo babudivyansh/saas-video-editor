@@ -19,9 +19,15 @@ interface SeedPlan {
   credits: number;            // total credits the purchase ultimately grants
   sortOrder: number;
   features: string[];
-  kind: "subscription" | "pack";
+  kind: "subscription" | "pack" | "minute_pack";
   intervalMonths?: number;
   monthlyCredits?: number;
+  /** Clip Minutes per month (subscriptions). */
+  monthlyMinutes?: number;
+  /** Clip Minutes a minute_pack grants. */
+  minutes?: number;
+  /** Defaults to true. Minute packs ship inactive until the UI shows minutes. */
+  active?: boolean;
   tier?: "creator" | "pro" | "studio"; // subscription rows only; see lib/plans/tiers.ts
 }
 
@@ -50,14 +56,14 @@ const yearly = (monthlyPaise: number) => Math.round((monthlyPaise * 12 * (1 - YE
 // seed shouldn't ship the redundancy in the first place.
 const SUBSCRIPTIONS: SeedPlan[] = [
   // Creator — 60 cr/mo (₹999/mo).
-  { slug: "sub_creator_1mo",  name: "Creator (Monthly)", priceInPaise: 99900,            intervalMonths: 1,  monthlyCredits: 60,  sortOrder: 10, tier: "creator" as const, features: ["All AI tools", "1080p exports"] },
-  { slug: "sub_creator_12mo", name: "Creator (Yearly)",  priceInPaise: yearly(99900),    intervalMonths: 12, monthlyCredits: 60,  sortOrder: 13, tier: "creator" as const, features: ["All AI tools", "1080p exports"] },
+  { slug: "sub_creator_1mo",  name: "Creator (Monthly)", priceInPaise: 99900,            intervalMonths: 1,  monthlyCredits: 60,  monthlyMinutes: 150, sortOrder: 10, tier: "creator" as const, features: ["All AI tools", "1080p exports"] },
+  { slug: "sub_creator_12mo", name: "Creator (Yearly)",  priceInPaise: yearly(99900),    intervalMonths: 12, monthlyCredits: 60,  monthlyMinutes: 150, sortOrder: 13, tier: "creator" as const, features: ["All AI tools", "1080p exports"] },
   // Pro — 160 cr/mo (₹2,199/mo).
-  { slug: "sub_pro_1mo",  name: "Pro (Monthly)", priceInPaise: 219900,           intervalMonths: 1,  monthlyCredits: 160, sortOrder: 20, tier: "pro" as const, features: ["All AI tools", "Priority rendering"] },
-  { slug: "sub_pro_12mo", name: "Pro (Yearly)",  priceInPaise: yearly(219900),   intervalMonths: 12, monthlyCredits: 160, sortOrder: 23, tier: "pro" as const, features: ["All AI tools", "Priority rendering"] },
+  { slug: "sub_pro_1mo",  name: "Pro (Monthly)", priceInPaise: 219900,           intervalMonths: 1,  monthlyCredits: 160, monthlyMinutes: 400, sortOrder: 20, tier: "pro" as const, features: ["All AI tools", "Priority rendering"] },
+  { slug: "sub_pro_12mo", name: "Pro (Yearly)",  priceInPaise: yearly(219900),   intervalMonths: 12, monthlyCredits: 160, monthlyMinutes: 400, sortOrder: 23, tier: "pro" as const, features: ["All AI tools", "Priority rendering"] },
   // Studio — 400 cr/mo (₹4,999/mo).
-  { slug: "sub_studio_1mo",  name: "Studio (Monthly)", priceInPaise: 499900,          intervalMonths: 1,  monthlyCredits: 400, sortOrder: 30, tier: "studio" as const, features: ["Priority rendering", "Dedicated support"] },
-  { slug: "sub_studio_12mo", name: "Studio (Yearly)",  priceInPaise: yearly(499900),  intervalMonths: 12, monthlyCredits: 400, sortOrder: 33, tier: "studio" as const, features: ["Priority rendering", "Dedicated support"] },
+  { slug: "sub_studio_1mo",  name: "Studio (Monthly)", priceInPaise: 499900,          intervalMonths: 1,  monthlyCredits: 400, monthlyMinutes: 1000, sortOrder: 30, tier: "studio" as const, features: ["Priority rendering", "Dedicated support"] },
+  { slug: "sub_studio_12mo", name: "Studio (Yearly)",  priceInPaise: yearly(499900),  intervalMonths: 12, monthlyCredits: 400, monthlyMinutes: 1000, sortOrder: 33, tier: "studio" as const, features: ["Priority rendering", "Dedicated support"] },
 ].map(p => ({ ...p, kind: "subscription" as const, credits: p.monthlyCredits * p.intervalMonths }));
 
 // Old 3-month / 6-month terms are retired. Deactivate them (keep rows for
@@ -79,7 +85,18 @@ const PACKS: SeedPlan[] = [
   { slug: "pack_studio",  name: "Studio Pack",  priceInPaise: 899900, credits: 640, sortOrder: 43, kind: "pack", features: ["640 credits", "Best value", "Never expires"] },
 ];
 
-const PLANS: SeedPlan[] = [...SUBSCRIPTIONS, ...PACKS];
+// ── Clip Minutes packs (2026-09-26 pricing plan) ────────────────────────────
+// One-time, never expire, open to everyone. Priced at or above Creator's
+// ₹6.66/min so a pack never undercuts the subscription. INACTIVE until the
+// minutes UI ships (checkout refuses inactive plans), so nobody can buy a
+// balance they can't see or spend yet.
+const MINUTE_PACKS: SeedPlan[] = [
+  { slug: "minutes_100",  name: "100 Clip Minutes",   priceInPaise: 79900,  credits: 0, minutes: 100,  sortOrder: 50, kind: "minute_pack", active: false, features: ["100 Clip Minutes", "One-time top-up", "Never expires"] },
+  { slug: "minutes_300",  name: "300 Clip Minutes",   priceInPaise: 199900, credits: 0, minutes: 300,  sortOrder: 51, kind: "minute_pack", active: false, features: ["300 Clip Minutes", "One-time top-up", "Never expires"] },
+  { slug: "minutes_1000", name: "1,000 Clip Minutes", priceInPaise: 599900, credits: 0, minutes: 1000, sortOrder: 52, kind: "minute_pack", active: false, features: ["1,000 Clip Minutes", "Best value", "Never expires"] },
+];
+
+const PLANS: SeedPlan[] = [...SUBSCRIPTIONS, ...PACKS, ...MINUTE_PACKS];
 
 // ── Launch coupons ──────────────────────────────────────────────────────────
 interface SeedCoupon {
@@ -122,8 +139,10 @@ async function main() {
         kind: p.kind,
         intervalMonths: p.intervalMonths ?? null,
         monthlyCredits: p.monthlyCredits ?? null,
+        monthlyMinutes: p.monthlyMinutes ?? null,
+        minutes: p.minutes ?? 0,
         tier: p.tier ?? null,
-        active: true,
+        active: p.active ?? true,
       },
       create: {
         slug: p.slug,
@@ -135,9 +154,11 @@ async function main() {
         kind: p.kind,
         intervalMonths: p.intervalMonths ?? null,
         monthlyCredits: p.monthlyCredits ?? null,
+        monthlyMinutes: p.monthlyMinutes ?? null,
+        minutes: p.minutes ?? 0,
         tier: p.tier ?? null,
         currency: "INR",
-        active: true,
+        active: p.active ?? true,
       },
     });
     console.log("Seeded plan:", plan.slug, "| ₹", plan.priceInPaise / 100, "|", plan.kind, "|", plan.credits, "credits");

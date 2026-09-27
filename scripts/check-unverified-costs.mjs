@@ -111,6 +111,23 @@ for (const dir of ["app", "lib", "utils"]) {
   }
 }
 
+// ── Raw minute-mutation guard ───────────────────────────────────────────────
+// Same rule for the Clip Minutes meter: lib/minutes.ts is the only module that
+// may write the minute buckets, because it is the only one that also writes
+// the MinuteTransaction rows refunds (restoreMinutes) are driven from.
+const MIN_MUTATION = /\b(minutes|subscriptionMinutes|purchasedMinutes|bonusMinutes)['"]?\s*:\s*\{\s*(increment|decrement|set)\b/;
+const MIN_ABSOLUTE = /\.(minutes|subscriptionMinutes|purchasedMinutes|bonusMinutes)\s*=[^=]/;
+for (const dir of ["app", "lib", "utils"]) {
+  for (const rel of walk(dir)) {
+    if (rel === "lib/minutes.ts") continue;
+    const text = readFileSync(join(ROOT, rel), "utf8");
+    if (MIN_MUTATION.test(text) || MIN_ABSOLUTE.test(text)) {
+      console.error(`✗ ${rel}: raw Clip Minutes column mutation — use lib/minutes.ts (spendMinutes/grantMinutes/restoreMinutes/clawbackMinutes).`);
+      failed = true;
+    }
+  }
+}
+
 // ── Every user-facing tool has a published price ────────────────────────────
 //
 // A tool route that charges credits but has no TOOL_COSTS entry still bills the

@@ -23,6 +23,14 @@ vi.mock("razorpay", () => ({
 vi.mock("@/lib/email", () => ({ sendCreditsRefilledEmail: vi.fn(async () => {}) }));
 vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/redis", () => ({ redis: { set: vi.fn(async () => {}) } }));
+// The Clip Minutes engine has its own real-database suite (lib/minutes.test.ts);
+// here we only assert the cron drives it at the right moments.
+const minutes = vi.hoisted(() => ({
+  grantMonthlyMinutes: vi.fn(async () => 0),
+  setSubscriptionMinutes: vi.fn(async () => {}),
+  expireBonusMinutes: vi.fn(async () => 0),
+}));
+vi.mock("@/lib/minutes", () => minutes);
 
 interface UserRow {
   id: string;
@@ -70,6 +78,7 @@ vi.mock("@/lib/prisma", () => ({
           return users.filter((u) => u.nextRefillAt !== null && u.nextRefillAt <= now
             && (!onlyPrepaid || u.razorpaySubscriptionId === null));
         }
+        if ("bonusMinutesExpireAt" in where) return [];
         if ("bonusCreditsExpireAt" in where) {
           return users.filter((u) => u.bonusCreditsExpireAt !== null && u.bonusCreditsExpireAt <= now && u.bonusCredits > 0);
         }
@@ -175,6 +184,21 @@ describe("cron refill", () => {
     expect(u.credits).toBe(140);
     expect(u.nextRefillAt!.getTime()).toBeGreaterThan(Date.now());
     expect(u.lowCreditEmailSentAt).toBeNull();
+  });
+
+  it("grants the month's Clip Minutes with the refill, and zeroes them on lapse", async () => {
+    minutes.grantMonthlyMinutes.mockClear();
+    minutes.setSubscriptionMinutes.mockClear();
+    const u = user({
+      nextRefillAt: new Date(Date.now() - 3 * DAY),
+      subscriptionEndsAt: new Date(Date.now() - 1 * DAY),
+    }) as ReturnType<typeof user> & { monthlyMinutes?: number };
+    u.monthlyMinutes = 400;
+    await run();
+    expect(minutes.grantMonthlyMinutes).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: u.id, monthlyMinutes: 400, reason: "grant:refill" }),
+    );
+    expect(minutes.setSubscriptionMinutes).toHaveBeenCalledWith(u.id, 0, "lapse");
   });
 
   it("does not refill when nothing is due", async () => {
