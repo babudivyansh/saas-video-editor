@@ -15,7 +15,8 @@ export const LEGAL_DOCS: LegalDocMeta[] = [
     description:
       "The rules that govern your use of Clipiro, including acceptable use, intellectual property, and your rights.",
     effective: "2026-06-14",
-    updated: "2026-06-14",
+    // 2026-09-27: Clip Minutes (Auto Clips) alongside credits.
+    updated: "2026-09-27",
   },
   {
     slug: "/privacy",
@@ -30,7 +31,8 @@ export const LEGAL_DOCS: LegalDocMeta[] = [
     description: "How refunds, cancellations, and billing work for Clipiro credit packs.",
     effective: "2026-06-14",
     // 2026-09-26: money-back window 48 hours -> 3 days.
-    updated: "2026-09-26",
+    // 2026-09-27: Clip Minutes and minute packs covered on the same terms as credits.
+    updated: "2026-09-27",
   },
   {
     slug: "/affiliate-tos",

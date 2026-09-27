@@ -66,6 +66,13 @@ vi.mock("@/lib/credits", () => ({
     grants.push({ amount, reason });
   }),
 }));
+// The trial also grants Clip Minutes (TRIAL_MINUTES) since switch day.
+const minuteGrants: Array<{ amount: number; reason: string }> = [];
+vi.mock("@/lib/minutes", () => ({
+  grantMinutes: vi.fn(async ({ amount, reason }: { amount: number; reason: string }) => {
+    minuteGrants.push({ amount, reason });
+  }),
+}));
 
 vi.mock("@/lib/prisma", () => {
   const client = {
@@ -256,6 +263,7 @@ describe("subscription.authenticated (7-day trial)", () => {
     expect(user.trialEndsAt).toEqual(new Date(START_AT * 1000));
     expect(user.trialUsedAt).toBeInstanceOf(Date);
     expect(grants).toEqual([{ amount: 25, reason: "grant:trial" }]);
+    expect(minuteGrants.at(-1)).toEqual({ amount: 60, reason: "grant:trial" });
     expect(cancelled).toEqual([]);
     // They authorised a mandate while paying ₹0 — say when the first charge is.
     expect(trialStartedEmails).toEqual([{ to: "trial@test.com", endsAt: new Date(START_AT * 1000) }]);

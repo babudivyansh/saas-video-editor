@@ -182,6 +182,11 @@ export function overflowCreditsFor(minutesShort: number): number {
 // the figure instead of offering an unquantified "free trial".
 export const TRIAL_CREDITS = 25;
 
+/** Clip Minutes granted with the Pro trial (2026-09-26 model). Without them a
+ *  trial user met Pro's headline feature, Auto Clips, with a zero balance. Same
+ *  one-off, subscription-bucket treatment as TRIAL_CREDITS. */
+export const TRIAL_MINUTES = 60;
+
 export const TRIAL_DAYS = 7;
 
 /** Only the MONTHLY Pro plan carries a trial — an annual Pro trial would end in

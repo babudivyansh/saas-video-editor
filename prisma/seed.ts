@@ -54,14 +54,21 @@ const yearly = (monthlyPaise: number) => Math.round((monthlyPaise * 12 * (1 - YE
 // on the yearly cards a duplicate of the line directly above it. /pricing also
 // filters these defensively (features are admin-editable at runtime), but the
 // seed shouldn't ship the redundancy in the first place.
+// 2026-09-26 switch day (Clip Minutes + AI Credits): AutoClip moved off
+// credits onto minutes, so the credit grants only have to cover the AI extras
+// and dropped 60/160/400 -> 50/150/400, alongside 150/400/1000 new monthly
+// Clip Minutes. Existing subscribers are grandfathered for the term they paid
+// for: renewals read the plan row (fulfillment.ts), but the refill cron reads
+// User.monthlyCredits, which only changes on their next purchase or renewal —
+// an annual subscriber keeps 60 or 160 a month until their year is up.
 const SUBSCRIPTIONS: SeedPlan[] = [
-  // Creator — 60 cr/mo (₹999/mo).
-  { slug: "sub_creator_1mo",  name: "Creator (Monthly)", priceInPaise: 99900,            intervalMonths: 1,  monthlyCredits: 60,  monthlyMinutes: 150, sortOrder: 10, tier: "creator" as const, features: ["All AI tools", "1080p exports"] },
-  { slug: "sub_creator_12mo", name: "Creator (Yearly)",  priceInPaise: yearly(99900),    intervalMonths: 12, monthlyCredits: 60,  monthlyMinutes: 150, sortOrder: 13, tier: "creator" as const, features: ["All AI tools", "1080p exports"] },
-  // Pro — 160 cr/mo (₹2,199/mo).
-  { slug: "sub_pro_1mo",  name: "Pro (Monthly)", priceInPaise: 219900,           intervalMonths: 1,  monthlyCredits: 160, monthlyMinutes: 400, sortOrder: 20, tier: "pro" as const, features: ["All AI tools", "Priority rendering"] },
-  { slug: "sub_pro_12mo", name: "Pro (Yearly)",  priceInPaise: yearly(219900),   intervalMonths: 12, monthlyCredits: 160, monthlyMinutes: 400, sortOrder: 23, tier: "pro" as const, features: ["All AI tools", "Priority rendering"] },
-  // Studio — 400 cr/mo (₹4,999/mo).
+  // Creator — 150 Clip Minutes + 50 AI credits /mo (₹999/mo).
+  { slug: "sub_creator_1mo",  name: "Creator (Monthly)", priceInPaise: 99900,            intervalMonths: 1,  monthlyCredits: 50,  monthlyMinutes: 150, sortOrder: 10, tier: "creator" as const, features: ["All AI tools", "1080p exports"] },
+  { slug: "sub_creator_12mo", name: "Creator (Yearly)",  priceInPaise: yearly(99900),    intervalMonths: 12, monthlyCredits: 50,  monthlyMinutes: 150, sortOrder: 13, tier: "creator" as const, features: ["All AI tools", "1080p exports"] },
+  // Pro — 400 Clip Minutes + 150 AI credits /mo (₹2,199/mo).
+  { slug: "sub_pro_1mo",  name: "Pro (Monthly)", priceInPaise: 219900,           intervalMonths: 1,  monthlyCredits: 150, monthlyMinutes: 400, sortOrder: 20, tier: "pro" as const, features: ["All AI tools", "Priority rendering"] },
+  { slug: "sub_pro_12mo", name: "Pro (Yearly)",  priceInPaise: yearly(219900),   intervalMonths: 12, monthlyCredits: 150, monthlyMinutes: 400, sortOrder: 23, tier: "pro" as const, features: ["All AI tools", "Priority rendering"] },
+  // Studio — 1,000 Clip Minutes + 400 AI credits /mo (₹4,999/mo).
   { slug: "sub_studio_1mo",  name: "Studio (Monthly)", priceInPaise: 499900,          intervalMonths: 1,  monthlyCredits: 400, monthlyMinutes: 1000, sortOrder: 30, tier: "studio" as const, features: ["Priority rendering", "Dedicated support"] },
   { slug: "sub_studio_12mo", name: "Studio (Yearly)",  priceInPaise: yearly(499900),  intervalMonths: 12, monthlyCredits: 400, monthlyMinutes: 1000, sortOrder: 33, tier: "studio" as const, features: ["Priority rendering", "Dedicated support"] },
 ].map(p => ({ ...p, kind: "subscription" as const, credits: p.monthlyCredits * p.intervalMonths }));

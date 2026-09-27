@@ -121,6 +121,14 @@ export async function sendPurchaseConfirmationEmail(data: PurchaseEmailData): Pr
   }, { attachments: invoiceAttachments(data.invoice) });
 }
 
+/** Switch-day notice (scripts/send-clip-minutes-announcement.ts). */
+export async function sendClipMinutesLaunchEmail(
+  to: string,
+  props: Parameters<typeof import("@/lib/email/templates/billing").clipMinutesLaunch>[0],
+): Promise<{ status: string }> {
+  return sendTemplate("clip-minutes-launch", to, props);
+}
+
 export async function sendSubscriptionRenewedEmail(
   to: string, name: string, amountInPaise: number, creditsAdded: number, nextChargeAt: Date | null,
   invoice?: InvoiceAttachment,
@@ -142,8 +150,9 @@ export async function sendPaymentFailedEmail(
 export async function sendTrialStartedEmail(
   to: string, name: string, planName: string, priceInPaise: number, trialCredits: number, endsAt: Date,
   currency: "INR" | "USD" = "INR",
+  trialMinutes?: number,
 ): Promise<void> {
-  await sendTemplate("trial-started", to, { name, planName, priceInPaise, trialCredits, endsAt, currency });
+  await sendTemplate("trial-started", to, { name, planName, priceInPaise, trialCredits, trialMinutes, endsAt, currency });
 }
 
 export async function sendTrialEndingEmail(

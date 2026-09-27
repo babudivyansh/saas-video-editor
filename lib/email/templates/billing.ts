@@ -173,26 +173,33 @@ export function trialStarted(p: {
   /** Minor units of `currency` — paise for INR, cents for USD. */
   priceInPaise: number;
   trialCredits: number;
+  /** Clip Minutes granted with the trial (optional so older samples render). */
+  trialMinutes?: number;
   endsAt: Date;
   /** The currency the subscription bills in. Defaults to INR. */
   currency?: "INR" | "USD";
 }): EmailDocument {
   const when = formatDateShort(p.endsAt);
   const amount = p.priceInPaise ? formatMinor(p.priceInPaise, p.currency) : "";
+  const minutes = p.trialMinutes ?? 0;
+  const gift = minutes > 0 ? `${minutes} Clip Minutes and ${p.trialCredits} credits` : `${p.trialCredits} credits`;
   return {
     subject: `Your ${PRODUCT_NAME} free trial has started`,
-    preheader: `${p.trialCredits} credits added. Free until ${when}${amount ? `, then ${amount}/month` : ""}.`,
+    preheader: `${gift} added. Free until ${when}${amount ? `, then ${amount}/month` : ""}.`,
     blocks: [
       { kind: "heading", text: `Your 7-day ${p.planName} trial has started` },
       {
         kind: "paragraph",
-        text: html`Hi ${greet(p.name)}, you now have ${p.planName} and <strong>${p.trialCredits} free credits</strong> to try it with.`,
+        text: minutes > 0
+          ? html`Hi ${greet(p.name)}, you now have ${p.planName}, with <strong>${minutes} Clip Minutes</strong> for Auto Clips and <strong>${p.trialCredits} free credits</strong> for the AI tools to try it with.`
+          : html`Hi ${greet(p.name)}, you now have ${p.planName} and <strong>${p.trialCredits} free credits</strong> to try it with.`,
       },
       {
         kind: "kv",
         title: "Your trial",
         rows: [
           { label: "Plan", value: p.planName },
+          ...(minutes > 0 ? [{ label: "Trial Clip Minutes", value: `+${minutes} minutes`, tone: "success" as const }] : []),
           { label: "Trial credits", value: `+${p.trialCredits} credits`, tone: "success" },
           { label: "Free until", value: when },
           ...(amount ? [{ label: "Then", value: `${amount} / month, renews automatically` }] : []),
@@ -336,6 +343,80 @@ export function subscriptionExpired(p: {
         items: ["Monthly credit refills", "All Pro AI tools", "Priority rendering queue"],
       },
       { kind: "button", href: PRICING_URL, label: "Pick a plan" },
+    ],
+  };
+}
+
+/**
+ * Switch-day notice for the Clip Minutes model (2026-09-26 pricing plan).
+ *
+ * A service change, not a promotion, so it is TRANSACTIONAL: a subscriber whose
+ * monthly credit grant goes down is owed notice whether or not they opted out
+ * of marketing. It therefore says exactly what changes for THIS person and
+ * when, and sells nothing.
+ */
+export function clipMinutesLaunch(p: {
+  name: string;
+  /** "free" or the subscription tier. */
+  tier: "free" | "creator" | "pro" | "studio";
+  /** The Clip Minutes the account now receives each month. */
+  monthlyMinutes: number;
+  /** Clip Minutes in the account right now (the switch-day grant included). */
+  minutesBalance: number;
+  /** The plan's AI-credit grant from the next renewal (50/150/400). */
+  newMonthlyCredits: number;
+  /** The grant they get today, kept until that renewal (60/160/400). */
+  currentMonthlyCredits: number;
+  /** Their next renewal, when the new credit grant starts; null for free. */
+  renewsAt: Date | null;
+}): EmailDocument {
+  const paid = p.tier !== "free";
+  const creditsChange = paid && p.newMonthlyCredits !== p.currentMonthlyCredits;
+  return {
+    subject: `Auto Clips now use Clip Minutes — ${p.minutesBalance} are in your account`,
+    preheader: `1 minute per minute of video, any number of clips. Your AI credits stay for the AI tools.`,
+    blocks: [
+      { kind: "heading", text: "Auto Clips now run on Clip Minutes" },
+      {
+        kind: "paragraph",
+        text: html`Hi ${greet(p.name)}, we've changed how Auto Clips are paid for. Instead of credits per clip, a run now uses
+          <strong>1 Clip Minute per minute of video</strong> — a 45-minute podcast uses 45 minutes whether you ask for 3 clips or 20.
+          Your AI credits now go only to the AI tools, dubbing and premium captions.`,
+      },
+      {
+        kind: "kv",
+        title: paid ? "Your plan" : "Your free account",
+        rows: [
+          { label: "Clip Minutes in your account", value: `${p.minutesBalance}`, tone: "success" },
+          { label: "Clip Minutes each month", value: `${p.monthlyMinutes}${paid ? "" : " (watermarked)"}` },
+          creditsChange
+            ? {
+                label: "AI credits each month",
+                value: `${p.currentMonthlyCredits} until ${p.renewsAt ? formatDate(p.renewsAt) : "your next renewal"}, then ${p.newMonthlyCredits}`,
+              }
+            : { label: "AI credits each month", value: `${p.newMonthlyCredits}` },
+        ],
+      },
+      {
+        kind: "list",
+        title: "Also new",
+        marker: "bullet",
+        items: [
+          "Re-running the same video within 7 days is free.",
+          "A run that fails is refunded in full, automatically.",
+          "Short on minutes? Top up with a minute pack, or choose to pay the rest in AI credits (3 minutes = 1 credit).",
+          "Credits and minutes you already have are untouched.",
+        ],
+      },
+      ...(creditsChange
+        ? ([{
+            kind: "paragraph",
+            tone: "fine",
+            text: `Why fewer AI credits from your next renewal? Auto Clips no longer spend credits at all, and they were what most credits went on — the ${p.monthlyMinutes} Clip Minutes a month replace them. If this doesn't work for you, reply to this email and we'll help.`,
+          }] as const)
+        : []),
+      { kind: "button", href: `${APP_URL}/dashboard/create/auto-clip`, label: "Try Auto Clips" },
+      { kind: "paragraph", tone: "fine", text: `Full details are on the pricing page: ${PRICING_URL}` },
     ],
   };
 }

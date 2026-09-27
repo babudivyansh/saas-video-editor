@@ -18,20 +18,21 @@ const doc: LegalDoc = {
       title: "Overview",
       body: (
         <p>
-          Clipiro operates on a credit-based system. Credits are used to generate videos — each video generation
-          consumes one credit. Because our costs (AI API calls, compute, and storage) are incurred at the moment a
-          video is generated, our refund policy distinguishes between credits that have been used and those that remain
-          unused.
+          Clipiro uses two balances: Clip Minutes, which Auto Clips consume (one per minute of uploaded video), and
+          credits, which the other AI tools consume. Because our costs (AI API calls, compute, and storage) are
+          incurred at the moment a job runs, our refund policy distinguishes between minutes and credits that have been
+          used and those that remain unused. Wherever this policy refers to credits or credit packs, the same terms
+          apply to Clip Minutes and minute packs.
         </p>
       ),
     },
     {
       id: "free-credits",
-      title: "Free Credits",
+      title: "Free Minutes and Credits",
       body: (
         <p>
-          Free accounts receive a monthly grant of bonus credits, which expire 30 days after they are issued. Free
-          credits are non-refundable and have no monetary value. They cannot be exchanged for cash or transferred to
+          Free accounts receive a monthly grant of bonus Clip Minutes and bonus credits, which expire 30 days after
+          they are issued. Free minutes and credits are non-refundable and have no monetary value. They cannot be exchanged for cash or transferred to
           another account.
         </p>
       ),

@@ -24,7 +24,7 @@ import { UsageBarChart } from "@/app/components/ui/UsageBarChart";
 import { formatDate, formatINR } from "@/lib/format";
 import { formatMoney, inferCurrencyFromLocale, type Currency } from "@/lib/currency-shared";
 import { trialStatus, trialDaysLeftLabel, type TrialStatus } from "@/lib/billing/trial-status";
-import { TRIAL_CREDITS } from "@/lib/plans/tiers";
+import { TRIAL_CREDITS, TRIAL_MINUTES } from "@/lib/plans/tiers";
 
 interface DbPlan {
   id: string;
@@ -401,7 +401,7 @@ export function BillingPanel({
           </svg>
           {trialStarted
             ? trial
-              ? `Your 7-day free trial has started — ${TRIAL_CREDITS} credits added. It's free until ${formatDate(trial.endsAt.toISOString())}; cancel before then and you won't be charged.`
+              ? `Your 7-day free trial has started — ${TRIAL_MINUTES} Clip Minutes and ${TRIAL_CREDITS} credits added. It's free until ${formatDate(trial.endsAt.toISOString())}; cancel before then and you won't be charged.`
               : "Starting your free trial — this takes a few seconds…"
             : "Payment successful — credits will appear in your account shortly!"}
         </div>
