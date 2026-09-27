@@ -9,6 +9,7 @@ interface UserRow {
   id: string;
   credits: number;
   monthlyCredits: number;
+  monthlyMinutes: number;
   subscriptionEndsAt: Date | null;
   nextRefillAt: Date | null;
 }
@@ -45,6 +46,11 @@ vi.mock("@/lib/prisma", () => ({
     auditLog: { create: vi.fn(async () => ({})) },
   },
 }));
+// The manual refill also delivers the month's Clip Minutes (Stage 2 of the
+// 2026-09-26 pricing plan). The minutes engine has its own real-database suite
+// (lib/minutes.test.ts); here we only assert the route drives it.
+const grantMonthlyMinutes = vi.hoisted(() => vi.fn(async (..._a: unknown[]) => 150));
+vi.mock("@/lib/minutes", () => ({ grantMonthlyMinutes: (...a: unknown[]) => grantMonthlyMinutes(...a) }));
 vi.mock("@/lib/redis", () => ({
   redis: { get: vi.fn(async (key: string) => (key.startsWith("admin-elevated:") ? "1" : null)), set: vi.fn(async () => {}), del: vi.fn(async () => {}), incrWithExpire: vi.fn(async () => 1) },
 }));
@@ -59,6 +65,7 @@ beforeEach(() => {
     id: "u1",
     credits: 100,
     monthlyCredits: 500,
+    monthlyMinutes: 400,
     subscriptionEndsAt: new Date(Date.now() + 90 * 86400_000),
     nextRefillAt: null, // refill due
   };
@@ -71,6 +78,10 @@ describe("manual refill idempotency", () => {
     expect(res.status).toBe(200);
     expect(user.credits).toBe(600);
     expect(user.nextRefillAt).not.toBeNull();
+    expect(grantMonthlyMinutes).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "u1", monthlyMinutes: 400, reason: "grant:admin-refill" }),
+    );
+    expect(await res.json()).toMatchObject({ minutesAdded: 150 });
   });
 
   it("a repeat refill gets 409 and credits are NOT granted twice", async () => {
