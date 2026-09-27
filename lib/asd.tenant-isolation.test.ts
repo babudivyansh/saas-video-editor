@@ -34,7 +34,10 @@ vi.mock("@/lib/reframe", () => ({ detectFaceTimeline, parseS3Url: () => null }))
 
 // ASD enabled for everyone, so the gate is the ONLY thing that can stop it.
 const shouldUseAsd = vi.hoisted(() => vi.fn(async () => true));
-vi.mock("@/lib/render-target", () => ({ shouldUseAsd }));
+// Rekognition fallback ON here too, so the ownership gate — not the cost flag —
+// is what these tests observe stopping it.
+const shouldUseRekognitionFallback = vi.hoisted(() => vi.fn(async () => true));
+vi.mock("@/lib/render-target", () => ({ shouldUseAsd, shouldUseRekognitionFallback }));
 
 // Real minting boundary — presigning is local, so a signature either genuinely
 // gets issued or it does not.

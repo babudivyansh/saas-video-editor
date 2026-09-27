@@ -9,12 +9,11 @@ export interface CaptionRenderPricing {
   /**
    * Credits per BILLABLE minute (not per clip-minute — see billableMinutes).
    *
-   * A conservative placeholder, NOT a researched price. Submagic does not
-   * publish a per-minute API rate, which is also why "caption-render" ships
-   * with costUsd: null and a tier gate in lib/tool-costs.ts. Confirm the real
-   * rate against an invoice, then set this from the margin formula in
-   * lib/models/videoModels.ts's header (cost x margin / REVENUE_FLOOR_USD_PER_CREDIT)
-   * and drop the tier gate.
+   * Set from Submagic's published $0.69/min PAYG rate via the margin formula
+   * in lib/models/videoModels.ts's header (cost x 3 / REVENUE_FLOOR_USD_PER_CREDIT).
+   * That rate is published, not invoiced, which is why "caption-render" keeps
+   * its tier gate in lib/tool-costs.ts. Confirm against an invoice, then
+   * recompute and drop the gate.
    */
   perBillableMinute: number;
   /** Charged once per render on top of the per-minute component. */
@@ -22,7 +21,10 @@ export interface CaptionRenderPricing {
 }
 
 export const CAPTION_RENDER_PRICING_DEFAULTS: CaptionRenderPricing = {
-  perBillableMinute: 8,
+  // Submagic's published pay-per-minute API rate is $0.69 (submagic.co/pricing,
+  // checked 2026-09-26). The old 8 cr/min billed ~$0.63 against it — below cost
+  // after GST. ceil(0.69*3/0.0784) = 27. Replace with the invoiced rate if lower.
+  perBillableMinute: 27,
   perRender: 0,
 };
 

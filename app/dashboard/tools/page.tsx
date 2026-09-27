@@ -10,6 +10,11 @@ import {
   VocalRemoverPreview,
   BrainstormerPreview,
 } from "@/app/components/dashboard/toolPreviews";
+import {
+  TOOL_COSTS,
+  IMAGE_GENERATOR_STARTING_CREDIT_COST,
+  VIDEO_GENERATOR_STARTING_CREDIT_COST,
+} from "@/lib/tool-costs";
 
 function IcArrow() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M5 12h14M12 5l7 7-7 7"/></svg>;
@@ -36,13 +41,17 @@ export default function ToolsPage() {
     { icon: <IcInstagram />, title: t("topCards.instagramDownloader.title"), desc: t("topCards.instagramDownloader.desc"), color: "text-accent-pink", tint: "fuchsia", href: "/dashboard/tools/instagram-downloader" },
   ];
 
+  // Badges read the billing registries rather than restating numbers here: the
+  // hardcoded copies had drifted to 1/1/3/20/2/1 while users were charged
+  // 2/2/6/…/3/1. The two multi-model tools show their cheapest model's price.
+  const badge = (count: number) => t("credits", { count });
   const tools = [
-    { title: t("items.imageGenerator.title"), desc: t("items.imageGenerator.desc"), preview: <ImageGenPreview />, badge: t("credits", { count: 1 }), href: "/dashboard/tools/image-generator" },
-    { title: t("items.voiceover.title"), desc: t("items.voiceover.desc"), preview: <VoiceoverPreview />, badge: t("credits", { count: 1 }), href: "/dashboard/tools/voiceover" },
-    { title: t("items.speechEnhancer.title"), desc: t("items.speechEnhancer.desc"), preview: <SpeechEnhancerPreview />, badge: t("credits", { count: 3 }), href: "/dashboard/tools/enhance-speech" },
-    { title: t("items.videoGenerator.title"), desc: t("items.videoGenerator.desc"), preview: <VideoGenPreview />, badge: t("credits", { count: 20 }), href: "/dashboard/tools/video-generator" },
-    { title: t("items.vocalRemover.title"), desc: t("items.vocalRemover.desc"), preview: <VocalRemoverPreview />, badge: t("credits", { count: 2 }), href: "/dashboard/tools/vocal-remover" },
-    { title: t("items.brainstormer.title"), desc: t("items.brainstormer.desc"), preview: <BrainstormerPreview />, badge: t("credits", { count: 1 }), href: "/dashboard/tools/brainstormer" },
+    { title: t("items.imageGenerator.title"), desc: t("items.imageGenerator.desc"), preview: <ImageGenPreview />, badge: badge(IMAGE_GENERATOR_STARTING_CREDIT_COST), href: "/dashboard/tools/image-generator" },
+    { title: t("items.voiceover.title"), desc: t("items.voiceover.desc"), preview: <VoiceoverPreview />, badge: badge(TOOL_COSTS.voiceover.creditCost), href: "/dashboard/tools/voiceover" },
+    { title: t("items.speechEnhancer.title"), desc: t("items.speechEnhancer.desc"), preview: <SpeechEnhancerPreview />, badge: badge(TOOL_COSTS["enhance-speech"].creditCost), href: "/dashboard/tools/enhance-speech" },
+    { title: t("items.videoGenerator.title"), desc: t("items.videoGenerator.desc"), preview: <VideoGenPreview />, badge: badge(VIDEO_GENERATOR_STARTING_CREDIT_COST), href: "/dashboard/tools/video-generator" },
+    { title: t("items.vocalRemover.title"), desc: t("items.vocalRemover.desc"), preview: <VocalRemoverPreview />, badge: badge(TOOL_COSTS["vocal-remover"].creditCost), href: "/dashboard/tools/vocal-remover" },
+    { title: t("items.brainstormer.title"), desc: t("items.brainstormer.desc"), preview: <BrainstormerPreview />, badge: badge(TOOL_COSTS.brainstormer.creditCost), href: "/dashboard/tools/brainstormer" },
   ];
 
   return (

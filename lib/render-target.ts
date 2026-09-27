@@ -36,6 +36,17 @@ export interface GpuRouting {
   /** Tiers whose ANALYSIS may use the GPU active-speaker model. */
   asdEnabled: boolean;
   asdTiers: TierId[];
+  /**
+   * Whether a failed or unavailable ASD run may fall back to AWS Rekognition.
+   *
+   * Off by default because Rekognition Video bills $0.10 per minute of the
+   * WHOLE source (StartFaceDetection has no time-range parameter), which is
+   * ~9x everything else an AutoClip run costs combined: a 1-hour podcast is $6
+   * of face detection against ~$1.10 of credit revenue at the price floor.
+   * With this off, a missing ASD timeline degrades to the static centre crop —
+   * the same third rung lib/asd.ts already documents.
+   */
+  rekognitionFallback: boolean;
 }
 
 export const GPU_ROUTING_DEFAULTS: GpuRouting = {
@@ -46,7 +57,11 @@ export const GPU_ROUTING_DEFAULTS: GpuRouting = {
   asdEnabled: true,
   // ASD is the workload that actually justifies the GPU — it has no CPU
   // equivalent — so it reaches further down the tier list than rendering does.
-  asdTiers: ["creator", "pro", "studio"],
+  // Free is included (2026-09 pricing audit): excluding it sent every free run
+  // down the Rekognition path, the most expensive option we have, on the one
+  // tier that pays nothing.
+  asdTiers: ["free", "creator", "pro", "studio"],
+  rekognitionFallback: false,
 };
 
 export async function getGpuRouting(): Promise<GpuRouting> {
@@ -105,6 +120,15 @@ export async function shouldUseAsd(userId: string): Promise<boolean> {
     if (!routing.asdEnabled) return false;
     if (!(await gpuUsable(routing))) return false;
     return tierAtLeast(await getUserTier(userId), lowestOf(routing.asdTiers));
+  } catch {
+    return false;
+  }
+}
+
+/** Whether face detection may fall back to Rekognition when ASD yields nothing. */
+export async function shouldUseRekognitionFallback(): Promise<boolean> {
+  try {
+    return (await getGpuRouting()).rekognitionFallback === true;
   } catch {
     return false;
   }

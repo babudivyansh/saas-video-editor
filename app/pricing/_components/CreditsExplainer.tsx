@@ -31,8 +31,8 @@ export function computeRecommendation(selections: CalcSelection[], subs: DbPlan[
     const m = getVideoModel(s.modelId);
     const dur = typeof m.defaultValues.duration === "number" ? m.defaultValues.duration : m.minDurationSeconds;
     // videoCreditsPerSecond, not the flat base rate: Veo 3 DEFAULTS to audio on
-    // (13 cr/s, not 8) and Seedance to 720p, so the bare creditsPerSecond
-    // under-quoted the estimate by 38% on the model most people pick first.
+    // (16 cr/s, not 10) and Seedance to 720p, so the bare creditsPerSecond
+    // under-quoted the estimate by ~38% on the model most people pick first.
     const perSecond = videoCreditsPerSecond(m, {
       resolution: m.defaultValues.resolution as string | undefined,
       audio: m.defaultValues.audio === "on",

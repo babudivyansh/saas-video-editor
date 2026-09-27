@@ -51,3 +51,17 @@ describe("ALLOWED_UPLOAD_MIME", () => {
     }
   });
 });
+
+describe("REVENUE_FLOOR_USD_PER_CREDIT — net of GST and gateway", async () => {
+  const tiers = await import("./tiers");
+  const { GST_RATE_PERCENT } = await import("@/lib/invoice/seller");
+
+  it("uses the same GST rate the invoices charge", () => {
+    expect(tiers.PRICING_GST_RATE_PERCENT).toBe(GST_RATE_PERCENT);
+  });
+
+  it("is the gross floor minus GST and the Razorpay fee ($0.0784)", () => {
+    expect(tiers.REVENUE_FLOOR_USD_PER_CREDIT).toBe(0.0784);
+    expect(tiers.REVENUE_FLOOR_USD_PER_CREDIT).toBeLessThan(tiers.REVENUE_FLOOR_GROSS_USD_PER_CREDIT);
+  });
+});
