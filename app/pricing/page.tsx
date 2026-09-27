@@ -12,6 +12,7 @@ import {
   FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_MONTHLY_BONUS_MINUTES, SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER,
 } from "@/lib/plans/tiers";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
+import { AUDIO_RATE_LABEL } from "@/lib/audio-pricing";
 import { formatMoney, inferCurrencyFromLocale, type Currency } from "@/lib/currency-shared";
 import { PlanCard } from "@/app/components/billing/PlanCard";
 // Price maths and tier copy are shared with the billing PlansModal so the two
@@ -33,7 +34,7 @@ const MAX_IMAGE_COST = Math.max(...IMAGE_MODELS.map(m => m.creditCost));
 const FAQS = [
   {
     question: "What is a credit?",
-    answer: `Credits pay for AI tools, and each tool has a set price: ${cheapestImageCost}-${MAX_IMAGE_COST} credits for an image, 2 for a voiceover, per-second pricing for video. Subscription credits refill monthly and unused ones roll over, up to ${SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER}× your allowance. Add-on pack credits never expire, even if your subscription lapses.`,
+    answer: `Credits pay for AI tools, and each tool has a set price: ${cheapestImageCost}-${MAX_IMAGE_COST} credits for an image, ${AUDIO_RATE_LABEL.voiceover} for a voiceover, per-second pricing for video. Subscription credits refill monthly and unused ones roll over, up to ${SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER}× your allowance. Add-on pack credits never expire, even if your subscription lapses.`,
   },
   {
     question: "Can I cancel anytime?",

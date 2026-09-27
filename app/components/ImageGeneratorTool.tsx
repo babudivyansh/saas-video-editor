@@ -3,11 +3,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { useJobPolling } from "./useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
-import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID, getImageModel } from "@/lib/models/imageModels";
+import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID, getImageModel, resolveImageAspectRatio } from "@/lib/models/imageModels";
+import type { ModelOverrideMap } from "@/lib/model-overrides";
+import { useModelOverrides } from "./useModelOverrides";
 import type { ImageParam } from "@/lib/models/types";
 import { Tooltip } from "@/app/components/ui/Tooltip";
 
-const RATIOS = ["Original","1:1","4:3","3:4","16:9","9:16","3:2","2:3","21:9"];
+// Aspect ratios are per model (lib/models/imageModels.ts, from each provider's
+// schema). The old shared list offered "Original" and ratios most models ignored.
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface Generation {
@@ -53,18 +56,22 @@ function Spinner({ className = "w-4 h-4" }: { className?: string }) {
   return <svg className={`animate-spin ${className}`} viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>;
 }
 
-// Flat per-generation credit cost shown next to each image model.
+// Flat per-generation credit cost shown next to each image model — the admin
+// override when one is set, exactly as the route charges.
 function creditLabel(cost: number): string {
   return `${cost} ${cost === 1 ? "credit" : "credits"}`;
 }
+function priceOf(m: { id: string; creditCost: number }, overrides: ModelOverrideMap): number {
+  return overrides[m.id]?.creditCost ?? m.creditCost;
+}
 
 // ── Custom dropdown ──────────────────────────────────────────────────────────
-function ModelDropdown({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function ModelDropdown({ value, onChange, overrides }: { value: string; onChange: (v: string) => void; overrides: ModelOverrideMap }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   const selected = getImageModel(value);
-  const filtered = IMAGE_MODELS.filter(m =>
+  const filtered = IMAGE_MODELS.filter(m => overrides[m.id]?.enabled !== false).filter(m =>
     !search.trim() ||
     m.displayName.toLowerCase().includes(search.toLowerCase()) ||
     m.provider.toLowerCase().includes(search.toLowerCase())
@@ -83,7 +90,7 @@ function ModelDropdown({ value, onChange }: { value: string; onChange: (v: strin
         className="flex items-center gap-2 w-full rounded-xl border border-line bg-panel px-3.5 py-2.5 text-[13.5px] font-medium text-fg hover:border-line-strong transition-colors cursor-pointer"
       >
         <span className="flex-1 text-left">{selected.displayName}</span>
-        <span className="text-[10px] font-semibold text-fg-muted bg-surface-3 rounded-md px-1.5 py-0.5 whitespace-nowrap">{creditLabel(selected.creditCost)}</span>
+        <span className="text-[10px] font-semibold text-fg-muted bg-surface-3 rounded-md px-1.5 py-0.5 whitespace-nowrap">{creditLabel(priceOf(selected, overrides))}</span>
         <IcChevron />
       </button>
       {open && (
@@ -107,7 +114,7 @@ function ModelDropdown({ value, onChange }: { value: string; onChange: (v: strin
               >
                 {value === m.id ? <span className="text-brand"><IcCheck /></span> : <span className="w-3.5 h-3.5" />}
                 <span className="flex-1 font-medium text-fg">{m.displayName}</span>
-                <span className="text-[10px] font-semibold text-fg-subtle bg-surface-3 rounded-md px-1.5 py-0.5 whitespace-nowrap">{creditLabel(m.creditCost)}</span>
+                <span className="text-[10px] font-semibold text-fg-subtle bg-surface-3 rounded-md px-1.5 py-0.5 whitespace-nowrap">{creditLabel(priceOf(m, overrides))}</span>
               </button>
             ))}
             {filtered.length === 0 && (
@@ -120,7 +127,7 @@ function ModelDropdown({ value, onChange }: { value: string; onChange: (v: strin
   );
 }
 
-function RatioDropdown({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function RatioDropdown({ value, options, onChange }: { value: string; options: readonly string[]; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -140,7 +147,7 @@ function RatioDropdown({ value, onChange }: { value: string; onChange: (v: strin
       </button>
       {open && (
         <div className="absolute left-0 top-full mt-1 z-30 w-32 bg-panel rounded-xl border border-line shadow-xl overflow-hidden">
-          {RATIOS.map(r => (
+          {options.map(r => (
             <button
               key={r}
               onClick={() => { onChange(r); setOpen(false); }}
@@ -174,6 +181,10 @@ export default function ImageGeneratorTool() {
 
   const modelEntry = getImageModel(model);
   const supports = useCallback((p: ImageParam) => modelEntry.supportedParameters.includes(p), [modelEntry]);
+  const overrides = useModelOverrides();
+  // Snaps to a ratio this model accepts — derived, so switching models never
+  // leaves a ratio the provider would reject or ignore.
+  const effectiveRatio = resolveImageAspectRatio(modelEntry, ratio) ?? ratio;
 
   const [enhancing, setEnhancing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -243,7 +254,7 @@ export default function ImageGeneratorTool() {
           body: JSON.stringify({
             prompt: prompt.trim(),
             model,
-            ratio,
+            ratio: effectiveRatio,
             negativePrompt: supports("negativePrompt") && negativePrompt.trim() ? negativePrompt.trim() : undefined,
             seed: supports("seed") && seed.trim() ? Number(seed) : undefined,
             guidanceScale: supports("guidanceScale") && guidanceScale.trim() ? Number(guidanceScale) : undefined,
@@ -258,7 +269,7 @@ export default function ImageGeneratorTool() {
     } finally {
       submittingRef.current = false;
     }
-  }, [user, token, openAuthModal, prompt, generating, model, ratio, negativePrompt, seed, guidanceScale, steps, supports, job]);
+  }, [user, token, openAuthModal, prompt, generating, model, effectiveRatio, negativePrompt, seed, guidanceScale, steps, supports, job]);
 
   // Once the job is done, pick up the resulting image URL from job.meta.
   useEffect(() => {
@@ -269,7 +280,7 @@ export default function ImageGeneratorTool() {
 
     const imageUrl = (job.meta as { imageUrl?: string } | null)?.imageUrl;
     if (!imageUrl) return;
-    const item = buildGeneration(imageUrl, prompt.trim(), model, ratio);
+    const item = buildGeneration(imageUrl, prompt.trim(), model, effectiveRatio);
     setCurrentImage(imageUrl);
     persistGenerations([item, ...generations]);
     refreshUser();
@@ -322,12 +333,18 @@ export default function ImageGeneratorTool() {
           <div className="flex items-end gap-3 mb-4">
             <div className="flex-1">
               <p className="text-[12px] font-semibold text-fg-muted mb-1.5">Model</p>
-              <ModelDropdown value={model} onChange={setModel} />
+              <ModelDropdown value={model} onChange={setModel} overrides={overrides} />
             </div>
-            <div>
-              <p className="text-[12px] font-semibold text-fg-muted mb-1.5">Ratio</p>
-              <RatioDropdown value={ratio} onChange={setRatio} />
-            </div>
+            {supports("aspectRatio") && (modelEntry.aspectRatios?.length ?? 0) > 0 && (
+              <div>
+                <p className="text-[12px] font-semibold text-fg-muted mb-1.5">Ratio</p>
+                <RatioDropdown value={effectiveRatio} options={modelEntry.aspectRatios!} onChange={setRatio} />
+              </div>
+            )}
+            {/* Only models whose endpoint takes an input image offer one. None do
+                today: this upload used to show for every model but was never sent,
+                so "your prompt will edit that image" was untrue. */}
+            {modelEntry.imageInput !== "none" && (
             <div>
               <div className="flex items-center gap-1 mb-1.5">
                 <p className="text-[12px] font-semibold text-fg-muted">Reference</p>
@@ -355,6 +372,7 @@ export default function ImageGeneratorTool() {
                 </button>
               )}
             </div>
+            )}
           </div>
 
           {/* Dynamic per-model parameters */}

@@ -4,7 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { useJobPolling } from "./useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
-import { VIDEO_MODELS, DEFAULT_VIDEO_MODEL_ID, getVideoModel, videoCreditsPerSecond } from "@/lib/models/videoModels";
+import {
+  VIDEO_MODELS, DEFAULT_VIDEO_MODEL_ID, getVideoModel, videoCreditsPerSecond, allowedDurations,
+  billedDurationSeconds, resolveResolution, resolveVideoAspectRatio,
+} from "@/lib/models/videoModels";
+import { useModelOverrides } from "./useModelOverrides";
 import type { VideoModelEntry, VideoParam } from "@/lib/models/types";
 import { maxDurationForTier } from "@/lib/plans/tiers";
 import { Switch } from "@/app/components/ui/Switch";
@@ -13,39 +17,24 @@ import type { PickerAsset } from "@/app/components/assets/assetPickerData";
 import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
 
 // ── Options ────────────────────────────────────────────────────────────────────
-const RATIOS    = ["16:9", "9:16", "1:1"];
-const RESOLUTIONS = ["480p", "720p", "1080p"];
+// Aspect ratios, resolutions and lengths are per model (lib/models/videoModels.ts,
+// copied from each fal schema) — one shared list offered options that failed.
 const FPS_OPTIONS = ["16", "24", "30"];
 
 // Length shown to logged-out visitors (highest tier's cap) — they can't be
 // billed until they sign in, so show each model's full capability.
 const ANON_DURATION_CAP = 15;
 
-// Curated duration choices in seconds, clamped to [min, max]. Both endpoints are
-// always included so every model exposes its real maximum length.
-function durationChoices(min: number, max: number): number[] {
-  const base = [2, 3, 4, 5, 6, 8, 10, 12, 15];
-  const set = new Set<number>([min, max]);
-  for (const s of base) if (s >= min && s <= max) set.add(s);
-  return [...set].filter(s => s >= min && s <= max).sort((a, b) => a - b);
-}
-
-// Billed seconds for a model given a requested length and the plan-tier cap —
-// mirrors the route's clamp: max(modelMin, min(requested, min(modelMax, tierCap))).
-function billedSeconds(model: VideoModelEntry, requested: number, tierCap: number): number {
-  const effMax = Math.min(model.maxDurationSeconds, tierCap);
-  return Math.min(Math.max(requested, model.minDurationSeconds), effMax);
-}
-
 // Credits = ceil(effectiveCreditsPerSecond * billedSeconds), exactly as the route
-// charges. Resolution + audio feed the same shared helper the route uses.
+// charges: the same billedDurationSeconds / videoCreditsPerSecond helpers, fed the
+// same resolution, audio flag and admin override (/api/model-prices).
 function creditsFor(
   model: VideoModelEntry,
   requested: number,
   tierCap: number,
-  opts?: { resolution?: string; audio?: boolean },
+  opts: { resolution?: string; audio?: boolean; overrideCreditsPerSecond?: number },
 ): number {
-  return Math.ceil(videoCreditsPerSecond(model, opts) * billedSeconds(model, requested, tierCap));
+  return Math.ceil(videoCreditsPerSecond(model, opts) * billedDurationSeconds(model, requested, tierCap));
 }
 
 type PromptEntry = { id: string; category: string; label: string; text: string; gradient: string };
@@ -481,27 +470,33 @@ export default function VideoGeneratorTool() {
   const textareaRef   = useRef<HTMLTextAreaElement>(null);
 
   const modelEntry = getVideoModel(model);
+  const overrides = useModelOverrides();
+  const overrideFor = (id: string) => overrides[id]?.creditCost;
   const supports = (p: VideoParam) => modelEntry.supportedParameters.includes(p);
   const needsImage = modelEntry.imageInput === "required" && !refImage && !refImageAsset;
 
-  // Max clip length is the smaller of the model's provider ceiling and the
-  // user's plan-tier cap (Creator 5s / Pro 10s / Studio 15s). The seconds shown
-  // are exactly what the route bills, so the credit figures never surprise the user.
+  // Lengths are the model's provider-accepted options up to the user's plan-tier
+  // cap (Creator 8s / Pro 12s / Studio 15s). The seconds shown are exactly what
+  // the route bills, so the credit figures never surprise the user.
   const durationCap = user ? maxDurationForTier(user.tier) : ANON_DURATION_CAP;
-  const requestedSeconds = parseInt(duration) || modelEntry.maxDurationSeconds;
-  const effectiveSeconds = billedSeconds(modelEntry, requestedSeconds, durationCap);
-  // Pricing inputs that vary the per-second rate: resolution (tiered models) and
-  // audio (Veo 3). Passed to creditsFor so badge + button always match the route.
+  const requestedSeconds = parseInt(duration);
+  const effectiveSeconds = billedDurationSeconds(modelEntry, requestedSeconds, durationCap);
+  // The picks snap to what this model accepts — derived, not synced by effect,
+  // so switching models can never leave a value the provider would reject.
+  const effectiveResolution = resolveResolution(modelEntry, resolution);
+  const effectiveRatio = resolveVideoAspectRatio(modelEntry, ratio);
+  const takesImage = modelEntry.imageInput !== "none";
+  // Pricing inputs that vary the per-second rate: resolution (tiered models),
+  // audio (Veo 3) and the admin override. Badge + button always match the route.
   const priceOpts = {
-    resolution: supports("resolution") ? resolution : undefined,
+    resolution: effectiveResolution,
     audio: modelEntry.supportsAudio ? audio : undefined,
+    overrideCreditsPerSecond: overrideFor(modelEntry.id),
   };
   const currentCredits = creditsFor(modelEntry, requestedSeconds, durationCap, priceOpts);
   const currentRate = videoCreditsPerSecond(modelEntry, priceOpts);
-  const durationSecondsList = durationChoices(
-    modelEntry.minDurationSeconds,
-    Math.min(modelEntry.maxDurationSeconds, durationCap),
-  );
+  const durationSecondsList = allowedDurations(modelEntry, durationCap);
+  const selectableModels = VIDEO_MODELS.filter(m => overrides[m.id]?.enabled !== false);
   // The dropdown is driven by the clamped value (not the raw pick) so switching
   // to a shorter-max model, or a Creator landing on a Studio-only length, snaps
   // the displayed selection into range without a state-syncing effect.
@@ -519,7 +514,9 @@ export default function VideoGeneratorTool() {
     try {
       await job.start(async () => {
         let referenceImageUrl: string | undefined;
-        if (refImageAsset) {
+        if (!takesImage) {
+          // Text-to-video model: the endpoint has no image input, so don't upload one.
+        } else if (refImageAsset) {
           referenceImageUrl = refImageAsset.url;
         } else if (refImage) {
           setUploadingRef(true);
@@ -543,8 +540,8 @@ export default function VideoGeneratorTool() {
           prompt: prompt.trim(),
           model,
           duration: effectiveSeconds,
-          aspectRatio: ratio,
-          resolution: supports("resolution") ? resolution : undefined,
+          aspectRatio: effectiveRatio,
+          resolution: effectiveResolution,
           audio: modelEntry.supportsAudio ? audio : undefined,
           fps: supports("fps") ? Number(fps) : undefined,
           seed: supports("seed") && seed.trim() ? Number(seed) : undefined,
@@ -567,7 +564,7 @@ export default function VideoGeneratorTool() {
       submittingRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, token, openAuthModal, prompt, needsImage, videoUrl, refImage, refImageAsset, model, duration, ratio, resolution, audio, fps, seed, job]);
+  }, [user, token, openAuthModal, prompt, needsImage, videoUrl, refImage, refImageAsset, model, effectiveSeconds, effectiveRatio, effectiveResolution, takesImage, audio, fps, seed, job]);
 
   // Once the job is done, fetch the result and trigger a download.
   useEffect(() => {
@@ -625,8 +622,8 @@ export default function VideoGeneratorTool() {
   };
 
   const durationOptions   = durationSecondsList.map(s => ({ slug: `${s}s`, name: `${s}s` }));
-  const ratioOptions      = RATIOS.map(r => ({ slug: r, name: r }));
-  const resolutionOptions = RESOLUTIONS.map(r => ({ slug: r, name: r }));
+  const ratioOptions      = (modelEntry.aspectRatios ?? []).map(r => ({ slug: r, name: r }));
+  const resolutionOptions = (modelEntry.resolutions ?? []).map(r => ({ slug: r, name: r }));
   const fpsOptions        = FPS_OPTIONS.map(f => ({ slug: f, name: `${f} fps` }));
 
   return (
@@ -646,10 +643,10 @@ export default function VideoGeneratorTool() {
               <Dropdown
                 label="Model"
                 value={model}
-                options={VIDEO_MODELS}
+                options={selectableModels}
                 getSlug={o => o.id}
                 getLabel={o => o.displayName}
-                getBadge={o => `${creditsFor(o, requestedSeconds, durationCap, { resolution: o.resolutionCredits ? resolution : undefined, audio: o.supportsAudio ? audio : undefined })} credits`}
+                getBadge={o => `${creditsFor(o, requestedSeconds, durationCap, { resolution: resolveResolution(o, resolution), audio: o.supportsAudio ? audio : undefined, overrideCreditsPerSecond: overrideFor(o.id) })} credits`}
                 getSubtext={o => o.provider}
                 searchable
                 onChange={setModel}
@@ -664,20 +661,20 @@ export default function VideoGeneratorTool() {
                   onChange={setDuration}
                 />
               )}
-              {supports("aspectRatio") && (
+              {supports("aspectRatio") && ratioOptions.length > 0 && (
                 <Dropdown
                   label="Aspect Ratio"
-                  value={ratio}
+                  value={effectiveRatio ?? ratio}
                   options={ratioOptions}
                   getSlug={o => o.slug}
                   getLabel={o => o.name}
                   onChange={setRatio}
                 />
               )}
-              {supports("resolution") && (
+              {resolutionOptions.length > 1 && (
                 <Dropdown
                   label="Resolution"
-                  value={resolution}
+                  value={effectiveResolution ?? resolution}
                   options={resolutionOptions}
                   getSlug={o => o.slug}
                   getLabel={o => o.name}
@@ -754,7 +751,7 @@ export default function VideoGeneratorTool() {
                 setRefImage(f);
                 setRefImageAsset(null);
               }} />
-              {!refImage && !refImageAsset ? (
+              {!takesImage ? null : !refImage && !refImageAsset ? (
                 <>
                   <button
                     onClick={() => fileInputRef.current?.click()}
@@ -884,7 +881,7 @@ export default function VideoGeneratorTool() {
             {job.status !== "done" && !needsImage && (
               <p className="text-[11px] text-fg-subtle text-center -mt-2">
                 {modelEntry.displayName}
-                {supports("resolution") ? ` · ${resolution}` : ""}
+                {effectiveResolution ? ` · ${effectiveResolution}` : ""}
                 {modelEntry.supportsAudio ? ` · audio ${audio ? "on" : "off"}` : ""}
                 {" · "}{effectiveSeconds}s · {currentRate} credits/sec
               </p>

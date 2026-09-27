@@ -9,7 +9,7 @@ import { useState } from "react";
 import { Tabs } from "@/app/components/ui/Tabs";
 import { PURCHASABLE_TIER_ORDER, TIER_LABEL, SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER, type TierId } from "@/lib/plans/tiers";
 import { IMAGE_MODELS, getImageModel } from "@/lib/models/imageModels";
-import { VIDEO_MODELS, getVideoModel, videoCreditsPerSecond } from "@/lib/models/videoModels";
+import { VIDEO_MODELS, getVideoModel, videoCreditsPerSecond, defaultDurationSeconds } from "@/lib/models/videoModels";
 import type { DbPlan, ToolCost } from "./types";
 
 interface CalcSelection {
@@ -29,7 +29,9 @@ export function computeRecommendation(selections: CalcSelection[], subs: DbPlan[
   const totalCredits = active.reduce((sum, s) => {
     if (s.kind === "image") return sum + getImageModel(s.modelId).creditCost * s.qty;
     const m = getVideoModel(s.modelId);
-    const dur = typeof m.defaultValues.duration === "number" ? m.defaultValues.duration : m.minDurationSeconds;
+    // Veo stores its default as "8s": the old typeof-number check fell back to
+    // its minimum and quoted 80 credits for the default 128-credit run.
+    const dur = defaultDurationSeconds(m);
     // videoCreditsPerSecond, not the flat base rate: Veo 3 DEFAULTS to audio on
     // (16 cr/s, not 10) and Seedance to 720p, so the bare creditsPerSecond
     // under-quoted the estimate by ~38% on the model most people pick first.

@@ -3,7 +3,7 @@ import {
   TIER_MAX_DURATION_SECONDS, TIER_MAX_AUTOCLIP_SOURCE_SECONDS, STORAGE_LIMIT_GB,
 } from "@/lib/plans/tiers";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
-import { VIDEO_MODELS } from "@/lib/models/videoModels";
+import { VIDEO_MODELS, defaultDurationSeconds, videoCreditsPerSecond } from "@/lib/models/videoModels";
 import type { Currency } from "@/lib/currency-shared";
 
 // Shared plan-display logic for every surface that renders a price card.
@@ -105,10 +105,12 @@ export const modelCount = (tier: Exclude<TierId, "free">) =>
 export function cheapestVideoCostPerRender(tier: Exclude<TierId, "free">): number | null {
   const models = VIDEO_MODELS.filter(m => m.allowedTiers.includes(tier));
   if (models.length === 0) return null;
-  return Math.min(...models.map(m => {
-    const dur = typeof m.defaultValues.duration === "number" ? m.defaultValues.duration : m.minDurationSeconds;
-    return Math.ceil(m.creditsPerSecond * dur);
-  }));
+  // A default render: the model's default length (Veo stores "8s", which the
+  // old typeof-number check skipped) at its default resolution and audio flag.
+  return Math.min(...models.map(m => Math.ceil(videoCreditsPerSecond(m, {
+    resolution: m.defaultValues.resolution as string | undefined,
+    audio: m.defaultValues.audio === "on",
+  }) * defaultDurationSeconds(m))));
 }
 
 /** Cheapest image on any tier — the floor the "≈ N images" estimate uses. */

@@ -11,10 +11,19 @@ import { ImageModelEntry } from "./types";
 // keep a higher price than the formula would compute (see inline notes) —
 // don't cut revenue on an already-profitable model just because the formula
 // says you could charge less.
+//
+// supportedParameters / aspectRatios / aspectRatioFormat are copied from each
+// endpoint's fal OpenAPI input schema (checked 2026-09-27). Most fal image models
+// take `image_size` presets, not `aspect_ratio`: before that audit Seedream, Flux,
+// Krea, Ideogram and GPT Image silently ignored the chosen ratio (always square or
+// 4:3), Qwen got image_size "9:16" — not a valid preset — and Flux/Qwen/Seedream
+// were sent guidance/steps/negative-prompt fields their endpoints don't have.
 export const IMAGE_MODELS: readonly ImageModelEntry[] = [
   {
     id: "gemini-flash-2.0",
-    displayName: "Gemini Flash 2.0",
+    // Display name follows the model the route really calls
+    // (gemini-2.5-flash-image); the id stays for stored selections/analytics.
+    displayName: "Gemini 2.5 Flash Image",
     provider: "Google",
     badge: "Google",
     category: "image",
@@ -22,8 +31,10 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     costUsd: 0.04, // Google direct API
     creditCost: 2, // ceil(0.04*3/0.0784); default/free model, raised from 1
     allowedTiers: ["free", "creator", "pro", "studio"],
-    supportedParameters: ["prompt"],
-    defaultValues: {},
+    supportedParameters: ["prompt", "aspectRatio"],
+    defaultValues: { aspectRatio: "1:1" },
+    aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "21:9"], // generationConfig.imageConfig.aspectRatio
+    aspectRatioFormat: "ratio",
     imageInput: "none",
   },
   {
@@ -37,9 +48,11 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     costUsd: 0.035, // fal Seedream 5.0 Lite (2026-08 audit): $0.035/image
     creditCost: 2, // ~5.7x at real cost — healthy
     allowedTiers: ["creator", "pro", "studio"],
-    supportedParameters: ["prompt", "negativePrompt", "aspectRatio", "seed"],
+    supportedParameters: ["prompt", "aspectRatio"], // no seed / negative prompt on this endpoint
     defaultValues: { aspectRatio: "1:1" },
-    inputMap: { negativePrompt: "negative_prompt", aspectRatio: "aspect_ratio" },
+    aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16"],
+    aspectRatioFormat: "fal-image-size",
+    inputMap: { aspectRatio: "image_size" },
     resultPath: ["images.0.url", "image.url"],
     imageInput: "none",
   },
@@ -58,7 +71,9 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     allowedTiers: ["pro", "studio"],
     supportedParameters: ["prompt", "aspectRatio", "quality"],
     defaultValues: { aspectRatio: "1:1", quality: "medium" },
-    inputMap: { aspectRatio: "aspect_ratio" },
+    aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16"],
+    aspectRatioFormat: "fal-image-size",
+    inputMap: { aspectRatio: "image_size" },
     resultPath: ["images.0.url", "image.url"],
     imageInput: "none",
   },
@@ -73,9 +88,11 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     costUsd: 0.03,
     creditCost: 3, // kept current
     allowedTiers: ["creator", "pro", "studio"],
-    supportedParameters: ["prompt", "aspectRatio", "seed", "guidanceScale", "steps"],
+    supportedParameters: ["prompt", "aspectRatio", "seed"], // flux-2-pro has no guidance/steps inputs
     defaultValues: { aspectRatio: "1:1" },
-    inputMap: { aspectRatio: "aspect_ratio", guidanceScale: "guidance_scale", steps: "num_inference_steps" },
+    aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16"],
+    aspectRatioFormat: "fal-image-size",
+    inputMap: { aspectRatio: "image_size" },
     resultPath: ["images.0.url", "image.url"],
     imageInput: "none",
   },
@@ -92,6 +109,8 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     allowedTiers: ["pro", "studio"],
     supportedParameters: ["prompt", "aspectRatio"],
     defaultValues: { aspectRatio: "1:1" },
+    aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "21:9"],
+    aspectRatioFormat: "ratio",
     inputMap: { aspectRatio: "aspect_ratio" },
     resultPath: ["images.0.url", "image.url"],
     imageInput: "none",
@@ -108,9 +127,11 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     costUsd: 0.015,
     creditCost: 3, // kept current
     allowedTiers: ["creator", "pro", "studio"],
-    supportedParameters: ["prompt", "negativePrompt", "aspectRatio", "seed"],
+    supportedParameters: ["prompt", "aspectRatio", "seed"], // no negative prompt on v4
     defaultValues: { aspectRatio: "1:1" },
-    inputMap: { negativePrompt: "negative_prompt", aspectRatio: "aspect_ratio" },
+    aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16"],
+    aspectRatioFormat: "fal-image-size",
+    inputMap: { aspectRatio: "image_size" },
     resultPath: ["images.0.url", "image.url"],
     imageInput: "none",
   },
@@ -127,7 +148,9 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     allowedTiers: ["creator", "pro", "studio"],
     supportedParameters: ["prompt", "aspectRatio", "seed"],
     defaultValues: { aspectRatio: "1:1" },
-    inputMap: { aspectRatio: "aspect_ratio" },
+    aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16"],
+    aspectRatioFormat: "fal-image-size",
+    inputMap: { aspectRatio: "image_size" },
     resultPath: ["images.0.url", "image.url"],
     imageInput: "none",
   },
@@ -144,6 +167,8 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     allowedTiers: ["studio"],
     supportedParameters: ["prompt", "aspectRatio"],
     defaultValues: { aspectRatio: "1:1" },
+    aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "21:9"],
+    aspectRatioFormat: "ratio",
     inputMap: { aspectRatio: "aspect_ratio" },
     resultPath: ["images.0.url", "image.url"],
     imageInput: "none",
@@ -159,9 +184,11 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     costUsd: 0.035, // fal Qwen Image 2.0 (2026-08 audit): $0.035/image
     creditCost: 2, // raised from 1: at $0.035 real, 1 credit was only 2.8x
     allowedTiers: ["free", "creator", "pro", "studio"],
-    supportedParameters: ["prompt", "negativePrompt", "aspectRatio", "seed", "guidanceScale"],
+    supportedParameters: ["prompt", "negativePrompt", "aspectRatio", "seed"], // no cfg_scale input
     defaultValues: { aspectRatio: "1:1" },
-    inputMap: { negativePrompt: "negative_prompt", aspectRatio: "image_size", guidanceScale: "cfg_scale" },
+    aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16"],
+    aspectRatioFormat: "fal-image-size",
+    inputMap: { negativePrompt: "negative_prompt", aspectRatio: "image_size" },
     resultPath: ["images.0.url", "image.url"],
     imageInput: "none",
   },
@@ -172,4 +199,26 @@ export type ImageModelId = typeof IMAGE_MODELS[number]["id"];
 
 export function getImageModel(id: string | undefined | null): ImageModelEntry {
   return IMAGE_MODELS.find((m) => m.id === id) ?? IMAGE_MODELS.find((m) => m.id === DEFAULT_IMAGE_MODEL_ID)!;
+}
+
+// fal's image_size presets for the ratios the image_size models can honour.
+const FAL_IMAGE_SIZE_BY_RATIO: Record<string, string> = {
+  "1:1": "square_hd",
+  "4:3": "landscape_4_3",
+  "3:4": "portrait_4_3",
+  "16:9": "landscape_16_9",
+  "9:16": "portrait_16_9",
+};
+
+/** A requested aspect ratio if this model accepts it, else its default. */
+export function resolveImageAspectRatio(model: ImageModelEntry, requested?: string | null): string | undefined {
+  if (!model.aspectRatios?.length) return undefined;
+  if (requested && model.aspectRatios.includes(requested)) return requested;
+  const def = model.defaultValues.aspectRatio;
+  return typeof def === "string" && model.aspectRatios.includes(def) ? def : model.aspectRatios[0];
+}
+
+/** The aspect-ratio value in the shape this model's provider expects. */
+export function providerAspectRatio(model: ImageModelEntry, ratio: string): string {
+  return model.aspectRatioFormat === "fal-image-size" ? (FAL_IMAGE_SIZE_BY_RATIO[ratio] ?? "square_hd") : ratio;
 }

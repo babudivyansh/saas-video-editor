@@ -6,7 +6,7 @@ import { markQuestComplete } from "@/lib/quests";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { withRateLimit } from "@/lib/with-rate-limit";
-import { getImageModel } from "@/lib/models/imageModels";
+import { getImageModel, resolveImageAspectRatio, providerAspectRatio } from "@/lib/models/imageModels";
 import { falSubmit, falPollUntilDone, extractResultUrl } from "@/lib/fal";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress, checkModelAccess } from "@/lib/credits";
 import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
@@ -72,6 +72,9 @@ async function handlePOST(req: NextRequest) {
     );
   }
   const CREDIT_COST = override?.creditCost ?? modelEntry.creditCost;
+  // Only a ratio this model accepts reaches the provider; anything else (a
+  // stale client, another model's ratio) falls back to the model's default.
+  const aspectRatio = resolveImageAspectRatio(modelEntry, body.ratio);
 
   if (modelEntry.integration === "direct-gemini") {
     if (!env.GEMINI_API_KEY) {
@@ -124,7 +127,7 @@ async function handlePOST(req: NextRequest) {
 
       if (modelEntry.integration === "fal") {
         const bodyValues: Partial<Record<typeof modelEntry.supportedParameters[number], string | number>> = {
-          aspectRatio: body.ratio,
+          aspectRatio: aspectRatio ? providerAspectRatio(modelEntry, aspectRatio) : undefined,
           negativePrompt: body.negativePrompt,
           seed: body.seed,
           guidanceScale: body.guidanceScale,
@@ -176,7 +179,10 @@ async function handlePOST(req: NextRequest) {
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                ...(aspectRatio ? { generationConfig: { imageConfig: { aspectRatio } } } : {}),
+              }),
             },
           );
           if (geminiRes.status !== 503) break;

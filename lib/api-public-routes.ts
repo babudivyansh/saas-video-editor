@@ -64,6 +64,9 @@ const PUBLIC_API_PREFIXES = [
   "/api/cron/",
   "/api/plans",
   "/api/tool-costs",
+  // Admin price overrides for the image/video models — the generator pages
+  // show prices to logged-out visitors too, and it exposes nothing but prices.
+  "/api/model-prices",
   "/api/coupons/active",
   // Public review browsing — the /reviews marketing page's client-side
   // sort/filter/search reads GET /api/reviews for logged-out visitors too.
