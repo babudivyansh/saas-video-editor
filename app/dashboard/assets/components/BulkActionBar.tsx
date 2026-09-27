@@ -4,7 +4,7 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Dropdown, DropdownItem } from "@/app/components/ui/Dropdown";
 import type { AssetFolder } from "../types";
-import type { QuickView } from "./Sidebar";
+import type { QuickView } from "./LibraryBar";
 
 interface BulkActionBarProps {
   count: number;

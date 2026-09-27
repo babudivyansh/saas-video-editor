@@ -18,7 +18,7 @@ interface PreviewLightboxProps {
 }
 
 /** Human label for the feature an asset came in through. */
-const SOURCE_LABELS: Record<string, string> = {
+export const SOURCE_LABELS: Record<string, string> = {
   upload: "Uploaded",
   autoclip: "AutoClip",
   "url-import": "URL import",

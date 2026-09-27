@@ -154,6 +154,9 @@ export function useProjectActions({ labels, onDeleted, onRenamed }: Options) {
      * what stops the surrounding Card's next/link from navigating.
      */
     openMenu: menu.show,
+    /** Direct entry points for surfaces with their own Rename/Delete buttons. */
+    startRename: (target: ProjectTarget) => { setRenaming(target); setRenameValue(target.title); },
+    startDelete: (target: ProjectTarget) => setPendingDelete(target),
     overlays,
   };
 }

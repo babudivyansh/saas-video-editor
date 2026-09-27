@@ -142,6 +142,24 @@ function AutoClipFlow() {
 
   useEffect(() => { return () => { if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl); }; }, [videoPreviewUrl]);
 
+  // "Make clips with AutoClip" in the Assets library links here with
+  // ?asset=<id>: start with that video already picked, exactly as if it had
+  // been chosen through "Choose from Assets". Ignored when resuming a run.
+  const deepLinkAssetId = params.get("asset");
+  useEffect(() => {
+    if (!deepLinkAssetId || resumeProjectId) return;
+    let cancelled = false;
+    apiFetch<{ asset: PickerAsset & { status?: string } }>(`/api/assets/${encodeURIComponent(deepLinkAssetId)}`)
+      .then(({ asset }) => {
+        if (cancelled || asset.kind !== "video") return;
+        setPickedAsset(asset);
+      })
+      .catch(() => {
+        if (!cancelled) setImportError("Couldn't load that video from your Assets. Pick it again below.");
+      });
+    return () => { cancelled = true; };
+  }, [deepLinkAssetId, resumeProjectId]);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 

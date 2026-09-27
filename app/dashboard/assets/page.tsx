@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/AuthContext";
 import { Button } from "@/app/components/ui/Button";
@@ -14,7 +14,10 @@ import { useAssetMutations } from "./hooks/useAssetMutations";
 import { useUploadQueue } from "./hooks/useUploadQueue";
 import { assetsFetch } from "./lib/api";
 import { AssetGrid } from "./components/AssetGrid";
-import { Sidebar, type QuickView } from "./components/Sidebar";
+import { LibraryBar, type QuickView } from "./components/LibraryBar";
+import { AssetList } from "./components/AssetList";
+import { AssetInspector } from "./components/AssetInspector";
+import { useIsWideLayout } from "@/app/components/dashboard/useIsWideLayout";
 import { UploadQueuePanel } from "./components/UploadQueuePanel";
 import { BulkActionBar } from "./components/BulkActionBar";
 import { PreviewLightbox } from "./components/PreviewLightbox";
@@ -23,6 +26,29 @@ import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { CommandPalette } from "./components/CommandPalette";
 import type { Asset, KindFilter, SortOption, Tag } from "./types";
 
+// List-or-grid, remembered per browser. A tiny external store rather than
+// state + effect so the saved choice is read without a second render, and a
+// module-level fallback keeps the toggle working when storage is blocked.
+const LAYOUT_KEY = "clipiro:assets-layout";
+type Layout = "list" | "grid";
+let memoryLayout: Layout = "list";
+const layoutListeners = new Set<() => void>();
+function readLayout(): Layout {
+  try {
+    const saved = localStorage.getItem(LAYOUT_KEY);
+    if (saved === "grid" || saved === "list") return saved;
+  } catch { /* storage blocked */ }
+  return memoryLayout;
+}
+function subscribeLayout(onChange: () => void) {
+  layoutListeners.add(onChange);
+  return () => { layoutListeners.delete(onChange); };
+}
+function setLayout(l: Layout) {
+  memoryLayout = l;
+  try { localStorage.setItem(LAYOUT_KEY, l); } catch { /* storage blocked */ }
+  layoutListeners.forEach((fn) => fn());
+}
 const KIND_TABS = ["all", "video", "audio", "image"] as const;
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "date", label: "Newest" },
@@ -267,27 +293,51 @@ function AssetsPageInner() {
   const limitBytes = stats?.limitBytes ?? 2 * 1024 ** 3;
   const usedPct = Math.min((usedBytes / limitBytes) * 100, 100);
 
+
+  // List is the default: the details panel does the job the grid's large
+  // thumbnails did. The choice is remembered per browser.
+  const layout = useSyncExternalStore(subscribeLayout, readLayout, () => "list" as const);
+
+  // The details panel only fits at xl and up. It follows the clicked file and
+  // falls back to the first one, so the page never opens on an empty panel.
+  const isWide = useIsWideLayout();
+  const [inspectedId, setInspectedId] = useState<string | null>(null);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const inspected = isWide && panelOpen ? assets.find((a) => a.id === inspectedId) ?? assets[0] ?? null : null;
+
+  function activate(asset: Asset) {
+    if (isWide) { setInspectedId(asset.id); setPanelOpen(true); return; }
+    setPreviewIndex(assets.findIndex((a) => a.id === asset.id));
+  }
+
+  const emptyProps = {
+    emptyTitle: `No ${tab === "all" ? "" : tab + " "}files found`,
+    emptySubtitle: debouncedQ ? "Try a different search term." : view === "archive" ? "Nothing archived." : "Upload your first file to get started.",
+    emptyAction: debouncedQ || view === "archive" ? undefined : { label: "Upload a file", onClick: () => requireAuth(() => fileRef.current?.click()) },
+  };
+
   const previewAsset = previewIndex !== null ? assets[previewIndex] ?? null : null;
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 sm:px-8 pt-6 pb-12 space-y-6">
+    <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-8 pt-6 pb-12 space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold grad-text inline-block">Assets</h1>
-          <p className="text-sm text-ink-soft mt-1">
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-fg-subtle">Library</p>
+          <h1 className="mt-1.5 text-3xl font-semibold tracking-tight text-fg">Assets</h1>
+          <p className="text-sm text-fg-muted mt-1.5">
             {stats ? `${stats.count} file${stats.count !== 1 ? "s" : ""} · ${fmtSize(stats.totalSize)} used` : "Your uploaded videos, images, and audio files"}
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {stats && (
-            <div className="hidden md:block w-44">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] font-bold text-ink-soft uppercase tracking-widest">Storage · {stats.tier}</span>
-                <span className="text-[10px] font-semibold text-ink-soft">{fmtSize(usedBytes)} / {fmtSize(limitBytes)}</span>
+            <div className="hidden md:flex flex-col gap-2 w-56 px-3.5 py-2.5 rounded-2xl border border-line bg-surface-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-fg-muted">Storage · {stats.tier}</span>
+                <span className="font-semibold text-fg">{fmtSize(usedBytes)} <span className="font-normal text-fg-subtle">/ {fmtSize(limitBytes)}</span></span>
               </div>
               <div className="h-1.5 bg-surface-3 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full transition-all duration-500 ${usedPct > 90 ? "bg-error" : "grad-brand"}`} style={{ width: `${usedPct}%` }} />
+                <div className={`h-full rounded-full min-w-1 transition-all duration-500 ${usedPct > 90 ? "bg-error" : "bg-primary"}`} style={{ width: `${usedPct}%` }} />
               </div>
             </div>
           )}
@@ -298,98 +348,171 @@ function AssetsPageInner() {
         <input ref={fileRef} type="file" accept="video/*,audio/*,image/*" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6">
-        <Sidebar
-          view={view}
-          onViewChange={(v) => { setView(v); setActiveFolderId(undefined); clearSelection(); }}
-          folders={folders}
-          activeFolderId={activeFolderId}
-          onFolderSelect={(id) => { setActiveFolderId(id); clearSelection(); }}
-          onFolderCreate={(name) => createFolder.mutate(name, { onError: () => showToast("Failed to create folder", "error") })}
-          onFolderRename={(id, name) => renameFolder.mutate({ id, name })}
-          onFolderDelete={(id) => removeFolder.mutate(id, { onSuccess: () => showToast("Folder deleted") })}
-          onFolderDrop={handleFolderDrop}
-          tags={tags}
-          activeTag={activeTag}
-          onTagSelect={(name) => { setActiveTag(name); clearSelection(); }}
-          onTagRename={(tag) => { setRenamingTag(tag); setTagRenameVal(tag.name); }}
-          onTagDelete={(tag) => setDeletingTag(tag)}
-        />
+      <LibraryBar
+        view={view}
+        totalCount={stats?.count}
+        onViewChange={(v) => { setView(v); setActiveFolderId(undefined); clearSelection(); }}
+        folders={folders}
+        activeFolderId={activeFolderId}
+        onFolderSelect={(id) => { setActiveFolderId(id); clearSelection(); }}
+        onFolderCreate={(name) => createFolder.mutate(name, { onError: () => showToast("Failed to create folder", "error") })}
+        onFolderRename={(id, name) => renameFolder.mutate({ id, name })}
+        onFolderDelete={(id) => removeFolder.mutate(id, { onSuccess: () => showToast("Folder deleted") })}
+        onFolderDrop={handleFolderDrop}
+        tags={tags}
+        activeTag={activeTag}
+        onTagSelect={(name) => { setActiveTag(name); clearSelection(); }}
+        onTagRename={(tag) => { setRenamingTag(tag); setTagRenameVal(tag.name); }}
+        onTagDelete={(tag) => setDeletingTag(tag)}
+      />
 
-        <div className="flex-1 min-w-0 space-y-4">
-          {/* Toolbar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {KIND_TABS.map((t) => (
-                <button key={t} onClick={() => setTab(t)}
-                  className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors capitalize cursor-pointer ${
-                    tab === t ? "grad-brand text-on-primary shadow-glow" : "bg-panel border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
-                  }`}>
-                  {t === "all" ? "All" : t === "video" ? "Videos" : t === "audio" ? "Audio" : "Images"}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-2">
-              <select value={sort} onChange={(e) => setSort(e.target.value as SortOption)}
-                className="text-xs font-semibold border border-card-border rounded-full px-3 py-2 outline-none focus:border-violet-300 bg-panel text-ink-soft cursor-pointer">
-                {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-              <div className="relative sm:w-64">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft/50">
-                  <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" strokeLinecap="round" />
-                </svg>
-                <input ref={searchRef} type="text" placeholder="Search files… ( / )" value={q} onChange={(e) => setQ(e.target.value)}
-                  className="w-full text-sm bg-panel border border-card-border rounded-full pl-9 pr-4 py-2 text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all" />
-              </div>
-            </div>
-          </div>
-
-          {/* Drop zone (hidden in Archive view) */}
-          {view !== "archive" && (
-            <div
-              className={`flex flex-col items-center justify-center gap-2 rounded-[var(--radius-card)] border-2 border-dashed transition-all cursor-pointer py-8 ${
-                draggingOver ? "border-violet-400 bg-tint-violet" : "border-card-border bg-panel hover:border-violet-300 hover:bg-tint-violet/50"
+      {/* Toolbar */}
+      <div className="flex flex-col md:flex-row md:items-center gap-3">
+        <div className="flex items-center gap-0.5 p-1 rounded-full bg-surface-2 border border-line w-fit" role="group" aria-label="File type">
+          {KIND_TABS.map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTab(t)}
+              aria-pressed={tab === t}
+              className={`h-8 px-3.5 rounded-full text-[13px] font-medium transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary/70 ${
+                tab === t ? "bg-surface-3 text-fg" : "text-fg-muted hover:text-fg"
               }`}
-              onClick={() => requireAuth(() => fileRef.current?.click())}
-              onDragOver={(e) => { e.preventDefault(); setDraggingOver(true); }}
-              onDragLeave={() => setDraggingOver(false)}
-              onDrop={(e) => { e.preventDefault(); setDraggingOver(false); handleFiles(e.dataTransfer.files); }}
             >
-              <div className="w-11 h-11 rounded-2xl grad-brand text-on-primary flex items-center justify-center shadow-glow">
-                <IcUpload />
-              </div>
-              <p className="text-sm text-ink-soft mt-1">Drop files here or <span className="text-brand font-semibold">browse</span></p>
-              <p className="text-xs text-ink-soft">
-                Supports video, audio, and images{stats ? ` up to ${fmtSize(stats.maxUploadBytes)} per file` : ""}
-              </p>
-            </div>
-          )}
-
-          <AssetGrid
-            assets={assets}
-            loading={isLoading}
-            hasNextPage={!!hasNextPage}
-            isFetchingNextPage={isFetchingNextPage}
-            onLoadMore={() => fetchNextPage()}
-            selectedIds={selectedIds}
-            selectionActive={selectionActive}
-            onSelect={toggleSelect}
-            onOpenPreview={(asset) => setPreviewIndex(assets.findIndex((a) => a.id === asset.id))}
-            renamingId={renamingId}
-            renameVal={renameVal}
-            onRenameStart={(asset) => { setRenamingId(asset.id); setRenameVal(asset.name); }}
-            onRenameChange={setRenameVal}
-            onRenameCommit={() => { if (renamingId) mutations.rename.mutate({ id: renamingId, name: renameVal }); setRenamingId(null); }}
-            onRenameCancel={() => setRenamingId(null)}
-            onToggleFavorite={(asset) => mutations.toggleFavorite.mutate({ id: asset.id, isFavorite: !asset.isFavorite })}
-            onCopyUrl={copyUrl}
-            onContextMenu={(e, asset) => contextMenu.show(e, asset)}
-            onDragStartAsset={(e, asset) => e.dataTransfer.setData("text/asset-id", asset.id)}
-            emptyTitle={`No ${tab === "all" ? "" : tab + " "}files found`}
-            emptySubtitle={debouncedQ ? "Try a different search term." : view === "archive" ? "Nothing archived." : "Upload your first file to get started."}
-            emptyAction={debouncedQ || view === "archive" ? undefined : { label: "Upload a file", onClick: () => requireAuth(() => fileRef.current?.click()) }}
+              {t === "all" ? "All" : t === "video" ? "Videos" : t === "audio" ? "Audio" : "Images"}
+            </button>
+          ))}
+        </div>
+        <div className="relative flex-1 md:max-w-xs">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-fg-subtle">
+            <path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4" />
+          </svg>
+          <input
+            ref={searchRef}
+            type="search"
+            placeholder="Search files  ( / )"
+            aria-label="Search files"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="w-full h-10 text-sm bg-surface-2 border border-line rounded-xl pl-10 pr-4 text-fg placeholder:text-fg-subtle outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all"
           />
         </div>
+        <div className="flex items-center gap-2 md:ml-auto">
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SortOption)}
+            aria-label="Sort files"
+            className="h-10 text-sm px-3 rounded-xl bg-surface-2 border border-line text-fg outline-none focus:border-primary/60 cursor-pointer"
+          >
+            {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <div className="flex items-center gap-0.5 p-1 rounded-full bg-surface-2 border border-line" role="group" aria-label="Layout">
+            {(["list", "grid"] as const).map((l) => (
+              <button
+                key={l}
+                type="button"
+                onClick={() => setLayout(l)}
+                aria-pressed={layout === l}
+                aria-label={l === "list" ? "List view" : "Grid view"}
+                className={`w-9 h-8 rounded-full flex items-center justify-center transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary/70 ${
+                  layout === l ? "bg-surface-3 text-fg" : "text-fg-muted hover:text-fg"
+                }`}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" className="w-4 h-4">
+                  <path d={l === "list" ? "M9 6h11M9 12h11M9 18h11M4 6h1M4 12h1M4 18h1" : "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"} />
+                </svg>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Drop strip (hidden in Archive view) — slim, so the list starts high. */}
+      {view !== "archive" && (
+        <button
+          type="button"
+          className={`w-full flex items-center gap-3 h-[52px] px-4 rounded-2xl border-[1.5px] border-dashed text-left text-[13px] transition-colors cursor-pointer ${
+            draggingOver ? "border-primary bg-primary/10 text-fg" : "border-primary/30 bg-primary/[0.03] text-fg-muted hover:border-primary/60"
+          }`}
+          onClick={() => requireAuth(() => fileRef.current?.click())}
+          onDragOver={(e) => { e.preventDefault(); setDraggingOver(true); }}
+          onDragLeave={() => setDraggingOver(false)}
+          onDrop={(e) => { e.preventDefault(); setDraggingOver(false); handleFiles(e.dataTransfer.files); }}
+        >
+          <span className="text-primary"><IcUpload /></span>
+          <span>Drop files here, or <span className="text-primary font-semibold">browse</span></span>
+          <span className="ml-auto hidden sm:inline text-xs text-fg-subtle">
+            Video, audio and images{stats ? ` · up to ${fmtSize(stats.maxUploadBytes)} each` : ""}
+          </span>
+        </button>
+      )}
+
+      <div className="grid xl:grid-cols-[minmax(0,1fr)_360px] gap-6 items-start">
+        <div className="min-w-0">
+          {layout === "list" ? (
+            <AssetList
+              assets={assets}
+              loading={isLoading}
+              hasNextPage={!!hasNextPage}
+              isFetchingNextPage={isFetchingNextPage}
+              onLoadMore={() => fetchNextPage()}
+              inspectedId={inspected?.id ?? null}
+              selectedIds={selectedIds}
+              selectionActive={selectionActive}
+              onSelect={toggleSelect}
+              onActivate={activate}
+              renamingId={renamingId}
+              renameVal={renameVal}
+              onRenameChange={setRenameVal}
+              onRenameCommit={() => { if (renamingId) mutations.rename.mutate({ id: renamingId, name: renameVal }); setRenamingId(null); }}
+              onRenameCancel={() => setRenamingId(null)}
+              onToggleFavorite={(asset) => mutations.toggleFavorite.mutate({ id: asset.id, isFavorite: !asset.isFavorite })}
+              onContextMenu={(e, asset) => contextMenu.show(e, asset)}
+              onDragStartAsset={(e, asset) => e.dataTransfer.setData("text/asset-id", asset.id)}
+              {...emptyProps}
+            />
+          ) : (
+            <AssetGrid
+              assets={assets}
+              loading={isLoading}
+              hasNextPage={!!hasNextPage}
+              isFetchingNextPage={isFetchingNextPage}
+              onLoadMore={() => fetchNextPage()}
+              selectedIds={selectedIds}
+              selectionActive={selectionActive}
+              onSelect={toggleSelect}
+              onOpenPreview={activate}
+              renamingId={renamingId}
+              renameVal={renameVal}
+              onRenameStart={(asset) => { setRenamingId(asset.id); setRenameVal(asset.name); }}
+              onRenameChange={setRenameVal}
+              onRenameCommit={() => { if (renamingId) mutations.rename.mutate({ id: renamingId, name: renameVal }); setRenamingId(null); }}
+              onRenameCancel={() => setRenamingId(null)}
+              onToggleFavorite={(asset) => mutations.toggleFavorite.mutate({ id: asset.id, isFavorite: !asset.isFavorite })}
+              onCopyUrl={copyUrl}
+              onContextMenu={(e, asset) => contextMenu.show(e, asset)}
+              onDragStartAsset={(e, asset) => e.dataTransfer.setData("text/asset-id", asset.id)}
+              {...emptyProps}
+            />
+          )}
+        </div>
+
+        {inspected && (
+          <div className="sticky top-6">
+            <AssetInspector
+              asset={inspected}
+              archived={view === "archive"}
+              onClose={() => setPanelOpen(false)}
+              onExpand={() => setPreviewIndex(assets.findIndex((a) => a.id === inspected.id))}
+              onDownload={() => startBulkDownload([inspected.id])}
+              onOrganize={() => setOrganizing(inspected)}
+              onToggleFavorite={() => mutations.toggleFavorite.mutate({ id: inspected.id, isFavorite: !inspected.isFavorite })}
+              onArchive={() => mutations.archiveOrDelete.mutate(inspected.id)}
+              onRestore={() => mutations.restore.mutate(inspected.id)}
+              onDeletePermanently={() => setConfirmPermanentIds([inspected.id])}
+            />
+          </div>
+        )}
       </div>
 
       <UploadQueuePanel
