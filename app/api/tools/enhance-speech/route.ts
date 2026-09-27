@@ -5,6 +5,7 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import { fetchElevenLabs } from "@/utils/elevenlabs";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
+import { voiceFxCredits } from "@/lib/audio-pricing";
 import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
@@ -14,11 +15,12 @@ import { randomUUID } from "crypto";
 
 export const maxDuration = 300;
 
-// ElevenLabs audio-isolation bills ~1,000 credits/minute (~$0.20/min) — far
-// more than the Flash TTS model used elsewhere. 6 credits + a 90s cap keeps
-// real cost (~$0.30 = ~₹28.5 at the 90s cap) comfortably under revenue even
-// at the cheapest per-credit plan (Studio Yearly, ~₹9.41/credit = ~₹56.5).
-const CREDIT_COST = 6;
+// ElevenLabs audio-isolation bills ~$0.20/min — far more than the Flash TTS
+// model used elsewhere. Priced by length since 2026-09-26 — 8 credits per
+// minute, lib/audio-pricing.ts — instead of a flat 6 that ran at ~1.6x cost at
+// the 90s cap after GST.
+// Real provider $/s, for the AI-spend dashboards (the charge is in credits).
+const AUDIO_COST_USD_PER_SEC = 0.20 / 60; // ~$0.20/min ElevenLabs voice isolation
 const MAX_DURATION_SEC = 90;
 
 interface Job extends CancellableJob {
@@ -88,12 +90,15 @@ async function handlePOST(req: NextRequest) {
   }
 
   const idempotencyKey = (formData.get("idempotencyKey") as string | null) ?? undefined;
+  // Length-scaled price, same function the tool page quotes with.
+  const creditCost = voiceFxCredits(durationSec);
+
   const charge = await chargeCredits({
     userId: auth.userId,
-    amount: CREDIT_COST,
+    amount: creditCost,
     toolSlug: "enhance-speech",
     idempotencyKey,
-    log: { generationType: "audio" },
+    log: { generationType: "audio", estimatedCostUsd: durationSec * AUDIO_COST_USD_PER_SEC },
   });
   if (!charge.ok) {
     try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
@@ -112,7 +117,7 @@ async function handlePOST(req: NextRequest) {
     createdAt: Date.now(),
     userId: auth.userId,
     refunded: false,
-    creditCost: CREDIT_COST,
+    creditCost: creditCost,
     generationId: charge.generationId,
   };
   jobs.set(jobId, job);

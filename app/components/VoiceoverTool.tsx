@@ -5,6 +5,7 @@ import { useJobPolling } from "./useJobPolling";
 import { Tooltip } from "@/app/components/ui/Tooltip";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { VOICES, voiceBySlug, type Voice } from "@/app/components/voice-catalog";
+import { voiceoverCredits } from "@/lib/audio-pricing";
 
 function IcInfo() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
@@ -649,7 +650,11 @@ export default function VoiceoverTool() {
                 <span className="text-fg-subtle cursor-help"><IcInfo /></span>
               </Tooltip>
             </div>
-            <span className="text-[12px] text-fg-subtle font-medium tabular-nums">{chars} · {fmtTime(estSec)}</span>
+            <span className="text-[12px] text-fg-subtle font-medium tabular-nums">
+              {chars} · {fmtTime(estSec)}
+              {/* Same function the route charges with — 1 credit per 500 characters. */}
+              {chars > 0 && chars <= MAX_CHARS && <> · {voiceoverCredits(chars)} credit{voiceoverCredits(chars) === 1 ? "" : "s"}</>}
+            </span>
           </div>
           <textarea
             value={script}

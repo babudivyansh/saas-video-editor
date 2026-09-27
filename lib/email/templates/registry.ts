@@ -316,11 +316,11 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     title: "Onboarding rank reward",
     group: "credits",
     category: "creditAlerts",
-    trigger: "A user crosses an onboarding quest rank and is granted bonus credits",
+    trigger: "A user crosses an onboarding quest rank and is granted bonus Clip Minutes",
     build: credits.questRankReward,
     samples: {
-      default: { name: "Divyansh", level: "Pro Creator", creditsAdded: 10, newBalance: 52 },
-      "top rank": { name: "Divyansh", level: "Clipiro Master", creditsAdded: 20, newBalance: 71 },
+      default: { name: "Divyansh", level: "Pro Creator", minutesAdded: 30, newBalance: 75 },
+      "top rank": { name: "Divyansh", level: "Clipiro Master", minutesAdded: 60, newBalance: 135 },
     },
   }),
   "low-credits": entry({
