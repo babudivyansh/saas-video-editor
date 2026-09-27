@@ -6,6 +6,7 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import { withRetry } from "@/lib/with-retry";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
+import { vocalRemoverCredits } from "@/lib/audio-pricing";
 import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
@@ -15,12 +16,12 @@ import { randomUUID } from "crypto";
 
 export const maxDuration = 300;
 
-// fal.ai Demucs bills $0.0007/s of processing time. Cheap per second, but the
-// route only capped file size (50MB) with no duration limit — a long,
-// low-bitrate file could slip through uncapped. Cap input length so the
-// worst case (~₹20 at 5 min) stays under 3 credits' revenue even at the
-// cheapest per-credit plan (Studio Yearly, ~₹9.41/credit = ~₹28.2).
-const CREDIT_COST = 3;
+// fal.ai Demucs bills $0.0007/s of processing time. Priced by length since
+// 2026-09-26 — 1 credit per 30 seconds, lib/audio-pricing.ts — instead of a
+// flat 3 that ran at ~1.1x cost on a 5-minute file after GST. The length cap
+// stays: file size alone let a long, low-bitrate file through.
+// Real provider $/s, for the AI-spend dashboards (the charge is in credits).
+const AUDIO_COST_USD_PER_SEC = 0.0007; // fal.ai Demucs
 const MAX_DURATION_SEC = 300; // 5 minutes
 const FAL_MODEL = "fal-ai/demucs";
 
@@ -175,19 +176,22 @@ async function handlePOST(req: NextRequest) {
   }
 
   const idempotencyKey = (formData.get("idempotencyKey") as string | null) ?? undefined;
+  // Length-scaled price, same function the tool page quotes with.
+  const creditCost = vocalRemoverCredits(durationSec);
+
   const charge = await chargeCredits({
     userId: auth.userId,
-    amount: CREDIT_COST,
+    amount: creditCost,
     toolSlug: "vocal-remover",
     idempotencyKey,
-    log: { generationType: "audio" },
+    log: { generationType: "audio", estimatedCostUsd: durationSec * AUDIO_COST_USD_PER_SEC },
   });
   if (!charge.ok) {
     try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
     if (charge.reason === "tool_disabled") {
       return NextResponse.json({ error: "Vocal remover is temporarily disabled." }, { status: 503 });
     }
-    return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
+    return NextResponse.json({ error: `Insufficient credits (need ${creditCost})` }, { status: 402 });
   }
 
   const job: Job = {
@@ -199,7 +203,7 @@ async function handlePOST(req: NextRequest) {
     createdAt: Date.now(),
     userId: auth.userId,
     refunded: false,
-    creditCost: CREDIT_COST,
+    creditCost: creditCost,
     generationId: charge.generationId,
   };
   jobs.set(jobId, job);

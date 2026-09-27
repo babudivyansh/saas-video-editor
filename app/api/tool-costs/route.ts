@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAllToolConfigs, TOOL_SERVICE } from "@/lib/tool-config";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
 import { VIDEO_MODELS } from "@/lib/models/videoModels";
+import { AUDIO_RATE_LABEL } from "@/lib/audio-pricing";
 
 // Public: live per-feature credit costs for the pricing page "what each feature
 // costs" table. Reads the same admin-editable tool config used for billing.
@@ -45,6 +46,10 @@ const MINUTE_BILLED: Record<string, string> = {
   "auto-clip": "1 Clip Minute per minute of video",
 };
 
+// Priced by length in credits since 2026-09-26 (lib/audio-pricing.ts): a flat
+// number would be wrong for every file but one, so these show their rate.
+const RATE_LABELS: Record<string, string> = { ...AUDIO_RATE_LABEL };
+
 const RANGES: Record<string, { min: number; max: number }> = {
   "image-generator": { min: Math.min(...IMAGE_COSTS), max: Math.max(...IMAGE_COSTS) },
   "video-generator": { min: Math.min(...VIDEO_COSTS), max: Math.max(...VIDEO_COSTS) },
@@ -70,6 +75,7 @@ export async function GET() {
       creditCostMin: RANGES[slug]?.min,
       creditCostMax: RANGES[slug]?.max,
       ...(slug in MINUTE_BILLED ? { priceLabel: MINUTE_BILLED[slug] } : {}),
+      ...(slug in RATE_LABELS ? { priceLabel: RATE_LABELS[slug] } : {}),
     }))
     .sort((a, b) => a.creditCost - b.creditCost || a.label.localeCompare(b.label));
 

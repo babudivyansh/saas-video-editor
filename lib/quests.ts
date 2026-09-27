@@ -3,7 +3,7 @@ import { redis } from "./redis";
 import { logger } from "./logger";
 import { trackOnboardingEvent } from "./onboarding-analytics";
 import { RANK_REWARDS, earnedXpFor } from "./quest-config";
-import { grantCredits } from "./credits";
+import { grantMinutes } from "./minutes";
 import { sendQuestRankRewardEmail } from "./email";
 
 export async function markQuestComplete(userId: string, questId: string) {
@@ -16,7 +16,7 @@ export async function markQuestComplete(userId: string, questId: string) {
     await redis.del(`quests:${userId}`);
     trackOnboardingEvent(userId, "quest_completed", { questId });
 
-    // Grant a one-time bonus-credit reward for each rank the user has newly
+    // Grant a one-time bonus Clip Minutes reward for each rank the user has newly
     // crossed. earnedXp is derived from the quests completed so far, and each
     // rank is paid at most once (tracked in User.claimedRankRewards).
     const completed = await prisma.userQuest.findMany({
@@ -36,8 +36,8 @@ export async function markQuestComplete(userId: string, questId: string) {
     if (newlyEarned.length === 0) return;
 
     for (const rank of newlyEarned) {
-      // Quest rewards are bonus credits: 30-day expiry, spent first.
-      const balances = await grantCredits({
+      // Quest rewards are bonus Clip Minutes: 30-day expiry, spent first.
+      const balances = await grantMinutes({
         userId,
         bucket: "bonus",
         amount: rank.reward,

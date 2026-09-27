@@ -35,7 +35,10 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   "mp3-converter":    { creditCost: 0, costUsd: 0, costBasis: "FFmpeg (local compute only)", generationType: "utility" },
   "video-compressor": { creditCost: 0, costUsd: 0, costBasis: "FFmpeg (local compute only)", generationType: "utility" },
   "enhance-prompt":   { creditCost: 0, costUsd: 0, costBasis: "Google Gemini text, negligible cost", generationType: "utility" },
-  "brainstormer":     { creditCost: 1, costUsd: null, costBasis: "Google Gemini text, near-zero real cost", generationType: "utility" },
+  // Free since 2026-09-26 under a daily fair-use cap (lib/fair-use.ts), like the
+  // other single-call Gemini text tools below: ~$0.0005 a call against a 1-credit
+  // (~$0.08) price was ~80x cost and mostly felt petty.
+  "brainstormer":     { creditCost: 0, costUsd: 0.0005, costBasis: "Google Gemini text, one call — free under a daily fair-use cap", generationType: "utility" },
   // Social Tracker v2 AI layer. All of these send a ≤2 kB factsheet of numbers
   // the deterministic engine already computed and get back a few hundred tokens
   // of prose — genuinely sub-cent per call, same basis as brainstormer above.
@@ -44,8 +47,8 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   // (and cached 24h on rounded values, so an idle dashboard never re-bills).
   "social-exec-report":   { creditCost: 5, costUsd: null, costBasis: "Google Gemini text over a computed multi-account period factsheet, near-zero real cost", generationType: "utility" },
   "social-content-recs":  { creditCost: 3, costUsd: null, costBasis: "Google Gemini text over computed post scores, near-zero real cost", generationType: "utility" },
-  "social-caption":       { creditCost: 1, costUsd: null, costBasis: "Google Gemini text, near-zero real cost", generationType: "utility" },
-  "social-post-narration": { creditCost: 1, costUsd: null, costBasis: "Google Gemini text, batched 10 posts per call, near-zero real cost", generationType: "utility" },
+  "social-caption":       { creditCost: 0, costUsd: 0.0005, costBasis: "Google Gemini text, near-zero real cost", generationType: "utility" },
+  "social-post-narration": { creditCost: 0, costUsd: 0.0005, costBasis: "Google Gemini text, batched 10 posts per call, near-zero real cost", generationType: "utility" },
   "social-kpi-explain":   { creditCost: 0, costUsd: null, costBasis: "Google Gemini text, cached 24h on rounded metric values, near-zero real cost", generationType: "utility" },
   "cut-and-crop":     { creditCost: 1, costUsd: 0, costBasis: "FFmpeg (local compute only)", generationType: "utility" },
   // Duration-scaled (2-20 credits — see creditCostForDuration in the route)
@@ -57,13 +60,16 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   // Gated pro+ until the real OCR cost is confirmed: pro-tier credit revenue
   // (~₹15.7/cr) gives enough margin buffer for an unknown per-frame cost.
   "subtitle-remover": { creditCost: 4, costUsd: null, costBasis: "fal-ai/florence-2-large OCR per sampled frame + FFmpeg render, cost not yet confirmed", generationType: "video", requiredTier: "pro" },
-  "voiceover":        { creditCost: 2, costUsd: 0.10, costBasis: "$0.05/1,000 chars (ElevenLabs Flash TTS), 2,000-char cap", generationType: "audio" },
-  "vocal-remover":    { creditCost: 3, costUsd: 0.21, costBasis: "$0.0007/s (fal.ai Demucs), 5-min worst case", generationType: "audio" },
+  // Audio tools are priced by LENGTH since 2026-09-26 (lib/audio-pricing.ts);
+  // creditCost/costUsd here are per UNIT — the "from" price the tools page and
+  // cost table show — and the route charges units x rate.
+  "voiceover":        { creditCost: 1, costUsd: 0.025, costBasis: "Per 500 characters: $0.05/1,000 chars (ElevenLabs Flash TTS), 2,000-char cap", generationType: "audio" },
+  "vocal-remover":    { creditCost: 1, costUsd: 0.021, costBasis: "Per 30 seconds: $0.0007/s (fal.ai Demucs), 5-min cap", generationType: "audio" },
   // Fixed in Phase 1: was 2cr flat (≈$0.20 revenue) against real cost that could
   // run $1-2/generation uncapped — a confirmed loss-making price. Now
   // duration-scaled and gated to Pro+, like the video-generator models.
-  "voice-changer":    { creditCost: 6, costUsd: 0.30, costBasis: "~$0.20/min (ElevenLabs STS), 90s cap", generationType: "audio" },
-  "enhance-speech":   { creditCost: 6, costUsd: 0.30, costBasis: "~$0.20/min (ElevenLabs Isolation), 90s cap", generationType: "audio" },
+  "voice-changer":    { creditCost: 8, costUsd: 0.20, costBasis: "Per minute: ~$0.20/min (ElevenLabs speech-to-speech), 90s cap", generationType: "audio" },
+  "enhance-speech":   { creditCost: 8, costUsd: 0.20, costBasis: "Per minute: ~$0.20/min (ElevenLabs voice isolation), 90s cap", generationType: "audio" },
   "youtube-downloader":   { creditCost: 1, costUsd: 0, costBasis: "yt-dlp, bandwidth only", generationType: "utility" },
   "instagram-downloader": { creditCost: 1, costUsd: 0, costBasis: "yt-dlp, bandwidth only", generationType: "utility" },
   "background-remover":   { creditCost: 1, costUsd: 0.018, costBasis: "$0.018/run (fal-ai/imageutils/rembg)", generationType: "image" },
@@ -145,7 +151,7 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   // keyed off THIS map, so none of them reached cost reporting at all. The
   // numbers below are the constants those routes already use: this makes them
   // visible, it does not change anyone's price.
-  "generate-voice":     { creditCost: 2, costUsd: 0.10, costBasis: "$0.05/1,000 chars (ElevenLabs Flash TTS), 2,000-char cap — same price as the voiceover tool", generationType: "audio" },
+  "generate-voice":     { creditCost: 1, costUsd: 0.025, costBasis: "Per 500 characters: $0.05/1,000 chars (ElevenLabs Flash TTS) — same rate as the voiceover tool", generationType: "audio" },
   "voice-preview":      { creditCost: 0, costUsd: 0.002, costBasis: "One ~35-char TTS sample. Free to the user; authenticated and capped at 20/hr so the cost is bounded by accounts, not IPs", generationType: "audio" },
   "music-generate":     { creditCost: 4, costUsd: 0.075, costBasis: "ElevenLabs Music $0.15/min, 30s default bed (verify-before-ship: the Music API is paid-plan only and 402s on the current free account, so this rate is published pricing, not a measured call). Gated creator+", generationType: "audio" },
   "compile":            { creditCost: 1, costUsd: 0, costBasis: "FFmpeg render only — TTS is charged when the voice is generated", generationType: "video" },
@@ -153,13 +159,13 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   // Billed in Clip Minutes since 2026-09-26 (1 per minute of each asset, see
   // app/api/editor/captions/route.ts); creditCost 0 because it spends no credits.
   "editor-captions":    { creditCost: 0, costUsd: 0.0037, costBasis: "Scribe STT at $0.22/hour of the whole asset — billed 1 Clip Minute per minute", generationType: "utility" },
-  "editor-ai-text":     { creditCost: 1, costUsd: 0, costBasis: "Google Gemini text — near-zero per call", generationType: "utility" },
+  "editor-ai-text":     { creditCost: 0, costUsd: 0.0005, costBasis: "Google Gemini text — free under a daily fair-use cap", generationType: "utility" },
   "auto-clip-rerender": { creditCost: 1, costUsd: 0, costBasis: "FFmpeg re-render of one clip (local compute only)", generationType: "video" },
 
   // Script generation. Free until now, while brainstormer — the same class of
   // Gemini call — charged 1. Priced to match that precedent rather than to
   // recover cost: the real per-call spend is a fraction of a credit.
-  "script-generic":     { creditCost: 1, costUsd: 0, costBasis: "Google Gemini text (~150-200 words)", generationType: "utility" },
+  "script-generic":     { creditCost: 0, costUsd: 0.0005, costBasis: "Google Gemini text (~150-200 words)", generationType: "utility" },
 };
 
 // "Starting at" display price for the two multi-model tools — kept in sync

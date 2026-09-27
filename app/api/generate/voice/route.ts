@@ -6,6 +6,7 @@ import { synthesizeVoice } from "@/utils/elevenlabs";
 import { resolveVoiceId } from "@/utils/voice-ids";
 import { uploadBufferToS3 } from "@/utils/s3-upload";
 import { chargeCredits, refundCredits, markGenerationStatus } from "@/lib/credits";
+import { voiceoverCredits } from "@/lib/audio-pricing";
 import { logger } from "@/lib/logger";
 
 // The legacy /editor wizard's voice step.
@@ -31,7 +32,8 @@ import { logger } from "@/lib/logger";
 /** Same ceiling as /api/tools/voiceover — one number, one worst-case cost. */
 const MAX_CHARS = 2000;
 /** Same price as the equivalent tool. Charging less here would be an arbitrage. */
-const CREDIT_COST = 2;
+// Priced by length since 2026-09-26 (same ElevenLabs Flash TTS as the
+// voiceover tool): 1 credit per 500 characters — lib/audio-pricing.ts.
 
 async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
@@ -59,10 +61,11 @@ async function handlePOST(req: NextRequest) {
   });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
+  const creditCost = voiceoverCredits(text.length);
   const charge = await chargeCredits({
     userId: auth.userId,
     toolSlug: "generate-voice",
-    amount: CREDIT_COST,
+    amount: creditCost,
   });
   if (!charge.ok) {
     // Two distinct refusals: the admin kill-switch and an empty wallet. A 402
@@ -72,7 +75,7 @@ async function handlePOST(req: NextRequest) {
       return NextResponse.json({ error: "Voice generation is temporarily disabled." }, { status: 503 });
     }
     return NextResponse.json(
-      { error: "Insufficient credits", required: CREDIT_COST, balance: charge.balance },
+      { error: "Insufficient credits", required: creditCost, balance: charge.balance },
       { status: 402 },
     );
   }
@@ -88,7 +91,7 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ audioUrl, wordTimings });
   } catch (err) {
     logger.error("generate/voice", "request failed", err);
-    await refundCredits({ userId: auth.userId, amount: CREDIT_COST, generationId: charge.generationId }).catch(() => {});
+    await refundCredits({ userId: auth.userId, amount: creditCost, generationId: charge.generationId }).catch(() => {});
     return NextResponse.json({ error: "Voice generation failed" }, { status: 500 });
   }
 }

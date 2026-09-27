@@ -4,6 +4,8 @@ import { getAuthUser } from "@/lib/auth";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { withRetry } from "@/lib/with-retry";
 import { chargeCredits, refundCredits, markGenerationStatus } from "@/lib/credits";
+import { getUserTier } from "@/lib/auth";
+import { takeFairUse } from "@/lib/fair-use";
 import { env } from "@/lib/env";
 
 // maxDuration=30 must stay ahead of withRetry's worst case below (3 attempts
@@ -12,7 +14,10 @@ import { env } from "@/lib/env";
 // route's own catch/refund logic ever ran.
 export const maxDuration = 30;
 
-const CREDIT_COST = 1;
+// Free since 2026-09-26 (one Gemini call, well under $0.001) under a daily
+// fair-use cap — lib/fair-use.ts. Still routed through chargeCredits at 0 so
+// each run keeps its Generation row for the usage and AI-spend dashboards.
+const CREDIT_COST = 0;
 
 async function handlePOST(req: NextRequest) {
   if (!env.GEMINI_API_KEY) {
@@ -35,6 +40,9 @@ async function handlePOST(req: NextRequest) {
   const tone = (body.tone ?? "").trim().slice(0, 100);
   const targetAudience = (body.targetAudience ?? "").trim().slice(0, 200);
   const videoType = (body.videoType ?? "").trim().slice(0, 100);
+
+  const use = await takeFairUse(auth.userId, "brainstormer", await getUserTier(auth.userId));
+  if (!use.allowed) return NextResponse.json({ error: use.message }, { status: 429 });
 
   const charge = await chargeCredits({
     userId: auth.userId,

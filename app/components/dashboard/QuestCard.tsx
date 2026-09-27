@@ -197,7 +197,7 @@ export function QuestCard({ questData, hasUser, onDiscordQuest }: QuestCardProps
               return (
                 <Tooltip
                   key={rank.level}
-                  content={t("rankReward", { level: rank.level, credits: rank.reward })}
+                  content={t("rankReward", { level: rank.level, minutes: rank.reward })}
                   position="bottom"
                 >
                   <span

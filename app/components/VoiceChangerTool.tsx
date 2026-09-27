@@ -2,12 +2,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { useJobPolling } from "./useJobPolling";
-import { TOOL_COSTS } from "@/lib/tool-costs";
+import { AUDIO_RATE_LABEL } from "@/lib/audio-pricing";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { VOICES, voiceBySlug, type Voice } from "@/app/components/voice-catalog";
 import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
 
-const VOICE_CHANGER_CREDIT_COST = TOOL_COSTS["voice-changer"].creditCost;
+// Priced by length since 2026-09-26 — the route charges voiceFxCredits(duration).
+const VOICE_CHANGER_RATE = AUDIO_RATE_LABEL["voice-changer"];
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 function IcMic() {
@@ -580,7 +581,7 @@ export default function VoiceChangerTool() {
 
               {user && (
                 <p className="text-center text-[11px] text-fg-subtle">
-                  Uses {VOICE_CHANGER_CREDIT_COST} credit{VOICE_CHANGER_CREDIT_COST !== 1 ? "s" : ""} &bull; You have {user.credits} credit{user.credits !== 1 ? "s" : ""}
+                  {VOICE_CHANGER_RATE} (min 1) &bull; You have {user.credits} credit{user.credits !== 1 ? "s" : ""}
                 </p>
               )}
             </div>

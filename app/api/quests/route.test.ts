@@ -90,7 +90,7 @@ describe("GET /api/quests", () => {
 
     const body = await (await GET(req())).json();
 
-    expect(body.newRankRewards).toEqual([{ level: "Creator", reward: 5 }]);
+    expect(body.newRankRewards).toEqual([{ level: "Creator", reward: 15 }]);
   });
 
   it("does not re-announce a reward granted before the last acknowledgement", async () => {
@@ -110,7 +110,7 @@ describe("GET /api/quests", () => {
     creditTransactions = [{ reason: "grant:quest-rank-Creator", createdAt: new Date("2026-09-01") }];
 
     const first = await (await GET(req())).json();
-    expect(first.newRankRewards).toEqual([{ level: "Creator", reward: 5 }]);
+    expect(first.newRankRewards).toEqual([{ level: "Creator", reward: 15 }]);
     expect(redisStore.has("quests:u1")).toBe(true);
 
     // User acknowledges; the cached quest payload is untouched and still warm.

@@ -6,6 +6,7 @@ import { resolveVoiceId } from "@/utils/voice-ids";
 import { uploadBufferToS3 } from "@/utils/s3-upload";
 import { markQuestComplete } from "@/lib/quests";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
+import { voiceoverCredits } from "@/lib/audio-pricing";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
@@ -13,14 +14,11 @@ import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } f
 
 export const maxDuration = 120;
 
-// ElevenLabs Flash TTS bills $0.05/1,000 chars — capped so the worst case
-// (~₹9.5 at 2,000 chars) stays well under 2 credits' revenue even at the
-// cheapest per-credit plan (Studio Yearly, ~₹9.41/credit = ~₹18.8).
+// ElevenLabs Flash TTS bills $0.05/1,000 chars. Priced by length since
+// 2026-09-26 — 1 credit per 500 characters, lib/audio-pricing.ts — instead of a
+// flat 2 credits that ran at ~1.6x cost at the cap after GST. The cap bounds
+// one request, not the margin.
 const MAX_CHARS = 2000;
-// Was 1 credit — that only broke even against the 2,000-char cap's ~₹9.5
-// worst-case cost at the cheapest per-credit plan. Matches the 2-credit
-// price already advertised via TOOL_DEFAULTS/tool-costs.
-const CREDIT_COST = 2;
 
 // Result is an S3 URL, not a local file — see image-generator/route.ts's
 // identical note. outputPath/downloadName are unused placeholders; the real
@@ -81,18 +79,21 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "Voice generation is not configured" }, { status: 503 });
   }
 
+  // Length-scaled price, same function the tool page quotes with.
+  const creditCost = voiceoverCredits(text.length);
+
   const charge = await chargeCredits({
     userId: auth.userId,
-    amount: CREDIT_COST,
+    amount: creditCost,
     toolSlug: "voiceover",
     idempotencyKey: body.idempotencyKey,
-    log: { generationType: "audio", prompt: text },
+    log: { generationType: "audio", prompt: text, estimatedCostUsd: (text.length / 1000) * 0.05 },
   });
   if (!charge.ok) {
     if (charge.reason === "tool_disabled") {
       return NextResponse.json({ error: "Voiceover generation is temporarily disabled." }, { status: 503 });
     }
-    return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
+    return NextResponse.json({ error: `Insufficient credits (need ${creditCost})` }, { status: 402 });
   }
 
   const jobId = randomUUID();
@@ -104,7 +105,7 @@ async function handlePOST(req: NextRequest) {
     createdAt: Date.now(),
     userId: auth.userId,
     refunded: false,
-    creditCost: CREDIT_COST,
+    creditCost: creditCost,
     generationId: charge.generationId,
   };
   jobs.set(jobId, job);
@@ -154,7 +155,7 @@ async function handlePOST(req: NextRequest) {
       if (!job.refunded) {
         job.refunded = true;
         try {
-          await refundCredits({ userId: auth.userId, amount: CREDIT_COST, generationId: job.generationId });
+          await refundCredits({ userId: auth.userId, amount: creditCost, generationId: job.generationId });
           if (job.generationId) await markGenerationStatus(job.generationId, "failed", err instanceof Error ? err.message : "unknown error");
         } catch { /* swallow */ }
       }

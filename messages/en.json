@@ -92,10 +92,10 @@
     "questsToGo": "{count, plural, one {# quest to go} other {# quests to go}}",
     "xpTotal": "/ {total} XP",
     "xpSuffix": "+{xp} XP",
-    "rankReward": "{level} — reach this rank to earn +{credits} bonus credits.",
+    "rankReward": "{level} — reach this rank to earn +{minutes} bonus Clip Minutes.",
     "allQuestsCompleteBanner": "All quests complete! You've reached Clipiro Master — bonus credits have been added to your account.",
     "toggleQuests": "Show or hide onboarding quests",
-    "rankRewardToast": "🎉 {level} unlocked — +{credits} bonus credits added",
+    "rankRewardToast": "🎉 {level} unlocked — +{minutes} bonus Clip Minutes added",
     "quests": {
       "joinCommunity": { "title": "Join the community", "desc": "Connect your Discord and join the Clipiro server." },
       "firstClip": { "title": "Create your first clip", "desc": "Walk through the Simple Editor and make your first clip." },

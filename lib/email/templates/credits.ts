@@ -57,30 +57,32 @@ export function creditsRefilled(p: {
 export function questRankReward(p: {
   name: string;
   level: string;
-  creditsAdded: number;
+  /** Bonus Clip Minutes granted (rank rewards are paid in minutes since 2026-09-26). */
+  minutesAdded: number;
+  /** The Clip Minutes balance after the grant. */
   newBalance: number;
 }): EmailDocument {
   return {
-    subject: `You reached ${p.level} — ${p.creditsAdded} bonus credits added`,
-    preheader: `Your ${p.level} reward is in your account. Bonus credits expire in 30 days.`,
+    subject: `You reached ${p.level} — ${p.minutesAdded} bonus Clip Minutes added`,
+    preheader: `Your ${p.level} reward is in your account. Bonus Clip Minutes expire in 30 days.`,
     blocks: [
       { kind: "heading", text: `You reached ${p.level}` },
       {
         kind: "paragraph",
-        text: `Nice work, ${greet(p.name)} — you've unlocked the ${p.level} rank on your onboarding quests, and ${p.creditsAdded} bonus ${plural(p.creditsAdded, "credit")} just landed in your account.`,
+        text: `Nice work, ${greet(p.name)} — you've unlocked the ${p.level} rank on your onboarding quests, and ${p.minutesAdded} bonus Clip Minutes just landed in your account. That's ${p.minutesAdded} minutes of video to turn into clips.`,
       },
       {
         kind: "hero",
-        label: "Bonus credits added",
-        value: `+${p.creditsAdded}`,
-        caption: `Balance is now ${p.newBalance} ${plural(p.newBalance, "credit")}`,
+        label: "Bonus Clip Minutes added",
+        value: `+${p.minutesAdded}`,
+        caption: `Balance is now ${p.newBalance} Clip Minutes`,
         tone: "brand",
       },
       {
         // The expiry is the entire reason this email exists — these grants were
         // previously made silently and could lapse completely unnoticed.
         kind: "paragraph",
-        text: `Bonus credits are spent first and expire 30 days from today (${formatDateShort(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))}), so put them to work.`,
+        text: `Bonus Clip Minutes are spent first and expire 30 days from today (${formatDateShort(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))}), so put them to work.`,
       },
       { kind: "button", href: DASHBOARD_URL, label: "Start creating" },
     ],
