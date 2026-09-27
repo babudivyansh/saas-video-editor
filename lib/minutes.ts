@@ -208,6 +208,11 @@ export async function spendMinutes(params: SpendMinutesParams): Promise<SpendMin
 
   if (!outcome) return { ok: false, reason: "insufficient_minutes", balances: await getMinuteBalances(userId) };
   await refreshMinuteCache(userId, outcome.balances.total);
+  // Fire-and-forget low-balance warning, lazily imported so this module's load
+  // path stays free of the email graph (same pattern as spendCredits).
+  void import("@/lib/minute-events")
+    .then((m) => m.fireLowMinutesEmail(userId, outcome.balances.total))
+    .catch(() => {});
   return { ok: true, ...outcome };
 }
 

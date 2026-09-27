@@ -23,6 +23,26 @@ import { spendMinutes, restoreMinutes, billableSourceMinutes, getMinuteBalances 
 import { spendCredits, restoreSpend, logToolGeneration } from "@/lib/credits";
 import { AUTOCLIP_RERUN_FREE_WINDOW_DAYS, overflowCreditsFor } from "@/lib/plans/tiers";
 import { logger } from "@/lib/logger";
+import { TOOL_COSTS } from "@/lib/tool-costs";
+
+/**
+ * The AI-spend and margin dashboards aggregate Generation rows, and a run paid
+ * in minutes writes none — so without this, AutoClip (the most expensive thing
+ * we run) vanished from cost reporting the moment it moved off credits. One row
+ * per charged run: creditsCost 0 (it spent minutes), cost = source minutes x the
+ * audited per-source-minute cost in lib/tool-costs.ts.
+ */
+function logRunCost(userId: string, projectId: string, sourceMinutes: number, overflowCredits: number): void {
+  const perMinute = TOOL_COSTS["auto-clip"]?.costUsd ?? 0;
+  void logToolGeneration({
+    userId,
+    toolSlug: "auto-clip",
+    creditsCost: overflowCredits,
+    generationType: "video",
+    refId: runMinutesRefId(projectId),
+    estimatedCostUsd: sourceMinutes * perMinute,
+  });
+}
 
 export const runMinutesRefId = (projectId: string) => `auto-clip:${projectId}`;
 export const overflowRefId = (projectId: string) => `auto-clip-overflow:${projectId}`;
@@ -116,7 +136,10 @@ export async function chargeRunMinutes(params: {
   if (rerunOf) return { ok: true, minutes: 0, overflowCredits: 0, freeRerunOf: rerunOf };
 
   const spend = await spendMinutes({ userId, amount: needed, reason: "spend:auto-clip", refId });
-  if (spend.ok) return { ok: true, minutes: needed, overflowCredits: 0 };
+  if (spend.ok) {
+    logRunCost(userId, projectId, needed, 0);
+    return { ok: true, minutes: needed, overflowCredits: 0 };
+  }
 
   const available = spend.balances.total;
   const overflowCredits = overflowCreditsFor(needed - available);
@@ -141,9 +164,9 @@ export async function chargeRunMinutes(params: {
     }
     return { ok: false, needed, available, overflowCredits };
   }
-  void logToolGeneration({
-    userId, toolSlug: "auto-clip", creditsCost: overflowCredits, generationType: "video", refId: overflowRefId(projectId),
-  });
+  // One row for the whole run: the provider cost is the full source length,
+  // whichever mix of minutes and credits paid for it.
+  logRunCost(userId, projectId, needed, overflowCredits);
   return { ok: true, minutes: available, overflowCredits };
 }
 

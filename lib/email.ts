@@ -205,6 +205,12 @@ export async function sendLowCreditsEmail(
   await sendTemplate("low-credits", to, { name, creditsLeft, estimatedVideos });
 }
 
+export async function sendLowMinutesEmail(
+  to: string, name: string, minutesLeft: number, tier: "free" | "creator" | "pro" | "studio",
+): Promise<{ status: string }> {
+  return sendTemplate("low-minutes", to, { name, minutesLeft, tier });
+}
+
 export async function sendZeroCreditsEmail(to: string, name: string): Promise<void> {
   await sendTemplate("zero-credits", to, { name });
 }

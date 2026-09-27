@@ -203,3 +203,40 @@ export function autoTopupPrompt(p: {
     ],
   };
 }
+
+/**
+ * Low Clip Minutes warning (2026-09-26 model) — the minutes twin of lowCredits.
+ * Fired once per cycle when a spend leaves the balance at or under ~20% of the
+ * monthly minutes (lib/minute-events.ts). Minutes pay for Auto Clips, so the
+ * useful framing is "how much video you can still turn into clips".
+ */
+export function lowMinutes(p: {
+  name: string;
+  minutesLeft: number;
+  /** "free" gets the upgrade CTA; paid plans get the top-up one. */
+  tier: "free" | "creator" | "pro" | "studio";
+}): EmailDocument {
+  const paid = p.tier !== "free";
+  return {
+    subject: `You're running low — ${p.minutesLeft} Clip ${p.minutesLeft === 1 ? "Minute" : "Minutes"} left`,
+    preheader: `Enough for about ${p.minutesLeft} more ${plural(p.minutesLeft, "minute")} of video in Auto Clips.`,
+    blocks: [
+      { kind: "heading", text: "You're running low on Clip Minutes" },
+      {
+        kind: "paragraph",
+        text: html`Hi ${greet(p.name)}, you have <strong>${p.minutesLeft} Clip ${plural(p.minutesLeft, "Minute")}</strong>
+          left — Auto Clips use 1 minute per minute of video you upload.`,
+      },
+      { kind: "hero", label: "Clip Minutes left", value: String(p.minutesLeft), tone: "warning" },
+      {
+        kind: "callout",
+        tone: "warning",
+        title: "Tip",
+        body: "Re-running a video you already clipped in the last 7 days is free — try different clip lengths without spending minutes.",
+      },
+      paid
+        ? { kind: "button", href: `${DASHBOARD_URL}?billing=1&tab=topup`, label: "Top up minutes", tone: "warning" }
+        : { kind: "button", href: PRICING_URL, label: "Get more minutes", tone: "warning" },
+    ],
+  };
+}
