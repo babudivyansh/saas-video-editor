@@ -248,11 +248,10 @@ export async function aiSection(rangeDays: number) {
   const completed = count("completed");
   const failed = count("failed");
 
-  // modelId → provider from the static registries (code-side join).
+  // modelId → provider from the static registry (code-side join).
   const { IMAGE_MODELS } = await import("@/lib/models/imageModels");
-  const { VIDEO_MODELS } = await import("@/lib/models/videoModels");
   const providerOf = new Map<string, string>(
-    [...IMAGE_MODELS, ...VIDEO_MODELS].map((m) => [m.id, m.provider]),
+    IMAGE_MODELS.map((m) => [m.id, m.provider]),
   );
   const costByProvider = new Map<string, { costUsd: number; generations: number }>();
   for (const m of costByModelAll) {

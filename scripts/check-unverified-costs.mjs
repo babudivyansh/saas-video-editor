@@ -27,11 +27,6 @@ const SCAN = [
 const ALLOWLIST = {
   // ideogram-4 tier-slug ambiguity (`/fast` vs `/instant`) — cheap either way.
   "lib/models/imageModels.ts": 1,
-  // pixverse (v5.6) — weak cost/slug data (~$0.01/s reported); priced at a
-  // conservative 4 cr/s (>=3x at the net floor either way) and creator+ gated. The other video
-  // models had their fal costs confirmed in the 2026-08 audit (per-resolution
-  // rates now in resolutionCredits), so their markers were removed.
-  "lib/models/videoModels.ts": 1,
   // Three markers, all mitigated the same way — costUsd unknown, so the tool is
   // tier-gated where the credit revenue absorbs the uncertainty:
   //   1. subtitle-remover (per-frame OCR cost unconfirmed)
@@ -149,9 +144,6 @@ const PRICED = new Set([...TOOL_COSTS_SRC.matchAll(/^\s*"([a-z0-9-]+)":/gm)].map
 const PRICED_ELSEWHERE = new Set([
   // Per-model pricing in lib/models/*, which this script already scans above.
   "image-generator",
-  "video-generator",
-  // Not a generation: stores an uploaded file for a later, priced call.
-  "upload-reference-image",
   // Serves the voice catalogue. Reads only.
   "voices",
 ]);

@@ -6,12 +6,6 @@ export const PRIMARY_GOALS = [
     href: "/dashboard/create/auto-clip",
   },
   {
-    id: "video",
-    label: "Generate AI video",
-    description: "Create video from a text prompt with VEO3.",
-    href: "/dashboard/tools/video-generator",
-  },
-  {
     id: "image",
     label: "Generate AI images",
     description: "Create images from a text prompt.",
@@ -38,7 +32,6 @@ export type PrimaryGoalId = typeof PRIMARY_GOALS[number]["id"];
 // nudge a user back toward their stated goal if they haven't gotten there yet.
 export const GOAL_TO_QUEST: Record<PrimaryGoalId, string> = {
   "auto-clip": "first-clip",
-  video: "first-video",
   image: "picture-this",
   voiceover: "hear-yourself-out",
   editor: "first-export",

@@ -95,7 +95,6 @@
       "firstClip": { "title": "Erstellen Sie Ihren ersten Clip", "desc": "Erstellen Sie mit dem einfachen Editor Ihren ersten Clip." },
       "hearYourselfOut": { "title": "Hören Sie sich selbst zu", "desc": "Erstellen Sie Ihr erstes KI-Voiceover." },
       "pictureThis": { "title": "Sehen Sie sich das an", "desc": "Erstellen Sie Ihr erstes KI-Bild." },
-      "firstVideo": { "title": "Erstellen Sie Ihr erstes Video", "desc": "Erstellen Sie ein Video mit dem KI-Videogenerator." },
       "firstExport": { "title": "Exportieren Sie ein Projekt", "desc": "Exportieren Sie ein fertiges Projekt aus dem Editor." },
       "upgradedPlan": { "title": "Upgraden Sie Ihren Plan", "desc": "Abonnieren Sie einen kostenpflichtigen Plan." },
       "exploreToolbox": { "title": "Entdecke die Tools", "desc": "Probiere ein KI-Tool aus — Face Swap, Background Remover, Voice Changer oder Vocal Remover." },
@@ -122,7 +121,6 @@
       "aiFaceSwap": "KI-Gesichtstausch",
       "voiceoverGenerator": "Voiceover-Generator",
       "backgroundRemover": "Hintergrund-Entferner",
-      "veo3Generator": "VEO3-Generator",
       "youtubeDownloader": "YouTube-Downloader"
     }
   },
@@ -140,7 +138,6 @@
       "imageGenerator": { "title": "KI-Bildgenerator", "desc": "Erstellen Sie in Sekunden hochwertige Bilder mit KI." },
       "voiceover": { "title": "KI-Voiceover-Generator", "desc": "Erstellen Sie in Sekunden hochwertige Voiceovers mit über 50 Sprechern." },
       "speechEnhancer": { "title": "KI-Sprachverbesserer", "desc": "Verbessern Sie die Qualität einer beliebigen Audio- oder Videodatei mit KI." },
-      "videoGenerator": { "title": "KI-Videogenerator", "desc": "VEO3 ist ein Tool, mit dem Sie Videos mit KI erstellen können." },
       "vocalRemover": { "title": "KI-Gesangsentferner", "desc": "Entfernen Sie Gesang aus einer beliebigen Audio- oder Videodatei mit KI." },
       "brainstormer": { "title": "KI-Ideengenerator", "desc": "Generieren Sie virale Content-Ideen basierend auf Ihrer Nische." }
     }

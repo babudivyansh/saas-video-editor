@@ -194,16 +194,6 @@ export const TOOL_IMAGES: Record<string, ToolImageSet> = {
         "data:image/webp;base64,UklGRkYAAABXRUJQVlA4IDoAAACQAQCdASoQAAUAA4BaJaQAAse4kYAA/vYkgmZJJBn4/uUtOmfjD5PEumxdIQQbOve2G9651jZSAAAA",
     },
   },
-  "ai-video-generator": {
-    primary: {
-      src: "/tools/ai-video-generator-hero.webp",
-      alt: "A prompt describing a couple hiking at sunrise, generating a video with model, duration, and aspect ratio controls, previewed with its four generated scenes.",
-      width: 1352,
-      height: 683,
-      blurDataURL:
-        "data:image/webp;base64,UklGRlQAAABXRUJQVlA4IEgAAADQAQCdASoQAAgAA4BaJYwC7AD2O5JEAAD+9/Dt9Tzx2xrFTtJqd1Eh/YLXEUfCx6mzToE0WTv62yUZy5PvvxXMK3QvisgAAAA=",
-    },
-  },
   "ai-vocal-remover": {
     primary: {
       src: "/tools/ai-vocal-remover-hero.webp",

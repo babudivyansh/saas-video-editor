@@ -9,11 +9,9 @@ import { useState } from "react";
 import { Tabs } from "@/app/components/ui/Tabs";
 import { PURCHASABLE_TIER_ORDER, TIER_LABEL, SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER, type TierId } from "@/lib/plans/tiers";
 import { IMAGE_MODELS, getImageModel } from "@/lib/models/imageModels";
-import { VIDEO_MODELS, getVideoModel, videoCreditsPerSecond, defaultDurationSeconds } from "@/lib/models/videoModels";
 import type { DbPlan, ToolCost } from "./types";
 
 interface CalcSelection {
-  kind: "image" | "video";
   modelId: string;
   qty: number;
 }
@@ -26,25 +24,9 @@ interface CalcResult {
 
 export function computeRecommendation(selections: CalcSelection[], subs: DbPlan[], term: number): CalcResult {
   const active = selections.filter(s => s.qty > 0);
-  const totalCredits = active.reduce((sum, s) => {
-    if (s.kind === "image") return sum + getImageModel(s.modelId).creditCost * s.qty;
-    const m = getVideoModel(s.modelId);
-    // Veo stores its default as "8s": the old typeof-number check fell back to
-    // its minimum and quoted 80 credits for the default 128-credit run.
-    const dur = defaultDurationSeconds(m);
-    // videoCreditsPerSecond, not the flat base rate: Veo 3 DEFAULTS to audio on
-    // (16 cr/s, not 10) and Seedance to 720p, so the bare creditsPerSecond
-    // under-quoted the estimate by ~38% on the model most people pick first.
-    const perSecond = videoCreditsPerSecond(m, {
-      resolution: m.defaultValues.resolution as string | undefined,
-      audio: m.defaultValues.audio === "on",
-    });
-    return sum + perSecond * dur * s.qty;
-  }, 0);
+  const totalCredits = active.reduce((sum, s) => sum + getImageModel(s.modelId).creditCost * s.qty, 0);
 
-  const requiredTierSets = active.map(s =>
-    (s.kind === "image" ? getImageModel(s.modelId) : getVideoModel(s.modelId)).allowedTiers
-  );
+  const requiredTierSets = active.map(s => getImageModel(s.modelId).allowedTiers);
   const eligibleTiers = PURCHASABLE_TIER_ORDER.filter(t => requiredTierSets.every(allowed => allowed.includes(t)));
   const recommendedPlan = eligibleTiers
     .map(t => subs.find(p => p.tier === t && p.intervalMonths === term))
@@ -83,50 +65,31 @@ function Stepper({ value, onChange, onStep, label }: {
 
 function Calculator({ subs, term, onChoose }: { subs: DbPlan[]; term: number; onChoose: (plan: DbPlan) => void }) {
   const [rows, setRows] = useState<CalcSelection[]>([
-    { kind: "image", modelId: IMAGE_MODELS[0].id, qty: 20 },
-    { kind: "video", modelId: VIDEO_MODELS[VIDEO_MODELS.length - 1].id, qty: 4 },
+    { modelId: IMAGE_MODELS[0].id, qty: 20 },
   ]);
   const result = computeRecommendation(rows, subs, term);
   const anyQty = rows.some(s => s.qty > 0);
 
   const update = (idx: number, patch: Partial<CalcSelection>) => {
-    setRows(prev => prev.map((s, i) => {
-      if (i !== idx) return s;
-      const next = { ...s, ...patch };
-      // Switching kind means the previously-selected modelId is invalid — reset to that kind's first model.
-      if (patch.kind && patch.kind !== s.kind) {
-        next.modelId = (patch.kind === "image" ? IMAGE_MODELS[0] : VIDEO_MODELS[0]).id;
-      }
-      return next;
-    }));
+    setRows(prev => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
   };
 
   return (
     <div className="flex flex-col gap-3">
       {rows.map((sel, idx) => {
-        const models = sel.kind === "image" ? IMAGE_MODELS : VIDEO_MODELS;
         return (
           <div key={idx} className="flex flex-wrap items-center gap-2 rounded-2xl bg-surface-2 p-3 sm:flex-nowrap">
-            <select
-              aria-label="Type"
-              value={sel.kind}
-              onChange={e => update(idx, { kind: e.target.value as "image" | "video" })}
-              className={selectClass}
-            >
-              <option value="image">Images</option>
-              <option value="video">Videos</option>
-            </select>
             <select
               aria-label="Model"
               value={sel.modelId}
               onChange={e => update(idx, { modelId: e.target.value })}
               className={`${selectClass} min-w-0 flex-1`}
             >
-              {models.map(m => <option key={m.id} value={m.id}>{m.displayName}</option>)}
+              {IMAGE_MODELS.map(m => <option key={m.id} value={m.id}>{m.displayName}</option>)}
             </select>
             <Stepper
               value={sel.qty}
-              label={sel.kind === "image" ? "images" : "videos"}
+              label="images"
               onChange={qty => update(idx, { qty })}
               onStep={d => setRows(prev => prev.map((s, i) => (i === idx ? { ...s, qty: Math.max(0, s.qty + d) } : s)))}
             />
@@ -145,7 +108,7 @@ function Calculator({ subs, term, onChoose }: { subs: DbPlan[]; term: number; on
       })}
       <button
         type="button"
-        onClick={() => setRows(prev => [...prev, { kind: "image", modelId: IMAGE_MODELS[0].id, qty: 0 }])}
+        onClick={() => setRows(prev => [...prev, { modelId: IMAGE_MODELS[0].id, qty: 0 }])}
         className="self-start py-2 text-sm font-medium text-primary hover:text-primary-hover"
       >
         + Add another model

@@ -14,7 +14,7 @@ const DESCRIPTION = `Every tool in the Clipiro workspace — ${ALL_TOOLS.length}
 export const metadata: Metadata = {
   title: "All Tools",
   description:
-    "Browse every Clipiro tool: AutoClip, the video editor, AI voiceovers, image and video generation, face swap, background removal, and free compressors and downloaders.",
+    "Browse every Clipiro tool: AutoClip, the video editor, AI voiceovers, image generation, face swap, background removal, and free compressors and downloaders.",
   alternates: { canonical: "/tools" },
 };
 

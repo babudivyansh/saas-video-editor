@@ -12,7 +12,7 @@
 // Library's own assertFileSizeAllowed/assertUnderStorageQuota (asset-service.ts)
 // are untouched by this module — they remain the authority for anything that
 // becomes a persisted Asset (uploads, multipart, URL import, avatars,
-// reference images once adopted).
+// stock re-hosts).
 import { getUserTier } from "@/lib/auth";
 import {
   type TierId,
@@ -22,8 +22,7 @@ import {
   formatBytes,
 } from "@/lib/plans/tiers";
 
-// One entry per app/api/tools/* route (plus "reference-image" for the shared
-// video-generator reference-image upload) that accepts a user-supplied file
+// One entry per app/api/tools/* route that accepts a user-supplied file
 // outside the Asset Library. Values preserve the exact per-route constants
 // found in the audit — none are a documented upstream-provider limit (no
 // fal.ai/ElevenLabs max-input-size is confirmed anywhere in this codebase),
@@ -40,8 +39,7 @@ export type UploadFeature =
   | "audio-balancer"
   | "mp3-converter"
   | "video-compressor"
-  | "cut-and-crop"
-  | "reference-image";
+  | "cut-and-crop";
 
 export const UPLOAD_FEATURE_LABEL: Record<UploadFeature, string> = {
   "face-swap": "Face Swap",
@@ -54,7 +52,6 @@ export const UPLOAD_FEATURE_LABEL: Record<UploadFeature, string> = {
   "mp3-converter": "MP3 Converter",
   "video-compressor": "Video Compressor",
   "cut-and-crop": "Cut & Crop",
-  "reference-image": "Reference image upload",
 };
 
 // The single source of truth for every feature-level technical ceiling —
@@ -73,7 +70,6 @@ export const FEATURE_TECHNICAL_MAX_BYTES: Record<UploadFeature, number> = {
   "mp3-converter": 500 * 1024 * 1024,
   "video-compressor": 500 * 1024 * 1024,
   "cut-and-crop": 500 * 1024 * 1024,
-  "reference-image": 10 * 1024 * 1024,
 };
 
 // No verified provider-documented max upload size exists in this codebase

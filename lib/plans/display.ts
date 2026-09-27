@@ -1,9 +1,8 @@
 import {
   PURCHASABLE_TIER_ORDER, type TierId,
-  TIER_MAX_DURATION_SECONDS, TIER_MAX_AUTOCLIP_SOURCE_SECONDS, STORAGE_LIMIT_GB,
+  TIER_MAX_AUTOCLIP_SOURCE_SECONDS, STORAGE_LIMIT_GB,
 } from "@/lib/plans/tiers";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
-import { VIDEO_MODELS, defaultDurationSeconds, videoCreditsPerSecond } from "@/lib/models/videoModels";
 import type { Currency } from "@/lib/currency-shared";
 
 // Shared plan-display logic for every surface that renders a price card.
@@ -94,24 +93,11 @@ export function monthlyCounterpart(plan: DisplayPlan, subs: DisplayPlan[]): Disp
 const hours = (sec: number) => Math.round(sec / 3600);
 
 export const modelCount = (tier: Exclude<TierId, "free">) =>
-  IMAGE_MODELS.filter(m => m.allowedTiers.includes(tier)).length +
-  VIDEO_MODELS.filter(m => m.allowedTiers.includes(tier)).length;
+  IMAGE_MODELS.filter(m => m.allowedTiers.includes(tier)).length;
 
-/**
- * Cheapest a single video render actually costs at this tier — used for the
- * "≈ N videos" estimate, mirroring the pricing calculator's own maths rather
- * than a flat guess.
- */
-export function cheapestVideoCostPerRender(tier: Exclude<TierId, "free">): number | null {
-  const models = VIDEO_MODELS.filter(m => m.allowedTiers.includes(tier));
-  if (models.length === 0) return null;
-  // A default render: the model's default length (Veo stores "8s", which the
-  // old typeof-number check skipped) at its default resolution and audio flag.
-  return Math.min(...models.map(m => Math.ceil(videoCreditsPerSecond(m, {
-    resolution: m.defaultValues.resolution as string | undefined,
-    audio: m.defaultValues.audio === "on",
-  }) * defaultDurationSeconds(m))));
-}
+/** Image models a tier unlocks that the tier below it doesn't have. */
+const addedModels = (tier: Exclude<TierId, "free">, below: Exclude<TierId, "free">) =>
+  IMAGE_MODELS.filter(m => m.allowedTiers.includes(tier) && !m.allowedTiers.includes(below)).map(m => m.displayName);
 
 /** Cheapest image on any tier — the floor the "≈ N images" estimate uses. */
 export const cheapestImageCost = Math.min(...IMAGE_MODELS.map(m => m.creditCost));
@@ -134,45 +120,43 @@ export interface TierHighlights {
  * support" has nothing behind it anywhere in the codebase).
  */
 export function tierHighlights(tier: Exclude<TierId, "free">): TierHighlights {
-  const secs = TIER_MAX_DURATION_SECONDS[tier];
   const gb = STORAGE_LIMIT_GB[tier];
   const clipHours = hours(TIER_MAX_AUTOCLIP_SOURCE_SECONDS[tier]);
 
   if (tier === "creator") {
     return {
       bullets: [
-        `${modelCount("creator")} AI models, incl. Wan 2.7 & LTX 2.3`,
-        `Videos up to ${secs} seconds`,
         `Unlimited Auto Clips, ${clipHours}-hour uploads`,
         "No watermark, full-resolution exports",
+        // caption-render carries requiredTier: "creator" in lib/tool-costs.ts.
+        "Animated captions",
+        `${modelCount("creator")} AI image models, incl. Seedream 5.0 & Flux 2`,
         `Social Tracker · ${gb} GB storage`,
       ],
     };
   }
 
   if (tier === "pro") {
-    const added = modelCount("pro") - modelCount("creator");
     return {
       inherits: "Creator",
       bullets: [
-        `${modelCount("pro")} AI models — adds Veo 3, Seedance 2.0 & ${added - 2} more`,
-        `Videos up to ${secs} seconds`,
-        // The tools carrying requiredTier: "pro" in lib/tool-costs.ts.
-        "Face Swap & Subtitle Remover",
-        "Priority rendering",
         `${clipHours}-hour Auto Clip uploads · ${gb} GB storage`,
+        // The tools carrying requiredTier: "pro" in lib/tool-costs.ts.
+        "Clip Dubbing in 29+ languages",
+        "Face Swap & Subtitle Remover",
+        `${modelCount("pro")} AI image models — adds ${addedModels("pro", "creator").join(" & ")}`,
+        "Priority rendering",
       ],
     };
   }
 
   // Studio adds exactly one model over Pro (nano-banana-pro is the only entry
-  // in either registry with allowedTiers: ["studio"]). Everything else it gains
-  // is quantitative, so the copy must not imply "more models" beyond that one.
+  // with allowedTiers: ["studio"]). Everything else it gains is quantitative,
+  // so the copy must not imply "more models" beyond that one.
   return {
     inherits: "Pro",
     bullets: [
       "Nano Banana Pro — Studio-only image model",
-      `Videos up to ${secs} seconds`,
       "Fastest rendering — front of the queue",
       `${clipHours}-hour Auto Clip uploads`,
       `${gb} GB asset storage`,

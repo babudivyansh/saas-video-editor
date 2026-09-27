@@ -32,22 +32,6 @@ export const TIER_LABEL: Record<Exclude<TierId, "free">, string> = {
   studio: "Studio",
 };
 
-// Business policy cap, not a provider limit — applies uniformly across all
-// video models (and ai-creator). If a specific model's real provider ceiling
-// is lower, that model's own maxDurationSeconds wins via the min() at the
-// call site. "free" has no tier of its own, so it's capped at the same
-// ceiling as Creator — it should never actually reach a video model, since
-// every video model's allowedTiers excludes "free".
-export const TIER_MAX_DURATION_SECONDS: Record<Exclude<TierId, "free">, number> = {
-  creator: 8,
-  pro: 12,
-  studio: 15,
-};
-
-export function maxDurationForTier(tier: TierId): number {
-  return tier === "free" ? TIER_MAX_DURATION_SECONDS.creator : TIER_MAX_DURATION_SECONDS[tier];
-}
-
 // Per-tier Assets-library storage cap, in GB. Server-enforced via
 // storageLimitBytesForTier in lib/asset-service.ts (assertUnderStorageQuota)
 // — the storage meter shown in app/dashboard/assets/page.tsx and

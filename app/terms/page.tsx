@@ -119,8 +119,7 @@ const doc: LegalDoc = {
           <p>
             The Service uses two balances. Auto Clips consume Clip Minutes — one per minute of uploaded video, rounded
             up per video. Other AI features consume credits; the number of credits an action consumes depends on the
-            tool and the AI model chosen — image and video generation are priced per model, video generation is billed
-            per second, and audio tools are priced by length. Free accounts receive a monthly grant of bonus Clip
+            tool and the AI model chosen — image generation is priced per model, and audio tools are priced by length. Free accounts receive a monthly grant of bonus Clip
             Minutes and bonus credits, which expire 30 days after they are issued.
           </p>
           <p>

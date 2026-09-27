@@ -32,7 +32,7 @@ const doc: LegalDoc = {
       <p>
         Welcome to Clipiro (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;). We are committed to protecting your
         personal information and your right to privacy. This Privacy Policy explains how we collect, use, disclose, and
-        safeguard your information when you use our AI video generation platform at clipiro.com (the &quot;Service&quot;).
+        safeguard your information when you use our AI video clipping platform at clipiro.com (the &quot;Service&quot;).
         Please read this policy carefully. If you disagree with its terms, please discontinue use of the Service.
       </p>
     </>
@@ -133,7 +133,7 @@ const doc: LegalDoc = {
           <ul>
             <li>Provide, operate, and maintain the Clipiro Service</li>
             <li>Process transactions and manage your credit balance</li>
-            <li>Generate AI videos using the prompts and preferences you supply</li>
+            <li>Process your videos and generate AI content using the files, prompts and preferences you supply</li>
             <li>
               Send transactional emails (account confirmation, payment receipts, video completion notifications)
             </li>

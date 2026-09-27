@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
-import { VIDEO_MODELS } from "@/lib/models/videoModels";
 
 function resolveDisplayName(modelId: string | null, toolSlug: string): string {
   if (modelId) {
-    const found = IMAGE_MODELS.find(m => m.id === modelId) ?? VIDEO_MODELS.find(m => m.id === modelId);
+    const found = IMAGE_MODELS.find(m => m.id === modelId);
     if (found) return found.displayName;
   }
   return toolSlug.split("-").map(w => w[0].toUpperCase() + w.slice(1)).join(" ");

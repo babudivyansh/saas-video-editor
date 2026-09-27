@@ -1,18 +1,16 @@
 "use client";
 
 // Plan comparison, derived from the constants and registries that enforce each
-// limit rather than a hand-kept list. The old hand list drifted twice: it
-// marked Creator as having no video generator at all, and it kept a
+// limit rather than a hand-kept list. The old hand list drifted: it kept a
 // "Faceless Story Videos" row for weeks after that product was deleted.
 
 import { useState } from "react";
 import {
-  TIER_ORDER, TIER_LABEL, TIER_MAX_DURATION_SECONDS, TIER_MAX_AUTOCLIP_SOURCE_SECONDS, STORAGE_LIMIT_GB,
+  TIER_ORDER, TIER_LABEL, TIER_MAX_AUTOCLIP_SOURCE_SECONDS, STORAGE_LIMIT_GB,
   FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_MONTHLY_BONUS_MINUTES, tierAtLeast, type TierId,
 } from "@/lib/plans/tiers";
 import { TOOL_COSTS } from "@/lib/tool-costs";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
-import { VIDEO_MODELS } from "@/lib/models/videoModels";
 import type { DbPlan } from "./types";
 
 type Cell = boolean | string;
@@ -31,12 +29,12 @@ const tool = (slug: string) => byTier(t => {
 const anyModel = (models: readonly { allowedTiers: readonly TierId[] }[]) =>
   byTier(t => models.some(m => m.allowedTiers.includes(t)));
 
-// Models the tier *below* Pro can't use — the premium set Pro unlocks.
-const PREMIUM_VIDEO = VIDEO_MODELS.filter(m => !m.allowedTiers.includes("creator"));
-const STUDIO_ONLY = [...IMAGE_MODELS, ...VIDEO_MODELS].filter(m => m.allowedTiers.length === 1 && m.allowedTiers[0] === "studio");
+// Image models Creator can't use — the premium set Pro unlocks.
+const PREMIUM_IMAGE = IMAGE_MODELS.filter(m => !m.allowedTiers.includes("creator") && m.allowedTiers.includes("pro"));
+const STUDIO_ONLY = IMAGE_MODELS.filter(m => m.allowedTiers.length === 1 && m.allowedTiers[0] === "studio");
 
 const modelsFor = (t: TierId) =>
-  [...IMAGE_MODELS, ...VIDEO_MODELS].filter(m => m.allowedTiers.includes(t)).length;
+  IMAGE_MODELS.filter(m => m.allowedTiers.includes(t)).length;
 
 const storage = (gb: number) => (gb < 1 ? `${gb * 1000} MB` : `${gb} GB`);
 
@@ -57,8 +55,7 @@ function buildGroups(subs: DbPlan[], term: number): { core: Group; more: Group[]
         return mins < 60 ? `${mins} min` : `${mins / 60} hr`;
       }) },
       { label: "Watermark-free exports", cells: byTier(t => t !== "free") },
-      { label: "Max AI video length", cells: byTier(t => (t === "free" ? false : `${TIER_MAX_DURATION_SECONDS[t]} s`)) },
-      { label: "AI models", cells: byTier(t => String(modelsFor(t))) },
+      { label: "AI image models", cells: byTier(t => String(modelsFor(t))) },
       { label: "Asset storage", cells: byTier(t => storage(STORAGE_LIMIT_GB[t])) },
       { label: "Rendering", cells: { free: "Standard", creator: "Standard", pro: "Priority", studio: "Fastest" } },
     ],
@@ -79,8 +76,7 @@ function buildGroups(subs: DbPlan[], term: number): { core: Group; more: Group[]
       rows: [
         { label: "AI Voiceover", cells: tool("voiceover") },
         { label: "AI Image Generator", cells: anyModel(IMAGE_MODELS) },
-        { label: "AI Video Generator", cells: anyModel(VIDEO_MODELS) },
-        { label: `Premium video models (${PREMIUM_VIDEO.slice(0, 2).map(m => m.displayName).join(", ")})`, cells: anyModel(PREMIUM_VIDEO) },
+        { label: `Premium image models (${PREMIUM_IMAGE.map(m => m.displayName).join(", ")})`, cells: anyModel(PREMIUM_IMAGE) },
         ...(STUDIO_ONLY.length > 0
           ? [{ label: STUDIO_ONLY.map(m => m.displayName).join(", "), cells: anyModel(STUDIO_ONLY) }]
           : []),

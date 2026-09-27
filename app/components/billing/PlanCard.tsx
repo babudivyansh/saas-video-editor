@@ -15,7 +15,7 @@
 import { formatMoney, type Currency } from "@/lib/currency-shared";
 import { TIER_LABEL } from "@/lib/plans/tiers";
 import {
-  minorUnits, tierHighlights, tierSavePct, cheapestVideoCostPerRender, cheapestImageCost,
+  minorUnits, tierHighlights, tierSavePct, cheapestImageCost,
   monthlyCounterpart, TIER_TAGLINE,
   type DisplayPlan,
 } from "@/lib/plans/display";
@@ -162,15 +162,11 @@ export function PlanCard({
             {plan.monthlyMinutes ? "+ " : ""}{plan.monthlyCredits} {plan.monthlyMinutes ? "AI credits" : "credits"} every month
           </p>
           {/* Credits→output estimate sits under the figure it qualifies. */}
-          {plan.monthlyCredits != null && plan.tier && (() => {
-            const perRender = cheapestVideoCostPerRender(plan.tier);
-            const images = Math.floor(plan.monthlyCredits / cheapestImageCost);
-            return (
-              <p className="text-xs text-fg-subtle" title="On the cheapest model">
-                ≈ {images} images or {perRender ? Math.floor(plan.monthlyCredits / perRender) : 0} videos
-              </p>
-            );
-          })()}
+          {plan.monthlyCredits != null && plan.tier && (
+            <p className="text-xs text-fg-subtle" title="On the cheapest model">
+              ≈ {Math.floor(plan.monthlyCredits / cheapestImageCost)} AI images
+            </p>
+          )}
         </div>
 
         {plan.tier && (() => {

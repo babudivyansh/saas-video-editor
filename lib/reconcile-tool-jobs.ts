@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { refundCredits, markGenerationStatus } from "@/lib/credits";
 import { logger } from "@/lib/logger";
 
-// Tool/generator jobs (background-remover, face-swap, image/video generators,
+// Tool/generator jobs (background-remover, face-swap, the image generator,
 // downloaders, vocal-remover, ...) run in a per-route `globalThis` Map that
 // does NOT survive a process restart. When the process dies mid-job the Map
 // entry is gone, but the Generation row chargeCredits created is left at status

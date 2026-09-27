@@ -185,30 +185,6 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     ],
   },
 
-  "ai-video-generator": {
-    h1: "Describe a shot and get the footage",
-    metaTitle: "AI Video Generator — Veo 3, Seedance 2.0 and More",
-    metaDescription:
-      "Generate video from a text prompt or a still image with Veo 3, Seedance 2.0, Wan 2.7, LTX 2.3 and more — up to 15 seconds per clip.",
-    lede: "Sixteen video models including Veo 3 and Seedance 2.0, generating clips up to fifteen seconds from a written prompt or a single still.",
-    steps: [
-      { title: "Describe the shot", body: "Write what should happen, or start from a still image and animate it." },
-      { title: "Choose a model and length", body: "Creator generates up to 8 seconds, Pro up to 12, Studio up to 15 — pick the model that suits the look you want." },
-      { title: "Generate", body: "The clip lands in your asset library, ready to cut into a longer edit or post on its own." },
-    ],
-    benefits: [
-      { title: "The frontier models, included", body: "Veo 3 and Seedance 2.0 sit on Pro and above, alongside Wan 2.7 and LTX 2.3 on Creator — no separate subscriptions." },
-      { title: "Text or image to video", body: "Start from a written prompt, or bring a still and animate it." },
-      { title: "Cut it into real edits", body: "Generated clips drop onto the editor timeline like any other footage." },
-    ],
-    faqs: [
-      { question: "How long can generated videos be?", answer: "Up to 8 seconds on Creator, 12 on Pro, and 15 on Studio. Longer pieces are built by generating several clips and cutting them together in the editor." },
-      { question: "Which models need a paid plan?", answer: "Creator includes nine models, among them Wan 2.7 and LTX 2.3. Pro adds Veo 3, Seedance 2.0, and five others, for sixteen in total." },
-      COMMERCIAL_FAQ,
-      CREDITS_FAQ,
-    ],
-  },
-
   "ai-face-swap": {
     h1: "Swap a face and keep it believable in motion",
     metaTitle: "AI Face Swap for Photos and Video",

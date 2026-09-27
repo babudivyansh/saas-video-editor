@@ -67,8 +67,8 @@ function IcMic() {
 function IcImage() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>;
 }
-function IcVideo() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>;
+function IcMusic() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>;
 }
 function IcUser() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
@@ -103,16 +103,19 @@ function useToolCards() {
 // Icon chips cycle through the tint washes with a matching accent color.
 function useMiniTools() {
   const t = useTranslations("Dashboard.miniTools");
+  // The vocal remover's name comes from the tools page's namespace, which
+  // every locale already translates.
+  const tTools = useTranslations("Tools");
   return useMemo(
     () => [
       { icon: <IcImage />, label: t("imageGenerator"), href: "/dashboard/tools/image-generator", chip: "bg-tint-blue text-brand" },
       { icon: <IcUser />, label: t("aiFaceSwap"), href: "/dashboard/tools/face-swap", chip: "bg-tint-violet text-accent-violet" },
       { icon: <IcMic />, label: t("voiceoverGenerator"), href: "/dashboard/tools/voiceover", chip: "bg-tint-fuchsia text-accent-fuchsia" },
       { icon: <IcEraser />, label: t("backgroundRemover"), href: "/dashboard/tools/background-remover", chip: "bg-tint-amber text-warning" },
-      { icon: <IcVideo />, label: t("veo3Generator"), href: "/dashboard/tools/video-generator", chip: "bg-tint-emerald text-emerald-500" },
+      { icon: <IcMusic />, label: tTools("items.vocalRemover.title"), href: "/dashboard/tools/vocal-remover", chip: "bg-tint-emerald text-success" },
       { icon: <IcYoutube />, label: t("youtubeDownloader"), href: "/dashboard/tools/youtube-downloader", chip: "bg-tint-rose text-accent-pink" },
     ],
-    [t]
+    [t, tTools]
   );
 }
 

@@ -67,9 +67,6 @@ function IcMic() {
 function IcImage() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>;
 }
-function IcVideo() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>;
-}
 function IcUser() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
 }
@@ -105,7 +102,6 @@ function useQuests() {
       { id: "first-clip", icon: <IcFilm />, title: t("firstClip.title"), desc: t("firstClip.desc"), color: "#335cff", href: "/dashboard/create/auto-clip" },
       { id: "hear-yourself-out", icon: <IcMic />, title: t("hearYourselfOut.title"), desc: t("hearYourselfOut.desc"), color: "#7c3aed", href: "/dashboard/tools/voiceover" },
       { id: "picture-this", icon: <IcImage />, title: t("pictureThis.title"), desc: t("pictureThis.desc"), color: "#d946ef", href: "/dashboard/tools/image-generator" },
-      { id: "first-video", icon: <IcVideo />, title: t("firstVideo.title"), desc: t("firstVideo.desc"), color: "#10b981", href: "/dashboard/tools/video-generator" },
       { id: "first-export", icon: <IcDownload />, title: t("firstExport.title"), desc: t("firstExport.desc"), color: "#f59e0b", href: "/dashboard/editor" },
       { id: "upgraded-plan", icon: <IcCrown />, title: t("upgradedPlan.title"), desc: t("upgradedPlan.desc"), color: "#d97706", href: "/dashboard?billing=1" },
       { id: "explore-toolbox", icon: <IcEraser />, title: t("exploreToolbox.title"), desc: t("exploreToolbox.desc"), color: "#06b6d4", href: "/dashboard/tools" },

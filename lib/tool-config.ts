@@ -1,6 +1,6 @@
 import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
-import { TOOL_COSTS, IMAGE_GENERATOR_STARTING_CREDIT_COST, VIDEO_GENERATOR_STARTING_CREDIT_COST } from "@/lib/tool-costs";
+import { TOOL_COSTS, IMAGE_GENERATOR_STARTING_CREDIT_COST } from "@/lib/tool-costs";
 
 const CACHE_KEY = "admin:tool_config";
 const CACHE_TTL = 60; // seconds
@@ -18,13 +18,12 @@ export type ToolConfigMap = Record<string, ToolConfig>;
 // from the cost-rationale comments living in each route; now there's one
 // source of truth.
 //
-// image-generator / video-generator: creditCost here is display-only — it
-// feeds the public "starting at N credits" price (app/api/tool-costs/route.ts)
-// and the admin pricing editor. Actual per-generation deduction is read from
-// the selected model's own cost in lib/models/imageModels.ts / videoModels.ts
-// (see app/api/tools/image-generator/route.ts and
-// app/api/tools/video-generator/route.ts) — these two constants are computed
-// from those registries, not hand-kept-in-sync.
+// image-generator: creditCost here is display-only — it feeds the public
+// "starting at N credits" price (app/api/tool-costs/route.ts) and the admin
+// pricing editor. Actual per-generation deduction is read from the selected
+// model's own cost in lib/models/imageModels.ts (see
+// app/api/tools/image-generator/route.ts) — the constant is computed from that
+// registry, not hand-kept-in-sync.
 export const TOOL_DEFAULTS: ToolConfigMap = {
   "audio-balancer":   { enabled: true, creditCost: TOOL_COSTS["audio-balancer"].creditCost },
   "mp3-converter":    { enabled: true, creditCost: TOOL_COSTS["mp3-converter"].creditCost },
@@ -47,7 +46,6 @@ export const TOOL_DEFAULTS: ToolConfigMap = {
   // now; an entry here gives it the same admin kill-switch every other
   // billable tool has.
   "generate-voice":   { enabled: true, creditCost: TOOL_COSTS["generate-voice"].creditCost },
-  "video-generator":      { enabled: true, creditCost: VIDEO_GENERATOR_STARTING_CREDIT_COST },
   "youtube-downloader":     { enabled: true, creditCost: TOOL_COSTS["youtube-downloader"].creditCost },
   "instagram-downloader":   { enabled: true, creditCost: TOOL_COSTS["instagram-downloader"].creditCost },
   "background-remover":     { enabled: true, creditCost: TOOL_COSTS["background-remover"].creditCost },
@@ -85,7 +83,6 @@ export const TOOL_SERVICE: Record<string, string> = {
   "vocal-remover":    "fal.ai Demucs",
   "voice-changer":    "ElevenLabs STS",
   "enhance-speech":   "ElevenLabs Isolation",
-  "video-generator":     "8 models — Veo 3, Seedance, Wan, LTX…",
   "youtube-downloader":    "yt-dlp (YouTube)",
   "instagram-downloader":  "yt-dlp (Instagram)",
   "background-remover":    "fal.ai rembg",
@@ -100,10 +97,13 @@ async function loadFromDB(): Promise<ToolConfigMap> {
   if (!row) return { ...TOOL_DEFAULTS };
   try {
     const parsed = JSON.parse(row.value) as Partial<ToolConfigMap>;
-    // Merge with defaults so new tools get their default values automatically
+    // Merge with defaults so new tools get their default values automatically.
+    // Only slugs that still exist: the stored row outlives deleted tools (the
+    // video generator, the six create products), and merging those back in
+    // resurrected them on the admin tools page and /api/tool-costs.
     const merged: ToolConfigMap = { ...TOOL_DEFAULTS };
     for (const [slug, cfg] of Object.entries(parsed)) {
-      if (cfg) merged[slug] = cfg;
+      if (cfg && slug in TOOL_DEFAULTS) merged[slug] = cfg;
     }
     return merged;
   } catch {

@@ -95,7 +95,6 @@
       "firstClip": { "title": "Crie seu primeiro clipe", "desc": "Use o editor simples para criar seu primeiro clipe." },
       "hearYourselfOut": { "title": "Ouça-se", "desc": "Gere sua primeira locução com IA." },
       "pictureThis": { "title": "Veja isto", "desc": "Gere sua primeira imagem com IA." },
-      "firstVideo": { "title": "Gere seu primeiro vídeo", "desc": "Crie um vídeo com o gerador de vídeo com IA." },
       "firstExport": { "title": "Exporte um projeto", "desc": "Exporte um projeto concluído do editor." },
       "upgradedPlan": { "title": "Faça upgrade do seu plano", "desc": "Assine um plano pago." },
       "exploreToolbox": { "title": "Explore as ferramentas", "desc": "Experimente qualquer ferramenta de IA — Face Swap, Background Remover, Voice Changer ou Vocal Remover." },
@@ -122,7 +121,6 @@
       "aiFaceSwap": "Troca de rosto com IA",
       "voiceoverGenerator": "Gerador de locução",
       "backgroundRemover": "Removedor de fundo",
-      "veo3Generator": "Gerador VEO3",
       "youtubeDownloader": "Downloader do YouTube"
     }
   },
@@ -140,7 +138,6 @@
       "imageGenerator": { "title": "Gerador de imagens com IA", "desc": "Gere imagens de alta qualidade com IA em segundos." },
       "voiceover": { "title": "Gerador de locução com IA", "desc": "Crie locuções de alta qualidade em segundos com mais de 50 narradores." },
       "speechEnhancer": { "title": "Aprimorador de fala com IA", "desc": "Melhore a qualidade de qualquer arquivo de áudio ou vídeo com IA." },
-      "videoGenerator": { "title": "Gerador de vídeo com IA", "desc": "VEO3 é uma ferramenta que permite criar vídeos com IA." },
       "vocalRemover": { "title": "Removedor de vocais com IA", "desc": "Remova vocais de qualquer arquivo de áudio ou vídeo com IA." },
       "brainstormer": { "title": "Gerador de ideias com IA", "desc": "Gere ideias de conteúdo viral com base no seu nicho." }
     }

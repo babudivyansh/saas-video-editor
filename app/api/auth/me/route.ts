@@ -89,8 +89,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Effective plan tier, resolved with the same rule as getUserTier() so the
-  // client can size things like the video-duration cap (TIER_MAX_DURATION_SECONDS)
-  // to exactly what the server will bill. "free" for no/expired subscription.
+  // client can gate tier-locked models and tools exactly as the server will. "free" for no/expired subscription.
   // Previously an inline copy of getUserTier. Two definitions of "effective
   // tier" is one too many — this is the shared one.
   const { tier } = effectivePlan(user);

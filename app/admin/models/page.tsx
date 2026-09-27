@@ -14,7 +14,7 @@ import { Card } from "@/app/components/ui/Card";
 
 interface ModelRow {
   id: string;
-  kind: "image" | "video";
+  kind: "image";
   displayName: string;
   provider: string;
   category: string;
@@ -50,9 +50,9 @@ export default function AdminModelsPage() {
         fetch("/api/admin/autoclip-pricing", { headers: headers() }),
       ]);
       if (!mRes.ok) throw new Error("Failed to load models");
-      const m = (await mRes.json()) as { image?: ModelRow[]; video?: ModelRow[] };
+      const m = (await mRes.json()) as { image?: ModelRow[] };
       const pricing = pRes.ok ? ((await pRes.json()) as { pricing: AutoclipPricing }).pricing : null;
-      return { image: m.image ?? [], video: m.video ?? [], pricing };
+      return { image: m.image ?? [], pricing };
     },
     enabled: !!token,
   });
@@ -76,7 +76,6 @@ export default function AdminModelsPage() {
   });
 
   const image = data?.image ?? [];
-  const video = data?.video ?? [];
   const pricing = data?.pricing ?? null;
 
   return (
@@ -88,7 +87,6 @@ export default function AdminModelsPage() {
       ) : (
         <div className="space-y-6">
           <ModelTable title="Image models" unit="credits / generation" rows={image} onPatch={(modelId, body) => patchModelMutation.mutate({ modelId, body })} />
-          <ModelTable title="Video models" unit="base credits / second (audio and resolution tiers scale with it)" rows={video} onPatch={(modelId, body) => patchModelMutation.mutate({ modelId, body })} />
 
           {pricing && (
             <Card shadow padding="lg">

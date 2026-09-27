@@ -11,14 +11,14 @@ import { signToken, SESSION_COOKIE_NAME } from "@/lib/auth";
 // there is no real DB user, Redis, or network dependency.
 
 const QUEST_IDS = [
-  "join-community", "first-clip", "hear-yourself-out", "picture-this", "first-video",
+  "join-community", "first-clip", "hear-yourself-out", "picture-this",
   "first-export", "upgraded-plan", "explore-toolbox", "complete-profile", "track-account",
   "refer-friend",
 ];
 
 const XP: Record<string, number> = {
   "join-community": 500, "first-clip": 300, "hear-yourself-out": 200, "picture-this": 200,
-  "first-video": 200, "first-export": 200, "upgraded-plan": 300, "explore-toolbox": 150,
+  "first-export": 200, "upgraded-plan": 300, "explore-toolbox": 150,
   "complete-profile": 100, "track-account": 250, "refer-friend": 400,
 };
 
