@@ -12,6 +12,8 @@ interface CreditsPillProps {
    * for — and the tooltip explains which one each thing spends.
    */
   minutes?: number;
+  /** Clip Minutes are running low (lib/plans/tiers.ts isLowMinutes): tint amber. */
+  minutesLow?: boolean;
   /** Overrides the default action, which opens the billing overlay on Usage. */
   href?: string;
   onClick?: () => void;
@@ -33,13 +35,16 @@ function IcSpark() {
   );
 }
 
-export function CreditsPill({ credits, minutes, href, onClick }: CreditsPillProps) {
+export function CreditsPill({ credits, minutes, minutesLow = false, href, onClick }: CreditsPillProps) {
   const { openBilling } = useBillingOverlay();
   const both = minutes != null;
   const body = both ? (
     <>
-      <span className="flex items-center gap-1 text-ink" aria-label={`${minutes} Clip Minutes`}>
-        <span className="text-brand"><IcClock /></span>
+      <span
+        className={`flex items-center gap-1 ${minutesLow ? "text-warning" : "text-ink"}`}
+        aria-label={`${minutes} Clip Minutes${minutesLow ? " — running low" : ""}`}
+      >
+        <span className={minutesLow ? "text-warning" : "text-brand"}><IcClock /></span>
         <span className="text-sm font-bold">{minutes}</span>
         <span className="text-xs text-ink-soft font-medium">min</span>
       </span>

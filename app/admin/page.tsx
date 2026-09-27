@@ -58,6 +58,8 @@ interface Ai {
   totalGenerations: number; successRatePct: number | null; failed: number;
   statusTotals: { completed: number; failed: number; cancelled: number; refunded: number; pending: number };
   trackedCost: { totalUsd: number; creditsCost: number; generations: number };
+  /** Clip Minutes — AutoClip's meter since 2026-09-26. Optional for older payloads. */
+  clipMinutes?: { spent: number; refunded: number; net: number; spends: number; estCostUsd: number };
   costByProvider: Array<{ provider: string; costUsd: number; generations: number }>;
   topCostUsers: Array<{ userId: string; email: string; costUsd: number; creditsCost: number; generations: number }>;
   topModels: Array<{ modelId: string | null; generations: number; creditsCost: number; costUsd: number | null; errorRatePct: number | null }>;
@@ -689,6 +691,12 @@ export default function AdminDashboardPage() {
                       <p className="text-[10px] text-fg-subtle mt-2">
                         Avg ${ai.data.trackedCost.generations > 0 ? (ai.data.trackedCost.totalUsd / ai.data.trackedCost.generations).toFixed(3) : "—"}/generation ·
                         {" "}{compact(ai.data.trackedCost.creditsCost)} credits burned
+                        {ai.data.clipMinutes && (
+                          <>
+                            {" "}· {compact(ai.data.clipMinutes.net)} Clip Minutes used
+                            {" "}({compact(ai.data.clipMinutes.refunded)} refunded, est. ${ai.data.clipMinutes.estCostUsd.toFixed(2)} AutoClip cost)
+                          </>
+                        )}
                       </p>
                     </ChartContainer>
                   </div>

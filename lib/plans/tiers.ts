@@ -172,6 +172,16 @@ export const AUTOCLIP_RERUN_FREE_WINDOW_DAYS = 7;
  *  revenue, so this still clears 2x — and nobody is hard-blocked mid-project. */
 export const OVERFLOW_MINUTES_PER_CREDIT = 3;
 
+/**
+ * "Running low" on Clip Minutes: at or under ~20% of the monthly minutes (the
+ * same line the low-credits email uses). Client-safe — the header pill and the
+ * low-minutes email (lib/minute-events.ts) share it.
+ */
+export function isLowMinutes(balance: number, monthlyMinutes: number): boolean {
+  if (monthlyMinutes <= 0 || balance <= 0) return false;
+  return balance <= Math.ceil(monthlyMinutes * 0.2);
+}
+
 export function overflowCreditsFor(minutesShort: number): number {
   return minutesShort > 0 ? Math.ceil(minutesShort / OVERFLOW_MINUTES_PER_CREDIT) : 0;
 }

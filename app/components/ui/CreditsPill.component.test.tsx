@@ -23,6 +23,11 @@ describe("CreditsPill", () => {
     expect(container.querySelector("[data-tip]")?.getAttribute("data-tip")).toMatch(/Clip Minutes pay for Auto Clips/);
   });
 
+  it("flags low Clip Minutes in its accessible name", () => {
+    render(<CreditsPill credits={38} minutes={12} minutesLow />);
+    expect(screen.getByLabelText("12 Clip Minutes — running low")).toBeInTheDocument();
+  });
+
   it("keeps the single-meter form for callers that pass only credits", () => {
     render(<CreditsPill credits={12} />);
     expect(screen.getByRole("button").textContent).toBe("12credits");

@@ -363,6 +363,18 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
       "one left": { name: "Divyansh", creditsLeft: 1, estimatedVideos: 1 },
     },
   }),
+  "low-minutes": entry({
+    id: "low-minutes",
+    title: "Low Clip Minutes warning",
+    group: "credits",
+    category: "usageAlerts",
+    trigger: "A minutes spend leaves the balance at or under ~20% of the monthly minutes (once per cycle)",
+    build: credits.lowMinutes,
+    samples: {
+      subscriber: { name: "Divyansh", minutesLeft: 28, tier: "creator" },
+      free: { name: "Divyansh", minutesLeft: 4, tier: "free" },
+    },
+  }),
   "zero-credits": entry({
     id: "zero-credits",
     title: "Out of credits",

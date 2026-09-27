@@ -38,7 +38,7 @@ describe("email registry", () => {
   // 47 → 48: trial-started. A trial customer authorised a mandate while paying
   // ₹0 and was told nothing about when the first charge would come.
   it("covers every send function in lib/email.ts", () => {
-    expect(entries).toHaveLength(49); // +clip-minutes-launch (2026-09-27 switch-day notice)
+    expect(entries).toHaveLength(50); // +clip-minutes-launch, +low-minutes (2026-09-27)
   });
 
   it("keys match each entry's declared id", () => {

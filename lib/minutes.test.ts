@@ -5,6 +5,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "crypto";
 
+// Spends fire the low-minutes email hook; a test user must never send mail.
+vi.mock("@/lib/minute-events", () => ({ fireLowMinutesEmail: vi.fn() }));
 vi.mock("@/lib/redis", () => ({
   redis: { get: vi.fn(async () => null), set: vi.fn(async () => {}), del: vi.fn(async () => {}) },
 }));
