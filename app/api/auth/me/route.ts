@@ -20,6 +20,13 @@ export async function GET(req: NextRequest) {
       purchasedCredits: true,
       bonusCredits: true,
       bonusCreditsExpireAt: true,
+      // Clip Minutes (2026-09-26): AutoClip's meter, alongside the credits above.
+      minutes: true,
+      subscriptionMinutes: true,
+      purchasedMinutes: true,
+      bonusMinutes: true,
+      bonusMinutesExpireAt: true,
+      monthlyMinutes: true,
       createdAt: true,
       role: true,
       firstName: true,
@@ -106,6 +113,12 @@ export async function GET(req: NextRequest) {
         subscription: user.subscriptionCredits,
         purchased: user.purchasedCredits,
         total: user.credits,
+      },
+      minuteBalances: {
+        bonus: user.bonusMinutes,
+        subscription: user.subscriptionMinutes,
+        purchased: user.purchasedMinutes,
+        total: user.minutes,
       },
     },
   });

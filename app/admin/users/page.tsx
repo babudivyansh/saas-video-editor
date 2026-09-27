@@ -383,6 +383,7 @@ export default function AdminUsersPage() {
                               </div>
                               <div className="mt-3 max-w-md">
                                 <CreditAdjust userId={u.id} headers={headers} invalidateKeys={[["admin-users"]]} />
+                                <CreditAdjust meter="minutes" userId={u.id} headers={headers} invalidateKeys={[["admin-users"]]} />
                               </div>
                             </td>
                           </tr>

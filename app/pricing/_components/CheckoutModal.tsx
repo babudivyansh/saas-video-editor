@@ -54,7 +54,9 @@ export function CheckoutModal(props: {
                   {trial ? "7-day free trial" : "Selected plan"}
                 </span>
                 <span className="truncate text-lg font-semibold text-fg">{plan.name}</span>
-                <span className="text-[13px] text-fg-muted">{plan.monthlyCredits} credits every month</span>
+                <span className="text-[13px] text-fg-muted">
+                  {plan.monthlyMinutes ? `${plan.monthlyMinutes} Clip Minutes + ${plan.monthlyCredits} AI credits every month` : `${plan.monthlyCredits} credits every month`}
+                </span>
               </div>
               <span className="whitespace-nowrap text-2xl font-semibold text-fg">
                 {formatMoney(priceMinor, currency)}

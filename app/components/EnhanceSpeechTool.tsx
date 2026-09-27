@@ -5,6 +5,7 @@ import { useAuth } from "@/app/components/AuthContext";
 import { useJobPolling } from "./useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
+import { AUDIO_RATE_LABEL } from "@/lib/audio-pricing";
 
 function IcLink() {
   return (
@@ -209,6 +210,7 @@ export default function EnhanceSpeechTool() {
                 <p className="text-xs text-fg-subtle text-center leading-relaxed">
                   .mp3, .wav, .m4a, .ogg, .aac, .mp4, .mov, .avi, .webm • Max 50 MB
                 </p>
+                <p className="text-xs text-fg-subtle text-center mt-1">{AUDIO_RATE_LABEL["enhance-speech"]} · min 1 credit</p>
               </div>
             ) : (
               <div className="border border-line rounded-xl p-4 flex items-center gap-3 bg-surface-2">

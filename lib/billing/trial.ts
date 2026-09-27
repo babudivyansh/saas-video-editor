@@ -16,7 +16,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { grantCredits } from "@/lib/credits";
-import { isTrialPlan, TRIAL_CREDITS, TRIAL_DAYS } from "@/lib/plans/tiers";
+import { grantMinutes } from "@/lib/minutes";
+import { isTrialPlan, TRIAL_CREDITS, TRIAL_DAYS, TRIAL_MINUTES } from "@/lib/plans/tiers";
 import { cancelExistingSubscriptionForSwitch } from "./subscription-switch";
 import { sendTrialStartedEmail } from "@/lib/email";
 import { parseCurrency } from "@/lib/currency-shared";
@@ -93,6 +94,7 @@ export async function startTrialOnAuthentication(sub: AuthenticatedSubscription)
         planId: plan.id,
         razorpaySubscriptionId: sub.id,
         monthlyCredits: plan.monthlyCredits ?? plan.credits,
+        monthlyMinutes: plan.monthlyMinutes ?? 0,
         subscriptionEndsAt: startAt,
         subscriptionCancelledAt: null,
         nextRefillAt: null,
@@ -102,6 +104,8 @@ export async function startTrialOnAuthentication(sub: AuthenticatedSubscription)
       },
     });
     await grantCredits({ userId, bucket: "subscription", amount: TRIAL_CREDITS, reason: "grant:trial", refId: sub.id, tx });
+    // Subscription bucket, like the credits: zeroed if the trial lapses.
+    await grantMinutes({ userId, bucket: "subscription", amount: TRIAL_MINUTES, reason: "grant:trial", refId: sub.id, tx });
     return true;
   });
   if (!claimed) return { status: "already-started" };
@@ -125,6 +129,7 @@ export async function startTrialOnAuthentication(sub: AuthenticatedSubscription)
     }
     await sendTrialStartedEmail(
       recipient.email, recipient.firstName ?? recipient.name ?? "", plan.name, price, TRIAL_CREDITS, startAt, currency,
+      TRIAL_MINUTES,
     ).catch((e: unknown) => logger.error("billing/trial", `trial-started email failed for ${userId}`, e));
   }
   return { status: "started" };

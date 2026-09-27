@@ -8,7 +8,11 @@
 // this surface too.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { spendCredits, enqueue, rateLimit, userTier, apiAuth } = vi.hoisted(() => ({
+const { spendCredits, enqueue, rateLimit, userTier, apiAuth, precheckRunMinutes, projectFindFirst } = vi.hoisted(() => ({
+  precheckRunMinutes: vi.fn(async (_p: unknown): Promise<
+    { ok: true } | { ok: false; needed: number; available: number; overflowCredits: number }
+  > => ({ ok: true })),
+  projectFindFirst: vi.fn(async (): Promise<Record<string, unknown>> => ({ id: "p1", userId: "u1", uploadedVideoUrl: "https://s3/v.mp4" })),
   spendCredits: vi.fn(async (_p: unknown) => ({ ok: true, balances: { total: 100 } })),
   enqueue: vi.fn(async (..._a: unknown[]) => {}),
   rateLimit: vi.fn(async (..._a: unknown[]) => ({ allowed: true })),
@@ -22,7 +26,7 @@ vi.mock("@/lib/auth", () => ({ getApiKeyAuth: () => apiAuth(), getUserTier: (u: 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     project: {
-      findFirst: vi.fn(async () => ({ id: "p1", userId: "u1", uploadedVideoUrl: "https://s3/v.mp4" })),
+      findFirst: () => projectFindFirst(),
       updateMany: vi.fn(async () => ({ count: 1 })),
       update: vi.fn(async () => ({})),
     },
@@ -41,6 +45,7 @@ vi.mock("@/lib/autoclip-pipeline", () => ({
   pickJob: vi.fn(),
   getAutoClipPricing: vi.fn(async () => ({ perClip: 1, perTwoMinutes: 1, analysisPerHalfHour: 1, rerender: 1, dubPerMinute: 2 })),
 }));
+vi.mock("@/lib/autoclip-minutes", () => ({ precheckRunMinutes: (p: unknown) => precheckRunMinutes(p) }));
 vi.mock("@/lib/captions/pricing", () => ({ getCaptionRenderPricing: vi.fn(async () => ({ perBillableMinute: 8, perRender: 0 })) }));
 
 const { POST } = await import("./route");
@@ -54,12 +59,17 @@ beforeEach(() => {
 });
 
 describe("POST /api/v1/clips", () => {
-  it("enforces the free tier's monthly allowance, like the dashboard", async () => {
-    rateLimit.mockResolvedValueOnce({ allowed: false });
+  it("enforces the same Clip Minutes pre-check as the dashboard", async () => {
+    // The v1 route once skipped the free tier's run quota entirely; it now
+    // shares startAutoClipRun, so the minutes check can't drift either.
+    projectFindFirst.mockResolvedValueOnce({
+      id: "p1", userId: "u1", uploadedVideoUrl: "https://s3/v.mp4", sourceAsset: { duration: 1800 },
+    });
+    precheckRunMinutes.mockResolvedValueOnce({ ok: false, needed: 30, available: 0, overflowCredits: 10 });
     const res = await POST(req({ projectId: "p1" }));
     expect(res.status).toBe(402);
-    expect((await res.json()).error).toBe("free_limit_reached");
-    expect(rateLimit).toHaveBeenCalledWith("autoclip-free:u1", expect.any(Number), expect.any(Number));
+    expect((await res.json()).error).toBe("insufficient_minutes");
+    expect(enqueue).not.toHaveBeenCalled();
     expect(spendCredits).not.toHaveBeenCalled();
   });
 

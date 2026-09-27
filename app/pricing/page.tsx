@@ -8,8 +8,8 @@ import { ToastProvider, useToast } from "@/app/components/ui/Toast";
 import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 import {
-  PURCHASABLE_TIER_ORDER, TIER_LABEL, TRIAL_CREDITS, isTrialPlan,
-  FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_AUTOCLIP_RUNS_PER_MONTH, SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER,
+  PURCHASABLE_TIER_ORDER, TIER_LABEL, TRIAL_CREDITS, TRIAL_MINUTES, isTrialPlan,
+  FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_MONTHLY_BONUS_MINUTES, SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER,
 } from "@/lib/plans/tiers";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
 import { formatMoney, inferCurrencyFromLocale, type Currency } from "@/lib/currency-shared";
@@ -57,7 +57,7 @@ const FAQS = [
   },
   {
     question: "Is there a free plan?",
-    answer: `Yes. Every account gets ${FREE_TIER_MONTHLY_BONUS_CREDITS} credits a month for AI tools, plus ${FREE_TIER_AUTOCLIP_RUNS_PER_MONTH} watermarked Auto Clip runs, and the free tools (audio balancer, MP3 converter, video compressor, downloaders) never use credits. No card required.`,
+    answer: `Yes. Every account gets ${FREE_TIER_MONTHLY_BONUS_CREDITS} credits a month for AI tools, plus ${FREE_TIER_MONTHLY_BONUS_MINUTES} watermarked Clip Minutes for Auto Clip, and the free tools (audio balancer, MP3 converter, video compressor, downloaders) never use credits. No card required.`,
   },
 ];
 
@@ -124,6 +124,7 @@ function PricingPageInner() {
   }, [showToast]);
 
   const packs = plans.filter(p => p.kind === "pack");
+  const minutePacks = plans.filter(p => p.kind === "minute_pack");
   const subs  = plans.filter(p => p.kind === "subscription");
   const savePct = yearlySavePct(subs, currency);
 
@@ -239,7 +240,7 @@ function PricingPageInner() {
                   footer={
                     offerTrial ? (
                       <p className="text-center text-xs text-fg-muted">
-                        {TRIAL_CREDITS} trial credits · then {perMonth}/mo ·{" "}
+                        {TRIAL_MINUTES} Clip Minutes + {TRIAL_CREDITS} credits to try · then {perMonth}/mo ·{" "}
                         <button type="button" onClick={() => selectPlan(plan)} className="font-medium text-primary underline-offset-2 hover:underline">
                           or buy now
                         </button>
@@ -268,6 +269,16 @@ function PricingPageInner() {
             document.getElementById("plans")?.scrollIntoView({ behavior: "smooth" });
             selectPlan(plan);
           }}
+        />
+      )}
+
+      {!plansLoading && (
+        <AddonStrip
+          packs={minutePacks}
+          unit="minutes"
+          currency={currency}
+          buyingPack={buyingPack}
+          onBuy={handleBuyPack}
         />
       )}
 
@@ -307,7 +318,7 @@ function PricingPageInner() {
           <div className="relative flex flex-col gap-2">
             <h2 className="text-2xl font-semibold tracking-[-0.02em] text-fg sm:text-3xl">Your first clips are free.</h2>
             <p className="text-[15px] text-fg-muted">
-              {FREE_TIER_MONTHLY_BONUS_CREDITS} credits and {FREE_TIER_AUTOCLIP_RUNS_PER_MONTH} Auto Clip runs a month. No card required.
+              {FREE_TIER_MONTHLY_BONUS_CREDITS} credits and {FREE_TIER_MONTHLY_BONUS_MINUTES} Clip Minutes a month. No card required.
             </p>
           </div>
           <div className="relative flex flex-wrap gap-3">

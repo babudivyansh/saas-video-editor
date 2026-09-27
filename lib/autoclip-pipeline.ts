@@ -6,8 +6,10 @@
 
 import { Prisma, type Clip } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { AUTOCLIP_PRICING_DEFAULTS, computeCreditCost, computeAnalysisCost, analysisRefId, parseAutoClipPricing, type AutoClipPricing } from "@/lib/autoclip-pricing";
-import { restoreSpend, grantCredits, spendCredits } from "@/lib/credits";
+import { AUTOCLIP_PRICING_DEFAULTS, analysisRefId, parseAutoClipPricing, type AutoClipPricing } from "@/lib/autoclip-pricing";
+import { restoreSpend, grantCredits } from "@/lib/credits";
+import { chargeRunMinutes, refundRunMinutes } from "@/lib/autoclip-minutes";
+import { overflowCreditsFor } from "@/lib/plans/tiers";
 import { resolveFontFile } from "@/lib/editor/filtergraph";
 import { downloadFile } from "@/utils/download";
 import {
@@ -180,10 +182,14 @@ export async function settleRunCost(
   clipCount: number,
   totalDurationSec: number,
 ): Promise<void> {
-  const pricing = await getAutoClipPricing();
-  const gross = computeCreditCost(clipCount, totalDurationSec, pricing);
-  const analysisPaid = await getAnalysisCreditsPaid(userId, projectId);
-  const actual = Math.max(gross - analysisPaid, 0);
+  // Since the Clip Minutes switch (2026-09-26) a run is paid for in MINUTES,
+  // taken exactly in pickJob. The only credits still held under this refId
+  // are the premium-caption worst-case hold (each caption render charges its
+  // own refId) — or, for a run started before the switch, the old render
+  // charge. Neither is owed any more, so the target is zero. clipCount and
+  // totalDurationSec stay in the signature for the callers and tests.
+  void clipCount; void totalDurationSec;
+  const actual = 0;
 
   // What the create route actually took, read from the ledger rather than
   // recomputed — the estimate formula could change between deploys, and a
@@ -219,10 +225,14 @@ const SINGLE_ATTEMPT: JobContext = { attempt: 1, isFinal: true };
  * whole charge, while the UI told the user "you haven't been charged".
  */
 export async function refundRunCharge(userId: string, projectId: string, reason: string): Promise<number> {
-  return restoreSpend({ userId, refId: `auto-clip:${projectId}`, reason }).catch((e) => {
+  // Minutes and overflow credits first: since the Clip Minutes switch they are
+  // what a run is actually paid with.
+  const minutesBack = await refundRunMinutes(userId, projectId, reason);
+  const creditsBack = await restoreSpend({ userId, refId: `auto-clip:${projectId}`, reason }).catch((e) => {
     logger.error("auto-clip", `run-charge refund failed for ${projectId}`, e);
     return 0;
   });
+  return creditsBack + minutesBack.credits;
 }
 
 /**
@@ -245,15 +255,18 @@ export async function settleDeliveredRun(projectId: string, userId: string): Pro
   });
   let refunded = 0;
   if (ready.length === 0) {
+    // Nothing delivered: the run's minutes (and any overflow credits) go back,
+    // along with a pre-switch run's analysis advance.
+    const back = await refundRunMinutes(userId, projectId, "refund:auto-clip-nothing-delivered");
+    refunded += back.credits;
     refunded += await restoreSpend({ userId, refId: analysisRefId(projectId), reason: "refund:auto-clip-nothing-delivered" })
       .catch(() => 0);
   }
-  const pricing = await getAutoClipPricing();
-  const gross = ready.length > 0
-    ? computeCreditCost(ready.length, ready.reduce((s, c) => s + c.durationSec, 0), pricing)
-    : 0;
-  const analysisPaid = await getAnalysisCreditsPaid(userId, projectId);
-  const target = Math.max(gross - analysisPaid, 0);
+  // A delivered run keeps its minutes — it is billed on the source analysed,
+  // not per clip. Credits held under the run refId are only the premium-
+  // caption hold (or a pre-switch render charge), which is never owed: see
+  // settleRunCost.
+  const target = 0;
   const held = await creditsSpentOnRun(userId, projectId);
   if (held > target) {
     refunded += await restoreSpend({
@@ -834,6 +847,8 @@ export interface PickPayload {
   smoothness?: number;
   trackingSpeed?: number;
   animatedCaptions?: boolean;
+  /** The user opted in to paying a Clip Minutes shortfall in AI credits. */
+  allowCreditOverflow?: boolean;
 }
 
 export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATTEMPT): Promise<void> {
@@ -861,7 +876,6 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
   const runTag = `${projectId}-${Date.now().toString(36)}`;
   const videoPath = path.join(tmp, `${runTag}-src.mp4`);
   const audioPath = path.join(tmp, `${runTag}-audio.mp3`);
-  let analysisCharged = 0;
 
   // Every individual step in this job is time-bounded, but a NEW unbounded
   // step (or an external service that hangs below its own timeout) could still
@@ -874,11 +888,12 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
   const WATCHDOG_MS = 30 * 60 * 1000;
   let aborted = false;
   let refundDone = false;
+  // Only a run started before the Clip Minutes switch holds analysis credits;
+  // ledger-driven, so for every newer run this restores nothing.
   const refundAnalysis = async (reason: string) => {
-    if (refundDone || analysisCharged <= 0) return;
+    if (refundDone) return;
     refundDone = true;
-    await restoreSpend({ userId: project.userId, refId: analysisRefId(projectId), amount: analysisCharged, reason })
-      .catch(() => {});
+    await restoreSpend({ userId: project.userId, refId: analysisRefId(projectId), reason }).catch(() => {});
   };
   const watchdog = setTimeout(() => {
     aborted = true;
@@ -936,24 +951,25 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
       }
     }
 
-    // Analysis charge (credited back against the confirm charge — see the
-    // pricing comment above AutoClipPricing). Refunded if this job fails.
+    // The run's charge: 1 Clip Minute per source minute, taken here — the
+    // first moment the duration is exact, and before transcription, face
+    // tracking or Gemini spend anything. Idempotent across retries, free for a
+    // re-run of a source paid for in the last few days, refunded by
+    // refundRunCharge if the job fails. See lib/autoclip-minutes.ts.
     {
-      const pricing = await getAutoClipPricing();
-      const analysisCost = computeAnalysisCost(durationSec, pricing);
-      if (analysisCost > 0) {
-        const spend = await spendCredits({
-          userId: project.userId,
-          amount: analysisCost,
-          reason: "spend:auto-clip-analysis",
-          refId: analysisRefId(projectId),
-        });
-        if (!spend.ok) {
-          throw new NonRetryableError(
-            `Analyzing this video costs ${analysisCost} credit${analysisCost === 1 ? "" : "s"} — you don't have enough credits.`,
-          );
-        }
-        analysisCharged = analysisCost;
+      const charge = await chargeRunMinutes({
+        userId: project.userId,
+        projectId,
+        uploadedVideoUrl: project.uploadedVideoUrl!,
+        durationSec,
+        allowCreditOverflow: payload.allowCreditOverflow === true,
+      });
+      if (!charge.ok) {
+        const short = charge.needed - charge.available;
+        throw new NonRetryableError(
+          `This video needs ${charge.needed} Clip Minute${charge.needed === 1 ? "" : "s"} and you have ${charge.available}. ` +
+          `Top up minutes, upgrade, or allow the ${short}-minute shortfall to be paid with ${overflowCreditsFor(short)} AI credit${overflowCreditsFor(short) === 1 ? "" : "s"}. Nothing was charged.`,
+        );
       }
     }
 

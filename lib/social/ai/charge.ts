@@ -9,6 +9,7 @@
 import { chargeCredits, markGenerationStatus, refundCredits } from "@/lib/credits";
 import { getToolConfig } from "@/lib/tool-config";
 import { logger } from "@/lib/logger";
+import { isFreeTextTool, takeFairUse } from "@/lib/fair-use";
 import { HttpError } from "../api";
 
 export interface ChargedRunOptions {
@@ -30,6 +31,13 @@ export async function runCharged<T>(opts: ChargedRunOptions, work: () => Promise
   const config = await getToolConfig(opts.toolSlug);
   if (!config.enabled) {
     throw new HttpError(503, "This feature is temporarily disabled.", "tool_disabled");
+  }
+
+  // The tools made free on 2026-09-26 are capped per day instead of priced.
+  if (config.creditCost === 0 && isFreeTextTool(opts.toolSlug)) {
+    const { getUserTier } = await import("@/lib/auth");
+    const use = await takeFairUse(opts.userId, opts.toolSlug, await getUserTier(opts.userId));
+    if (!use.allowed) throw new HttpError(429, use.message, "fair_use_limit");
   }
 
   const charge = await chargeCredits({

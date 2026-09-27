@@ -32,8 +32,9 @@ vi.mock("./prisma", () => ({
 vi.mock("./redis", () => ({ redis: { del: vi.fn(async () => {}) } }));
 vi.mock("./logger", () => ({ logger: { error: vi.fn() } }));
 vi.mock("./onboarding-analytics", () => ({ trackOnboardingEvent: vi.fn() }));
-vi.mock("./credits", () => ({
-  grantCredits: vi.fn(async (p: { amount: number; reason: string; bucket: string }) => {
+// Rank rewards are paid in bonus Clip Minutes since 2026-09-26 (15/30/60).
+vi.mock("./minutes", () => ({
+  grantMinutes: vi.fn(async (p: { amount: number; reason: string; bucket: string }) => {
     grantCalls.push({ amount: p.amount, reason: p.reason, bucket: p.bucket });
     return { bonus: p.amount, subscription: 0, purchased: 0, total: 40 + p.amount };
   }),
@@ -61,13 +62,13 @@ describe("markQuestComplete rank rewards", () => {
     // join-community is worth 500 XP → exactly the Creator threshold.
     await markQuestComplete("u1", "join-community");
     expect(grantCalls).toEqual([
-      { amount: 5, reason: "grant:quest-rank-Creator", bucket: "bonus" },
+      { amount: 15, reason: "grant:quest-rank-Creator", bucket: "bonus" },
     ]);
     expect(claimedRankRewards).toEqual(["Creator"]);
   });
 
   it("does not double-grant a rank on repeat completions", async () => {
-    await markQuestComplete("u1", "join-community"); // → Creator (+5)
+    await markQuestComplete("u1", "join-community"); // → Creator (+15)
     grantCalls = [];
     // Re-completing the same quest keeps earnedXp at 500; Creator already claimed.
     await markQuestComplete("u1", "join-community");
@@ -79,7 +80,7 @@ describe("markQuestComplete rank rewards", () => {
     await markQuestComplete("u1", "join-community"); // 500 → Creator (+5)
     await markQuestComplete("u1", "first-clip"); // 800
     await markQuestComplete("u1", "hear-yourself-out"); // 1000
-    await markQuestComplete("u1", "picture-this"); // 1200 → Pro Creator (+10)
+    await markQuestComplete("u1", "picture-this"); // 1200 → Pro Creator (+30)
 
     const reasons = grantCalls.map(c => c.reason);
     expect(reasons).toEqual([
@@ -106,7 +107,7 @@ describe("markQuestComplete rank reward emails", () => {
     await markQuestComplete("u1", "join-community"); // 500 → Creator (+5)
 
     expect(rewardEmails).toEqual([
-      { to: "creator@example.com", level: "Creator", credits: 5, balance: 45 },
+      { to: "creator@example.com", level: "Creator", credits: 15, balance: 55 },
     ]);
   });
 

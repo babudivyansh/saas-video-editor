@@ -87,10 +87,11 @@ export interface PurchaseEmailData {
   userName: string;
   planName: string;
   creditsAdded: number;
+  minutesAdded?: number;
   amountInPaise: number;
   orderId: string;
   isSubscription: boolean;
-  refill?: { monthlyCredits: number; remainingMonths: number };
+  refill?: { monthlyCredits: number; remainingMonths: number; monthlyMinutes?: number };
   /** GST tax invoice for this payment — its number is quoted and the PDF attached. */
   invoice?: InvoiceAttachment;
 }
@@ -111,6 +112,7 @@ export async function sendPurchaseConfirmationEmail(data: PurchaseEmailData): Pr
     userName: data.userName,
     planName: data.planName,
     creditsAdded: data.creditsAdded,
+    minutesAdded: data.minutesAdded,
     amountInPaise: data.amountInPaise,
     orderId: data.orderId,
     isSubscription: data.isSubscription,
@@ -119,13 +121,22 @@ export async function sendPurchaseConfirmationEmail(data: PurchaseEmailData): Pr
   }, { attachments: invoiceAttachments(data.invoice) });
 }
 
+/** Switch-day notice (scripts/send-clip-minutes-announcement.ts). */
+export async function sendClipMinutesLaunchEmail(
+  to: string,
+  props: Parameters<typeof import("@/lib/email/templates/billing").clipMinutesLaunch>[0],
+): Promise<{ status: string }> {
+  return sendTemplate("clip-minutes-launch", to, props);
+}
+
 export async function sendSubscriptionRenewedEmail(
   to: string, name: string, amountInPaise: number, creditsAdded: number, nextChargeAt: Date | null,
   invoice?: InvoiceAttachment,
+  minutesAdded?: number,
 ): Promise<void> {
   await sendTemplate(
     "subscription-renewed", to,
-    { name, amountInPaise, creditsAdded, nextChargeAt, invoiceNumber: invoice?.number },
+    { name, amountInPaise, creditsAdded, minutesAdded, nextChargeAt, invoiceNumber: invoice?.number },
     { attachments: invoiceAttachments(invoice) },
   );
 }
@@ -139,8 +150,9 @@ export async function sendPaymentFailedEmail(
 export async function sendTrialStartedEmail(
   to: string, name: string, planName: string, priceInPaise: number, trialCredits: number, endsAt: Date,
   currency: "INR" | "USD" = "INR",
+  trialMinutes?: number,
 ): Promise<void> {
-  await sendTemplate("trial-started", to, { name, planName, priceInPaise, trialCredits, endsAt, currency });
+  await sendTemplate("trial-started", to, { name, planName, priceInPaise, trialCredits, trialMinutes, endsAt, currency });
 }
 
 export async function sendTrialEndingEmail(
@@ -174,20 +186,29 @@ export async function sendSubscriptionExpiredEmail(
 
 export async function sendCreditsRefilledEmail(
   to: string, name: string, creditsAdded: number, newBalance: number,
+  minutes?: { added: number; balance: number },
 ): Promise<void> {
-  await sendTemplate("credits-refilled", to, { name, creditsAdded, newBalance });
+  await sendTemplate("credits-refilled", to, {
+    name, creditsAdded, newBalance, minutesAdded: minutes?.added, minutesBalance: minutes?.balance,
+  });
 }
 
 export async function sendQuestRankRewardEmail(
-  to: string, name: string, level: string, creditsAdded: number, newBalance: number,
+  to: string, name: string, level: string, minutesAdded: number, newBalance: number,
 ): Promise<void> {
-  await sendTemplate("quest-rank-reward", to, { name, level, creditsAdded, newBalance });
+  await sendTemplate("quest-rank-reward", to, { name, level, minutesAdded, newBalance });
 }
 
 export async function sendLowCreditsEmail(
   to: string, name: string, creditsLeft: number, estimatedVideos: number,
 ): Promise<void> {
   await sendTemplate("low-credits", to, { name, creditsLeft, estimatedVideos });
+}
+
+export async function sendLowMinutesEmail(
+  to: string, name: string, minutesLeft: number, tier: "free" | "creator" | "pro" | "studio",
+): Promise<{ status: string }> {
+  return sendTemplate("low-minutes", to, { name, minutesLeft, tier });
 }
 
 export async function sendZeroCreditsEmail(to: string, name: string): Promise<void> {

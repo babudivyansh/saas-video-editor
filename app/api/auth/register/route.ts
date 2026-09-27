@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { completeLogin, setSessionCookie } from "@/lib/auth";
 import { sendWelcomeEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
+import { grantFreeTierMinutes } from "@/lib/minutes";
 import { attributeReferral } from "@/lib/affiliate";
 import { recordSignupAttribution } from "@/lib/marketing-analytics";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
@@ -76,6 +77,12 @@ export async function POST(req: NextRequest) {
       },
       select: { id: true, email: true, credits: true },
     });
+
+    // The free tier's Clip Minutes, through the ledgered helper (a raw column
+    // write here would leave refunds nothing to restore against). Best-effort:
+    // a failed grant must not fail the signup — the monthly drip retries it.
+    await grantFreeTierMinutes(user.id, "grant:signup").catch((e) =>
+      logger.error("auth", `signup minutes grant failed for ${user.id}`, e));
 
     const { token } = await completeLogin(req, user);
 

@@ -25,6 +25,8 @@ export function getStoredToken(): string | null {
  */
 export type PaymentBlock =
   | { kind: "credits"; required?: number; balance?: number }
+  /** Not enough Clip Minutes for the source (2026-09-26 model). */
+  | { kind: "minutes"; required?: number; balance?: number; overflowCredits?: number }
   | { kind: "free_limit"; message: string; upgradeUrl: string };
 
 /** A non-2xx from the create route, with its status and body intact. */
@@ -37,6 +39,15 @@ export class GenerateError extends Error {
 
 function paymentBlockFrom(err: unknown): PaymentBlock | null {
   if (!(err instanceof GenerateError) || err.status !== 402) return null;
+  const num = (v: unknown) => (typeof v === "number" ? v : undefined);
+  if (err.body.error === "insufficient_minutes") {
+    return {
+      kind: "minutes",
+      required: num(err.body.required),
+      balance: num(err.body.balance),
+      overflowCredits: num(err.body.overflowCredits),
+    };
+  }
   if (err.body.error === "free_limit_reached") {
     return {
       kind: "free_limit",
@@ -110,6 +121,8 @@ export interface RunSettings {
   smoothness?: number;
   trackingSpeed?: number;
   animatedCaptions?: boolean;
+  /** Pay a Clip Minutes shortfall in AI credits (opt-in). */
+  allowCreditOverflow?: boolean;
 }
 
 export function useVideoGenerate() {

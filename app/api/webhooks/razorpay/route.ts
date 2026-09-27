@@ -167,6 +167,7 @@ export async function POST(req: NextRequest) {
                 planId: plan.id,
                 razorpaySubscriptionId: sub.id,
                 monthlyCredits: plan.monthlyCredits ?? plan.credits,
+                monthlyMinutes: plan.monthlyMinutes ?? 0,
                 ...(parseCurrency(sub.notes?.currency) ? { subscriptionCurrency: parseCurrency(sub.notes?.currency) } : {}),
                 ...(extendsTerm ? { subscriptionEndsAt: endsAt } : {}),
                 // Clears a prepaid term's refill schedule when a NEW recurring

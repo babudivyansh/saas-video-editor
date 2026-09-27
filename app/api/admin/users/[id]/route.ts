@@ -5,6 +5,7 @@ import { withAdmin, parseBody } from "@/lib/admin/api";
 import { auditAdminAction, auditIp } from "@/lib/admin/audit";
 import { userPatchSchema } from "@/lib/admin/schemas";
 import { grantCredits, getBalances, setSubscriptionCredits, type CreditBucket } from "@/lib/credits";
+import { grantMinutes, setSubscriptionMinutes, type MinuteBucket } from "@/lib/minutes";
 import { cancelExistingSubscriptionForSwitch } from "@/lib/billing/subscription-switch";
 import { invalidateAllSessions } from "@/lib/auth";
 import { logger } from "@/lib/logger";
@@ -31,6 +32,7 @@ export const PATCH = withAdmin<{ id: string }>(async (req, { admin, params }) =>
   // to refunds (restoreSpend is ledger-driven) and to the credit history UI.
   // Everything below is staged and applied through lib/credits instead.
   let grant: { bucket: CreditBucket; amount: number; reason: string } | null = null;
+  let minuteGrant: { bucket: MinuteBucket; amount: number; reason: string } | null = null;
   let clearSubscriptionBucket = false;
   let cancelSubscriptionId: string | null = null;
 
@@ -57,6 +59,7 @@ export const PATCH = withAdmin<{ id: string }>(async (req, { admin, params }) =>
         // Apply subscription state — respect explicit overrides from the same request
         if (!("subscriptionEndsAt" in body)) data.subscriptionEndsAt = endsAt;
         if (!("monthlyCredits" in body)) data.monthlyCredits = monthlyCredits;
+        data.monthlyMinutes = plan.monthlyMinutes ?? 0;
         data.subscriptionId = null;
         data.nextRefillAt = months > 1 ? nextRefill : null;
         // An active plan takes the account out of the free-tier monthly drip.
@@ -66,6 +69,14 @@ export const PATCH = withAdmin<{ id: string }>(async (req, { admin, params }) =>
         // (lib/fulfillment.ts) so rollover, lapse-zeroing and refunds all treat
         // an admin-granted plan exactly like a bought one.
         grant = { bucket: "subscription", amount: monthlyCredits, reason: "grant:admin-plan-assign" };
+        // ...and the first month's Clip Minutes, same reasoning.
+        if ((plan.monthlyMinutes ?? 0) > 0) {
+          minuteGrant = { bucket: "subscription", amount: plan.monthlyMinutes!, reason: "grant:admin-plan-assign" };
+        }
+      } else if (plan.kind === "minute_pack") {
+        // A minute pack is a minutes grant, not an entitlement — no planId, for
+        // exactly the free-tier-drip reason given for credit packs below.
+        minuteGrant = { bucket: "purchased", amount: plan.minutes, reason: "grant:admin-minute-pack-assign" };
       } else {
         // A pack/addon is a credit grant, not an entitlement, so it deliberately
         // does NOT set planId. A pack row carries no tier — getUserTier would
@@ -92,6 +103,7 @@ export const PATCH = withAdmin<{ id: string }>(async (req, { admin, params }) =>
       data.planId = null;
       if (!("subscriptionEndsAt" in body)) data.subscriptionEndsAt = null;
       if (!("monthlyCredits" in body)) data.monthlyCredits = 0;
+      data.monthlyMinutes = 0;
       data.subscriptionId = null;
       data.razorpaySubscriptionId = null;
       data.nextRefillAt = null;
@@ -168,6 +180,10 @@ export const PATCH = withAdmin<{ id: string }>(async (req, { admin, params }) =>
     });
     if (clearSubscriptionBucket) {
       await setSubscriptionCredits(id, 0, "lapse:admin-plan-removed", tx);
+      await setSubscriptionMinutes(id, 0, "lapse:admin-plan-removed", tx);
+    }
+    if (minuteGrant && minuteGrant.amount > 0) {
+      await grantMinutes({ userId: id, bucket: minuteGrant.bucket, amount: minuteGrant.amount, reason: minuteGrant.reason, tx });
     }
     if (grant) {
       await grantCredits({ userId: id, bucket: grant.bucket, amount: grant.amount, reason: grant.reason, tx });

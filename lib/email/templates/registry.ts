@@ -182,6 +182,24 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
         orderId: "order_QxYz9876wxyz",
         isSubscription: false,
       },
+      "minute pack": {
+        userName: "Divyansh",
+        planName: "300 Clip Minutes",
+        creditsAdded: 0,
+        minutesAdded: 300,
+        amountInPaise: 199900,
+        orderId: "order_QxYzMin300",
+        isSubscription: false,
+      },
+      "subscription with Clip Minutes": {
+        userName: "Divyansh",
+        planName: "Pro (Monthly)",
+        creditsAdded: 160,
+        minutesAdded: 400,
+        amountInPaise: 219900,
+        orderId: "order_QxYzPro",
+        isSubscription: true,
+      },
       "with GST invoice": {
         userName: "Divyansh",
         planName: "Studio Monthly",
@@ -190,6 +208,34 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
         orderId: "order_QxYz1234abcd",
         isSubscription: true,
         invoiceNumber: "CLP/2627/000001",
+      },
+    },
+  }),
+  "clip-minutes-launch": entry({
+    id: "clip-minutes-launch",
+    title: "Auto Clips move to Clip Minutes (switch-day notice)",
+    group: "billing",
+    // A change to what a paying subscriber receives is a service notice owed to
+    // them regardless of marketing opt-outs — see the template's own comment.
+    category: "transactional",
+    trigger: "One-off: scripts/send-clip-minutes-announcement.ts on switch day",
+    build: billing.clipMinutesLaunch,
+    samples: {
+      creator: {
+        name: "Divyansh", tier: "creator", monthlyMinutes: 150, minutesBalance: 150,
+        newMonthlyCredits: 50, currentMonthlyCredits: 60, renewsAt: D("2026-10-20"),
+      },
+      "annual pro": {
+        name: "Divyansh", tier: "pro", monthlyMinutes: 400, minutesBalance: 400,
+        newMonthlyCredits: 150, currentMonthlyCredits: 160, renewsAt: D("2027-03-02"),
+      },
+      "studio (no credit change)": {
+        name: "Divyansh", tier: "studio", monthlyMinutes: 1000, minutesBalance: 1000,
+        newMonthlyCredits: 400, currentMonthlyCredits: 400, renewsAt: D("2026-10-11"),
+      },
+      free: {
+        name: "Divyansh", tier: "free", monthlyMinutes: 30, minutesBalance: 30,
+        newMonthlyCredits: 10, currentMonthlyCredits: 10, renewsAt: null,
       },
     },
   }),
@@ -202,6 +248,7 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     build: billing.subscriptionRenewed,
     samples: {
       default: { name: "Divyansh", amountInPaise: 129900, creditsAdded: 500, nextChargeAt: D("2026-09-05") },
+      "with Clip Minutes": { name: "Divyansh", amountInPaise: 499900, creditsAdded: 400, minutesAdded: 1000, nextChargeAt: D("2026-10-05") },
       "no next charge": { name: "Divyansh", amountInPaise: 129900, creditsAdded: 500, nextChargeAt: null },
       "with GST invoice": {
         name: "Divyansh", amountInPaise: 129900, creditsAdded: 500, nextChargeAt: D("2026-09-05"),
@@ -287,18 +334,21 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     category: "creditAlerts",
     trigger: "Monthly refill cron",
     build: credits.creditsRefilled,
-    samples: { default: { name: "Divyansh", creditsAdded: 500, newBalance: 542 } },
+    samples: {
+      default: { name: "Divyansh", creditsAdded: 500, newBalance: 542 },
+      "with Clip Minutes": { name: "Divyansh", creditsAdded: 400, newBalance: 431, minutesAdded: 1000, minutesBalance: 1240 },
+    },
   }),
   "quest-rank-reward": entry({
     id: "quest-rank-reward",
     title: "Onboarding rank reward",
     group: "credits",
     category: "creditAlerts",
-    trigger: "A user crosses an onboarding quest rank and is granted bonus credits",
+    trigger: "A user crosses an onboarding quest rank and is granted bonus Clip Minutes",
     build: credits.questRankReward,
     samples: {
-      default: { name: "Divyansh", level: "Pro Creator", creditsAdded: 10, newBalance: 52 },
-      "top rank": { name: "Divyansh", level: "Clipiro Master", creditsAdded: 20, newBalance: 71 },
+      default: { name: "Divyansh", level: "Pro Creator", minutesAdded: 30, newBalance: 75 },
+      "top rank": { name: "Divyansh", level: "Clipiro Master", minutesAdded: 60, newBalance: 135 },
     },
   }),
   "low-credits": entry({
@@ -311,6 +361,18 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     samples: {
       default: { name: "Divyansh", creditsLeft: 12, estimatedVideos: 4 },
       "one left": { name: "Divyansh", creditsLeft: 1, estimatedVideos: 1 },
+    },
+  }),
+  "low-minutes": entry({
+    id: "low-minutes",
+    title: "Low Clip Minutes warning",
+    group: "credits",
+    category: "usageAlerts",
+    trigger: "A minutes spend leaves the balance at or under ~20% of the monthly minutes (once per cycle)",
+    build: credits.lowMinutes,
+    samples: {
+      subscriber: { name: "Divyansh", minutesLeft: 28, tier: "creator" },
+      free: { name: "Divyansh", minutesLeft: 4, tier: "free" },
     },
   }),
   "zero-credits": entry({

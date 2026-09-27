@@ -11,4 +11,6 @@ export interface ToolCost {
   creditCost: number;
   creditCostMin?: number;
   creditCostMax?: number;
+  /** Set for features billed in Clip Minutes rather than credits. */
+  priceLabel?: string;
 }

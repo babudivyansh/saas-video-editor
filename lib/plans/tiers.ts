@@ -183,14 +183,49 @@ export const TIER_MAX_AUTOCLIP_SOURCE_SECONDS: Record<TierId, number> = {
   studio: 6 * 60 * 60,
 };
 
-// Free-tier Auto Clip allowance: watermarked runs per rolling 30 days.
-export const FREE_TIER_AUTOCLIP_RUNS_PER_MONTH = 2;
+// ── Clip Minutes policy (2026-09-26 pricing plan) ───────────────────────────
+// AutoClip bills 1 Clip Minute per minute of uploaded source (rounded up per
+// video, see billableSourceMinutes in lib/minutes.ts), however many clips it
+// produces — the unit Opus Clip, Vizard and 2short all sell.
+
+/** Free tier: watermarked Clip Minutes granted monthly as expiring bonus minutes
+ *  (replaces the old "2 runs a month" allowance). */
+export const FREE_TIER_MONTHLY_BONUS_MINUTES = 30;
+
+/** Re-running a source this user already paid for, within this many days, is
+ *  free — its transcript and face timeline are cached, so a re-run costs us
+ *  almost nothing. */
+export const AUTOCLIP_RERUN_FREE_WINDOW_DAYS = 7;
+
+/** When a user is out of minutes they can opt in to pay the shortfall in AI
+ *  credits at this rate. 3 minutes cost ~$0.0375 against ~$0.078 of net credit
+ *  revenue, so this still clears 2x — and nobody is hard-blocked mid-project. */
+export const OVERFLOW_MINUTES_PER_CREDIT = 3;
+
+/**
+ * "Running low" on Clip Minutes: at or under ~20% of the monthly minutes (the
+ * same line the low-credits email uses). Client-safe — the header pill and the
+ * low-minutes email (lib/minute-events.ts) share it.
+ */
+export function isLowMinutes(balance: number, monthlyMinutes: number): boolean {
+  if (monthlyMinutes <= 0 || balance <= 0) return false;
+  return balance <= Math.ceil(monthlyMinutes * 0.2);
+}
+
+export function overflowCreditsFor(minutesShort: number): number {
+  return minutesShort > 0 ? Math.ceil(minutesShort / OVERFLOW_MINUTES_PER_CREDIT) : 0;
+}
 
 // Credits granted once when the 7-day Pro trial starts (the mandate is
 // authenticated — see lib/billing/trial.ts). Hard-capped and deliberately NOT a
 // subscription-bucket base for rollover. Exported so the pricing CTA can state
 // the figure instead of offering an unquantified "free trial".
 export const TRIAL_CREDITS = 25;
+
+/** Clip Minutes granted with the Pro trial (2026-09-26 model). Without them a
+ *  trial user met Pro's headline feature, Auto Clips, with a zero balance. Same
+ *  one-off, subscription-bucket treatment as TRIAL_CREDITS. */
+export const TRIAL_MINUTES = 60;
 
 export const TRIAL_DAYS = 7;
 
@@ -205,4 +240,6 @@ export function isTrialPlan(plan: { kind: string; tier: string | null; intervalM
 // Monthly bonus-credit grant for users without an active subscription.
 // Bonus credits expire 30 days after the latest bonus grant.
 export const FREE_TIER_MONTHLY_BONUS_CREDITS = 10;
+/** Bonus Clip Minutes expire on the same clock as bonus credits. */
+export const BONUS_MINUTES_EXPIRY_DAYS = 30;
 export const BONUS_CREDITS_EXPIRY_DAYS = 30;

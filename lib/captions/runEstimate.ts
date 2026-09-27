@@ -1,20 +1,17 @@
-// Prices a whole AutoClip run BEFORE it starts.
+// Prices a whole AutoClip run BEFORE it starts (2026-09-26 Clip Minutes model).
 //
-// Necessary because the review step is gone: there is no longer a moment,
-// after analysis, where the user is shown a price and clicks Confirm. The
-// charge has to happen at Generate — which is before anything is known about
-// the source video except what the user typed into the form.
+// A run is paid in Clip Minutes — 1 per source minute, however many clips —
+// taken exactly in pickJob once the duration is probed. When the duration is
+// already known here (an uploaded or library file), the quote shows it.
 //
-// So this is deliberately a WORST CASE, not a guess. It bills the requested
-// clip count at the top of the chosen clip-length band, and
-// lib/autoclip-pipeline.ts's settleRunCost() refunds the difference the moment
-// real durations exist. Erring high and refunding is the only honest direction:
-// erring low would mean charging a second time mid-run, after the user has
-// already been told a price.
+// The only thing still charged up front in CREDITS is premium (provider-
+// rendered) captions, as a worst-case HOLD: requested clips x the top of the
+// clip-length band, per-clip billable minutes. Each caption render then
+// charges its own refId and the hold is returned when the run settles.
 
 // The LEAF pricing module, not lib/autoclip-pipeline — this file is imported
 // by the create page, and the pipeline pulls in prisma, ffmpeg and Gemini.
-import { computeCreditCost, type AutoClipPricing } from "@/lib/autoclip-pricing";
+import { billableSourceMinutes } from "@/lib/autoclip-pricing";
 import { estimateCaptionRenderCredits, type CaptionRenderPricing } from "./pricingDefaults";
 
 export interface RunEstimateInput {
@@ -23,43 +20,35 @@ export interface RunEstimateInput {
   maxDurationSec: number;
   /** True when the chosen caption template is rendered by a paid provider. */
   premiumCaptions: boolean;
+  /** Source length when known before the run (uploaded or library file). */
+  sourceDurationSec?: number | null;
 }
 
 export interface RunEstimate {
-  /** Credits for cutting and rendering the clips themselves. */
-  renderCredits: number;
-  /** Credits for premium caption rendering, 0 when a native style is chosen. */
+  /** Clip Minutes the run will use, or null when the source length is unknown
+   *  until analysis (a URL import). */
+  minutes: number | null;
+  /** Credits held up front for premium captions, 0 for a native style. */
   captionCredits: number;
-  /** What the user is asked to pay up front. */
+  /** Credits taken up front (the caption hold). Minutes are charged in pickJob. */
   total: number;
 }
 
-/**
- * Worst-case cost of a run.
- *
- * Note the analysis charge is NOT included: it is taken separately inside
- * pickJob and then subtracted from the run cost at settle time, so counting it
- * here would double it in the figure shown to the user.
- */
-export function estimateRunCost(
-  input: RunEstimateInput,
-  pricing: AutoClipPricing,
-  captionPricing: CaptionRenderPricing,
-): RunEstimate {
+export function estimateRunCost(input: RunEstimateInput, captionPricing: CaptionRenderPricing): RunEstimate {
   const clips = Math.max(1, Math.trunc(input.clipCount));
   const perClipSec = Math.max(1, input.maxDurationSec);
-
-  const renderCredits = computeCreditCost(clips, clips * perClipSec, pricing);
+  const minutes = input.sourceDurationSec != null && input.sourceDurationSec > 0
+    ? billableSourceMinutes(input.sourceDurationSec)
+    : null;
 
   // Per clip, not per run: the provider bills each clip as its own render, and
-  // rounds each one up to a whole billable minute. That rounding is why a
-  // 12-second clip and a 59-second clip cost the same, and why this number is
-  // so much larger than the render cost.
+  // rounds each one up to a whole billable minute — a 12-second clip and a
+  // 59-second clip cost the same.
   const captionCredits = input.premiumCaptions
     ? clips * estimateCaptionRenderCredits(perClipSec, captionPricing)
     : 0;
 
-  return { renderCredits, captionCredits, total: renderCredits + captionCredits };
+  return { minutes, captionCredits, total: captionCredits };
 }
 
 /** Upper bound of each clip-length band the create form offers. */

@@ -20,11 +20,12 @@ interface Detail {
   user: {
     id: string; email: string; name: string | null; firstName: string | null;
     credits: number; monthlyCredits: number; role: string; createdAt: string;
+    minutes: number; monthlyMinutes: number;
     lastLoginAt: string | null; suspendedAt: string | null; adminNotes: string | null;
     subscriptionEndsAt: string | null; nextRefillAt: string | null;
     plan: { id: string; name: string; slug: string; kind: string } | null;
   };
-  purchases: Array<{ id: string; amountInPaise: number; credits: number; status: string; createdAt: string; plan: { name: string; kind: string } | null }>;
+  purchases: Array<{ id: string; amountInPaise: number; credits: number; minutes?: number; status: string; createdAt: string; plan: { name: string; kind: string } | null }>;
   generations: Array<{ id: string; toolSlug: string; modelId: string | null; creditsCost: number; status: string; createdAt: string }>;
   generationTotals: { count: number; creditsConsumed: number };
   socialAccounts: Array<{ id: string; provider: string; status: string; username: string | null; displayName: string | null; followers: number | null; lastSyncedAt: string | null }>;
@@ -147,6 +148,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           </div>
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div className="bg-surface-2 rounded-lg p-2.5"><p className="text-xs text-fg-subtle">Credits</p><p className="font-bold text-fg">{d.user.credits}</p></div>
+            <div className="bg-surface-2 rounded-lg p-2.5"><p className="text-xs text-fg-subtle">Clip Minutes</p><p className="font-bold text-fg">{d.user.minutes ?? 0}{d.user.monthlyMinutes ? <span className="text-xs font-normal text-fg-subtle"> / {d.user.monthlyMinutes} mo</span> : null}</p></div>
             <div className="bg-surface-2 rounded-lg p-2.5"><p className="text-xs text-fg-subtle">Consumed (all time)</p><p className="font-bold text-fg">{d.generationTotals.creditsConsumed}</p></div>
             <div className="bg-surface-2 rounded-lg p-2.5 col-span-2">
               <p className="text-xs text-fg-subtle">Subscription</p>
@@ -162,6 +164,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             </span>
           </div>
           <CreditAdjust userId={id} headers={headers} />
+          <CreditAdjust meter="minutes" userId={id} headers={headers} />
           <div className="flex flex-wrap gap-2 pt-2 border-t border-line">
             <Button onClick={() => setConfirmRevoke(true)} variant="secondary" size="sm">
               Revoke sessions
@@ -239,7 +242,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                   <tr key={p.id} className="border-t border-line first:border-0">
                     <td className="py-1.5 text-fg">{p.plan?.name ?? "—"}</td>
                     <td className="py-1.5 text-xs text-fg-subtle">{new Date(p.createdAt).toLocaleDateString("en-IN")}</td>
-                    <td className="py-1.5 text-right text-fg-muted">+{p.credits} cr</td>
+                    <td className="py-1.5 text-right text-fg-muted">{p.minutes ? `+${p.minutes} min` : `+${p.credits} cr`}</td>
                     <td className="py-1.5 text-right font-semibold text-fg">{inr(p.amountInPaise)}</td>
                     <td className={`py-1.5 text-right text-xs ${p.status === "refunded" ? "text-error font-semibold" : "text-fg-subtle"}`}>{p.status}</td>
                   </tr>

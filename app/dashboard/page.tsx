@@ -189,7 +189,7 @@ function DashboardPageInner() {
     if (!token || !rewards?.length || ackedRewards.current) return;
     ackedRewards.current = true;
     for (const r of rewards) {
-      showToast(t("rankRewardToast", { level: r.level, credits: r.reward }), "success");
+      showToast(t("rankRewardToast", { level: r.level, minutes: r.reward }), "success");
     }
     fetch("/api/quests/ack-rewards", {
       method: "POST",

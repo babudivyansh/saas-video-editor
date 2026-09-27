@@ -19,14 +19,16 @@ export const TOTAL_XP = QUEST_DEFINITIONS.reduce((sum, q) => sum + q.xp, 0);
 
 // Single source of truth for ranks. `minXp` are absolute XP thresholds; the top
 // rank tracks TOTAL_XP so "all quests complete" always equals the top rank even
-// as quests are added. `reward` is the one-time bonus-credit grant for first
-// crossing that rank (0 = no reward). xpToLevel / levelColor / RANK_REWARDS all
+// as quests are added. `reward` is the one-time grant of bonus CLIP MINUTES for
+// first crossing that rank (0 = no reward) — minutes since 2026-09-26: they
+// cost us ~$0.0125 each against ~$0.08 for a credit, and they spend on Auto
+// Clips, the product the quests lead people to. xpToLevel / levelColor / RANK_REWARDS all
 // derive from this list so nothing drifts.
 export const RANKS = [
   { level: "Beginner",       minXp: 0,        color: "#6b7280", reward: 0  },
-  { level: "Creator",        minXp: 500,      color: "#2563eb", reward: 5  },
-  { level: "Pro Creator",    minXp: 1100,     color: "#7c3aed", reward: 10 },
-  { level: "Clipiro Master", minXp: TOTAL_XP, color: "#d97706", reward: 20 },
+  { level: "Creator",        minXp: 500,      color: "#2563eb", reward: 15 },
+  { level: "Pro Creator",    minXp: 1100,     color: "#7c3aed", reward: 30 },
+  { level: "Clipiro Master", minXp: TOTAL_XP, color: "#d97706", reward: 60 },
 ] as const;
 
 export type Rank = typeof RANKS[number];

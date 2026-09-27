@@ -6,15 +6,17 @@ import CaptionStyleGrid from "@/app/components/auto-clip/CaptionStyleGrid";
 import { ReframeAndCutsControls } from "@/app/components/auto-clip/ReframeAndCutsControls";
 import { discardDraftProject } from "@/lib/discard-draft-project";
 import { useInsufficientCredits } from "@/app/components/billing/CreditModalContext";
+import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
 import { UrlImportField } from "@/app/components/auto-clip/UrlImportField";
 import { Switch } from "@/app/components/ui/Switch";
+import { Checkbox } from "@/app/components/ui/Checkbox";
 import { Button } from "@/app/components/ui/Button";
 import { AssetField } from "@/app/components/assets/AssetField";
 import type { PickerAsset } from "@/app/components/assets/assetPickerData";
 import { useVideoGenerate, getStoredToken } from "@/app/hooks/useVideoGenerate";
 import { indexForTemplateId, DEFAULT_TEMPLATE_ID } from "@/lib/captions/legacyStyleIndex";
 import { estimateRunCost, bandMaxSeconds } from "@/lib/captions/runEstimate";
-import { AUTOCLIP_PRICING_DEFAULTS, type AutoClipPricing } from "@/lib/autoclip-pricing";
+import { OVERFLOW_MINUTES_PER_CREDIT, overflowCreditsFor } from "@/lib/plans/tiers";
 import { MAX_INSTRUCTIONS_CHARS } from "@/lib/autoclip-create-input";
 import { CAPTION_RENDER_PRICING_DEFAULTS, type CaptionRenderPricing } from "@/lib/captions/pricingDefaults";
 import { IcFilm, IcCloud, IcFile, IcX, IcSparkle, apiFetch, ASPECTS } from "./_components/shared";
@@ -65,19 +67,38 @@ function AutoClipFlow() {
   // figure charged. The defaults remain only as the first-paint fallback.
   const pricingQuery = useQuery({
     queryKey: ["auto-clip-pricing"],
-    queryFn: () => apiFetch<{ pricing: AutoClipPricing; captionPricing: CaptionRenderPricing; balance: number }>("/api/generate/auto-clip"),
+    queryFn: () => apiFetch<{ captionPricing: CaptionRenderPricing; balance: number; minutes: number }>("/api/generate/auto-clip"),
     staleTime: 60_000,
   });
   const balance = pricingQuery.data?.balance ?? null;
+  const minutesBalance = pricingQuery.data?.minutes ?? null;
+
+  // Source length, when it can be known before the run: read from the chosen
+  // file's metadata, or the library asset's stored duration. A URL import
+  // stays unknown until analysis, and the quote says so.
+  // Keyed by the preview URL it was read from, so a stale reading can never
+  // price a newly chosen file.
+  const [fileDuration, setFileDuration] = useState<{ url: string; sec: number } | null>(null);
+  // The chosen file's length once read, else a library asset's stored one. A
+  // URL import stays null until analysis, and the quote says so.
+  const sourceDurationSec: number | null = file
+    ? (fileDuration && fileDuration.url === videoPreviewUrl ? fileDuration.sec : null)
+    : (pickedAsset?.duration ?? null);
+  // Opt-in: pay a minutes shortfall in AI credits instead of being refused.
+  const [allowCreditOverflow, setAllowCreditOverflow] = useState(false);
+
   const runCost = useMemo(
     () =>
       estimateRunCost(
-        { clipCount, maxDurationSec: bandMaxSeconds(minDuration, maxDuration), premiumCaptions: isPremiumStyle },
-        pricingQuery.data?.pricing ?? AUTOCLIP_PRICING_DEFAULTS,
+        {
+          clipCount, maxDurationSec: bandMaxSeconds(minDuration, maxDuration), premiumCaptions: isPremiumStyle,
+          sourceDurationSec,
+        },
         pricingQuery.data?.captionPricing ?? CAPTION_RENDER_PRICING_DEFAULTS,
       ),
-    [clipCount, minDuration, maxDuration, isPremiumStyle, pricingQuery.data],
+    [clipCount, minDuration, maxDuration, isPremiumStyle, sourceDurationSec, pricingQuery.data],
   );
+  const minutesShort = runCost.minutes != null && minutesBalance != null ? Math.max(runCost.minutes - minutesBalance, 0) : 0;
 
   const [reframingPreset, setReframingPreset] = useState("balanced");
   const [removeSilence, setRemoveSilence] = useState(false);
@@ -96,6 +117,7 @@ function AutoClipFlow() {
     generateAutoClip, generateAutoClipForProject, reset, clearPaymentBlock,
   } = useVideoGenerate();
   const creditModal = useInsufficientCredits();
+  const { openBilling } = useBillingOverlay();
 
   // A run refused for credits opens the top-up modal straight away — the
   // user asked to spend, so the next step is paying, not reading an error.
@@ -135,6 +157,19 @@ function AutoClipFlow() {
     setVideoPreviewUrl(null);
   }, [videoPreviewUrl]);
 
+  // Read a chosen file's length from its metadata (async, so it lands in state).
+  useEffect(() => {
+    if (!file || !videoPreviewUrl) return;
+    const el = document.createElement("video");
+    el.preload = "metadata";
+    let live = true;
+    el.onloadedmetadata = () => {
+      if (live && Number.isFinite(el.duration)) setFileDuration({ url: videoPreviewUrl, sec: el.duration });
+    };
+    el.src = videoPreviewUrl;
+    return () => { live = false; el.removeAttribute("src"); };
+  }, [file, videoPreviewUrl]);
+
   const lengthPreset: LengthPreset = LENGTH_PRESETS.find((p) => p.min === minDuration && p.max === maxDuration)?.id ?? "standard";
 
   const handleGenerate = useCallback(async () => {
@@ -146,6 +181,7 @@ function AutoClipFlow() {
       captionTemplateId: captionsOn ? captionTemplateId : null,
       reframingPreset, removeSilence, silenceThresholdMs, removeFillers,
       smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions,
+      allowCreditOverflow,
     };
     if (!file && retryProject) {
       setImportError(null);
@@ -193,7 +229,7 @@ function AutoClipFlow() {
     }
     if (!file) return;
     await generateAutoClip({ file, token, ...settings });
-  }, [file, retryProject, pickedAsset, importedUrl, importedTitle, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionsOn, captionStyleIndex, captionTemplateId, reframingPreset, removeSilence, silenceThresholdMs, removeFillers, smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions, generateAutoClip, generateAutoClipForProject]);
+  }, [file, retryProject, pickedAsset, importedUrl, importedTitle, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionsOn, captionStyleIndex, captionTemplateId, reframingPreset, removeSilence, silenceThresholdMs, removeFillers, smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions, allowCreditOverflow, generateAutoClip, generateAutoClipForProject]);
 
   const handleReset = useCallback(() => {
     reset();
@@ -300,9 +336,14 @@ function AutoClipFlow() {
             <p className="flex-1 min-w-[16rem] text-fg">
               {paymentBlock.kind === "free_limit"
                 ? paymentBlock.message
-                : `You need ${paymentBlock.required ?? "more"} credits to start this run${paymentBlock.balance != null ? ` and you have ${paymentBlock.balance}` : ""}. Nothing was charged.`}
+                : paymentBlock.kind === "minutes"
+                  ? `This video needs ${paymentBlock.required ?? "more"} Clip Minutes${paymentBlock.balance != null ? ` and you have ${paymentBlock.balance}` : ""}. Nothing was charged.${paymentBlock.overflowCredits ? ` Tick "pay the rest in AI credits" below to cover it with ${paymentBlock.overflowCredits} credit${paymentBlock.overflowCredits === 1 ? "" : "s"}.` : ""}`
+                  : `You need ${paymentBlock.required ?? "more"} credits to start this run${paymentBlock.balance != null ? ` and you have ${paymentBlock.balance}` : ""}. Nothing was charged.`}
             </p>
-            {paymentBlock.kind === "free_limit" ? (
+            {paymentBlock.kind === "minutes" ? (
+              // Minute packs sell on the billing overlay's Top Up tab.
+              <Button size="sm" onClick={() => openBilling({ tab: "topup" })}>Top up minutes</Button>
+            ) : paymentBlock.kind === "free_limit" ? (
               <a href={paymentBlock.upgradeUrl} className="font-bold text-brand hover:underline">See plans</a>
             ) : (
               <Button size="sm" onClick={() => creditModal.open({ required: paymentBlock.required, balance: paymentBlock.balance, action: "Auto Clips" })}>Top up</Button>
@@ -402,27 +443,32 @@ function AutoClipFlow() {
               and it has to be honest about the premium caption line, which is
               by far the largest number here. */}
           <div className="text-[13px] text-ink-soft">
-            {runCost ? (
-              <>
-                <span className="font-semibold text-ink">
-                  ~{runCost.total + 1} credit{runCost.total + 1 === 1 ? "" : "s"}
-                </span>{" "}
-                — analysis 1 · render {clipCount} clip{clipCount === 1 ? "" : "s"} {runCost.renderCredits}
-                {runCost.captionCredits > 0 && <> · premium captions {runCost.captionCredits}</>}
-                <span className="block text-[12px] mt-0.5">
-                  Charged up front and rendered straight through. Unused credits are returned
-                  once the real clip lengths are known, and all of it if the run fails.
-                </span>
-                {balance != null && (
-                  <span className={`block text-[12px] mt-0.5 ${balance < runCost.total + 1 ? "text-warning font-semibold" : ""}`}>
-                    Your balance: {balance} credit{balance === 1 ? "" : "s"}
-                    {balance < runCost.total + 1 && " (not enough for this run)"}
-                  </span>
-                )}
-              </>
-            ) : (
-              "Analysis costs 1 credit."
+            <span className="font-semibold text-ink">
+              {runCost.minutes != null
+                ? `Uses ${runCost.minutes} Clip Minute${runCost.minutes === 1 ? "" : "s"}`
+                : "Uses 1 Clip Minute per minute of video"}
+            </span>
+            {runCost.captionCredits > 0 && <> + up to {runCost.captionCredits} AI credits for premium captions</>}
+            <span className="block text-[12px] mt-0.5">
+              Any number of clips from one video. Re-running the same video within 7 days is free,
+              and a failed run is refunded in full.
+            </span>
+            {minutesBalance != null && (
+              <span className={`block text-[12px] mt-0.5 ${minutesShort > 0 ? "text-warning font-semibold" : ""}`}>
+                Your balance: {minutesBalance} Clip Minute{minutesBalance === 1 ? "" : "s"}
+                {balance != null && <> · {balance} AI credit{balance === 1 ? "" : "s"}</>}
+                {minutesShort > 0 && ` (${minutesShort} short)`}
+              </span>
             )}
+            <Checkbox
+              className="mt-1.5 text-[12px]"
+              checked={allowCreditOverflow}
+              onChange={setAllowCreditOverflow}
+              showLabel
+              label={`If I run out of minutes, pay the rest in AI credits (${OVERFLOW_MINUTES_PER_CREDIT} minutes = 1 credit${
+                minutesShort > 0 ? `, ${overflowCreditsFor(minutesShort)} credit${overflowCreditsFor(minutesShort) === 1 ? "" : "s"} for this video` : ""
+              })`}
+            />
           </div>
         </div>
       </div>

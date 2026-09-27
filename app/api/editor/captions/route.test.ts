@@ -9,17 +9,29 @@ import { NextRequest } from "next/server";
 let authUser: { userId: string } | null = { userId: "u1" };
 vi.mock("@/lib/auth", () => ({ getAuthUser: vi.fn(async () => authUser) }));
 
-const asset = { id: "asset-1", userId: "u1", url: "https://s3.example.com/asset-1.mp4" };
+const asset: { id: string; userId: string; url: string; duration: number | null } =
+  { id: "asset-1", userId: "u1", url: "https://s3.example.com/asset-1.mp4", duration: 150 };
 vi.mock("@/lib/prisma", () => ({
   prisma: { asset: { findFirst: vi.fn(async () => asset) } },
 }));
 
-const spendCredits = vi.fn(async () => ({ ok: true, balances: { total: 10 } }));
-const restoreSpend = vi.fn(async () => ({ ok: true }));
-vi.mock("@/lib/credits", () => ({ spendCredits: (...a: unknown[]) => spendCredits(...a), restoreSpend: (...a: unknown[]) => restoreSpend(...a) }));
+// Billed in Clip Minutes since 2026-09-26 (1 per minute of the asset). The
+// names spendCredits/restoreSpend are kept for the assertions below.
+const spendCredits = vi.fn(async (_p: { amount: number }): Promise<{ ok: boolean; balances: { total: number } }> =>
+  ({ ok: true, balances: { total: 10 } }));
+const restoreSpend = vi.fn(async (_p: unknown) => 0);
+vi.mock("@/lib/minutes", () => ({
+  spendMinutes: (p: { amount: number }) => spendCredits(p),
+  restoreMinutes: (p: unknown) => restoreSpend(p),
+  billableSourceMinutes: (sec: number) => Math.max(1, Math.ceil(sec / 60)),
+}));
+const probeMediaDuration = vi.fn(async (_path: string) => ({ durationSec: 61 as number | null }));
 
 vi.mock("@/utils/download", () => ({ downloadFile: vi.fn(async () => {}) }));
-vi.mock("@/utils/ffmpeg-render", () => ({ extractAudio: vi.fn(async () => {}) }));
+vi.mock("@/utils/ffmpeg-render", () => ({
+  extractAudio: vi.fn(async () => {}),
+  probeMediaDuration: (p: string) => probeMediaDuration(p),
+}));
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
 let transcribeImpl: () => Promise<{ word: string; start: number; end: number }[]>;
@@ -109,6 +121,37 @@ describe("POST /api/editor/captions", () => {
     const json = await (await POST(makeRequest({ assetId: "asset-1" }))).json();
     expect(json.message).toBe("Caption generation is temporarily unavailable. Please try again shortly.");
     expect(JSON.stringify(json)).not.toMatch(/elevenlabs|uuid|key id|malformed/i);
+  });
+
+  it("bills Clip Minutes by the asset's stored length, rounded up", async () => {
+    transcribeImpl = async () => [{ word: "hi", start: 0, end: 500 }];
+    asset.duration = 150;
+    const res = await POST(makeRequest({ assetId: "asset-1" }));
+    expect(res.status).toBe(200);
+    expect(spendCredits).toHaveBeenCalledWith(expect.objectContaining({ amount: 3, reason: "spend:editor-captions" }));
+    expect((await res.json()).minutesCharged).toBe(3);
+  });
+
+  it("probes the file when the asset has no stored length", async () => {
+    transcribeImpl = async () => [{ word: "hi", start: 0, end: 500 }];
+    asset.duration = null;
+    await POST(makeRequest({ assetId: "asset-1" }));
+    expect(probeMediaDuration).toHaveBeenCalled();
+    expect(spendCredits).toHaveBeenCalledWith(expect.objectContaining({ amount: 2 }));
+    asset.duration = 150;
+  });
+
+  it("refuses with 402 and a clear message when the user is short of minutes, before transcribing", async () => {
+    let transcribed = false;
+    transcribeImpl = async () => { transcribed = true; return []; };
+    spendCredits.mockResolvedValueOnce({ ok: false, balances: { total: 1 } });
+    const res = await POST(makeRequest({ assetId: "asset-1" }));
+    expect(res.status).toBe(402);
+    const json = await res.json();
+    expect(json.code).toBe("insufficient_minutes");
+    expect(json.error).toMatch(/needs 3 and you have 1/);
+    expect(transcribed).toBe(false);
+    expect(restoreSpend).not.toHaveBeenCalled();
   });
 
   it("returns real word timings on a successful provider", async () => {

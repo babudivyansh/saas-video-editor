@@ -52,6 +52,11 @@ export interface AuthUser {
    * could not tell subscription credits from purchased or bonus ones.
    */
   creditBalances: { bonus: number; subscription: number; purchased: number; total: number };
+  /** Clip Minutes — AutoClip's meter (2026-09-26). `minutes` is the total. */
+  minutes: number;
+  monthlyMinutes: number;
+  bonusMinutesExpireAt: string | null;
+  minuteBalances: { bonus: number; subscription: number; purchased: number; total: number };
   emailVerifiedAt: string | null;
   twoFactorEnabled: boolean;
   passwordChangedAt: string | null;

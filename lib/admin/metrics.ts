@@ -263,6 +263,24 @@ export async function aiSection(rangeDays: number) {
     costByProvider.set(provider, entry);
   }
 
+  // Clip Minutes (2026-09-26 model): AutoClip's meter. Spent vs refunded in
+  // range, from the minutes ledger — the counterpart of creditsCost above.
+  const [minutesSpent, minutesRefunded] = await Promise.all([
+    prisma.minuteTransaction.aggregate({
+      _sum: { delta: true },
+      _count: true,
+      where: { createdAt: { gte: rangeStart }, reason: { startsWith: "spend:" } },
+    }),
+    prisma.minuteTransaction.aggregate({
+      _sum: { delta: true },
+      where: { createdAt: { gte: rangeStart }, reason: { startsWith: "refund:" } },
+    }),
+  ]);
+  const { TOOL_COSTS } = await import("@/lib/tool-costs");
+  const spentMinutes = -(minutesSpent._sum.delta ?? 0);
+  const refundedMinutes = minutesRefunded._sum.delta ?? 0;
+  const netMinutes = Math.max(0, spentMinutes - refundedMinutes);
+
   const costUsers = await prisma.user.findMany({
     where: { id: { in: topCostUsersRaw.map((u) => u.userId) } },
     select: { id: true, email: true, name: true },
@@ -312,6 +330,15 @@ export async function aiSection(rangeDays: number) {
       };
     }),
     byTool: byTool.map((t) => ({ toolSlug: t.toolSlug, generations: t._count })),
+    clipMinutes: {
+      spent: spentMinutes,
+      refunded: refundedMinutes,
+      net: netMinutes,
+      spends: minutesSpent._count,
+      // Audited cost per source minute (lib/tool-costs.ts). An estimate: the
+      // RunPod face-tracking share is still to be checked against an invoice.
+      estCostUsd: netMinutes * (TOOL_COSTS["auto-clip"]?.costUsd ?? 0),
+    },
   };
 }
 

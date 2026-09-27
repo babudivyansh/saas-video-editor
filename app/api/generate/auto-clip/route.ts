@@ -36,15 +36,17 @@ export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy:
 async function handleGET(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const [{ getAutoClipPricing }, { getCaptionRenderPricing }, { getBalances }] = await Promise.all([
-    import("@/lib/autoclip-pipeline"),
+  const [{ getCaptionRenderPricing }, { getBalances }, { getMinuteBalances }] = await Promise.all([
     import("@/lib/captions/pricing"),
     import("@/lib/credits"),
+    import("@/lib/minutes"),
   ]);
-  const [pricing, captionPricing, balances] = await Promise.all([
-    getAutoClipPricing(), getCaptionRenderPricing(), getBalances(auth.userId),
+  const [captionPricing, balances, minutes] = await Promise.all([
+    getCaptionRenderPricing(), getBalances(auth.userId), getMinuteBalances(auth.userId),
   ]);
-  return NextResponse.json({ pricing, captionPricing, balance: balances.total });
+  // `balance` stays the CREDIT balance (premium captions and the overflow are
+  // paid in credits); `minutes` is the Clip Minutes balance a run spends.
+  return NextResponse.json({ captionPricing, balance: balances.total, minutes: minutes.total });
 }
 
 export const GET = withRateLimit(handleGET, { limit: 60, windowSec: 60, keyBy: "user", name: "generate:auto-clip:pricing" });

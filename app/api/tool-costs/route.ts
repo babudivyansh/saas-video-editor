@@ -3,6 +3,7 @@ import { getAllToolConfigs, TOOL_SERVICE } from "@/lib/tool-config";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
 import { VIDEO_MODELS } from "@/lib/models/videoModels";
 import { AUTOCLIP_PRICING_DEFAULTS } from "@/lib/autoclip-pricing";
+import { AUDIO_RATE_LABEL } from "@/lib/audio-pricing";
 
 // Public: live per-feature credit costs for the pricing page "what each feature
 // costs" table. Reads the same admin-editable tool config used for billing.
@@ -40,16 +41,23 @@ const LABELS: Record<string, string> = {
 // tool's shape is untouched.
 const IMAGE_COSTS = IMAGE_MODELS.map(m => m.creditCost);
 const VIDEO_COSTS = VIDEO_MODELS.map(m => m.creditsPerSecond * m.minDurationSeconds);
+// Billed in Clip Minutes, not credits (2026-09-26 pricing model): shown with
+// their own label and no credit figure.
+const MINUTE_BILLED: Record<string, string> = {
+  "auto-clip": "1 Clip Minute per minute of video",
+};
+
+// Priced by length in credits since 2026-09-26 (lib/audio-pricing.ts): a flat
+// number would be wrong for every file but one, so these show their rate.
+const RATE_LABELS: Record<string, string> = { ...AUDIO_RATE_LABEL };
+
 const RANGES: Record<string, { min: number; max: number }> = {
   "image-generator": { min: Math.min(...IMAGE_COSTS), max: Math.max(...IMAGE_COSTS) },
   "video-generator": { min: Math.min(...VIDEO_COSTS), max: Math.max(...VIDEO_COSTS) },
   // Matches creditCostForDuration's clamp in app/api/tools/subtitle-remover/route.ts.
   "subtitle-remover": { min: 2, max: 20 },
-  // Both bill by duration rather than per run, so a single figure would be
-  // misleading on the public page. Ranges describe a typical short run through
-  // a long one at the default AutoClip rates.
-  "auto-clip": { min: 3, max: 40 },
-  // A <=1-minute dub up to a 6-minute one, at the default per-minute rate.
+  // Dubbing bills by duration rather than per run, so a single figure would be
+  // misleading on the public page: a <=1-minute dub up to a 6-minute one, at the default per-minute rate.
   "clip-dub": { min: AUTOCLIP_PRICING_DEFAULTS.dubPerMinute, max: AUTOCLIP_PRICING_DEFAULTS.dubPerMinute * 6 },
 };
 
@@ -63,9 +71,11 @@ export async function GET() {
       slug,
       label: LABELS[slug],
       service: TOOL_SERVICE[slug] ?? "",
-      creditCost: c.creditCost,
+      creditCost: slug in MINUTE_BILLED ? 0 : c.creditCost,
       creditCostMin: RANGES[slug]?.min,
       creditCostMax: RANGES[slug]?.max,
+      ...(slug in MINUTE_BILLED ? { priceLabel: MINUTE_BILLED[slug] } : {}),
+      ...(slug in RATE_LABELS ? { priceLabel: RATE_LABELS[slug] } : {}),
     }))
     .sort((a, b) => a.creditCost - b.creditCost || a.label.localeCompare(b.label));
 

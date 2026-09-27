@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { expireBonusCredits, getBalances, grantCredits, setSubscriptionCredits } from "@/lib/credits";
+import { expireBonusMinutes, grantFreeTierMinutes, grantMonthlyMinutes, setSubscriptionMinutes } from "@/lib/minutes";
 import {
   BONUS_CREDITS_EXPIRY_DAYS,
   FREE_TIER_MONTHLY_BONUS_CREDITS,
@@ -71,7 +72,7 @@ export async function GET(req: NextRequest) {
   // renewal charge's own grant.
   const due = await prisma.user.findMany({
     where: { nextRefillAt: { not: null, lte: now } },
-    select: { id: true, monthlyCredits: true, nextRefillAt: true, subscriptionEndsAt: true, razorpaySubscriptionId: true },
+    select: { id: true, monthlyCredits: true, monthlyMinutes: true, nextRefillAt: true, subscriptionEndsAt: true, razorpaySubscriptionId: true },
   });
 
   for (const u of due) {
@@ -89,10 +90,12 @@ export async function GET(req: NextRequest) {
     if (applied > 0) {
       await grantCredits({ userId: u.id, bucket: "subscription", amount: applied, reason: "grant:refill" });
     }
+    // The month's Clip Minutes, under the same 2x rollover cap.
+    const minutesApplied = await grantMonthlyMinutes({ userId: u.id, monthlyMinutes: u.monthlyMinutes ?? 0, reason: "grant:refill" });
     const updated = await prisma.user.update({
       where: { id: u.id },
       data: { nextRefillAt, lowCreditEmailSentAt: null },
-      select: { email: true, firstName: true, name: true, credits: true },
+      select: { email: true, firstName: true, name: true, credits: true, minutes: true },
     });
 
     // ── Credits refill notification (non-fatal) ────────────────────
@@ -101,6 +104,7 @@ export async function GET(req: NextRequest) {
       updated.firstName ?? updated.name ?? "",
       applied,
       updated.credits,
+      minutesApplied > 0 ? { added: minutesApplied, balance: updated.minutes } : undefined,
     ).catch((e) => logger.error("cron/refill-credits", `email error for ${u.id}`, e));
 
     refilled++;
@@ -165,6 +169,7 @@ export async function GET(req: NextRequest) {
         subscriptionEndsAt: null,
         nextRefillAt: null,
         monthlyCredits: 0,
+        monthlyMinutes: 0,
         subscriptionCancelledAt: null,
         // The lapsed user rejoins the free tier's monthly drip from the NEXT
         // cycle (anchoring at `now` would grant the drip in this same run).
@@ -173,6 +178,7 @@ export async function GET(req: NextRequest) {
     });
     // Subscription credits end with the subscription; purchased/bonus survive.
     await setSubscriptionCredits(u.id, 0, "lapse");
+    await setSubscriptionMinutes(u.id, 0, "lapse");
     expired++;
   }
 
@@ -183,6 +189,14 @@ export async function GET(req: NextRequest) {
   });
   for (const u of staleBonus) {
     if ((await expireBonusCredits(u.id)) > 0) bonusExpired++;
+  }
+  // Bonus Clip Minutes keep their own expiry clock.
+  const staleBonusMinutes = await prisma.user.findMany({
+    where: { bonusMinutesExpireAt: { not: null, lte: now }, bonusMinutes: { gt: 0 } },
+    select: { id: true },
+  });
+  for (const u of staleBonusMinutes) {
+    if ((await expireBonusMinutes(u.id)) > 0) bonusExpired++;
   }
 
   // ── 4. Free-tier monthly grant ──────────────────────────────────────────────
@@ -202,6 +216,8 @@ export async function GET(req: NextRequest) {
       reason: "grant:free-tier",
       bonusExpiresAt: new Date(now.getTime() + BONUS_CREDITS_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
     });
+    // ...and the free tier's monthly Clip Minutes, on the same anchor.
+    await grantFreeTierMinutes(u.id, "grant:free-tier");
     await prisma.user.update({ where: { id: u.id }, data: { freeCreditsRefillAt: anchor } });
     freeGranted++;
   }

@@ -4,8 +4,8 @@ import path from "path";
 import fs from "fs";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { spendCredits, restoreSpend } from "@/lib/credits";
-import { extractAudio } from "@/utils/ffmpeg-render";
+import { spendMinutes, restoreMinutes, billableSourceMinutes } from "@/lib/minutes";
+import { extractAudio, probeMediaDuration } from "@/utils/ffmpeg-render";
 import { transcribe } from "@/lib/transcription";
 import { downloadFile } from "@/utils/download";
 import { logger } from "@/lib/logger";
@@ -16,13 +16,16 @@ import {
   TRANSCRIPTION_UNAVAILABLE_MESSAGE,
 } from "@/lib/transcription-runtime";
 
-const CREDIT_COST = 1;
-
 // POST /api/editor/captions { assetId, languageCode? }
 // Transcribes a video asset from the user's library and returns word-level
 // timings (source-time seconds). The client turns these into caption text
-// clips aligned to wherever the clip sits on the timeline. Costs 1 credit;
-// refunded if transcription fails. languageCode is optional — omitted or
+// clips aligned to wherever the clip sits on the timeline.
+//
+// Costs Clip Minutes — 1 per minute of the asset, rounded up (2026-09-26
+// pricing model; it was a flat 1 credit). Speech-to-text is billed by length,
+// and the WHOLE asset is transcribed, not just the trimmed part on the
+// timeline. Charged after the length is known but before the paid provider
+// call; refunded if transcription fails. languageCode is optional — omitted or
 // "auto" lets Scribe auto-detect the spoken language (the previous, only
 // behavior before the Caption panel's language selector existed).
 export async function POST(req: NextRequest) {
@@ -62,17 +65,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Bucket-aware atomic spend (lib/credits.ts).
   const spendRef = `editor-captions:${assetId}:${Date.now()}`;
-  const spend = await spendCredits({
-    userId: auth.userId,
-    amount: CREDIT_COST,
-    reason: "spend:editor-captions",
-    refId: spendRef,
-  });
-  if (!spend.ok) {
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
-  }
+  let charged = false;
 
   const tmp = os.tmpdir();
   const stamp = `captions-${auth.userId}-${Date.now()}`;
@@ -81,15 +75,38 @@ export async function POST(req: NextRequest) {
 
   try {
     await downloadFile(asset.url, mediaPath);
+    // The asset row's stored length when there is one, else probe the file.
+    const durationSec = asset.duration ?? (await probeMediaDuration(mediaPath)).durationSec ?? 0;
+    const minutesNeeded = billableSourceMinutes(durationSec);
+    const spend = await spendMinutes({
+      userId: auth.userId,
+      amount: minutesNeeded,
+      reason: "spend:editor-captions",
+      refId: spendRef,
+    });
+    if (!spend.ok) {
+      return NextResponse.json(
+        {
+          error: `Not enough Clip Minutes — captioning this video needs ${minutesNeeded} and you have ${spend.balances.total}.`,
+          code: "insufficient_minutes",
+          required: minutesNeeded,
+          balance: spend.balances.total,
+        },
+        { status: 402 },
+      );
+    }
+    charged = true;
     await extractAudio(mediaPath, audioPath);
     const words = await transcribe(fs.readFileSync(audioPath), "audio/mpeg", languageCode);
     if (words.length === 0) {
       throw new Error("No speech detected (or transcription unavailable)");
     }
-    return NextResponse.json({ words, creditsRemaining: spend.balances.total });
+    return NextResponse.json({ words, minutesCharged: minutesNeeded, minutesRemaining: spend.balances.total });
   } catch (err) {
     // Refund on failure — restores the exact buckets the spend drained.
-    await restoreSpend({ userId: auth.userId, refId: spendRef, reason: "refund:editor-captions-failed" });
+    if (charged) {
+      await restoreMinutes({ userId: auth.userId, refId: spendRef, reason: "refund:editor-captions-failed" }).catch(() => {});
+    }
     // classification never throws and never echoes the raw error text (which
     // can be a third-party provider's full error body) back to the client —
     // the full message/stack still reaches engineering via logger.error ->

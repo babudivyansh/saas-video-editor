@@ -56,6 +56,20 @@ vi.mock("@/lib/credits", () => ({
   grantCredits: vi.fn(async () => {}),
 }));
 
+// ── An in-memory Clip Minutes ledger for the run (2026-09-26 model) ───────
+// A run is paid in minutes; a DELIVERED run keeps them, a run with nothing
+// delivered gets them all back. Same net-held semantics as the credit map.
+const heldMinutes = new Map<string, number>();
+vi.mock("@/lib/autoclip-minutes", () => ({
+  chargeRunMinutes: vi.fn(async () => ({ ok: true, minutes: 0, overflowCredits: 0 })),
+  refundRunMinutes: vi.fn(async (_u: string, projectId: string) => {
+    const key = `auto-clip:${projectId}`;
+    const net = heldMinutes.get(key) ?? 0;
+    heldMinutes.set(key, 0);
+    return { minutes: net, credits: 0 };
+  }),
+}));
+
 // ── Prisma: one project, its clips ─────────────────────────────────────────
 type ClipRow = { id: string; status: string; durationSec: number; videoUrl: string | null; score: number | null };
 let project: { id: string; userId: string; uploadedVideoUrl: string; status: string; failureReason: string | null };
@@ -113,7 +127,8 @@ const NOT_FINAL = { attempt: 1, isFinal: false };
 beforeEach(() => {
   vi.clearAllMocks();
   held.clear();
-  held.set(RUN, 20); // what the create route took up front
+  held.set(RUN, 20); // credits held up front (a premium-caption hold)
+  heldMinutes.set(RUN, 30); // what pickJob charged for a 30-minute source
   project = { id: "p1", userId: "u1", uploadedVideoUrl: "https://s3/src.mp4", status: "analyzing", failureReason: null };
   clips = [];
   downloadFile.mockResolvedValue(undefined);
@@ -200,8 +215,10 @@ describe("renderJob — a failed render", () => {
     await expect(renderJob({ projectId: "p1" }, FINAL)).rejects.toThrow("source gone");
     expect(project.status).toBe("completed");
     expect(clips.find((c) => c.id === "c2")!.status).toBe("failed");
-    // Default pricing for the one delivered 30s clip: 1 clip × 1 + 1 block × 1.
-    expect(held.get(RUN)).toBe(2);
+    // Clip Minutes model: a delivered run keeps its minutes (billed on the
+    // source analysed), and the up-front credit hold is returned in full.
+    expect(heldMinutes.get(RUN)).toBe(30);
+    expect(held.get(RUN)).toBe(0);
   });
 });
 
@@ -217,7 +234,8 @@ describe("finalizeRun — the one way a run ends", () => {
     ];
     await finalizeRun("p1", "u1");
     await finalizeRun("p1", "u1");
-    expect(held.get(RUN)).toBe(2);
+    expect(held.get(RUN)).toBe(0);
+    expect(heldMinutes.get(RUN)).toBe(30);
     expect(project.status).toBe("completed");
     expect(notify).toHaveBeenCalledTimes(1);
   });
@@ -230,6 +248,8 @@ describe("finalizeRun — the one way a run ends", () => {
     await finalizeRun("p1", "u1", "boom");
     expect(held.get(RUN)).toBe(0);
     expect(held.get("auto-clip-analysis:p1")).toBe(0);
+    // Nothing delivered: the run's minutes go back too.
+    expect(heldMinutes.get(RUN)).toBe(0);
     expect(project.status).toBe("failed");
   });
 

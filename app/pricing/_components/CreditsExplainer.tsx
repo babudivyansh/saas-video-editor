@@ -191,6 +191,7 @@ function Calculator({ subs, term, onChoose }: { subs: DbPlan[]; term: number; on
 }
 
 function costLabel(t: ToolCost) {
+  if (t.priceLabel) return t.priceLabel;
   if (t.creditCostMin != null && t.creditCostMax != null && t.creditCostMax > t.creditCostMin) {
     return `${t.creditCostMin}–${t.creditCostMax} credits`;
   }

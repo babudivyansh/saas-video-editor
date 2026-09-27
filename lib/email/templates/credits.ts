@@ -13,13 +13,35 @@ export function creditsRefilled(p: {
   name: string;
   creditsAdded: number;
   newBalance: number;
+  /** Clip Minutes that landed with this refill, and the new minutes balance. */
+  minutesAdded?: number;
+  minutesBalance?: number;
 }): EmailDocument {
+  const withMinutes = (p.minutesAdded ?? 0) > 0;
   return {
-    subject: `Your ${p.creditsAdded} ${PRODUCT_NAME} credits have been refreshed`,
-    preheader: `Your monthly refill landed. Balance is now ${p.newBalance} credits.`,
+    subject: withMinutes
+      ? `Your ${PRODUCT_NAME} Clip Minutes and credits have been refreshed`
+      : `Your ${p.creditsAdded} ${PRODUCT_NAME} credits have been refreshed`,
+    preheader: withMinutes
+      ? `Your monthly refill landed: ${p.minutesBalance ?? p.minutesAdded} Clip Minutes and ${p.newBalance} credits.`
+      : `Your monthly refill landed. Balance is now ${p.newBalance} credits.`,
     blocks: [
-      { kind: "heading", text: `Your ${p.creditsAdded} credits have been refreshed` },
-      { kind: "paragraph", text: `Hi ${greet(p.name)}, your monthly credit refill is here. Time to create.` },
+      {
+        kind: "heading",
+        text: withMinutes
+          ? `+${p.minutesAdded} Clip Minutes and +${p.creditsAdded} credits`
+          : `Your ${p.creditsAdded} credits have been refreshed`,
+      },
+      { kind: "paragraph", text: `Hi ${greet(p.name)}, your monthly refill is here. Time to create.` },
+      ...(withMinutes
+        ? ([{
+            kind: "hero",
+            label: "Clip Minutes",
+            value: String(p.minutesBalance ?? p.minutesAdded),
+            caption: "for Auto Clips",
+            tone: "brand",
+          }] as const)
+        : []),
       {
         kind: "hero",
         label: "Current balance",
@@ -35,30 +57,32 @@ export function creditsRefilled(p: {
 export function questRankReward(p: {
   name: string;
   level: string;
-  creditsAdded: number;
+  /** Bonus Clip Minutes granted (rank rewards are paid in minutes since 2026-09-26). */
+  minutesAdded: number;
+  /** The Clip Minutes balance after the grant. */
   newBalance: number;
 }): EmailDocument {
   return {
-    subject: `You reached ${p.level} — ${p.creditsAdded} bonus credits added`,
-    preheader: `Your ${p.level} reward is in your account. Bonus credits expire in 30 days.`,
+    subject: `You reached ${p.level} — ${p.minutesAdded} bonus Clip Minutes added`,
+    preheader: `Your ${p.level} reward is in your account. Bonus Clip Minutes expire in 30 days.`,
     blocks: [
       { kind: "heading", text: `You reached ${p.level}` },
       {
         kind: "paragraph",
-        text: `Nice work, ${greet(p.name)} — you've unlocked the ${p.level} rank on your onboarding quests, and ${p.creditsAdded} bonus ${plural(p.creditsAdded, "credit")} just landed in your account.`,
+        text: `Nice work, ${greet(p.name)} — you've unlocked the ${p.level} rank on your onboarding quests, and ${p.minutesAdded} bonus Clip Minutes just landed in your account. That's ${p.minutesAdded} minutes of video to turn into clips.`,
       },
       {
         kind: "hero",
-        label: "Bonus credits added",
-        value: `+${p.creditsAdded}`,
-        caption: `Balance is now ${p.newBalance} ${plural(p.newBalance, "credit")}`,
+        label: "Bonus Clip Minutes added",
+        value: `+${p.minutesAdded}`,
+        caption: `Balance is now ${p.newBalance} Clip Minutes`,
         tone: "brand",
       },
       {
         // The expiry is the entire reason this email exists — these grants were
         // previously made silently and could lapse completely unnoticed.
         kind: "paragraph",
-        text: `Bonus credits are spent first and expire 30 days from today (${formatDateShort(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))}), so put them to work.`,
+        text: `Bonus Clip Minutes are spent first and expire 30 days from today (${formatDateShort(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))}), so put them to work.`,
       },
       { kind: "button", href: DASHBOARD_URL, label: "Start creating" },
     ],
@@ -176,6 +200,43 @@ export function autoTopupPrompt(p: {
         tone: "fine",
         text: "You can turn off auto top-up any time from Billing settings.",
       },
+    ],
+  };
+}
+
+/**
+ * Low Clip Minutes warning (2026-09-26 model) — the minutes twin of lowCredits.
+ * Fired once per cycle when a spend leaves the balance at or under ~20% of the
+ * monthly minutes (lib/minute-events.ts). Minutes pay for Auto Clips, so the
+ * useful framing is "how much video you can still turn into clips".
+ */
+export function lowMinutes(p: {
+  name: string;
+  minutesLeft: number;
+  /** "free" gets the upgrade CTA; paid plans get the top-up one. */
+  tier: "free" | "creator" | "pro" | "studio";
+}): EmailDocument {
+  const paid = p.tier !== "free";
+  return {
+    subject: `You're running low — ${p.minutesLeft} Clip ${p.minutesLeft === 1 ? "Minute" : "Minutes"} left`,
+    preheader: `Enough for about ${p.minutesLeft} more ${plural(p.minutesLeft, "minute")} of video in Auto Clips.`,
+    blocks: [
+      { kind: "heading", text: "You're running low on Clip Minutes" },
+      {
+        kind: "paragraph",
+        text: html`Hi ${greet(p.name)}, you have <strong>${p.minutesLeft} Clip ${plural(p.minutesLeft, "Minute")}</strong>
+          left — Auto Clips use 1 minute per minute of video you upload.`,
+      },
+      { kind: "hero", label: "Clip Minutes left", value: String(p.minutesLeft), tone: "warning" },
+      {
+        kind: "callout",
+        tone: "warning",
+        title: "Tip",
+        body: "Re-running a video you already clipped in the last 7 days is free — try different clip lengths without spending minutes.",
+      },
+      paid
+        ? { kind: "button", href: `${DASHBOARD_URL}?billing=1&tab=topup`, label: "Top up minutes", tone: "warning" }
+        : { kind: "button", href: PRICING_URL, label: "Get more minutes", tone: "warning" },
     ],
   };
 }

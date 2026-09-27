@@ -25,7 +25,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: "Getting started with Clipiro",
     summary: "From signup to your first clip in about five minutes.",
     paragraphs: [
-      { text: "Create an account with your email or Google. New accounts start on the free plan with bonus credits, so you can try the core tools before paying anything." },
+      { text: "Create an account with your email or Google. New accounts start on the free plan with 30 Clip Minutes and 10 AI credits a month, so you can try Auto Clips and the AI tools before paying anything." },
       { lead: "Upload a video.", text: "From the dashboard, open Auto Clips and upload a long-form video — a podcast episode, webinar, stream VOD, or YouTube export. Uploads support large files via chunked upload, so a spotty connection won't restart you from zero." },
       { lead: "Let Auto Clips analyze it.", text: "The AI transcribes your video, scores the strongest moments, and proposes a shortlist of clips with captions and smart reframing for vertical formats. Nothing is charged until you confirm which clips to keep." },
       { lead: "Review, tweak, export.", text: "Trim a clip's edges, restyle captions, or open it in the full editor for deeper changes. Exported clips land in your Clips library, ready to download and post." },
@@ -35,14 +35,16 @@ export const HELP_ARTICLES: HelpArticle[] = [
   {
     slug: "how-credits-work",
     category: "Credits & billing",
-    title: "How credits work",
-    summary: "What credits pay for, how they're deducted, and when they expire.",
+    title: "How Clip Minutes and credits work",
+    summary: "The two balances, what each pays for, and when they expire.",
     paragraphs: [
-      { text: "Credits are Clipiro's single currency for AI work: generating auto clips, running AI tools, rendering exports. Each tool shows its credit cost up front, and costs scale with video length where processing time does too." },
-      { lead: "Buckets.", text: "Your balance can hold three kinds of credits: bonus credits (signup and promo grants — used first, they expire), subscription credits (refilled monthly with your plan), and purchased top-up credits (never expire while your account is active). Spending always drains in that order, so nothing expiring is wasted." },
-      { lead: "Rollover.", text: "Unused subscription credits roll over month to month up to twice your monthly allowance." },
-      { lead: "Refunds on failure.", text: "If a job fails partway, the unused portion of what you were charged is automatically refunded to your balance. Every movement appears in your billing history." },
-      { text: "Running low mid-month? Buy a top-up pack from the Billing page, or enable auto-topup so renders never stall." },
+      { text: "Your account has two balances. Clip Minutes pay for Auto Clips: 1 minute per minute of video you upload, however many clips it makes. AI credits pay for everything else — the AI tools, dubbing, and premium captions. Both are shown in the top bar." },
+      { lead: "Clip Minutes.", text: "A 45-minute podcast uses 45 Clip Minutes whether you ask for 3 clips or 20. Re-running the same video within 7 days is free, and a run that fails is refunded in full. If you run out, you can top up, or tick the option to pay the rest in AI credits (3 minutes = 1 credit)." },
+      { lead: "AI credits.", text: "Each tool shows its cost before you run it. Tools that work on audio or text are priced by length — for example, voiceover costs 1 credit per 500 characters — so short jobs cost less." },
+      { lead: "Buckets.", text: "Each balance can hold bonus (signup, promos and rewards — used first, they expire after 30 days), subscription (refilled monthly with your plan) and purchased top-ups (never expire while your account is active). Spending drains them in that order, so nothing expiring is wasted." },
+      { lead: "Rollover.", text: "Unused subscription minutes and credits roll over month to month, up to twice your monthly allowance." },
+      { lead: "Refunds on failure.", text: "If a job fails partway, the unused portion of what you were charged is automatically refunded. Every movement appears in your billing history." },
+      { text: "Running low mid-month? Buy a minute pack or a credit pack from Billing → Top Up." },
     ],
   },
   {
@@ -51,7 +53,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: "Free plan limits",
     summary: "What's included free, and what upgrading unlocks.",
     paragraphs: [
-      { text: "The free plan includes a monthly drip of credits, a storage quota for uploads, and watermarked auto-clip exports capped at 720p." },
+      { text: "The free plan includes 30 watermarked Clip Minutes and 10 AI credits every month, a storage quota for uploads, and watermarked auto-clip exports capped at 720p." },
       { lead: "Watermark.", text: "Free exports carry a small Clipiro watermark in the corner. Paid plans remove it and export at full resolution." },
       { lead: "Storage.", text: "Uploads count against your plan's storage quota. Delete old source videos from Assets to free space — exported clips you've downloaded are safe to clear." },
       { text: "Upgrading from the Pricing page takes effect immediately: your subscription credits arrive on the spot and the watermark disappears from new exports." },

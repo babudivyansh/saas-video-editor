@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { grantCredits } from "@/lib/credits";
+import { grantMonthlyMinutes } from "@/lib/minutes";
 import { withAdmin, parseBody } from "@/lib/admin/api";
 import { auditAdminAction, auditIp } from "@/lib/admin/audit";
 import { refillSchema } from "@/lib/admin/schemas";
@@ -18,7 +19,7 @@ export const POST = withAdmin(async (req, { admin }) => {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, credits: true, monthlyCredits: true, subscriptionEndsAt: true, nextRefillAt: true },
+    select: { id: true, credits: true, monthlyCredits: true, monthlyMinutes: true, subscriptionEndsAt: true, nextRefillAt: true },
   });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
   if (!user.subscriptionEndsAt || user.subscriptionEndsAt <= now) {
@@ -58,6 +59,11 @@ export const POST = withAdmin(async (req, { admin }) => {
     amount: user.monthlyCredits,
     reason: "grant:admin-refill",
   });
+  // The month's Clip Minutes ride along with the credits. Capped at 2x like the
+  // cron's refill, so a forced repeat can't stack minutes without limit.
+  const minutesAdded = await grantMonthlyMinutes({
+    userId, monthlyMinutes: user.monthlyMinutes, reason: "grant:admin-refill",
+  });
 
   const updated = await prisma.user.findUnique({
     where: { id: userId },
@@ -66,9 +72,9 @@ export const POST = withAdmin(async (req, { admin }) => {
 
   await auditAdminAction(admin.userId, "subscription.manual_refill", userId, {
     before,
-    after: { creditsAdded: user.monthlyCredits, nextRefillAt, force: force ?? false },
+    after: { creditsAdded: user.monthlyCredits, minutesAdded, nextRefillAt, force: force ?? false },
     ip: auditIp(req),
   });
 
-  return NextResponse.json({ user: updated, creditsAdded: user.monthlyCredits });
+  return NextResponse.json({ user: updated, creditsAdded: user.monthlyCredits, minutesAdded });
 });

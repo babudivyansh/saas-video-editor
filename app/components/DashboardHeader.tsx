@@ -23,6 +23,7 @@ import { useDashboardNavItems } from "@/app/components/ToolsSidebar";
 import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
 import { Button } from "@/app/components/ui/Button";
 import { CreditsPill } from "@/app/components/ui/CreditsPill";
+import { FREE_TIER_MONTHLY_BONUS_MINUTES, isLowMinutes } from "@/lib/plans/tiers";
 import { Skeleton } from "@/app/components/ui/Skeleton";
 import { trialStatus } from "@/lib/billing/trial-status";
 
@@ -279,6 +280,12 @@ export default function DashboardHeader() {
   // one thing while getUserTier says another.
   const planState = effectivePlan(user);
   const hasActivePlan = planState.isActive;
+  // Amber minutes chip at ~20% of the month's Clip Minutes — the same line the
+  // low-minutes email fires at. Free accounts measure against the free grant.
+  const minutesLow = !!user && isLowMinutes(
+    user.minutes ?? 0,
+    hasActivePlan ? (user.monthlyMinutes ?? 0) : FREE_TIER_MONTHLY_BONUS_MINUTES,
+  );
   const basePlanName = planDisplayName(user, {
     free: t("freePlanFallback"),
     activeFallback: t("proPlanFallback"),
@@ -426,7 +433,7 @@ export default function DashboardHeader() {
               {planName}
             </button>
             <div data-tour="credits-pill" className="flex items-center">
-              <CreditsPill credits={user.credits ?? 0} />
+              <CreditsPill credits={user.credits ?? 0} minutes={user.minutes ?? 0} minutesLow={minutesLow} />
             </div>
 
             <NotificationBell className="hidden xl:flex" />
@@ -572,7 +579,7 @@ export default function DashboardHeader() {
                 </span>
                 <div className="flex items-center gap-1.5">
                   <NotificationBell />
-                  <CreditsPill credits={user.credits ?? 0} />
+                  <CreditsPill credits={user.credits ?? 0} minutes={user.minutes ?? 0} minutesLow={minutesLow} />
                 </div>
               </div>
               <div className="px-3 pt-1 pb-2">

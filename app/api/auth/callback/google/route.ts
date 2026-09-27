@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { completeLogin, setSessionCookie } from "@/lib/auth";
 import { sendWelcomeEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
+import { grantFreeTierMinutes } from "@/lib/minutes";
 import { env } from "@/lib/env";
 import { appUrl } from "@/lib/social/oauth";
 import { mintTwoFactorTicket } from "@/lib/two-factor-ticket";
@@ -132,6 +133,13 @@ export async function GET(req: NextRequest) {
           emailVerifiedAt: new Date(),
         },
       });
+
+      // The free tier's Clip Minutes, through the ledgered helper (a raw column
+      // write here would leave refunds nothing to restore against). Best-effort:
+      // a failed grant must not fail the signup — the monthly drip retries it.
+      const newUserId = user.id;
+      await grantFreeTierMinutes(newUserId, "grant:signup").catch((e) =>
+        logger.error("auth", `signup minutes grant failed for ${newUserId}`, e));
 
       // Google doesn't collect a phone or a typed code, so this is
       // cookie-attribution only — the helper degrades gracefully.

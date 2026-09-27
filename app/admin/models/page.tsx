@@ -24,8 +24,17 @@ interface ModelRow {
   override: { enabled?: boolean; creditCost?: number } | null;
 }
 interface AutoclipPricing {
-  perClip: number; perTwoMinutes: number; analysisPerHalfHour: number; rerender: number;
+  perClip: number; perTwoMinutes: number; analysisPerHalfHour: number; rerender: number; dubPerMinute: number;
 }
+
+// Since the Clip Minutes switch (2026-09-26) an AutoClip RUN is billed in
+// minutes of source video (lib/autoclip-minutes.ts), so perClip, perTwoMinutes
+// and analysisPerHalfHour no longer price anything and are not shown. These
+// are the credit prices that still apply.
+const EDITABLE_AUTOCLIP_PRICES: Array<{ key: keyof AutoclipPricing; label: string; hint: string }> = [
+  { key: "rerender", label: "Re-render (credits)", hint: "0 = free, under the 10/clip/day fair-use cap" },
+  { key: "dubPerMinute", label: "Dubbing (credits / min)", hint: "ElevenLabs Dubbing is $0.50/min" },
+];
 
 export default function AdminModelsPage() {
   const { token } = useAuth();
@@ -84,11 +93,14 @@ export default function AdminModelsPage() {
           {pricing && (
             <Card shadow padding="lg">
               <h2 className="text-base font-bold text-fg mb-1">AutoClip pricing</h2>
-              <p className="text-xs text-fg-subtle mb-4">Credits charged by the AutoClip pipeline — applies immediately, no deploy.</p>
+              <p className="text-xs text-fg-subtle mb-4">
+                A run costs 1 Clip Minute per minute of source video (free to re-run within 7 days).
+                These are the credit prices for AutoClip extras — they apply immediately, no deploy.
+              </p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {(Object.entries(pricing) as Array<[keyof AutoclipPricing, number]>).map(([key, value]) => (
+                {EDITABLE_AUTOCLIP_PRICES.map(({ key, label, hint }) => ({ key, label, hint, value: pricing[key] })).map(({ key, label, hint, value }) => (
                   <div key={key}>
-                    <label className="text-xs font-semibold text-fg-subtle block mb-1 capitalize">{key}</label>
+                    <label className="text-xs font-semibold text-fg-subtle block mb-1">{label}</label>
                     <input
                       type="number"
                       min={0}
@@ -99,6 +111,7 @@ export default function AdminModelsPage() {
                       }}
                       className="w-full border border-line rounded-lg px-3 py-2 text-sm"
                     />
+                    <p className="text-[10px] text-fg-subtle mt-1">{hint}</p>
                   </div>
                 ))}
               </div>

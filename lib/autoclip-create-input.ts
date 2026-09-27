@@ -39,6 +39,8 @@ export const autoClipCreateSchema = z
     silenceThresholdMs: z.number().int().min(50).max(5000).default(400),
     removeFillers: z.boolean().default(false),
     animatedCaptions: z.boolean().default(false),
+    // Opt-in: pay a Clip Minutes shortfall in AI credits (lib/autoclip-minutes.ts).
+    allowCreditOverflow: z.boolean().default(false),
   })
   .refine((b) => b.minDuration <= b.maxDuration, {
     message: "minDuration must not exceed maxDuration",

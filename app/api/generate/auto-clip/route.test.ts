@@ -17,8 +17,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const {
   mockEnv, spendCredits, logToolGeneration, toolEnabled,
   projectFindFirst, projectUpdateMany, projectUpdate, enqueue, rateLimitAllowed, userTier,
-  releaseRateLimit, restoreSpend,
+  releaseRateLimit, restoreSpend, precheckRunMinutes,
 } = vi.hoisted(() => ({
+  precheckRunMinutes: vi.fn(async (_p: unknown): Promise<
+    { ok: true } | { ok: false; needed: number; available: number; overflowCredits: number }
+  > => ({ ok: true })),
   releaseRateLimit: vi.fn(async (_key: string) => {}),
   restoreSpend: vi.fn(async (_p: unknown) => 0),
   mockEnv: { GEMINI_API_KEY: "test-key" } as Record<string, string | undefined>,
@@ -67,6 +70,7 @@ vi.mock("@/lib/autoclip-pipeline", () => ({
     perClip: 1, perTwoMinutes: 1, analysisPerHalfHour: 1, rerender: 1, dubPerMinute: 2,
   })),
 }));
+vi.mock("@/lib/autoclip-minutes", () => ({ precheckRunMinutes: (p: unknown) => precheckRunMinutes(p) }));
 vi.mock("@/lib/captions/pricing", () => ({
   getCaptionRenderPricing: vi.fn(async () => ({ perBillableMinute: 8, perRender: 0 })),
 }));
@@ -87,6 +91,7 @@ beforeEach(() => {
   rateLimitAllowed.mockResolvedValue({ allowed: true });
   userTier.mockResolvedValue("pro");
   enqueue.mockResolvedValue(undefined);
+  precheckRunMinutes.mockResolvedValue({ ok: true });
 });
 
 describe("the admin kill-switch", () => {
@@ -112,51 +117,66 @@ describe("the admin kill-switch", () => {
   });
 });
 
-describe("charging at Generate", () => {
-  it("charges before enqueueing, under the run's refId", async () => {
-    await POST(req({ projectId: "p1", clipCount: 8, minDuration: 15, maxDuration: 60 }));
-    expect(spendCredits).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: "u1", reason: "spend:auto-clip", refId: "auto-clip:p1" }),
-    );
+describe("charging at Generate (Clip Minutes model)", () => {
+  // Since 2026-09-26 a run is paid in Clip Minutes, taken in pickJob once the
+  // source duration is exact. The create route charges only the premium-
+  // caption HOLD in credits, and pre-checks minutes when the length is known.
+
+  it("charges no credits at all for a native caption style", async () => {
+    const res = await POST(req({ projectId: "p1", clipCount: 8, minDuration: 15, maxDuration: 60, captionTemplateId: "clean" }));
+    expect(res.status).toBe(200);
+    expect(spendCredits).not.toHaveBeenCalled();
     expect(enqueue).toHaveBeenCalled();
   });
 
-  it("charges MORE when a premium caption template is chosen", async () => {
-    await POST(req({ projectId: "p1", clipCount: 4, maxDuration: 60, captionTemplateId: "clean" }));
-    const nativeAmount = spendCredits.mock.calls[0][0].amount;
-
-    spendCredits.mockClear();
+  it("holds premium-caption credits before enqueueing, under the run's refId", async () => {
     await POST(req({ projectId: "p1", clipCount: 4, maxDuration: 60, captionTemplateId: "viral-bold-01" }));
-    const premiumAmount = spendCredits.mock.calls[0][0].amount;
-
-    // The provider bills per clip, rounded up to a whole minute each, so this
-    // is a large multiple — not a rounding difference.
-    expect(premiumAmount).toBeGreaterThan(nativeAmount);
+    expect(spendCredits).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "u1", reason: "spend:auto-clip", refId: "auto-clip:p1" }),
+    );
+    // 4 clips x 1 billable minute x the per-minute caption rate.
+    expect((spendCredits.mock.calls[0] as unknown[])[0]).toMatchObject({ amount: 32 });
   });
 
-  it("returns 402 with the shortfall instead of starting an unpaid render", async () => {
-    // This is the case the removed UI test covered: the client turns a 402 into
-    // the insufficient-credits modal, so the body shape matters.
+  it("returns 402 insufficient_credits when the caption hold can't be paid, and releases the claim", async () => {
     spendCredits.mockResolvedValueOnce({
       ok: false, reason: "insufficient_credits",
       balances: { bonus: 0, subscription: 0, purchased: 0, total: 2 },
     });
-    const res = await POST(req({ projectId: "p1", clipCount: 8 }));
+    const res = await POST(req({ projectId: "p1", clipCount: 8, captionTemplateId: "viral-bold-01" }));
     expect(res.status).toBe(402);
     const body = await res.json();
     expect(body.error).toBe("insufficient_credits");
-    expect(body.required).toBeGreaterThan(0);
     expect(body.balance).toBe(2);
     expect(enqueue).not.toHaveBeenCalled();
+    expect(projectUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: { status: "draft" } }));
   });
 
-  it("releases the claim on a 402 so the user can retry after topping up", async () => {
-    spendCredits.mockResolvedValueOnce({
-      ok: false, reason: "insufficient_credits",
-      balances: { bonus: 0, subscription: 0, purchased: 0, total: 0 },
-    });
+  it("refuses with insufficient_minutes BEFORE claiming, when a known-length source can't be paid for", async () => {
+    projectFindFirst.mockResolvedValueOnce({
+      id: "p1", userId: "u1", uploadedVideoUrl: "https://s3/v.mp4", sourceAsset: { duration: 3600 },
+    } as never);
+    precheckRunMinutes.mockResolvedValueOnce({ ok: false, needed: 60, available: 12, overflowCredits: 16 });
+    const res = await POST(req({ projectId: "p1" }));
+    expect(res.status).toBe(402);
+    expect(await res.json()).toMatchObject({ error: "insufficient_minutes", required: 60, balance: 12, overflowCredits: 16 });
+    expect(projectUpdateMany).not.toHaveBeenCalled();
+    expect(enqueue).not.toHaveBeenCalled();
+    expect(precheckRunMinutes).toHaveBeenCalledWith(expect.objectContaining({ durationSec: 3600 }));
+  });
+
+  it("skips the pre-check when the source length is unknown (URL import) — pickJob charges after the probe", async () => {
+    const res = await POST(req({ projectId: "p1" }));
+    expect(res.status).toBe(200);
+    expect(precheckRunMinutes).not.toHaveBeenCalled();
+  });
+
+  it("passes the credit-overflow opt-in through to the pick job", async () => {
+    await POST(req({ projectId: "p1", allowCreditOverflow: true }));
+    expect(enqueue.mock.calls[0][1]).toMatchObject({ allowCreditOverflow: true });
+    enqueue.mockClear();
     await POST(req({ projectId: "p1" }));
-    expect(projectUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: { status: "draft" } }));
+    expect(enqueue.mock.calls[0][1]).toMatchObject({ allowCreditOverflow: false });
   });
 });
 
@@ -233,34 +253,13 @@ describe("the enqueue", () => {
   });
 });
 
-describe("the free tier's monthly allowance", () => {
+describe("the free tier", () => {
   beforeEach(() => userTier.mockResolvedValue("free"));
 
-  it("refuses with free_limit_reached once the allowance is used", async () => {
-    rateLimitAllowed.mockResolvedValueOnce({ allowed: false });
-    const res = await POST(req({ projectId: "p1" }));
-    expect(res.status).toBe(402);
-    expect((await res.json()).error).toBe("free_limit_reached");
-    expect(spendCredits).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    ["a lost double-submit claim", () => { projectUpdateMany.mockResolvedValueOnce({ count: 0 }); }],
-    ["insufficient credits", () => {
-      spendCredits.mockResolvedValueOnce({
-        ok: false, reason: "insufficient_credits", balances: { bonus: 0, subscription: 0, purchased: 0, total: 0 },
-      } as never);
-    }],
-    ["a failed enqueue", () => { enqueue.mockRejectedValueOnce(new Error("down")); }],
-  ])("gives the free run back after %s", async (_label, arrange) => {
-    arrange();
-    await POST(req({ projectId: "p1" }));
-    expect(releaseRateLimit).toHaveBeenCalledWith("autoclip-free:u1");
-  });
-
-  it("keeps the free run when the run actually starts", async () => {
+  it("has no per-run quota any more — free runs spend the monthly bonus Clip Minutes", async () => {
     const res = await POST(req({ projectId: "p1" }));
     expect(res.status).toBe(200);
+    expect(rateLimitAllowed).not.toHaveBeenCalled();
     expect(releaseRateLimit).not.toHaveBeenCalled();
   });
 });
