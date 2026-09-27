@@ -36,8 +36,16 @@
       "socialTracker": "சமூக ட்ராக்கர்",
       "earnCredits": "கிரெடிட்கள் சம்பாதிக்க",
       "settings": "அமைப்புகள்",
-      "upgradePlan": "திட்டத்தை மேம்படுத்து"
+      "upgradePlan": "திட்டத்தை மேம்படுத்து",
+      "groupCreate": "உருவாக்கு",
+      "groupLibrary": "நூலகம்",
+      "groupGrow": "வளர்ச்சி",
+      "autoClip": "AutoClip",
+      "editor": "எடிட்டர்",
+      "allTools": "அனைத்து கருவிகள்",
+      "myClips": "என் கிளிப்புகள்"
     },
+    "planCard": { "manage": "நிர்வகி", "clipMinutes": "கிளிப் நிமிடங்கள்", "aiCredits": "AI கிரெடிட்கள்", "minutesValue": "{count} நிமி" },
     "corePages": {
       "dashboardHome": { "title": "டாஷ்போர்டு முகப்பு", "desc": "மேலோட்டம், க்வெஸ்ட்கள் & விரைவு தொடக்கம்" },
       "myClips": { "title": "என் கிளிப்கள்", "desc": "உங்கள் அனைத்து AutoClip திட்டங்கள்" },

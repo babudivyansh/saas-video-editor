@@ -36,8 +36,16 @@
       "socialTracker": "Rastreador social",
       "earnCredits": "Ganar créditos",
       "settings": "Configuración",
-      "upgradePlan": "Mejorar plan"
+      "upgradePlan": "Mejorar plan",
+      "groupCreate": "Crear",
+      "groupLibrary": "Biblioteca",
+      "groupGrow": "Crecer",
+      "autoClip": "AutoClip",
+      "editor": "Editor",
+      "allTools": "Todas las herramientas",
+      "myClips": "Mis clips"
     },
+    "planCard": { "manage": "Gestionar", "clipMinutes": "Minutos de clip", "aiCredits": "Créditos de IA", "minutesValue": "{count} min" },
     "corePages": {
       "dashboardHome": { "title": "Inicio del panel", "desc": "Resumen, misiones e inicio rápido" },
       "myClips": { "title": "Mis clips", "desc": "Todos tus proyectos de AutoClip" },

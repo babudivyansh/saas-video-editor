@@ -94,7 +94,7 @@ const questToggle = (page: Page) => page.locator("[aria-expanded]").first();
 // page keeps open. Navigate on domcontentloaded and assert on elements.
 test.describe.configure({ timeout: 120_000 });
 
-test("AutoClip is above the fold and the quest card is a collapsed bar below it", async ({ page, baseURL }) => {
+test("AutoClip is above the fold and the quest card is a collapsed bar that doesn't push it down", async ({ page, baseURL }) => {
   await setupDashboard(page, baseURL);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
@@ -110,8 +110,11 @@ test("AutoClip is above the fold and the quest card is a collapsed bar below it"
   expect(autoClipBox).not.toBeNull();
   expect(questBox).not.toBeNull();
 
-  // The whole point: AutoClip renders before the quest card, not after it.
-  expect(autoClipBox!.y).toBeLessThan(questBox!.y);
+  // The whole point: the quest card never sits above AutoClip in its column.
+  // At xl it lives in the right-hand rail, beside the main column; below xl
+  // the rail stacks under the main column.
+  const besideIt = questBox!.x >= autoClipBox!.x + autoClipBox!.width;
+  expect(besideIt || questBox!.y > autoClipBox!.y).toBe(true);
 
   // ...and it is genuinely on the first screen, not merely earlier in the DOM.
   expect(autoClipBox!.y).toBeLessThan(900);

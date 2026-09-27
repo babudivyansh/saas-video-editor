@@ -60,8 +60,10 @@ async function setup(page: Page, baseURL: string | undefined) {
 // Scoped to the card link and the dialog: the project title also appears in the
 // confirm dialog's message, so a bare getByText matches two elements.
 const cardFor = (page: Page, title: string) => page.getByRole("link", { name: new RegExp(title) });
+// The row's menu button sits beside its link (a button inside a link is
+// invalid HTML), and is named after the project it acts on.
 const kebabFor = (page: Page, title: string) =>
-  cardFor(page, title).getByRole("button", { name: /project actions/i });
+  page.getByRole("button", { name: new RegExp(`project actions.*${title}`, "i") });
 const dialog = (page: Page) => page.getByRole("dialog");
 
 test.describe.configure({ timeout: 120_000 });

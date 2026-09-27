@@ -1,31 +1,31 @@
 "use client";
 
-// Full-width dashboard header, shared across every dashboard page via
-// app/dashboard/layout.tsx. Left: logo + Resources/Features mega-menus
-// (featureLinks.ts, same data as the marketing navbar). Center: global
-// search over every tool/page. Right: Create menu, plan chip, credits
-// pill, Upgrade/Top Up, and the account avatar.
+// Dashboard header, shared across every dashboard page via
+// app/dashboard/layout.tsx. From xl up it sits beside the full-height
+// sidebar: page title, global search, Resources/Features menus, Create menu,
+// notifications and the account avatar — plan and usage live in the
+// sidebar's plan card. Below xl the sidebar is gone, so the header carries
+// the hamburger, the logo and the compact credits pill instead.
 //
 // Height must stay h-16 — NavDropdown's align="screen" mega-menu is pinned
 // at fixed top-[72px] and misaligns if the header grows.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import ClipiroLogo from "@/app/components/ClipiroLogo";
-import { effectivePlan, planDisplayName } from "@/lib/plans/effective-plan";
 import { NavDropdown, DropdownItem, type NavItem } from "@/app/components/NavDropdown";
 import SidebarAccount from "@/app/components/SidebarAccount";
 import { NotificationBell } from "@/app/components/NotificationBell";
 import { useAuth } from "@/app/components/AuthContext";
 import { FREE_FEATURES, VIDEO_TOOLS, AI_TOOLS, RESOURCES } from "@/app/components/featureLinks";
-import { useDashboardNavItems } from "@/app/components/ToolsSidebar";
+import { useDashboardNavItems, type ToolsSidebarNavGroup } from "@/app/components/ToolsSidebar";
 import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
 import { Button } from "@/app/components/ui/Button";
 import { CreditsPill } from "@/app/components/ui/CreditsPill";
-import { FREE_TIER_MONTHLY_BONUS_MINUTES, isLowMinutes } from "@/lib/plans/tiers";
 import { Skeleton } from "@/app/components/ui/Skeleton";
-import { trialStatus } from "@/lib/billing/trial-status";
+import { usePlanSummary } from "@/app/components/usePlanSummary";
 
 function IcSearch() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>;
@@ -265,6 +265,23 @@ function CreateMenu() {
   );
 }
 
+// ── Page title ─────────────────────────────────────────────────────────────
+// Names the current page from the sidebar's own items (longest href prefix
+// wins), so the title and the highlighted nav item can't disagree.
+function usePageTitle(groups: ToolsSidebarNavGroup[]): string {
+  const pathname = usePathname();
+  const tRail = useTranslations("Nav.rail");
+  const t = useTranslations("Nav");
+  const items = groups.flatMap((g) => g.items).filter((i) => i.href);
+  if (pathname === "/dashboard") return tRail("home");
+  const match = items
+    .filter((i) => i.href !== "/dashboard" && pathname.startsWith(i.href!))
+    .sort((x, y) => y.href!.length - x.href!.length)[0];
+  if (match) return match.label;
+  if (pathname.startsWith("/dashboard/settings")) return tRail("settings");
+  return t("dashboardHome");
+}
+
 // ── Header ─────────────────────────────────────────────────────────────────
 
 export default function DashboardHeader() {
@@ -273,26 +290,11 @@ export default function DashboardHeader() {
   const t = useTranslations("Nav");
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileSection, setMobileSection] = useState<string | null>(null);
-  const { nav: railNav, bottomNav: railBottomNav } = useDashboardNavItems();
+  const { groups: railGroups, bottomNav: railBottomNav } = useDashboardNavItems();
   const createItems = useCreateItems();
 
-  // Same helper the server gates entitlements with, so the chip can never say
-  // one thing while getUserTier says another.
-  const planState = effectivePlan(user);
-  const hasActivePlan = planState.isActive;
-  // Amber minutes chip at ~20% of the month's Clip Minutes — the same line the
-  // low-minutes email fires at. Free accounts measure against the free grant.
-  const minutesLow = !!user && isLowMinutes(
-    user.minutes ?? 0,
-    hasActivePlan ? (user.monthlyMinutes ?? 0) : FREE_TIER_MONTHLY_BONUS_MINUTES,
-  );
-  const basePlanName = planDisplayName(user, {
-    free: t("freePlanFallback"),
-    activeFallback: t("proPlanFallback"),
-  });
-  // A trial must be visible at a glance — the chip used to read plain "Pro",
-  // so nothing in the app said the plan was a free trial about to convert.
-  const planName = trialStatus(user) ? `${basePlanName} · Trial` : basePlanName;
+  const { hasActivePlan, planName, minutesLow } = usePlanSummary();
+  const pageTitle = usePageTitle(railGroups);
 
   // Affiliate Program points at the user's own affiliate dashboard
   // (/dashboard/referral) instead of the public marketing page — this header
@@ -307,7 +309,7 @@ export default function DashboardHeader() {
 
   return (
     <>
-    <header className="flex items-center gap-4 px-5 h-16 flex-shrink-0 border-b border-line bg-panel z-40">
+    <header className="flex items-center gap-2 sm:gap-4 px-3 sm:px-5 h-16 flex-shrink-0 border-b border-line bg-panel z-40">
       {user && (
         <button
           className="xl:hidden p-2 -ml-2 rounded-md text-ink-soft hover:text-ink flex-shrink-0"
@@ -318,9 +320,15 @@ export default function DashboardHeader() {
         </button>
       )}
 
-      <Link href="/dashboard" className="flex items-center flex-shrink-0" aria-label={t("dashboardHome")}>
-        <ClipiroLogo className="h-8" />
+      <Link href="/dashboard" className="xl:hidden flex items-center flex-shrink-0" aria-label={t("dashboardHome")}>
+        <ClipiroLogo className="h-6 sm:h-8" />
       </Link>
+      <p className="hidden xl:block text-[15px] font-semibold text-fg truncate min-w-0">{pageTitle}</p>
+
+      {/* Global search */}
+      <div className="hidden xl:flex flex-1 justify-end min-w-0">
+        <HeaderSearch className="relative w-full max-w-sm" />
+      </div>
 
       <nav className="hidden xl:flex items-center gap-1 flex-shrink-0">
         <NavDropdown label={t("resources")} width={340}>
@@ -401,14 +409,10 @@ export default function DashboardHeader() {
         </NavDropdown>
       </nav>
 
-      {/* Global search — grows to fill the middle */}
-      <div className="hidden xl:flex flex-1 justify-center min-w-0">
-        <HeaderSearch />
-      </div>
 
       <div className="flex-1 xl:hidden" />
 
-      <div className="flex items-center gap-2.5 flex-shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-2.5 flex-shrink-0">
         {isLoading ? (
           // "Still checking" must not render like "confirmed logged out" — a
           // brief in-flight /api/auth/me request used to show the Login
@@ -419,44 +423,12 @@ export default function DashboardHeader() {
           <>
             <CreateMenu />
 
-            {/* Plan chip + credits */}
-            <button
-              onClick={() => openBilling()}
-              title={t("yourPlan")}
-              data-tour="plan-chip"
-              className={`hidden xl:inline-flex items-center text-[11px] font-bold uppercase tracking-wider rounded-full px-2.5 py-1 transition-colors cursor-pointer ${
-                hasActivePlan
-                  ? "bg-tint-emerald text-success hover:bg-tint-fuchsia"
-                  : "bg-surface-3 text-ink-soft hover:bg-surface-3"
-              }`}
-            >
-              {planName}
-            </button>
-            <div data-tour="credits-pill" className="flex items-center">
+            {/* Plan + usage live in the sidebar's plan card from xl up. */}
+            <div data-tour="credits-pill" className="flex items-center xl:hidden">
               <CreditsPill credits={user.credits ?? 0} minutes={user.minutes ?? 0} minutesLow={minutesLow} />
             </div>
 
             <NotificationBell className="hidden xl:flex" />
-
-            {/* Monetization CTA: upgrade when free, top up when subscribed.
-                Visibility lives on this wrapper, not Button's own className —
-                Button.tsx bakes in an unconditional `inline-flex` base class,
-                and Tailwind's generated stylesheet happened to define that
-                rule after `.hidden`, so a bare `hidden xl:inline-flex` on the
-                Button itself silently never applied below `xl`: the button
-                (and everything after it in this flex row, including the
-                account avatar) stayed visible and overflowed off-screen on
-                mobile. A wrapper with no competing unconditional display
-                class sidesteps that ordering dependency entirely. */}
-            <div className="hidden xl:inline-flex">
-              <Button
-                variant={hasActivePlan ? "secondary" : "primary"}
-                size="sm"
-                onClick={() => openBilling({ tab: hasActivePlan ? "topup" : "overview" })}
-              >
-                {hasActivePlan ? t("topUp") : t("upgrade")}
-              </Button>
-            </div>
 
             <div data-tour="account-menu" className="flex items-center">
               <SidebarAccount />
@@ -478,12 +450,19 @@ export default function DashboardHeader() {
         <div className="relative w-full max-w-xs h-full bg-panel shadow-xl overflow-y-auto px-4 py-4 space-y-1">
           <HeaderSearch className="relative mb-3" />
 
-          {/* Primary nav (mirrors ToolsSidebar) */}
-          {railNav.map((item) => (
-            <Link key={item.id} href={item.href!} onClick={closeMobile} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink hover:bg-tint-blue transition-colors">
-              <span className="text-ink-soft">{item.icon}</span>
-              {item.label}
-            </Link>
+          {/* Primary nav (mirrors ToolsSidebar's groups) */}
+          {railGroups.map((group, i) => (
+            <div key={group.label ?? i}>
+              {group.label && (
+                <p className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-subtle">{group.label}</p>
+              )}
+              {group.items.map((item) => (
+                <Link key={item.id} href={item.href!} onClick={closeMobile} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink hover:bg-surface-2 transition-colors">
+                  <span className="text-ink-soft">{item.icon}</span>
+                  {item.label}
+                </Link>
+              ))}
+            </div>
           ))}
 
           <div className="my-2 border-t border-line" />

@@ -36,8 +36,16 @@
       "socialTracker": "सोशल ट्रॅकर",
       "earnCredits": "क्रेडिट्स कमवा",
       "settings": "सेटिंग्ज",
-      "upgradePlan": "प्लॅन अपग्रेड करा"
+      "upgradePlan": "प्लॅन अपग्रेड करा",
+      "groupCreate": "तयार करा",
+      "groupLibrary": "लायब्ररी",
+      "groupGrow": "वाढ",
+      "autoClip": "AutoClip",
+      "editor": "एडिटर",
+      "allTools": "सर्व टूल्स",
+      "myClips": "माझ्या क्लिप्स"
     },
+    "planCard": { "manage": "व्यवस्थापित करा", "clipMinutes": "क्लिप मिनिटे", "aiCredits": "AI क्रेडिट्स", "minutesValue": "{count} मिनिटे" },
     "corePages": {
       "dashboardHome": { "title": "डॅशबोर्ड होम", "desc": "आढावा, क्वेस्ट्स आणि क्विक स्टार्ट" },
       "myClips": { "title": "माझ्या क्लिप्स", "desc": "तुमचे सर्व AutoClip प्रोजेक्ट्स" },

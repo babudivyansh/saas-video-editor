@@ -42,8 +42,16 @@
       "socialTracker": "Social Tracker",
       "earnCredits": "Earn Credits",
       "settings": "Settings",
-      "upgradePlan": "Upgrade Plan"
+      "upgradePlan": "Upgrade Plan",
+      "groupCreate": "Create",
+      "groupLibrary": "Library",
+      "groupGrow": "Grow",
+      "autoClip": "AutoClip",
+      "editor": "Editor",
+      "allTools": "All tools",
+      "myClips": "My Clips"
     },
+    "planCard": { "manage": "Manage", "clipMinutes": "Clip minutes", "aiCredits": "AI credits", "minutesValue": "{count} min" },
     "corePages": {
       "dashboardHome": { "title": "Dashboard Home", "desc": "Overview, quests & quick start" },
       "myClips": { "title": "My Clips", "desc": "All your AutoClip projects" },

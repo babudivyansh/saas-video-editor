@@ -36,8 +36,16 @@
       "socialTracker": "社交追踪器",
       "earnCredits": "赚取积分",
       "settings": "设置",
-      "upgradePlan": "升级套餐"
+      "upgradePlan": "升级套餐",
+      "groupCreate": "创作",
+      "groupLibrary": "素材库",
+      "groupGrow": "增长",
+      "autoClip": "AutoClip",
+      "editor": "编辑器",
+      "allTools": "全部工具",
+      "myClips": "我的剪辑"
     },
+    "planCard": { "manage": "管理", "clipMinutes": "剪辑分钟数", "aiCredits": "AI 积分", "minutesValue": "{count} 分钟" },
     "corePages": {
       "dashboardHome": { "title": "仪表盘主页", "desc": "概览、任务与快速开始" },
       "myClips": { "title": "我的片段", "desc": "您所有的AutoClip项目" },

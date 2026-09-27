@@ -36,8 +36,16 @@
       "socialTracker": "ソーシャルトラッカー",
       "earnCredits": "クレジットを獲得",
       "settings": "設定",
-      "upgradePlan": "プランをアップグレード"
+      "upgradePlan": "プランをアップグレード",
+      "groupCreate": "作成",
+      "groupLibrary": "ライブラリ",
+      "groupGrow": "成長",
+      "autoClip": "AutoClip",
+      "editor": "エディター",
+      "allTools": "すべてのツール",
+      "myClips": "マイクリップ"
     },
+    "planCard": { "manage": "管理", "clipMinutes": "クリップ分数", "aiCredits": "AIクレジット", "minutesValue": "{count}分" },
     "corePages": {
       "dashboardHome": { "title": "ダッシュボードホーム", "desc": "概要、クエスト、クイックスタート" },
       "myClips": { "title": "マイクリップ", "desc": "すべてのAutoClipプロジェクト" },

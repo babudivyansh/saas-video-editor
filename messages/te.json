@@ -36,8 +36,16 @@
       "socialTracker": "సోషల్ ట్రాకర్",
       "earnCredits": "క్రెడిట్లు సంపాదించండి",
       "settings": "సెట్టింగ్‌లు",
-      "upgradePlan": "ప్లాన్ అప్‌గ్రేడ్ చేయండి"
+      "upgradePlan": "ప్లాన్ అప్‌గ్రేడ్ చేయండి",
+      "groupCreate": "సృష్టించు",
+      "groupLibrary": "లైబ్రరీ",
+      "groupGrow": "వృద్ధి",
+      "autoClip": "AutoClip",
+      "editor": "ఎడిటర్",
+      "allTools": "అన్ని టూల్స్",
+      "myClips": "నా క్లిప్‌లు"
     },
+    "planCard": { "manage": "నిర్వహించు", "clipMinutes": "క్లిప్ నిమిషాలు", "aiCredits": "AI క్రెడిట్‌లు", "minutesValue": "{count} నిమి" },
     "corePages": {
       "dashboardHome": { "title": "డాష్‌బోర్డ్ హోమ్", "desc": "అవలోకనం, క్వెస్ట్‌లు & త్వరిత ప్రారంభం" },
       "myClips": { "title": "నా క్లిప్‌లు", "desc": "మీ అన్ని AutoClip ప్రాజెక్ట్‌లు" },

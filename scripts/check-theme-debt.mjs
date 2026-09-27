@@ -129,7 +129,8 @@ const BUDGET = {
   // index-based caption grid) took its hover:ring-gray-300 with it.
   // 64 -> 63: one more went with the deleted caption tile grids.
   // 32 -> 31: /pricing redesign dropped the coupon button's hover:bg-gray-800.
-  "raw-gray": 30, // 31 -> 30: PlansModal lost its subscription coupon field (and its hover:bg-gray-800)
+  // 30 -> 26: Studio shell + home redesign dropped the old tinted cards and skeletons.
+  "raw-gray": 26, // 31 -> 30: PlansModal lost its subscription coupon field (and its hover:bg-gray-800)
   // 5 -> 4: same deletion.
   "bg-white": 0, // 1 -> 0: the GST receipt rewrite dropped the last print:bg-white
   "raw-slate": 9,
@@ -145,7 +146,8 @@ const BUDGET = {
   // 91 -> 90: the AI video generator removal took its tool-card preview.
   // 90 -> 82: the clips/assets library redesign replaced the assets sidebar,
   // toolbar and drop zone, and the Projects tab's gradient covers.
-  "raw-violet": 82, // AutoClip stage 6: old-system violet focus rings + hovers
+  // 82 -> 79: Studio shell + home redesign (tool tiles, header, quest card).
+  "raw-violet": 79, // AutoClip stage 6: old-system violet focus rings + hovers
   // First measurement, 2026-09-10, taken AFTER the Social Tracker's share was
   // paid off in the same commit that added the rule. The 138 that remain are
   // spread over ~30 files — pricing (11), PlansModal (10), admin/ops (8),
@@ -155,7 +157,8 @@ const BUDGET = {
   // green coupon chip, amber calculator notes, emerald success banner).
   // 119 -> 111: the AI video generator removal (its tool page, dashboard tile
   // and onboarding goal chip).
-  "raw-emerald": 111,
+  // 111 -> 108: Studio shell + home redesign.
+  "raw-emerald": 108,
   // 51 -> 47: four of the retired brand hexes lived in the caption tile tables
   // deleted below.
   // 47 -> 43: four more went with the per-page voice lists, whose entries
@@ -181,7 +184,8 @@ const BUDGET = {
   // carried a decorative colour literal, and two pages additionally held a
   // copy of the provider's voice ids purely to build preview URLs by hand.
   // 44 -> 41: AI video generator removal.
-  "inline-hex": 41, // AutoClip stage 6: score bands, poster gradients, drop zone
+  // 41 -> 38: quest card locked-rank chips moved onto theme tokens.
+  "inline-hex": 38, // AutoClip stage 6: score bands, poster gradients, drop zone
 };
 
 function walk(dir, out = []) {

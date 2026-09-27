@@ -36,8 +36,16 @@
       "socialTracker": "সোশ্যাল ট্র্যাকার",
       "earnCredits": "ক্রেডিট আয় করুন",
       "settings": "সেটিংস",
-      "upgradePlan": "প্ল্যান আপগ্রেড করুন"
+      "upgradePlan": "প্ল্যান আপগ্রেড করুন",
+      "groupCreate": "তৈরি করুন",
+      "groupLibrary": "লাইব্রেরি",
+      "groupGrow": "বৃদ্ধি",
+      "autoClip": "AutoClip",
+      "editor": "এডিটর",
+      "allTools": "সব টুল",
+      "myClips": "আমার ক্লিপ"
     },
+    "planCard": { "manage": "পরিচালনা", "clipMinutes": "ক্লিপ মিনিট", "aiCredits": "AI ক্রেডিট", "minutesValue": "{count} মিনিট" },
     "corePages": {
       "dashboardHome": { "title": "ড্যাশবোর্ড হোম", "desc": "ওভারভিউ, কোয়েস্ট ও কুইক স্টার্ট" },
       "myClips": { "title": "আমার ক্লিপ", "desc": "আপনার সব AutoClip প্রজেক্ট" },

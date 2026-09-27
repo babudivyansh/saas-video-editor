@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useTranslations, useFormatter, useNow } from "next-intl";
@@ -19,17 +20,13 @@ const ProductTour = dynamic(
   { ssr: false },
 );
 import { PRIMARY_GOALS, GOAL_TO_QUEST } from "@/lib/onboarding-config";
-import { ProjectStatusBadge } from "@/app/components/dashboard/ProjectStatusBadge";
 import { QuestCard, type QuestData } from "@/app/components/dashboard/QuestCard";
-import { CardMenuButton } from "@/app/components/dashboard/CardMenuButton";
 import { useProjectActions } from "@/app/components/dashboard/useProjectActions";
-import { AutoClipPreview, CutCropPreview, VoiceChangerPreview, SubtitleRemoverPreview } from "@/app/components/dashboard/toolPreviews";
 import { Button } from "@/app/components/ui/Button";
-import { Card } from "@/app/components/ui/Card";
 import { SectionHeader } from "@/app/components/ui/SectionHeader";
-import { StatTile, type StatAccent } from "@/app/components/ui/StatTile";
 import { ToastProvider, useToast } from "@/app/components/ui/Toast";
-import { ToolCard } from "@/app/components/ui/ToolCard";
+import { ProjectStatusChip } from "@/app/dashboard/clips/components/projectUi";
+import type { ClipRow } from "@/app/dashboard/clips/hooks/useClipsLibrary";
 
 const HAS_PROJECTS_STORAGE_KEY = "clipiro:hasAnyProjects";
 
@@ -57,50 +54,41 @@ function inProgressHref(p: InProgressProject): string {
   return `/dashboard/create/auto-clip?project=${p.id}`;
 }
 
-// ── Misc Icons ─────────────────────────────────────────────────────────────────
-function IcChevron() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M9 18l6-6-6-6"/></svg>;
-}
-function IcMic() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8"/></svg>;
-}
-function IcImage() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>;
-}
-function IcMusic() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>;
-}
-function IcUser() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
-}
-function IcEraser() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M20 20H7L3 16l10-10 7 7-3.5 3.5"/><path d="M6.5 17.5l4-4"/></svg>;
-}
-function IcYoutube() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M22.54 6.42a2.78 2.78 0 00-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46A2.78 2.78 0 001.46 6.42 29 29 0 001 12a29 29 0 00.46 5.58A2.78 2.78 0 003.41 19.6C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 001.95-1.95A29 29 0 0023 12a29 29 0 00-.46-5.58z"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02"/></svg>;
-}
+// ── Icons ──────────────────────────────────────────────────────────────────────
+const svg = {
+  viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.75,
+  strokeLinecap: "round", strokeLinejoin: "round",
+} as const;
+function IcChevron() { return <svg {...svg} strokeWidth={2} className="w-4 h-4"><path d="M9 18l6-6-6-6" /></svg>; }
+function IcMore() { return <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>; }
+function IcFilm() { return <svg {...svg} className="w-4 h-4"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M8 3v18M16 3v18M3 8h5M16 8h5M3 16h5M16 16h5" /></svg>; }
+function IcGift() { return <svg {...svg} className="w-5 h-5"><path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z" /></svg>; }
+function IcWrench() { return <svg {...svg} className="w-[18px] h-[18px]"><path d="M14.7 6.3a4 4 0 00-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 005.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z" /></svg>; }
+function IcScissors() { return <svg {...svg} className="w-[22px] h-[22px]"><circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M20 4L8.1 15.9M14.5 14.5L20 20M8.1 8.1L12 12" /></svg>; }
+function IcCrop() { return <svg {...svg} className="w-[22px] h-[22px]"><path d="M6 2v14a2 2 0 002 2h14M18 22V8a2 2 0 00-2-2H2" /></svg>; }
+function IcWave() { return <svg {...svg} className="w-[22px] h-[22px]"><path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4" /></svg>; }
+function IcSubs() { return <svg {...svg} className="w-[22px] h-[22px]"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M7 12h4M13 12h4M7 15h10" /></svg>; }
+function IcImage() { return <svg {...svg} className="w-[18px] h-[18px]"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>; }
+function IcUser() { return <svg {...svg} className="w-[18px] h-[18px]"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>; }
+function IcMic() { return <svg {...svg} className="w-[18px] h-[18px]"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" /><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" /></svg>; }
+function IcEraser() { return <svg {...svg} className="w-[18px] h-[18px]"><path d="M20 20H7L3 16l10-10 7 7-3.5 3.5" /><path d="M6.5 17.5l4-4" /></svg>; }
+function IcMusic() { return <svg {...svg} className="w-[18px] h-[18px]"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>; }
+function IcYoutube() { return <svg {...svg} className="w-[18px] h-[18px]"><rect x="2" y="5" width="20" height="14" rx="3" /><path d="M10 9l5 3-5 3z" /></svg>; }
 
 // ── Data ───────────────────────────────────────────────────────────────────────
-function useToolCards() {
+function useFeaturedTools() {
   const t = useTranslations("Dashboard.tools");
-  const large = useMemo(
+  return useMemo(
     () => [
-      { title: t("autoClip.title"), desc: t("autoClip.desc"), preview: <AutoClipPreview />, href: "/dashboard/create/auto-clip" },
-      { title: t("cutCrop.title"), desc: t("cutCrop.desc"), preview: <CutCropPreview />, href: "/dashboard/cut-and-crop" },
+      { icon: <IcScissors />, title: t("autoClip.title"), desc: t("autoClip.desc"), href: "/dashboard/create/auto-clip" },
+      { icon: <IcCrop />, title: t("cutCrop.title"), desc: t("cutCrop.desc"), href: "/dashboard/cut-and-crop" },
+      { icon: <IcWave />, title: t("voiceChanger.title"), desc: t("voiceChanger.desc"), href: "/dashboard/tools/voice-changer" },
+      { icon: <IcSubs />, title: t("subtitleRemover.title"), desc: t("subtitleRemover.desc"), href: "/dashboard/tools/subtitle-remover" },
     ],
     [t]
   );
-  const small = useMemo(
-    () => [
-      { title: t("voiceChanger.title"), desc: t("voiceChanger.desc"), preview: <VoiceChangerPreview />, href: "/dashboard/tools/voice-changer" },
-      { title: t("subtitleRemover.title"), desc: t("subtitleRemover.desc"), preview: <SubtitleRemoverPreview />, href: "/dashboard/tools/subtitle-remover" },
-    ],
-    [t]
-  );
-  return { large, small };
 }
 
-// Icon chips cycle through the tint washes with a matching accent color.
 function useMiniTools() {
   const t = useTranslations("Dashboard.miniTools");
   // The vocal remover's name comes from the tools page's namespace, which
@@ -108,18 +96,16 @@ function useMiniTools() {
   const tTools = useTranslations("Tools");
   return useMemo(
     () => [
-      { icon: <IcImage />, label: t("imageGenerator"), href: "/dashboard/tools/image-generator", chip: "bg-tint-blue text-brand" },
-      { icon: <IcUser />, label: t("aiFaceSwap"), href: "/dashboard/tools/face-swap", chip: "bg-tint-violet text-accent-violet" },
-      { icon: <IcMic />, label: t("voiceoverGenerator"), href: "/dashboard/tools/voiceover", chip: "bg-tint-fuchsia text-accent-fuchsia" },
-      { icon: <IcEraser />, label: t("backgroundRemover"), href: "/dashboard/tools/background-remover", chip: "bg-tint-amber text-warning" },
-      { icon: <IcMusic />, label: tTools("items.vocalRemover.title"), href: "/dashboard/tools/vocal-remover", chip: "bg-tint-emerald text-success" },
-      { icon: <IcYoutube />, label: t("youtubeDownloader"), href: "/dashboard/tools/youtube-downloader", chip: "bg-tint-rose text-accent-pink" },
+      { icon: <IcImage />, label: t("imageGenerator"), href: "/dashboard/tools/image-generator" },
+      { icon: <IcUser />, label: t("aiFaceSwap"), href: "/dashboard/tools/face-swap" },
+      { icon: <IcMic />, label: t("voiceoverGenerator"), href: "/dashboard/tools/voiceover" },
+      { icon: <IcEraser />, label: t("backgroundRemover"), href: "/dashboard/tools/background-remover" },
+      { icon: <IcMusic />, label: tTools("items.vocalRemover.title"), href: "/dashboard/tools/vocal-remover" },
+      { icon: <IcYoutube />, label: t("youtubeDownloader"), href: "/dashboard/tools/youtube-downloader" },
     ],
     [t, tTools]
   );
 }
-
-const STAT_ACCENTS: StatAccent[] = ["blue", "violet", "fuchsia", "emerald"];
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 // ToastProvider is not mounted globally in this app (see the note in
@@ -139,7 +125,8 @@ function DashboardPageInner() {
   const format = useFormatter();
   const relativeNow = useNow({ updateInterval: 60_000 });
   const { showToast } = useToast();
-  const { large: toolsLarge, small: toolsSmall } = useToolCards();
+  const tNav = useTranslations("Nav");
+  const featuredTools = useFeaturedTools();
   const miniTools = useMiniTools();
   const { shouldShowWelcome, shouldResumeTour, tourStep, advanceTour, finishTour } = useOnboarding();
   const [showTour, setShowTour] = useState(false);
@@ -261,6 +248,21 @@ function DashboardPageInner() {
 
   const firstName = user?.name?.split(" ")[0];
 
+  // The hero shows the user's own best clips. Nothing to show → no fan.
+  const heroQuery = useQuery({
+    queryKey: ["clips", "list", "home-hero"],
+    queryFn: async (): Promise<ClipRow[]> => {
+      const res = await fetch("/api/clips?sort=score&status=ready&limit=6", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return [];
+      return (await res.json()).clips ?? [];
+    },
+    enabled: !!user,
+    staleTime: 60_000,
+  });
+  const heroClips = (heroQuery.data ?? []).filter((c) => c.thumbnailUrl).slice(0, 3);
+
 
   // Gated on summary having loaded so existing users with real projects never
   // flash the welcome screen before it's suppressed — every pre-existing user
@@ -326,174 +328,202 @@ function DashboardPageInner() {
             onSkip={handleTourFinish}
           />
         )}
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-8 pt-6 pb-12 space-y-8">
+        <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-8 pt-6 pb-12">
+          <div className="grid xl:grid-cols-[minmax(0,1fr)_340px] gap-6 items-start">
+            <div className="min-w-0 space-y-8">
 
-          {/* ── Gradient hero ── */}
-          <div className="relative overflow-hidden rounded-[var(--radius-card)] grad-hero px-6 sm:px-10 py-8 sm:py-10">
-            <div className="clipiro-blob absolute -top-16 -right-10 w-64 h-64 rounded-full bg-white/15 blur-3xl pointer-events-none" />
-            <div className="clipiro-blob absolute -bottom-20 left-1/4 w-72 h-72 rounded-full bg-fuchsia-400/30 blur-3xl pointer-events-none" style={{ animationDelay: "-9s" }} />
-            <div className="relative">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-white/70 mb-2">
-                {firstName ? t("welcomeBack", { name: firstName }) : t("aiClipStudio")}
-              </p>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-white leading-tight max-w-xl">
-                {t("heroTitle")}
-              </h1>
-              <p className="text-sm text-white/75 mt-2 max-w-lg">
-                {t("heroSubtitle")}
-              </p>
-              <div className="flex flex-wrap items-center gap-3 mt-5">
-                <Button variant="inverse" size="lg" href="/dashboard/create/auto-clip" icon={<IcChevron />}>
-                  {t("startAutoClipping")}
-                </Button>
-                <Button variant="ghost" size="lg" href="/dashboard/editor">
-                  {t("openEditor")}
-                </Button>
-              </div>
-            </div>
-          </div>
+              {/* ── Hero — product, not a gradient wash ── */}
+              <section className="flex items-center gap-8 rounded-[var(--radius-feature)] border border-line bg-surface-2 px-6 sm:px-8 py-7 sm:py-8 overflow-hidden">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-subtle">
+                    {firstName ? t("welcomeBack", { name: firstName }) : t("aiClipStudio")}
+                  </p>
+                  <h1 className="mt-2.5 text-2xl sm:text-[32px] font-semibold tracking-tight text-fg leading-tight max-w-md">
+                    {t("heroTitle")}
+                  </h1>
+                  <p className="mt-3 text-sm text-fg-muted leading-relaxed max-w-lg">{t("heroSubtitle")}</p>
+                  <div className="flex flex-wrap items-center gap-3 mt-6">
+                    <Button variant="primary" size="lg" href="/dashboard/create/auto-clip" icon={<IcChevron />}>
+                      {t("startAutoClipping")}
+                    </Button>
+                    <Button variant="secondary" size="lg" href="/dashboard/editor">
+                      {t("openEditor")}
+                    </Button>
+                  </div>
+                </div>
+                {heroClips.length > 0 && (
+                  // Your own best clips, fanned — the page shows what the product
+                  // made for you instead of decoration.
+                  <div className="relative hidden md:block w-[300px] h-[250px] flex-shrink-0" aria-hidden="true">
+                    {heroClips.map((c, i) => (
+                      <div
+                        key={c.id}
+                        className={`absolute overflow-hidden rounded-2xl border bg-surface-3 aspect-[9/16] ${
+                          i === 0
+                            ? "left-[86px] top-0 w-[130px] z-10 border-primary/40"
+                            : i === 1
+                              ? "left-0 top-[30px] w-[118px] -rotate-6 border-line"
+                              : "right-0 top-[30px] w-[118px] rotate-6 border-line"
+                        }`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={c.thumbnailUrl!} alt="" className="w-full h-full object-cover" />
+                        {i === 0 && typeof c.score === "number" && (
+                          <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-bg/80 text-xs font-bold text-primary">{c.score}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
 
-          {/* ── Continue where you left off ── */}
-          {summary === null && optimisticReturning && (
-            <div className="space-y-4">
-              <div className="h-5 w-52 bg-gray-200/60 rounded animate-pulse" />
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-[76px] rounded-[var(--radius-card)] bg-gray-200/60 animate-pulse" />)}
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-[104px] rounded-[var(--radius-card)] bg-gray-200/60 animate-pulse" />)}
-              </div>
+              {/* ── Continue where you left off ── */}
+              {summary === null && optimisticReturning && (
+                <div className="space-y-2">
+                  {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-[68px] rounded-2xl bg-surface-2 animate-pulse" />)}
+                </div>
+              )}
+              {summary?.hasAnyProjects && summary.inProgress.length > 0 && (
+                <section className="rounded-[var(--radius-panel)] border border-line bg-surface-1 px-5 py-4">
+                  <SectionHeader title={t("continueWhereYouLeftOff")} action={{ label: t("viewAllClips"), href: "/dashboard/clips" }} />
+                  {summary.inProgress.length > 0 && (
+                    <div className="mt-2">
+                      {summary.inProgress.map(p => (
+                        <div key={p.id} className="group relative flex items-center gap-4 py-3 border-t border-line first:border-t-0">
+                          <Link href={inProgressHref(p)} className="absolute inset-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-primary/70" aria-label={p.title} />
+                          <span className="w-16 aspect-video rounded-lg bg-surface-3 border border-line flex items-center justify-center text-fg-subtle flex-shrink-0 pointer-events-none">
+                            <IcFilm />
+                          </span>
+                          <div className="flex-1 min-w-0 pointer-events-none">
+                            <p className="text-sm font-semibold text-fg truncate">{p.title}</p>
+                            {/* Editor projects never produce Clip rows — their
+                                work lives in editorDoc — so a clip count there
+                                is always "0 clips". Show last-touched instead. */}
+                            <p className="text-xs text-fg-subtle mt-0.5">
+                              {p.productType === "editor"
+                                ? t("editedAgo", { relative: format.relativeTime(new Date(p.updatedAt), relativeNow) })
+                                : t("clipCount", { count: p.clipCount })}
+                            </p>
+                          </div>
+                          <span className="pointer-events-none">
+                            <ProjectStatusChip project={{ ...p, _count: { clips: p.clipCount } }} />
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => projectActions.openMenu(e, { id: p.id, title: p.title })}
+                            aria-label={`${t("projectActions")}: ${p.title}`}
+                            className="relative z-10 w-9 h-9 rounded-xl flex items-center justify-center text-fg-subtle hover:text-fg hover:bg-surface-3 transition-colors cursor-pointer"
+                          >
+                            <IcMore />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {summary.inProgressTotal > summary.inProgress.length && (
+                    <Link href="/dashboard/clips" className="mt-2 inline-block text-sm font-semibold text-primary hover:text-primary-hover">
+                      {t("viewAllProjects", { count: summary.inProgressTotal })}
+                    </Link>
+                  )}
+                </section>
+              )}
+
+              {showGoalHint && goalDef && goalHintId && (
+                <FeatureHint
+                  hintId={goalHintId}
+                  title={t("stillWantTo", { goal: goalDef.label.toLowerCase() })}
+                  body={goalDef.description}
+                  cta={{ label: t("tryItNow"), href: goalDef.href }}
+                />
+              )}
+
+              {/* ── Start creating ── */}
+              <section className="space-y-4">
+                <SectionHeader title={t("startCreating")} />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {featuredTools.map((tool) => (
+                    <Link
+                      key={tool.href}
+                      href={tool.href}
+                      className="group flex items-start gap-4 rounded-[var(--radius-panel)] border border-line bg-surface-1 p-5 hover:border-primary/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+                    >
+                      <span className="w-12 h-12 rounded-2xl bg-surface-3 border border-line text-primary flex items-center justify-center flex-shrink-0">{tool.icon}</span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-base font-semibold text-fg">{tool.title}</span>
+                        <span className="block text-[13px] text-fg-muted mt-1 leading-relaxed">{tool.desc}</span>
+                        <span className="mt-3 inline-flex items-center gap-1 text-[13px] font-semibold text-primary">
+                          {t("tryNow")} <IcChevron />
+                        </span>
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+
+              {/* ── Clipiro Tools ── */}
+              <section className="space-y-4">
+                <SectionHeader title={t("clipiroTools")} action={{ label: t("viewAllTools"), href: "/dashboard/tools" }} />
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                  {miniTools.map((tool) => (
+                    <Link
+                      key={tool.href}
+                      href={tool.href}
+                      className="flex items-center gap-3 rounded-2xl border border-line bg-surface-1 px-4 py-3.5 hover:border-primary/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+                    >
+                      <span className="w-9 h-9 rounded-xl bg-surface-3 border border-line text-primary flex items-center justify-center flex-shrink-0">{tool.icon}</span>
+                      <span className="text-sm font-medium text-fg leading-tight">{tool.label}</span>
+                    </Link>
+                  ))}
+                </div>
+              </section>
             </div>
-          )}
-          {summary?.hasAnyProjects && (
-            <div className="space-y-4">
-              <SectionHeader title={t("continueWhereYouLeftOff")} action={{ label: t("viewAllClips"), href: "/dashboard/clips" }} />
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatTile label={t("totalClips")} value={summary.stats.totalClips} accent={STAT_ACCENTS[0]} />
-                <StatTile label={t("activeProjects")} value={summary.stats.activeProjects} accent={STAT_ACCENTS[1]} />
-                <StatTile label={t("completed")} value={summary.stats.completedProjects} accent={STAT_ACCENTS[2]} />
-                <StatTile label={t("creditsRemaining")} value={user?.credits ?? 0} accent={STAT_ACCENTS[3]} />
-              </div>
-              {summary.inProgress.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                  {summary.inProgress.map(p => (
-                    <Card key={p.id} href={inProgressHref(p)} className="group relative p-4 flex flex-col gap-2 hover:border-violet-200">
-                      <CardMenuButton
-                        label={t("projectActions")}
-                        onClick={(e) => projectActions.openMenu(e, { id: p.id, title: p.title })}
-                      />
-                      <p className="text-sm font-semibold text-ink line-clamp-2 pr-7">{p.title}</p>
-                      {/* Editor projects never produce Clip rows — their work
-                          lives in editorDoc — so a clip count there is always
-                          a meaningless "0 clips". Show when it was last
-                          touched instead. */}
-                      <p className="text-xs text-ink-soft">
-                        {p.productType === "editor"
-                          ? t("editedAgo", { relative: format.relativeTime(new Date(p.updatedAt), relativeNow) })
-                          : t("clipCount", { count: p.clipCount })}
-                      </p>
-                      <div className="mt-auto pt-2"><ProjectStatusBadge status={p.status} /></div>
-                    </Card>
+
+            {/* ── Right rail ── */}
+            <aside className="space-y-4 xl:sticky xl:top-6">
+              {summary?.hasAnyProjects && (
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    [t("totalClips"), summary.stats.totalClips],
+                    [t("activeProjects"), summary.stats.activeProjects],
+                    [t("completed"), summary.stats.completedProjects],
+                    [t("creditsRemaining"), user?.credits ?? 0],
+                  ].map(([label, value], i) => (
+                    <div key={i} className="rounded-2xl border border-line bg-surface-1 px-4 py-3.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-fg-subtle">{label}</p>
+                      <p className={`mt-1.5 text-2xl font-semibold tabular-nums ${i === 3 ? "text-primary" : "text-fg"}`}>{value}</p>
+                    </div>
                   ))}
                 </div>
               )}
-              {summary.inProgressTotal > summary.inProgress.length && (
-                <Link href="/dashboard/clips" className="inline-block text-sm font-semibold text-brand hover:underline">
-                  {t("viewAllProjects", { count: summary.inProgressTotal })}
-                </Link>
-              )}
-            </div>
-          )}
 
-          {/* ── Quick-start entry cards ── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Free Tools */}
-              <Card tint="emerald" href="/dashboard/tools/free" className="flex items-center gap-3 px-5 py-4">
-                <div className="w-10 h-10 rounded-xl bg-panel flex items-center justify-center flex-shrink-0 shadow-sm">
-                  <svg className="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4l7.07 17 2.51-7.39L21 11.07z" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-ink font-bold text-sm leading-tight">
-                    {t.rich("freeToolsCard.title", { em: (chunks) => <span className="text-emerald-600">{chunks}</span> })}
-                  </p>
-                  <p className="text-ink-soft text-xs mt-0.5">{t("freeToolsCard.desc")}</p>
-                </div>
-                <div className="text-emerald-400 flex-shrink-0">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M9 18l6-6-6-6" strokeLinecap="round"/></svg>
-                </div>
-              </Card>
+              {/* Onboarding quests. Collapsed to a header by default; expanded
+                  it is the tallest block on the page, which is why it lives in
+                  the rail rather than above "Start creating". */}
+              <QuestCard questData={questData} hasUser={!!user} onDiscordQuest={handleDiscordQuest} variant="rail" />
 
-              {/* Editor */}
-              <Card tint="blue" href="/dashboard/editor" className="flex items-center gap-3 px-5 py-4">
-                <div className="w-10 h-10 rounded-xl bg-panel flex items-center justify-center flex-shrink-0 shadow-sm">
-                  <svg className="w-4 h-4 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="2.18" strokeLinecap="round" strokeLinejoin="round"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M17 7h5M2 17h5M17 17h5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-ink font-bold text-sm leading-tight">
-                    {t.rich("editorCard.title", { em: (chunks) => <span className="text-brand">{chunks}</span> })}
-                  </p>
-                  <p className="text-ink-soft text-xs mt-0.5">{t("editorCard.desc")}</p>
-                </div>
-                <div className="text-brand/40 flex-shrink-0">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M9 18l6-6-6-6" strokeLinecap="round"/></svg>
-                </div>
-              </Card>
-          </div>
+              <Link
+                href="/dashboard/referral"
+                className="block rounded-[var(--radius-panel)] border border-line bg-surface-1 p-4 hover:border-primary/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+              >
+                <span className="w-10 h-10 rounded-xl bg-surface-3 border border-line text-primary flex items-center justify-center"><IcGift /></span>
+                <span className="block mt-3 text-[15px] font-semibold text-fg">{tNav("rail.earnCredits")}</span>
+                <span className="block mt-1 text-[13px] text-fg-muted leading-relaxed">{tNav("affiliateDesc")}</span>
+              </Link>
 
-          {showGoalHint && goalDef && goalHintId && (
-            <FeatureHint
-              hintId={goalHintId}
-              title={t("stillWantTo", { goal: goalDef.label.toLowerCase() })}
-              body={goalDef.description}
-              cta={{ label: t("tryItNow"), href: goalDef.href }}
-            />
-          )}
-
-          {/* ── Start creating ── */}
-          <div className="space-y-4">
-            <SectionHeader title={t("startCreating")} />
-            {/* Large tool cards — 2 col */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {toolsLarge.map((tool, i) => (
-                <ToolCard key={i} size="md" cta={t("tryNow")} {...tool} />
-              ))}
-            </div>
-            {/* Small tool cards — 3 col */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {toolsSmall.map((tool, i) => (
-                <ToolCard key={i} size="sm" cta={t("tryNow")} {...tool} />
-              ))}
-            </div>
-          </div>
-
-          {/* ── Onboarding quests ──
-                 Deliberately below "Start creating": expanded, this card is the
-                 tallest block on the page, and sitting above AutoClip it pushed
-                 the product's headline feature a screen and a half down. It
-                 collapses to a single header bar by default. */}
-          <QuestCard
-            questData={questData}
-            hasUser={!!user}
-            onDiscordQuest={handleDiscordQuest}
-          />
-
-          {/* ── Clipiro Tools section ── */}
-          <div className="space-y-4">
-            <SectionHeader title={t("clipiroTools")} action={{ label: t("viewAllTools"), href: "/dashboard/tools" }} />
-            <div className="grid grid-cols-3 lg:grid-cols-6 gap-4">
-              {miniTools.map((tool, i) => (
-                <Link
-                  key={i}
-                  href={tool.href}
-                  className="flex flex-col items-center justify-center gap-2 px-2 py-4 rounded-[var(--radius-card)] border border-card-border bg-panel hover:border-violet-200 hover:shadow-card transition-all group"
-                >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110 ${tool.chip}`}>
-                    {tool.icon}
-                  </div>
-                  <span className="text-[11px] font-medium text-fg text-center leading-tight">{tool.label}</span>
-                </Link>
-              ))}
-            </div>
+              <Link
+                href="/dashboard/tools/free"
+                className="flex items-center gap-3 rounded-[var(--radius-panel)] border border-line bg-surface-1 px-4 py-3.5 hover:border-primary/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+              >
+                <span className="w-9 h-9 rounded-xl bg-surface-3 border border-line text-primary flex items-center justify-center flex-shrink-0"><IcWrench /></span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[13px] font-semibold text-fg">
+                    {t.rich("freeToolsCard.title", { em: (chunks) => <span className="text-primary">{chunks}</span> })}
+                  </span>
+                  <span className="block text-xs text-fg-muted mt-0.5">{t("freeToolsCard.desc")}</span>
+                </span>
+                <span className="text-fg-subtle"><IcChevron /></span>
+              </Link>
+            </aside>
           </div>
         </div>
     </>
