@@ -45,11 +45,25 @@ interface BaseModelEntry<TParam extends string> {
   defaultValues: Partial<Record<TParam, string | number>>;
   /** Whether the frontend must require/allow/hide a reference-image upload for this model. */
   imageInput: "none" | "optional" | "required";
+  /**
+   * The aspect ratios the provider actually accepts, as "W:H" slugs. The UI
+   * offers exactly these and the route falls back to the model's default for
+   * anything else, so a user can never pick a shape the provider would reject
+   * (or silently ignore). Required whenever `aspectRatio` is a supported param.
+   */
+  aspectRatios?: readonly string[];
 }
 
 interface ImageBaseEntry extends BaseModelEntry<ImageParam> {
   /** Flat credits charged per generation (images have no duration dimension). */
   creditCost: number;
+  /**
+   * How the aspect ratio reaches the provider. "ratio" sends the slug as-is
+   * (e.g. "16:9"); "fal-image-size" translates it to fal's `image_size` preset
+   * enum (e.g. "landscape_16_9"), which is what most fal image models take —
+   * they silently ignore an `aspect_ratio` key, or reject a ratio slug.
+   */
+  aspectRatioFormat?: "ratio" | "fal-image-size";
 }
 
 // Gemini has no FAL endpoint at all — it's called directly against Google's REST API.
@@ -85,9 +99,23 @@ interface VideoBaseEntry extends BaseModelEntry<VideoParam> {
   supportsAudio?: boolean;
   /** credits/second billed when audio is on — fal charges more for audio. */
   audioCreditsPerSecond?: number;
-  /** Provider-supported floor, typically 2-5. */
+  /**
+   * Every clip length the provider accepts, ascending — copied from the fal
+   * input schema. Many models take an enum (Wan 5/10, LTX 6/8/10), so a range
+   * alone let the UI offer lengths that failed at the provider. Resolve the
+   * billed length via billedDurationSeconds(), shared by the UI and the route.
+   */
+  durationOptions: readonly number[];
+  /**
+   * The JSON type the provider expects for `duration`: a bare integer (default),
+   * a numeric string ("5"), or a seconds-suffixed string ("8s", Veo 3).
+   */
+  durationFormat?: "integer" | "string" | "seconds-suffix";
+  /** The resolutions offered, when the model takes a `resolution` param. */
+  resolutions?: readonly string[];
+  /** === durationOptions[0]; kept for the pricing surfaces that read it. */
   minDurationSeconds: number;
-  /** Provider-supported ceiling — the actual billed duration is also clamped
+  /** === the last durationOptions entry. The billed length is also clamped
    * by the user's plan tier via lib/plans/tiers.ts's TIER_MAX_DURATION_SECONDS. */
   maxDurationSeconds: number;
 }

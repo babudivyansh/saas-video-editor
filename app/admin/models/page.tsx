@@ -88,7 +88,7 @@ export default function AdminModelsPage() {
       ) : (
         <div className="space-y-6">
           <ModelTable title="Image models" unit="credits / generation" rows={image} onPatch={(modelId, body) => patchModelMutation.mutate({ modelId, body })} />
-          <ModelTable title="Video models" unit="credits / second" rows={video} onPatch={(modelId, body) => patchModelMutation.mutate({ modelId, body })} />
+          <ModelTable title="Video models" unit="base credits / second (audio and resolution tiers scale with it)" rows={video} onPatch={(modelId, body) => patchModelMutation.mutate({ modelId, body })} />
 
           {pricing && (
             <Card shadow padding="lg">

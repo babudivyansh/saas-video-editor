@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser, getUserTier } from "@/lib/auth";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { env } from "@/lib/env";
-import { getVideoModel, videoCreditsPerSecond, effectiveCostUsdPerSecond } from "@/lib/models/videoModels";
+import {
+  getVideoModel, videoCreditsPerSecond, effectiveCostUsdPerSecond, billedDurationSeconds,
+  formatDurationForProvider, resolveResolution, resolveVideoAspectRatio,
+} from "@/lib/models/videoModels";
 import { falSubmit, falPollUntilDone, extractResultUrl } from "@/lib/fal";
 import { chargeCredits, refundCredits, markGenerationStatus, checkModelAccess, updateGenerationProgress } from "@/lib/credits";
 import { maxDurationForTier } from "@/lib/plans/tiers";
@@ -81,7 +84,10 @@ async function handlePOST(req: NextRequest) {
   }
 
   const isVeo3 = modelEntry.integration === "direct-veo3-fast";
-  const referenceImageUrl = body.referenceImageUrl ?? null;
+  // Text-to-video endpoints have no image_url input, so an attached image was
+  // silently dropped while the user paid for a generation that ignored it. The
+  // UI no longer offers one there; a stale client's image is ignored the same way.
+  const referenceImageUrl = modelEntry.imageInput === "none" ? null : (body.referenceImageUrl ?? null);
 
   if (modelEntry.imageInput === "required" && !referenceImageUrl) {
     return NextResponse.json(
@@ -100,23 +106,17 @@ async function handlePOST(req: NextRequest) {
     );
   }
 
-  // Duration is billed per-second and clamped to both the provider's real
-  // ceiling (model.maxDurationSeconds) and the user's plan-tier ceiling
-  // (TIER_MAX_DURATION_SECONDS) — previously non-Veo3 requests were passed
-  // through completely uncapped, a real bug: a user could already request an
-  // arbitrarily long clip and be charged the same flat price.
+  // Duration is billed per-second: one of the model's provider-accepted lengths
+  // (durationOptions), capped by the user's plan tier (TIER_MAX_DURATION_SECONDS).
+  // The UI resolves the same helper, so the seconds shown are the seconds billed.
   const userTier = await getUserTier(auth.userId);
   const tierCap = maxDurationForTier(userTier);
-  const requestedDuration = body.duration ?? (isVeo3 ? 8 : 5);
-  const duration = Math.min(
-    Math.max(requestedDuration, modelEntry.minDurationSeconds),
-    Math.min(modelEntry.maxDurationSeconds, tierCap),
-  );
+  const duration = billedDurationSeconds(modelEntry, Number(body.duration), tierCap);
 
   // Credits/second depends on the selected resolution and (for Veo 3) the audio
   // flag — resolved via the shared helper so the charged amount always matches
   // what the UI showed. The admin runtime override, when set, wins over all.
-  const resolution = body.resolution ?? (modelEntry.defaultValues.resolution as string | undefined);
+  const resolution = resolveResolution(modelEntry, body.resolution);
   const audio = body.audio ?? modelEntry.defaultValues.audio === "on";
   const creditsPerSecond = videoCreditsPerSecond(modelEntry, {
     resolution,
@@ -126,7 +126,8 @@ async function handlePOST(req: NextRequest) {
   const CREDIT_COST = Math.ceil(creditsPerSecond * duration);
 
   const falModelId = modelEntry.falEndpoint;
-  const aspectRatio = body.aspectRatio ?? "16:9";
+  const aspectRatio = resolveVideoAspectRatio(modelEntry, body.aspectRatio);
+  const providerDuration = formatDurationForProvider(modelEntry, duration);
 
   const charge = await chargeCredits({
     userId: auth.userId,
@@ -173,14 +174,14 @@ async function handlePOST(req: NextRequest) {
       if (isVeo3) {
         // Veo3 input shape + result extraction, now with the audio toggle wired
         // through to fal's generate_audio (defaults on, matching prior behavior).
-        falInput = { prompt, duration, aspect_ratio: aspectRatio, generate_audio: audio };
+        falInput = { prompt, duration: providerDuration, aspect_ratio: aspectRatio, generate_audio: audio };
         if (referenceImageUrl) falInput.image_url = referenceImageUrl;
         resultPath = ["video.url"];
       } else {
         const bodyValues: Partial<Record<typeof modelEntry.supportedParameters[number], string | number>> = {
-          duration,
+          duration: providerDuration,
           aspectRatio,
-          resolution: body.resolution,
+          resolution,
           fps: body.fps,
           motion: body.motion,
           seed: body.seed,

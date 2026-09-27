@@ -1,6 +1,6 @@
 import type { TierId } from "@/lib/plans/tiers";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
-import { VIDEO_MODELS } from "@/lib/models/videoModels";
+import { VIDEO_MODELS, cheapestRunCredits } from "@/lib/models/videoModels";
 
 export interface ToolCost {
   /** Flat credits per generation — most of the non-registry tools. For
@@ -170,9 +170,9 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
 
 // "Starting at" display price for the two multi-model tools — kept in sync
 // with the cheapest model in each registry so the public/admin display never
-// drifts from what a user could actually pay. Video's "starting at" uses the
-// cheapest model's rate at its own default duration.
+// drifts from what a user could actually pay. Video's "starting at" is the
+// cheapest run a user can actually start: a model's shortest provider-accepted
+// length at its cheapest offered resolution (it used to multiply by a minimum
+// length the provider rejected, quoting "from 8" for a run that could not exist).
 export const IMAGE_GENERATOR_STARTING_CREDIT_COST = Math.min(...IMAGE_MODELS.map((m) => m.creditCost));
-export const VIDEO_GENERATOR_STARTING_CREDIT_COST = Math.min(
-  ...VIDEO_MODELS.map((m) => m.creditsPerSecond * m.minDurationSeconds),
-);
+export const VIDEO_GENERATOR_STARTING_CREDIT_COST = Math.min(...VIDEO_MODELS.map(cheapestRunCredits));

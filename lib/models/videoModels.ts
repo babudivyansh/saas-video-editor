@@ -4,9 +4,10 @@ import { VideoModelEntry } from "./types";
 // (app/api/tools/video-generator/route.ts and app/components/VideoGeneratorTool.tsx both
 // read this registry generically).
 //
-// Video models are priced PER SECOND (not flat) — the actually-billed duration
-// is clamped to [minDurationSeconds, min(maxDurationSeconds, tier's duration
-// cap)] by the route; see lib/plans/tiers.ts's TIER_MAX_DURATION_SECONDS.
+// Video models are priced PER SECOND (not flat). The billed length is one of the
+// model's durationOptions, capped by the user's plan tier (lib/plans/tiers.ts's
+// TIER_MAX_DURATION_SECONDS) — resolve it with billedDurationSeconds(), which the
+// route and the UI share, so the credits shown are the credits charged.
 // Every model (including Veo3) is gated purely by allowedTiers and billed
 // from the one standard credit pool — no per-model special-casing.
 // creditsPerSecond = ceil(costUsd(per second) * margin / REVENUE_FLOOR_USD_PER_CREDIT),
@@ -15,8 +16,20 @@ import { VideoModelEntry } from "./types";
 // figure, so "3x" was really ~2.4x after tax.
 // Margin 3x standard / 4x flagship.
 //
+// durationOptions / durationFormat / resolutions / aspectRatios / imageInput are
+// copied from each endpoint's fal OpenAPI input schema (checked 2026-09-27 via
+// https://fal.ai/api/openapi/queue/openapi.json?endpoint_id=<falEndpoint>).
+// Before that audit the UI offered one shared 2-15s range, 480-1080p and 16:9 /
+// 9:16 / 1:1 to every model, so many combinations — including Veo 3's and LTX's
+// defaults — failed at fal and were refunded. A reference image is only offered
+// where the endpoint takes `image_url`: the text-to-video endpoints dropped it.
+//
 // `id` for Veo3 is kept exactly "veo3-fast" to match the value the frontend has always
 // initialized its model state to (and always sent, even before the backend honored it).
+
+const range = (from: number, to: number): number[] =>
+  Array.from({ length: to - from + 1 }, (_, i) => from + i);
+
 export const VIDEO_MODELS: readonly VideoModelEntry[] = [
   {
     id: "veo3-fast",
@@ -31,12 +44,16 @@ export const VIDEO_MODELS: readonly VideoModelEntry[] = [
     creditsPerSecond: 10, // audio off: ceil(0.25*3/0.0784)
     audioCreditsPerSecond: 16, // audio on: ceil(0.40*3/0.0784)
     supportsAudio: true,
-    minDurationSeconds: 5,
-    maxDurationSeconds: 8, // provider ceiling for the "fast" tier
+    // fal: duration is the string enum "4s" | "6s" | "8s" — a bare number fails.
+    durationOptions: [4, 6, 8],
+    durationFormat: "seconds-suffix",
+    minDurationSeconds: 4,
+    maxDurationSeconds: 8,
     allowedTiers: ["pro", "studio"],
-    supportedParameters: ["prompt", "duration", "aspectRatio", "audio", "imageUpload"],
+    supportedParameters: ["prompt", "duration", "aspectRatio", "audio"],
     defaultValues: { duration: "8s", aspectRatio: "16:9", audio: "on" },
-    imageInput: "optional",
+    aspectRatios: ["16:9", "9:16"],
+    imageInput: "none", // text-to-video endpoint: no image_url
   },
   {
     id: "seedance-2.0",
@@ -52,14 +69,19 @@ export const VIDEO_MODELS: readonly VideoModelEntry[] = [
     // 1080p raised 21 -> 22 by the 2026-09-01 audit, then 22 -> 27 on 2026-09-26
     // when the floor moved from gross to net-of-GST ($0.0784).
     resolutionCredits: { "720p": 12, "1080p": 27 }, // 1080p: ceil(0.682*3/0.0784)
-    minDurationSeconds: 4, // provider floor (4-15s, or "auto")
+    // fal also takes 480p and 4k, but neither cost is audited — not offered.
+    resolutions: ["720p", "1080p"],
+    durationOptions: range(4, 15), // fal: string enum "4".."15" (or "auto")
+    durationFormat: "string",
+    minDurationSeconds: 4,
     maxDurationSeconds: 15,
     allowedTiers: ["pro", "studio"],
-    supportedParameters: ["prompt", "duration", "resolution", "aspectRatio", "imageUpload"],
+    supportedParameters: ["prompt", "duration", "resolution", "aspectRatio"],
     defaultValues: { duration: 5, resolution: "720p", aspectRatio: "16:9" },
+    aspectRatios: ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9"],
     inputMap: { aspectRatio: "aspect_ratio" },
     resultPath: ["video.url"],
-    imageInput: "optional",
+    imageInput: "none", // text-to-video endpoint: no image_url
   },
   {
     id: "gemini-omni",
@@ -72,14 +94,16 @@ export const VIDEO_MODELS: readonly VideoModelEntry[] = [
     // fal google/gemini-omni-flash (2026-08 audit): ~$0.125/s at 720p (token-based).
     costUsd: 0.125,
     creditsPerSecond: 5, // ceil(0.125*3/0.0784)
-    minDurationSeconds: 2,
-    maxDurationSeconds: 15, // ⚠️ verify: max duration not confirmed on fal
+    durationOptions: range(3, 10), // fal: integer 3-10
+    minDurationSeconds: 3,
+    maxDurationSeconds: 10,
     allowedTiers: ["pro", "studio"],
-    supportedParameters: ["prompt", "duration", "aspectRatio", "imageUpload"],
+    supportedParameters: ["prompt", "duration", "aspectRatio"],
     defaultValues: { duration: 5, aspectRatio: "16:9" },
+    aspectRatios: ["16:9", "9:16"],
     inputMap: { aspectRatio: "aspect_ratio" },
     resultPath: ["video.url"],
-    imageInput: "optional",
+    imageInput: "none",
   },
   {
     id: "grok-imagine-1.5",
@@ -90,18 +114,21 @@ export const VIDEO_MODELS: readonly VideoModelEntry[] = [
     integration: "fal",
     // fal xai/grok-imagine-video/v1.5 (2026-08 audit): 480p $0.08/s, 720p $0.14/s,
     // 1080p $0.25/s, plus $0.01 per input image (absorbed into the 3x margin).
+    // Image-to-video only: fal requires image_url, and the frame sets the shape.
     falEndpoint: "xai/grok-imagine-video/v1.5/image-to-video",
     costUsd: 0.14, // $/s at the default 720p
     creditsPerSecond: 6, // 720p: ceil(0.14*3/0.0784)
     resolutionCredits: { "480p": 4, "720p": 6, "1080p": 10 },
+    resolutions: ["480p", "720p", "1080p"],
+    durationOptions: range(2, 15), // fal: integer 1-15
     minDurationSeconds: 2,
     maxDurationSeconds: 15,
     allowedTiers: ["pro", "studio"],
-    supportedParameters: ["prompt", "duration", "resolution", "aspectRatio", "imageUpload"],
-    defaultValues: { duration: 5, resolution: "720p", aspectRatio: "16:9" },
-    inputMap: { aspectRatio: "aspect_ratio" },
+    supportedParameters: ["prompt", "duration", "resolution", "imageUpload"],
+    defaultValues: { duration: 5, resolution: "720p" },
+    inputMap: {},
     resultPath: ["video.url"],
-    imageInput: "optional",
+    imageInput: "required",
   },
   // Kling 3.0 is pulled from the registry until its per-second cost and
   // endpoint are verified with the provider (2026-07 pricing audit): a
@@ -122,14 +149,17 @@ export const VIDEO_MODELS: readonly VideoModelEntry[] = [
     costUsd: 0.14, // $/s at the default 720p
     creditsPerSecond: 6, // 720p: ceil(0.14*3/0.0784)
     resolutionCredits: { "720p": 6, "1080p": 11 }, // 1080p: ceil(0.28*3/0.0784)
-    minDurationSeconds: 2,
-    maxDurationSeconds: 15, // ⚠️ verify: max duration not confirmed on fal
+    resolutions: ["720p", "1080p"],
+    durationOptions: range(3, 15), // fal: integer enum 3-15
+    minDurationSeconds: 3,
+    maxDurationSeconds: 15,
     allowedTiers: ["pro", "studio"],
-    supportedParameters: ["prompt", "duration", "resolution", "aspectRatio", "imageUpload"],
+    supportedParameters: ["prompt", "duration", "resolution", "aspectRatio"],
     defaultValues: { duration: 5, resolution: "720p", aspectRatio: "16:9" },
+    aspectRatios: ["16:9", "9:16", "1:1", "4:3", "3:4"],
     inputMap: { aspectRatio: "aspect_ratio" },
     resultPath: ["video.url"],
-    imageInput: "optional",
+    imageInput: "none", // text-to-video endpoint: no image_url
   },
   {
     // id kept as "wan-2.7" so any stored client selection / analytics rows still
@@ -145,14 +175,19 @@ export const VIDEO_MODELS: readonly VideoModelEntry[] = [
     costUsd: 0.10, // $/s at the default 720p
     creditsPerSecond: 4, // 720p: ceil(0.10*3/0.0784)
     resolutionCredits: { "480p": 2, "720p": 4, "1080p": 6 }, // 480p ceil(0.05*3/0.0784), 1080p ceil(0.15*3/0.0784)
-    minDurationSeconds: 5, // Wan 2.5 supports 5s / 10s
-    maxDurationSeconds: 10, // provider ceiling — NOT 15s
+    resolutions: ["480p", "720p", "1080p"],
+    durationOptions: [5, 10], // fal: string enum "5" | "10"
+    durationFormat: "string",
+    minDurationSeconds: 5,
+    maxDurationSeconds: 10,
     allowedTiers: ["creator", "pro", "studio"],
-    supportedParameters: ["prompt", "duration", "resolution", "fps", "imageUpload"],
-    defaultValues: { duration: 5, resolution: "720p", fps: 24 },
-    inputMap: {},
+    // No fps input on this endpoint — the old FPS picker did nothing.
+    supportedParameters: ["prompt", "duration", "resolution", "aspectRatio"],
+    defaultValues: { duration: 5, resolution: "720p", aspectRatio: "16:9" },
+    aspectRatios: ["16:9", "9:16", "1:1"],
+    inputMap: { aspectRatio: "aspect_ratio" },
     resultPath: ["video.url"],
-    imageInput: "optional",
+    imageInput: "none", // text-to-video endpoint: no image_url
   },
   {
     id: "ltx-2.3",
@@ -163,18 +198,21 @@ export const VIDEO_MODELS: readonly VideoModelEntry[] = [
     integration: "fal",
     // fal fal-ai/ltx-2.3/text-to-video (2026-08 audit): 1080p $0.06/s (cheapest
     // tier). costUsd kept a touch high at $0.08 for safety headroom; 4 cr/s is
-    // ~5x at the real cost, so no per-resolution table needed.
+    // ~5x at the real cost. fal also takes 1440p/2160p — unaudited, not offered.
     falEndpoint: "fal-ai/ltx-2.3/text-to-video",
     costUsd: 0.08, // conservative; real 1080p is $0.06/s
     creditsPerSecond: 4, // ceil(0.08*3/0.0784); ~5x at the real $0.06
-    minDurationSeconds: 2,
-    maxDurationSeconds: 20, // provider supports up to 20s (tier cap trims to <=15)
+    resolutions: ["1080p"], // fal minimum; the old 480p/720p default was rejected
+    durationOptions: [6, 8, 10], // fal: integer enum 6 | 8 | 10
+    minDurationSeconds: 6,
+    maxDurationSeconds: 10,
     allowedTiers: ["creator", "pro", "studio"],
-    supportedParameters: ["prompt", "duration", "resolution", "imageUpload"],
-    defaultValues: { duration: 5, resolution: "720p" },
-    inputMap: {},
+    supportedParameters: ["prompt", "duration", "resolution", "aspectRatio"],
+    defaultValues: { duration: 6, resolution: "1080p", aspectRatio: "16:9" },
+    aspectRatios: ["16:9", "9:16"],
+    inputMap: { aspectRatio: "aspect_ratio" },
     resultPath: ["video.url"],
-    imageInput: "optional",
+    imageInput: "none", // text-to-video endpoint
   },
   {
     // id kept as "pixverse-v6" for selection/analytics stability; display + endpoint
@@ -185,18 +223,21 @@ export const VIDEO_MODELS: readonly VideoModelEntry[] = [
     badge: "PixVerse",
     category: "video",
     integration: "fal",
-    // verify-before-ship: confirm the exact v5.6 slug + $/s on fal. v5.6 is
-    // reported ~$0.01/s (5-15s); 4 cr/s clears 3x even at the conservative $0.09 and the
-    // model is creator+ gated, so the unverified cost is mitigated.
+    // verify-before-ship: confirm the $/s on fal. v5.6 is reported ~$0.01/s;
+    // 4 cr/s clears 3x even at the conservative $0.09 and the model is creator+
+    // gated, so the unverified cost is mitigated. Image-to-video only: fal
+    // requires image_url, and the frame sets the shape (no aspect_ratio input).
     falEndpoint: "fal-ai/pixverse/v5.6/image-to-video",
     costUsd: 0.09, // conservative; reported real is ~$0.01/s
     creditsPerSecond: 4, // ceil(0.09*3/0.0784)
-    minDurationSeconds: 5, // v5.6 floor is 5s, NOT 2s
-    maxDurationSeconds: 15,
+    durationOptions: [5, 8, 10], // fal: string enum "5" | "8" | "10"
+    durationFormat: "string",
+    minDurationSeconds: 5,
+    maxDurationSeconds: 10,
     allowedTiers: ["creator", "pro", "studio"],
-    supportedParameters: ["prompt", "duration", "aspectRatio", "imageUpload"],
-    defaultValues: { duration: 5, aspectRatio: "16:9" },
-    inputMap: { aspectRatio: "aspect_ratio" },
+    supportedParameters: ["prompt", "duration", "imageUpload"],
+    defaultValues: { duration: 5 },
+    inputMap: {},
     resultPath: ["video.url"],
     imageInput: "required",
   },
@@ -207,6 +248,62 @@ export type VideoModelId = typeof VIDEO_MODELS[number]["id"];
 
 export function getVideoModel(id: string | undefined | null): VideoModelEntry {
   return VIDEO_MODELS.find((m) => m.id === id) ?? VIDEO_MODELS.find((m) => m.id === DEFAULT_VIDEO_MODEL_ID)!;
+}
+
+/**
+ * The lengths a user on this plan can pick: the model's own options up to the
+ * tier cap. Should a cap ever sit below the model's shortest option, that
+ * shortest option is still allowed — refusing would
+ * make the model unusable on a tier it is sold on, and the price scales anyway.
+ */
+export function allowedDurations(model: VideoModelEntry, tierCap: number): number[] {
+  const within = model.durationOptions.filter((s) => s <= tierCap);
+  return within.length > 0 ? within : [model.durationOptions[0]];
+}
+
+/**
+ * The length actually generated and billed for a requested one: the longest
+ * allowed option that doesn't exceed the request, else the shortest allowed.
+ * Shared by the route and the UI, so the seconds shown are the seconds billed.
+ */
+export function billedDurationSeconds(model: VideoModelEntry, requested: number, tierCap: number): number {
+  const allowed = allowedDurations(model, tierCap);
+  if (!Number.isFinite(requested)) requested = defaultDurationSeconds(model);
+  const fits = allowed.filter((s) => s <= requested);
+  return fits.length > 0 ? fits[fits.length - 1] : allowed[0];
+}
+
+/** The model's default length in seconds (the registry may store "8s"). */
+export function defaultDurationSeconds(model: VideoModelEntry): number {
+  const raw = model.defaultValues.duration;
+  const n = typeof raw === "number" ? raw : parseInt(String(raw ?? ""), 10);
+  const opts = model.durationOptions;
+  if (!Number.isFinite(n)) return opts[0];
+  const fits = opts.filter((s) => s <= n);
+  return fits.length > 0 ? fits[fits.length - 1] : opts[0];
+}
+
+/** `duration` in the JSON type this model's fal endpoint expects. */
+export function formatDurationForProvider(model: VideoModelEntry, seconds: number): number | string {
+  if (model.durationFormat === "seconds-suffix") return `${seconds}s`;
+  if (model.durationFormat === "string") return String(seconds);
+  return seconds;
+}
+
+/** A requested resolution if this model offers it, else its default. */
+export function resolveResolution(model: VideoModelEntry, requested?: string | null): string | undefined {
+  if (!model.resolutions?.length) return undefined;
+  if (requested && model.resolutions.includes(requested)) return requested;
+  const def = model.defaultValues.resolution;
+  return typeof def === "string" && model.resolutions.includes(def) ? def : model.resolutions[0];
+}
+
+/** A requested aspect ratio if this model accepts it, else its default. */
+export function resolveVideoAspectRatio(model: VideoModelEntry, requested?: string | null): string | undefined {
+  if (!model.aspectRatios?.length) return undefined;
+  if (requested && model.aspectRatios.includes(requested)) return requested;
+  const def = model.defaultValues.aspectRatio;
+  return typeof def === "string" && model.aspectRatios.includes(def) ? def : model.aspectRatios[0];
 }
 
 /**
@@ -248,16 +345,36 @@ const REAL_COST_USD_PER_SECOND: Record<string, Record<string, number>> = {
  * generator UI so the credits shown never drift from what's charged.
  *
  * Precedence: audio-on rate (if audio && supported) → per-resolution rate →
- * flat base rate. `overrideCreditsPerSecond` (admin runtime reprice) wins over all.
+ * flat base rate. `overrideCreditsPerSecond` (admin runtime reprice) replaces the
+ * BASE rate and scales the audio / resolution tiers in proportion — it used to
+ * replace every tier outright, so repricing Veo 3 to 12 also dropped its
+ * audio-on rate from 16 to 12, below cost-plus-margin.
  */
 export function videoCreditsPerSecond(
   model: VideoModelEntry,
   opts?: { resolution?: string; audio?: boolean; overrideCreditsPerSecond?: number },
 ): number {
-  if (opts?.overrideCreditsPerSecond != null) return opts.overrideCreditsPerSecond;
+  let rate = model.creditsPerSecond;
   if (opts?.audio && model.supportsAudio && model.audioCreditsPerSecond != null) {
-    return model.audioCreditsPerSecond;
+    rate = model.audioCreditsPerSecond;
+  } else {
+    const byRes = opts?.resolution ? model.resolutionCredits?.[opts.resolution] : undefined;
+    if (byRes != null) rate = byRes;
   }
-  const byRes = opts?.resolution ? model.resolutionCredits?.[opts.resolution] : undefined;
-  return byRes ?? model.creditsPerSecond;
+  const override = opts?.overrideCreditsPerSecond;
+  if (override == null) return rate;
+  return Math.ceil((rate * override) / model.creditsPerSecond);
+}
+
+/**
+ * The cheapest run a user can actually start on this model: its shortest
+ * length at its cheapest offered resolution, audio off. Drives the "from N
+ * credits" figures, which used to multiply the base rate by a minimum length
+ * the provider rejected.
+ */
+export function cheapestRunCredits(model: VideoModelEntry): number {
+  const rates = model.resolutions?.length
+    ? model.resolutions.map((r) => videoCreditsPerSecond(model, { resolution: r }))
+    : [model.creditsPerSecond];
+  return Math.ceil(Math.min(...rates) * model.durationOptions[0]);
 }

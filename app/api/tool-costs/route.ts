@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAllToolConfigs, TOOL_SERVICE } from "@/lib/tool-config";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
-import { VIDEO_MODELS } from "@/lib/models/videoModels";
+import { VIDEO_MODELS, cheapestRunCredits } from "@/lib/models/videoModels";
 import { AUTOCLIP_PRICING_DEFAULTS } from "@/lib/autoclip-pricing";
 import { AUDIO_RATE_LABEL } from "@/lib/audio-pricing";
 
@@ -40,7 +40,9 @@ const LABELS: Record<string, string> = {
 // actually cost. These two get an additional min/max range; every other
 // tool's shape is untouched.
 const IMAGE_COSTS = IMAGE_MODELS.map(m => m.creditCost);
-const VIDEO_COSTS = VIDEO_MODELS.map(m => m.creditsPerSecond * m.minDurationSeconds);
+// Each model's cheapest run a user can actually start (shortest valid length,
+// cheapest offered resolution).
+const VIDEO_COSTS = VIDEO_MODELS.map(cheapestRunCredits);
 // Billed in Clip Minutes, not credits (2026-09-26 pricing model): shown with
 // their own label and no credit figure.
 const MINUTE_BILLED: Record<string, string> = {
