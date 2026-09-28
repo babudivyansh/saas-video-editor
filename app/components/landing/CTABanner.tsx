@@ -10,9 +10,11 @@ export default function CTABanner() {
 
   return (
     <section className="font-sans">
-      <div className="mx-auto w-full max-w-screen-2xl px-4 py-16 md:px-12 lg:px-[120px]">
+      {/* Same container + md:ml-25 logo offset as SiteNavbar (and SiteFooter),
+          so the card spans logo-left to CTA-right. Keep the three in sync. */}
+      <div className="mx-auto w-full max-w-screen-2xl px-4 py-16 sm:px-6 lg:px-8">
         <Reveal>
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-deep to-brand-dark px-8 py-16 text-center shadow-2xl shadow-brand/30 md:px-16">
+          <div className="relative overflow-hidden rounded-3xl md:ml-25 bg-gradient-to-br from-brand-deep to-brand-dark px-8 py-16 text-center shadow-2xl shadow-brand/30 md:px-16">
             {/* Decorative blobs */}
             <div className="clipiro-blob pointer-events-none absolute -left-10 -top-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
             <div className="clipiro-blob pointer-events-none absolute -bottom-12 -right-8 h-56 w-56 rounded-full bg-emerald-200/20 blur-2xl" style={{ animationDelay: "3s" }} />
