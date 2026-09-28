@@ -9,9 +9,11 @@ import ClipiroLogo from "@/app/components/ClipiroLogo";
 // following a /dashboard link gets a login redirect instead of the tool.
 const asLinks = (items: FeatureLink[]) => items.map((i) => ({ label: i.title, href: toolPath(i) }));
 
+type LinkItem = { label: string; href: string };
+
 // Every href resolves to a real public route, an on-page anchor, or a mailto.
 // The Video / AI / Free Tools columns mirror the navbar (single source of truth).
-const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
+const COLUMNS: { title: string; links: LinkItem[] }[] = [
   {
     title: "Product",
     links: [
@@ -39,20 +41,30 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   { title: "Video Tools", links: asLinks(VIDEO_TOOLS) },
   { title: "AI Tools", links: asLinks(AI_TOOLS) },
   { title: "Free Tools", links: asLinks(FREE_FEATURES) },
-  {
-    // Grouped here rather than scattered through Company: /refund and
-    // /affiliate-tos previously had no entry point anywhere on the site.
-    title: "Legal",
-    links: [
-      { label: "Legal hub", href: "/legal" },
-      { label: "Refund policy", href: "/refund" },
-      { label: "Terms of service", href: "/terms" },
-      { label: "Privacy policy", href: "/privacy" },
-      { label: "Cookies", href: "/cookies" },
-      { label: "Affiliate TOS", href: "/affiliate-tos" },
-    ],
-  },
 ];
+
+// Lives in the bottom bar rather than a column, but every row must stay:
+// /refund and /affiliate-tos previously had no entry point anywhere on the site.
+const LEGAL: LinkItem[] = [
+  { label: "Legal hub", href: "/legal" },
+  { label: "Terms", href: "/terms" },
+  { label: "Privacy", href: "/privacy" },
+  { label: "Refund policy", href: "/refund" },
+  { label: "Cookies", href: "/cookies" },
+  { label: "Affiliate TOS", href: "/affiliate-tos" },
+];
+
+// The oversized wordmark along the bottom edge. Colours come from tokens (the
+// theme-debt ratchet counts inline hex): emerald ramp brightest in the middle,
+// fading into the card at both ends.
+const WORDMARK_GRADIENT = `linear-gradient(90deg,
+  transparent 8%,
+  color-mix(in oklab, var(--emerald-brand) 70%, var(--bg)) 22%,
+  var(--emerald-bright) 40%,
+  color-mix(in oklab, var(--emerald-bright) 72%, var(--fg)) 55%,
+  var(--emerald-bright) 70%,
+  color-mix(in oklab, var(--emerald-brand) 70%, var(--bg)) 80%,
+  transparent 94%)`;
 
 // Social handles are env-driven so they can be updated in production without a
 // code change; the hardcoded fallback is the current official handle. Discord
@@ -68,56 +80,119 @@ const SOCIALS = [
 
 export default function SiteFooter() {
   return (
-    <footer className="border-t border-card-border bg-surface font-sans">
-      <div className="mx-auto w-full max-w-screen-2xl px-4 py-16 md:px-12 lg:px-[120px]">
-        <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
-          {/* Brand blurb */}
-          <div className="col-span-2 sm:col-span-3 lg:col-span-1">
-            <Link href="/" className="inline-flex" aria-label="Clipiro home">
-              <ClipiroLogo className="h-13" />
-            </Link>
-            <p className="mt-4 max-w-xs text-sm leading-relaxed text-fg-muted">
-              Turn long videos into viral short-form content with AI clipping, captions, and one-click export.
-            </p>
-          </div>
+    // Same container as SiteNavbar (max-w-screen-2xl + px-4/6/8), and the same
+    // md:ml-25 the navbar puts on its logo, so the card starts under the logo
+    // and ends under the right-hand CTA. Keep the two in sync.
+    <footer className="relative overflow-hidden bg-bg font-sans [container-type:inline-size]">
+      {/* Faint echo of the wordmark behind the card, peeking out below it.
+          Sized to the footer (full viewport width) via cqw. Decorative. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 -translate-x-1/2 select-none whitespace-nowrap font-black leading-none tracking-[-0.04em]"
+        style={{
+          fontSize: "22cqw",
+          bottom: "-0.24em",
+          color: "color-mix(in oklab, var(--emerald-bright) 7%, transparent)",
+        }}
+      >
+        CLIPIRO
+      </div>
 
-          {/* Link columns */}
-          {COLUMNS.map((col) => (
-            <div key={col.title}>
-              <p className="mb-4 text-sm font-bold text-fg">{col.title}</p>
-              <ul className="space-y-2.5">
-                {col.links.map((link) => (
-                  <li key={link.label}>
-                    <Link href={link.href} className="text-sm text-fg-muted transition-colors hover:text-brand-deep">
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+      <div
+        className="relative mx-auto max-w-screen-2xl px-4 pt-10 sm:px-6 md:pt-16 lg:px-8"
+        style={{ paddingBottom: "max(2.5rem, 9cqw)" }}
+      >
+      {/* container-type lets the wordmark size itself to the card, not the viewport */}
+      <div
+        className="relative overflow-hidden rounded-3xl border bg-surface-1 md:ml-25 [container-type:inline-size]"
+        style={{
+          // Softer than border-line: a faint light edge, a brighter top
+          // highlight, and a deep drop shadow that lifts the card off the echo.
+          borderColor: "color-mix(in oklab, var(--fg) 9%, transparent)",
+          boxShadow: [
+            "inset 0 1px 0 color-mix(in oklab, var(--fg) 7%, transparent)",
+            "0 30px 80px -20px color-mix(in oklab, var(--bg-deep) 85%, transparent)",
+            "0 0 120px -40px color-mix(in oklab, var(--emerald-bright) 18%, transparent)",
+          ].join(", "),
+        }}
+      >
+        <div className="px-6 pt-12 sm:px-10 md:px-16 md:pt-[72px]">
+          <div className="grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-3 lg:grid-cols-[1.7fr_repeat(5,minmax(0,1fr))]">
+            {/* Brand blurb */}
+            <div className="col-span-2 sm:col-span-3 lg:col-span-1">
+              <Link href="/" className="inline-flex" aria-label="Clipiro home">
+                <ClipiroLogo className="h-11" />
+              </Link>
+              <p className="mt-5 max-w-xs text-[15px] leading-relaxed text-fg-muted">
+                Turn long videos into viral short-form content with AI clipping, captions, and one-click export.
+              </p>
+              <div className="mt-6 flex flex-wrap items-center gap-1.5">
+                {SOCIALS.map((s) => {
+                  const external = s.href.startsWith("http");
+                  return (
+                    <a
+                      key={s.label}
+                      href={s.href}
+                      aria-label={s.label}
+                      {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-fg-muted transition-colors hover:border-emerald-bright hover:text-emerald-bright"
+                    >
+                      {s.icon}
+                    </a>
+                  );
+                })}
+              </div>
             </div>
-          ))}
-        </div>
 
-        {/* Bottom bar */}
-        <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-line pt-8 sm:flex-row">
-          <p className="text-sm text-fg-subtle">© 2026 Clipiro. All rights reserved.</p>
-          <div className="flex items-center gap-2">
-            {SOCIALS.map((s) => {
-              const external = s.href.startsWith("http");
-              return (
-                <a
-                  key={s.label}
-                  href={s.href}
-                  aria-label={s.label}
-                  {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                  className="flex h-9 w-9 items-center justify-center rounded-full border border-line text-fg-muted transition-colors hover:border-brand hover:text-brand-deep"
-                >
-                  {s.icon}
-                </a>
-              );
-            })}
+            {/* Link columns */}
+            {COLUMNS.map((col) => (
+              <div key={col.title}>
+                <p className="mb-4 text-base font-semibold text-fg">{col.title}</p>
+                <ul className="space-y-3">
+                  {col.links.map((link) => (
+                    <li key={link.label}>
+                      <Link href={link.href} className="text-sm text-fg-muted transition-colors hover:text-emerald-bright">
+                        {link.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+
+          {/* Bottom bar */}
+          <div className="mt-14 flex flex-col gap-4 text-sm text-fg-muted md:mt-[72px] md:flex-row md:items-center md:justify-between">
+            <p>© 2026 Clipiro. All rights reserved.</p>
+            <ul className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              {LEGAL.map((link) => (
+                <li key={link.href}>
+                  <Link href={link.href} className="transition-colors hover:text-emerald-bright">
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
+
+        {/* Oversized wordmark, cropped by the card's bottom edge. Decorative —
+            the logo above is the accessible brand name. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none mt-6 select-none overflow-hidden text-center font-black leading-[0.78] tracking-[-0.045em]"
+          style={{
+            fontSize: "20cqw",
+            height: "0.74em",
+            backgroundImage: WORDMARK_GRADIENT,
+            WebkitBackgroundClip: "text",
+            backgroundClip: "text",
+            color: "transparent",
+          }}
+        >
+          CLIPIRO
+        </div>
+      </div>
       </div>
     </footer>
   );

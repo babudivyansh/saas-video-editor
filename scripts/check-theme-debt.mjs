@@ -130,7 +130,9 @@ const BUDGET = {
   // 64 -> 63: one more went with the deleted caption tile grids.
   // 32 -> 31: /pricing redesign dropped the coupon button's hover:bg-gray-800.
   // 30 -> 26: Studio shell + home redesign dropped the old tinted cards and skeletons.
-  "raw-gray": 26, // 31 -> 30: PlansModal lost its subscription coupon field (and its hover:bg-gray-800)
+  // 26 -> 23: homepage SocialProof / HowItWorks / FAQ lost their bg-gray-50/60
+  // bands so every landing section sits on the one page background.
+  "raw-gray": 23, // 31 -> 30: PlansModal lost its subscription coupon field (and its hover:bg-gray-800)
   // 5 -> 4: same deletion.
   "bg-white": 0, // 1 -> 0: the GST receipt rewrite dropped the last print:bg-white
   "raw-slate": 9,

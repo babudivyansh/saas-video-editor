@@ -13,7 +13,7 @@ const STEPS = [
 
 export default function HowItWorks() {
   return (
-    <section id="how-it-works" className="scroll-mt-20 bg-gray-50/60 font-sans">
+    <section id="how-it-works" className="scroll-mt-20 font-sans">
       <div className="mx-auto w-full max-w-screen-2xl px-4 py-20 md:px-12 lg:px-[120px] lg:py-28">
         <Reveal>
           <div className="mx-auto max-w-2xl text-center">

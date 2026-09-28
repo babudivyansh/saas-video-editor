@@ -15,7 +15,7 @@ const BRANDS = ["YouTube", "Instagram", "Spotify", "Twitch", "LinkedIn", "Podcas
 
 export default function SocialProof() {
   return (
-    <section className="border-y border-line bg-gray-50/60 py-14 font-sans">
+    <section className="py-14 font-sans">
       <div className="mx-auto w-full max-w-screen-2xl px-4 md:px-12 lg:px-[120px]">
         {/* Stats */}
         <Reveal>
