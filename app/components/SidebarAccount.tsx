@@ -5,7 +5,8 @@
 // credits pill.
 //
 // Deliberately lightweight — every account/settings page now lives under the
-// single /dashboard/settings hub (see app/dashboard/settings/layout.tsx).
+// single Settings overlay (see app/components/settings/SettingsOverlay.tsx);
+// its /dashboard/settings/* links open that overlay in place.
 // This popover is just quick actions into that hub, not a second copy of its
 // nav. There's no team/workspace model in the schema, so no "switch
 // workspace" entry here — nothing to switch between.

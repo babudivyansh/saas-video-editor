@@ -1,9 +1,11 @@
+"use client";
+
 // No in-app messaging/notifications system exists yet — an honest empty state
 // rather than inventing a fake feed. If a cheap real signal is added later
 // (e.g. "plan expires soon", "payment received" derived from existing fields),
 // it belongs here.
 
-import { getTranslations } from "next-intl/server";
+import { useTranslations } from "next-intl";
 import { Card } from "@/app/components/ui/Card";
 import { EmptyState } from "@/app/components/ui/EmptyState";
 
@@ -16,8 +18,8 @@ function IcMessage() {
   );
 }
 
-export default async function MessagesPage() {
-  const t = await getTranslations("SettingsMessages");
+export default function MessagesSection() {
+  const t = useTranslations("SettingsMessages");
   return (
     <div className="space-y-5">
       <h1 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h1>

@@ -167,7 +167,11 @@
     "messages": "消息",
     "preferences": "偏好设置",
     "privacy": "隐私",
-    "dangerZone": "危险区域"
+    "dangerZone": "危险区域",
+    "groupAccount": "账户",
+    "groupSecurity": "安全",
+    "groupPlan": "套餐与开发者",
+    "escToClose": "按 Esc 关闭"
   },
   "SettingsGeneral": {
     "pageTitle": "账户概览",

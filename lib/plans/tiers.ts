@@ -35,7 +35,7 @@ export const TIER_LABEL: Record<Exclude<TierId, "free">, string> = {
 // Per-tier Assets-library storage cap, in GB. Server-enforced via
 // storageLimitBytesForTier in lib/asset-service.ts (assertUnderStorageQuota)
 // — the storage meter shown in app/dashboard/assets/page.tsx and
-// app/dashboard/settings/page.tsx reads this same map (via /api/assets's
+// app/components/settings/sections/GeneralSection.tsx reads this same map (via /api/assets's
 // `limitBytes`) instead of a hardcoded display constant. SidebarAccount.tsx
 // does not render a storage meter at all — it's a lightweight account
 // popover, not the place this value is displayed.

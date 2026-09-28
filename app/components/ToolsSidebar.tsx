@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import ClipiroLogo from "@/app/components/ClipiroLogo";
 import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
+import { useSettingsOverlay } from "@/app/components/settings/SettingsOverlayContext";
 import { usePlanSummary } from "@/app/components/usePlanSummary";
 import { Button } from "@/app/components/ui/Button";
 
@@ -47,6 +48,7 @@ export interface ToolsSidebarNavGroup {
 export function useDashboardNavItems(): { groups: ToolsSidebarNavGroup[]; bottomNav: ToolsSidebarNavItem[] } {
   const t = useTranslations("Nav.rail");
   const { openBilling } = useBillingOverlay();
+  const { openSettings } = useSettingsOverlay();
 
   const groups: ToolsSidebarNavGroup[] = [
     { label: null, items: [{ id: "home", icon: <IcHome />, label: t("home"), href: "/dashboard" }] },
@@ -75,7 +77,8 @@ export function useDashboardNavItems(): { groups: ToolsSidebarNavGroup[]; bottom
   ];
 
   const bottomNav: ToolsSidebarNavItem[] = [
-    { id: "settings", icon: <IcSettings />, label: t("settings"), href: "/dashboard/settings" },
+    // Settings is an overlay over the current page, like billing.
+    { id: "settings", icon: <IcSettings />, label: t("settings"), onSelect: () => openSettings() },
     // Drawer only: on desktop the plan card below is the billing entry point.
     { id: "billing", icon: null, label: t("upgradePlan"), onSelect: () => openBilling() },
   ];

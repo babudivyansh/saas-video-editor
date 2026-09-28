@@ -1,7 +1,9 @@
+"use client";
+
 // Language is now a real, working preference (see LanguageSwitcher) backed by
 // User.preferredLanguage and the locale cookie i18n/request.ts reads.
 
-import { getTranslations } from "next-intl/server";
+import { useTranslations } from "next-intl";
 import { Card } from "@/app/components/ui/Card";
 import { LanguageSwitcher } from "@/app/components/settings/LanguageSwitcher";
 
@@ -14,8 +16,8 @@ function IcGlobe() {
   );
 }
 
-export default async function PreferencesPage() {
-  const t = await getTranslations("SettingsPreferences");
+export default function PreferencesSection() {
+  const t = useTranslations("SettingsPreferences");
   return (
     <div className="space-y-6 max-w-2xl">
       <div>

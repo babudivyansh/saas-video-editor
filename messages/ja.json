@@ -167,7 +167,11 @@
     "messages": "メッセージ",
     "preferences": "環境設定",
     "privacy": "プライバシー",
-    "dangerZone": "危険ゾーン"
+    "dangerZone": "危険ゾーン",
+    "groupAccount": "アカウント",
+    "groupSecurity": "セキュリティ",
+    "groupPlan": "プランと開発者",
+    "escToClose": "Escで閉じる"
   },
   "SettingsGeneral": {
     "pageTitle": "アカウント概要",
