@@ -23,7 +23,22 @@ const nextConfig: NextConfig = {
   // binary resolves from the source tree). Force the binary into the trace for
   // exactly the routes that spawn it. bin/** covers yt-dlp (Linux) and
   // yt-dlp.exe (Windows) without hardcoding a platform.
+  //
+  // The ffmpeg binaries are the same story: utils/ffmpeg-render.ts probes for
+  // them with fs.existsSync on a loop variable, which the tracer cannot follow
+  // (and which is marked turbopackIgnore — unmarked, it traced the ENTIRE
+  // project into .next/standalone). Ship them explicitly instead, for every
+  // route (and so the in-process render workers started from instrumentation):
+  //   - vendor/ffmpeg/ffmpeg: the pinned, checksum-verified Linux production
+  //     runtime from scripts/install-render-ffmpeg.mjs (absent on Windows/macOS).
+  //   - ffmpeg-static's binary: the dev fallback, and what resolveFfmpegBin()
+  //     falls through to when the pinned runtime is missing.
   outputFileTracingIncludes: {
+    "/**": [
+      "./vendor/ffmpeg/ffmpeg",
+      "./node_modules/ffmpeg-static/ffmpeg",
+      "./node_modules/ffmpeg-static/ffmpeg.exe",
+    ],
     "/api/tools/youtube-downloader": ["./node_modules/youtube-dl-exec/bin/**"],
     "/api/tools/instagram-downloader": ["./node_modules/youtube-dl-exec/bin/**"],
     "/api/projects/[id]/import-url": ["./node_modules/youtube-dl-exec/bin/**"],
@@ -54,7 +69,7 @@ const nextConfig: NextConfig = {
     ],
     // Next 16 only honours qualities on this allowlist, defaulting to [75].
     // The tool-page artwork carries small caption text that 75 visibly softens.
-    qualities: [75, 90],
+    qualities: [75, 90],
   },
   // Content-Security-Policy moved to proxy.ts (see lib/csp.ts) so it can
   // carry a per-request nonce — next.config.ts's headers() is static and

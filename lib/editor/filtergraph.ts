@@ -93,8 +93,11 @@ export function resolveFontFile(family: string): string {
   const entry = FONT_FILES[family] ?? FONT_FILES.Arial;
   const candidates =
     process.platform === "win32" ? [entry.win] : process.platform === "darwin" ? [entry.mac] : entry.linux;
+  // turbopackIgnore: `c` comes from a lookup keyed by an arbitrary family, so
+  // the output-file tracer can't bound it and traced the whole project. The
+  // bundled fonts reach the standalone build as public/ (scripts/postbuild.js).
   for (const c of candidates) {
-    if (fs.existsSync(c)) return c;
+    if (fs.existsSync(/*turbopackIgnore: true*/ c)) return c;
   }
   // A bundled Google Font (public/fonts/*.ttf) missing at its expected,
   // process.cwd()-relative path is exactly the failure mode that once took

@@ -256,8 +256,10 @@ export async function finishDubJob(payload: FinishDubPayload): Promise<void> {
     // race with here.
     await prisma.clipDub.update({ where: { id: clipDubId }, data: { status: "failed" } }).catch(() => {});
   } finally {
+    // turbopackIgnore: temp files, never build inputs — unannotated, the
+    // output-file tracer can't bound `f` and traces the whole project.
     for (const f of [dubbedAudioPath, sourceVideoPath, outputPath, assPath]) {
-      try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch {}
+      try { if (fs.existsSync(/*turbopackIgnore: true*/ f)) fs.unlinkSync(/*turbopackIgnore: true*/ f); } catch {}
     }
   }
 }

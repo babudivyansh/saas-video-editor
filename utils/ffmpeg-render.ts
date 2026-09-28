@@ -50,8 +50,12 @@ function resolveFfmpegBin(): string {
     ffmpegStatic ?? undefined,
     path.join(process.cwd(), "node_modules", "ffmpeg-static", process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg"),
   ];
+  // turbopackIgnore: the output-file tracer can't bound a loop variable over
+  // this mixed list, so this one existsSync traced the WHOLE project into
+  // .next/standalone. The binaries still ship: next.config.ts lists them in
+  // outputFileTracingIncludes (and the two static paths above are traced).
   for (const candidate of candidates) {
-    if (!candidate || !fs.existsSync(candidate)) continue;
+    if (!candidate || !fs.existsSync(/*turbopackIgnore: true*/ candidate)) continue;
     // The standalone build ships this binary but the deploy can strip its
     // execute bit — restore it here, in-process, after every copy/extract,
     // or every spawn dies with EACCES (which is exactly what took prod down).
@@ -65,6 +69,15 @@ function resolveFfmpegBin(): string {
 // share this one resolved, exec-bit-restored path instead of recomputing it.
 export const ffmpegBin = resolveFfmpegBin();
 
+// Every spawn in this module goes through here. ffmpegBin is a partly-known
+// value to the output-file tracer (a literal "ffmpeg" or a path it can't
+// bound), and `spawn(ffmpegBin, …)` makes it trace that command — which
+// matched the whole project. A turbopackIgnore comment on the argument is not
+// honoured for spawn (verified against Next 16.2's Turbopack); passing the
+// command through a parameter is, since a parameter is fully opaque to it.
+// Typed as `spawn` so each call keeps its overload-specific stdio types.
+const spawnFfmpeg = ((...args: unknown[]) => (spawn as (...a: unknown[]) => unknown)(...args)) as typeof spawn;
+
 /**
  * Where ffmpeg was resolved from, and whether that path exists on disk.
  *
@@ -74,7 +87,8 @@ export const ffmpegBin = resolveFfmpegBin();
  * binary. Exposed so startup can say so once, out loud.
  */
 export function ffmpegBinaryInfo(): { path: string; bundled: boolean } {
-  return { path: ffmpegBin, bundled: ffmpegBin !== "ffmpeg" && fs.existsSync(ffmpegBin) };
+  // turbopackIgnore: same unboundable value as resolveFfmpegBin's loop.
+  return { path: ffmpegBin, bundled: ffmpegBin !== "ffmpeg" && fs.existsSync(/*turbopackIgnore: true*/ ffmpegBin) };
 }
 
 // Renders run one at a time per queue with no other watchdog (see lib/job-queue.ts)
@@ -413,7 +427,7 @@ export function runFFmpeg(opts: RenderOptions, timeoutMs = DEFAULT_FFMPEG_TIMEOU
       ];
     }
 
-    const proc = spawn(ffmpegBin!, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const proc = spawnFfmpeg(ffmpegBin!, args, { stdio: ["ignore", "pipe", "pipe"] });
     const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => {
       reject(new Error(`FFmpeg timed out after ${timeoutMs}ms and was killed`));
     });
@@ -440,7 +454,7 @@ export function runFFmpeg(opts: RenderOptions, timeoutMs = DEFAULT_FFMPEG_TIMEOU
 
 export function runFFmpegArgs(args: string[], timeoutMs = DEFAULT_FFMPEG_TIMEOUT_MS): Promise<void> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(ffmpegBin!, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const proc = spawnFfmpeg(ffmpegBin!, args, { stdio: ["ignore", "pipe", "pipe"] });
     const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => {
       reject(new Error(`FFmpeg timed out after ${timeoutMs}ms and was killed`));
     });
@@ -490,7 +504,7 @@ export function probeMediaDuration(filePath: string, timeoutMs = 30_000): Promis
       return;
     }
 
-    const proc = spawn(ffmpegBin!, ["-i", filePath], { stdio: ["ignore", "ignore", "pipe"] });
+    const proc = spawnFfmpeg(ffmpegBin!, ["-i", filePath], { stdio: ["ignore", "ignore", "pipe"] });
     const clearWatchdog = killAfterTimeout(proc, timeoutMs, () =>
       resolve({ durationSec: null, reason: `probe timed out after ${timeoutMs}ms`, stderrTail: "", fileBytes }));
 
@@ -545,7 +559,7 @@ export async function getMediaDurationSec(filePath: string, timeoutMs = 30_000):
 // "dimensions unknown" and skip anything that depends on them).
 export function getMediaDimensions(filePath: string, timeoutMs = 30_000): Promise<{ w: number; h: number }> {
   return new Promise((resolve) => {
-    const proc = spawn(ffmpegBin!, ["-i", filePath], { stdio: ["ignore", "ignore", "pipe"] });
+    const proc = spawnFfmpeg(ffmpegBin!, ["-i", filePath], { stdio: ["ignore", "ignore", "pipe"] });
     const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => resolve({ w: 0, h: 0 }));
     let stderrBuf = "";
     proc.stderr.on("data", (chunk: Buffer) => { stderrBuf += chunk.toString(); });
@@ -568,7 +582,7 @@ export function runFFmpegWithProgress(
   timeoutMs = DEFAULT_FFMPEG_TIMEOUT_MS,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(ffmpegBin!, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const proc = spawnFfmpeg(ffmpegBin!, args, { stdio: ["ignore", "pipe", "pipe"] });
     const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => {
       reject(new Error(`FFmpeg timed out after ${timeoutMs}ms and was killed`));
     });
@@ -622,7 +636,7 @@ export interface AudioAnalysis { meanVolumeDb: number; maxVolumeDb: number; sile
 export function analyzeAudio(filePath: string, timeoutMs = 60_000): Promise<AudioAnalysis> {
   const NEUTRAL: AudioAnalysis = { meanVolumeDb: -30, maxVolumeDb: -10, silenceSec: 0 };
   return new Promise((resolve) => {
-    const proc = spawn(ffmpegBin!, [
+    const proc = spawnFfmpeg(ffmpegBin!, [
       "-i", filePath,
       "-af", "silencedetect=noise=-30dB:d=0.3,volumedetect",
       "-f", "null", "-",
