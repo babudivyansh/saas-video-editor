@@ -80,9 +80,12 @@ const SOCIALS = [
 
 export default function SiteFooter() {
   return (
-    <footer className="bg-bg px-4 py-10 font-sans md:px-8 md:py-16">
+    // Same container as SiteNavbar (max-w-screen-2xl + px-4/6/8), and the same
+    // md:ml-25 the navbar puts on its logo, so the card starts under the logo
+    // and ends under the right-hand CTA. Keep the two in sync.
+    <footer className="mx-auto max-w-screen-2xl bg-bg px-4 py-10 font-sans sm:px-6 md:py-16 lg:px-8">
       {/* container-type lets the wordmark size itself to the card, not the viewport */}
-      <div className="relative mx-auto w-full max-w-7xl overflow-hidden rounded-3xl border border-line bg-surface-1 [container-type:inline-size]">
+      <div className="relative overflow-hidden md:ml-25 rounded-3xl border border-line bg-surface-1 [container-type:inline-size]">
         <div className="px-6 pt-12 sm:px-10 md:px-16 md:pt-[72px]">
           <div className="grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-3 lg:grid-cols-[1.7fr_repeat(5,minmax(0,1fr))]">
             {/* Brand blurb */}
