@@ -14,7 +14,6 @@ export async function GET(req: NextRequest) {
     select: {
       id: true,
       email: true,
-      phone: true,
       credits: true, // denormalized total of the three buckets below
       subscriptionCredits: true,
       purchasedCredits: true,
@@ -29,8 +28,6 @@ export async function GET(req: NextRequest) {
       monthlyMinutes: true,
       createdAt: true,
       role: true,
-      firstName: true,
-      lastName: true,
       name: true,
       avatarUrl: true,
       gender: true,
@@ -65,6 +62,9 @@ export async function GET(req: NextRequest) {
       // Security/account-dashboard surface (Settings hub) — closes the audit
       // finding that lastLoginAt was tracked but never actually sent to the client.
       emailVerifiedAt: true,
+      // Whether sensitive actions confirm with the password or an emailed code
+      // (Google-created accounts have no password their owner knows).
+      hasPassword: true,
       twoFactorEnabled: true,
       passwordChangedAt: true,
       lastLoginAt: true,

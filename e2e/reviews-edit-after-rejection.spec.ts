@@ -16,12 +16,9 @@ test("?editReview=1 opens the modal pre-filled and resubmits via PATCH", async (
         user: {
           id: "e2e-fake-user",
           email: "e2e@example.com",
-          phone: null,
           credits: 10,
           createdAt: new Date().toISOString(),
           role: "USER",
-          firstName: "E2E",
-          lastName: "User",
           name: "E2E User",
           avatarUrl: null,
           gender: null,

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { sendFeatureAnnouncementEmail, sendNewsletterBroadcastEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
+import { greetingName } from "@/lib/display-name";
 
 // Daily cron — sends every published-but-unsent FeatureAnnouncement (see
 // app/api/admin/announcements) to all active users. Per-recipient opt-out is
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
     // (inside sendTemplate) varies by audience.
     const recipients = await prisma.user.findMany({
       where: { deactivatedAt: null, suspendedAt: null },
-      select: { id: true, email: true, firstName: true, name: true },
+      select: { id: true, email: true, name: true },
     });
 
     for (const a of due) {
@@ -48,7 +49,7 @@ export async function GET(req: NextRequest) {
       for (const u of recipients) {
         try {
           const delivered = await sendFn(u.email, u.id, {
-            name: u.firstName ?? u.name ?? "",
+            name: greetingName(u.name),
             title: a.title,
             body: a.body,
             ctaLabel: a.ctaLabel,

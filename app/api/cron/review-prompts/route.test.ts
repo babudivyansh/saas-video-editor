@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 
 process.env.CRON_SECRET = "test-secret";
 
-let candidates: Array<{ id: string; email: string; firstName: string | null; name: string | null }>;
+let candidates: Array<{ id: string; email: string; name: string | null }>;
 vi.mock("@/lib/prisma", () => ({
   prisma: { user: { findMany: vi.fn(async () => candidates) } },
 }));
@@ -32,7 +32,7 @@ function get(token?: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  candidates = [{ id: "u1", email: "u1@test.com", firstName: "U", name: null }];
+  candidates = [{ id: "u1", email: "u1@test.com", name: "U" }];
   evaluatePromptTrigger.mockResolvedValue({ shouldPrompt: true, trigger: "days_active" });
   shouldSendCategory.mockResolvedValue(true);
 });

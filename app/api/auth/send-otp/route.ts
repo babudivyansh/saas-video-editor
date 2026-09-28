@@ -1,21 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { issueOtp } from "@/lib/otp";
-import { normalizeIdentifier, findUserByMethod, type AuthMethod } from "@/lib/identifier";
+import { issueOtp, OtpDeliveryError } from "@/lib/otp";
+import { emailFromBody, findUserByEmail } from "@/lib/identifier";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { atLeast } from "@/lib/min-duration";
 import { logger } from "@/lib/logger";
 
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const method: AuthMethod = body.method === "phone" ? "phone" : "email";
-    const identifier = normalizeIdentifier(method, body.identifier ?? body.email ?? body.phone ?? "");
+// Every answer takes at least this long, sent or not (see lib/min-duration.ts).
+const RESPONSE_FLOOR_MS = 900;
 
-    if (!identifier) {
+// POST /api/auth/send-otp { email } — emails a sign-in code. Email only: the
+// phone variant was removed 2026-09-28 (it returned the code in the response
+// whenever SMS delivery wasn't configured or failed).
+export async function POST(req: NextRequest) {
+  const startedAt = Date.now();
+  try {
+    const body = await req.json().catch(() => ({}));
+    const email = emailFromBody(body);
+
+    if (!email) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
     const [idLimit, ipLimit] = await Promise.all([
-      rateLimit(`otp-send:${method}:${identifier}`, 3, 600),
+      rateLimit(`otp-send:email:${email}`, 3, 600),
       rateLimit(`otp-send:ip:${getClientIp(req)}`, 10, 600),
     ]);
     if (!idLimit.allowed || !ipLimit.allowed) {
@@ -26,22 +33,21 @@ export async function POST(req: NextRequest) {
     }
 
     // OTP is a sign-in method, so the account must already exist — but we
-    // don't reveal that: a non-existent identifier gets the same success
-    // response as a real one (no code is actually sent), so responses can't
-    // be used to enumerate accounts. Mirrors forgot-password's approach.
-    const user = await findUserByMethod(method, identifier);
+    // don't reveal that: a non-existent address gets the same success
+    // response, after the same minimum delay, as a real one (no code is sent).
+    const user = await findUserByEmail(email);
     if (!user) {
-      return NextResponse.json({ success: true, channel: "otp-sent" });
+      await atLeast(startedAt, RESPONSE_FLOOR_MS);
+      return NextResponse.json({ success: true });
     }
 
-    const { code, channel } = await issueOtp(method, identifier);
-
-    // When no real email/SMS provider is configured, return the code so dev
-    // login works end-to-end. Real deliveries never expose it.
-    const devCode = channel === "dev-console" ? code : undefined;
-
-    return NextResponse.json({ success: true, channel, devCode });
+    const extras = await issueOtp("login", email);
+    await atLeast(startedAt, RESPONSE_FLOOR_MS);
+    return NextResponse.json({ success: true, ...extras });
   } catch (err) {
+    if (err instanceof OtpDeliveryError) {
+      return NextResponse.json({ error: "We couldn't send the code. Please try again." }, { status: 503 });
+    }
     logger.error("send-otp", "request failed", err);
     return NextResponse.json({ error: "Failed to send code" }, { status: 500 });
   }

@@ -7,6 +7,7 @@ import { useToast } from "@/app/components/ui/Toast";
 import { Card } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Modal } from "@/app/components/ui/Modal";
+import { StepUpField, stepUpBody } from "@/app/components/settings/StepUpField";
 
 function IcSpinner() { return <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />; }
 function IcCheck() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M5 13l4 4L19 7" /></svg>; }
@@ -26,10 +27,14 @@ function Badge({ ok, children }: { ok: boolean; children: React.ReactNode }) {
 }
 
 function EmailSection() {
-  const { user, token } = useAuth();
+  const { user, token, refreshUser } = useAuth();
   const { showToast } = useToast();
   const t = useTranslations("SettingsSecurity.email");
+  const tCode = useTranslations("SettingsSecurity.verifyCode");
   const [sendingVerify, setSendingVerify] = useState(false);
+  const [codeSent, setCodeSent] = useState(false);
+  const [verifyCode, setVerifyCode] = useState("");
+  const [confirmingCode, setConfirmingCode] = useState(false);
   const [changing, setChanging] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -42,9 +47,30 @@ function EmailSection() {
       const res = await fetch("/api/auth/verify-email/send", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (!res.ok) { showToast(data.error ?? t("toasts.sendFailed"), "error"); return; }
-      showToast(data.alreadyVerified ? t("toasts.alreadyVerified") : t("toasts.verificationSent"));
+      if (data.alreadyVerified) { showToast(t("toasts.alreadyVerified")); await refreshUser(); return; }
+      setCodeSent(true);
+      showToast(data.devCode ? `${t("toasts.verificationSent")} (dev: ${data.devCode})` : t("toasts.verificationSent"));
     } finally {
       setSendingVerify(false);
+    }
+  }
+
+  async function confirmVerification(e: React.FormEvent) {
+    e.preventDefault();
+    setConfirmingCode(true);
+    try {
+      const res = await fetch("/api/auth/verify-email/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ otp: verifyCode }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { showToast(data.error ?? tCode("failed"), "error"); return; }
+      showToast(tCode("verified"));
+      setCodeSent(false); setVerifyCode("");
+      await refreshUser();
+    } finally {
+      setConfirmingCode(false);
     }
   }
 
@@ -55,7 +81,7 @@ function EmailSection() {
       const res = await fetch("/api/auth/change-email", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ newEmail, password }),
+        body: JSON.stringify({ newEmail, ...stepUpBody(user?.hasPassword, password) }),
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error ?? t("toasts.changeFailed"), "error"); return; }
@@ -94,6 +120,16 @@ function EmailSection() {
         <Button variant="secondary" size="sm" onClick={() => setChanging((c) => !c)}>{changing ? t("cancel") : t("changeEmail")}</Button>
       </div>
 
+      {codeSent && !user?.emailVerifiedAt && (
+        <form onSubmit={confirmVerification} className="space-y-3 pt-2 border-t border-card-border">
+          <p className="text-sm text-ink-soft">{tCode("prompt", { email: user?.email ?? "" })}</p>
+          <div className="flex gap-2">
+            <input type="text" required autoFocus inputMode="numeric" autoComplete="one-time-code" pattern="d{6}" maxLength={6} value={verifyCode} onChange={(e) => setVerifyCode(e.target.value.replace(/D/g, ""))} placeholder="000000" className={`${inputCls} font-mono tracking-widest`} />
+            <Button type="submit" size="sm" disabled={confirmingCode || verifyCode.length !== 6}>{confirmingCode ? <><IcSpinner /> {tCode("verifying")}</> : tCode("verify")}</Button>
+          </div>
+        </form>
+      )}
+
       {changing && (
         <form onSubmit={submitChangeEmail} className="space-y-3 pt-2 border-t border-card-border">
           <div>
@@ -101,8 +137,8 @@ function EmailSection() {
             <input type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="you@example.com" className={inputCls} />
           </div>
           <div>
-            <label className={labelCls}>{t("currentPassword")}</label>
-            <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t("confirmItsYou")} className={inputCls} />
+            <label className={labelCls}>{t("confirmItsYou")}</label>
+            <StepUpField value={password} onChange={setPassword} />
           </div>
           <Button type="submit" size="sm" disabled={submitting}>{submitting ? <><IcSpinner /> {t("sending")}</> : t("sendConfirmation")}</Button>
         </form>
@@ -112,7 +148,7 @@ function EmailSection() {
 }
 
 function PasswordSection() {
-  const { token } = useAuth();
+  const { user, token } = useAuth();
   const { showToast } = useToast();
   const t = useTranslations("SettingsSecurity.password");
   const [open, setOpen] = useState(false);
@@ -154,9 +190,13 @@ function PasswordSection() {
     <Card padding="md">
       <div className="flex items-center justify-between">
         <h2 className="text-base font-extrabold text-ink">{t("title")}</h2>
-        <Button variant="secondary" size="sm" onClick={() => setOpen((o) => !o)}>{open ? t("cancel") : t("changePassword")}</Button>
+        {user?.hasPassword !== false && (
+          <Button variant="secondary" size="sm" onClick={() => setOpen((o) => !o)}>{open ? t("cancel") : t("changePassword")}</Button>
+        )}
       </div>
-      {!open ? (
+      {user?.hasPassword === false ? (
+        <p className="mt-3 text-sm text-ink-soft">{t("noPassword")}</p>
+      ) : !open ? (
         <p className="mt-3 text-sm tracking-widest text-fg-subtle">••••••••</p>
       ) : (
         <form onSubmit={handleChangePassword} className="mt-4 space-y-4">
@@ -174,7 +214,7 @@ function PasswordSection() {
 }
 
 function TwoFactorSection() {
-  const { token } = useAuth();
+  const { user, token } = useAuth();
   const { showToast } = useToast();
   const t = useTranslations("SettingsSecurity.twoFactor");
   const tCommon = useTranslations("Common");
@@ -219,7 +259,7 @@ function TwoFactorSection() {
       const res = await fetch("/api/auth/2fa/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ password: setupPassword }),
+        body: JSON.stringify(stepUpBody(user?.hasPassword, setupPassword)),
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error ?? t("toasts.setupFailed"), "error"); return; }
@@ -254,7 +294,7 @@ function TwoFactorSection() {
       const res = await fetch("/api/auth/2fa/disable", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ password: disablePassword }),
+        body: JSON.stringify(stepUpBody(user?.hasPassword, disablePassword)),
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error ?? t("toasts.disableFailed"), "error"); return; }
@@ -275,7 +315,7 @@ function TwoFactorSection() {
       const res = await fetch("/api/auth/2fa/recovery-codes", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ password: regenPassword }),
+        body: JSON.stringify(stepUpBody(user?.hasPassword, regenPassword)),
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error ?? t("toasts.regenerateFailed"), "error"); return; }
@@ -322,7 +362,7 @@ function TwoFactorSection() {
         {setupStep === "password" && (
           <form onSubmit={startSetup} className="space-y-4">
             <p className="text-sm text-ink-soft">{t("confirmPasswordToStart")}</p>
-            <input type="password" required autoFocus value={setupPassword} onChange={(e) => setSetupPassword(e.target.value)} placeholder={t("currentPasswordPlaceholder")} className={inputCls} />
+            <StepUpField autoFocus value={setupPassword} onChange={setSetupPassword} placeholder={t("currentPasswordPlaceholder")} />
             <Button type="submit" disabled={busy} className="w-full">{busy ? <><IcSpinner /> {t("continuing")}</> : t("continue")}</Button>
           </form>
         )}
@@ -359,7 +399,7 @@ function TwoFactorSection() {
       <Modal open={regenOpen} onClose={() => setRegenOpen(false)} title={t("regenerateTitle")} maxWidth="max-w-sm">
         <form onSubmit={regenerateRecoveryCodes} className="space-y-4">
           <p className="text-sm text-ink-soft">{t("regenerateConfirm")}</p>
-          <input type="password" required autoFocus value={regenPassword} onChange={(e) => setRegenPassword(e.target.value)} placeholder={t("currentPasswordPlaceholder")} className={inputCls} />
+          <StepUpField autoFocus value={regenPassword} onChange={setRegenPassword} placeholder={t("currentPasswordPlaceholder")} />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" size="sm" onClick={() => setRegenOpen(false)}>{tCommon("cancel")}</Button>
             <Button type="submit" size="sm" disabled={busy}>{busy ? <><IcSpinner /> {t("generating")}</> : t("regenerate")}</Button>
@@ -370,7 +410,7 @@ function TwoFactorSection() {
       <Modal open={disableOpen} onClose={() => setDisableOpen(false)} title={t("disableTitle")} maxWidth="max-w-sm">
         <form onSubmit={disable2fa} className="space-y-4">
           <p className="text-sm text-ink-soft">{t("disableConfirm")}</p>
-          <input type="password" required autoFocus value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)} placeholder={t("currentPasswordPlaceholder")} className={inputCls} />
+          <StepUpField autoFocus value={disablePassword} onChange={setDisablePassword} placeholder={t("currentPasswordPlaceholder")} />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" size="sm" onClick={() => setDisableOpen(false)}>{tCommon("cancel")}</Button>
             <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-error">{busy ? <><IcSpinner /> {t("disabling")}</> : t("disable")}</Button>

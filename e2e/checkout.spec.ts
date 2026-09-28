@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { prisma } from "@/lib/prisma";
+import { signUpViaUi } from "./signup";
 
 // Exercises the real checkout flow — real Postgres, real Razorpay TEST-mode
 // orders.create call, real HMAC signature verification — via page.request
@@ -39,18 +40,9 @@ test.describe("checkout", () => {
   test("creates a real Razorpay test-mode order, then rejects a forged signature", async ({ page }) => {
     const unique = Date.now();
     const email = `e2e-checkout-${unique}@example.com`;
-    const phone = `9${String(unique).slice(-9)}`;
     const password = "TestPass123!";
 
-    await page.goto("/register");
-    await page.getByPlaceholder("First name").fill("Test");
-    await page.getByPlaceholder("Last name").fill("User");
-    await page.getByPlaceholder("Email address").fill(email);
-    await page.getByPlaceholder("Phone number (+91...)").fill(phone);
-    await page.getByPlaceholder("Password", { exact: true }).fill(password);
-    await page.getByPlaceholder("Confirm password").fill(password);
-    await page.getByRole("button", { name: /get started/i }).click();
-    await page.waitForURL("**/dashboard**", { timeout: 15_000 });
+    await signUpViaUi(page, { email, password });
 
     const token = await page.evaluate(() => localStorage.getItem("token"));
     expect(token).toBeTruthy();

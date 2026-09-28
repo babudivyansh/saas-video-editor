@@ -15,12 +15,9 @@ test("brainstormer generates ideas from a mocked provider response", async ({ pa
         user: {
           id: "e2e-fake-user",
           email: "e2e@example.com",
-          phone: null,
           credits: 10,
           createdAt: new Date().toISOString(),
           role: "USER",
-          firstName: "E2E",
-          lastName: "User",
           name: "E2E User",
           avatarUrl: null,
           gender: null,

@@ -21,12 +21,14 @@ export interface TokenPayload {
   sessionId: string;
 }
 
+// Pinned on both sides so a token can only ever be checked as HS256 — never
+// whatever algorithm its own header happens to claim.
 export function signToken(payload: TokenPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d", algorithm: "HS256" });
 }
 
 export function verifyToken(token: string): TokenPayload {
-  return jwt.verify(token, JWT_SECRET) as TokenPayload;
+  return jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] }) as TokenPayload;
 }
 
 /**

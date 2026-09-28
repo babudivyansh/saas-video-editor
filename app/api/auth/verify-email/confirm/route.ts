@@ -1,27 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { redis } from "@/lib/redis";
+import { getAuthUser } from "@/lib/auth";
 import { withRateLimit } from "@/lib/with-rate-limit";
+import { consumeOtp } from "@/lib/otp";
 
-// POST /api/auth/verify-email/confirm { token } — intentionally
-// unauthenticated (the token itself is the credential, same as
-// reset-password/confirm) since the link is opened from an email client that
-// may not carry the app's session.
+// POST /api/auth/verify-email/confirm { otp } — checks the code sent by
+// /api/auth/verify-email/send. Authenticated: the code is only good for the
+// signed-in caller's own address. 5 tries per 10 minutes (keyed by user) is
+// room for a typo and nowhere near enough to guess one in 900k.
 async function handlePOST(req: NextRequest) {
-  const { token } = await req.json().catch(() => ({}));
-  if (!token || typeof token !== "string") {
-    return NextResponse.json({ error: "Verification token is required" }, { status: 400 });
+  const auth = await getAuthUser(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { otp } = await req.json().catch(() => ({}));
+  if (!otp) return NextResponse.json({ error: "Enter the code we emailed you" }, { status: 400 });
+
+  const user = await prisma.user.findUnique({
+    where: { id: auth.userId },
+    select: { email: true, emailVerifiedAt: true },
+  });
+  if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  if (user.emailVerifiedAt) return NextResponse.json({ ok: true, alreadyVerified: true });
+
+  if (!(await consumeOtp("verify", user.email, otp))) {
+    return NextResponse.json({ error: "Invalid or expired code" }, { status: 400 });
   }
 
-  const userId = await redis.get(`verify-email:${token}`);
-  if (!userId) {
-    return NextResponse.json({ error: "This verification link has expired or is invalid." }, { status: 400 });
-  }
-
-  await prisma.user.update({ where: { id: userId }, data: { emailVerifiedAt: new Date() } });
-  await redis.del(`verify-email:${token}`);
-
+  await prisma.user.update({ where: { id: auth.userId }, data: { emailVerifiedAt: new Date() } });
   return NextResponse.json({ ok: true });
 }
 
-export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 900, keyBy: "ip", name: "verify-email:confirm" });
+export const POST = withRateLimit(handlePOST, { limit: 5, windowSec: 600, keyBy: "user", name: "verify-email:confirm" });

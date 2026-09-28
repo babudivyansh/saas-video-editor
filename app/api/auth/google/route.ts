@@ -31,9 +31,12 @@ export async function GET(req: NextRequest) {
   const options = {
     redirect_uri: redirectUri,
     client_id: env.GOOGLE_CLIENT_ID!,
-    access_type: "offline",
     response_type: "code",
-    prompt: "consent",
+    // Sign-in only reads the profile once, so there is no refresh token to
+    // ask for (access_type=offline) and no reason to force the consent screen
+    // on every login (prompt=consent). select_account still lets a user with
+    // several Google accounts pick which one.
+    prompt: "select_account",
     state,
     scope: [
       "https://www.googleapis.com/auth/userinfo.profile",

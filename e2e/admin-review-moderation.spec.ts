@@ -14,12 +14,9 @@ test("admin approves a pending review from the moderation queue", async ({ page 
         user: {
           id: "e2e-admin",
           email: "admin@example.com",
-          phone: null,
           credits: 0,
           createdAt: new Date().toISOString(),
           role: "ADMIN",
-          firstName: "Admin",
-          lastName: "User",
           name: "Admin User",
           avatarUrl: null,
           gender: null,

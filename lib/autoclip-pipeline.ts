@@ -87,6 +87,7 @@ import { TARGET_RES } from "@/lib/reframe";
 import os from "os";
 import path from "path";
 import fs from "fs";
+import { greetingName } from "@/lib/display-name";
 
 export type Aspect = "9:16" | "16:9" | "1:1";
 
@@ -386,9 +387,9 @@ export async function notifyRenderOutcome(
       href,
     });
     try {
-      const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, firstName: true, name: true } });
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
       if (user) {
-        await sendClipsReadyEmail(user.email, user.firstName ?? user.name ?? "", n, `${APP_URL}${href}`);
+        await sendClipsReadyEmail(user.email, greetingName(user.name), n, `${APP_URL}${href}`);
       }
     } catch (e) {
       logger.error("auto-clip", "clips-ready email error", e);

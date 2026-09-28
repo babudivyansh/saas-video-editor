@@ -32,8 +32,8 @@ async function setupDashboard(page: Page, baseURL: string | undefined, opts: { a
       contentType: "application/json",
       body: JSON.stringify({
         user: {
-          id: "e2e-fake-user", email: "e2e@example.com", phone: null, credits: 10,
-          createdAt: new Date().toISOString(), role: "USER", firstName: "E2E", lastName: "User",
+          id: "e2e-fake-user", email: "e2e@example.com", credits: 10,
+          createdAt: new Date().toISOString(), role: "USER",
           name: "E2E User", avatarUrl: null, gender: null, intendedUse: null,
           subscriptionEndsAt: null, nextRefillAt: null, monthlyCredits: 0, plan: null,
           onboardingCompletedAt: new Date().toISOString(), tourCompletedAt: new Date().toISOString(),

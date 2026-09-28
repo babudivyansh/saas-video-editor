@@ -40,7 +40,7 @@ vi.mock("@/lib/minutes", () => minutes);
 
 interface Db {
   razorpayEvents: Set<string>;
-  users: Map<string, { credits: number; email: string; firstName: string | null; name: string | null }>;
+  users: Map<string, { credits: number; email: string; name: string | null }>;
   purchases: Map<string, unknown>;
   plans: Map<string, { id: string; slug: string; kind: string; credits: number; name: string; intervalMonths: number | null; monthlyCredits: number | null; monthlyMinutes?: number | null; minutes?: number }>;
 }
@@ -51,7 +51,7 @@ let failNextUserUpdate = false;
 function resetDb() {
   db = {
     razorpayEvents: new Set(),
-    users: new Map([["user-1", { credits: 30, email: "a@test.com", firstName: "A", name: null }]]),
+    users: new Map([["user-1", { credits: 30, email: "a@test.com", name: "A" }]]),
     purchases: new Map(),
     plans: new Map([
       ["pack_starter", { id: "plan-1", slug: "pack_starter", kind: "pack", credits: 60, name: "Starter", intervalMonths: null, monthlyCredits: null }],

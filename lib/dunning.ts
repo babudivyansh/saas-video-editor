@@ -3,6 +3,7 @@ import { logger } from "@/lib/logger";
 import { notify } from "@/lib/notify";
 import { shouldSendCategory } from "@/lib/notifications";
 import { sendPaymentFailedEmail } from "@/lib/email";
+import { greetingName } from "@/lib/display-name";
 
 // Dunning: what happens between a card being declined and a subscription
 // actually ending.
@@ -27,7 +28,7 @@ const FAILURE_EMAIL_COOLDOWN_HOURS = 24;
 async function findOwner(subscriptionId: string, notesUserId?: string) {
   const bySub = await prisma.user.findUnique({
     where: { razorpaySubscriptionId: subscriptionId },
-    select: { id: true, email: true, firstName: true, name: true, paymentFailedEmailSentAt: true, paymentFailureCount: true },
+    select: { id: true, email: true, name: true, paymentFailedEmailSentAt: true, paymentFailureCount: true },
   });
   if (bySub) return bySub;
   if (!notesUserId) return null;
@@ -35,7 +36,7 @@ async function findOwner(subscriptionId: string, notesUserId?: string) {
   // account was lapsed locally while a renewal was still being retried.
   return prisma.user.findUnique({
     where: { id: notesUserId },
-    select: { id: true, email: true, firstName: true, name: true, paymentFailedEmailSentAt: true, paymentFailureCount: true },
+    select: { id: true, email: true, name: true, paymentFailedEmailSentAt: true, paymentFailureCount: true },
   });
 }
 
@@ -92,7 +93,7 @@ export async function recordSubscriptionFailure(args: {
   await prisma.user.update({ where: { id: user.id }, data: { paymentFailedEmailSentAt: now } });
   await sendPaymentFailedEmail(
     user.email,
-    user.firstName ?? user.name ?? "",
+    greetingName(user.name),
     reason,
     updated.paymentFailureCount,
   ).catch((e) => logger.error("dunning", `payment-failed email failed for ${user.id}`, e));

@@ -4,6 +4,7 @@ import { sendOnboardingDay1Email, sendOnboardingDay3Email, sendOnboardingDay7Ema
 import { shouldSendCategory } from "@/lib/notifications";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
+import { greetingName } from "@/lib/display-name";
 
 // Daily cron — drives the 3-email onboarding sequence for new users.
 //
@@ -42,13 +43,13 @@ export async function GET(req: NextRequest) {
         createdAt: { gte: windowStart, lte: windowEnd },
         onboardingDay1SentAt: null,
       },
-      select: { id: true, email: true, firstName: true, name: true, credits: true },
+      select: { id: true, email: true, name: true, credits: true },
     });
 
     for (const u of users) {
       try {
         if (await shouldSendCategory(u.id, "productUpdates")) {
-          await sendOnboardingDay1Email(u.email, u.firstName ?? u.name ?? "", u.credits);
+          await sendOnboardingDay1Email(u.email, greetingName(u.name), u.credits);
         }
         await prisma.user.update({ where: { id: u.id }, data: { onboardingDay1SentAt: now } });
         results.day1++;
@@ -71,7 +72,7 @@ export async function GET(req: NextRequest) {
         createdAt: { gte: windowStart, lte: windowEnd },
         onboardingDay3SentAt: null,
       },
-      select: { id: true, email: true, firstName: true, name: true, credits: true },
+      select: { id: true, email: true, name: true, credits: true },
     });
 
     for (const u of users) {
@@ -80,7 +81,7 @@ export async function GET(req: NextRequest) {
         const creditsUsed = Math.max(0, 10 - u.credits);
         const hasUsed = creditsUsed > 0;
         if (await shouldSendCategory(u.id, "productUpdates")) {
-          await sendOnboardingDay3Email(u.email, u.firstName ?? u.name ?? "", creditsUsed, hasUsed);
+          await sendOnboardingDay3Email(u.email, greetingName(u.name), creditsUsed, hasUsed);
         }
         await prisma.user.update({ where: { id: u.id }, data: { onboardingDay3SentAt: now } });
         results.day3++;
@@ -104,13 +105,13 @@ export async function GET(req: NextRequest) {
         onboardingDay7SentAt: null,
         planId: null, // don't send upgrade nudge to already-paid users
       },
-      select: { id: true, email: true, firstName: true, name: true, credits: true },
+      select: { id: true, email: true, name: true, credits: true },
     });
 
     for (const u of users) {
       try {
         if (await shouldSendCategory(u.id, "productUpdates")) {
-          await sendOnboardingDay7Email(u.email, u.firstName ?? u.name ?? "", u.credits);
+          await sendOnboardingDay7Email(u.email, greetingName(u.name), u.credits);
         }
         await prisma.user.update({ where: { id: u.id }, data: { onboardingDay7SentAt: now } });
         results.day7++;

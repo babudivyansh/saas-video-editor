@@ -7,6 +7,7 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import { encryptSecret, decryptSecret } from "@/lib/encryption";
 import { verifyTotpStep, generateRecoveryCode, hashRecoveryCode } from "@/lib/totp";
 import { logger } from "@/lib/logger";
+import { greetingName } from "@/lib/display-name";
 
 const RECOVERY_CODE_COUNT = 10;
 
@@ -52,11 +53,11 @@ async function handlePOST(req: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { id: auth.userId },
-    select: { email: true, firstName: true, name: true },
+    select: { email: true, name: true },
   });
   if (user) {
     const timeStr = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
-    sendTwoFactorChangedAlertEmail(user.email, user.firstName ?? user.name ?? "", true, timeStr)
+    sendTwoFactorChangedAlertEmail(user.email, greetingName(user.name), true, timeStr)
       .catch((e) => logger.error("2fa-enable", "alert email error", e));
   }
 

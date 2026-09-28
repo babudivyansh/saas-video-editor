@@ -9,12 +9,19 @@ import { APP_URL, PRODUCT_NAME } from "../tokens";
 
 const SECURE_URL = `${APP_URL}/reset-password-request`;
 
-export function otp(p: { otp: string }): EmailDocument {
+const OTP_HEADINGS: Record<string, string> = {
+  signup: "Confirm your email to finish signing up",
+  login: "Your sign-in code",
+  "step-up": "Confirm it's you",
+  verify: "Verify your email address",
+};
+
+export function otp(p: { otp: string; purpose?: string }): EmailDocument {
   return {
     subject: `Your ${PRODUCT_NAME} verification code`,
     preheader: `Your code is ${p.otp}. It expires in 10 minutes.`,
     blocks: [
-      { kind: "heading", text: "Verify your email address" },
+      { kind: "heading", text: OTP_HEADINGS[p.purpose ?? "verify"] ?? OTP_HEADINGS.verify },
       {
         kind: "paragraph",
         text: html`Enter the code below to continue. This code expires in <strong>10 minutes</strong>.`,

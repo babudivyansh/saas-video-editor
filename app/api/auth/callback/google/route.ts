@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { completeLogin, setSessionCookie } from "@/lib/auth";
+import { setSessionCookie, setLocaleCookieFromUser } from "@/lib/auth";
+import { finishLogin } from "@/lib/login-tail";
+import { claimUnverifiedAccount } from "@/lib/account-claim";
+import { cleanName, NAME_MAX } from "@/lib/auth-validation";
+import { greetingName } from "@/lib/display-name";
 import { sendWelcomeEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
 import { grantFreeTierMinutes } from "@/lib/minutes";
@@ -86,7 +90,9 @@ export async function GET(req: NextRequest) {
 
     const profile = await profileResponse.json();
     const email = profile.email?.toLowerCase();
-    const name = profile.name || `${profile.given_name} ${profile.family_name}`.trim();
+    const name =
+      cleanName(profile.name || [profile.given_name, profile.family_name].filter(Boolean).join(" ")).slice(0, NAME_MAX) ||
+      null;
     const avatarUrl = profile.picture;
 
     if (!email) {
@@ -96,8 +102,9 @@ export async function GET(req: NextRequest) {
     // Account-linking by email is takeover-adjacent: a Google account whose
     // email is unverified could otherwise link into (or create) an account on
     // an address its owner never proved control of. Google's v3 userinfo
-    // returns email_verified for the email scope; reject an explicit false.
-    if (profile.email_verified === false) {
+    // returns email_verified for the email scope; anything but an explicit
+    // true (false, or the field missing) is refused.
+    if (profile.email_verified !== true) {
       return NextResponse.json({ error: "Your Google email address is not verified." }, { status: 400 });
     }
 
@@ -118,10 +125,12 @@ export async function GET(req: NextRequest) {
         data: {
           email,
           name,
-          firstName: profile.given_name || null,
-          lastName: profile.family_name || null,
           avatarUrl,
           passwordHash,
+          // The hash above is random and never shown to anyone, so this
+          // account has no password its owner knows — sensitive actions step
+          // up with an emailed code instead (lib/step-up.ts).
+          hasPassword: false,
           // Signup grant lands in the bonus bucket (30-day expiry); the
           // monthly free-tier drip is anchored one month out from signup.
           credits: 10,
@@ -141,29 +150,31 @@ export async function GET(req: NextRequest) {
       await grantFreeTierMinutes(newUserId, "grant:signup").catch((e) =>
         logger.error("auth", `signup minutes grant failed for ${newUserId}`, e));
 
-      // Google doesn't collect a phone or a typed code, so this is
-      // cookie-attribution only — the helper degrades gracefully.
+      // Google doesn't collect a typed code, so this is cookie-attribution
+      // only — the helper degrades gracefully.
       await attributeReferral({
         cookieCode: req.cookies.get("affiliate_ref")?.value ?? null,
         typedCode: null,
         email,
-        phone: null,
-        newUser: { id: user.id, firstName: profile.given_name ?? null, name },
-        signupIp:
-          req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-          req.headers.get("x-real-ip") ??
-          null,
+        newUser: { id: user.id, name },
+        // The rightmost trusted hop, not the client-supplied leftmost one.
+        signupIp: (() => { const ip = getClientIp(req); return ip === "unknown" ? null : ip; })(),
       });
     } else {
-      // Existing user signing in via Google — backfill avatar if they had
-      // none, and count this as email verification if it wasn't already
-      // (they've just proven control of the inbox via Google's own flow).
-      const updates: { avatarUrl?: string; emailVerifiedAt?: Date } = {};
-      if (avatarUrl && !user.avatarUrl) updates.avatarUrl = avatarUrl;
-      if (!user.emailVerifiedAt) updates.emailVerifiedAt = new Date();
-      if (Object.keys(updates).length > 0) {
-        user = await prisma.user.update({ where: { id: user.id }, data: updates });
+      // Existing account. If its address was never verified, whoever created
+      // it may not own the inbox — they could have registered this address
+      // first, set the password and even 2FA, waiting for the real owner to
+      // sign in with Google. The Google sign-in is the first proof of the
+      // inbox, so the account is claimed clean: password, 2FA and every
+      // session are dropped (lib/account-claim.ts).
+      if (!user.emailVerifiedAt) {
+        await claimUnverifiedAccount(user.id);
       }
+      // Backfill the avatar if they had none.
+      if (avatarUrl && !user.avatarUrl) {
+        await prisma.user.update({ where: { id: user.id }, data: { avatarUrl } });
+      }
+      user = (await prisma.user.findUnique({ where: { id: user.id } }))!;
     }
 
     // 4. Same account gates as /api/auth/login — proving control of the Google
@@ -187,8 +198,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(new URL(dest, appUrl()));
     }
 
-    // 5. Issue JWT and cache session
-    const { token } = await completeLogin(req, user);
+    // 5. Issue JWT and cache session — the same tail as password logins, so a
+    // Google sign-in records a LoginEvent, bumps lastLoginAt and sends the
+    // new-sign-in alert like every other login does.
+    const token = await finishLogin(req, user, getClientIp(req));
 
     // 6. Return HTML page that sets localStorage and redirects.
     // toInlineScriptJson escapes "<" so a value can never contain a literal
@@ -217,6 +230,7 @@ export async function GET(req: NextRequest) {
       headers: { "Content-Type": "text/html" },
     });
     setSessionCookie(res, token);
+    setLocaleCookieFromUser(res, user.preferredLanguage);
     res.cookies.set("google_oauth_state", "", { maxAge: 0, path: "/api/auth/callback/google" });
 
     if (isNewUser) {
@@ -226,7 +240,7 @@ export async function GET(req: NextRequest) {
       // the first-touch cookie. Never throws; a missing cookie is a no-op.
       await recordSignupAttribution(req, res, "/api/auth/callback/google");
       // ── Welcome email for new Google signup (non-fatal) ───────────
-      sendWelcomeEmail(user.email, profile.given_name ?? "", user.credits ?? 10).catch(
+      sendWelcomeEmail(user.email, greetingName(user.name), user.credits ?? 10).catch(
         (e) => logger.error("google-callback", "welcome email error", e)
       );
     }

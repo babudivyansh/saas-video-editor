@@ -3,8 +3,10 @@ import bcrypt from "bcryptjs";
 import { setSessionCookie, setLocaleCookieFromUser } from "@/lib/auth";
 import { finishLogin } from "@/lib/login-tail";
 import { mintTwoFactorTicket } from "@/lib/two-factor-ticket";
-import { normalizeIdentifier, findUserByMethod, type AuthMethod } from "@/lib/identifier";
+import { emailFromBody, findUserByEmail } from "@/lib/identifier";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { issueOtp, OtpDeliveryError } from "@/lib/otp";
+import { markPasswordProven } from "@/lib/login-verification";
 import { logger } from "@/lib/logger";
 
 // Fixed-cost bcrypt hash with no matching password, compared against when the
@@ -14,18 +16,17 @@ const DUMMY_HASH = "$2b$12$ipMR8KgUrP3uE9KmGnmsnu9652Wk4V/4DG8PcTNPmZashszFKZSHC
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const method: AuthMethod = body.method === "phone" ? "phone" : "email";
-    const identifier = normalizeIdentifier(method, body.identifier ?? body.email ?? body.phone ?? "");
+    const body = await req.json().catch(() => ({}));
+    const email = emailFromBody(body);
     const { password } = body;
 
-    if (!identifier || !password) {
+    if (!email || !password || typeof password !== "string") {
       return NextResponse.json({ error: "Credentials are required" }, { status: 400 });
     }
 
     const ip = getClientIp(req);
     const [idLimit, ipLimit] = await Promise.all([
-      rateLimit(`login:id:${identifier}`, 8, 900),
+      rateLimit(`login:id:${email}`, 8, 900),
       rateLimit(`login:ip:${ip}`, 30, 900),
     ]);
     if (!idLimit.allowed || !ipLimit.allowed) {
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const user = await findUserByMethod(method, identifier);
+    const user = await findUserByEmail(email);
     // Always run a compare — against the dummy hash when the user doesn't
     // exist — so both branches take the same time and timing can't be used
     // to enumerate valid identifiers.
@@ -61,6 +62,22 @@ export async function POST(req: NextRequest) {
         { error: "This account is deactivated.", deactivated: true },
         { status: 403 },
       );
+    }
+
+    // Accounts from before signup verified addresses prove the inbox once,
+    // here, before any session. The emailed code is finished by
+    // /api/auth/verify-otp (see lib/login-verification.ts).
+    if (!user.emailVerifiedAt) {
+      await markPasswordProven(email, user.id);
+      try {
+        const extras = await issueOtp("login", email);
+        return NextResponse.json({ requiresEmailVerification: true, email, ...extras });
+      } catch (err) {
+        if (err instanceof OtpDeliveryError) {
+          return NextResponse.json({ error: "We couldn't send the verification email. Please try again." }, { status: 503 });
+        }
+        throw err;
+      }
     }
 
     // Password verified but a second factor is required — pause here rather

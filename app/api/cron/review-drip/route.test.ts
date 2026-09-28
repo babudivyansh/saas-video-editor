@@ -7,7 +7,7 @@ let stage1Rows: Array<{ userId: string }>;
 let stage2Rows: Array<{ userId: string }>;
 let stage3Rows: Array<{ userId: string }>;
 let existingReview: { id: string } | null;
-let users: Record<string, { email: string; firstName: string | null; name: string | null }>;
+let users: Record<string, { email: string; name: string | null }>;
 
 const findMany = vi.fn(async (args: { where: Record<string, unknown> }) => {
   if ("email1SentAt" in args.where && args.where.email1SentAt === null) return stage1Rows;
@@ -62,7 +62,7 @@ beforeEach(() => {
   stage2Rows = [];
   stage3Rows = [];
   existingReview = null;
-  users = { u1: { email: "u1@test.com", firstName: "U", name: null } };
+  users = { u1: { email: "u1@test.com", name: "U" } };
   getReviewSettings.mockResolvedValue({ emailDrip1DelayHours: 24, emailDrip2DelayDays: 6, emailDrip3DelayDays: 12 });
   shouldSendCategory.mockResolvedValue(true);
 });
@@ -124,7 +124,7 @@ describe("GET /api/cron/review-drip", () => {
 
   it("counts a per-user send failure as an error without aborting the run", async () => {
     stage1Rows = [{ userId: "u1" }, { userId: "u2" }];
-    users.u2 = { email: "u2@test.com", firstName: "V", name: null };
+    users.u2 = { email: "u2@test.com", name: "V" };
     sendReviewDripEmail1.mockRejectedValueOnce(new Error("smtp down"));
     const res = await get("test-secret");
     const data = await res.json();

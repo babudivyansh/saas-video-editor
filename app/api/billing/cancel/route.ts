@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { sendSubscriptionCancelledEmail } from "@/lib/email";
+import { greetingName } from "@/lib/display-name";
 
 const razorpay = new Razorpay({
   key_id: env.RAZORPAY_KEY_ID,
@@ -60,7 +61,7 @@ async function handlePOST(req: NextRequest) {
   const updated = await prisma.user.update({
     where: { id: auth.userId },
     data: { subscriptionCancelledAt: new Date() },
-    select: { subscriptionCancelledAt: true, subscriptionEndsAt: true, email: true, firstName: true, name: true },
+    select: { subscriptionCancelledAt: true, subscriptionEndsAt: true, email: true, name: true },
   });
 
   if (user.razorpaySubscriptionId) {
@@ -77,7 +78,7 @@ async function handlePOST(req: NextRequest) {
   // reassurance about how long their access lasts.
   sendSubscriptionCancelledEmail(
     updated.email,
-    updated.firstName ?? updated.name ?? "",
+    greetingName(updated.name),
     updated.subscriptionEndsAt,
   ).catch((e) => logger.error("billing/cancel", `cancellation email failed for ${auth.userId}`, e));
 

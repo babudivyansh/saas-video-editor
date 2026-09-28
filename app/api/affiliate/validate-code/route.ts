@@ -7,7 +7,6 @@ const bodySchema = z
   .object({
     code: z.string().trim().min(1).max(32),
     email: z.string().trim().toLowerCase().optional(),
-    phone: z.string().trim().optional(),
   })
   .strict();
 
@@ -25,10 +24,10 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
-  const { code, email, phone } = parsed.data;
+  const { code, email } = parsed.data;
 
   const cookieCode = req.cookies.get("affiliate_ref")?.value ?? null;
-  const result = await resolveReferralCode({ cookieCode, typedCode: code, email: email ?? "", phone });
+  const result = await resolveReferralCode({ cookieCode, typedCode: code, email: email ?? "" });
 
   if (!result || result.applied) {
     return NextResponse.json({ valid: true, code: result?.applied ? result.code : code });

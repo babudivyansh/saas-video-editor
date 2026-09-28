@@ -11,8 +11,8 @@ vi.mock("@/lib/env", () => ({
 let configRow: { key: string; value: string } | null = null;
 let clipUpdates: Array<{ where: { id: string }; data: unknown }> = [];
 let projectUpdates: Array<{ where: { id: string }; data: Record<string, unknown> }> = [];
-let userRow: { email: string; firstName: string | null; name: string | null } | null = {
-  email: "creator@test.co", firstName: "Ada", name: null,
+let userRow: { email: string; name: string | null } | null = {
+  email: "creator@test.co", name: "Ada",
 };
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -361,7 +361,7 @@ describe("notifyRenderOutcome — clips-ready email", () => {
   it("sends the email on a successful completion, with an absolute URL", async () => {
     notify.mockClear();
     sendClipsReadyEmail.mockClear();
-    userRow = { email: "creator@test.co", firstName: "Ada", name: null };
+    userRow = { email: "creator@test.co", name: "Ada" };
 
     await notifyRenderOutcome("project-1", "user-1", "completed", { readyCount: 3 });
 
@@ -393,7 +393,7 @@ describe("notifyRenderOutcome — clips-ready email", () => {
     expect(notify).toHaveBeenCalledTimes(1);
     expect(sendClipsReadyEmail).not.toHaveBeenCalled();
 
-    userRow = { email: "creator@test.co", firstName: "Ada", name: null }; // restore for later tests
+    userRow = { email: "creator@test.co", name: "Ada" }; // restore for later tests
   });
 });
 

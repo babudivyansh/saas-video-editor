@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 interface Buckets { bonus: number; subscription: number; purchased: number }
 let buckets: Buckets;
-let user: { autoTopupPackSlug: string | null; autoTopupThreshold: number; email: string; firstName: string | null; name: string | null };
+let user: { autoTopupPackSlug: string | null; autoTopupThreshold: number; email: string; name: string | null };
 let pack: { slug: string; name: string; active: boolean; kind: string } | null;
 let redisStore: Record<string, string>;
 const sendAutoTopupPromptEmail = vi.fn(async () => {});
@@ -66,7 +66,7 @@ const { spendCredits } = await import("./credits");
 
 beforeEach(() => {
   buckets = { bonus: 0, subscription: 0, purchased: 20 };
-  user = { autoTopupPackSlug: "pack_mini", autoTopupThreshold: 10, email: "u@test.co", firstName: "A", name: null };
+  user = { autoTopupPackSlug: "pack_mini", autoTopupThreshold: 10, email: "u@test.co", name: "A" };
   pack = { slug: "pack_mini", name: "Mini Pack", active: true, kind: "pack" };
   redisStore = {};
   vi.clearAllMocks();

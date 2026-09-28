@@ -1,10 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-// Signup grants the free tier's Clip Minutes through lib/minutes (ledgered);
-// its engine has its own real-database suite, so it's a spy here.
-const grantFreeTierMinutes = vi.hoisted(() => vi.fn(async () => ({ bonus: 30, subscription: 0, purchased: 0, total: 30 })));
-vi.mock("@/lib/minutes", () => ({ grantFreeTierMinutes }));
 import { NextRequest } from "next/server";
+
+// Step one of signup: validate, park the form in Redis, email a code. The
+// account itself is created by ./verify — this route must never create a
+// user or a session.
 
 let rateLimitAllowed = true;
 vi.mock("@/lib/rate-limit", () => ({
@@ -13,33 +12,22 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 
 vi.mock("bcryptjs", () => ({ default: { hash: vi.fn(async () => "hashed") } }));
+vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 
-vi.mock("@/lib/auth", () => ({
-  completeLogin: vi.fn(async () => ({ token: "tok-1", sessionId: "s1", device: "test", ip: "9.9.9.9" })),
-  setSessionCookie: vi.fn(() => {}),
-}));
+class OtpDeliveryError extends Error {}
+const issueOtp = vi.hoisted(() => vi.fn(async () => ({})));
+vi.mock("@/lib/otp", () => ({ issueOtp, OtpDeliveryError }));
 
-const sendWelcomeEmail = vi.fn(async () => {});
-vi.mock("@/lib/email", () => ({ sendWelcomeEmail }));
-
-const attributeReferral = vi.fn(async () => null);
-vi.mock("@/lib/affiliate", () => ({ attributeReferral }));
+const savePendingSignup = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock("@/lib/signup-pending", () => ({ savePendingSignup }));
 
 let emailTaken: boolean;
-let phoneTaken: boolean;
+const create = vi.fn();
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: {
-      findUnique: vi.fn(async ({ where }: { where: { email?: string; phone?: string } }) => {
-        if (where.email) return emailTaken ? { id: "existing-1" } : null;
-        if (where.phone) return phoneTaken ? { id: "existing-2" } : null;
-        return null;
-      }),
-      create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({
-        id: "new-user-1",
-        email: data.email,
-        credits: data.credits,
-      })),
+      findUnique: vi.fn(async () => (emailTaken ? { id: "existing-1" } : null)),
+      create,
     },
   },
 }));
@@ -47,10 +35,8 @@ vi.mock("@/lib/prisma", () => ({
 const { POST } = await import("./route");
 
 const VALID_BODY = {
-  firstName: "New",
-  lastName: "User",
-  email: "new@test.com",
-  phone: "+911234567890",
+  name: "New User",
+  email: "New@Test.com",
   password: "password123",
   confirmPassword: "password123",
 };
@@ -62,71 +48,68 @@ function post(body: Record<string, unknown>) {
 beforeEach(() => {
   rateLimitAllowed = true;
   emailTaken = false;
-  phoneTaken = false;
   vi.clearAllMocks();
 });
 
 describe("POST /api/auth/register", () => {
-  it("429s once the rate limit is exceeded, before ever touching the database", async () => {
+  it("parks the signup and emails a code — no account, no session", async () => {
+    const res = await post({ ...VALID_BODY, referralCode: " JOH-N4X2 " });
+    expect(res.status).toBe(202);
+    const data = await res.json();
+    expect(data).toMatchObject({ pending: true, email: "new@test.com" });
+    expect(data.token).toBeUndefined();
+    expect(savePendingSignup).toHaveBeenCalledWith("new@test.com", {
+      name: "New User",
+      passwordHash: "hashed",
+      referralCode: "JOH-N4X2",
+    });
+    expect(issueOtp).toHaveBeenCalledWith("signup", "new@test.com");
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("passes a dev code through when the OTP layer returns one", async () => {
+    issueOtp.mockResolvedValueOnce({ devCode: "123456" });
+    const data = await (await post(VALID_BODY)).json();
+    expect(data.devCode).toBe("123456");
+  });
+
+  it("503s instead of pretending success when the code can't be delivered", async () => {
+    issueOtp.mockRejectedValueOnce(new OtpDeliveryError());
+    const res = await post(VALID_BODY);
+    expect(res.status).toBe(503);
+  });
+
+  it("429s once the rate limit is exceeded, before parking anything", async () => {
     rateLimitAllowed = false;
     const res = await post(VALID_BODY);
     expect(res.status).toBe(429);
-    expect(attributeReferral).not.toHaveBeenCalled();
+    expect(savePendingSignup).not.toHaveBeenCalled();
   });
 
-  it("409s on an already-registered email before any referral logic runs", async () => {
+  it("409s on an already-registered email", async () => {
     emailTaken = true;
-    const res = await post({ ...VALID_BODY, referralCode: "SOME-CODE" });
+    const res = await post(VALID_BODY);
     expect(res.status).toBe(409);
-    expect(attributeReferral).not.toHaveBeenCalled();
+    expect(issueOtp).not.toHaveBeenCalled();
   });
 
-  it("grants the free tier's Clip Minutes at signup", async () => {
-    grantFreeTierMinutes.mockClear();
-    const res = await post(VALID_BODY);
-    expect(res.status).toBe(201);
-    expect(grantFreeTierMinutes).toHaveBeenCalledWith(expect.any(String), "grant:signup");
+  it("requires a single name — no first/last split, no phone", async () => {
+    expect((await post({ ...VALID_BODY, name: "   " })).status).toBe(400);
+    expect((await post({ ...VALID_BODY, name: "x".repeat(61) })).status).toBe(400);
+    // Old clients still sending first/last/phone without `name` are refused.
+    const { name: _omit, ...legacy } = VALID_BODY;
+    void _omit;
+    expect((await post({ ...legacy, firstName: "New", lastName: "User", phone: "+911234567890" })).status).toBe(400);
   });
 
-  it("still creates the account if the minutes grant fails", async () => {
-    grantFreeTierMinutes.mockRejectedValueOnce(new Error("db blip"));
-    const res = await post(VALID_BODY);
-    expect(res.status).toBe(201);
+  it("enforces password rules (match, 8+, at most 72 bytes)", async () => {
+    expect((await post({ ...VALID_BODY, confirmPassword: "different" })).status).toBe(400);
+    expect((await post({ ...VALID_BODY, password: "short", confirmPassword: "short" })).status).toBe(400);
+    const long = "x".repeat(73);
+    expect((await post({ ...VALID_BODY, password: long, confirmPassword: long })).status).toBe(400);
   });
 
-  it("creates the account and includes the referral outcome when a code is applied", async () => {
-    attributeReferral.mockResolvedValueOnce({
-      applied: true,
-      code: "JOH-N4X2",
-      affiliateId: "aff-1",
-      affiliateUser: { userId: "owner-1", email: "owner@test.com", firstName: "Owner", name: null },
-    });
-    const res = await post({ ...VALID_BODY, referralCode: "joh-n4x2" });
-    const data = await res.json();
-    expect(res.status).toBe(201);
-    expect(data.referral).toEqual({ applied: true, code: "JOH-N4X2" });
-    // The affiliate owner's own email must never reach the newly-registered client.
-    expect(JSON.stringify(data)).not.toContain("owner@test.com");
-  });
-
-  it("still creates the account (201) when the referral code is invalid, with no Referral side effect surfaced", async () => {
-    attributeReferral.mockResolvedValueOnce({ applied: false, reason: "invalid" });
-    const res = await post({ ...VALID_BODY, referralCode: "GHOST-1" });
-    const data = await res.json();
-    expect(res.status).toBe(201);
-    expect(data.referral).toEqual({ applied: false, reason: "invalid" });
-  });
-
-  it("omits the referral key entirely when no code or cookie was involved", async () => {
-    attributeReferral.mockResolvedValueOnce(null);
-    const res = await post(VALID_BODY);
-    const data = await res.json();
-    expect(res.status).toBe(201);
-    expect(data.referral).toBeUndefined();
-  });
-
-  it("still enforces password-match validation", async () => {
-    const res = await post({ ...VALID_BODY, confirmPassword: "different" });
-    expect(res.status).toBe(400);
+  it("rejects an invalid email", async () => {
+    expect((await post({ ...VALID_BODY, email: "not-an-email" })).status).toBe(400);
   });
 });

@@ -12,6 +12,7 @@ import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import Razorpay from "razorpay";
 import { nextRefillAfter } from "@/lib/billing/term";
+import { greetingName } from "@/lib/display-name";
 
 // Constructed on first use, not at module load: this route is imported by
 // tests and by the scheduler, and the SDK throws at construction time when
@@ -95,13 +96,13 @@ export async function GET(req: NextRequest) {
     const updated = await prisma.user.update({
       where: { id: u.id },
       data: { nextRefillAt, lowCreditEmailSentAt: null },
-      select: { email: true, firstName: true, name: true, credits: true, minutes: true },
+      select: { email: true, name: true, credits: true, minutes: true },
     });
 
     // ── Credits refill notification (non-fatal) ────────────────────
     sendCreditsRefilledEmail(
       updated.email,
-      updated.firstName ?? updated.name ?? "",
+      greetingName(updated.name),
       applied,
       updated.credits,
       minutesApplied > 0 ? { added: minutesApplied, balance: updated.minutes } : undefined,

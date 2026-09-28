@@ -12,8 +12,8 @@ vi.mock("@/lib/cron-tracking", () => ({ recordCronRun: vi.fn(async () => {}) }))
 vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 
 const RECIPIENTS = [
-  { id: "u1", email: "u1@test.co", firstName: "Ana", name: null },
-  { id: "u2", email: "u2@test.co", firstName: null, name: "Bo" },
+  { id: "u1", email: "u1@test.co", name: "Ana" },
+  { id: "u2", email: "u2@test.co", name: "Bo" },
 ];
 
 let dueAnnouncements: Array<{

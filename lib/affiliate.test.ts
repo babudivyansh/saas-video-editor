@@ -10,7 +10,7 @@ interface MockAffiliate {
   status: string;
   codeExpiresAt: Date | null;
   payoutThresholdNotifiedAt?: Date | null;
-  user: { id: string; email: string; phone: string | null; firstName: string | null; name: string | null };
+  user: { id: string; email: string; name: string | null };
 }
 
 let affiliateByCode: Map<string, MockAffiliate>;
@@ -72,7 +72,7 @@ function makeAffiliate(overrides: Partial<MockAffiliate> = {}): MockAffiliate {
     status: "active",
     codeExpiresAt: null,
     payoutThresholdNotifiedAt: null,
-    user: { id: "owner-1", email: "owner@test.com", phone: "+911234567890", firstName: "Owner", name: "Owner Name" },
+    user: { id: "owner-1", email: "owner@test.com", name: "Owner Name" },
     ...overrides,
   };
 }
@@ -151,23 +151,6 @@ describe("resolveReferralCode", () => {
     expect(result).toEqual({ applied: false, reason: "self" });
   });
 
-  it("rejects self-referral by matching phone", async () => {
-    affiliateByCode.set("JOH-N4X2", makeAffiliate());
-    const result = await resolveReferralCode({
-      cookieCode: null,
-      typedCode: "JOH-N4X2",
-      email: "different@test.com",
-      phone: "+911234567890",
-    });
-    expect(result).toEqual({ applied: false, reason: "self" });
-  });
-
-  it("does not false-positive self-referral when phone is absent", async () => {
-    affiliateByCode.set("JOH-N4X2", makeAffiliate({ user: { id: "owner-1", email: "owner@test.com", phone: null, firstName: "Owner", name: null } }));
-    const result = await resolveReferralCode({ cookieCode: null, typedCode: "JOH-N4X2", email: "different@test.com", phone: null });
-    expect(result?.applied).toBe(true);
-  });
-
   it("resolves a clean happy-path code", async () => {
     affiliateByCode.set("JOH-N4X2", makeAffiliate());
     const result = await resolveReferralCode({ cookieCode: null, typedCode: "JOH-N4X2", email: "new@test.com" });
@@ -175,7 +158,7 @@ describe("resolveReferralCode", () => {
       applied: true,
       code: "JOH-N4X2",
       affiliateId: "aff-1",
-      affiliateUser: { userId: "owner-1", email: "owner@test.com", firstName: "Owner", name: "Owner Name" },
+      affiliateUser: { userId: "owner-1", email: "owner@test.com", name: "Owner Name" },
     });
   });
 });
@@ -187,7 +170,7 @@ describe("attributeReferral", () => {
       cookieCode: "JOH-N4X2",
       typedCode: null,
       email: "new@test.com",
-      newUser: { id: "new-user-1", firstName: "New", name: "New User" },
+      newUser: { id: "new-user-1", name: "New User" },
       signupIp: "1.2.3.4",
     });
 
@@ -207,7 +190,7 @@ describe("attributeReferral", () => {
       cookieCode: "JOH-N4X2",
       typedCode: null,
       email: "new@test.com",
-      newUser: { id: "new-user-1", firstName: "New", name: "New User" },
+      newUser: { id: "new-user-1", name: "New User" },
       signupIp: "1.2.3.4", // same /24 as 1.2.3.9
     });
 
@@ -221,7 +204,7 @@ describe("attributeReferral", () => {
       cookieCode: null,
       typedCode: "GHOST-1",
       email: "new@test.com",
-      newUser: { id: "new-user-1", firstName: "New", name: "New User" },
+      newUser: { id: "new-user-1", name: "New User" },
       signupIp: "1.2.3.4",
     });
 
@@ -236,7 +219,7 @@ describe("attributeReferral", () => {
       cookieCode: "JOH-N4X2",
       typedCode: null,
       email: "new@test.com",
-      newUser: { id: "new-user-1", firstName: "New", name: "New User" },
+      newUser: { id: "new-user-1", name: "New User" },
       signupIp: "1.2.3.4",
     });
     expect(result).toBeNull();

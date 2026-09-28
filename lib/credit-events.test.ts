@@ -15,7 +15,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 interface UserRow {
   id: string;
   email: string;
-  firstName: string | null;
+ 
   name: string | null;
   firstVideoAt: Date | null;
   monthlyCredits: number | null;
@@ -55,8 +55,7 @@ beforeEach(() => {
   user = {
     id: "u1",
     email: "u@test.co",
-    firstName: "Ada",
-    name: null,
+    name: "Ada",
     firstVideoAt: null,
     monthlyCredits: 0,
     lowCreditEmailSentAt: null,

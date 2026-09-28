@@ -72,7 +72,7 @@ export default function SettingsGeneralPage() {
   useEffect(() => { void load(); }, [load]);
 
   const completenessChecks = [
-    !!user?.name, !!user?.phone, !!user?.avatarUrl, !!user?.gender, !!user?.intendedUse, !!user?.emailVerifiedAt,
+    !!user?.name, !!user?.avatarUrl, !!user?.gender, !!user?.intendedUse, !!user?.emailVerifiedAt,
   ];
   const completenessPct = Math.round((completenessChecks.filter(Boolean).length / completenessChecks.length) * 100);
 

@@ -10,7 +10,7 @@ interface PurchaseRow {
   plan: { name: string; kind: string; intervalMonths: number | null } | null;
 }
 interface UserRow {
-  email: string; name: string | null; firstName: string | null; lastName: string | null;
+  email: string; name: string | null;
   billingName: string | null; billingAddress: string | null; billingState: string | null;
   billingPincode: string | null; billingGstin: string | null;
 }
@@ -80,7 +80,7 @@ function addPurchase(id: string, over: Partial<PurchaseRow> = {}) {
 beforeEach(() => {
   purchases = new Map();
   users = new Map([["u1", {
-    email: "priya@example.com", name: "Priya", firstName: "Priya", lastName: "Sharma",
+    email: "priya@example.com", name: "Priya",
     billingName: null, billingAddress: null, billingState: null, billingPincode: null, billingGstin: null,
   }]]);
   invoices = [];

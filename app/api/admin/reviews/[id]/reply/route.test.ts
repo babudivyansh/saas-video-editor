@@ -13,7 +13,7 @@ vi.mock("@/lib/redis", () => ({
   },
 }));
 
-const AUTHOR = { id: "author-1", email: "author@test.com", name: "Author One", firstName: "Author" };
+const AUTHOR = { id: "author-1", email: "author@test.com", name: "Author One" };
 let review: { id: string; user: typeof AUTHOR } | null;
 let existingReply: { reviewId: string; body: string } | null;
 let createError: { code: string } | null;

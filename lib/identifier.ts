@@ -1,16 +1,15 @@
 import { prisma } from "./prisma";
+import { normalizeEmail } from "./auth-validation";
 
-export type AuthMethod = "email" | "phone";
-
-/** Normalizes an email (lowercase) or phone (strip spaces/dashes) identifier. */
-export function normalizeIdentifier(method: AuthMethod, raw: string): string {
-  const value = (raw ?? "").trim();
-  return method === "email" ? value.toLowerCase() : value.replace(/[\s-]/g, "");
+/**
+ * The email a sign-in request names. Accepts the historical `identifier`
+ * field as well as `email` so an older client build keeps working; phone
+ * numbers are no longer an identifier (removed 2026-09-28).
+ */
+export function emailFromBody(body: { identifier?: unknown; email?: unknown }): string {
+  return normalizeEmail(body.email ?? body.identifier);
 }
 
-/** Looks up a user by the given login method + normalized identifier. */
-export async function findUserByMethod(method: AuthMethod, identifier: string) {
-  return prisma.user.findUnique({
-    where: method === "email" ? { email: identifier } : { phone: identifier },
-  });
+export async function findUserByEmail(email: string) {
+  return prisma.user.findUnique({ where: { email } });
 }

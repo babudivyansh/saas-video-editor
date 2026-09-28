@@ -30,24 +30,28 @@ import type { AdminDigestData, ContactMessageData } from "@/lib/email/templates/
 
 export type { SocialDigestAccount, AdminDigestData, ContactMessageData };
 
-/** Retained for sendOtpEmail's return type, which callers switch on. */
-export type DeliveryChannel = "email" | "sms" | "dev-console";
+/**
+ * How an OTP email went out. "failed" is its own value: this used to report
+ * every non-dev send — including a provider refusal — as "email", so a code
+ * that never left the building looked delivered.
+ */
+export type DeliveryChannel = "email" | "dev-console" | "failed";
+
+/** What the code is for — only changes the email's wording. */
+export type OtpPurpose = "login" | "signup" | "verify" | "step-up";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Auth & security — all transactional
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function sendOtpEmail(to: string, otp: string): Promise<DeliveryChannel> {
-  const r = await sendTemplate("otp", to, { otp });
-  return r.channel === "dev-console" ? "dev-console" : "email";
+export async function sendOtpEmail(to: string, otp: string, purpose: OtpPurpose = "verify"): Promise<DeliveryChannel> {
+  const r = await sendTemplate("otp", to, { otp, purpose });
+  if (r.channel === "dev-console") return "dev-console";
+  return r.status === "sent" ? "email" : "failed";
 }
 
 export async function sendPasswordResetEmail(to: string, name: string, resetLink: string): Promise<void> {
   await sendTemplate("password-reset", to, { name, resetLink });
-}
-
-export async function sendVerifyEmailEmail(to: string, name: string, verifyLink: string): Promise<void> {
-  await sendTemplate("verify-email", to, { name, verifyLink });
 }
 
 export async function sendChangeEmailConfirmationEmail(

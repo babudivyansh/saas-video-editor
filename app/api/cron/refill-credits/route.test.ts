@@ -36,7 +36,7 @@ vi.mock("@/lib/minutes", () => minutes);
 interface UserRow {
   id: string;
   email: string;
-  firstName: string | null;
+ 
   name: string | null;
   credits: number;
   bonusCredits: number;
@@ -148,7 +148,6 @@ function user(overrides: Partial<UserRow>): UserRow {
   const u: UserRow = {
     id: `u${users.length + 1}`,
     email: "u@test.co",
-    firstName: null,
     name: null,
     credits: 0,
     bonusCredits: 0,

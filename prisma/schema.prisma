@@ -15,8 +15,11 @@ enum Role {
 model User {
   id                       String    @id @default(uuid())
   email                    String    @unique
-  phone                    String?   @unique
   passwordHash             String
+  // False when the account has never had a password its owner knows (Google
+  // signups get a random hash). Sensitive actions then step up with an emailed
+  // code instead of the password (lib/step-up.ts). Set true by reset-password.
+  hasPassword              Boolean   @default(true)
   // Denormalized TOTAL balance = bonus + subscription + purchased, maintained
   // atomically by lib/credits.ts in the same statement as every bucket
   // mutation (2026-07 bucket split). Read-only everywhere else — all existing
@@ -86,8 +89,6 @@ model User {
   // hardcoded global threshold, so existing rows keep the same behavior.
   autoTopupThreshold       Int       @default(10)
   role                     Role      @default(USER)
-  firstName                String?
-  lastName                 String?
   name                     String?
   avatarUrl                String?
   gender                   String? // "male" | "female" | "unspecified" — validated in the API layer

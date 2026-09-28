@@ -60,7 +60,7 @@ describe("POST /api/affiliate/validate-code", () => {
       applied: true,
       code: "ABC-1234",
       affiliateId: "aff-1",
-      affiliateUser: { userId: "owner-1", email: "owner@test.com", firstName: "Owner", name: "Owner Name" },
+      affiliateUser: { userId: "owner-1", email: "owner@test.com", name: "Owner Name" },
     });
     const res = await post({ code: "abc-1234" });
     const data = await res.json();

@@ -16,14 +16,6 @@ function MailIcon() {
   );
 }
 
-function PhoneIcon() {
-  return (
-    <svg className="w-4 h-4 text-fg-subtle" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" />
-    </svg>
-  );
-}
-
 function UserIcon() {
   return (
     <svg className="w-4 h-4 text-fg-subtle" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -65,7 +57,7 @@ const inputClass =
   "w-full pl-10 pr-4 py-3 border border-line hover:border-line-strong focus:border-brand focus:ring-2 focus:ring-brand/10 rounded-xl text-sm text-fg placeholder-fg-subtle focus:outline-none bg-panel transition-all";
 
 // Panels of the horizontal login slider, in the order they're laid out. "otp"
-// is the email/SMS code; "totp" is the second factor from an authenticator app
+// is the emailed code; "totp" is the second factor from an authenticator app
 // (only reached when the account has 2FA on).
 const LOGIN_STEPS = ["identifier", "password", "otp", "totp", "forgot-password"] as const;
 type LoginStep = (typeof LOGIN_STEPS)[number];
@@ -75,26 +67,12 @@ const emptyDigits = () => Array<string>(CODE_LENGTH).fill("");
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function detectMethod(identifier: string): "email" | "phone" {
-  return identifier.includes("@") ? "email" : "phone";
-}
-
 function isValidEmail(value: string): boolean {
   return EMAIL_RE.test(value.trim());
 }
 
-function isValidPhone(value: string): boolean {
-  return /^\+?[0-9]{7,15}$/.test(value.trim().replace(/[\s-]/g, ""));
-}
-
-function isValidIdentifier(value: string): boolean {
-  const v = value.trim();
-  if (!v) return false;
-  return v.includes("@") ? isValidEmail(v) : isValidPhone(v);
-}
-
 /**
- * The 6-box code entry, shared by the email/SMS OTP panel and the 2FA panel.
+ * The 6-box code entry, shared by the emailed-code panels and the 2FA panel.
  * One implementation of the auto-advance / backspace / paste behaviour rather
  * than a copy per panel, which is how the two would quietly drift apart.
  *
@@ -200,6 +178,12 @@ export default function AuthForm({
   const [otpDigits, setOtpDigits] = useState(emptyDigits);
   const [devCode, setDevCode] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
+  // The code panel doubles as the one-time address check that older, never-
+  // verified accounts get after their password (server: requiresEmailVerification).
+  const [verifyingEmail, setVerifyingEmail] = useState(false);
+  // A deactivated account's login answers "deactivated" — offer the
+  // reactivate call with the credentials just typed instead of a dead end.
+  const [canReactivate, setCanReactivate] = useState(false);
 
   // Second factor: the ticket the server minted after the password (or OTP, or
   // Google) checked out, exchanged for a real session by /api/auth/2fa/verify-login.
@@ -216,14 +200,16 @@ export default function AuthForm({
   }, [cooldown]);
 
   const [reg, setReg] = useState({
-    firstName: "",
-    lastName: "",
+    name: "",
     email: "",
-    phone: "",
     password: "",
     confirmPassword: "",
     referralCode: "",
   });
+  // Signup is two steps: the form, then the 6-digit code emailed to prove the
+  // address. The account only exists once the code checks out.
+  const [regStep, setRegStep] = useState<"form" | "code">("form");
+  const [regDigits, setRegDigits] = useState(emptyDigits);
   const [showReferralField, setShowReferralField] = useState(false);
   const [codeCheck, setCodeCheck] = useState<{ valid: boolean; reason?: string } | null>(null);
   const [checkingCode, setCheckingCode] = useState(false);
@@ -281,7 +267,7 @@ export default function AuthForm({
       const res = await fetch("/api/affiliate/validate-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: code.trim(), email: reg.email, phone: reg.phone }),
+        body: JSON.stringify({ code: code.trim(), email: reg.email }),
       });
       const data = await res.json();
       if (!res.ok) { setCodeCheck(null); return; }
@@ -327,27 +313,64 @@ export default function AuthForm({
 
   function handleIdentifierContinue(e: React.FormEvent) {
     e.preventDefault();
-    if (!identifier.trim()) { setError("Enter your email or phone number"); return; }
+    if (!identifier.trim()) { setError("Enter your email address"); return; }
     setError("");
     setLoginStep("password");
+  }
+
+  /** Password login and reactivation answer in the same shapes. */
+  function handleLoginResult(data: { requires2fa?: boolean; ticket?: string; requiresEmailVerification?: boolean; devCode?: string; token?: string }) {
+    if (data.requires2fa && data.ticket) { startTwoFactor(data.ticket); return; }
+    if (data.requiresEmailVerification) {
+      setVerifyingEmail(true);
+      setDevCode(data.devCode ?? null);
+      setOtpDigits(emptyDigits());
+      setCooldown(60);
+      setLoginStep("otp");
+      return;
+    }
+    finishAuth(data.token);
   }
 
   async function handlePasswordLogin(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setCanReactivate(false);
     setLoading(true);
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ method: detectMethod(identifier), identifier, password: loginPassword }),
+        body: JSON.stringify({ email: identifier.trim(), password: loginPassword }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Login failed");
-      if (data.requires2fa) { startTwoFactor(data.ticket); return; }
-      finishAuth(data.token);
+      if (!res.ok) {
+        if (data.deactivated) setCanReactivate(true);
+        throw new Error(data.error ?? "Login failed");
+      }
+      handleLoginResult(data);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleReactivate() {
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/account/reactivate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: identifier.trim(), password: loginPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Reactivation failed");
+      setCanReactivate(false);
+      handleLoginResult(data);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Reactivation failed");
     } finally {
       setLoading(false);
     }
@@ -383,7 +406,7 @@ export default function AuthForm({
       const res = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ method: detectMethod(identifier), identifier }),
+        body: JSON.stringify({ email: identifier.trim() }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to send code");
@@ -408,11 +431,11 @@ export default function AuthForm({
       const res = await fetch("/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ method: detectMethod(identifier), identifier, otp }),
+        body: JSON.stringify({ email: identifier.trim(), otp }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Verification failed");
-      // An emailed/SMS code proves the first factor only — an account with 2FA
+      // An emailed code proves the first factor only — an account with 2FA
       // on still has to produce an authenticator code.
       if (data.requires2fa) { startTwoFactor(data.ticket); return; }
       finishAuth(data.token);
@@ -473,9 +496,61 @@ export default function AuthForm({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Sign up failed");
-      finishAuth(data.token);
+      setDevCode(data.devCode ?? null);
+      setRegDigits(emptyDigits());
+      setCooldown(60);
+      setRegStep("code");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Sign up failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVerifySignup(e: React.FormEvent) {
+    e.preventDefault();
+    const otp = regDigits.join("");
+    if (otp.length < CODE_LENGTH) { setError(`Enter all ${CODE_LENGTH} digits`); return; }
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/register/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: reg.email.trim(), otp }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        // The pending signup timed out — the code can't work any more, so
+        // go back to the (still filled-in) form to submit it again.
+        if (data.expired) setRegStep("form");
+        setRegDigits(emptyDigits());
+        throw new Error(data.error ?? "Verification failed");
+      }
+      finishAuth(data.token);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Verification failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleResendSignupCode() {
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/register/resend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: reg.email.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to send code");
+      if (data.devCode) setDevCode(data.devCode);
+      setRegDigits(emptyDigits());
+      setCooldown(60);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to send code");
     } finally {
       setLoading(false);
     }
@@ -491,14 +566,16 @@ export default function AuthForm({
     setLoginPassword("");
     setOtpDigits(emptyDigits());
     setDevCode(null);
+    setVerifyingEmail(false);
+    setCanReactivate(false);
+    setRegStep("form");
+    setRegDigits(emptyDigits());
     setTicket(null);
     setTotpDigits(emptyDigits());
     setRecoveryCode("");
     setUseRecoveryCode(false);
     onModeToggle?.(nextMode);
   };
-
-  const identifierIsEmail = detectMethod(identifier) === "email";
 
   const errorBlock = error && (
     <div className="flex items-start gap-2 text-error text-sm bg-error/10 border border-error/30 rounded-xl px-3.5 py-2.5">
@@ -509,19 +586,65 @@ export default function AuthForm({
     </div>
   );
 
-  const identifierOk = isValidIdentifier(identifier);
+  const identifierOk = isValidEmail(identifier);
   const passwordOk = loginPassword.length > 0;
   const otpOk = otpDigits.join("").length === CODE_LENGTH;
   const totpOk = useRecoveryCode ? recoveryCode.trim().length > 0 : totpDigits.join("").length === CODE_LENGTH;
   const registerOk =
-    reg.firstName.trim().length > 0 &&
-    reg.lastName.trim().length > 0 &&
+    reg.name.trim().length > 0 &&
     isValidEmail(reg.email) &&
-    isValidPhone(reg.phone) &&
     reg.password.length >= 8 &&
     reg.password === reg.confirmPassword;
 
   // ── Register ────────────────────────────────────────────────────────────────
+  if (mode === "register" && regStep === "code") {
+    return (
+      <div className="flex-1 bg-panel px-8 py-8">
+        <div className="flex flex-col items-center text-center mb-7">
+          <BrandIcon />
+          <h1 className="mt-4 text-[22px] font-bold text-fg tracking-tight">Check your email</h1>
+          <p className="mt-1 text-sm text-fg-muted leading-relaxed">
+            We sent a 6-digit code to <span className="font-semibold text-fg">{reg.email.trim()}</span>.
+            Enter it to finish creating your account.
+          </p>
+        </div>
+
+        {devCode && (
+          <div className="mb-4 text-xs text-warning bg-warning/10 border border-warning/30 rounded-xl px-3.5 py-2.5 text-center">
+            Dev mode — code: <span className="font-bold tracking-widest">{devCode}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleVerifySignup} className="space-y-5">
+          <DigitBoxes digits={regDigits} onChange={setRegDigits} focused={regStep === "code"} />
+          {errorBlock}
+          <PrimaryBtn enabled={regDigits.join("").length === CODE_LENGTH} loading={loading}>
+            {loading ? "Verifying…" : "Verify & create account"}
+          </PrimaryBtn>
+        </form>
+
+        <div className="flex justify-between items-center mt-5">
+          <button
+            type="button"
+            onClick={handleResendSignupCode}
+            disabled={cooldown > 0 || loading}
+            className="text-sm font-semibold text-brand-deep hover:text-brand-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer bg-transparent border-none p-0"
+          >
+            {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setError(""); setRegStep("form"); }}
+            className="flex items-center gap-1.5 text-sm text-fg-subtle hover:text-fg-muted transition-colors bg-transparent border-none p-0 cursor-pointer"
+          >
+            <BackArrow />
+            Change details
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (mode === "register") {
     return (
       <div className="flex-1 bg-panel px-8 py-8">
@@ -533,30 +656,19 @@ export default function AuthForm({
         </div>
 
         <form onSubmit={handleRegister} className="space-y-3">
-          {/* Name row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="relative">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"><UserIcon /></span>
-              <input
-                type="text"
-                value={reg.firstName}
-                onChange={e => setReg({ ...reg, firstName: e.target.value })}
-                required
-                placeholder="First name"
-                className={inputClass}
-              />
-            </div>
-            <div className="relative">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"><UserIcon /></span>
-              <input
-                type="text"
-                value={reg.lastName}
-                onChange={e => setReg({ ...reg, lastName: e.target.value })}
-                required
-                placeholder="Last name"
-                className={inputClass}
-              />
-            </div>
+          {/* Name */}
+          <div className="relative">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"><UserIcon /></span>
+            <input
+              type="text"
+              value={reg.name}
+              onChange={e => setReg({ ...reg, name: e.target.value })}
+              required
+              maxLength={60}
+              autoComplete="name"
+              placeholder="Your name"
+              className={inputClass}
+            />
           </div>
 
           {/* Email */}
@@ -567,31 +679,10 @@ export default function AuthForm({
               value={reg.email}
               onChange={e => setReg({ ...reg, email: e.target.value })}
               required
+              autoComplete="email"
               placeholder="Email address"
               className={inputClass}
             />
-          </div>
-
-          {/* Phone — required (used for sign-in and account security), but
-              nothing else on the page said so, so a filled-out form with an
-              empty/invalid phone left the submit button permanently inert
-              with no explanation. This hint is the fix. */}
-          <div className="relative">
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"><PhoneIcon /></span>
-            <input
-              type="tel"
-              value={reg.phone}
-              onChange={e => setReg({ ...reg, phone: e.target.value })}
-              required
-              placeholder="Phone number (+91...)"
-              aria-required="true"
-              className={inputClass}
-            />
-            {reg.phone.trim() === "" ? (
-              <p className="mt-1 text-xs text-fg-subtle">Required — used for sign-in and account security</p>
-            ) : !isValidPhone(reg.phone) ? (
-              <p className="mt-1 text-xs text-error">Enter a valid phone number (7–15 digits)</p>
-            ) : null}
           </div>
 
           {/* Referral code — collapsed by default; auto-expands from ?ref= */}
@@ -654,7 +745,7 @@ export default function AuthForm({
           {errorBlock}
 
           <PrimaryBtn enabled={registerOk} loading={loading}>
-            {loading ? "Creating account…" : "Get Started — It's Free"}
+            {loading ? "Sending code…" : "Get Started — It's Free"}
           </PrimaryBtn>
         </form>
 
@@ -713,14 +804,15 @@ export default function AuthForm({
           <form onSubmit={handleIdentifierContinue} className="space-y-3">
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
-                {identifierIsEmail ? <MailIcon /> : <PhoneIcon />}
+                <MailIcon />
               </span>
               <input
-                type="text"
+                type="email"
                 value={identifier}
                 onChange={e => setIdentifier(e.target.value)}
                 required
-                placeholder="Email or phone number"
+                autoComplete="email"
+                placeholder="Email address"
                 className={inputClass}
               />
             </div>
@@ -779,6 +871,17 @@ export default function AuthForm({
 
             {loginStep === "password" && errorBlock}
 
+            {loginStep === "password" && canReactivate && (
+              <button
+                type="button"
+                onClick={handleReactivate}
+                disabled={loading}
+                className="w-full text-sm font-semibold text-brand-deep border border-line hover:border-line-strong rounded-full py-2.5 disabled:opacity-60 cursor-pointer bg-transparent"
+              >
+                Reactivate my account
+              </button>
+            )}
+
             <PrimaryBtn enabled={passwordOk} loading={loading}>
               {loading ? "Signing in…" : "Sign in"}
             </PrimaryBtn>
@@ -787,16 +890,16 @@ export default function AuthForm({
           <div className="flex items-center justify-between mt-3">
             <button
               type="button"
-              onClick={handleSendOtp}
+              onClick={() => { setVerifyingEmail(false); void handleSendOtp(); }}
               disabled={loading}
               className="text-sm text-brand-deep font-semibold hover:underline disabled:opacity-60 bg-transparent border-none p-0 cursor-pointer"
             >
-              Use OTP instead
+              Email me a code instead
             </button>
             <button
               type="button"
               onClick={() => {
-                setForgotEmail(identifierIsEmail ? identifier : "");
+                setForgotEmail(identifier.trim());
                 setForgotSent(false);
                 goToStep("forgot-password");
               }}
@@ -823,7 +926,7 @@ export default function AuthForm({
           <div className="flex flex-col items-center text-center mb-7">
             <BrandIcon />
             <h1 className="mt-4 text-[22px] font-bold text-fg tracking-tight">
-              {identifierIsEmail ? "Check your email" : "Verify your phone"}
+              {verifyingEmail ? "Verify your email" : "Check your email"}
             </h1>
             <p className="mt-1 text-sm text-fg-muted leading-relaxed">
               We sent a 6-digit code to{" "}
@@ -847,7 +950,7 @@ export default function AuthForm({
             )}
 
             <PrimaryBtn enabled={otpOk} loading={loading}>
-              {loading ? "Verifying…" : "Verify & Sign in"}
+              {loading ? "Verifying…" : verifyingEmail ? "Verify & continue" : "Verify & Sign in"}
             </PrimaryBtn>
           </form>
 
@@ -858,7 +961,7 @@ export default function AuthForm({
               disabled={cooldown > 0 || loading}
               className="text-sm font-semibold text-brand-deep hover:text-brand-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer bg-transparent border-none p-0"
             >
-              {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend OTP"}
+              {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}
             </button>
 
             <button
@@ -909,7 +1012,7 @@ export default function AuthForm({
             )}
 
             <PrimaryBtn enabled={totpOk} loading={loading}>
-              {loading ? "Verifying…" : "Verify & Sign in"}
+              {loading ? "Verifying…" : verifyingEmail ? "Verify & continue" : "Verify & Sign in"}
             </PrimaryBtn>
           </form>
 

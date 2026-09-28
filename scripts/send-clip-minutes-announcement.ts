@@ -2,6 +2,7 @@ import "dotenv/config";
 import { prisma } from "../lib/prisma";
 import { sendClipMinutesLaunchEmail } from "../lib/email";
 import { FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_MONTHLY_BONUS_MINUTES } from "../lib/plans/tiers";
+import { greetingName } from "@/lib/display-name";
 
 // Switch-day email for the Clip Minutes model (2026-09-26 pricing plan, Stage 6).
 //
@@ -43,7 +44,7 @@ async function main() {
 
   const users = await prisma.user.findMany({
     select: {
-      email: true, firstName: true, name: true,
+      email: true, name: true,
       minutes: true, monthlyMinutes: true, monthlyCredits: true, subscriptionEndsAt: true,
       plan: { select: { tier: true, kind: true, monthlyCredits: true, monthlyMinutes: true } },
     },
@@ -61,7 +62,7 @@ async function main() {
     const tier: Tier = active ? ((u.plan?.tier as Tier | null) ?? "free") : "free";
     const props = tier === "free"
       ? {
-          name: u.firstName ?? u.name ?? "",
+          name: greetingName(u.name),
           tier,
           monthlyMinutes: FREE_TIER_MONTHLY_BONUS_MINUTES,
           minutesBalance: u.minutes,
@@ -70,7 +71,7 @@ async function main() {
           renewsAt: null,
         }
       : {
-          name: u.firstName ?? u.name ?? "",
+          name: greetingName(u.name),
           tier,
           monthlyMinutes: u.plan?.monthlyMinutes ?? u.monthlyMinutes,
           minutesBalance: u.minutes,
