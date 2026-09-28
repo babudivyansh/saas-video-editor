@@ -65,7 +65,13 @@ const nextConfig: NextConfig = {
     // process exited before we could connect to it with exit status: 0" —
     // which panicked the build, first in a Sentry loader and then, with those
     // removed, in PostCSS (2026-09-28). Threads need no new process at all.
-    turbopackPluginRuntimeStrategy: "workerThreads",
+    //
+    // Production builds only. Under `next dev` on Windows the same setting
+    // crashes the dev server on the first page compile (V8 "Check failed:
+    // object_ != kGlobalHandleZapValue" / "Check failed: node->IsInUse()", and
+    // an HMR createIpc "Port ... NaN"). Dev never ran on Hostinger, so it keeps
+    // Turbopack's default child processes.
+    ...(process.env.NODE_ENV === "production" ? { turbopackPluginRuntimeStrategy: "workerThreads" as const } : {}),
   },
   images: {
     remotePatterns: [
