@@ -40,7 +40,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 
 export default function FAQ() {
   return (
-    <section id="faq" className="scroll-mt-20 bg-gray-50/60 font-sans">
+    <section id="faq" className="scroll-mt-20 font-sans">
       <div className="mx-auto w-full max-w-3xl px-4 py-20 md:px-6 lg:py-28">
         <Reveal>
           <div className="text-center">
