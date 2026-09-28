@@ -167,7 +167,11 @@
     "messages": "సందేశాలు",
     "preferences": "ప్రాధాన్యతలు",
     "privacy": "గోప్యత",
-    "dangerZone": "డేంజర్ జోన్"
+    "dangerZone": "డేంజర్ జోన్",
+    "groupAccount": "ఖాతా",
+    "groupSecurity": "భద్రత",
+    "groupPlan": "ప్లాన్ & డెవలపర్",
+    "escToClose": "మూసివేయడానికి Esc"
   },
   "SettingsGeneral": {
     "pageTitle": "ఖాతా అవలోకనం",

@@ -167,7 +167,11 @@
     "messages": "செய்திகள்",
     "preferences": "விருப்பத்தேர்வுகள்",
     "privacy": "தனியுரிமை",
-    "dangerZone": "ஆபத்து மண்டலம்"
+    "dangerZone": "ஆபத்து மண்டலம்",
+    "groupAccount": "கணக்கு",
+    "groupSecurity": "பாதுகாப்பு",
+    "groupPlan": "திட்டம் & டெவலப்பர்",
+    "escToClose": "மூட Esc"
   },
   "SettingsGeneral": {
     "pageTitle": "கணக்கு மேலோட்டம்",

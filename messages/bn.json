@@ -167,7 +167,11 @@
     "messages": "মেসেজ",
     "preferences": "পছন্দসমূহ",
     "privacy": "প্রাইভেসি",
-    "dangerZone": "ডেঞ্জার জোন"
+    "dangerZone": "ডেঞ্জার জোন",
+    "groupAccount": "অ্যাকাউন্ট",
+    "groupSecurity": "নিরাপত্তা",
+    "groupPlan": "প্ল্যান ও ডেভেলপার",
+    "escToClose": "বন্ধ করতে Esc"
   },
   "SettingsGeneral": {
     "pageTitle": "অ্যাকাউন্ট ওভারভিউ",

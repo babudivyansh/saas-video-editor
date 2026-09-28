@@ -167,7 +167,11 @@
     "messages": "मेसेजेस",
     "preferences": "प्राधान्ये",
     "privacy": "गोपनीयता",
-    "dangerZone": "डेंजर झोन"
+    "dangerZone": "डेंजर झोन",
+    "groupAccount": "खाते",
+    "groupSecurity": "सुरक्षा",
+    "groupPlan": "प्लॅन आणि डेव्हलपर",
+    "escToClose": "बंद करण्यासाठी Esc"
   },
   "SettingsGeneral": {
     "pageTitle": "खाते आढावा",

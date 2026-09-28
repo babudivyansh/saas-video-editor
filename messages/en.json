@@ -173,7 +173,11 @@
     "messages": "Messages",
     "preferences": "Preferences",
     "privacy": "Privacy",
-    "dangerZone": "Danger Zone"
+    "dangerZone": "Danger Zone",
+    "groupAccount": "Account",
+    "groupSecurity": "Security",
+    "groupPlan": "Plan & developer",
+    "escToClose": "Esc to close"
   },
   "SettingsGeneral": {
     "pageTitle": "Account overview",

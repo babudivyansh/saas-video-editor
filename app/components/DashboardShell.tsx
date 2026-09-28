@@ -17,6 +17,7 @@ import ToolsSidebar from "@/app/components/ToolsSidebar";
 import { CreditModalProvider } from "@/app/components/billing/CreditModalContext";
 import { BillingOverlayProvider, useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
 import { ReviewPromptProvider } from "@/app/components/reviews/ReviewPromptProvider";
+import { SettingsOverlayProvider, useSettingsOverlay } from "@/app/components/settings/SettingsOverlayContext";
 
 const CHROMELESS_PREFIXES = ["/dashboard/editor", "/dashboard/admin"];
 
@@ -27,7 +28,6 @@ const ROUTE_ACTIVE: { prefix: string; id: string }[] = [
   { prefix: "/dashboard/assets", id: "assets" },
   { prefix: "/dashboard/social-tracker", id: "social" },
   { prefix: "/dashboard/referral", id: "earn" },
-  { prefix: "/dashboard/settings", id: "settings" },
   { prefix: "/dashboard/create/auto-clip", id: "autoclip" },
   { prefix: "/dashboard/tools", id: "create" },
   { prefix: "/dashboard/create", id: "create" },
@@ -42,12 +42,13 @@ function activeIdFor(pathname: string): string {
   return match?.id ?? "home";
 }
 
-// Billing has no route of its own any more, so the sidebar's active state can't
-// come from the pathname — it comes from whether the overlay is showing. This
-// has to be a child of BillingOverlayProvider to read that.
+// Billing and Settings have no routes of their own any more, so the sidebar's
+// active state can't come from the pathname for them — it comes from whether
+// their overlay is showing. This has to be a child of both providers to read that.
 function ShellChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { isBillingOpen } = useBillingOverlay();
+  const { isSettingsOpen } = useSettingsOverlay();
 
   return (
     // h-[100dvh], not h-screen: 100vh is the address-bar-RETRACTED height on
@@ -56,7 +57,7 @@ function ShellChrome({ children }: { children: React.ReactNode }) {
     // tracks the real viewport.
     // Sidebar runs the full height; the header sits beside it, over the page.
     <div className="flex h-[100dvh] overflow-hidden bg-surface text-ink">
-      <ToolsSidebar active={isBillingOpen ? "billing" : activeIdFor(pathname)} />
+      <ToolsSidebar active={isBillingOpen ? "billing" : isSettingsOpen ? "settings" : activeIdFor(pathname)} />
       <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
         <DashboardHeader />
         {/*
@@ -90,11 +91,14 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   //   ReviewPrompt  — needs only useAuth, from the root layout
   //   BillingOverlay — its panel calls useReviewPromptTrigger, so it sits inside
   //   CreditModal   — its 402 modal links into billing, so it sits inside that
+  //   SettingsOverlay — its Billing item opens billing, so it sits inside that too
   if (CHROMELESS_PREFIXES.some((p) => pathname.startsWith(p))) {
     return (
       <ReviewPromptProvider>
         <BillingOverlayProvider>
-          <CreditModalProvider>{children}</CreditModalProvider>
+          <CreditModalProvider>
+            <SettingsOverlayProvider>{children}</SettingsOverlayProvider>
+          </CreditModalProvider>
         </BillingOverlayProvider>
       </ReviewPromptProvider>
     );
@@ -104,7 +108,9 @@ export default function DashboardShell({ children }: { children: React.ReactNode
     <ReviewPromptProvider>
       <BillingOverlayProvider>
         <CreditModalProvider>
-          <ShellChrome>{children}</ShellChrome>
+          <SettingsOverlayProvider>
+            <ShellChrome>{children}</ShellChrome>
+          </SettingsOverlayProvider>
         </CreditModalProvider>
       </BillingOverlayProvider>
     </ReviewPromptProvider>

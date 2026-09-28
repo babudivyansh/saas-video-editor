@@ -22,6 +22,7 @@ import { useAuth } from "@/app/components/AuthContext";
 import { FREE_FEATURES, VIDEO_TOOLS, AI_TOOLS, RESOURCES } from "@/app/components/featureLinks";
 import { useDashboardNavItems, type ToolsSidebarNavGroup } from "@/app/components/ToolsSidebar";
 import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
+import { useSettingsOverlay } from "@/app/components/settings/SettingsOverlayContext";
 import { Button } from "@/app/components/ui/Button";
 import { CreditsPill } from "@/app/components/ui/CreditsPill";
 import { Skeleton } from "@/app/components/ui/Skeleton";
@@ -73,6 +74,7 @@ interface SearchEntry extends NavItem {
 function useCorePages(): SearchEntry[] {
   const t = useTranslations("Nav.corePages");
   const { openBilling } = useBillingOverlay();
+  const { openSettings } = useSettingsOverlay();
   return useMemo<SearchEntry[]>(
     () => [
       { title: t("dashboardHome.title"), desc: t("dashboardHome.desc"), href: "/dashboard", group: "Page" },
@@ -81,15 +83,15 @@ function useCorePages(): SearchEntry[] {
       { title: t("socialTracker.title"), desc: t("socialTracker.desc"), href: "/dashboard/social-tracker", group: "Page" },
       { title: t("earnCredits.title"), desc: t("earnCredits.desc"), href: "/dashboard/referral", group: "Page" },
       { title: t("billing.title"), desc: t("billing.desc"), href: "", group: "Page", onSelect: openBilling },
-      { title: t("myAccount.title"), desc: t("myAccount.desc"), href: "/dashboard/settings/profile", group: "Page" },
-      { title: t("settings.title"), desc: t("settings.desc"), href: "/dashboard/settings", group: "Page" },
-      { title: t("security.title"), desc: t("security.desc"), href: "/dashboard/settings/security", group: "Page" },
-      { title: t("apiKeys.title"), desc: t("apiKeys.desc"), href: "/dashboard/settings/api-keys", group: "Page" },
-      { title: t("messages.title"), desc: t("messages.desc"), href: "/dashboard/settings/messages", group: "Page" },
-      { title: t("preferences.title"), desc: t("preferences.desc"), href: "/dashboard/settings/preferences", group: "Page" },
+      { title: t("myAccount.title"), desc: t("myAccount.desc"), href: "", group: "Page", onSelect: () => openSettings("profile") },
+      { title: t("settings.title"), desc: t("settings.desc"), href: "", group: "Page", onSelect: () => openSettings() },
+      { title: t("security.title"), desc: t("security.desc"), href: "", group: "Page", onSelect: () => openSettings("security") },
+      { title: t("apiKeys.title"), desc: t("apiKeys.desc"), href: "", group: "Page", onSelect: () => openSettings("api-keys") },
+      { title: t("messages.title"), desc: t("messages.desc"), href: "", group: "Page", onSelect: () => openSettings("messages") },
+      { title: t("preferences.title"), desc: t("preferences.desc"), href: "", group: "Page", onSelect: () => openSettings("preferences") },
       { title: t("myVideos.title"), desc: t("myVideos.desc"), href: "/dashboard/profile/my-videos", group: "Page" },
     ],
-    [t, openBilling]
+    [t, openBilling, openSettings]
   );
 }
 
@@ -267,7 +269,6 @@ function usePageTitle(groups: ToolsSidebarNavGroup[]): string {
     .filter((i) => i.href !== "/dashboard" && pathname.startsWith(i.href!))
     .sort((x, y) => y.href!.length - x.href!.length)[0];
   if (match) return match.label;
-  if (pathname.startsWith("/dashboard/settings")) return tRail("settings");
   return t("dashboardHome");
 }
 
@@ -437,11 +438,11 @@ export default function DashboardHeader() {
             </div>
           )}
 
-          {/* Bottom nav (earn / settings / billing) */}
+          {/* Bottom nav (settings / billing) */}
           <div className="my-2 border-t border-line" />
           {railBottomNav.map((item) => {
             const cls = "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink hover:bg-tint-blue transition-colors w-full text-left";
-            // Billing opens an overlay rather than navigating.
+            // Settings and billing open overlays rather than navigating.
             return item.onSelect ? (
               <button key={item.id} onClick={() => { closeMobile(); item.onSelect!(); }} className={cls}>
                 <span className="text-ink-soft">{item.icon}</span>

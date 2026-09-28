@@ -167,7 +167,11 @@
     "messages": "Mensajes",
     "preferences": "Preferencias",
     "privacy": "Privacidad",
-    "dangerZone": "Zona de peligro"
+    "dangerZone": "Zona de peligro",
+    "groupAccount": "Cuenta",
+    "groupSecurity": "Seguridad",
+    "groupPlan": "Plan y desarrolladores",
+    "escToClose": "Esc para cerrar"
   },
   "SettingsGeneral": {
     "pageTitle": "Resumen de la cuenta",

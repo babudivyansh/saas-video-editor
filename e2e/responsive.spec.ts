@@ -69,25 +69,34 @@ test("dashboard: mobile hamburger opens the nav drawer with the hidden header it
   // scoped to it specifically, since the same hrefs also appear (hidden)
   // in the always-mounted account dropdown and the desktop ToolsSidebar.
   const drawer = page.getByTestId("mobile-nav-drawer");
-  await expect(drawer.locator('a[href="/dashboard/settings"]')).toBeVisible();
-  // Billing is an overlay now, so its drawer entry is a button, not a link.
+  // Settings and billing are overlays now, so their drawer entries are buttons, not links.
+  await expect(drawer.getByRole("button", { name: "Settings" })).toBeVisible();
   await expect(drawer.getByRole("button", { name: /upgrade|billing|plan/i }).first()).toBeVisible();
 
   await page.getByRole("button", { name: "Close menu" }).click();
   await expect(drawer).toBeHidden();
 });
 
-test("settings: sub-nav is a horizontal tab strip below xl, not a squeezed sidebar", async ({ page, baseURL }) => {
-  await page.setViewportSize({ width: 390, height: 844 }); // phone width — tab strip only kicks in below `xl`
+test("settings: the overlay's section list is a horizontal tab strip at phone width", async ({ page, baseURL }) => {
+  await page.setViewportSize({ width: 390, height: 844 }); // phone width — the sidebar collapses below `md`
   await mockAuth(page, baseURL);
+  // The old route is a redirect now: it lands on the dashboard with the
+  // Settings overlay open.
   await page.goto("/dashboard/settings");
+  await expect(page).toHaveURL(/\/dashboard\?settings=general/);
 
-  // Scoped to the tab-strip aside — the settings overview page's own content
-  // also links to /dashboard/settings/profile (an "Edit profile" shortcut card).
-  const profileTab = page.locator('aside a[href="/dashboard/settings/profile"]').first();
+  const overlay = page.getByTestId("settings-overlay");
+  await expect(overlay).toBeVisible();
+  // Each section button exists twice (desktop sidebar, phone tab strip); only
+  // the tab strip's is visible at this width.
+  const profileTab = overlay.getByRole("button", { name: "Profile", exact: true }).locator("visible=true");
   await expect(profileTab).toBeVisible();
   await profileTab.click();
-  await expect(page).toHaveURL(/\/dashboard\/settings\/profile/);
+  await expect(page).toHaveURL(/settings=profile/);
+
+  await page.keyboard.press("Escape");
+  await expect(overlay).toBeHidden();
+  await expect(page).not.toHaveURL(/settings=/);
 });
 
 test("editor: tablet width clears the phone gate and uses overlay panels, not a squeeze", async ({ page, baseURL }) => {

@@ -167,7 +167,11 @@
     "messages": "मैसेज",
     "preferences": "प्राथमिकताएं",
     "privacy": "गोपनीयता",
-    "dangerZone": "डेंजर ज़ोन"
+    "dangerZone": "डेंजर ज़ोन",
+    "groupAccount": "अकाउंट",
+    "groupSecurity": "सुरक्षा",
+    "groupPlan": "प्लान और डेवलपर",
+    "escToClose": "बंद करने के लिए Esc"
   },
   "SettingsGeneral": {
     "pageTitle": "अकाउंट ओवरव्यू",

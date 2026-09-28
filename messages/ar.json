@@ -167,7 +167,11 @@
     "messages": "الرسائل",
     "preferences": "التفضيلات",
     "privacy": "الخصوصية",
-    "dangerZone": "منطقة الخطر"
+    "dangerZone": "منطقة الخطر",
+    "groupAccount": "الحساب",
+    "groupSecurity": "الأمان",
+    "groupPlan": "الخطة والمطورون",
+    "escToClose": "اضغط Esc للإغلاق"
   },
   "SettingsGeneral": {
     "pageTitle": "نظرة عامة على الحساب",
