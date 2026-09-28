@@ -56,6 +56,11 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+        env:
+          # youtube-dl-exec's postinstall downloads its binary via the GitHub
+          # API; unauthenticated, that shares the runner IP's 60/hr limit and
+          # intermittently fails `npm ci` with "API rate limit exceeded".
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Prisma generate
         run: npx prisma generate
@@ -147,6 +152,11 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+        env:
+          # youtube-dl-exec's postinstall downloads its binary via the GitHub
+          # API; unauthenticated, that shares the runner IP's 60/hr limit and
+          # intermittently fails `npm ci` with "API rate limit exceeded".
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Prisma generate
         run: npx prisma generate
