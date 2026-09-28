@@ -118,9 +118,15 @@ interface QuestCardProps {
   /** Signed in — distinguishes "loading" from "nothing to load". */
   hasUser: boolean;
   onDiscordQuest: () => void;
+  /**
+   * "rail" fits the home page's narrow right-hand column: the XP total moves
+   * under the title and the quest list is one column.
+   */
+  variant?: "wide" | "rail";
 }
 
-export function QuestCard({ questData, hasUser, onDiscordQuest }: QuestCardProps) {
+export function QuestCard({ questData, hasUser, onDiscordQuest, variant = "wide" }: QuestCardProps) {
+  const rail = variant === "rail";
   const t = useTranslations("Dashboard");
   const quests = useQuests();
 
@@ -152,6 +158,15 @@ export function QuestCard({ questData, hasUser, onDiscordQuest }: QuestCardProps
   const allComplete = !!questData?.allComplete;
   const progressPct = Math.round((earnedXp / TOTAL_XP) * 100);
 
+  const xpTotal = loading ? (
+    <div className="h-7 w-24 bg-surface-3 rounded animate-pulse" />
+  ) : (
+    <>
+      <span className="text-xl font-extrabold grad-text inline-block">{earnedXp}</span>
+      <span className="text-sm text-ink-soft font-normal"> {t("xpTotal", { total: TOTAL_XP })}</span>
+    </>
+  );
+
   return (
     <Card className="bg-panel">
       <button
@@ -159,7 +174,7 @@ export function QuestCard({ questData, hasUser, onDiscordQuest }: QuestCardProps
         onClick={toggle}
         aria-expanded={expanded}
         aria-label={t("toggleQuests")}
-        className="w-full px-5 py-4 flex items-center justify-between gap-4 text-left hover:bg-gray-50/60 transition-colors"
+        className="w-full px-5 py-4 flex items-center justify-between gap-4 text-left hover:bg-surface-2 transition-colors"
       >
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-0.5">
@@ -181,7 +196,8 @@ export function QuestCard({ questData, hasUser, onDiscordQuest }: QuestCardProps
               {allComplete ? t("allQuestsComplete") : t("questsToGo", { count: remaining })}
             </p>
           )}
-          <div className="mt-2 h-1 bg-surface-3 rounded-full w-full max-w-64 overflow-hidden">
+          {rail && <div className="mt-1.5">{xpTotal}</div>}
+          <div className={`mt-2 h-1 bg-surface-3 rounded-full w-full overflow-hidden ${rail ? "" : "max-w-64"}`}>
             <div className="h-full grad-brand rounded-full transition-all duration-500"
               style={{ width: `${progressPct}%` }} />
           </div>
@@ -201,7 +217,7 @@ export function QuestCard({ questData, hasUser, onDiscordQuest }: QuestCardProps
                     style={
                       earned
                         ? { background: rank.color + "18", color: rank.color, borderColor: rank.color + "33" }
-                        : { background: "#f3f4f6", color: "#9ca3af", borderColor: "#e5e7eb" }
+                        : { background: "var(--surface-3)", color: "var(--fg-subtle)", borderColor: "var(--line)" }
                     }
                   >
                     {earned ? rank.level : `🔒 ${rank.level}`}
@@ -212,16 +228,7 @@ export function QuestCard({ questData, hasUser, onDiscordQuest }: QuestCardProps
           </div>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
-          <div className="text-right">
-            {loading ? (
-              <div className="h-7 w-24 bg-surface-3 rounded animate-pulse ml-auto" />
-            ) : (
-              <>
-                <span className="text-xl font-extrabold grad-text inline-block">{earnedXp}</span>
-                <span className="text-sm text-ink-soft font-normal"> {t("xpTotal", { total: TOTAL_XP })}</span>
-              </>
-            )}
-          </div>
+          {!rail && <div className="text-right">{xpTotal}</div>}
           <span className={`text-fg-subtle transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}>
             <IcChevronDown />
           </span>
@@ -237,14 +244,14 @@ export function QuestCard({ questData, hasUser, onDiscordQuest }: QuestCardProps
         className={`grid transition-all duration-200 ${expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
       >
         <div className="overflow-hidden">
-          <div className="grid grid-cols-1 sm:grid-cols-2 border-t border-line">
+          <div className={`grid grid-cols-1 ${rail ? "" : "sm:grid-cols-2"} border-t border-line`}>
             {quests.map((q, i) => {
               const liveQuest = questData?.quests?.find(lq => lq.id === q.id);
               const done = !!liveQuest?.completedAt;
               const isDiscord = q.id === "join-community";
               const cls = `flex items-start gap-3 px-4 py-3.5 text-left transition-colors group
-                ${i % 2 === 0 ? "sm:border-r border-line" : ""}
-                ${i >= 1 ? "border-t border-line" : ""} ${i === 1 ? "sm:border-t-0" : ""}
+                ${!rail && i % 2 === 0 ? "sm:border-r border-line" : ""}
+                ${i >= 1 ? "border-t border-line" : ""} ${!rail && i === 1 ? "sm:border-t-0" : ""}
                 ${done ? "bg-tint-emerald cursor-default" : "hover:bg-tint-blue"}`;
               const inner = (
                 <>

@@ -21,10 +21,14 @@ interface ProductTourProps {
 const PAD = 8;
 
 function measure(selector: string): Rect | null {
-  const el = document.querySelector(selector);
-  if (!el) return null;
-  const r = el.getBoundingClientRect();
-  return { top: r.top, left: r.left, width: r.width, height: r.height };
+  // A target can exist twice — once in the desktop sidebar, once in the
+  // header's below-xl variant — with only one of them displayed. Spotlight
+  // the one that actually has a box.
+  for (const el of document.querySelectorAll(selector)) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) return { top: r.top, left: r.left, width: r.width, height: r.height };
+  }
+  return null;
 }
 
 export function ProductTour({ startStep, onAdvance, onFinish, onSkip }: ProductTourProps) {

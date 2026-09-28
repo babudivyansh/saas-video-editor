@@ -1,7 +1,8 @@
 "use client";
 
-// The actual chrome for /dashboard/*: the full-width DashboardHeader + the
-// icon-rail ToolsSidebar, wrapping every page's own content. Split out from
+// The actual chrome for /dashboard/*: the full-height ToolsSidebar (grouped
+// nav + plan card) with DashboardHeader beside it, wrapping every page's own
+// content. Split out from
 // app/dashboard/layout.tsx (now a Server Component, so it can resolve the
 // i18n locale/messages server-side) since usePathname() needs a Client
 // Component boundary.
@@ -27,6 +28,7 @@ const ROUTE_ACTIVE: { prefix: string; id: string }[] = [
   { prefix: "/dashboard/social-tracker", id: "social" },
   { prefix: "/dashboard/referral", id: "earn" },
   { prefix: "/dashboard/settings", id: "settings" },
+  { prefix: "/dashboard/create/auto-clip", id: "autoclip" },
   { prefix: "/dashboard/tools", id: "create" },
   { prefix: "/dashboard/create", id: "create" },
   { prefix: "/dashboard/cut-and-crop", id: "create" },
@@ -52,10 +54,11 @@ function ShellChrome({ children }: { children: React.ReactNode }) {
     // mobile, so the shell sits 50-120px taller than what is actually visible
     // and the document picks up a second scrollbar underneath this one. dvh
     // tracks the real viewport.
-    <div className="flex h-[100dvh] flex-col overflow-hidden bg-surface text-ink">
-      <DashboardHeader />
-      <div className="flex flex-1 overflow-hidden">
-        <ToolsSidebar active={isBillingOpen ? "billing" : activeIdFor(pathname)} />
+    // Sidebar runs the full height; the header sits beside it, over the page.
+    <div className="flex h-[100dvh] overflow-hidden bg-surface text-ink">
+      <ToolsSidebar active={isBillingOpen ? "billing" : activeIdFor(pathname)} />
+      <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
+        <DashboardHeader />
         {/*
           `relative` is not cosmetic — it makes this pane the containing block
           for the absolutely-positioned boxes inside it, and `sr-only` is
