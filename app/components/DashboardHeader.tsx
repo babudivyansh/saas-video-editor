@@ -2,7 +2,7 @@
 
 // Dashboard header, shared across every dashboard page via
 // app/dashboard/layout.tsx. From xl up it sits beside the full-height
-// sidebar: page title, global search, Resources/Features menus, Create menu,
+// sidebar: page title, global search, the Resources menu, Create menu,
 // notifications and the account avatar — plan and usage live in the
 // sidebar's plan card. Below xl the sidebar is gone, so the header carries
 // the hamburger, the logo and the compact credits pill instead.
@@ -51,17 +51,6 @@ function IcMenu({ open }: { open: boolean }) {
 function IcDiscord() {
   return <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>;
 }
-
-/** Letter avatar for tool rows — strips the "AI " prefix so initials vary. */
-function LetterChip({ title, className }: { title: string; className: string }) {
-  return (
-    <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 ${className}`}>
-      {title.replace(/^AI /, "")[0]}
-    </span>
-  );
-}
-
-const TOOL_COUNT = VIDEO_TOOLS.length + AI_TOOLS.length + FREE_FEATURES.length;
 
 // ── Global search ──────────────────────────────────────────────────────────
 
@@ -211,7 +200,7 @@ function CreateMenu() {
   const ref = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Hover-intent open (matches NavDropdown.tsx's Resources/Features menus): a
+  // Hover-intent open (matches NavDropdown.tsx's Resources menu): a
   // short close delay so crossing the gap between trigger and panel doesn't
   // flicker it shut. Click stays as a toggle for touch, which never fires
   // mouseenter.
@@ -349,64 +338,6 @@ export default function DashboardHeader() {
           </div>
         </NavDropdown>
 
-        {/* Compact, anchored under the trigger — the tools catalog page is
-            the full browsing surface; this is just a shortcut menu. Tool
-            titles/descs come from featureLinks.ts, shared with the public
-            marketing nav (out of scope) — left untranslated so the menu
-            never shows translated names for still-English tool pages. */}
-        <NavDropdown label={t("features")} width={620} align="left">
-          <div className="grid grid-cols-2 gap-0 p-3">
-            {/* Video tools */}
-            <div className="p-2">
-              <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-brand">{t("videoTools")}</p>
-              <div className="space-y-0.5">
-                {VIDEO_TOOLS.slice(0, 4).map((item) => (
-                  <DropdownItem key={item.title} item={item} onNavigate={() => {}}
-                    chip={<LetterChip title={item.title} className="bg-tint-blue text-brand" />} />
-                ))}
-              </div>
-            </div>
-            {/* AI tools */}
-            <div className="p-2 border-l border-line">
-              <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-accent-violet">{t("aiTools")}</p>
-              <div className="space-y-0.5">
-                {AI_TOOLS.slice(0, 4).map((item) => (
-                  <DropdownItem key={item.title} item={item} onNavigate={() => {}}
-                    chip={<LetterChip title={item.title} className="bg-tint-violet text-accent-violet" />} />
-                ))}
-              </div>
-            </div>
-            {/* Free tools */}
-            <div className="p-2 border-t border-line">
-              <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-accent-fuchsia">{t("freeTools")}</p>
-              <div className="space-y-0.5">
-                {FREE_FEATURES.slice(0, 3).map((item) => (
-                  <DropdownItem key={item.title} item={item} onNavigate={() => {}}
-                    chip={<LetterChip title={item.title} className="bg-tint-fuchsia text-accent-fuchsia" />} />
-                ))}
-              </div>
-            </div>
-            {/* Mini spotlight */}
-            <div className="relative overflow-hidden rounded-2xl grad-hero p-4 flex flex-col text-white m-2 border-t border-transparent">
-              <div className="clipiro-blob absolute -top-10 -right-8 w-28 h-28 rounded-full bg-white/15 blur-2xl pointer-events-none" />
-              <p className="relative text-[10px] font-bold uppercase tracking-widest text-white/70 mb-1">{t("spotlight")}</p>
-              <p className="relative text-sm font-extrabold leading-tight">{t("spotlightTitle")}</p>
-              <p className="relative text-xs text-white/80 mt-1 leading-relaxed">{t("spotlightDesc")}</p>
-              <Link href="/dashboard/create/auto-clip" className="relative mt-auto pt-2.5 inline-block">
-                <span className="inline-flex items-center gap-1 bg-panel text-ink text-xs font-semibold px-3 py-1.5 rounded-full hover:shadow-card transition-shadow">
-                  {t("tryAutoClip")}
-                </span>
-              </Link>
-            </div>
-          </div>
-          {/* Footer bar */}
-          <div className="border-t border-line bg-surface px-5 py-3 flex items-center justify-between">
-            <p className="text-xs text-ink-soft">{t("allToolsIncluded", { count: TOOL_COUNT })}</p>
-            <Link href="/dashboard/tools" className="text-xs font-semibold text-brand hover:text-brand-dark transition-colors">
-              {t("viewAllTools")}
-            </Link>
-          </div>
-        </NavDropdown>
       </nav>
 
 
@@ -479,27 +410,6 @@ export default function DashboardHeader() {
                   <span className="block text-sm font-medium text-ink">{item.title}</span>
                   <span className="block text-xs text-ink-soft">{item.desc}</span>
                 </Link>
-              ))}
-            </div>
-          )}
-
-          {/* Features */}
-          <button onClick={() => setMobileSection(mobileSection === "features" ? null : "features")} className="flex items-center justify-between w-full text-sm font-semibold text-ink py-2 px-3">
-            {t("features")}
-            <IcChevronDown open={mobileSection === "features"} />
-          </button>
-          {mobileSection === "features" && (
-            <div className="pl-3 pb-1">
-              {([[t("videoTools"), VIDEO_TOOLS], [t("aiTools"), AI_TOOLS], [t("freeTools"), FREE_FEATURES]] as const).map(([group, items]) => (
-                <div key={group}>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-brand mt-2 mb-1 px-3">{group}</p>
-                  {items.map((item) => (
-                    <Link key={item.title} href={item.href} onClick={closeMobile} className="block py-1.5 px-3">
-                      <span className="block text-sm font-medium text-ink">{item.title}</span>
-                      <span className="block text-xs text-ink-soft">{item.desc}</span>
-                    </Link>
-                  ))}
-                </div>
               ))}
             </div>
           )}
