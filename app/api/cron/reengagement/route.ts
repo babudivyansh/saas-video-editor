@@ -4,6 +4,7 @@ import { sendReengagement7DayEmail, sendReengagement30DayEmail, sendUnusedCredit
 import { shouldSendCategory } from "@/lib/notifications";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
+import { cronSecretMatches } from "@/lib/cron-auth";
 import { greetingName } from "@/lib/display-name";
 
 // Weekly cron — re-engages inactive users and sends mid-month unused-credits reminders.
@@ -17,8 +18,7 @@ import { greetingName } from "@/lib/display-name";
 
 export async function GET(req: NextRequest) {
   const secret = env.CRON_SECRET;
-  const authz = req.headers.get("authorization");
-  if (!secret || authz !== `Bearer ${secret}`) {
+  if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

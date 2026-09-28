@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { issueOtp, OtpDeliveryError } from "@/lib/otp";
-import { readPendingSignup } from "@/lib/signup-pending";
+import { hasPendingSignup } from "@/lib/signup-pending";
 import { normalizeEmail } from "@/lib/auth-validation";
 
 // POST /api/auth/register/resend { email } — a fresh signup code for a signup
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Too many attempts. Please try again in a few minutes." }, { status: 429 });
     }
 
-    if (!(await readPendingSignup(email))) {
+    if (!(await hasPendingSignup(email))) {
       return NextResponse.json({ ok: true });
     }
 

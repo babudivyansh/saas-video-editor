@@ -70,6 +70,12 @@ export async function sendPasswordChangedAlertEmail(to: string, name: string, ti
   await sendTemplate("password-changed", to, { name, time });
 }
 
+export async function sendEmailChangedAlertEmail(
+  to: string, name: string, newEmail: string, time: string,
+): Promise<void> {
+  await sendTemplate("email-changed", to, { name, newEmail, time });
+}
+
 export async function sendTwoFactorChangedAlertEmail(
   to: string, name: string, enabled: boolean, time: string,
 ): Promise<void> {

@@ -11,6 +11,10 @@ import { trialEligibility } from "@/lib/billing/trial-eligibility";
 import { isTrialPlan, TRIAL_DAYS } from "@/lib/plans/tiers";
 import { syncRazorpayPlan } from "@/lib/billing/razorpay-plans";
 import { describeRazorpayError, isMissingRazorpayPlan } from "@/lib/billing/razorpay-errors";
+import { redis } from "@/lib/redis";
+
+// How long one open coupon checkout blocks a second one for the same user.
+const COUPON_HOLD_SECONDS = 30 * 60;
 
 const razorpay = new Razorpay({
   key_id: env.RAZORPAY_KEY_ID,
@@ -108,6 +112,17 @@ async function handlePOST(req: NextRequest) {
       });
       if (!result.ok) {
         return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      // validateCoupon counts redemptions, but a redemption is only recorded
+      // once a payment lands — so N checkouts opened in parallel all pass it
+      // and all get paid at the discount. One open checkout per user per
+      // coupon closes that; the hold lapses on its own if it's abandoned.
+      const held = await redis.setNx(`coupon-hold:${result.couponId}:${auth.userId}`, "1", COUPON_HOLD_SECONDS);
+      if (!held) {
+        return NextResponse.json(
+          { error: "You already have a checkout open with this coupon. Finish it, or try again in a few minutes." },
+          { status: 409 },
+        );
       }
       amountToCharge = result.finalPaise;
       appliedCouponId = result.couponId;

@@ -14,7 +14,7 @@ vi.mock("@/lib/two-factor-ticket", () => ({ mintTwoFactorTicket }));
 class OtpDeliveryError extends Error {}
 const issueOtp = vi.fn(async () => ({}));
 vi.mock("@/lib/otp", () => ({ issueOtp, OtpDeliveryError }));
-vi.mock("@/lib/login-verification", () => ({ markPasswordProven: vi.fn(async () => {}) }));
+vi.mock("@/lib/login-verification", () => ({ markPasswordProven: vi.fn(async () => "proof-1") }));
 
 type Row = { id: string; email: string; name: string; passwordHash: string; credits: number; preferredLanguage: string; emailVerifiedAt: Date | null; suspendedAt: Date | null; deactivatedAt: Date | null; twoFactorEnabled: boolean };
 let user: Row;

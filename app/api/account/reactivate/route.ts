@@ -66,10 +66,10 @@ export async function POST(req: NextRequest) {
     // Same one-time address check as /api/auth/login — reactivating must not
     // be a way to skip it. verify-otp finishes the sign-in.
     if (!user.emailVerifiedAt) {
-      await markPasswordProven(email, user.id);
+      const passwordProof = await markPasswordProven(email, user.id);
       try {
         const extras = await issueOtp("login", email);
-        return NextResponse.json({ requiresEmailVerification: true, email, ...extras });
+        return NextResponse.json({ requiresEmailVerification: true, email, passwordProof, ...extras });
       } catch (err) {
         if (err instanceof OtpDeliveryError) {
           return NextResponse.json({ error: "We couldn't send the verification email. Please try again." }, { status: 503 });

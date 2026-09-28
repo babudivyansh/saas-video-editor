@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     // the password (and any 2FA) may belong to whoever registered the address
     // first — the inbox owner takes the account over clean.
     if (!user.emailVerifiedAt) {
-      if (await takePasswordProven(email, user.id)) {
+      if (await takePasswordProven(email, user.id, body.passwordProof)) {
         user = await prisma.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } });
       } else {
         await claimUnverifiedAccount(user.id);

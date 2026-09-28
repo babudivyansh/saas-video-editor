@@ -10,6 +10,7 @@ import { parseCurrency } from "@/lib/currency-shared";
 import { getPlanPriceMinor } from "@/lib/currency";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
+import { cronSecretMatches } from "@/lib/cron-auth";
 import { greetingName } from "@/lib/display-name";
 
 // Daily cron — fires subscription expiry warnings (7d, 3d, 1d before) and
@@ -23,8 +24,7 @@ import { greetingName } from "@/lib/display-name";
 
 export async function GET(req: NextRequest) {
   const secret = env.CRON_SECRET;
-  const authz = req.headers.get("authorization");
-  if (!secret || authz !== `Bearer ${secret}`) {
+  if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -68,10 +68,10 @@ export async function POST(req: NextRequest) {
     // here, before any session. The emailed code is finished by
     // /api/auth/verify-otp (see lib/login-verification.ts).
     if (!user.emailVerifiedAt) {
-      await markPasswordProven(email, user.id);
+      const passwordProof = await markPasswordProven(email, user.id);
       try {
         const extras = await issueOtp("login", email);
-        return NextResponse.json({ requiresEmailVerification: true, email, ...extras });
+        return NextResponse.json({ requiresEmailVerification: true, email, passwordProof, ...extras });
       } catch (err) {
         if (err instanceof OtpDeliveryError) {
           return NextResponse.json({ error: "We couldn't send the verification email. Please try again." }, { status: 503 });

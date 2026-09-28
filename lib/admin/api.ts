@@ -23,7 +23,7 @@ export function withAdmin<P = Record<string, never>>(handler: AdminHandler<P>) {
     // the admin must have verified an email OTP recently (lib/admin/elevation).
     // The /api/admin/elevate route itself uses requireAdmin directly.
     const { isElevated } = await import("@/lib/admin/elevation");
-    if (!(await isElevated(admin.userId))) {
+    if (!(await isElevated(admin.userId, admin.sessionId))) {
       return NextResponse.json(
         { error: "Admin verification required", code: "elevation_required" },
         { status: 403 },
