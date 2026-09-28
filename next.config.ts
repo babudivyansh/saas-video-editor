@@ -58,6 +58,14 @@ const nextConfig: NextConfig = {
     // upload. Match /api/upload's own 500MB cap (utils intentionally reject
     // anything larger there already) rather than raising this without bound.
     proxyClientMaxBodySize: "500mb",
+    // Run Turbopack's Node-side work (PostCSS/Tailwind for globals.css, the
+    // webpack loaders Sentry adds) on worker threads inside the build process
+    // instead of spawned child processes. On Hostinger the spawned processes
+    // die before Turbopack can connect to them — "creating new process: node
+    // process exited before we could connect to it with exit status: 0" —
+    // which panicked the build, first in a Sentry loader and then, with those
+    // removed, in PostCSS (2026-09-28). Threads need no new process at all.
+    turbopackPluginRuntimeStrategy: "workerThreads",
   },
   images: {
     remotePatterns: [
