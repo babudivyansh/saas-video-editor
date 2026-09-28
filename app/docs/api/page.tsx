@@ -113,11 +113,12 @@ export default function ApiDocsPage() {
             <Endpoint
               method="GET"
               path="/api/v1/projects"
-              desc="List your projects with status and clip counts."
+              desc="List your projects with status and clip counts, newest first. Paged: pass limit (1–100, default 50) and, for the next page, cursor set to the previous response's nextCursor (null on the last page)."
               response={`{
   "projects": [
     { "id": "proj_abc123", "title": "Podcast episode 42", "status": "draft", "_count": { "clips": 0 } }
-  ]
+  ],
+  "nextCursor": null
 }`}
             />
             <Endpoint

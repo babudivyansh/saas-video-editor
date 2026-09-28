@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withRateLimit } from "@/lib/with-rate-limit";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -28,7 +29,7 @@ import {
 // call; refunded if transcription fails. languageCode is optional — omitted or
 // "auto" lets Scribe auto-detect the spoken language (the previous, only
 // behavior before the Caption panel's language selector existed).
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -122,3 +123,7 @@ export async function POST(req: NextRequest) {
     }
   }
 }
+
+// Paid (Clip Minutes) and runs a full-asset transcription — a burst of these
+// is never a person clicking.
+export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "editor:captions" });
