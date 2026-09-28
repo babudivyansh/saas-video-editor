@@ -43,6 +43,14 @@ const nextConfig: NextConfig = {
     // upload. Match /api/upload's own 500MB cap (utils intentionally reject
     // anything larger there already) rather than raising this without bound.
     proxyClientMaxBodySize: "500mb",
+    // Run Turbopack's Node-side work (PostCSS/Tailwind for globals.css, the
+    // webpack loaders Sentry adds) on worker threads inside the build process
+    // instead of spawned child processes. On Hostinger the spawned processes
+    // die before Turbopack can connect to them — "creating new process: node
+    // process exited before we could connect to it with exit status: 0" —
+    // which panicked the build, first in a Sentry loader and then, with those
+    // removed, in PostCSS (2026-09-28). Threads need no new process at all.
+    turbopackPluginRuntimeStrategy: "workerThreads",
   },
   images: {
     remotePatterns: [
@@ -108,7 +116,7 @@ const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 // Source-map upload only runs when SENTRY_AUTH_TOKEN/ORG/PROJECT are set;
 // without them this just wraps error/tracing instrumentation with no-op
 // upload, so the build stays green with no Sentry account configured yet.
-const config = withSentryConfig(withNextIntl(nextConfig), {
+export default withSentryConfig(withNextIntl(nextConfig), {
   silent: true,
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
@@ -116,22 +124,3 @@ const config = withSentryConfig(withNextIntl(nextConfig), {
   disableLogger: true,
   widenClientFileUpload: true,
 });
-
-// Sentry adds two Turbopack loader rules that inject build-time values into
-// instrumentation(-client).ts: the Next version, a route manifest used only to
-// name client navigation spans (onRouterTransitionStart is not exported here,
-// so navigation tracing is off), and the installed-module list. They are the
-// ONLY webpack loaders in this build, and running them makes Turbopack spawn a
-// Node child process. On Hostinger that spawn fails — "creating new process:
-// node process exited before we could connect to it with exit status: 0" —
-// and Turbopack panics, failing the whole deploy (2026-09-28). Dropping the
-// rules means Turbopack never needs a loader process; error capture, tracing
-// and source-map upload are unaffected.
-const SENTRY_VALUE_INJECTION_RULES = ["**/instrumentation-client.*", "**/instrumentation.*"];
-const rules = config.turbopack?.rules as Record<string, unknown> | undefined;
-if (rules) {
-  for (const key of SENTRY_VALUE_INJECTION_RULES) delete rules[key];
-  if (Object.keys(rules).length === 0) delete config.turbopack!.rules;
-}
-
-export default config;
