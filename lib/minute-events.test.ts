@@ -22,7 +22,7 @@ const { isLowMinutes } = await import("./plans/tiers");
 const settle = () => new Promise((r) => setTimeout(r, 20));
 
 const creator = (over: Record<string, unknown> = {}) => ({
-  email: "a@test.invalid", firstName: "A", name: null, monthlyMinutes: 150,
+  email: "a@test.invalid", name: "A", monthlyMinutes: 150,
   subscriptionEndsAt: new Date(Date.now() + 86400_000), plan: { tier: "creator", kind: "subscription" }, ...over,
 });
 

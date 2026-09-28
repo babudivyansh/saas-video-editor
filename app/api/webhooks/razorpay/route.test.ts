@@ -86,7 +86,7 @@ vi.mock("@/lib/prisma", () => {
     },
     user: {
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) =>
-        where.id === user.id ? { ...user, email: "trial@test.com", firstName: "T", name: null } : null),
+        where.id === user.id ? { ...user, email: "trial@test.com", name: "T" } : null),
       update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
         if (updateShouldFail) throw new Error("db down");
         for (const k of Object.keys(data)) (user as Record<string, unknown>)[k] = data[k];

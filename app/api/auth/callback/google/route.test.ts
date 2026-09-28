@@ -27,9 +27,14 @@ vi.mock("@/lib/marketing-analytics", () => ({ recordSignupAttribution: vi.fn(asy
 vi.mock("@/lib/email", () => ({ sendWelcomeEmail: vi.fn(async () => {}) }));
 vi.mock("@/lib/two-factor-ticket", () => ({ mintTwoFactorTicket: vi.fn(async () => "ticket-123") }));
 vi.mock("@/lib/auth", () => ({
-  completeLogin: vi.fn(async () => ({ token: "signed.jwt.token", sessionId: "s1", device: "test", ip: null })),
   setSessionCookie: vi.fn(),
+  setLocaleCookieFromUser: vi.fn(),
 }));
+// Google sign-ins run the same tail as password logins (LoginEvent, alert).
+const finishLogin = vi.hoisted(() => vi.fn(async () => "signed.jwt.token"));
+vi.mock("@/lib/login-tail", () => ({ finishLogin }));
+const claimUnverifiedAccount = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock("@/lib/account-claim", () => ({ claimUnverifiedAccount }));
 
 const existingUser = {
   id: "user-1",
@@ -40,7 +45,8 @@ const existingUser = {
   deactivatedAt: null,
   twoFactorEnabled: false,
 };
-let userToReturn: typeof existingUser | null = existingUser;
+let userToReturn: Omit<typeof existingUser, "emailVerifiedAt"> & { emailVerifiedAt: Date | null } | null = existingUser;
+let profileEmailVerified: boolean | undefined = true;
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: {
@@ -65,6 +71,9 @@ function makeRequest(state: string, next: string | null) {
 
 beforeEach(() => {
   userToReturn = existingUser;
+  profileEmailVerified = true;
+  claimUnverifiedAccount.mockClear();
+  finishLogin.mockClear();
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string) => {
@@ -72,7 +81,7 @@ beforeEach(() => {
         return { ok: true, json: async () => ({ access_token: "fake-access-token" }) };
       }
       if (url.includes("googleapis.com/oauth2/v3/userinfo")) {
-        return { ok: true, json: async () => ({ email: "test@example.com", name: "Test User", email_verified: true }) };
+        return { ok: true, json: async () => ({ email: "test@example.com", name: "Test User", email_verified: profileEmailVerified }) };
       }
       throw new Error(`unexpected fetch: ${url}`);
     }),
@@ -86,6 +95,31 @@ describe("GET /api/auth/callback/google — post-login destination", () => {
     const html = await res.text();
     expect(html).toContain('"/dashboard/editor?projectId=31080d99-b658-4387-b488-5c9c531592e3"');
     expect(html).not.toContain('"/dashboard";'); // the old hardcoded literal is gone
+  });
+
+  it("issues the session through the shared login tail", async () => {
+    await GET(makeRequest("RAW", null));
+    expect(finishLogin).toHaveBeenCalledTimes(1);
+  });
+
+  it("claims a never-verified account clean before signing its inbox owner in", async () => {
+    // Someone registered this address first (password, maybe 2FA) without
+    // ever proving the inbox; the Google sign-in is the first proof.
+    userToReturn = { ...existingUser, emailVerifiedAt: null };
+    await GET(makeRequest("RAW", null));
+    expect(claimUnverifiedAccount).toHaveBeenCalledWith("user-1");
+  });
+
+  it("does not touch an already-verified account's credentials", async () => {
+    await GET(makeRequest("RAW", null));
+    expect(claimUnverifiedAccount).not.toHaveBeenCalled();
+  });
+
+  it("refuses a Google profile that doesn't affirm email_verified", async () => {
+    profileEmailVerified = undefined;
+    const res = await GET(makeRequest("RAW", null));
+    expect(res.status).toBe(400);
+    expect(finishLogin).not.toHaveBeenCalled();
   });
 
   it("falls back to /dashboard when no next was encoded", async () => {

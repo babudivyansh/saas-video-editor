@@ -41,7 +41,6 @@ export default function ProfileSettingsPage() {
   ];
 
   const [displayName, setDisplayName] = useState("");
-  const [phone, setPhone] = useState("");
   const [savingName, setSavingName] = useState(false);
   const [uidCopied, setUidCopied] = useState(false);
   const [gender, setGender] = useState<string | null>(null);
@@ -52,7 +51,6 @@ export default function ProfileSettingsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setDisplayName(user?.name ?? ""); }, [user?.name]);
-  useEffect(() => { setPhone(user?.phone ?? ""); }, [user?.phone]);
   useEffect(() => { setGender(user?.gender ?? null); }, [user?.gender]);
   useEffect(() => { setIntendedUse(user?.intendedUse ?? null); }, [user?.intendedUse]);
 
@@ -63,7 +61,7 @@ export default function ProfileSettingsPage() {
       const res = await fetch("/api/auth/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ name: displayName, phone }),
+        body: JSON.stringify({ name: displayName }),
       });
       const data = await res.json();
       if (res.ok) { showToast(t("toasts.profileUpdated")); await refreshUser(); }
@@ -213,16 +211,12 @@ export default function ProfileSettingsPage() {
         </div>
       </Card>
 
-      {/* Nickname + Phone + Email */}
+      {/* Name */}
       <Card padding="md" className="space-y-4">
         <form onSubmit={handleSaveName} className="space-y-4">
           <div>
             <label className={labelCls}>{t("nickname")}</label>
             <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder={t("nicknamePlaceholder")} maxLength={60} className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>{t("phoneNumber")}</label>
-            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 98765 43210" className={inputCls} />
           </div>
           <Button type="submit" disabled={savingName}>
             {savingName ? <><IcSpinner /> {t("saving")}</> : t("saveChanges")}

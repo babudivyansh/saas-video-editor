@@ -46,7 +46,7 @@ vi.mock("@/lib/email", () => ({
 
 const { POST } = await import("./route");
 
-const AUTHOR = { id: "author-1", email: "author@test.com", name: "Author One", firstName: "Author" };
+const AUTHOR = { id: "author-1", email: "author@test.com", name: "Author One" };
 
 function post(id: string, body: unknown) {
   return POST(

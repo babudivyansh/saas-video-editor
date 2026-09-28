@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getToolConfig } from "@/lib/tool-config";
 import { TOOL_COSTS } from "@/lib/tool-costs";
 import { tierAtLeast, lowestTier, type TierId } from "@/lib/plans/tiers";
+import { greetingName } from "@/lib/display-name";
 
 // Shared credit service. As of the 2026-07 bucket split, the balance lives in
 // three buckets on User — bonusCredits, subscriptionCredits, purchasedCredits
@@ -210,7 +211,7 @@ const AUTO_TOPUP_LOCK_TTL_SEC = 3600; // one prompt per hour per user, max
 async function maybeAutoTopup(userId: string, total: number): Promise<void> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { autoTopupPackSlug: true, autoTopupThreshold: true, email: true, firstName: true, name: true },
+    select: { autoTopupPackSlug: true, autoTopupThreshold: true, email: true, name: true },
   });
   if (!user?.autoTopupPackSlug) return;
   // The threshold is per-user (Settings > Billing), so the balance check can
@@ -228,7 +229,7 @@ async function maybeAutoTopup(userId: string, total: number): Promise<void> {
 
   const { sendAutoTopupPromptEmail } = await import("@/lib/email");
   const checkoutUrl = `https://clipiro.com/dashboard?billing=1&tab=topup&autotopup=${encodeURIComponent(pack.slug)}`;
-  await sendAutoTopupPromptEmail(user.email, user.firstName ?? user.name ?? "", total, pack.name, checkoutUrl);
+  await sendAutoTopupPromptEmail(user.email, greetingName(user.name), total, pack.name, checkoutUrl);
 }
 
 /** Restore up to `amount` credits of the spend identified by `refId`, into

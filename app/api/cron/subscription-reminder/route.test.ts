@@ -21,7 +21,7 @@ vi.mock("@/lib/email", () => ({
   sendTrialEndingEmail: (...a: unknown[]) => (trialEnding as unknown as (...x: unknown[]) => unknown)(...a),
 }));
 
-type TrialRow = { id: string; email: string; firstName: string | null; name: string | null; trialEndsAt: Date; subscriptionCurrency: string | null; plan: { name: string; slug: string; priceInPaise: number } };
+type TrialRow = { id: string; email: string; name: string | null; trialEndsAt: Date; subscriptionCurrency: string | null; plan: { name: string; slug: string; priceInPaise: number } };
 let trials: TrialRow[] = [];
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -36,7 +36,7 @@ vi.mock("@/lib/prisma", () => ({
 const { GET } = await import("./route");
 const run = () => GET(new NextRequest("http://localhost/api/cron/subscription-reminder", { headers: { authorization: "Bearer cron" } }));
 const row = (over: Partial<TrialRow> = {}): TrialRow => ({
-  id: "u1", email: "t@test.com", firstName: "T", name: null, trialEndsAt: new Date(Date.now() + 86_400_000),
+  id: "u1", email: "t@test.com", name: "T", trialEndsAt: new Date(Date.now() + 86_400_000),
   subscriptionCurrency: "INR", plan: { name: "Pro (Monthly)", slug: "sub_pro_1mo", priceInPaise: 219900 }, ...over,
 });
 

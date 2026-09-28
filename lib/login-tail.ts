@@ -14,12 +14,12 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { completeLogin, updateSessionCountry } from "@/lib/auth";
 import { sendNewLoginAlertEmail } from "@/lib/email";
+import { greetingName } from "@/lib/display-name";
 import { logger } from "@/lib/logger";
 
 export interface LoginTailUser {
   id: string;
   email: string;
-  firstName: string | null;
   name: string | null;
 }
 
@@ -46,7 +46,7 @@ export async function finishLogin(req: NextRequest, user: LoginTailUser, ip: str
         .create({ data: { userId: user.id, ip: ip === "unknown" ? null : ip, device, country } })
         .catch((e) => logger.warn("login-tail", "login event write failed", { reason: (e as Error).message }));
       if (country) await updateSessionCountry(user.id, sessionId, country).catch(() => {});
-      await sendNewLoginAlertEmail(user.email, user.firstName ?? user.name ?? "", timeStr, location, device);
+      await sendNewLoginAlertEmail(user.email, greetingName(user.name), timeStr, location, device);
     } catch (e) {
       logger.error("login-tail", "alert email error", e);
     }

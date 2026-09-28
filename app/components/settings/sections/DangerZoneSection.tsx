@@ -7,6 +7,7 @@ import { useToast } from "@/app/components/ui/Toast";
 import { Card } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Modal } from "@/app/components/ui/Modal";
+import { StepUpField, stepUpBody } from "@/app/components/settings/StepUpField";
 
 const DELETE_CONFIRM_WORD = "DELETE";
 
@@ -35,7 +36,7 @@ function DangerRow({ title, desc, actionLabel, onAction, actionVariant = "outlin
 }
 
 export default function DangerZoneSettingsPage() {
-  const { token, signOut } = useAuth();
+  const { user, token, signOut } = useAuth();
   const { showToast } = useToast();
   const t = useTranslations("SettingsDangerZone");
 
@@ -86,7 +87,7 @@ export default function DangerZoneSettingsPage() {
       const res = await fetch("/api/account/deactivate", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ password: deactivatePw }),
+        body: JSON.stringify(stepUpBody(user?.hasPassword, deactivatePw)),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? t("errors.deactivateFailed")); return; }
@@ -105,7 +106,7 @@ export default function DangerZoneSettingsPage() {
       const res = await fetch("/api/auth/profile", {
         method: "DELETE",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ password: deletePw }),
+        body: JSON.stringify(stepUpBody(user?.hasPassword, deletePw)),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? t("errors.deleteFailed")); return; }
@@ -147,7 +148,7 @@ export default function DangerZoneSettingsPage() {
       <Modal open={deactivateOpen} onClose={() => { setDeactivateOpen(false); setError(null); setDeactivatePw(""); }} title={t("deactivateModal.title")} maxWidth="max-w-sm">
         <form onSubmit={handleDeactivate} className="space-y-4">
           <p className="text-sm text-ink-soft">{t("deactivateModal.body")}</p>
-          <input type="password" required autoFocus value={deactivatePw} onChange={(e) => setDeactivatePw(e.target.value)} placeholder={t("confirmPasswordPlaceholder")} className={inputCls} />
+          <StepUpField autoFocus value={deactivatePw} onChange={setDeactivatePw} placeholder={t("confirmPasswordPlaceholder")} />
           {error && <p className="text-sm text-error">{error}</p>}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" size="sm" onClick={() => setDeactivateOpen(false)}>{t("cancel")}</Button>
@@ -192,7 +193,7 @@ export default function DangerZoneSettingsPage() {
         ) : (
           <form onSubmit={handleDelete} className="space-y-4">
             <p className="text-sm text-ink-soft">{t("deleteModal.body")}</p>
-            <input type="password" required autoFocus value={deletePw} onChange={(e) => setDeletePw(e.target.value)} placeholder={t("confirmPasswordPlaceholder")} className={inputCls} />
+            <StepUpField autoFocus value={deletePw} onChange={setDeletePw} placeholder={t("confirmPasswordPlaceholder")} />
             {error && <p className="text-sm text-error">{error}</p>}
             <div className="flex justify-end gap-2">
               <Button type="button" variant="secondary" size="sm" onClick={() => setDeleteOpen(false)}>{t("cancel")}</Button>

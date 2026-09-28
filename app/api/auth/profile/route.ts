@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hardDeleteUserAccount } from "@/lib/account-deletion";
@@ -7,21 +6,37 @@ import { LOCALE_COOKIE, isSupportedLocale } from "@/lib/i18n-locales";
 import { markQuestComplete } from "@/lib/quests";
 import { s3KeyToPublicUrl } from "@/utils/s3-upload";
 import { withRateLimit } from "@/lib/with-rate-limit";
+import { verifyStepUp } from "@/lib/step-up";
+import { cleanName, validateName } from "@/lib/auth-validation";
 
-const PHONE_RE = /^\+?[0-9]{7,15}$/;
 const GENDERS = ["male", "female", "unspecified"] as const;
 const INTENDED_USES = ["content_creator", "business_marketing", "personal", "other"] as const;
 
-// Update the caller's editable profile fields (display name, phone, avatar URL,
+// An avatar URL typed by the client may only point at our own bucket (what
+// /api/upload returns) or Google's avatar host (what Google sign-in stores).
+// It used to accept any string, so a profile could carry a tracking pixel or
+// junk scheme that admins and review pages then rendered.
+function isAllowedAvatarUrl(raw: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "https:") return false;
+  if (url.origin === new URL(s3KeyToPublicUrl("avatar")).origin) return true;
+  return url.hostname === "googleusercontent.com" || url.hostname.endsWith(".googleusercontent.com");
+}
+
+// Update the caller's editable profile fields (display name, avatar URL,
 // gender, intended use, preferred language).
 async function handlePATCH(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json();
+  const body = await req.json().catch(() => ({}));
   const data: {
     name?: string | null;
-    phone?: string | null;
     avatarUrl?: string | null;
     gender?: string | null;
     intendedUse?: string | null;
@@ -29,25 +44,10 @@ async function handlePATCH(req: NextRequest) {
   } = {};
 
   if ("name" in body) {
-    const name = typeof body.name === "string" ? body.name.trim() : null;
-    if (name && name.length > 60) {
-      return NextResponse.json({ error: "Name must be 60 characters or fewer" }, { status: 400 });
-    }
-    data.name = name || null;
-  }
-  if ("phone" in body) {
-    const raw = typeof body.phone === "string" ? body.phone.trim() : "";
-    const phone = raw.replace(/[\s-]/g, "");
-    if (phone) {
-      if (!PHONE_RE.test(phone)) {
-        return NextResponse.json({ error: "Enter a valid phone number" }, { status: 400 });
-      }
-      const taken = await prisma.user.findUnique({ where: { phone } });
-      if (taken && taken.id !== auth.userId) {
-        return NextResponse.json({ error: "Phone number already in use" }, { status: 409 });
-      }
-    }
-    data.phone = phone || null;
+    const name = cleanName(body.name);
+    const nameError = validateName(name);
+    if (nameError) return NextResponse.json({ error: nameError }, { status: 400 });
+    data.name = name;
   }
   if (typeof body.avatarAssetId === "string" && body.avatarAssetId) {
     // Choosing an existing library asset as the avatar — resolve to the
@@ -61,7 +61,11 @@ async function handlePATCH(req: NextRequest) {
     if (!asset) return NextResponse.json({ error: "Asset not found" }, { status: 404 });
     data.avatarUrl = s3KeyToPublicUrl(asset.s3Key);
   } else if ("avatarUrl" in body) {
-    data.avatarUrl = typeof body.avatarUrl === "string" && body.avatarUrl ? body.avatarUrl : null;
+    const avatarUrl = typeof body.avatarUrl === "string" ? body.avatarUrl.trim() : "";
+    if (avatarUrl && !isAllowedAvatarUrl(avatarUrl)) {
+      return NextResponse.json({ error: "Upload the image instead of linking to it" }, { status: 400 });
+    }
+    data.avatarUrl = avatarUrl || null;
   }
   if ("gender" in body) {
     const gender = typeof body.gender === "string" ? body.gender : null;
@@ -92,7 +96,7 @@ async function handlePATCH(req: NextRequest) {
   const user = await prisma.user.update({
     where: { id: auth.userId },
     data,
-    select: { id: true, email: true, phone: true, name: true, avatarUrl: true, gender: true, intendedUse: true, preferredLanguage: true },
+    select: { id: true, email: true, name: true, avatarUrl: true, gender: true, intendedUse: true, preferredLanguage: true },
   });
 
   // A profile counts as "complete" once the user has a display name, an avatar,
@@ -126,16 +130,13 @@ async function handleDELETE(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
-  const password = typeof body.password === "string" ? body.password : "";
-  if (!password) {
-    return NextResponse.json({ error: "Password is required to delete your account" }, { status: 400 });
-  }
 
   const user = await prisma.user.findUnique({ where: { id: auth.userId } });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) return NextResponse.json({ error: "Incorrect password" }, { status: 400 });
+  // Password, or an emailed code for accounts without one (lib/step-up.ts).
+  const stepUp = await verifyStepUp(user, body);
+  if (!stepUp.ok) return NextResponse.json({ error: stepUp.error }, { status: 400 });
 
   const result = await hardDeleteUserAccount(auth.userId);
   if (!result.ok) return NextResponse.json({ error: result.reason }, { status: 409 });

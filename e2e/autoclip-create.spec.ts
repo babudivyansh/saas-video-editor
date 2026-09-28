@@ -12,8 +12,8 @@ import { signToken, SESSION_COOKIE_NAME } from "@/lib/auth";
 //   - a run that no longer exists was polled every 2.5s forever.
 
 const USER = {
-  id: "e2e-autoclip-user", email: "e2e-autoclip@example.com", phone: null, credits: 5,
-  createdAt: new Date().toISOString(), role: "USER", firstName: "E2E", lastName: "User",
+  id: "e2e-autoclip-user", email: "e2e-autoclip@example.com", credits: 5,
+  createdAt: new Date().toISOString(), role: "USER",
   name: "E2E User", avatarUrl: null, gender: null, intendedUse: null,
   subscriptionEndsAt: null, nextRefillAt: null, monthlyCredits: 0, plan: null,
   onboardingCompletedAt: new Date().toISOString(), tourCompletedAt: new Date().toISOString(),

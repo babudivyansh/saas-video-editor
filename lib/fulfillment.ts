@@ -12,6 +12,7 @@ import { grantMinutes, grantMonthlyMinutes } from "@/lib/minutes";
 import { logger } from "@/lib/logger";
 import { recurringTerm } from "@/lib/billing/term";
 import { parseCurrency } from "@/lib/currency-shared";
+import { greetingName } from "@/lib/display-name";
 
 // Single source of truth for granting a captured Razorpay payment. Called by
 // BOTH the client-side verify endpoint (app/api/billing/verify) and the webhook
@@ -243,7 +244,7 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
   // were the only ones never told.
   const recipient = await prisma.user.findUnique({
     where: { id: user.id },
-    select: { email: true, firstName: true, name: true },
+    select: { email: true, name: true },
   });
   if (recipient) {
     await prisma.subscriptionEvent.create({
@@ -251,7 +252,7 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
     }).catch(() => {});
     await sendSubscriptionRenewedEmail(
       recipient.email,
-      recipient.firstName ?? recipient.name ?? "",
+      greetingName(recipient.name),
       amountInPaise,
       result.applied ?? 0,
       result.nextChargeAt ?? null,
@@ -387,7 +388,7 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
   try {
     const user = await prisma.user.findUnique({
       where: { id: uid },
-      select: { email: true, firstName: true, name: true },
+      select: { email: true, name: true },
     });
     if (user) {
       const planForEmail = await prisma.plan.findUnique({ where: { slug: planSlug } });
@@ -412,7 +413,7 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
           : undefined;
       await sendPurchaseConfirmationEmail({
         userEmail: user.email,
-        userName: user.firstName ?? user.name ?? "",
+        userName: greetingName(user.name),
         planName: planForEmail?.name ?? planSlug ?? (kind === "minute_pack" ? "Clip Minutes" : "Credit Pack"),
         creditsAdded: creditsForEmail,
         minutesAdded: minutes,
@@ -490,7 +491,7 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
       try {
         const affiliateUser = await prisma.user.findUnique({
           where: { id: referral.affiliate.userId },
-          select: { email: true, firstName: true, name: true },
+          select: { email: true, name: true },
         });
         if (affiliateUser) {
           const updatedAffiliate = await prisma.affiliate.findUnique({
@@ -500,7 +501,7 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
           const availableAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
           sendAffiliateCommissionEmail(
             affiliateUser.email,
-            affiliateUser.firstName ?? affiliateUser.name ?? "",
+            greetingName(affiliateUser.name),
             commission,
             baseAmount,
             updatedAffiliate?.totalEarned ?? commission,

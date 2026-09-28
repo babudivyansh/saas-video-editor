@@ -10,6 +10,8 @@
  */
 const PUBLIC_API_PREFIXES = [
   "/api/auth/login",
+  // Prefix: also un-gates register/verify and register/resend, the two
+  // steps of the emailed-code signup (no account or session exists yet).
   "/api/auth/register",
   "/api/auth/forgot-password",
   "/api/auth/reset-password",
@@ -27,6 +29,12 @@ const PUBLIC_API_PREFIXES = [
   // an "/api/auth/session" prefix, which would also un-gate the real
   // /api/auth/sessions device-management routes.
   "/api/auth/session-expired",
+  // Finishes an email change from the link sent to the NEW address — opened
+  // from a mail client, often on a device with no session at all. The route
+  // was always documented "intentionally unauthenticated" but was never
+  // listed here, so this gate 401'd every signed-out click. The token in the
+  // body is the credential.
+  "/api/auth/change-email/confirm",
   // Second-factor and reactivation steps. Both are reached *after* the
   // password check but *before* any session exists, so this gate — which only
   // knows how to check the session cookie — can only ever 401 them. Each

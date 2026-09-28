@@ -85,9 +85,9 @@ export async function GET(req: NextRequest) {
           continue;
         }
 
-        const user = await prisma.user.findUnique({ where: { id: row.userId }, select: { email: true, firstName: true, name: true } });
+        const user = await prisma.user.findUnique({ where: { id: row.userId }, select: { email: true, name: true } });
         if (!user) continue;
-        const name = user.name || user.firstName || "";
+        const name = user.name || "";
 
         if (stage === 1) {
           await sendReviewDripEmail1(user.email, name, row.userId, REVIEW_URL);

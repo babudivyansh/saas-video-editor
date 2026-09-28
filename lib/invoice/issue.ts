@@ -66,7 +66,7 @@ export async function ensureInvoice(purchaseId: string): Promise<Invoice | null>
       plan: { select: { name: true, kind: true, intervalMonths: true } },
       user: {
         select: {
-          email: true, name: true, firstName: true, lastName: true,
+          email: true, name: true,
           billingName: true, billingAddress: true, billingState: true, billingPincode: true, billingGstin: true,
         },
       },
@@ -77,7 +77,6 @@ export async function ensureInvoice(purchaseId: string): Promise<Invoice | null>
   if (invoiceEligibility(purchase)) return null;
 
   const u = purchase.user;
-  const fullName = [u.firstName, u.lastName].filter(Boolean).join(" ");
   const pos = placeOfSupply(u.billingState, SELLER.state);
   const split = splitInclusive(purchase.amountInPaise, pos === SELLER.state);
   const issuedAt = new Date();
@@ -103,7 +102,7 @@ export async function ensureInvoice(purchaseId: string): Promise<Invoice | null>
           sellerAddress: SELLER.address,
           sellerGstin: SELLER.gstin,
           sellerState: SELLER.state,
-          buyerName: u.billingName?.trim() || u.name?.trim() || fullName || u.email,
+          buyerName: u.billingName?.trim() || u.name?.trim() || u.email,
           buyerEmail: u.email,
           buyerAddress: u.billingAddress,
           buyerState: u.billingState,

@@ -20,15 +20,35 @@ const MAX_ATTEMPTS = 5;
 const ticketKey = (ticket: string) => `2fa-pending:${ticket}`;
 const attemptsKey = (ticket: string) => `2fa-attempts:${ticket}`;
 
-export async function mintTwoFactorTicket(userId: string): Promise<string> {
+export interface TwoFactorTicket {
+  userId: string;
+  /**
+   * Set by account/reactivate. The deactivation is only lifted once the
+   * second factor passes — lifting it before, as reactivate used to, let the
+   * password alone cancel a deactivation (and its scheduled purge).
+   */
+  reactivate?: boolean;
+}
+
+export async function mintTwoFactorTicket(userId: string, opts: { reactivate?: boolean } = {}): Promise<string> {
   const ticket = randomUUID();
-  await redis.set(ticketKey(ticket), userId, "EX", TICKET_TTL_SECONDS);
+  const value: TwoFactorTicket = { userId, ...(opts.reactivate ? { reactivate: true } : {}) };
+  await redis.set(ticketKey(ticket), JSON.stringify(value), "EX", TICKET_TTL_SECONDS);
   return ticket;
 }
 
-/** The user id this ticket stands for, or null if it expired / was spent. */
-export async function readTwoFactorTicket(ticket: string): Promise<string | null> {
-  return redis.get(ticketKey(ticket));
+/** What this ticket stands for, or null if it expired / was spent. */
+export async function readTwoFactorTicket(ticket: string): Promise<TwoFactorTicket | null> {
+  const raw = await redis.get(ticketKey(ticket));
+  if (!raw) return null;
+  // Tickets minted before this change stored the bare user id.
+  if (!raw.startsWith("{")) return { userId: raw };
+  try {
+    const parsed = JSON.parse(raw) as TwoFactorTicket;
+    return typeof parsed.userId === "string" ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Burns the ticket (and its attempt counter) — success or lockout alike. */

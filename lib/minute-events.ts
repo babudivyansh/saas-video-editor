@@ -14,6 +14,7 @@ import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { logger } from "@/lib/logger";
 import { FREE_TIER_MONTHLY_BONUS_MINUTES, isLowMinutes } from "@/lib/plans/tiers";
+import { greetingName } from "@/lib/display-name";
 
 const GUARD_TTL_SEC = 25 * 24 * 60 * 60;
 
@@ -23,7 +24,7 @@ export function fireLowMinutesEmail(userId: string, newBalance: number): void {
       const user = await prisma.user.findUnique({
         where: { id: userId },
         select: {
-          email: true, firstName: true, name: true, monthlyMinutes: true, subscriptionEndsAt: true,
+          email: true, name: true, monthlyMinutes: true, subscriptionEndsAt: true,
           plan: { select: { tier: true, kind: true } },
         },
       });
@@ -39,7 +40,7 @@ export function fireLowMinutesEmail(userId: string, newBalance: number): void {
       if (claims !== 1) return;
 
       const { sendLowMinutesEmail } = await import("@/lib/email");
-      await sendLowMinutesEmail(user.email, user.firstName ?? user.name ?? "", newBalance, tier);
+      await sendLowMinutesEmail(user.email, greetingName(user.name), newBalance, tier);
     } catch (e) {
       logger.error("minute-events", `low-minutes email failed for ${userId}`, e);
     }

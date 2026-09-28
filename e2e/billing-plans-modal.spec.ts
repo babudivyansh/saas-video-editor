@@ -29,9 +29,9 @@ const PLANS = [
 ];
 
 const USER = {
-  id: "e2e-modal-user", email: "modal@example.com", phone: null, credits: 120,
+  id: "e2e-modal-user", email: "modal@example.com", credits: 120,
   createdAt: new Date("2026-01-15").toISOString(), role: "USER",
-  firstName: "Mo", lastName: "Dal", name: "Mo Dal", avatarUrl: null, gender: null, intendedUse: null,
+  name: "Mo Dal", avatarUrl: null, gender: null, intendedUse: null,
   subscriptionEndsAt: new Date(Date.now() + 20 * 86400_000).toISOString(),
   subscriptionCancelledAt: null, nextRefillAt: null, monthlyCredits: 160,
   trialUsedAt: new Date().toISOString(), trialEndsAt: null,

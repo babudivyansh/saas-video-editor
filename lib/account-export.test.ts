@@ -63,7 +63,7 @@ const socialAccount = {
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    user: { findUnique: vi.fn(async () => ({ id: "u1", email: "u1@test.local", phone: null, firstName: "U", lastName: "1", name: "U 1", gender: null, intendedUse: null, createdAt: new Date(), emailVerifiedAt: null, credits: 10 })) },
+    user: { findUnique: vi.fn(async () => ({ id: "u1", email: "u1@test.local", name: "U 1", gender: null, intendedUse: null, createdAt: new Date(), emailVerifiedAt: null, credits: 10 })) },
     project: { findMany: vi.fn(async () => []) },
     asset: { findMany: vi.fn(async () => []) },
     purchase: { findMany: vi.fn(async () => []) },

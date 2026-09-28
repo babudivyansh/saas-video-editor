@@ -101,7 +101,6 @@ const PUBLIC_REVIEW_SELECT = {
   user: {
     select: {
       name: true,
-      firstName: true,
       avatarUrl: true,
       createdAt: true,
       _count: { select: { generations: { where: { status: "completed" } } } },
@@ -117,7 +116,7 @@ const PUBLIC_REVIEW_SELECT = {
 type RawPublicReview = Prisma.ReviewGetPayload<{ select: typeof PUBLIC_REVIEW_SELECT }>;
 
 function authorName(user: RawPublicReview["user"]): string {
-  return user.name?.trim() || user.firstName?.trim() || "Clipiro user";
+  return user.name?.trim() || "Clipiro user";
 }
 
 export async function toPublicReviewDTO(review: RawPublicReview, topHelpfulThreshold: number): Promise<PublicReviewDTO> {

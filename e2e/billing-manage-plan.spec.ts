@@ -10,12 +10,9 @@ import { signToken, SESSION_COOKIE_NAME } from "@/lib/auth";
 const SUBSCRIBED_USER = {
   id: "e2e-billing-user",
   email: "billing@example.com",
-  phone: null,
   credits: 120,
   createdAt: new Date("2026-01-15").toISOString(),
   role: "USER",
-  firstName: "Bill",
-  lastName: "Ing",
   name: "Bill Ing",
   avatarUrl: null,
   gender: null,

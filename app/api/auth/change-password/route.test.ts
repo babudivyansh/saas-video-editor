@@ -21,7 +21,6 @@ const CURRENT_HASH = "current-hash";
 const findUnique = vi.fn(async () => ({
   id: "u1",
   email: "u1@example.com",
-  firstName: "U",
   name: "U1",
   passwordHash: CURRENT_HASH,
 }));

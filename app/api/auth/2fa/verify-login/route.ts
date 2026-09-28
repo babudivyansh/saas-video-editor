@@ -23,38 +23,49 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "ticket and code are required" }, { status: 400 });
   }
 
-  const userId = await readTwoFactorTicket(ticket);
-  if (!userId) {
+  const pending = await readTwoFactorTicket(ticket);
+  if (!pending) {
     return NextResponse.json({ error: "This login has expired — sign in again.", expired: true }, { status: 400 });
   }
 
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findUnique({ where: { id: pending.userId } });
   if (!user || !user.twoFactorEnabled || !user.twoFactorSecretEnc) {
     return NextResponse.json({ error: "Two-factor authentication is not active on this account." }, { status: 400 });
   }
   if (user.suspendedAt) {
     return NextResponse.json({ error: "This account has been suspended. Contact support if you believe this is a mistake." }, { status: 403 });
   }
+  // A reactivation ticket is the one case a deactivated account may finish
+  // here — that is the point of it. Any other ticket for an account that was
+  // deactivated after the password step does not get a session.
+  if (user.deactivatedAt && !pending.reactivate) {
+    return NextResponse.json({ error: "This account is deactivated.", deactivated: true }, { status: 403 });
+  }
 
+  let verified = false;
   const step = verifyTotpStep(decryptSecret(user.twoFactorSecretEnc), code);
-  let verified = step !== null && step > (user.twoFactorLastUsedStep ?? -1);
 
-  if (verified) {
+  if (step !== null) {
     // Burn this time step so the code can't be replayed for the rest of its
-    // ~90s validity window (see User.twoFactorLastUsedStep).
-    await prisma.user.update({ where: { id: user.id }, data: { twoFactorLastUsedStep: step } });
-  } else if (step === null) {
-    // Not a live TOTP code at all — fall back to an unused recovery code,
-    // one-time use, marked immediately. (A *replayed* TOTP code lands in
-    // neither branch and is simply rejected below.)
-    const codeHash = hashRecoveryCode(code);
-    const recovery = await prisma.twoFactorRecoveryCode.findFirst({
-      where: { userId: user.id, codeHash, usedAt: null },
+    // ~90s validity window (see User.twoFactorLastUsedStep). Conditional, so
+    // two requests racing with the same code can't both win.
+    const burned = await prisma.user.updateMany({
+      where: {
+        id: user.id,
+        OR: [{ twoFactorLastUsedStep: null }, { twoFactorLastUsedStep: { lt: step } }],
+      },
+      data: { twoFactorLastUsedStep: step },
     });
-    if (recovery) {
-      await prisma.twoFactorRecoveryCode.update({ where: { id: recovery.id }, data: { usedAt: new Date() } });
-      verified = true;
-    }
+    verified = burned.count === 1;
+  } else {
+    // Not a live TOTP code at all — fall back to an unused recovery code,
+    // one-time use. Spent with a conditional update rather than find-then-
+    // update, which let two parallel requests spend the same code twice.
+    const spent = await prisma.twoFactorRecoveryCode.updateMany({
+      where: { userId: user.id, codeHash: hashRecoveryCode(code), usedAt: null },
+      data: { usedAt: new Date() },
+    });
+    verified = spent.count >= 1;
   }
 
   if (!verified) {
@@ -69,6 +80,13 @@ async function handlePOST(req: NextRequest) {
   }
 
   await discardTwoFactorTicket(ticket); // one-time use regardless of which factor matched
+
+  if (pending.reactivate && user.deactivatedAt) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { deactivatedAt: null, deactivationScheduledPurgeAt: null },
+    });
+  }
 
   const ip = getClientIp(req);
   const token = await finishLogin(req, user, ip);

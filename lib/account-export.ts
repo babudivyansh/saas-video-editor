@@ -24,6 +24,7 @@ import { createRenderQueue } from "@/lib/render-queue";
 import { uploadFileToS3, getAssetReadUrl } from "@/utils/s3-upload";
 import { sendAccountExportReadyEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
+import { greetingName } from "@/lib/display-name";
 
 const EXPORT_URL_TTL_SEC = 24 * 3600;
 const LOGIN_HISTORY_LIMIT = 100;
@@ -97,8 +98,7 @@ export async function accountExportJob(payload: AccountExportPayload): Promise<v
     const bundle = {
       exportedAt: new Date().toISOString(),
       profile: {
-        id: user.id, email: user.email, phone: user.phone, firstName: user.firstName, lastName: user.lastName,
-        name: user.name, gender: user.gender, intendedUse: user.intendedUse, createdAt: user.createdAt,
+        id: user.id, email: user.email, name: user.name, gender: user.gender, intendedUse: user.intendedUse, createdAt: user.createdAt,
         emailVerifiedAt: user.emailVerifiedAt, credits: user.credits,
       },
       projects: projects.map(({ ...p }) => p),
@@ -131,7 +131,7 @@ export async function accountExportJob(payload: AccountExportPayload): Promise<v
     const url = await getAssetReadUrl(key, EXPORT_URL_TTL_SEC);
     await redis.set(statusKey(jobId), JSON.stringify({ status: "ready", url, userId }), "EX", EXPORT_URL_TTL_SEC);
 
-    sendAccountExportReadyEmail(user.email, user.firstName ?? user.name ?? "", url)
+    sendAccountExportReadyEmail(user.email, greetingName(user.name), url)
       .catch((e) => logger.error("account-export", "ready email failed", e));
   } catch (e) {
     logger.error("account-export", `export job ${jobId} failed`, e);

@@ -18,7 +18,7 @@ import { CreditAdjust } from "../CreditAdjust";
 
 interface Detail {
   user: {
-    id: string; email: string; name: string | null; firstName: string | null;
+    id: string; email: string; name: string | null;
     credits: number; monthlyCredits: number; role: string; createdAt: string;
     minutes: number; monthlyMinutes: number;
     lastLoginAt: string | null; suspendedAt: string | null; adminNotes: string | null;
@@ -140,7 +140,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         {/* Profile + moderation */}
         <Card shadow padding="md" className="space-y-3">
           <div>
-            <p className="font-bold text-fg">{d.user.name ?? d.user.firstName ?? "—"}</p>
+            <p className="font-bold text-fg">{d.user.name ?? "—"}</p>
             <p className="text-sm text-fg-muted">{d.user.email}</p>
             <p className="text-xs text-fg-subtle mt-1">
               {d.user.role} · joined {new Date(d.user.createdAt).toLocaleDateString("en-IN")} · last login {dt(d.user.lastLoginAt)}

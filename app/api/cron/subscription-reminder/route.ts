@@ -10,6 +10,7 @@ import { parseCurrency } from "@/lib/currency-shared";
 import { getPlanPriceMinor } from "@/lib/currency";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
+import { greetingName } from "@/lib/display-name";
 
 // Daily cron — fires subscription expiry warnings (7d, 3d, 1d before) and
 // "subscription expired" emails the day after expiry.
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest) {
         subscriptionEndsAt: { gte: windowStart, lte: windowEnd },
         NOT: { expiryReminderSentAt: { equals: new Date("2000-01-07") } }, // placeholder, use string tracking below
       },
-      select: { id: true, email: true, firstName: true, name: true, subscriptionEndsAt: true, planId: true, expiryReminderSentAt: true },
+      select: { id: true, email: true, name: true, subscriptionEndsAt: true, planId: true, expiryReminderSentAt: true },
     });
 
     for (const u of users) {
@@ -64,7 +65,7 @@ export async function GET(req: NextRequest) {
           const plan = u.planId ? await prisma.plan.findUnique({ where: { id: u.planId }, select: { name: true } }) : null;
           await sendSubscriptionExpiryWarningEmail(
             u.email,
-            u.firstName ?? u.name ?? "",
+            greetingName(u.name),
             plan?.name ?? "Pro",
             7,
             u.subscriptionEndsAt!,
@@ -89,7 +90,7 @@ export async function GET(req: NextRequest) {
 
     const users = await prisma.user.findMany({
       where: { subscriptionEndsAt: { gte: windowStart, lte: windowEnd } },
-      select: { id: true, email: true, firstName: true, name: true, subscriptionEndsAt: true, planId: true, expiryReminderSentAt: true },
+      select: { id: true, email: true, name: true, subscriptionEndsAt: true, planId: true, expiryReminderSentAt: true },
     });
 
     for (const u of users) {
@@ -102,7 +103,7 @@ export async function GET(req: NextRequest) {
           const plan = u.planId ? await prisma.plan.findUnique({ where: { id: u.planId }, select: { name: true } }) : null;
           await sendSubscriptionExpiryWarningEmail(
             u.email,
-            u.firstName ?? u.name ?? "",
+            greetingName(u.name),
             plan?.name ?? "Pro",
             3,
             u.subscriptionEndsAt!,
@@ -127,7 +128,7 @@ export async function GET(req: NextRequest) {
 
     const users = await prisma.user.findMany({
       where: { subscriptionEndsAt: { gte: windowStart, lte: windowEnd } },
-      select: { id: true, email: true, firstName: true, name: true, subscriptionEndsAt: true, planId: true, expiryReminderSentAt: true },
+      select: { id: true, email: true, name: true, subscriptionEndsAt: true, planId: true, expiryReminderSentAt: true },
     });
 
     for (const u of users) {
@@ -140,7 +141,7 @@ export async function GET(req: NextRequest) {
           const plan = u.planId ? await prisma.plan.findUnique({ where: { id: u.planId }, select: { name: true } }) : null;
           await sendSubscriptionExpiryWarningEmail(
             u.email,
-            u.firstName ?? u.name ?? "",
+            greetingName(u.name),
             plan?.name ?? "Pro",
             1,
             u.subscriptionEndsAt!,
@@ -173,13 +174,13 @@ export async function GET(req: NextRequest) {
         expiryReminderSentAt: { gte: yesterday, lte: yesterdayEnd }, // last reminder was sent yesterday
         planId: null,                             // plan cleared
       },
-      select: { id: true, email: true, firstName: true, name: true, credits: true, expiryReminderSentAt: true },
+      select: { id: true, email: true, name: true, credits: true, expiryReminderSentAt: true },
     });
 
     for (const u of expiredUsers) {
       try {
         if (await shouldSendCategory(u.id, "creditAlerts")) {
-          await sendSubscriptionExpiredEmail(u.email, u.firstName ?? u.name ?? "", "Pro", u.credits);
+          await sendSubscriptionExpiredEmail(u.email, greetingName(u.name), "Pro", u.credits);
         }
         // Clear the marker so it won't fire again
         await prisma.user.update({ where: { id: u.id }, data: { expiryReminderSentAt: null } });
@@ -211,7 +212,7 @@ export async function GET(req: NextRequest) {
       // tomorrow" would be false and alarming.
       where: { trialEndsAt: { gte: windowStart, lte: windowEnd }, subscriptionCancelledAt: null },
       select: {
-        id: true, email: true, firstName: true, name: true, trialEndsAt: true, subscriptionCurrency: true,
+        id: true, email: true, name: true, trialEndsAt: true, subscriptionCurrency: true,
         plan: { select: { name: true, slug: true, priceInPaise: true } },
       },
     });
@@ -229,7 +230,7 @@ export async function GET(req: NextRequest) {
         }
         await sendTrialEndingEmail(
           u.email,
-          u.firstName ?? u.name ?? "",
+          greetingName(u.name),
           u.plan?.name ?? "Pro",
           price,
           u.trialEndsAt,

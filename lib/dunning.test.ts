@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 interface UserRow {
   id: string;
   email: string;
-  firstName: string | null;
+ 
   name: string | null;
   razorpaySubscriptionId: string | null;
   paymentFailedAt: Date | null;
@@ -64,7 +64,6 @@ beforeEach(() => {
   user = {
     id: "u1",
     email: "u@test.co",
-    firstName: "Ada",
     name: null,
     razorpaySubscriptionId: "sub_1",
     paymentFailedAt: null,

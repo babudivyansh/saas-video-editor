@@ -4,6 +4,7 @@ import { sendReengagement7DayEmail, sendReengagement30DayEmail, sendUnusedCredit
 import { shouldSendCategory } from "@/lib/notifications";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
+import { greetingName } from "@/lib/display-name";
 
 // Weekly cron — re-engages inactive users and sends mid-month unused-credits reminders.
 //
@@ -42,13 +43,13 @@ export async function GET(req: NextRequest) {
           { reengagementSentAt: { lte: daysAgo(30) } }, // allow re-send after 30 days
         ],
       },
-      select: { id: true, email: true, firstName: true, name: true, credits: true },
+      select: { id: true, email: true, name: true, credits: true },
     });
 
     for (const u of users) {
       try {
         if (await shouldSendCategory(u.id, "marketingEmails")) {
-          await sendReengagement7DayEmail(u.email, u.firstName ?? u.name ?? "", u.credits);
+          await sendReengagement7DayEmail(u.email, greetingName(u.name), u.credits);
         }
         await prisma.user.update({ where: { id: u.id }, data: { reengagementSentAt: now } });
         results.reengaged7d++;
@@ -71,7 +72,7 @@ export async function GET(req: NextRequest) {
           { reengagementSentAt: { lte: daysAgo(30) } },
         ],
       },
-      select: { id: true, email: true, firstName: true, name: true, credits: true, lastLoginAt: true },
+      select: { id: true, email: true, name: true, credits: true, lastLoginAt: true },
     });
 
     for (const u of users) {
@@ -80,7 +81,7 @@ export async function GET(req: NextRequest) {
           ? Math.floor((now.getTime() - u.lastLoginAt.getTime()) / (1000 * 60 * 60 * 24))
           : 30;
         if (await shouldSendCategory(u.id, "marketingEmails")) {
-          await sendReengagement30DayEmail(u.email, u.firstName ?? u.name ?? "", u.credits, daysSince);
+          await sendReengagement30DayEmail(u.email, greetingName(u.name), u.credits, daysSince);
         }
         await prisma.user.update({ where: { id: u.id }, data: { reengagementSentAt: now } });
         results.reengaged30d++;
@@ -103,7 +104,7 @@ export async function GET(req: NextRequest) {
           subscriptionEndsAt: { gt: now },   // still active
           monthlyCredits: { gt: 0 },
         },
-        select: { id: true, email: true, firstName: true, name: true, credits: true, monthlyCredits: true, nextRefillAt: true },
+        select: { id: true, email: true, name: true, credits: true, monthlyCredits: true, nextRefillAt: true },
       });
 
       for (const u of users) {
@@ -114,7 +115,7 @@ export async function GET(req: NextRequest) {
             if (await shouldSendCategory(u.id, "creditAlerts")) {
               await sendUnusedCreditsReminderEmail(
                 u.email,
-                u.firstName ?? u.name ?? "",
+                greetingName(u.name),
                 u.credits,
                 u.nextRefillAt!,
               );

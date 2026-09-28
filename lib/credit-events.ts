@@ -18,6 +18,7 @@ import {
   sendZeroCreditsEmail,
 } from "@/lib/email";
 import { shouldSendCategory } from "@/lib/notifications";
+import { greetingName } from "@/lib/display-name";
 
 /**
  * Call this after a successful credit-spending action (render, voiceover, etc.)
@@ -34,7 +35,7 @@ export function firePostCreditSpendEmails(userId: string, newBalance: number): v
         where: { id: userId },
         select: {
           email: true,
-          firstName: true,
+         
           name: true,
           firstVideoAt: true,
           monthlyCredits: true,
@@ -43,7 +44,7 @@ export function firePostCreditSpendEmails(userId: string, newBalance: number): v
       });
       if (!user) return;
 
-      const displayName = user.firstName ?? user.name ?? "";
+      const displayName = greetingName(user.name);
       const now = new Date();
 
       // ── 1. First-video success upsell (fires exactly once) ─────────────
@@ -111,7 +112,7 @@ export function fireZeroCreditsEmail(userId: string): void {
     try {
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { email: true, firstName: true, name: true, lowCreditEmailSentAt: true },
+        select: { email: true, name: true, lowCreditEmailSentAt: true },
       });
       if (!user) return;
 
@@ -123,7 +124,7 @@ export function fireZeroCreditsEmail(userId: string): void {
 
       await prisma.user.update({ where: { id: userId }, data: { lowCreditEmailSentAt: new Date() } });
       if (await shouldSendCategory(userId, "usageAlerts")) {
-        sendZeroCreditsEmail(user.email, user.firstName ?? user.name ?? "")
+        sendZeroCreditsEmail(user.email, greetingName(user.name))
           .catch((e) => logger.error("credit-events", "zero-credits email error", e));
       }
     } catch (e) {

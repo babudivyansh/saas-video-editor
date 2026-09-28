@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { sendCommissionAvailableEmail } from "@/lib/email";
 import { notifyAdminsIfPayoutEligible } from "@/lib/affiliate";
 import { logger } from "@/lib/logger";
+import { greetingName } from "@/lib/display-name";
 
 export interface CommissionPayoutSweepResult {
   ok: true;
@@ -34,7 +35,7 @@ export async function runCommissionPayoutSweep(): Promise<CommissionPayoutSweepR
     },
     include: {
       affiliate: {
-        include: { user: { select: { email: true, firstName: true, name: true } } },
+        include: { user: { select: { email: true, name: true } } },
       },
     },
   });
@@ -44,7 +45,7 @@ export async function runCommissionPayoutSweep(): Promise<CommissionPayoutSweepR
       const { user } = commission.affiliate;
       await sendCommissionAvailableEmail(
         user.email,
-        user.firstName ?? user.name ?? "",
+        greetingName(user.name),
         commission.amount,
       );
       await prisma.commission.update({

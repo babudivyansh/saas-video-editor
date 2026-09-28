@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
 import { getAuthUser, invalidateAllSessions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { verifyStepUp } from "@/lib/step-up";
 import { sendTwoFactorChangedAlertEmail } from "@/lib/email";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { logger } from "@/lib/logger";
+import { greetingName } from "@/lib/display-name";
 
 // POST /api/auth/2fa/disable { password } — password-confirmed, same
 // step-up pattern as setup. Deliberately does NOT also require a TOTP code:
@@ -15,15 +16,13 @@ async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { password } = await req.json().catch(() => ({}));
-  if (!password || typeof password !== "string") {
-    return NextResponse.json({ error: "Enter your password to continue" }, { status: 400 });
-  }
+  const body = await req.json().catch(() => ({}));
 
   const user = await prisma.user.findUnique({ where: { id: auth.userId } });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) return NextResponse.json({ error: "Incorrect password" }, { status: 400 });
+  // Password, or an emailed code for accounts without one (lib/step-up.ts).
+  const stepUp = await verifyStepUp(user, body);
+  if (!stepUp.ok) return NextResponse.json({ error: stepUp.error }, { status: 400 });
 
   await prisma.$transaction([
     prisma.twoFactorRecoveryCode.deleteMany({ where: { userId: auth.userId } }),
@@ -39,7 +38,7 @@ async function handlePOST(req: NextRequest) {
   await invalidateAllSessions(auth.userId, auth.sessionId).catch(() => {});
 
   const timeStr = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
-  sendTwoFactorChangedAlertEmail(user.email, user.firstName ?? user.name ?? "", false, timeStr)
+  sendTwoFactorChangedAlertEmail(user.email, greetingName(user.name), false, timeStr)
     .catch((e) => logger.error("2fa-disable", "alert email error", e));
 
   return NextResponse.json({ ok: true });

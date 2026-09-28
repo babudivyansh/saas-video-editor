@@ -17,7 +17,7 @@ export const POST = withAdmin<{ id: string }>(async (req, { admin, params }) => 
 
   const review = await prisma.review.findUnique({
     where: { id },
-    include: { user: { select: { id: true, email: true, name: true, firstName: true } } },
+    include: { user: { select: { id: true, email: true, name: true } } },
   });
   if (!review) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -27,7 +27,7 @@ export const POST = withAdmin<{ id: string }>(async (req, { admin, params }) => 
     const reviewUrl = `${SITE_URL}/reviews/${id}`;
     await notify({ userId: review.user.id, type: "review_reply", title: "Clipiro replied to your review", href: `/reviews/${id}` });
     if (await shouldSendCategory(review.user.id, "productUpdates")) {
-      const authorName = review.user.name || review.user.firstName || "";
+      const authorName = review.user.name || "";
       await sendReviewReplyEmail(review.user.email, authorName, reviewUrl).catch((e) =>
         logger.warn("reviews", `review-reply email failed for ${review.user.email}`, { reason: (e as Error).message }),
       );

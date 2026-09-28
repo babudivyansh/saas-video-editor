@@ -15,6 +15,7 @@ import { evaluatePromptTrigger, recordPrompt } from "@/lib/reviews/prompt-trigge
 import { notify } from "@/lib/notify";
 import { shouldSendCategory } from "@/lib/notifications";
 import { sendReviewPromptEmail } from "@/lib/email";
+import { greetingName } from "@/lib/display-name";
 
 // No browser context here — mirrors the days_active cron's pattern exactly
 // (in-app notification + gated email) rather than trying to pop a live
@@ -27,11 +28,11 @@ async function maybePromptAfterBillingSuccess(userId: string | undefined) {
     const result = await evaluatePromptTrigger(userId, "billing_success");
     if (!result.shouldPrompt) return;
     await recordPrompt(userId, "billing_success", "billing");
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, firstName: true, name: true } });
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
     if (!user) return;
     await notify({ userId, type: "review_prompt", title: "Got a minute to review Clipiro?", body: "Your feedback helps other creators decide.", href: "/dashboard?prompt=1" });
     if (await shouldSendCategory(userId, "reviewPrompts")) {
-      await sendReviewPromptEmail(user.email, user.name ?? user.firstName ?? "there", "https://clipiro.com/dashboard?prompt=1").catch((e) => logger.warn("webhook", "review prompt email failed", e));
+      await sendReviewPromptEmail(user.email, greetingName(user.name) || "there", "https://clipiro.com/dashboard?prompt=1").catch((e) => logger.warn("webhook", "review prompt email failed", e));
     }
   } catch (e) {
     logger.warn("webhook", "review prompt after billing success failed", e);

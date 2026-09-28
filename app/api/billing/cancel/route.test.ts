@@ -37,7 +37,7 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: vi.fn(async () => ({ ...row })),
       update: vi.fn(async ({ data }: { data: Partial<Row> }) => {
         Object.assign(row, data);
-        return { ...row, email: "a@test.com", firstName: "A", name: null };
+        return { ...row, email: "a@test.com", name: "A" };
       }),
     },
     subscriptionEvent: { create: vi.fn(async ({ data }: { data: { reason: string } }) => { events.push(data); }) },

@@ -17,13 +17,13 @@ export const POST = withAdmin<{ id: string }>(async (req, { admin, params }) => 
 
   const review = await prisma.review.findUnique({
     where: { id },
-    include: { user: { select: { id: true, email: true, name: true, firstName: true } } },
+    include: { user: { select: { id: true, email: true, name: true } } },
   });
   if (!review) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const ip = auditIp(req);
   const now = new Date();
-  const authorName = review.user.name || review.user.firstName || "";
+  const authorName = review.user.name || "";
 
   switch (action) {
     case "approve": {

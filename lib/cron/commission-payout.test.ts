@@ -10,7 +10,7 @@ interface DueCommission {
   id: string;
   affiliateId: string;
   amount: number;
-  affiliate: { user: { email: string; firstName: string | null; name: string | null } };
+  affiliate: { user: { email: string; name: string | null } };
 }
 
 let dueCommissions: DueCommission[];
@@ -35,7 +35,7 @@ function makeCommission(overrides: Partial<DueCommission> = {}): DueCommission {
     id: "c1",
     affiliateId: "aff-1",
     amount: 250,
-    affiliate: { user: { email: "aff@test.com", firstName: "Aff", name: null } },
+    affiliate: { user: { email: "aff@test.com", name: "Aff" } },
     ...overrides,
   };
 }

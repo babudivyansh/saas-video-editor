@@ -16,7 +16,7 @@ export const GET = withAdmin<{ id: string }>(async (_req, { params }) => {
   const user = await prisma.user.findUnique({
     where: { id },
     select: {
-      id: true, email: true, name: true, firstName: true, lastName: true,
+      id: true, email: true, name: true,
       credits: true, monthlyCredits: true, minutes: true, monthlyMinutes: true, role: true, createdAt: true,
       lastLoginAt: true, suspendedAt: true, adminNotes: true,
       subscriptionEndsAt: true, nextRefillAt: true,

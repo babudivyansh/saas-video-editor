@@ -19,9 +19,9 @@ export async function POST(req: NextRequest) {
 
   const dbUser = await prisma.user.findUnique({
     where: { id: user.userId },
-    select: { name: true, firstName: true },
+    select: { name: true },
   });
-  const name = dbUser?.name ?? dbUser?.firstName ?? "USR";
+  const name = dbUser?.name || "USR";
   const code = await createUniqueCode(name);
 
   const affiliate = await prisma.affiliate.create({

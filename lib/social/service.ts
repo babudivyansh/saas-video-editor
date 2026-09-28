@@ -10,6 +10,7 @@ import { classifyError, withRetry } from "./errors";
 import { CACHE_TTL, cached, invalidateAccount, invalidateUser, keys, userVersion } from "./cache";
 import type { NormalizedAccount, OAuthProvider, OAuthTokens, ProviderId, ProviderSync } from "./types";
 import { logger } from "@/lib/logger";
+import { greetingName } from "@/lib/display-name";
 import { shouldSendCategory } from "@/lib/notifications";
 
 // Which OAuth app a requested platform authenticates through.
@@ -397,7 +398,7 @@ export async function sendWeeklyDigests(): Promise<{ sent: number }> {
     where: { status: "active" },
     select: {
       id: true, provider: true, username: true, displayName: true, followers: true, userId: true,
-      user: { select: { email: true, firstName: true } },
+      user: { select: { email: true, name: true } },
     },
   });
 
@@ -430,7 +431,7 @@ export async function sendWeeklyDigests(): Promise<{ sent: number }> {
           };
         }),
       );
-      await sendSocialDigestEmail(email, userAccounts[0].user.firstName ?? "", rows);
+      await sendSocialDigestEmail(email, greetingName(userAccounts[0].user.name), rows);
       sent++;
     } catch (e) {
       logger.error("social", `digest failed for user ${userAccounts[0].userId}`, e);

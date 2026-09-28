@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { sendAffiliateReferralSignupEmail, sendAdminAffiliatePayoutReadyEmail } from "@/lib/email";
 import { MIN_PAYOUT_AMOUNT } from "@/lib/affiliate-constants";
+import { greetingName } from "@/lib/display-name";
 
 export function generateAffiliateCode(name: string): string {
   const prefix = (name ?? "USR").slice(0, 3).toUpperCase().replace(/[^A-Z]/g, "X");
@@ -28,7 +29,7 @@ export type ReferralResolution =
       applied: true;
       code: string;
       affiliateId: string;
-      affiliateUser: { userId: string; email: string; firstName: string | null; name: string | null };
+      affiliateUser: { userId: string; email: string; name: string | null };
     }
   | { applied: false; reason: ReferralRejectReason };
 
@@ -36,7 +37,6 @@ interface ResolveReferralInput {
   cookieCode?: string | null;
   typedCode?: string | null;
   email: string;
-  phone?: string | null;
 }
 
 /**
@@ -48,7 +48,7 @@ interface ResolveReferralInput {
  * exists). Identical codes are a no-op match.
  */
 export async function resolveReferralCode(input: ResolveReferralInput): Promise<ReferralResolution | null> {
-  const { cookieCode, typedCode, email, phone } = input;
+  const { cookieCode, typedCode, email } = input;
   if (!cookieCode && !typedCode) return null;
 
   if (cookieCode && typedCode && cookieCode.toUpperCase() !== typedCode.toUpperCase()) {
@@ -58,7 +58,7 @@ export async function resolveReferralCode(input: ResolveReferralInput): Promise<
   const code = (typedCode || cookieCode)!.trim().toUpperCase();
   const affiliate = await prisma.affiliate.findUnique({
     where: { code },
-    include: { user: { select: { id: true, email: true, phone: true, firstName: true, name: true } } },
+    include: { user: { select: { id: true, email: true, name: true } } },
   });
 
   if (!affiliate || affiliate.status !== "active") return { applied: false, reason: "invalid" };
@@ -66,9 +66,7 @@ export async function resolveReferralCode(input: ResolveReferralInput): Promise<
     return { applied: false, reason: "expired" };
   }
 
-  const emailMatch = affiliate.user.email === email.toLowerCase();
-  const phoneMatch = !!phone && !!affiliate.user.phone && affiliate.user.phone === phone;
-  if (emailMatch || phoneMatch) return { applied: false, reason: "self" };
+  if (affiliate.user.email === email.toLowerCase()) return { applied: false, reason: "self" };
 
   return {
     applied: true,
@@ -77,14 +75,13 @@ export async function resolveReferralCode(input: ResolveReferralInput): Promise<
     affiliateUser: {
       userId: affiliate.user.id,
       email: affiliate.user.email,
-      firstName: affiliate.user.firstName,
       name: affiliate.user.name,
     },
   };
 }
 
 interface AttributeReferralInput extends ResolveReferralInput {
-  newUser: { id: string; firstName: string | null; name: string | null };
+  newUser: { id: string; name: string | null };
   signupIp: string | null;
 }
 
@@ -124,8 +121,8 @@ export async function attributeReferral(input: AttributeReferralInput): Promise<
       const totalReferrals = await prisma.referral.count({ where: { affiliateId: resolved.affiliateId } });
       sendAffiliateReferralSignupEmail(
         resolved.affiliateUser.email,
-        resolved.affiliateUser.firstName ?? resolved.affiliateUser.name ?? "",
-        input.newUser.firstName ?? input.newUser.name ?? "A new user",
+        greetingName(resolved.affiliateUser.name),
+        greetingName(input.newUser.name) || "A new user",
         totalReferrals,
       ).catch((e) => logger.error("affiliate", "referral signup email error", e));
     }
@@ -153,7 +150,7 @@ export async function notifyAdminsIfPayoutEligible(
   try {
     const affiliate = await prisma.affiliate.findUnique({
       where: { id: affiliateId },
-      include: { user: { select: { email: true, firstName: true, name: true } } },
+      include: { user: { select: { email: true, name: true } } },
     });
     if (!affiliate || affiliate.payoutThresholdNotifiedAt) return;
 
@@ -169,7 +166,7 @@ export async function notifyAdminsIfPayoutEligible(
     for (const admin of admins) {
       try {
         await sendAdminAffiliatePayoutReadyEmail(admin.email, {
-          affiliateName: affiliate.user.firstName ?? affiliate.user.name ?? "",
+          affiliateName: greetingName(affiliate.user.name),
           affiliateEmail: affiliate.user.email,
           affiliateCode: affiliate.code,
           availableAmount: available,

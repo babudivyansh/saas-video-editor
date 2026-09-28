@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   // opinion, who haven't reviewed yet — don't nag an already-lapsed account.
   const candidates = await prisma.user.findMany({
     where: { review: null, createdAt: { lte: accountAgeCutoff }, lastLoginAt: { gte: recentLoginCutoff } },
-    select: { id: true, email: true, firstName: true, name: true },
+    select: { id: true, email: true, name: true },
   });
 
   let prompted = 0;
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
       });
 
       if (await shouldSendCategory(user.id, "reviewPrompts")) {
-        const name = user.name || user.firstName || "";
+        const name = user.name || "";
         await sendReviewPromptEmail(user.email, name, "https://clipiro.com/dashboard?prompt=1").catch((e) =>
           logger.warn("review-prompts", `email failed for ${user.email}`, { reason: (e as Error).message }),
         );

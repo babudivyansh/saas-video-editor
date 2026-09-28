@@ -17,12 +17,9 @@ export interface UserPlan {
 export interface AuthUser {
   id: string;
   email: string;
-  phone: string | null;
   credits: number;
   createdAt: string;
   role: "USER" | "ADMIN";
-  firstName: string | null;
-  lastName: string | null;
   name: string | null;
   avatarUrl: string | null;
   gender: string | null;
@@ -58,6 +55,8 @@ export interface AuthUser {
   bonusMinutesExpireAt: string | null;
   minuteBalances: { bonus: number; subscription: number; purchased: number; total: number };
   emailVerifiedAt: string | null;
+  /** False for accounts with no password their owner knows (Google signups) — sensitive actions then confirm with an emailed code. */
+  hasPassword: boolean;
   twoFactorEnabled: boolean;
   passwordChangedAt: string | null;
   lastLoginAt: string | null;

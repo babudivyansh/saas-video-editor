@@ -23,6 +23,7 @@ import { sendTrialStartedEmail } from "@/lib/email";
 import { parseCurrency } from "@/lib/currency-shared";
 import { getPlanPriceMinor } from "@/lib/currency";
 import { trialEligibility, type TrialIneligible } from "./trial-eligibility";
+import { greetingName } from "@/lib/display-name";
 
 export interface AuthenticatedSubscription {
   id: string;
@@ -117,7 +118,7 @@ export async function startTrialOnAuthentication(sub: AuthenticatedSubscription)
   // Tell them plainly what they just agreed to: free until when, then how
   // much. They authorised a mandate while paying ₹0 — the first real charge
   // must never be a surprise. Non-fatal: the trial itself has been granted.
-  const recipient = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, firstName: true, name: true } });
+  const recipient = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
   if (recipient) {
     // Quote the price in the currency the subscription bills in.
     // If the USD price can't be resolved, quote INR rather than a rupee figure
@@ -128,7 +129,7 @@ export async function startTrialOnAuthentication(sub: AuthenticatedSubscription)
       try { price = await getPlanPriceMinor(plan.slug, plan.priceInPaise, "USD"); } catch { currency = "INR"; }
     }
     await sendTrialStartedEmail(
-      recipient.email, recipient.firstName ?? recipient.name ?? "", plan.name, price, TRIAL_CREDITS, startAt, currency,
+      recipient.email, greetingName(recipient.name), plan.name, price, TRIAL_CREDITS, startAt, currency,
       TRIAL_MINUTES,
     ).catch((e: unknown) => logger.error("billing/trial", `trial-started email failed for ${userId}`, e));
   }

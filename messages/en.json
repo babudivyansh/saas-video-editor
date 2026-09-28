@@ -214,10 +214,8 @@
     "avatarHelp": "JPG or PNG, shown across Clipiro and in shared links.",
     "uid": "UID",
     "copyUid": "Copy UID",
-    "nickname": "Nickname",
-    "nicknamePlaceholder": "Your name",
-    "phoneNumber": "Phone Number",
-    "saving": "Saving…",
+    "nickname": "Name",
+    "nicknamePlaceholder": "Your name",    "saving": "Saving…",
     "saveChanges": "Save Changes",
     "gender": "Gender",
     "genders": { "male": "Male", "female": "Female", "unspecified": "Prefer not to say" },
@@ -239,6 +237,23 @@
     }
   },
   "SettingsSecurity": {
+    "stepUp": {
+      "passwordPlaceholder": "Current password",
+      "codeHelp": "Your account signs in with Google, so confirm with a code we email you.",
+      "sendCode": "Email me a code",
+      "resendCode": "Send a new code",
+      "sending": "Sending…",
+      "codeSent": "Code sent — check your email",
+      "codePlaceholder": "6-digit code",
+      "sendFailed": "Couldn’t send the code"
+    },
+    "verifyCode": {
+      "prompt": "Enter the 6-digit code we emailed to {email}.",
+      "verify": "Verify",
+      "verifying": "Verifying…",
+      "verified": "Email verified",
+      "failed": "That code didn’t work"
+    },
     "pageTitle": "Security",
     "pageSubtitle": "Keep your account locked down.",
     "email": {
@@ -248,7 +263,7 @@
       "emailAddress": "Email Address",
       "pendingConfirmation": "Confirmation sent to <strong>{email}</strong> — click the link there to finish the change.",
       "sending": "Sending…",
-      "sendVerification": "Send verification email",
+      "sendVerification": "Send verification code",
       "changeEmail": "Change email",
       "cancel": "Cancel",
       "newEmailAddress": "New email address",
@@ -258,12 +273,13 @@
       "toasts": {
         "sendFailed": "Failed to send",
         "alreadyVerified": "Already verified",
-        "verificationSent": "Verification email sent",
+        "verificationSent": "Verification code sent",
         "changeFailed": "Failed to change email",
         "confirmationSentTo": "Confirmation sent to {email}"
       }
     },
     "password": {
+      "noPassword": "Your account signs in with Google, so there's no password to change. To add one, use \"Forgot password\" on the sign-in page.",
       "title": "Password",
       "changePassword": "Change password",
       "cancel": "Cancel",
