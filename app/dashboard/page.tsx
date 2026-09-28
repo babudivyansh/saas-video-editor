@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useTranslations, useFormatter, useNow } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/app/components/AuthContext";
 import { useOnboarding } from "@/app/hooks/useOnboarding";
 import { FeatureHint } from "@/app/components/onboarding/FeatureHint";
@@ -25,7 +25,7 @@ import { useProjectActions } from "@/app/components/dashboard/useProjectActions"
 import { Button } from "@/app/components/ui/Button";
 import { SectionHeader } from "@/app/components/ui/SectionHeader";
 import { ToastProvider, useToast } from "@/app/components/ui/Toast";
-import { ProjectStatusChip } from "@/app/dashboard/clips/components/projectUi";
+import { ContinueSection } from "@/app/components/dashboard/ContinueSection";
 import type { ClipRow } from "@/app/dashboard/clips/hooks/useClipsLibrary";
 
 const HAS_PROJECTS_STORAGE_KEY = "clipiro:hasAnyProjects";
@@ -60,8 +60,6 @@ const svg = {
   strokeLinecap: "round", strokeLinejoin: "round",
 } as const;
 function IcChevron() { return <svg {...svg} strokeWidth={2} className="w-4 h-4"><path d="M9 18l6-6-6-6" /></svg>; }
-function IcMore() { return <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>; }
-function IcFilm() { return <svg {...svg} className="w-4 h-4"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M8 3v18M16 3v18M3 8h5M16 8h5M3 16h5M16 16h5" /></svg>; }
 function IcGift() { return <svg {...svg} className="w-5 h-5"><path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z" /></svg>; }
 function IcWrench() { return <svg {...svg} className="w-[18px] h-[18px]"><path d="M14.7 6.3a4 4 0 00-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 005.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z" /></svg>; }
 function IcScissors() { return <svg {...svg} className="w-[22px] h-[22px]"><circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M20 4L8.1 15.9M14.5 14.5L20 20M8.1 8.1L12 12" /></svg>; }
@@ -122,8 +120,6 @@ export default function DashboardPage() {
 function DashboardPageInner() {
   const { user, token } = useAuth();
   const t = useTranslations("Dashboard");
-  const format = useFormatter();
-  const relativeNow = useNow({ updateInterval: 60_000 });
   const { showToast } = useToast();
   const tNav = useTranslations("Nav");
   const featuredTools = useFeaturedTools();
@@ -383,49 +379,15 @@ function DashboardPageInner() {
                   {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-[68px] rounded-2xl bg-surface-2 animate-pulse" />)}
                 </div>
               )}
-              {summary?.hasAnyProjects && summary.inProgress.length > 0 && (
-                <section className="rounded-[var(--radius-panel)] border border-line bg-surface-1 px-5 py-4">
-                  <SectionHeader title={t("continueWhereYouLeftOff")} action={{ label: t("viewAllClips"), href: "/dashboard/clips" }} />
-                  {summary.inProgress.length > 0 && (
-                    <div className="mt-2">
-                      {summary.inProgress.map(p => (
-                        <div key={p.id} className="group relative flex items-center gap-4 py-3 border-t border-line first:border-t-0">
-                          <Link href={inProgressHref(p)} className="absolute inset-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-primary/70" aria-label={p.title} />
-                          <span className="w-16 aspect-video rounded-lg bg-surface-3 border border-line flex items-center justify-center text-fg-subtle flex-shrink-0 pointer-events-none">
-                            <IcFilm />
-                          </span>
-                          <div className="flex-1 min-w-0 pointer-events-none">
-                            <p className="text-sm font-semibold text-fg truncate">{p.title}</p>
-                            {/* Editor projects never produce Clip rows — their
-                                work lives in editorDoc — so a clip count there
-                                is always "0 clips". Show last-touched instead. */}
-                            <p className="text-xs text-fg-subtle mt-0.5">
-                              {p.productType === "editor"
-                                ? t("editedAgo", { relative: format.relativeTime(new Date(p.updatedAt), relativeNow) })
-                                : t("clipCount", { count: p.clipCount })}
-                            </p>
-                          </div>
-                          <span className="pointer-events-none">
-                            <ProjectStatusChip project={{ ...p, _count: { clips: p.clipCount } }} />
-                          </span>
-                          <button
-                            type="button"
-                            onClick={(e) => projectActions.openMenu(e, { id: p.id, title: p.title })}
-                            aria-label={`${t("projectActions")}: ${p.title}`}
-                            className="relative z-10 w-9 h-9 rounded-xl flex items-center justify-center text-fg-subtle hover:text-fg hover:bg-surface-3 transition-colors cursor-pointer"
-                          >
-                            <IcMore />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {summary.inProgressTotal > summary.inProgress.length && (
-                    <Link href="/dashboard/clips" className="mt-2 inline-block text-sm font-semibold text-primary hover:text-primary-hover">
-                      {t("viewAllProjects", { count: summary.inProgressTotal })}
-                    </Link>
-                  )}
-                </section>
+              {summary?.hasAnyProjects && (
+                <ContinueSection
+                  projects={summary.inProgress}
+                  total={summary.inProgressTotal}
+                  hrefFor={inProgressHref}
+                  onRename={(p) => projectActions.startRename({ id: p.id, title: p.title })}
+                  onDelete={(p) => projectActions.startDelete({ id: p.id, title: p.title })}
+                  onMenu={(e, p) => projectActions.openMenu(e, { id: p.id, title: p.title })}
+                />
               )}
 
               {showGoalHint && goalDef && goalHintId && (

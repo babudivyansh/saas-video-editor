@@ -59,9 +59,11 @@ async function setup(page: Page, baseURL: string | undefined) {
 
 // Scoped to the card link and the dialog: the project title also appears in the
 // confirm dialog's message, so a bare getByText matches two elements.
-const cardFor = (page: Page, title: string) => page.getByRole("link", { name: new RegExp(title) });
-// The row's menu button sits beside its link (a button inside a link is
-// invalid HTML), and is named after the project it acts on.
+// A project renders several links (preview, title, Resume); any one proves it's there.
+const cardFor = (page: Page, title: string) => page.getByRole("link", { name: new RegExp(title) }).first();
+// "Up next" rows carry a menu button beside their links (a button inside a
+// link is invalid HTML), named after the project it acts on. The most recent
+// project gets its own Rename / Delete buttons instead.
 const kebabFor = (page: Page, title: string) =>
   page.getByRole("button", { name: new RegExp(`project actions.*${title}`, "i") });
 const dialog = (page: Page) => page.getByRole("dialog");
@@ -125,8 +127,8 @@ test("renames a project from the rail", async ({ page, baseURL }) => {
   });
 
   await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
-  await kebabFor(page, "Keep me").click();
-  await page.getByRole("menuitem", { name: "Rename", exact: true }).click();
+  // "Keep me" is the most recent project, so it has a Rename button of its own.
+  await page.getByRole("button", { name: "Rename", exact: true }).click();
 
   await dialog(page).locator("input").fill("Renamed project");
   await dialog(page).getByRole("button", { name: "Save", exact: true }).click();
