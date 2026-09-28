@@ -83,9 +83,39 @@ export default function SiteFooter() {
     // Same container as SiteNavbar (max-w-screen-2xl + px-4/6/8), and the same
     // md:ml-25 the navbar puts on its logo, so the card starts under the logo
     // and ends under the right-hand CTA. Keep the two in sync.
-    <footer className="mx-auto max-w-screen-2xl bg-bg px-4 py-10 font-sans sm:px-6 md:py-16 lg:px-8">
+    <footer className="relative overflow-hidden bg-bg font-sans [container-type:inline-size]">
+      {/* Faint echo of the wordmark behind the card, peeking out below it.
+          Sized to the footer (full viewport width) via cqw. Decorative. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 -translate-x-1/2 select-none whitespace-nowrap font-black leading-none tracking-[-0.04em]"
+        style={{
+          fontSize: "22cqw",
+          bottom: "-0.24em",
+          color: "color-mix(in oklab, var(--emerald-bright) 7%, transparent)",
+        }}
+      >
+        CLIPIRO
+      </div>
+
+      <div
+        className="relative mx-auto max-w-screen-2xl px-4 pt-10 sm:px-6 md:pt-16 lg:px-8"
+        style={{ paddingBottom: "max(2.5rem, 9cqw)" }}
+      >
       {/* container-type lets the wordmark size itself to the card, not the viewport */}
-      <div className="relative overflow-hidden md:ml-25 rounded-3xl border border-line bg-surface-1 [container-type:inline-size]">
+      <div
+        className="relative overflow-hidden rounded-3xl border bg-surface-1 md:ml-25 [container-type:inline-size]"
+        style={{
+          // Softer than border-line: a faint light edge, a brighter top
+          // highlight, and a deep drop shadow that lifts the card off the echo.
+          borderColor: "color-mix(in oklab, var(--fg) 9%, transparent)",
+          boxShadow: [
+            "inset 0 1px 0 color-mix(in oklab, var(--fg) 7%, transparent)",
+            "0 30px 80px -20px color-mix(in oklab, var(--bg-deep) 85%, transparent)",
+            "0 0 120px -40px color-mix(in oklab, var(--emerald-bright) 18%, transparent)",
+          ].join(", "),
+        }}
+      >
         <div className="px-6 pt-12 sm:px-10 md:px-16 md:pt-[72px]">
           <div className="grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-3 lg:grid-cols-[1.7fr_repeat(5,minmax(0,1fr))]">
             {/* Brand blurb */}
@@ -162,6 +192,7 @@ export default function SiteFooter() {
         >
           CLIPIRO
         </div>
+      </div>
       </div>
     </footer>
   );
