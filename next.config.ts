@@ -23,7 +23,22 @@ const nextConfig: NextConfig = {
   // binary resolves from the source tree). Force the binary into the trace for
   // exactly the routes that spawn it. bin/** covers yt-dlp (Linux) and
   // yt-dlp.exe (Windows) without hardcoding a platform.
+  //
+  // The ffmpeg binaries are the same story: utils/ffmpeg-render.ts probes for
+  // them with fs.existsSync on a loop variable, which the tracer cannot follow
+  // (and which is marked turbopackIgnore — unmarked, it traced the ENTIRE
+  // project into .next/standalone). Ship them explicitly instead, for every
+  // route (and so the in-process render workers started from instrumentation):
+  //   - vendor/ffmpeg/ffmpeg: the pinned, checksum-verified Linux production
+  //     runtime from scripts/install-render-ffmpeg.mjs (absent on Windows/macOS).
+  //   - ffmpeg-static's binary: the dev fallback, and what resolveFfmpegBin()
+  //     falls through to when the pinned runtime is missing.
   outputFileTracingIncludes: {
+    "/**": [
+      "./vendor/ffmpeg/ffmpeg",
+      "./node_modules/ffmpeg-static/ffmpeg",
+      "./node_modules/ffmpeg-static/ffmpeg.exe",
+    ],
     "/api/tools/youtube-downloader": ["./node_modules/youtube-dl-exec/bin/**"],
     "/api/tools/instagram-downloader": ["./node_modules/youtube-dl-exec/bin/**"],
     "/api/projects/[id]/import-url": ["./node_modules/youtube-dl-exec/bin/**"],

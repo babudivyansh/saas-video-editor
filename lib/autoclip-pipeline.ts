@@ -1252,7 +1252,7 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
   } finally {
     clearTimeout(watchdog);
     for (const f of [videoPath, audioPath]) {
-      try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch {}
+      try { if (fs.existsSync(/*turbopackIgnore: true*/ f)) fs.unlinkSync(/*turbopackIgnore: true*/ f); } catch {}
     }
   }
 }

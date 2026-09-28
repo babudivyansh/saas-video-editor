@@ -68,7 +68,7 @@ export async function generateImageThumbnail(
     return { thumbnailS3Key: null, width: null, height: null };
   } finally {
     for (const p of [srcPath, outPath]) {
-      try { if (fs.existsSync(p)) fs.unlinkSync(p); } catch { /* best-effort cleanup */ }
+      try { if (fs.existsSync(/*turbopackIgnore: true*/ p)) fs.unlinkSync(/*turbopackIgnore: true*/ p); } catch { /* best-effort cleanup */ }
     }
   }
 }
@@ -104,7 +104,7 @@ export async function generateVideoThumbnail(
     return null;
   } finally {
     for (const p of [srcPath, outPath]) {
-      try { if (fs.existsSync(p)) fs.unlinkSync(p); } catch { /* best-effort cleanup */ }
+      try { if (fs.existsSync(/*turbopackIgnore: true*/ p)) fs.unlinkSync(/*turbopackIgnore: true*/ p); } catch { /* best-effort cleanup */ }
     }
   }
 }

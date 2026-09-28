@@ -121,7 +121,7 @@ export async function renderPreviewFrames(sourceUrl: string, clip: Clip): Promis
     return frames;
   } finally {
     for (const f of cleanup) {
-      try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch {}
+      try { if (fs.existsSync(/*turbopackIgnore: true*/ f)) fs.unlinkSync(/*turbopackIgnore: true*/ f); } catch {}
     }
   }
 }
