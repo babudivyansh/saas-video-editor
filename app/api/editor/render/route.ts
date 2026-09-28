@@ -12,7 +12,7 @@ import {
   type EditorRenderPayload,
 } from "@/lib/editor/render-job";
 import { getAssetReadUrl } from "@/utils/s3-upload";
-import { spendCredits } from "@/lib/credits";
+import { restoreSpend, spendCredits } from "@/lib/credits";
 import { ffmpegBin } from "@/utils/ffmpeg-render";
 import { logger } from "@/lib/logger";
 import {
@@ -37,6 +37,8 @@ async function handlePOST(req: NextRequest) {
 
   const project = await prisma.project.findFirst({ where: { id: projectId, userId: auth.userId } });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  // Cheap early-out only. The real double-submit guard is the atomic claim
+  // below: this read is a snapshot, and two clicks can both pass it.
   if (project.status === "rendering") {
     return NextResponse.json({ error: "Project is already rendering" }, { status: 409 });
   }
@@ -103,27 +105,54 @@ async function handlePOST(req: NextRequest) {
     );
   }
 
+  // Atomic claim BEFORE charging: of two simultaneous Export clicks exactly one
+  // flips the status and goes on to pay; the other gets count 0 and a 409.
+  // (Previously both passed the status read above and both were charged.)
+  const claimed = await prisma.project.updateMany({
+    where: { id: projectId, userId: auth.userId, status: { not: "rendering" } },
+    data: { status: "rendering", progress: 0, videoUrl: null, failureReason: null },
+  });
+  if (claimed.count === 0) {
+    return NextResponse.json({ error: "Project is already rendering" }, { status: 409 });
+  }
+  const releaseClaim = () =>
+    prisma.project
+      .update({ where: { id: projectId }, data: { status: project.status, progress: project.progress } })
+      .catch((e) => logger.error("editor-render", `could not release render claim for ${projectId}`, e));
+
   // Bucket-aware atomic spend; refId ties the ledger rows to this render so
   // the worker's failure refund restores exactly the buckets drained here.
+  const refId = `editor-render:${projectId}`;
   const spend = await spendCredits({
     userId: auth.userId,
     amount: EDITOR_RENDER_CREDIT_COST,
     reason: "spend:editor-render",
-    refId: `editor-render:${projectId}`,
+    refId,
   });
   if (!spend.ok) {
+    await releaseClaim();
     return NextResponse.json(
       { error: "insufficient_credits", required: EDITOR_RENDER_CREDIT_COST, balance: spend.balances.total },
       { status: 402 },
     );
   }
 
-  await prisma.project.update({
-    where: { id: projectId },
-    data: { status: "rendering", progress: 0, videoUrl: null, failureReason: null },
-  });
-
-  renderQueue.enqueue(projectId, { projectId, assetUrls }, { priority: tierPriority(await getUserTier(auth.userId)) });
+  // A fresh job id per export. BullMQ silently ignores an add whose id it
+  // still retains (completed/failed jobs are kept), so reusing the project id
+  // meant a project's second export was charged and never ran.
+  const jobId = `${projectId}-${Date.now().toString(36)}`;
+  try {
+    await renderQueue.enqueue(jobId, { projectId, assetUrls }, {
+      priority: tierPriority(await getUserTier(auth.userId)),
+      rejectOnFailure: true,
+    });
+  } catch (err) {
+    logger.error("editor-render", `enqueue failed for ${projectId}`, err);
+    await restoreSpend({ userId: auth.userId, refId, amount: EDITOR_RENDER_CREDIT_COST, reason: "refund:editor-render-enqueue-failed" })
+      .catch((e) => logger.error("editor-render", `refund after failed enqueue failed for ${projectId}`, e));
+    await releaseClaim();
+    return NextResponse.json({ error: "Couldn't start the export. You weren't charged — please try again." }, { status: 503 });
+  }
 
   return NextResponse.json({ status: "rendering", creditsRemaining: spend.balances.total });
 }

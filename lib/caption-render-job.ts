@@ -575,7 +575,18 @@ export async function claimAndEnqueueExport(
     data: { status: "export_queued" },
   });
   if (claimed.count === 0) return false;
-  await captionExportQueue.enqueue(`${job.id}:export`, payloadFor(job));
+  // Unique per attempt and colon-free: BullMQ throws on a custom id with a
+  // single ':' ("Custom Id cannot contain :"), and silently ignores a re-add
+  // of an id it still retains — either way the export never ran. Awaited
+  // with rejectOnFailure so a lost enqueue hands the claim back instead of
+  // leaving the job parked in export_queued.
+  try {
+    await captionExportQueue.enqueue(`${job.id}-export-${Date.now().toString(36)}`, payloadFor(job), { rejectOnFailure: true });
+  } catch (err) {
+    logger.error("caption-render", `export enqueue failed for ${job.id}`, err);
+    await prisma.captionRenderJob.updateMany({ where: { id: job.id, status: "export_queued" }, data: { status: job.status } });
+    throw err;
+  }
   return true;
 }
 
@@ -625,7 +636,16 @@ export async function claimAndEnqueueDownload(
     data: { status: "downloading" },
   });
   if (claimed.count === 0) return false;
-  await captionDownloadQueue.enqueue(`${job.id}:download`, payloadFor(job));
+  // Same id rules as the export above. On a lost enqueue the claim goes back
+  // to `rendering`, which the sweep re-claims on its next pass — `downloading`
+  // is a state nothing else ever advances.
+  try {
+    await captionDownloadQueue.enqueue(`${job.id}-download-${Date.now().toString(36)}`, payloadFor(job), { rejectOnFailure: true });
+  } catch (err) {
+    logger.error("caption-render", `download enqueue failed for ${job.id}`, err);
+    await prisma.captionRenderJob.updateMany({ where: { id: job.id, status: "downloading" }, data: { status: "rendering" } });
+    throw err;
+  }
   return true;
 }
 

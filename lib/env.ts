@@ -64,8 +64,14 @@ const schema = z.object({
   // cookie key group on the distribution is a separate, later step.
   CDN_BASE_URL: z.string().optional(),
 
-  // Render queue driver — optional, defaults to in-process.
-  RENDER_QUEUE_DRIVER: z.string().optional(),
+  // Render queue driver. Unset/empty = BullMQ (what lib/render-queue.ts has
+  // always done — this comment used to claim in-process). A typo used to be
+  // silently treated as BullMQ too; now anything else fails boot. The chosen
+  // driver is logged at startup (instrumentation.ts).
+  RENDER_QUEUE_DRIVER: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.enum(["bullmq", "in-process"]).optional(),
+  ),
 
   // GPU media service (active-speaker detection + NVENC rendering). Optional
   // by design, same as FAL_KEY: absent config means "GPU disabled", and every
