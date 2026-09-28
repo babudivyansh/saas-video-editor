@@ -12,6 +12,11 @@ interface ButtonProps {
   icon?: React.ReactNode;
   onClick?: () => void;
   disabled?: boolean;
+  /**
+   * In-flight state: shows a spinner, sets aria-busy and blocks clicks, so a
+   * double-click can't submit twice. Callers used to hand-roll this (or skip it).
+   */
+  loading?: boolean;
   className?: string;
   children: React.ReactNode;
   /**
@@ -58,15 +63,27 @@ const FOCUS =
   "outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
 
 const SIZE: Record<ButtonSize, string> = {
-  sm: "text-xs px-3 py-1.5 gap-1",
+  // ~28px tall visually; the ::before pad extends the hit area to ~40px so it
+  // is still an adequate touch target, without changing layout.
+  sm: "text-xs px-3 py-1.5 gap-1 relative before:absolute before:-inset-1.5 before:content-['']",
   md: "text-sm px-4 py-2 gap-1.5",
   lg: "text-sm px-6 py-3 gap-2",
 };
 
-export function Button({ variant = "primary", size = "md", href, icon, onClick, disabled, className = "", children, type }: ButtonProps) {
+function Spinner() {
+  return (
+    <svg className="w-4 h-4 animate-spin motion-reduce:animate-none" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function Button({ variant = "primary", size = "md", href, icon, onClick, disabled, loading, className = "", children, type }: ButtonProps) {
+  const inert = disabled || loading;
   const cls = variant === "link"
-    ? `inline-flex items-center font-semibold whitespace-nowrap text-xs rounded-sm ${FOCUS} ${VARIANT.link} ${disabled ? "opacity-50 pointer-events-none" : ""} ${className}`
-    : `inline-flex items-center justify-center font-semibold rounded-full transition-all whitespace-nowrap ${FOCUS} ${VARIANT[variant]} ${SIZE[size]} ${disabled ? "opacity-50 pointer-events-none" : ""} ${className}`;
+    ? `inline-flex items-center font-semibold whitespace-nowrap text-xs rounded-sm ${FOCUS} ${VARIANT.link} ${inert ? "opacity-50 pointer-events-none" : ""} ${className}`
+    : `inline-flex items-center justify-center font-semibold rounded-full transition-all whitespace-nowrap ${FOCUS} ${VARIANT[variant]} ${SIZE[size]} ${inert ? "opacity-50 pointer-events-none" : ""} ${className}`;
   if (href) {
     // onClick is forwarded here too: next/link accepts it natively, and
     // dropping it silently meant a tracked or instrumented link rendered fine
@@ -80,9 +97,10 @@ export function Button({ variant = "primary", size = "md", href, icon, onClick, 
     );
   }
   return (
-    <button type={type} onClick={onClick} disabled={disabled} className={cls}>
+    <button type={type} onClick={onClick} disabled={inert} aria-busy={loading || undefined} className={cls}>
+      {loading && <Spinner />}
       {children}
-      {icon}
+      {!loading && icon}
     </button>
   );
 }

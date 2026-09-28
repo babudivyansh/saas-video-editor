@@ -16,7 +16,7 @@ export default function DashboardError({
   }, [error]);
 
   return (
-    <main className="min-h-[60vh] flex flex-col items-center justify-center px-4 text-center">
+    <div className="min-h-[60vh] flex flex-col items-center justify-center px-4 text-center">
       <div className="bg-error/12 border border-error/30 rounded-xl w-12 h-12 flex items-center justify-center">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-error" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="10" />
@@ -45,6 +45,6 @@ export default function DashboardError({
           Dashboard home
         </Link>
       </div>
-    </main>
+    </div>
   );
 }

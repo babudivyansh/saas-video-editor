@@ -593,7 +593,9 @@ body {
 }
 
 /* Honest indeterminate loading sheen (processing / skeletons). */
-.ac-shimmer { background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.55) 50%, rgba(255,255,255,0) 100%); background-size: 200% 100%; animation: ac-shimmer 1.6s linear infinite; }
+/* Sheen is a tint of the foreground, not white: a 55%-white band read as a
+   bright flash across the dark surfaces this sits on. */
+.ac-shimmer { background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--fg) 9%, transparent) 50%, transparent 100%); background-size: 200% 100%; animation: ac-shimmer 1.6s linear infinite; }
 
 /* Workspace stage: on desktop the video shifts left when the tools panel is
    docked; on phones the video shrinks up and the panel is a bottom sheet. */

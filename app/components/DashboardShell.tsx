@@ -18,6 +18,7 @@ import { CreditModalProvider } from "@/app/components/billing/CreditModalContext
 import { BillingOverlayProvider, useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
 import { ReviewPromptProvider } from "@/app/components/reviews/ReviewPromptProvider";
 import { SettingsOverlayProvider, useSettingsOverlay } from "@/app/components/settings/SettingsOverlayContext";
+import { SkipLink } from "@/app/components/ui/SkipLink";
 
 const CHROMELESS_PREFIXES = ["/dashboard/editor", "/dashboard/admin"];
 
@@ -57,6 +58,7 @@ function ShellChrome({ children }: { children: React.ReactNode }) {
     // tracks the real viewport.
     // Sidebar runs the full height; the header sits beside it, over the page.
     <div className="flex h-[100dvh] overflow-hidden bg-surface text-ink">
+      <SkipLink />
       <ToolsSidebar active={isBillingOpen ? "billing" : isSettingsOpen ? "settings" : activeIdFor(pathname)} />
       <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
         <DashboardHeader />
@@ -73,7 +75,7 @@ function ShellChrome({ children }: { children: React.ReactNode }) {
           overscroll-contain then stops a scroll that reaches the end of this
           pane from chaining out to whatever is behind it.
         */}
-        <main className="relative flex-1 overflow-y-auto overscroll-contain bg-surface">{children}</main>
+        <main id="main" tabIndex={-1} className="relative flex-1 overflow-y-auto overscroll-contain bg-surface outline-none">{children}</main>
       </div>
     </div>
   );

@@ -27,6 +27,7 @@ import { ToastProvider } from "@/app/components/ui/Toast";
 import { Button } from "@/app/components/ui/Button";
 import { ADMIN_NAV_GROUPS } from "./nav-config";
 import { AdminTitleProvider, useAdminTitleValue, useAdminWide } from "./admin-title";
+import { SkipLink } from "@/app/components/ui/SkipLink";
 
 function IcSpinner() { return <div className="w-6 h-6 border-2 border-brand border-t-transparent rounded-full animate-spin" />; }
 function IcMenu({ open }: { open: boolean }) {
@@ -266,6 +267,7 @@ function Shell({ email, onSignOut, children }: { email: string; onSignOut: () =>
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg text-fg">
+      <SkipLink />
       {/* Sidebar (desktop) */}
       <aside className="hidden xl:flex w-56 flex-shrink-0 bg-panel border-r border-line flex-col">
         <Link href="/dashboard" className="flex items-center gap-2 px-5 h-16 border-b border-line">
@@ -299,7 +301,7 @@ function Shell({ email, onSignOut, children }: { email: string; onSignOut: () =>
           the dashboard a second, phantom scrollbar ~2,100px tall whose bottom
           was pure black: the heatmap's sr-only summary alone was setting
           document height to 3083px against a 945px viewport. */}
-      <main className="relative flex-1 overflow-y-auto">
+      <main id="main" tabIndex={-1} className="relative flex-1 overflow-y-auto outline-none">
         <div className="sticky top-0 z-10 bg-panel border-b border-line px-4 sm:px-8 h-16 flex items-center gap-3">
           <button
             className="xl:hidden p-2 -ml-2 rounded-md text-fg-muted hover:text-fg flex-shrink-0"

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import SiteFooter from "@/app/components/SiteFooter";
 import SiteNavbar from "@/app/components/SiteNavbar";
+import { SkipLink } from "@/app/components/ui/SkipLink";
 
 /**
  * Outer shell for every public marketing page: emerald page surface, navbar,
@@ -17,16 +18,23 @@ import SiteNavbar from "@/app/components/SiteNavbar";
  */
 export default function MarketingShell({
   children,
-  as: Tag = "main",
+  as = "main",
 }: {
   children: ReactNode;
-  /** `article` for long-form documents, so the content keeps its own semantics. */
+  /**
+   * `article` for long-form documents, so the content keeps its own semantics.
+   * It goes INSIDE <main> rather than replacing it: every page needs exactly
+   * one main landmark, and the legal pages had none.
+   */
   as?: "main" | "article";
 }) {
   return (
     <div className="min-h-screen bg-bg text-fg">
+      <SkipLink />
       <SiteNavbar solid />
-      <Tag>{children}</Tag>
+      <main id="main" tabIndex={-1} className="outline-none">
+        {as === "article" ? <article>{children}</article> : children}
+      </main>
       <SiteFooter />
     </div>
   );
