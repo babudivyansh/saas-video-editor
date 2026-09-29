@@ -7,8 +7,9 @@ vi.mock("@/lib/auth", () => ({
 
 let updates: Array<Record<string, unknown>>;
 let auditLogs: Array<Record<string, unknown>>;
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
+// withAuditTx: lets the audit writer run its transaction against this mock.
+vi.mock("@/lib/prisma", async () => ({
+  prisma: (await import("@/lib/admin/audit-test-helpers")).withAuditTx({
     affiliate: {
       findUnique: vi.fn(async () => ({ status: "active", commissionRate: 0.2 })),
       update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
@@ -22,7 +23,7 @@ vi.mock("@/lib/prisma", () => ({
         return {};
       }),
     },
-  },
+  }),
 }));
 vi.mock("@/lib/redis", () => ({
   redis: { get: vi.fn(async (key: string) => (key.startsWith("admin-elevated:") ? "1" : null)), set: vi.fn(async () => {}), del: vi.fn(async () => {}), incrWithExpire: vi.fn(async () => 1) },
@@ -72,7 +73,8 @@ describe("affiliate PATCH validation", () => {
     expect(res.status).toBe(200);
     expect(updates[0]).toEqual({ status: "banned" });
     expect(auditLogs[0].action).toBe("affiliate.updated");
-    expect(JSON.parse(auditLogs[0].after as string)._meta.reason).toBe("repeated self-referral");
+    // A first-class audit column now, not buried in after._meta.
+    expect(auditLogs[0].reason).toBe("repeated self-referral");
   });
 
   it("accepts a ban with no reason", async () => {

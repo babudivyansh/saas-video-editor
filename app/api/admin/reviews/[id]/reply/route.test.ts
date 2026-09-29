@@ -22,8 +22,9 @@ const replyUpdate = vi.fn(async (args: { data: { body: string } }) => ({ id: "re
 const replyDelete = vi.fn(async () => ({}));
 const auditLogCreate = vi.fn(async () => ({}));
 
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
+// withAuditTx: lets the audit writer run its transaction against this mock.
+vi.mock("@/lib/prisma", async () => ({
+  prisma: (await import("@/lib/admin/audit-test-helpers")).withAuditTx({
     review: { findUnique: vi.fn(async () => review) },
     reviewReply: {
       findUnique: vi.fn(async () => existingReply),
@@ -35,7 +36,7 @@ vi.mock("@/lib/prisma", () => ({
       delete: (...args: Parameters<typeof replyDelete>) => replyDelete(...args),
     },
     auditLog: { create: (...args: unknown[]) => auditLogCreate(...args) },
-  },
+  }),
 }));
 
 const notify = vi.fn(async () => {});

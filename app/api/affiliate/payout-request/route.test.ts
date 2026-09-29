@@ -18,8 +18,9 @@ let affiliate: MockAffiliate | null;
 let affiliateUpdates: Array<{ id: string; data: Record<string, unknown> }>;
 let auditRows: Array<{ action: string; after: string | null }>;
 
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
+// withAuditTx: lets the audit writer run its transaction against this mock.
+vi.mock("@/lib/prisma", async () => ({
+  prisma: (await import("@/lib/admin/audit-test-helpers")).withAuditTx({
     affiliate: {
       findUnique: vi.fn(async () => affiliate),
       update: vi.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
@@ -33,7 +34,7 @@ vi.mock("@/lib/prisma", () => ({
         return data;
       }),
     },
-  },
+  }),
 }));
 
 const { POST } = await import("./route");

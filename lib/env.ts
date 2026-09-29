@@ -161,6 +161,11 @@ const schema = z.object({
   // production; falls back to a JWT_SECRET-derived key in dev.
   SOCIAL_TOKEN_KEY: z.string().optional(),
 
+  // Audit-log hash-chain key (lib/admin/audit.ts). Optional: falls back to a
+  // key derived from JWT_SECRET. Set it explicitly before ever rotating
+  // JWT_SECRET, or rows chained under the old key will read as tampered.
+  AUDIT_HMAC_KEY: z.string().optional(),
+
   // Read directly via process.env at their call sites (utils/ffmpeg-render.ts
   // resolves the binary before anything else loads; lib/pipeline-metrics.ts
   // is a kill switch) — listed here so the schema is the full inventory.

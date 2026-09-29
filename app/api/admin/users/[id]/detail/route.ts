@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { withAdmin, parseBody } from "@/lib/admin/api";
-import { auditAdminAction, auditIp } from "@/lib/admin/audit";
+import { auditAdminAction, auditIp, auditOnce } from "@/lib/admin/audit";
 import { adminNotesSchema } from "@/lib/admin/schemas";
 import { listSessions } from "@/lib/auth";
 
@@ -10,8 +10,14 @@ import { listSessions } from "@/lib/auth";
 // on a single page: profile/subscription, recent purchases, credit ledger
 // (Generation rows), social accounts, affiliate state, login history, session
 // liveness. Each list is capped; deeper digging uses the dedicated endpoints.
-export const GET = withAdmin<{ id: string }>(async (_req, { params }) => {
+export const GET = withAdmin<{ id: string }>(async (_req, { admin, params }) => {
   const { id } = params;
+
+  // Opening an account is a read of personal data — audited, once per admin
+  // per account per 30 minutes so refetches don't flood the log.
+  if (await auditOnce(`audit:viewed:${admin.userId}:${id}`, 1800)) {
+    await auditAdminAction(admin.userId, "user.viewed", id);
+  }
 
   const user = await prisma.user.findUnique({
     where: { id },
