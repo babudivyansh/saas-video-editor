@@ -12,6 +12,14 @@
 # build if a route under app/api/cron/ is missing from this file, so the next
 # one cannot go unscheduled.
 #
+# PRODUCTION (Hostinger Node.js hosting) HAS NO CRON — hPanel offers no Cron
+# Jobs for Node.js sites and `crontab` over SSH is silently ignored. There, ONE
+# external scheduler job (cron-job.org) calls, every minute:
+#   GET https://clipiro.com/api/cron-tick   Authorization: Bearer $CRON_SECRET
+# and app/api/cron-tick runs whatever is due from lib/cron-schedule.ts, which a
+# test keeps identical to this file. Don't ALSO install this crontab on the same
+# deployment, or every job runs twice. /admin/ops shows the tick's last call.
+#
 # Install (Hostinger/cPanel shells with crontab access):
 #   crontab ops/crontab
 # cPanel's Cron Jobs UI writes to the same underlying crontab, so entering
