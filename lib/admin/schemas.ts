@@ -606,3 +606,23 @@ export const contentDeleteSchema = z
 
 // DELETE /api/admin/users/[id] — hard delete, typed email required.
 export const userDeleteSchema = z.object({ confirmPhrase: z.string().max(320), reason: actionReason.optional() }).strict();
+
+// POST /api/admin/storage/cleanup — run a storage sweep, or preview it.
+// A real run needs confirmPhrase = the job name (route-checked) + a reason.
+export const storageCleanupSchema = z
+  .object({
+    job: z.enum(["orphans", "retention"]),
+    dryRun: z.boolean(),
+    confirmPhrase: z.string().max(50).optional(),
+    reason: z.string().trim().min(3).max(500).optional(),
+  })
+  .strict();
+
+// POST /api/admin/content/moderate — resolve one flagged library asset.
+export const assetModerateSchema = z
+  .object({
+    assetId: z.string().min(1).max(100),
+    action: z.enum(["approve", "remove"]),
+    reason: actionReason,
+  })
+  .strict();
