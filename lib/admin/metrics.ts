@@ -9,9 +9,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
-import { env } from "@/lib/env";
 import { getSyncStats } from "@/lib/social/service";
-import { KNOWN_RENDER_QUEUE_NAMES } from "@/lib/render-queue";
+import { listQueues } from "./queues";
 import { getCronRunStatuses, type CronRunId } from "@/lib/cron-tracking";
 import { getCronPauses } from "@/lib/cron-dispatch";
 import { runIdForPath } from "@/lib/cron-catalog";
@@ -432,7 +431,9 @@ export async function infraSection() {
   return {
     db: dbOk,
     redis: redisOk,
-    renderQueue: queue,
+    // Summed: the Dashboard reads `.failed` off this. It was the per-queue map
+    // (every key a queue name), so that alert and health dot never fired.
+    renderQueue: sumQueueCounts(queue),
     staleCronCount: staleCrons,
     process: {
       rssMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
@@ -442,34 +443,25 @@ export async function infraSection() {
   };
 }
 
+/**
+ * Per-queue job counts for every known queue, from whichever driver is live
+ * (lib/admin/queues.ts). Null when BullMQ's Redis is unreachable. Previously
+ * this read BullMQ only, so under the in-process driver — production's — it
+ * reported all zeros no matter what was queued or failing.
+ */
 export async function renderQueueCounts(): Promise<Record<string, Record<string, number>> | null> {
-  // Probe first: when Redis is down (common in dev), don't let BullMQ open a
-  // connection that retries forever and floods the console with
-  // ECONNREFUSED AggregateErrors.
-  if (!(await redis.ping())) return null;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Queue } = require("bullmq") as typeof import("bullmq");
-    const connection = {
-      url: env.REDIS_URL || "redis://127.0.0.1:6379",
-      retryStrategy: () => null, // one-shot read: fail fast, never reconnect-loop
-      maxRetriesPerRequest: 1,
-    };
-    // Previously hardcoded to editor-render only — a dead/never-started
-    // worker for any of the other 8 queues (e.g. auto-clip-rerender, behind
-    // the Studio & Insights "stuck at Queued" bug) was invisible here.
-    const entries = await Promise.all(KNOWN_RENDER_QUEUE_NAMES.map(async (name) => {
-      const queue = new Queue(name, { connection });
-      try {
-        return [name, await queue.getJobCounts("wait", "active", "completed", "failed", "delayed")] as const;
-      } finally {
-        await queue.close();
-      }
-    }));
-    return Object.fromEntries(entries);
-  } catch {
-    return null; // queue not created yet / in-process driver — not an error
+  const queues = await listQueues();
+  return queues ? Object.fromEntries(queues.map((q) => [q.name, q.counts])) : null;
+}
+
+/** Counts summed across every queue — what the Dashboard's queue health reads. */
+function sumQueueCounts(perQueue: Record<string, Record<string, number>> | null): Record<string, number> | null {
+  if (!perQueue) return null;
+  const total: Record<string, number> = {};
+  for (const counts of Object.values(perQueue)) {
+    for (const [k, v] of Object.entries(counts)) total[k] = (total[k] ?? 0) + v;
   }
+  return total;
 }
 
 // ── Growth (cohorts / coupons / affiliate funnel) ────────────────────────────

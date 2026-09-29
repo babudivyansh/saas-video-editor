@@ -3,14 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { withAdmin, parseBody } from "@/lib/admin/api";
 import { auditAdminAction, auditIp } from "@/lib/admin/audit";
 import { opsFlagsSchema } from "@/lib/admin/schemas";
-import { renderQueueCounts } from "@/lib/admin/metrics";
+import { listAllFailed, listQueues, queueDriver } from "@/lib/admin/queues";
 import { getHeartbeats } from "@/lib/worker-heartbeat";
 import { getCronRunStatuses } from "@/lib/cron-tracking";
 import { getCronJobRows } from "@/lib/admin/cron-jobs";
 import { redis } from "@/lib/redis";
 import { getFeatureFlags, getMaintenanceMode, setFeatureFlag, setMaintenanceMode } from "@/lib/flags";
-import { env } from "@/lib/env";
-import { logger } from "@/lib/logger";
 import { KNOWN_RENDER_QUEUE_NAMES } from "@/lib/render-queue";
 import { captionProviderHealth } from "@/lib/captions/CaptionRendererFactory";
 import { captionRenderOpsSnapshot } from "@/lib/captions/ops";
@@ -19,11 +17,11 @@ import { captionRenderOpsSnapshot } from "@/lib/captions/ops";
 // feature flags, maintenance mode, and largest tables (storage report).
 export const GET = withAdmin(async () => {
   const [
-    queueCounts, failedJobs, heartbeats, flags, maintenance, cronRuns, tableSizes,
+    queues, failedJobs, heartbeats, flags, maintenance, cronRuns, tableSizes,
     captionProvider, captionRenders, cronTickLastAt, cronJobs, dbOk, redisOk,
   ] = await Promise.all([
-    renderQueueCounts(),
-    getFailedRenderJobs(),
+    listQueues(),
+    listAllFailed(50).catch(() => []),
     getHeartbeats([...KNOWN_RENDER_QUEUE_NAMES, "social-refresh"]),
     getFeatureFlags(),
     getMaintenanceMode(),
@@ -49,7 +47,7 @@ export const GET = withAdmin(async () => {
   ]);
 
   return NextResponse.json({
-    queueCounts,
+    queues,
     failedJobs,
     heartbeats,
     flags,
@@ -57,7 +55,7 @@ export const GET = withAdmin(async () => {
     cronRuns,
     cronJobs,
     health: { db: dbOk, redis: redisOk },
-    queueDriver: env.RENDER_QUEUE_DRIVER ?? "bullmq",
+    queueDriver: queueDriver(),
     tableSizes: tableSizes.map((t) => ({ table: t.table, size: t.size })),
     captionProvider,
     captionRenders,
@@ -98,36 +96,3 @@ export const PATCH = withAdmin(async (req, { admin }) => {
   });
 });
 
-async function getFailedRenderJobs() {
-  const { redis } = await import("@/lib/redis");
-  if (!(await redis.ping())) return []; // Redis down: fail fast, no reconnect spam
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Queue } = require("bullmq") as typeof import("bullmq");
-    const connection = { url: env.REDIS_URL || "redis://127.0.0.1:6379", retryStrategy: () => null, maxRetriesPerRequest: 1 };
-
-    const jobsByQueue = await Promise.all(
-      KNOWN_RENDER_QUEUE_NAMES.map(async (queueName) => {
-        const queue = new Queue(queueName, { connection });
-        try {
-          const failed = await queue.getFailed(0, 50);
-          return failed.map((job) => ({
-            queueName,
-            id: job.id,
-            projectId: (job.data as { projectId?: string })?.projectId,
-            failedReason: job.failedReason,
-            attemptsMade: job.attemptsMade,
-            timestamp: job.timestamp,
-          }));
-        } finally {
-          await queue.close();
-        }
-      })
-    );
-
-    return jobsByQueue.flat().sort((a, b) => b.timestamp - a.timestamp);
-  } catch (err) {
-    logger.warn("admin-ops", "failed-jobs query unavailable", { reason: (err as Error).message });
-    return [];
-  }
-}

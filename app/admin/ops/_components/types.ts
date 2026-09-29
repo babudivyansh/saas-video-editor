@@ -27,18 +27,31 @@ export interface CronJobRow {
   status: CronRunStatus | null;
 }
 
-export interface FailedJob {
-  queueName: string;
+export type JobState = "waiting" | "active" | "delayed" | "failed" | "completed";
+
+export interface QueueSummary {
+  name: string;
+  driver: "bullmq" | "in-process";
+  started: boolean;
+  paused: boolean;
+  counts: Record<JobState, number>;
+}
+
+export interface QueueJob {
   id: string;
-  projectId?: string;
-  failedReason?: string;
-  attemptsMade: number;
-  timestamp: number;
+  state: JobState;
+  projectId: string | null;
+  attempts: number;
+  error: string | null;
+  stack: string | null;
+  at: number | null;
+  data: string;
 }
 
 export interface OpsData {
-  queueCounts: Record<string, Record<string, number>> | null;
-  failedJobs: FailedJob[];
+  /** Null when BullMQ's Redis is unreachable. */
+  queues: QueueSummary[] | null;
+  failedJobs: Array<QueueJob & { queueName: string }>;
   heartbeats: Record<string, string | null>;
   cronRuns: CronRunStatus[];
   cronJobs: CronJobRow[];

@@ -22,8 +22,9 @@ export function OverviewTab({ data, assets, go }: { data: OpsData; assets?: Asse
   const tickOk = data.cronTickAgeSeconds != null && data.cronTickAgeSeconds < 5 * 60;
   const beats = Object.values(data.heartbeats);
   const alive = beats.filter(Boolean).length;
-  const backlog = Object.values(data.queueCounts ?? {}).reduce((s, c) => s + (c.waiting ?? 0) + (c.delayed ?? 0), 0);
-  const failedJobs = data.failedJobs.length;
+  const backlog = (data.queues ?? []).reduce((s, q) => s + q.counts.waiting + q.counts.delayed, 0);
+  const failedJobs = (data.queues ?? []).reduce((s, q) => s + q.counts.failed, 0);
+  const pausedQueues = (data.queues ?? []).filter((q) => q.paused).length;
 
   const tiles: Tile[] = [
     { label: "Database", tone: data.health.db ? "success" : "error", value: data.health.db ? "Up" : "Down", detail: "SELECT 1", tab: "incident" },
@@ -44,9 +45,9 @@ export function OverviewTab({ data, assets, go }: { data: OpsData; assets?: Asse
     },
     {
       label: "Workers",
-      tone: data.queueDriver === "in-process" ? "info" : alive ? "success" : "warning",
-      value: data.queueDriver === "in-process" ? "In-process" : `${alive}/${beats.length} alive`,
-      detail: `${backlog} waiting · ${failedJobs} failed`,
+      tone: failedJobs > 0 ? "error" : data.queueDriver === "in-process" ? "info" : alive ? "success" : "warning",
+      value: failedJobs > 0 ? `${failedJobs} failed` : data.queueDriver === "in-process" ? "In-process" : `${alive}/${beats.length} alive`,
+      detail: `${backlog} waiting · ${failedJobs} failed${pausedQueues ? ` · ${pausedQueues} paused` : ""}`,
       tab: "queues",
     },
     {
