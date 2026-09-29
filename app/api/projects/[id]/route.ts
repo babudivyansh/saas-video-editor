@@ -6,6 +6,7 @@ import { invalidateDashboardSummary } from "@/lib/dashboard-summary-cache";
 import { parseS3Url } from "@/lib/s3-url";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { collectProjectMediaKeys, deleteUnreferencedKeys } from "@/lib/storage-cleanup";
+import { sourceUrlError } from "@/lib/source-url";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await getAuthUser(req);
@@ -44,6 +45,11 @@ async function handlePATCH(req: NextRequest, { params }: { params: Promise<{ id:
         return NextResponse.json({ error: "Invalid editor document" }, { status: 400 });
       }
     }
+  }
+
+  if ("uploadedVideoUrl" in data) {
+    const urlError = sourceUrlError(data.uploadedVideoUrl);
+    if (urlError) return NextResponse.json({ error: urlError }, { status: 400 });
   }
 
   // A re-uploaded video invalidates the cached Rekognition face timeline —

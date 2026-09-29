@@ -135,6 +135,16 @@ export function createRenderQueue<T extends { projectId: string }>(name: string,
   return result;
 }
 
+/**
+ * BullMQ refuses a custom job id containing ':' unless it has exactly three
+ * ':'-separated parts (legacy repeatable-job format) — and the enqueue only
+ * logs by default, so a bad id was a silently dropped job. Ids are opaque to
+ * us, so colons are simply swapped out here, once, for every queue.
+ */
+export function toBullJobId(id: string): string {
+  return id.replace(/:/g, "-");
+}
+
 // BullMQ driver — lazily required so the in-process path has zero BullMQ overhead.
 function makeBullQueue<T extends { projectId: string }>(name: string, handler: Handler<T>): RenderQueue<T> {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -174,7 +184,7 @@ function makeBullQueue<T extends { projectId: string }>(name: string, handler: H
     enqueue: async (id, payload, opts) => {
       try {
         await queue.add(name, payload, {
-          jobId: id,
+          jobId: toBullJobId(id),
           // BullMQ: lower priority number = dequeued first (real tier-based
           // priority rendering — Pro/Studio jobs jump the free-tier queue).
           ...(opts?.priority != null ? { priority: opts.priority } : {}),

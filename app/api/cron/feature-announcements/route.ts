@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { sendFeatureAnnouncementEmail, sendNewsletterBroadcastEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
+import { cronSecretMatches } from "@/lib/cron-auth";
 import { greetingName } from "@/lib/display-name";
 
 // Daily cron — sends every published-but-unsent FeatureAnnouncement (see
@@ -18,8 +19,7 @@ import { greetingName } from "@/lib/display-name";
 // current size, would need cursor-based batching well before it isn't.
 export async function GET(req: NextRequest) {
   const secret = env.CRON_SECRET;
-  const authz = req.headers.get("authorization");
-  if (!secret || authz !== `Bearer ${secret}`) {
+  if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

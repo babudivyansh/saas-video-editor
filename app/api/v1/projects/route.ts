@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getApiKeyAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
+import { sourceUrlError } from "@/lib/source-url";
 
 // Public API — /api/v1/projects. POST creates the project that
 // POST /api/v1/clips needs (that route's long-standing "create the project
@@ -58,16 +59,9 @@ async function handlePOST(req: NextRequest) {
   // Optional source video for the auto-clip flow — must be an https URL.
   let uploadedVideoUrl: string | null = null;
   if (body.uploadedVideoUrl !== undefined && body.uploadedVideoUrl !== null) {
-    if (typeof body.uploadedVideoUrl !== "string") {
-      return NextResponse.json({ error: "uploadedVideoUrl must be a string URL" }, { status: 400 });
-    }
-    try {
-      const url = new URL(body.uploadedVideoUrl);
-      if (url.protocol !== "https:") throw new Error("not https");
-    } catch {
-      return NextResponse.json({ error: "uploadedVideoUrl must be a valid https URL" }, { status: 400 });
-    }
-    uploadedVideoUrl = body.uploadedVideoUrl;
+    const urlError = sourceUrlError(body.uploadedVideoUrl);
+    if (urlError) return NextResponse.json({ error: urlError }, { status: 400 });
+    uploadedVideoUrl = body.uploadedVideoUrl as string;
   }
 
   const project = await prisma.project.create({

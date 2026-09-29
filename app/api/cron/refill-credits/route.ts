@@ -10,6 +10,7 @@ import {
 import { sendCreditsRefilledEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
+import { cronSecretMatches } from "@/lib/cron-auth";
 import Razorpay from "razorpay";
 import { nextRefillAfter } from "@/lib/billing/term";
 import { greetingName } from "@/lib/display-name";
@@ -50,8 +51,7 @@ const RECURRING_LAPSE_GRACE_DAYS = 14;
 //      credit drip so the product stays tasteable at zero credits.
 export async function GET(req: NextRequest) {
   const secret = env.CRON_SECRET;
-  const authz = req.headers.get("authorization");
-  if (!secret || authz !== `Bearer ${secret}`) {
+  if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -181,6 +181,41 @@ export const redis = {
       fallbackDel(key);
     }
   },
+  /** SET NX EX: true when this call created the key, false when it already existed. */
+  async setNx(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+    try {
+      await ready();
+      return (await client.set(key, value, "EX", ttlSeconds, "NX")) === "OK";
+    } catch (err) {
+      logFallback("SETNX", err);
+      if (fallbackGet(key) !== null) return false;
+      fallbackSet(key, value, ttlSeconds);
+      return true;
+    }
+  },
+  /**
+   * Reads and deletes in one step, for single-use tokens: of two concurrent
+   * callers only one gets the value. Servers older than Redis 6.2 (no GETDEL)
+   * get a GET+DEL instead, which is no worse than what callers did before.
+   */
+  async getdel(key: string): Promise<string | null> {
+    try {
+      await ready();
+      try {
+        return await client.getdel(key);
+      } catch (err) {
+        if (!/unknown command/i.test(String(err))) throw err;
+        const value = await client.get(key);
+        if (value !== null) await client.del(key);
+        return value;
+      }
+    } catch (err) {
+      logFallback("GETDEL", err);
+      const value = fallbackGet(key);
+      fallbackDel(key);
+      return value;
+    }
+  },
   /**
    * Atomically increments a counter and returns its new value, setting a TTL
    * the first time the key is created (fixed-window counter). Used for rate

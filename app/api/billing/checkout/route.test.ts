@@ -20,6 +20,10 @@ vi.mock("@/lib/coupons", () => ({
   SUBSCRIPTION_COUPON_ERROR: "Coupons can't be used on subscription plans — they apply to credit packs.",
 }));
 vi.mock("@/lib/currency", () => ({ getPlanPriceMinor: vi.fn(async (_slug: string, paise: number) => paise) }));
+const holds = new Set<string>();
+vi.mock("@/lib/redis", () => ({
+  redis: { setNx: vi.fn(async (k: string) => (holds.has(k) ? false : (holds.add(k), true))) },
+}));
 
 const SUB_PLAN = {
   slug: "pro-monthly",
@@ -77,6 +81,7 @@ function post(body: unknown): NextRequest {
 beforeEach(() => {
   subscriptionEndsAt = null;
   purchaseCount = 0;
+  holds.clear();
   vi.clearAllMocks();
   findUniquePlan.mockResolvedValue(SUB_PLAN);
   findUniqueUser.mockImplementation(async () => ({ trialUsedAt: new Date(), subscriptionEndsAt }));
@@ -269,5 +274,20 @@ describe("POST /api/billing/checkout — subscription currency", () => {
   it("records the checkout currency in the subscription notes", async () => {
     await POST(post({ planId: "pro-monthly" }));
     expect(subscriptionsCreate).toHaveBeenLastCalledWith(expect.objectContaining({ notes: expect.objectContaining({ currency: "INR" }) }));
+  });
+});
+
+describe("POST /api/billing/checkout — coupon hold", () => {
+  const PACK = { ...SUB_PLAN, slug: "pack-500", kind: "pack", priceInPaise: 50000, razorpayPlanIdInr: null };
+
+  it("lets one checkout per user hold a coupon, refusing a parallel second one", async () => {
+    findUniquePlan.mockResolvedValue(PACK);
+    validateCoupon.mockResolvedValue({ ok: true, couponId: "c1", finalPaise: 40000, discountInPaise: 10000 });
+
+    const first = await POST(post({ planId: "pack-500", couponCode: "SAVE20" }));
+    expect(first.status).toBe(200);
+    const second = await POST(post({ planId: "pack-500", couponCode: "SAVE20" }));
+    expect(second.status).toBe(409);
+    expect(ordersCreate).toHaveBeenCalledTimes(1);
   });
 });

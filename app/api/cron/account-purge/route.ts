@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hardDeleteUserAccount } from "@/lib/account-deletion";
 import { env } from "@/lib/env";
+import { cronSecretMatches } from "@/lib/cron-auth";
 import { logger } from "@/lib/logger";
 
 // Daily cron — hard-deletes accounts whose 30-day deactivation recovery
@@ -16,8 +17,7 @@ import { logger } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
   const secret = env.CRON_SECRET;
-  const authz = req.headers.get("authorization");
-  if (!secret || authz !== `Bearer ${secret}`) {
+  if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

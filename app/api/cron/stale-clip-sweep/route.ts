@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/lib/env";
+import { cronSecretMatches } from "@/lib/cron-auth";
 import { runStaleClipSweep } from "@/lib/cron/stale-clip-sweep";
 
 // Reconciles Auto Clips stranded at queued/rendering by a process crash
@@ -11,8 +12,7 @@ import { runStaleClipSweep } from "@/lib/cron/stale-clip-sweep";
 
 export async function GET(req: NextRequest) {
   const secret = env.CRON_SECRET;
-  const authz = req.headers.get("authorization");
-  if (!secret || authz !== `Bearer ${secret}`) {
+  if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -144,6 +144,29 @@ export function passwordChanged(p: { name: string; time: string }): EmailDocumen
   };
 }
 
+// Sent to the OLD address once a change of email is confirmed. It's the only
+// place the previous owner of the account hears about it — after this, a
+// password reset goes to the new address — so it points at support rather
+// than at a reset link the old address can no longer receive.
+export function emailChanged(p: { name: string; newEmail: string; time: string }): EmailDocument {
+  return {
+    subject: `Your ${PRODUCT_NAME} email address was changed`,
+    preheader: `Your account email was changed on ${p.time}.`,
+    blocks: [
+      { kind: "heading", text: "Your email address was changed" },
+      {
+        kind: "paragraph",
+        text: `Hi ${greet(p.name)}, the email address on your ${PRODUCT_NAME} account was changed to ${p.newEmail} on ${p.time}, and every device was signed out. We won't send account email to this address any more.`,
+      },
+      {
+        kind: "paragraph",
+        text: "If you made this change, no action is needed. If you didn't, contact us right away and we'll lock the account and help you get it back.",
+      },
+      { kind: "button", href: `${APP_URL}/contact`, label: "Contact support", tone: "danger" },
+    ],
+  };
+}
+
 export function twoFactorChanged(p: { name: string; enabled: boolean; time: string }): EmailDocument {
   // Turning 2FA OFF is the direction an attacker wants to happen quietly, so it
   // gets the louder treatment of the two.

@@ -18,6 +18,7 @@ import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { getAssetReadUrl } from "@/utils/s3-upload";
 import { logger } from "@/lib/logger";
+import { isPrivateHostLiteral } from "@/utils/network-guard";
 
 /**
  * Recover the S3 object key from a stored media URL.
@@ -159,4 +160,27 @@ export async function classifySource(
 export async function freshSourceUrl(storedUrl: string, ownerUserId: string): Promise<string> {
   const source = await classifySource(storedUrl, ownerUserId);
   return source.kind === "owned" ? source.url : storedUrl;
+}
+
+/**
+ * Write-time check for a client-supplied source media URL (project create and
+ * PATCH, the public API). The download layer independently refuses private
+ * addresses on every hop (utils/network-guard.ts); this keeps obviously bad
+ * values — non-https, IP literals on internal ranges, junk — out of the row
+ * in the first place, and gives the client a 400 instead of a failed run.
+ */
+export function sourceUrlError(value: unknown): string | null {
+  if (value === null) return null;
+  if (typeof value !== "string" || value.length > 2048) return "uploadedVideoUrl must be a URL string";
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return "uploadedVideoUrl must be a valid https URL";
+  }
+  if (url.protocol !== "https:") return "uploadedVideoUrl must be a valid https URL";
+  if (isPrivateHostLiteral(url.hostname) || url.hostname === "localhost") {
+    return "uploadedVideoUrl must point to a public host";
+  }
+  return null;
 }
