@@ -6,6 +6,7 @@ import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { cronSecretMatches } from "@/lib/cron-auth";
 import { greetingName } from "@/lib/display-name";
+import { withCronTracking } from "@/lib/cron-tracking";
 
 // Weekly cron — re-engages inactive users and sends mid-month unused-credits reminders.
 //
@@ -16,13 +17,11 @@ import { greetingName } from "@/lib/display-name";
 // 30-day: users who haven't logged in for 30+ days (win-back)
 // Unused credits: active subscribers who've used <20% of monthly credits (runs on 15th of month)
 
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const secret = env.CRON_SECRET;
   if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("reengagement")).catch(() => {});
 
   const now = new Date();
   const results = { reengaged7d: 0, reengaged30d: 0, unusedCredits: 0, errors: 0 };
@@ -134,3 +133,6 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ ok: true, ...results, at: now.toISOString() });
 }
+
+// Records when the run finished and whether it succeeded (lib/cron-tracking.ts).
+export const GET = withCronTracking("reengagement", handleGET);

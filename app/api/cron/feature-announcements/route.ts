@@ -5,6 +5,7 @@ import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { cronSecretMatches } from "@/lib/cron-auth";
 import { greetingName } from "@/lib/display-name";
+import { withCronTracking } from "@/lib/cron-tracking";
 
 // Daily cron — sends every published-but-unsent FeatureAnnouncement (see
 // app/api/admin/announcements) to all active users. Per-recipient opt-out is
@@ -17,13 +18,11 @@ import { greetingName } from "@/lib/display-name";
 // Known scaling limit: loads the full active-user table into memory, the same
 // tradeoff app/api/cron/reengagement already makes — fine at this user base's
 // current size, would need cursor-based batching well before it isn't.
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const secret = env.CRON_SECRET;
   if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("feature-announcements")).catch(() => {});
 
   const due = await prisma.featureAnnouncement.findMany({
     where: { publishedAt: { not: null }, sentAt: null },
@@ -77,3 +76,6 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ ok: true, processed: due.length, results, at: new Date().toISOString() });
 }
+
+// Records when the run finished and whether it succeeded (lib/cron-tracking.ts).
+export const GET = withCronTracking("feature-announcements", handleGET);

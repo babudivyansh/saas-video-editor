@@ -6,6 +6,7 @@ import { getReviewSettings } from "@/lib/reviews/settings";
 import { shouldSendCategory } from "@/lib/notifications";
 import { sendReviewDripEmail1, sendReviewDripEmail2, sendReviewDripEmail3 } from "@/lib/email";
 import { logger } from "@/lib/logger";
+import { withCronTracking } from "@/lib/cron-tracking";
 
 //   GET /api/cron/review-drip
 //   Authorization: Bearer <CRON_SECRET>
@@ -24,13 +25,11 @@ interface DueRow {
   userId: string;
 }
 
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const secret = env.CRON_SECRET;
   if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("review-drip")).catch(() => {});
 
   const now = new Date();
   const settings = await getReviewSettings();
@@ -119,3 +118,6 @@ export async function GET(req: NextRequest) {
     errors,
   });
 }
+
+// Records when the run finished and whether it succeeded (lib/cron-tracking.ts).
+export const GET = withCronTracking("review-drip", handleGET);

@@ -7,7 +7,7 @@ const runDubSweep = vi.fn(async () => ({ ok: true as const, checked: 2, enqueued
 vi.mock("@/lib/cron/dub-sweep", () => ({ runDubSweep: (...a: unknown[]) => runDubSweep(...a) }));
 
 const recordCronRun = vi.fn(async () => {});
-vi.mock("@/lib/cron-tracking", () => ({ recordCronRun: (...a: unknown[]) => recordCronRun(...a) }));
+vi.mock("@/lib/cron-tracking", () => ({ recordCronRun: (...a: unknown[]) => recordCronRun(...a), withCronTracking: (_n: string, h: unknown) => h }));
 
 const { GET } = await import("./route");
 

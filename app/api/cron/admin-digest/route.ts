@@ -6,18 +6,17 @@ import { kpisSection } from "@/lib/admin/metrics";
 import { getSyncStats } from "@/lib/social/service";
 import { sendAdminDigestEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
+import { withCronTracking } from "@/lib/cron-tracking";
 
 // Weekly ops digest for every ADMIN user. External scheduler entrypoint,
 // same shared-secret guard as /api/cron/social-refresh:
 //   0 8 * * 1  curl -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" \
 //                https://app.example.com/api/cron/admin-digest
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const secret = env.SOCIAL_REFRESH_SECRET;
   if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("admin-digest")).catch(() => {});
 
   const weekAgo = new Date(Date.now() - 7 * 86400_000);
   const [kpis, gen7d, genFailed7d, syncStats, admins, newReviews7d, pendingReviews, reportedReviews] = await Promise.all([
@@ -53,3 +52,6 @@ export async function GET(req: NextRequest) {
   }
   return NextResponse.json({ ok: true, sent });
 }
+
+// Records when the run finished and whether it succeeded (lib/cron-tracking.ts).
+export const GET = withCronTracking("admin-digest", handleGET);

@@ -12,6 +12,7 @@ import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { cronSecretMatches } from "@/lib/cron-auth";
 import { greetingName } from "@/lib/display-name";
+import { withCronTracking } from "@/lib/cron-tracking";
 
 // Daily cron — fires subscription expiry warnings (7d, 3d, 1d before) and
 // "subscription expired" emails the day after expiry.
@@ -22,13 +23,11 @@ import { greetingName } from "@/lib/display-name";
 // Set expiryReminderSentAt to the threshold string ("7d","3d","1d","expired")
 // so each user gets at most one email per threshold per subscription term.
 
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const secret = env.CRON_SECRET;
   if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("subscription-reminder")).catch(() => {});
 
   const now = new Date();
   const results = { warned7d: 0, warned3d: 0, warned1d: 0, expired: 0, trialEnding: 0, errors: 0 };
@@ -248,3 +247,6 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ ok: true, ...results, at: now.toISOString() });
 }
+
+// Records when the run finished and whether it succeeded (lib/cron-tracking.ts).
+export const GET = withCronTracking("subscription-reminder", handleGET);

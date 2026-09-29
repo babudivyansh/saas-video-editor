@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/lib/env";
 import { cronSecretMatches } from "@/lib/cron-auth";
 import { runCommissionPayoutSweep } from "@/lib/cron/commission-payout";
+import { withCronTracking } from "@/lib/cron-tracking";
 
 // Daily cron — notifies affiliates when their commission hold period (30 days)
 // has ended and payout is now available.
@@ -12,14 +13,15 @@ import { runCommissionPayoutSweep } from "@/lib/cron/commission-payout";
 // See lib/cron/commission-payout.ts for the sweep itself, also reachable via
 // POST /api/admin/commissions/run-payout-sweep for an on-demand admin trigger.
 
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const secret = env.CRON_SECRET;
   if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("commission-payout")).catch(() => {});
-
   const result = await runCommissionPayoutSweep();
   return NextResponse.json(result);
 }
+
+// Records when the run finished and whether it succeeded (lib/cron-tracking.ts).
+export const GET = withCronTracking("commission-payout", handleGET);

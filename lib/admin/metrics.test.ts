@@ -205,15 +205,30 @@ describe("infraSection — stale cron detection", () => {
   it("counts only the crons that are actually overdue for their own cadence", async () => {
     const now = Date.now();
     vi.mocked(redis.get).mockImplementation(async (key: string) => {
-      // stale-clip-sweep expects ~15 min; give it a 2h-old run (overdue).
-      if (key === "cron:lastrun:stale-clip-sweep") return new Date(now - 2 * 3600_000).toISOString();
-      // refill-credits expects ~daily; give it a 2h-old run (well within cadence).
-      if (key === "cron:lastrun:refill-credits") return new Date(now - 2 * 3600_000).toISOString();
+      // Staleness is judged on the last SUCCESS (cron:lastok:*).
+      // stale-clip-sweep expects ~15 min; give it a 2h-old success (overdue).
+      if (key === "cron:lastok:stale-clip-sweep") return new Date(now - 2 * 3600_000).toISOString();
+      // refill-credits expects ~daily; give it a 2h-old success (well within cadence).
+      if (key === "cron:lastok:refill-credits") return new Date(now - 2 * 3600_000).toISOString();
       return null; // every other cron: never run
     });
     const infra = await infraSection();
     // Only stale-clip-sweep is overdue for ITS cadence; refill-credits is
     // fine at 2h old; every other cron is null (never run) and counts too.
     expect(infra.staleCronCount).toBe(KNOWN_CRON_RUN_IDS.length - 1);
+  });
+
+  // The false-green outcome tracking exists to catch: on schedule, never working.
+  it("counts a cron that runs on time but whose latest run failed", async () => {
+    const now = Date.now();
+    vi.mocked(redis.get).mockImplementation(async (key: string) => {
+      if (key.startsWith("cron:lastfail:refill-credits")) {
+        return JSON.stringify({ at: new Date(now - 60_000).toISOString(), error: "db down" });
+      }
+      if (key.startsWith("cron:lastok:") || key.startsWith("cron:lastrun:")) return new Date(now - 120_000).toISOString();
+      return null;
+    });
+    const infra = await infraSection();
+    expect(infra.staleCronCount).toBe(1);
   });
 });

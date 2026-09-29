@@ -7,7 +7,7 @@ import { NextRequest } from "next/server";
 // past its purge date indefinitely with nobody notified.
 
 vi.mock("@/lib/env", () => ({ env: { CRON_SECRET: "secret" } }));
-vi.mock("@/lib/cron-tracking", () => ({ recordCronRun: vi.fn(async () => {}) }));
+vi.mock("@/lib/cron-tracking", () => ({ recordCronRun: vi.fn(async () => {}), withCronTracking: (_n: string, h: unknown) => h }));
 
 const loggerError = vi.fn();
 const loggerWarn = vi.fn();

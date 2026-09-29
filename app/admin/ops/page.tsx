@@ -17,7 +17,15 @@ interface OpsData {
   queueCounts: Record<string, Record<string, number>> | null;
   failedJobs: Array<{ queueName: string; id: string; projectId?: string; failedReason?: string; attemptsMade: number; timestamp: number }>;
   heartbeats: Record<string, string | null>;
-  cronRuns: Array<{ name: string; lastRunAt: string | null; ageSeconds: number | null }>;
+  cronRuns: Array<{
+    name: string;
+    lastRunAt: string | null;
+    ageSeconds: number | null;
+    lastSuccessAt: string | null;
+    lastFailureAt: string | null;
+    lastError: string | null;
+    failing: boolean;
+  }>;
   flags: Record<string, boolean>;
   maintenance: { on: boolean; message?: string };
   tableSizes: Array<{ table: string; size: string }>;
@@ -199,17 +207,29 @@ export default function AdminOpsPage() {
             ))}
           </div>
           {/* Cron jobs — a cron that has NEVER run is almost certainly not
-              wired into the scheduler's crontab (SETUP.md §7). Amber = never;
-              the timestamp lets you judge staleness for the ones that have. */}
+              wired into the scheduler's crontab (SETUP.md §7). Red = the most
+              recent run failed (with its error); amber = never ran; green =
+              last run succeeded. Runs are recorded when they FINISH. */}
           <div className="mt-4 pt-3 border-t border-line space-y-2 text-sm">
             <p className="text-[11px] font-semibold text-fg-muted mb-1">Cron jobs</p>
             {d.cronRuns.map((c) => (
-              <div key={c.name} className="flex items-center gap-2">
-                <span className={`w-2.5 h-2.5 rounded-full ${c.lastRunAt ? "bg-success" : "bg-amber-400"}`} aria-hidden />
-                <span className="text-fg font-mono text-xs">{c.name}</span>
-                <span className="text-xs text-fg-subtle ml-auto">
-                  {c.lastRunAt ? `ran ${new Date(c.lastRunAt).toLocaleString()}` : "never — not scheduled?"}
-                </span>
+              <div key={c.name}>
+                <div className="flex items-center gap-2">
+                  <span className={`w-2.5 h-2.5 rounded-full ${c.failing ? "bg-error" : c.lastRunAt ? "bg-success" : "bg-warning"}`} aria-hidden />
+                  <span className="text-fg font-mono text-xs">{c.name}</span>
+                  <span className={`text-xs ml-auto ${c.failing ? "text-error" : "text-fg-subtle"}`}>
+                    {c.failing && c.lastFailureAt
+                      ? `failed ${new Date(c.lastFailureAt).toLocaleString()}`
+                      : c.lastSuccessAt
+                        ? `ok ${new Date(c.lastSuccessAt).toLocaleString()}`
+                        : c.lastRunAt
+                          ? `ran ${new Date(c.lastRunAt).toLocaleString()}`
+                          : "never — not scheduled?"}
+                  </span>
+                </div>
+                {c.failing && c.lastError && (
+                  <p className="ml-4.5 mt-0.5 text-[11px] text-error/80 font-mono break-all">{c.lastError}</p>
+                )}
               </div>
             ))}
           </div>

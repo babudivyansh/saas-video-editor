@@ -7,6 +7,7 @@ import { notify } from "@/lib/notify";
 import { shouldSendCategory } from "@/lib/notifications";
 import { sendReviewPromptEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
+import { withCronTracking } from "@/lib/cron-tracking";
 
 //   GET /api/cron/review-prompts
 //   Authorization: Bearer <CRON_SECRET>
@@ -19,13 +20,11 @@ import { logger } from "@/lib/logger";
 const MIN_ACCOUNT_AGE_DAYS = 14;
 const RECENT_LOGIN_DAYS = 3;
 
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const secret = env.CRON_SECRET;
   if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("review-prompts")).catch(() => {});
 
   const now = new Date();
   const accountAgeCutoff = new Date(now.getTime() - MIN_ACCOUNT_AGE_DAYS * 86400_000);
@@ -69,3 +68,6 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ ok: true, candidates: candidates.length, prompted, errors });
 }
+
+// Records when the run finished and whether it succeeded (lib/cron-tracking.ts).
+export const GET = withCronTracking("review-prompts", handleGET);
