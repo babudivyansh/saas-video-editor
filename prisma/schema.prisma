@@ -211,6 +211,9 @@ model User {
   reviewPromptState   ReviewPromptState?
   reviewPromptEvents  ReviewPromptEvent[]
   reviewEmailSequence ReviewEmailSequence?
+
+  // Plan-level counts (admin subscriber breakdowns) filter on this.
+  @@index([planId])
 }
 
 // One-time hashed 2FA recovery code — issued 10-at-a-time on enrollment,
@@ -463,6 +466,8 @@ model Purchase {
   // constantly — these keep the metrics endpoint fast as rows grow.
   @@index([createdAt])
   @@index([status, createdAt])
+  // Purchase history, account deletion and admin user views all filter by user.
+  @@index([userId, createdAt])
 }
 
 // GST tax invoice (Rule 46, CGST Rules 2017). One per INR purchase on or after
@@ -575,7 +580,7 @@ model Project {
   progress             Int      @default(0) // 0–100 render progress for polling
   videoUrl             String?
   uploadedVideoUrl     String?
-  productType          String   @default("split-screen")
+  productType          String   @default("auto-clip") // split-screen etc. were removed 2026-09-10
   editorDoc            Json? // browser-editor timeline document (productType "editor")
   // Auto Clip: default caption style applied to newly-picked clips, as the
   // legacy integer index (-1 = captions off). The index tables it referred to
@@ -1042,6 +1047,11 @@ model Asset {
   @@index([userId, archivedAt])
   @@index([userId, sourceProjectId])
   @@index([userId, sourceClipId])
+  // The onDelete: SetNull on these two relations looks rows up by the FK
+  // alone; the userId-leading composites above can't serve that, so every
+  // Project/Clip delete scanned the whole Asset table.
+  @@index([sourceProjectId])
+  @@index([sourceClipId])
   @@index([folderId])
   // Storage-growth chart: cumulative bytes per day across all users.
   @@index([createdAt])

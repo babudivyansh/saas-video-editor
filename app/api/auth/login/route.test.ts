@@ -16,7 +16,7 @@ vi.mock("@/lib/two-factor-ticket", () => ({ mintTwoFactorTicket: vi.fn(async () 
 class OtpDeliveryError extends Error {}
 const issueOtp = vi.fn(async () => ({}));
 vi.mock("@/lib/otp", () => ({ issueOtp, OtpDeliveryError }));
-const markPasswordProven = vi.fn(async () => {});
+const markPasswordProven = vi.fn(async () => "proof-1");
 vi.mock("@/lib/login-verification", () => ({ markPasswordProven }));
 
 type Row = {
@@ -63,7 +63,7 @@ describe("POST /api/auth/login", () => {
     const res = await post({ email: "a@test.com", password: "right-password" });
     expect(res.status).toBe(200);
     const data = await res.json();
-    expect(data).toMatchObject({ requiresEmailVerification: true, email: "a@test.com" });
+    expect(data).toMatchObject({ requiresEmailVerification: true, email: "a@test.com", passwordProof: "proof-1" });
     expect(data.token).toBeUndefined();
     expect(markPasswordProven).toHaveBeenCalledWith("a@test.com", "u1");
     expect(issueOtp).toHaveBeenCalledWith("login", "a@test.com");

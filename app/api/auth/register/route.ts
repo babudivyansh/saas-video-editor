@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
-    await savePendingSignup(email, { name, passwordHash, referralCode });
+    const signupToken = await savePendingSignup(email, { name, passwordHash, referralCode });
 
     let extras: { devCode?: string };
     try {
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
       throw err;
     }
 
-    return NextResponse.json({ pending: true, email, ...extras }, { status: 202 });
+    return NextResponse.json({ pending: true, email, signupToken, ...extras }, { status: 202 });
   } catch (err) {
     logger.error("register", "request failed", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

@@ -14,7 +14,7 @@ import { sendOtpEmail } from "@/lib/email";
 export async function GET(req: NextRequest) {
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  return NextResponse.json({ elevated: await isElevated(admin.userId), hours: ELEVATION_HOURS });
+  return NextResponse.json({ elevated: await isElevated(admin.userId, admin.sessionId), hours: ELEVATION_HOURS });
 }
 
 export async function POST(req: NextRequest) {
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     const { allowed } = await rateLimit(`admin-elevate-verify:${admin.userId}`, 10, 900);
     if (!allowed) return NextResponse.json({ error: "Too many attempts — wait a few minutes." }, { status: 429 });
 
-    const result = await verifyElevationOtp(admin.userId, body.code!);
+    const result = await verifyElevationOtp(admin.userId, body.code!, admin.sessionId);
     if (!result.ok) {
       const msg =
         result.reason === "expired"

@@ -20,6 +20,11 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 vi.mock("@/lib/auth", () => ({ invalidateAllSessions: vi.fn(async () => {}) }));
+vi.mock("@/lib/storage-cleanup", () => ({
+  collectUserAssetKeys: vi.fn(async () => []),
+  collectProjectMediaKeys: vi.fn(async () => []),
+  deleteUnreferencedKeys: vi.fn(async () => 0),
+}));
 vi.mock("@/lib/redis", () => ({ redis: { del: vi.fn(async () => {}) } }));
 
 const cancelRazorpaySubscriptionBestEffort = vi.fn(async () => {});

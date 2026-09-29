@@ -9,6 +9,10 @@ import { NextRequest } from "next/server";
 
 let authUser: { userId: string } | null = { userId: "u1" };
 vi.mock("@/lib/auth", () => ({ getAuthUser: vi.fn(async () => authUser) }));
+vi.mock("@/lib/storage-cleanup", () => ({
+  collectProjectMediaKeys: vi.fn(async () => []),
+  deleteUnreferencedKeys: vi.fn(async () => 0),
+}));
 
 interface FakeProject {
   id: string;

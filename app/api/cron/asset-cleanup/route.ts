@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { deleteS3Object, abortMultipartUpload } from "@/utils/s3-upload";
 import { env } from "@/lib/env";
+import { cronSecretMatches } from "@/lib/cron-auth";
 import { KNOWN_CRON_JOBS } from "@/lib/cron-tracking";
 import { logger } from "@/lib/logger";
 
@@ -69,11 +70,7 @@ async function purgeExpiredArchives(): Promise<{ deleted: number; failed: number
 
 export async function GET(req: NextRequest) {
   const secret = env.ASSET_CLEANUP_SECRET;
-  const provided =
-    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
-    req.nextUrl.searchParams.get("secret") ||
-    "";
-  if (!secret || provided !== secret) {
+  if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

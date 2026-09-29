@@ -17,10 +17,15 @@ export function startSocialRefreshWorker(): void {
     const connection = { url: env.REDIS_URL || "redis://127.0.0.1:6379" };
     const everyMin = parseInt(env.SOCIAL_REFRESH_INTERVAL_MIN || "360", 10);
 
-    new Worker("social-refresh", async () => { await refreshStaleAccounts(); }, { connection });
+    // BullMQ re-emits ioredis connection errors on these instances, and an
+    // 'error' event with no listener crashes the process (render-queue.ts had
+    // the same fix). Log only; there's nothing else to do.
+    const worker = new Worker("social-refresh", async () => { await refreshStaleAccounts(); }, { connection });
+    worker.on("error", (e) => logger.error("social-refresh", "worker error", e));
 
     const queue = new Queue("social-refresh", { connection });
-    void queue.add(
+    queue.on("error", (e) => logger.error("social-refresh", "queue error", e));
+    queue.add(
       "tick",
       {},
       {
@@ -29,7 +34,10 @@ export function startSocialRefreshWorker(): void {
         removeOnComplete: true,
         removeOnFail: true,
       },
-    );
+    ).catch((e) => {
+      // Unhandled, this rejection terminated the process on a Redis outage.
+      logger.error("social-refresh", "could not schedule the repeatable tick", e);
+    });
     logger.info("social-refresh", `BullMQ worker started (every ${everyMin}m)`);
     void import("@/lib/worker-heartbeat").then(({ startHeartbeat }) => startHeartbeat("social-refresh"));
   } catch (e) {

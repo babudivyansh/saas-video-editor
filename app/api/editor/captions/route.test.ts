@@ -33,6 +33,7 @@ vi.mock("@/utils/ffmpeg-render", () => ({
   probeMediaDuration: (p: string) => probeMediaDuration(p),
 }));
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
+vi.mock("@/lib/with-rate-limit", () => ({ withRateLimit: (h: unknown) => h }));
 
 let transcribeImpl: () => Promise<{ word: string; start: number; end: number }[]>;
 vi.mock("@/lib/transcription", () => ({ transcribe: (...a: unknown[]) => transcribeImpl() }));

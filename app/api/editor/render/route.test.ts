@@ -12,7 +12,9 @@ const spendCredits = vi.hoisted(() => vi.fn());
 const enqueue = vi.hoisted(() => vi.fn());
 const getRenderRuntimeHealth = vi.hoisted(() => vi.fn());
 const loggerError = vi.hoisted(() => vi.fn());
-const projectUpdate = vi.hoisted(() => vi.fn());
+const projectUpdate = vi.hoisted(() => vi.fn(async () => ({})));
+const projectUpdateMany = vi.hoisted(() => vi.fn(async () => ({ count: 1 })));
+const restoreSpend = vi.hoisted(() => vi.fn(async () => 1));
 
 vi.mock("@/lib/auth", () => ({
   getAuthUser: vi.fn(async () => ({ userId: "user-1" })),
@@ -35,6 +37,7 @@ vi.mock("@/lib/prisma", () => ({
         },
       })),
       update: projectUpdate,
+      updateMany: projectUpdateMany,
     },
     asset: { findMany: vi.fn(async () => [{ id: "a1", userId: "user-1", s3Key: "k1" }]) },
   },
@@ -43,7 +46,7 @@ vi.mock("@/lib/redis", () => ({ redis: { get: vi.fn(async () => null) } }));
 vi.mock("@/lib/with-rate-limit", () => ({ withRateLimit: (h: unknown) => h }));
 vi.mock("@/lib/render-queue", () => ({ createRenderQueue: () => ({ enqueue }) }));
 vi.mock("@/utils/s3-upload", () => ({ getAssetReadUrl: vi.fn(async () => "https://example.invalid/a1.mp4") }));
-vi.mock("@/lib/credits", () => ({ spendCredits }));
+vi.mock("@/lib/credits", () => ({ spendCredits, restoreSpend }));
 vi.mock("@/utils/ffmpeg-render", () => ({ ffmpegBin: "/fake/ffmpeg" }));
 vi.mock("@/lib/logger", () => ({ logger: { error: loggerError, info: vi.fn(), warn: vi.fn() } }));
 vi.mock("@/lib/editor/render-job", () => ({ editorRenderJob: vi.fn(), EDITOR_RENDER_CREDIT_COST: 1 }));
@@ -60,6 +63,8 @@ const request = () =>
 beforeEach(() => {
   vi.clearAllMocks();
   spendCredits.mockResolvedValue({ ok: true, balances: { total: 41 } });
+  projectUpdateMany.mockResolvedValue({ count: 1 });
+  enqueue.mockResolvedValue(undefined);
 });
 
 describe("runtime capability gate", () => {
@@ -76,6 +81,7 @@ describe("runtime capability gate", () => {
     expect(spendCredits).not.toHaveBeenCalled();
     expect(enqueue).not.toHaveBeenCalled();
     expect(projectUpdate).not.toHaveBeenCalled();
+    expect(projectUpdateMany).not.toHaveBeenCalled();
   });
 
   it("returns a sanitized message — no ffmpeg/filter/binary detail reaches the user", async () => {
@@ -136,5 +142,52 @@ describe("runtime capability gate", () => {
     await expect(res.json()).resolves.toMatchObject({ status: "rendering" });
     expect(spendCredits).toHaveBeenCalledTimes(1);
     expect(enqueue).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("export claim, job id and enqueue failure", () => {
+  const healthy = () => getRenderRuntimeHealth.mockResolvedValue({
+    ok: true, binaryPath: "/fake/ffmpeg", version: "v", spawnError: null,
+    missingFilters: [], missingEncoders: [], totalFilters: 486,
+  });
+
+  it("a second simultaneous export loses the atomic claim and is never charged", async () => {
+    healthy();
+    projectUpdateMany.mockResolvedValue({ count: 0 });
+    const res = await POST(request());
+    expect(res.status).toBe(409);
+    expect(spendCredits).not.toHaveBeenCalled();
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  it("uses a fresh job id per export, never the bare project id", async () => {
+    healthy();
+    await POST(request());
+    await new Promise((r) => setTimeout(r, 5));
+    await POST(request());
+    const [first, second] = enqueue.mock.calls.map((c) => c[0] as string);
+    expect(first).not.toBe("p1");
+    expect(first.startsWith("p1-")).toBe(true);
+    expect(first).not.toBe(second);
+    expect(first).not.toContain(":");
+    expect(enqueue.mock.calls[0][2]).toMatchObject({ rejectOnFailure: true });
+  });
+
+  it("refunds and releases the project when the job can't be queued", async () => {
+    healthy();
+    enqueue.mockRejectedValue(new Error("redis down"));
+    const res = await POST(request());
+    expect(res.status).toBe(503);
+    expect(restoreSpend).toHaveBeenCalledWith(expect.objectContaining({ userId: "user-1", refId: "editor-render:p1", amount: 1 }));
+    expect(projectUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "draft" }) }));
+  });
+
+  it("releases the claim when the user can't pay", async () => {
+    healthy();
+    spendCredits.mockResolvedValue({ ok: false, balances: { total: 0 } });
+    const res = await POST(request());
+    expect(res.status).toBe(402);
+    expect(projectUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "draft" }) }));
+    expect(enqueue).not.toHaveBeenCalled();
   });
 });
