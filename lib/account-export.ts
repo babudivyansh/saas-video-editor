@@ -35,6 +35,9 @@ export interface AccountExportPayload {
   projectId: string;
   jobId: string;
   userId: string;
+  /** False for an admin-requested export: the user isn't emailed a link to
+   * something they didn't ask for. Absent = true (the user's own request). */
+  notifyUser?: boolean;
 }
 
 function statusKey(jobId: string) {
@@ -131,8 +134,10 @@ export async function accountExportJob(payload: AccountExportPayload): Promise<v
     const url = await getAssetReadUrl(key, EXPORT_URL_TTL_SEC);
     await redis.set(statusKey(jobId), JSON.stringify({ status: "ready", url, userId }), "EX", EXPORT_URL_TTL_SEC);
 
-    sendAccountExportReadyEmail(user.email, greetingName(user.name), url)
-      .catch((e) => logger.error("account-export", "ready email failed", e));
+    if (payload.notifyUser !== false) {
+      sendAccountExportReadyEmail(user.email, greetingName(user.name), url)
+        .catch((e) => logger.error("account-export", "ready email failed", e));
+    }
   } catch (e) {
     logger.error("account-export", `export job ${jobId} failed`, e);
     await redis.set(statusKey(jobId), JSON.stringify({ status: "failed", error: "Failed to build your data export.", userId }), "EX", EXPORT_URL_TTL_SEC).catch(() => {});
@@ -158,8 +163,8 @@ export async function getAccountExportStatus(jobId: string): Promise<AccountExpo
 
 const accountExportQueue = createRenderQueue<AccountExportPayload>("account-export", accountExportJob);
 
-export function enqueueAccountExport(userId: string): string {
+export function enqueueAccountExport(userId: string, opts: { notifyUser?: boolean } = {}): string {
   const jobId = randomUUID();
-  accountExportQueue.enqueue(jobId, { projectId: jobId, jobId, userId });
+  accountExportQueue.enqueue(jobId, { projectId: jobId, jobId, userId, notifyUser: opts.notifyUser ?? true });
   return jobId;
 }

@@ -4,7 +4,7 @@
 // social), Security (sign-in, 2FA, email, password, devices, login history),
 // Billing (subscription, renewal cancel, purchases + refund, credit ledger,
 // credit/minute adjust), Content (projects + library, with delete), and
-// Delete account. Destructive actions need the user's email typed; every
+// Data (export + delete account). Destructive actions need the user's email typed; every
 // action is audited.
 
 import { use, useState } from "react";
@@ -23,6 +23,7 @@ import { Tabs } from "@/app/components/ui/Tabs";
 import { CreditAdjust } from "../CreditAdjust";
 import { AccountSecurity } from "../_components/AccountSecurity";
 import { useAccountAction } from "../_components/useAccountAction";
+import { DataExport } from "../_components/DataExport";
 import { ContentBrowser } from "../../_components/ContentBrowser";
 
 interface Detail {
@@ -298,7 +299,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
 
   return (
     <AdminShell title={d.user.name || d.user.email}>
-      <Link href="/admin/users" className="text-xs font-semibold text-fg-subtle hover:text-fg">← All users</Link>
+      <Link href="/admin/users" className="text-xs font-semibold text-fg-subtle hover:text-fg">← All accounts</Link>
       <div className="flex flex-wrap items-center gap-2 mt-2 mb-4">
         <p className="text-sm text-fg-muted break-all">{d.user.email}</p>
         {isAdmin && <StatusBadge tone="primary">Admin</StatusBadge>}
@@ -315,7 +316,16 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           { id: "security", label: "Security", content: <AccountSecurity user={d.user} loginEvents={d.loginEvents} headers={headers} /> },
           { id: "billing", label: "Billing", content: billing },
           { id: "content", label: "Content", content: <Card shadow padding="md"><ContentBrowser headers={headers} userId={id} /></Card> },
-          { id: "delete", label: "Delete", content: danger },
+          {
+            id: "data",
+            label: "Data",
+            content: (
+              <div className="space-y-5">
+                <DataExport userId={id} email={d.user.email} headers={headers} />
+                {danger}
+              </div>
+            ),
+          },
         ]}
       />
 

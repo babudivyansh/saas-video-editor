@@ -44,7 +44,7 @@ interface AdminUser {
 }
 
 const FILTERS = [
-  ["", "All users"],
+  ["", "All accounts"],
   ["subscribed", "Subscribed"],
   ["suspended", "Suspended"],
   ["deactivated", "Deactivated"],
@@ -263,7 +263,7 @@ export default function AdminUsersPage() {
   const inputCls = "bg-surface-2 border border-line rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40";
 
   return (
-    <AdminShell title="Users">
+    <AdminShell title="Accounts">
       {/* Search + pagination controls */}
       <div className="flex items-center justify-between mb-5 gap-4 flex-wrap">
         <div className="flex flex-wrap items-center gap-2">
