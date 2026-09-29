@@ -177,7 +177,7 @@ export default function AdminPurchasesPage() {
                       <td className="py-3 px-3">
                         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
                           p.plan?.kind === "subscription" ? "bg-tint-violet text-brand" :
-                          p.plan?.kind === "addon"        ? "bg-purple-100 text-purple-700" :
+                          p.plan?.kind === "addon"        ? "bg-primary/15 text-primary" :
                           "bg-surface-3 text-fg-muted"}`}>
                           {p.plan?.kind ?? "—"}
                         </span>
@@ -186,7 +186,7 @@ export default function AdminPurchasesPage() {
                       <td className="py-3 px-3 text-fg-muted">+{p.credits}</td>
                       <td className="py-3 px-3">
                         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${
-                          p.status === "captured" ? "text-green-700 bg-green-100" :
+                          p.status === "captured" ? "text-success bg-success/15" :
                           p.status === "failed"   ? "text-error bg-error/15" :
                           "text-fg-muted bg-surface-3"}`}>
                           {p.status}

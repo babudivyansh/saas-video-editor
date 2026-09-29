@@ -35,7 +35,7 @@ function Meter({ label, pct, sublabel }: { label: string; pct: number; sublabel:
 }
 
 function QuickAction({ href, onClick, label, desc }: { href?: string; onClick?: () => void; label: string; desc: string }) {
-  const cls = "flex flex-col gap-1 rounded-2xl border border-card-border bg-panel p-4 hover:border-violet-200 hover:shadow-card-hover transition-all text-left w-full";
+  const cls = "flex flex-col gap-1 rounded-2xl border border-card-border bg-panel p-4 hover:border-primary/30 hover:shadow-card-hover transition-all text-left w-full";
   const body = (
     <>
       <p className="text-sm font-bold text-ink">{label}</p>

@@ -11,7 +11,7 @@ import { StepUpField, stepUpBody } from "@/app/components/settings/StepUpField";
 
 const DELETE_CONFIRM_WORD = "DELETE";
 
-const inputCls = "w-full bg-panel border border-card-border rounded-xl px-4 py-3 text-sm text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all";
+const inputCls = "w-full bg-panel border border-card-border rounded-xl px-4 py-3 text-sm text-ink placeholder:text-fg-subtle outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/25 transition-all"; // same as ui/Field
 function IcSpinner() { return <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />; }
 
 function DangerRow({ title, desc, actionLabel, onAction, actionVariant = "outline" }: {
@@ -152,7 +152,7 @@ export default function DangerZoneSettingsPage() {
           {error && <p className="text-sm text-error">{error}</p>}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" size="sm" onClick={() => setDeactivateOpen(false)}>{t("cancel")}</Button>
-            <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-error">{busy ? <><IcSpinner /> {t("deactivateModal.deactivating")}</> : t("deactivate.action")}</Button>
+            <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-error !text-bg !shadow-none hover:!brightness-110">{busy ? <><IcSpinner /> {t("deactivateModal.deactivating")}</> : t("deactivate.action")}</Button>
           </div>
         </form>
       </Modal>
@@ -185,7 +185,7 @@ export default function DangerZoneSettingsPage() {
             </div>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="secondary" size="sm" onClick={() => setDeleteOpen(false)}>{t("cancel")}</Button>
-              <Button type="button" size="sm" disabled={!deleteConfirmed} className="!bg-none !bg-error" onClick={() => setDeleteStage("password")}>
+              <Button type="button" size="sm" disabled={!deleteConfirmed} className="!bg-none !bg-error !text-bg !shadow-none hover:!brightness-110" onClick={() => setDeleteStage("password")}>
                 {t("deleteModal.continue")}
               </Button>
             </div>
@@ -197,7 +197,7 @@ export default function DangerZoneSettingsPage() {
             {error && <p className="text-sm text-error">{error}</p>}
             <div className="flex justify-end gap-2">
               <Button type="button" variant="secondary" size="sm" onClick={() => setDeleteOpen(false)}>{t("cancel")}</Button>
-              <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-error">{busy ? <><IcSpinner /> {t("deleteModal.deleting")}</> : t("deleteModal.permanentlyDelete")}</Button>
+              <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-error !text-bg !shadow-none hover:!brightness-110">{busy ? <><IcSpinner /> {t("deleteModal.deleting")}</> : t("deleteModal.permanentlyDelete")}</Button>
             </div>
           </form>
         )}

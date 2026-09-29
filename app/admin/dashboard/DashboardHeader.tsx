@@ -54,7 +54,7 @@ export function DashboardHeader({
       {/* Env badge + health */}
       <span
         className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full ${
-          env === "production" ? "bg-error/10 text-error border border-error/30" : "bg-emerald-50 text-emerald-700 border border-emerald-100"
+          env === "production" ? "bg-error/10 text-error border border-error/30" : "bg-success/10 text-success border border-success/30"
         }`}
       >
         {env ?? "…"}

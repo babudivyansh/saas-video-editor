@@ -133,7 +133,7 @@ export default function AdminSubscriptionsPage() {
                   const busy = actingId === s.id;
                   const months = parseInt(extendMonths[s.id] ?? "1", 10) || 1;
                   return (
-                    <tr key={s.id} className={`border-b border-line last:border-0 ${expiring ? "bg-yellow-50/40" : ""}`}>
+                    <tr key={s.id} className={`border-b border-line last:border-0 ${expiring ? "bg-warning/5" : ""}`}>
                       <td className="py-3 px-5">
                         <p className="font-semibold text-fg">{s.name || s.email}</p>
                         {s.name && <p className="text-xs text-fg-subtle">{s.email}</p>}
@@ -141,7 +141,7 @@ export default function AdminSubscriptionsPage() {
                       <td className="py-3 px-3 text-xs text-fg-muted">{s.plan?.name ?? "—"}</td>
                       <td className="py-3 px-3 text-xs text-fg-muted">{fmt(s.subscriptionEndsAt)}</td>
                       <td className="py-3 px-3">
-                        <span className={`text-xs font-bold ${expiring ? "text-yellow-600" : "text-fg-muted"}`}>
+                        <span className={`text-xs font-bold ${expiring ? "text-warning" : "text-fg-muted"}`}>
                           {days < 0 ? "expired" : `${days}d`}
                           {expiring && " ⚠️"}
                         </span>

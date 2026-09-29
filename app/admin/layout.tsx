@@ -12,6 +12,8 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import AdminLayoutClient from "./AdminLayoutClient";
 
+export const metadata: import("next").Metadata = { robots: { index: false, follow: false } };
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
   const messages = await getMessages();

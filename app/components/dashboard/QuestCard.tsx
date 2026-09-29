@@ -99,9 +99,9 @@ function useQuests() {
   return useMemo(
     () => [
       { id: "join-community", icon: <IcDiscord />, title: t("joinCommunity.title"), desc: t("joinCommunity.desc"), color: "#5865F2", href: null },
-      { id: "first-clip", icon: <IcFilm />, title: t("firstClip.title"), desc: t("firstClip.desc"), color: "#335cff", href: "/dashboard/create/auto-clip" },
-      { id: "hear-yourself-out", icon: <IcMic />, title: t("hearYourselfOut.title"), desc: t("hearYourselfOut.desc"), color: "#7c3aed", href: "/dashboard/tools/voiceover" },
-      { id: "picture-this", icon: <IcImage />, title: t("pictureThis.title"), desc: t("pictureThis.desc"), color: "#d946ef", href: "/dashboard/tools/image-generator" },
+      { id: "first-clip", icon: <IcFilm />, title: t("firstClip.title"), desc: t("firstClip.desc"), color: "var(--emerald-bright)", href: "/dashboard/create/auto-clip" },
+      { id: "hear-yourself-out", icon: <IcMic />, title: t("hearYourselfOut.title"), desc: t("hearYourselfOut.desc"), color: "var(--emerald-brand)", href: "/dashboard/tools/voiceover" },
+      { id: "picture-this", icon: <IcImage />, title: t("pictureThis.title"), desc: t("pictureThis.desc"), color: "var(--primary)", href: "/dashboard/tools/image-generator" },
       { id: "first-export", icon: <IcDownload />, title: t("firstExport.title"), desc: t("firstExport.desc"), color: "#f59e0b", href: "/dashboard/editor" },
       { id: "upgraded-plan", icon: <IcCrown />, title: t("upgradedPlan.title"), desc: t("upgradedPlan.desc"), color: "#d97706", href: "/dashboard?billing=1" },
       { id: "explore-toolbox", icon: <IcEraser />, title: t("exploreToolbox.title"), desc: t("exploreToolbox.desc"), color: "#06b6d4", href: "/dashboard/tools" },
@@ -260,7 +260,7 @@ export function QuestCard({ questData, hasUser, onDiscordQuest, variant = "wide"
                     <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
                       <span className={`text-sm font-semibold ${done ? "line-through text-fg-subtle" : "text-ink"}`}>{q.title}</span>
                       {liveQuest && (
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${done ? "bg-tint-emerald text-success border-green-100" : "bg-tint-violet text-accent-violet border-violet-100"}`}>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${done ? "bg-tint-emerald text-success border-success/30" : "bg-tint-violet text-accent-violet border-primary/30"}`}>
                           {t("xpSuffix", { xp: liveQuest.xp })}
                         </span>
                       )}
@@ -298,9 +298,9 @@ export function QuestCard({ questData, hasUser, onDiscordQuest, variant = "wide"
           </div>
 
           {allComplete && (
-            <div className="border-t border-green-100 bg-tint-emerald px-5 py-3 flex items-center gap-2.5">
+            <div className="border-t border-success/30 bg-tint-emerald px-5 py-3 flex items-center gap-2.5">
               <span className="text-success text-lg" aria-hidden="true">🎉</span>
-              <p className="text-sm font-semibold text-green-700">{t("allQuestsCompleteBanner")}</p>
+              <p className="text-sm font-semibold text-success">{t("allQuestsCompleteBanner")}</p>
             </div>
           )}
         </div>

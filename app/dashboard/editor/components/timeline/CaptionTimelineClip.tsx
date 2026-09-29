@@ -102,7 +102,7 @@ export default function CaptionTimelineClip({ clip }: { clip: CaptionClip }) {
           <span className="h-1/2 w-1 rounded-full bg-white/60 opacity-40 transition-opacity group-hover:opacity-100" />
         </span>
       )}
-      <span className="pointer-events-none truncate px-2 text-[10px] font-semibold text-zinc-900">
+      <span className="pointer-events-none truncate px-2 text-[10px] font-semibold text-editor-bg">
         {clip.name || clip.text || "Caption"}
       </span>
       {!clip.locked && (

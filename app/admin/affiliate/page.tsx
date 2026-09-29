@@ -40,16 +40,16 @@ interface CommissionRow {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  active: "bg-green-100 text-green-700",
-  suspended: "bg-yellow-100 text-yellow-700",
+  active: "bg-success/15 text-success",
+  suspended: "bg-warning/15 text-warning",
   banned: "bg-error/15 text-error",
-  pending: "bg-yellow-100 text-yellow-700",
+  pending: "bg-warning/15 text-warning",
   available: "bg-tint-violet text-brand",
-  paid: "bg-green-100 text-green-700",
+  paid: "bg-success/15 text-success",
   rejected: "bg-error/15 text-error",
   signed_up: "bg-surface-3 text-fg-muted",
-  converted: "bg-green-100 text-green-700",
-  flagged: "bg-orange-100 text-orange-700",
+  converted: "bg-success/15 text-success",
+  flagged: "bg-warning/15 text-warning",
 };
 
 const PAGE_LIMIT = 100;
@@ -255,7 +255,7 @@ function AffiliateContent() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
                         {a.status === "active" && (
-                          <Button variant="link" onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "suspended" } })} className="text-yellow-600">Suspend</Button>
+                          <Button variant="link" onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "suspended" } })} className="text-warning">Suspend</Button>
                         )}
                         {a.status === "suspended" && (
                           <Button variant="link" onClick={() => updateAffiliateMutation.mutate({ id: a.id, data: { status: "active" } })} className="text-success">Activate</Button>
@@ -385,7 +385,7 @@ function AffiliateContent() {
                     <p className="font-semibold text-fg flex items-center gap-2">
                       {a.user.name ?? "—"}
                       {a.payoutRequestedAt && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-warning/15 text-warning">
                           Requested {timeAgo(a.payoutRequestedAt)}
                         </span>
                       )}

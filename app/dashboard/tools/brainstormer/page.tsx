@@ -1,6 +1,6 @@
 import BrainstormerTool from "@/app/components/BrainstormerTool";
 
-export const metadata = { title: "AI Brainstormer – Clipiro" };
+export const metadata = { title: "AI Brainstormer" };
 
 export default function BrainstormerPage() {
   return (

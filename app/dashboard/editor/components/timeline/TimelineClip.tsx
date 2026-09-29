@@ -15,12 +15,12 @@ import IconButton from "../ui/IconButton";
 
 const TRACK_COLORS: Record<TrackKind, { bg: string; border: string; text: string }> = {
   video: { bg: "bg-editor-track-video/70", border: "border-editor-track-video", text: "text-white" },
-  text: { bg: "bg-editor-track-text/80", border: "border-editor-track-text", text: "text-zinc-900" },
-  audio: { bg: "bg-editor-track-audio/80", border: "border-editor-track-audio", text: "text-zinc-900" },
-  image: { bg: "bg-editor-track-image/80", border: "border-editor-track-image", text: "text-zinc-900" },
+  text: { bg: "bg-editor-track-text/80", border: "border-editor-track-text", text: "text-editor-bg" },
+  audio: { bg: "bg-editor-track-audio/80", border: "border-editor-track-audio", text: "text-editor-bg" },
+  image: { bg: "bg-editor-track-image/80", border: "border-editor-track-image", text: "text-editor-bg" },
   // Unused by this component (caption cues render via the lightweight
   // CaptionTimelineClip instead) — present only to satisfy Record<TrackKind,...>.
-  caption: { bg: "bg-editor-track-caption/80", border: "border-editor-track-caption", text: "text-zinc-900" },
+  caption: { bg: "bg-editor-track-caption/80", border: "border-editor-track-caption", text: "text-editor-bg" },
 };
 
 const SNAP_PX = 8;

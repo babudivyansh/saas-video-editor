@@ -1013,7 +1013,7 @@ export default function AuthForm({
           </div>
 
           {devCode && (
-            <div className="mb-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5 text-center">
+            <div className="mb-4 text-xs text-warning bg-warning/10 border border-warning/30 rounded-xl px-3.5 py-2.5 text-center">
               Dev mode — code: <span className="font-bold tracking-widest">{devCode}</span>
             </div>
           )}

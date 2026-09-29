@@ -34,7 +34,7 @@ export function FeatureHint({ hintId, title, body, cta }: FeatureHintProps) {
   if (dismissed) return null;
 
   return (
-    <div className="flex items-start gap-3 rounded-[var(--radius-card)] border border-violet-100 bg-tint-violet px-4 py-3.5">
+    <div className="flex items-start gap-3 rounded-[var(--radius-card)] border border-primary/30 bg-tint-violet px-4 py-3.5">
       <span className="mt-0.5 flex-shrink-0 text-accent-violet"><IcSparkle /></span>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-ink">{title}</p>

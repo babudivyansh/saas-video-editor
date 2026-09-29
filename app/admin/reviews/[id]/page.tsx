@@ -159,8 +159,8 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
               <div className="flex items-center gap-2">
                 <span className="text-lg font-bold text-fg">{review.rating}★</span>
                 <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-surface-3 text-fg-muted">{review.status}</span>
-                {review.verifiedCustomer && <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">Verified</span>}
-                {review.pinned && <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-violet-100 text-violet-700">Pinned</span>}
+                {review.verifiedCustomer && <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-success/15 text-success">Verified</span>}
+                {review.pinned && <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-primary/15 text-primary">Pinned</span>}
               </div>
               {!editing && (
                 <Button variant="secondary" size="sm" onClick={() => setEditing(true)} className="!text-brand !border-brand/40 hover:!bg-tint-blue">
@@ -282,7 +282,7 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
           <Card shadow padding="lg" className="space-y-2">
             <p className="text-xs font-bold text-fg-subtle uppercase tracking-widest mb-2">Actions</p>
             {review.status !== "published" && (
-              <Button variant="secondary" disabled={busy} onClick={() => moderateMutation.mutate({ action: "approve" })} className="w-full !text-emerald-700 !border-emerald-200 hover:!bg-emerald-50">Approve</Button>
+              <Button variant="secondary" disabled={busy} onClick={() => moderateMutation.mutate({ action: "approve" })} className="w-full !text-success !border-success/30 hover:!bg-success/10">Approve</Button>
             )}
             {review.status !== "rejected" && (
               <Button variant="danger" disabled={busy} onClick={() => setRejecting(true)} className="w-full">Reject</Button>
@@ -294,9 +294,9 @@ export default function AdminReviewDetailPage({ params }: { params: Promise<{ id
             )}
             {review.status === "published" && (
               review.pinned ? (
-                <Button variant="secondary" disabled={busy} onClick={() => moderateMutation.mutate({ action: "unpin" })} className="w-full !text-violet-700 !border-violet-200 hover:!bg-violet-50">Unpin</Button>
+                <Button variant="secondary" disabled={busy} onClick={() => moderateMutation.mutate({ action: "unpin" })} className="w-full !text-primary !border-primary/30 hover:!bg-primary/10">Unpin</Button>
               ) : (
-                <Button variant="secondary" disabled={busy} onClick={() => moderateMutation.mutate({ action: "pin" })} className="w-full !text-violet-700 !border-violet-200 hover:!bg-violet-50">Feature</Button>
+                <Button variant="secondary" disabled={busy} onClick={() => moderateMutation.mutate({ action: "pin" })} className="w-full !text-primary !border-primary/30 hover:!bg-primary/10">Feature</Button>
               )
             )}
             <div className="pt-2 border-t border-line">

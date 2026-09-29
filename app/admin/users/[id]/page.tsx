@@ -159,7 +159,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             </div>
           </div>
           <div className="flex flex-wrap gap-2 pt-1">
-            <span className={`text-[11px] font-semibold px-2 py-1 rounded-full ${d.hasActiveSession ? "bg-emerald-50 text-emerald-700" : "bg-surface-3 text-fg-muted"}`}>
+            <span className={`text-[11px] font-semibold px-2 py-1 rounded-full ${d.hasActiveSession ? "bg-success/10 text-success" : "bg-surface-3 text-fg-muted"}`}>
               {d.hasActiveSession ? "Active session" : "No live session"}
             </span>
           </div>
@@ -170,7 +170,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
               Revoke sessions
             </Button>
             {suspended ? (
-              <Button onClick={() => moderateMutation.mutate("unsuspend")} variant="secondary" size="sm" className="!text-emerald-700 !border-emerald-200">
+              <Button onClick={() => moderateMutation.mutate("unsuspend")} variant="secondary" size="sm" className="!text-success !border-success/30">
                 Unsuspend
               </Button>
             ) : (

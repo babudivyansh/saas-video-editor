@@ -43,7 +43,7 @@ function PresetButton({
     <button
       onClick={onClick}
       className={`group relative overflow-hidden rounded-xl border text-left text-sm font-semibold transition-all cursor-pointer ${
-        active ? "border-violet-500 bg-violet-600/15 text-violet-300" : "border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-600"
+        active ? "border-editor-accent bg-editor-accent/15 text-editor-accent" : "border-editor-border bg-editor-card text-editor-text hover:border-editor-border-strong"
       }`}
     >
       {gifUrl && (
@@ -65,7 +65,7 @@ export default function TransitionPanel() {
   if (!clip) {
     return (
       <div className="p-4">
-        <p className="text-xs leading-relaxed text-zinc-500">
+        <p className="text-xs leading-relaxed text-editor-text-muted">
           Select a video clip on the timeline to set its outgoing transition.
         </p>
       </div>
@@ -74,7 +74,7 @@ export default function TransitionPanel() {
 
   return (
     <div className="flex flex-col gap-2 p-3">
-      <p className="px-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">Transition (out)</p>
+      <p className="px-1 text-xs font-semibold uppercase tracking-wide text-editor-text-muted">Transition (out)</p>
       <div className="grid grid-cols-2 gap-2">
         {(Object.keys(TRANSITION_PRESETS) as TransitionPreset[])
           .filter((key) => key === "none" || TRANSITION_PRESETS[key].xfade !== null)
@@ -88,7 +88,7 @@ export default function TransitionPanel() {
           />
         ))}
       </div>
-      <p className="mt-1 px-1 text-[10px] leading-snug text-zinc-500">
+      <p className="mt-1 px-1 text-[10px] leading-snug text-editor-text-muted">
         Applied to the exported video as a 0.5s crossfade into the next clip. The canvas
         approximates it as a fade.
       </p>

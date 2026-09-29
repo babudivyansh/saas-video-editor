@@ -233,7 +233,7 @@ export default function AdminPricingPage() {
                   <input type="number" className={input} value={p.priceInPaise} onChange={e => edit(p.id, { priceInPaise: Number(e.target.value) })} />
                   <p className="text-[10px] text-fg-subtle mt-1">= ₹{(p.priceInPaise / 100).toLocaleString("en-IN")}</p>
                   {p.kind === "subscription" && (p.razorpayPlanIdInr || p.razorpayPlanIdUsd) && (
-                    <p className="text-[10px] text-amber-700 mt-1">
+                    <p className="text-[10px] text-warning mt-1">
                       Saving a new price mints a replacement Razorpay plan. Existing subscribers keep the price they bought at.
                     </p>
                   )}
@@ -299,7 +299,7 @@ export default function AdminPricingPage() {
                     <span
                       key={cur}
                       title={planId ?? "Not provisioned — checkout falls back to a one-time order for this currency (no auto-renewal, trial dropped)."}
-                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${planId ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-800"}`}
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${planId ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
                     >
                       {cur}: {planId ? "synced" : "one-time only"}
                     </span>

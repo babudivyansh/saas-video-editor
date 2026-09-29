@@ -308,16 +308,14 @@ export default function VocalRemoverTool() {
               <button
                 onClick={handleRemove}
                 disabled={stage === "processing" || !file}
-                className="w-full py-3 rounded-xl text-sm font-semibold text-white transition-opacity disabled:opacity-40"
-                style={{ background: "linear-gradient(135deg, #335CFF 0%, #7B5EA7 100%)" }}
+                className="w-full py-3 rounded-xl text-sm font-semibold grad-brand text-on-primary transition-opacity disabled:opacity-40"
               >
                 {stage === "processing" ? "Removing Vocals…" : "Remove Vocals"}
               </button>
             ) : (
               <button
                 onClick={handleAgain}
-                className="w-full py-3 rounded-xl text-sm font-semibold text-white"
-                style={{ background: "linear-gradient(135deg, #335CFF 0%, #7B5EA7 100%)" }}
+                className="w-full py-3 rounded-xl text-sm font-semibold grad-brand text-on-primary"
               >
                 Remove Another
               </button>
@@ -361,8 +359,7 @@ export default function VocalRemoverTool() {
                 <a
                   href={downloadUrl!}
                   download={downloadName}
-                  className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
-                  style={{ background: "linear-gradient(135deg, #335CFF 0%, #7B5EA7 100%)" }}
+                  className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-semibold grad-brand text-on-primary transition-opacity hover:opacity-90"
                 >
                   <IcDownload /> Download
                 </a>

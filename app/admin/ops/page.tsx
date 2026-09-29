@@ -154,7 +154,7 @@ export default function AdminOpsPage() {
         </Button>
       </div>
       {d.maintenance.on && (
-        <p className="text-sm font-semibold text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 mb-4">
+        <p className="text-sm font-semibold text-warning bg-warning/10 border border-warning/30 rounded-lg px-4 py-2 mb-4">
           ⚠ Maintenance mode is ON — non-admin API traffic is being refused with 503.
         </p>
       )}
@@ -171,7 +171,7 @@ export default function AdminOpsPage() {
             className="w-full text-sm border border-line rounded-lg px-3 py-2 mb-2"
           />
           {d.maintenance.on ? (
-            <Button variant="secondary" size="sm" onClick={() => setConfirmMaintOff(true)} className="!bg-emerald-600 !text-white !border-emerald-600 hover:!bg-emerald-700">
+            <Button variant="secondary" size="sm" onClick={() => setConfirmMaintOff(true)} className="!bg-emerald-600 !text-white !border-success/60 hover:!bg-emerald-700">
               Turn OFF maintenance
             </Button>
           ) : (
@@ -328,7 +328,7 @@ export default function AdminOpsPage() {
             <p className="text-xs text-fg-subtle mb-3">
               {fmtBytes(assetsD.totalBytes)} across {assetsD.totalAssets} active assets · {fmtBytes(assetsD.archivedBytes)} in {assetsD.archivedCount} archived (pending purge)
               {assetsD.orphanedPendingUploads > 0 && (
-                <span className="text-amber-700 font-semibold"> · {assetsD.orphanedPendingUploads} stale pending upload(s) awaiting cleanup cron</span>
+                <span className="text-warning font-semibold"> · {assetsD.orphanedPendingUploads} stale pending upload(s) awaiting cleanup cron</span>
               )}
             </p>
             {assetsD.topUsers.length === 0 ? (

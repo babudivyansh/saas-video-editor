@@ -135,10 +135,10 @@ const BUDGET = {
   "raw-gray": 20, /* stage 6: recovery-code placeholder */ // audit 2026-09-29 stage 5: cookie preferences on tokens. Was: // 31 -> 30: PlansModal lost its subscription coupon field (and its hover:bg-gray-800)
   // 5 -> 4: same deletion.
   "bg-white": 0, // 1 -> 0: the GST receipt rewrite dropped the last print:bg-white
-  "raw-slate": 6, // audit 2026-09-29 stage 6: voice cards + reset page wash (was 9)
+  "raw-slate": 5, // audit 2026-09-29 stage 7 (pastel chips, old brand hex, editor violet → tokens)
   "raw-zinc": 0,
   "raw-blue": 0,
-  "raw-red": 11,
+  "raw-red": 10, // audit 2026-09-29 stage 7 (pastel chips, old brand hex, editor violet → tokens)
   // First measurement, 2026-09-10. Not a certificate — this pocket was
   // unmeasured until now, so nearly all of it is genuine debt spread over
   // ~30 files (dashboard, assets, clips, settings, onboarding, admin).
@@ -149,7 +149,7 @@ const BUDGET = {
   // 90 -> 82: the clips/assets library redesign replaced the assets sidebar,
   // toolbar and drop zone, and the Projects tab's gradient covers.
   // 82 -> 79: Studio shell + home redesign (tool tiles, header, quest card).
-  "raw-violet": 55, /* + stage 6 asset cards */ // audit 2026-09-29: /editor wizard deleted + stage 5 API keys/export modal (was 79)
+  "raw-violet": 17, /* + stage 7 pastel/editor tokens */ /* + stage 6 asset cards */ // audit 2026-09-29: /editor wizard deleted + stage 5 API keys/export modal (was 79)
   // First measurement, 2026-09-10, taken AFTER the Social Tracker's share was
   // paid off in the same commit that added the rule. The 138 that remain are
   // spread over ~30 files — pricing (11), PlansModal (10), admin/ops (8),
@@ -160,13 +160,13 @@ const BUDGET = {
   // 119 -> 111: the AI video generator removal (its tool page, dashboard tile
   // and onboarding goal chip).
   // 111 -> 108: Studio shell + home redesign.
-  "raw-emerald": 105, /* stage 6: asset card badge */ // audit 2026-09-29 stage 5: cookie preferences (was 108)
+  "raw-emerald": 22, // audit 2026-09-29 stage 7 (pastel chips, old brand hex, editor violet → tokens)
   // 51 -> 47: four of the retired brand hexes lived in the caption tile tables
   // deleted below.
   // 47 -> 43: four more went with the per-page voice lists, whose entries
   // each carried a hand-assigned avatar tint.
   // 37 -> 33: the video generator quest and preview colours went with it.
-  "brand-hex": 33,
+  "brand-hex": 3, // audit 2026-09-29 stage 7 (pastel chips, old brand hex, editor violet → tokens)
   "legacy-light": 0,
   // 320 -> 318: same deletion. The replacement (CaptionStyleGrid) still needs
   // two inline hex values for the swatch gradient — that is product artwork
@@ -187,7 +187,7 @@ const BUDGET = {
   // copy of the provider's voice ids purely to build preview URLs by hand.
   // 44 -> 41: AI video generator removal.
   // 41 -> 38: quest card locked-rank chips moved onto theme tokens.
-  "inline-hex": 38, // AutoClip stage 6: score bands, poster gradients, drop zone
+  "inline-hex": 27, // audit 2026-09-29 stage 7 (pastel chips, old brand hex, editor violet → tokens)
 };
 
 function walk(dir, out = []) {

@@ -69,7 +69,7 @@ export default function AdminReviewReportsPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-amber-100 text-amber-700">{r.reason.replace("_", " ")}</span>
+                      <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-warning/15 text-warning">{r.reason.replace("_", " ")}</span>
                       <Link href={`/admin/reviews/${r.review.id}`} className="text-xs font-semibold text-brand hover:text-brand-deep">
                         View review ({r.review.rating}★, {r.review.status})
                       </Link>
@@ -82,7 +82,7 @@ export default function AdminReviewReportsPage() {
                     <Button variant="secondary" size="sm" disabled={busy} onClick={() => handleMutation.mutate({ id: r.id, action: "dismiss" })}>
                       Dismiss
                     </Button>
-                    <Button variant="secondary" size="sm" disabled={busy} onClick={() => handleMutation.mutate({ id: r.id, action: "resolve" })} className="!text-emerald-700 !border-emerald-200 hover:!bg-emerald-50">
+                    <Button variant="secondary" size="sm" disabled={busy} onClick={() => handleMutation.mutate({ id: r.id, action: "resolve" })} className="!text-success !border-success/30 hover:!bg-success/10">
                       Resolve
                     </Button>
                   </div>

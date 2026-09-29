@@ -264,8 +264,8 @@ export function AssetPicker({ open, onClose, accept, onSelect, title = "Choose m
         </div>
 
         {loadError && (
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-tint-rose border border-rose-100 px-3.5 py-2.5">
-            <p className="text-xs text-rose-700">{loadError}</p>
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-tint-rose border border-error/30 px-3.5 py-2.5">
+            <p className="text-xs text-error">{loadError}</p>
             <Button variant="secondary" size="sm" onClick={() => void load()} className="flex-shrink-0">
               Retry
             </Button>
@@ -273,8 +273,8 @@ export function AssetPicker({ open, onClose, accept, onSelect, title = "Choose m
         )}
 
         {uploadError && (
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-tint-rose border border-rose-100 px-3.5 py-2.5">
-            <p className="text-xs text-rose-700">{uploadError.message}</p>
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-tint-rose border border-error/30 px-3.5 py-2.5">
+            <p className="text-xs text-error">{uploadError.message}</p>
             {uploadError.isLimitError && (
               <Button variant="secondary" size="sm" href="/pricing" className="flex-shrink-0">Upgrade</Button>
             )}

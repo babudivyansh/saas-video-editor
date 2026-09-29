@@ -421,10 +421,10 @@ export function BillingPanel({
           access disappearing. Sits above the tabs because it outranks
           everything else on the page. */}
       {user?.paymentFailedAt && (
-        <div role="alert" className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div role="alert" className="bg-warning/10 border border-warning/30 rounded-2xl px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-amber-900">We couldn&apos;t take your last payment</p>
-            <p className="text-xs text-amber-800 mt-0.5">
+            <p className="text-sm font-bold text-warning">We couldn&apos;t take your last payment</p>
+            <p className="text-xs text-warning mt-0.5">
               Your plan is still active and we&apos;ll retry automatically
               {user.paymentFailureCount > 1 ? ` (attempt ${user.paymentFailureCount})` : ""}.
               We don&apos;t support updating a saved card yet — pick a plan below and it&apos;ll take over
@@ -662,7 +662,7 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
           )}
 
           {lowBalance && (
-            <div className="flex items-center justify-between gap-3 bg-tint-amber border border-amber-100 rounded-2xl px-4 py-3">
+            <div className="flex items-center justify-between gap-3 bg-tint-amber border border-warning/30 rounded-2xl px-4 py-3">
               <p className="text-xs text-ink font-medium">Running low on credits ({balance} left).</p>
               <button onClick={onGoToTopup} className="flex-shrink-0 text-xs font-bold text-brand hover:text-brand-dark transition-colors cursor-pointer">
                 Top up →
@@ -1028,7 +1028,7 @@ function TopupTab({ hasActivePlan, packs, minutePacks, addons, activeId, onBuy, 
                     onChange={e => coupon.setCouponInput(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); coupon.apply(); } }}
                     placeholder="Coupon code"
-                    className="w-36 bg-panel border border-card-border rounded-full px-3.5 py-2 text-sm font-semibold uppercase tracking-wide outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
+                    className="w-36 bg-panel border border-card-border rounded-full px-3.5 py-2 text-sm font-semibold uppercase tracking-wide outline-none focus:border-primary/30 focus:ring-2 focus:ring-primary/30 transition-all"
                   />
                   <Button variant="secondary" size="md" onClick={coupon.apply} disabled={coupon.applying || !coupon.couponInput.trim()}>
                     {coupon.applying ? "…" : "Apply"}
@@ -1060,7 +1060,7 @@ function TopupTab({ hasActivePlan, packs, minutePacks, addons, activeId, onBuy, 
                 <div
                   key={pack.id}
                   className={`relative bg-panel rounded-[var(--radius-card)] border transition-all flex flex-col overflow-hidden hover:shadow-card-hover hover:-translate-y-0.5 ${
-                    isPopular ? "border-violet-300 shadow-glow" : "border-card-border hover:border-violet-200"
+                    isPopular ? "border-primary/30 shadow-glow" : "border-card-border hover:border-primary/30"
                   }`}
                 >
                   {isPopular && (
@@ -1094,7 +1094,7 @@ function TopupTab({ hasActivePlan, packs, minutePacks, addons, activeId, onBuy, 
             {addons.map(addon => {
               const isLoading = activeId === addon.slug;
               return (
-                <Card key={addon.id} className="flex items-center gap-5 px-6 py-5 hover:border-violet-200 transition-colors">
+                <Card key={addon.id} className="flex items-center gap-5 px-6 py-5 hover:border-primary/30 transition-colors">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="font-bold text-ink text-sm">{addon.name}</p>

@@ -27,9 +27,9 @@ interface WelcomeScreenProps {
 
 const GOAL_TINT: Record<PrimaryGoalId, string> = {
   "auto-clip": "bg-tint-blue text-brand border-line",
-  image: "bg-tint-fuchsia text-accent-fuchsia border-fuchsia-100",
-  voiceover: "bg-tint-violet text-accent-violet border-violet-100",
-  editor: "bg-tint-amber text-warning border-amber-100",
+  image: "bg-tint-fuchsia text-accent-fuchsia border-primary/30",
+  voiceover: "bg-tint-violet text-accent-violet border-primary/30",
+  editor: "bg-tint-amber text-warning border-warning/30",
 };
 
 const EXPERIENCE_OPTIONS: { id: ExperienceLevel; label: string }[] = [
@@ -174,7 +174,7 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }
                       className={`text-xs font-semibold px-3.5 py-2 rounded-full border transition-colors ${
                         experienceLevel === opt.id
                           ? "bg-brand text-on-primary border-brand"
-                          : "bg-panel text-ink-soft border-card-border hover:border-violet-200"
+                          : "bg-panel text-ink-soft border-card-border hover:border-primary/30"
                       }`}
                     >
                       {opt.label}
@@ -192,7 +192,7 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }
                       className={`text-xs font-semibold px-3.5 py-2 rounded-full border transition-colors ${
                         teamOrIndividual === opt.id
                           ? "bg-brand text-on-primary border-brand"
-                          : "bg-panel text-ink-soft border-card-border hover:border-violet-200"
+                          : "bg-panel text-ink-soft border-card-border hover:border-primary/30"
                       }`}
                     >
                       {opt.label}

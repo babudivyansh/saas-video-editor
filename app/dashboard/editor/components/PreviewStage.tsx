@@ -157,7 +157,7 @@ export default function PreviewStage() {
               onPointerMove={onOverlayPointerMove}
               onPointerUp={onOverlayPointerUp}
               className={`absolute -translate-x-1/2 -translate-y-1/2 cursor-move select-none ${
-                selection?.clipId === im.id ? "ring-2 ring-violet-500" : ""
+                selection?.clipId === im.id ? "ring-2 ring-editor-accent" : ""
               }`}
               style={{
                 left: `${im.x * 100}%`,
@@ -192,7 +192,7 @@ export default function PreviewStage() {
                   requestTextFocus(t.id);
                 }}
                 className={`absolute select-none whitespace-pre-wrap px-2 py-0.5 ${t.locked ? "cursor-default" : "cursor-move"} ${
-                  selection?.clipId === t.id ? "ring-2 ring-violet-500" : ""
+                  selection?.clipId === t.id ? "ring-2 ring-editor-accent" : ""
                 }`}
                 style={{
                   left: `${t.x * 100}%`,
@@ -232,7 +232,7 @@ export default function PreviewStage() {
                 onPointerMove={c.locked ? undefined : onOverlayPointerMove}
                 onPointerUp={c.locked ? undefined : onOverlayPointerUp}
                 className={`absolute select-none whitespace-pre-wrap px-2 py-0.5 ${c.locked ? "cursor-default" : "cursor-move"} ${
-                  selection?.clipId === c.id ? "ring-2 ring-violet-500" : ""
+                  selection?.clipId === c.id ? "ring-2 ring-editor-accent" : ""
                 }`}
                 style={{
                   left: `${c.x * 100}%`,

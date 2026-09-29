@@ -40,7 +40,7 @@ function TestimonialCard({ review }: { review: PublicReviewDTO }) {
           {subtext && <p className="truncate text-xs text-ink-soft">{subtext}</p>}
           <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
             {review.verifiedCustomer && (
-              <span className="inline-flex items-center rounded-full bg-tint-emerald px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+              <span className="inline-flex items-center rounded-full bg-tint-emerald px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-success">
                 Verified
               </span>
             )}

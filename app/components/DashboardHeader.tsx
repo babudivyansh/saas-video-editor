@@ -326,7 +326,7 @@ export default function DashboardHeader() {
             <DropdownItem
               item={dashboardResources[0]}
               onNavigate={() => {}}
-              chip={<span className="w-8 h-8 rounded-lg bg-tint-emerald text-emerald-600 flex items-center justify-center flex-shrink-0"><IcGift /></span>}
+              chip={<span className="w-8 h-8 rounded-lg bg-tint-emerald text-success flex items-center justify-center flex-shrink-0"><IcGift /></span>}
             />
             <DropdownItem
               item={dashboardResources[1]}

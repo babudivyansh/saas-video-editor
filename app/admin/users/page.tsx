@@ -282,7 +282,7 @@ export default function AdminUsersPage() {
                               <span className={subExpired ? "text-fg-subtle" : "text-fg-muted"}>
                                 {u.plan.name}
                                 {subExpired && (
-                                  <span className="ml-1.5 text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full align-middle">
+                                  <span className="ml-1.5 text-[10px] font-bold text-warning bg-warning/15 px-1.5 py-0.5 rounded-full align-middle">
                                     inactive
                                   </span>
                                 )}

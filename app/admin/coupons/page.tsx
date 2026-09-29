@@ -163,8 +163,8 @@ export default function AdminCouponsPage() {
                   <h3 className="font-mono font-bold text-fg tracking-wide">{c.code}</h3>
                   <span className="text-xs font-semibold text-brand bg-tint-blue px-2 py-0.5 rounded-full">{valueLabel(c)}</span>
                   <span className="text-xs text-fg-muted bg-surface-3 px-2 py-0.5 rounded-full">{c.appliesTo}</span>
-                  {c.featured && <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">Featured</span>}
-                  {c.firstPurchaseOnly && <span className="text-xs text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">1st purchase</span>}
+                  {c.featured && <span className="text-xs font-semibold text-warning bg-warning/10 px-2 py-0.5 rounded-full">Featured</span>}
+                  {c.firstPurchaseOnly && <span className="text-xs text-primary bg-primary/10 px-2 py-0.5 rounded-full">1st purchase</span>}
                   {!c.active && <span className="text-xs font-semibold text-error bg-error/10 px-2 py-0.5 rounded-full">Inactive</span>}
                 </div>
                 <div className="flex items-center gap-3">

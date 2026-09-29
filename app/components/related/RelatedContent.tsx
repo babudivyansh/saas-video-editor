@@ -78,9 +78,9 @@ export function RelatedSection({
  */
 function ScoreBadge({ score }: { score: number }) {
   const tone =
-    score >= 80 ? "bg-tint-emerald text-emerald-700"
+    score >= 80 ? "bg-tint-emerald text-success"
       : score >= 60 ? "bg-tint-blue text-brand"
-        : "bg-tint-amber text-amber-700";
+        : "bg-tint-amber text-warning";
   return (
     <span className={`absolute top-1.5 left-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${tone}`}>
       {score}

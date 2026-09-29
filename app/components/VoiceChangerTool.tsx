@@ -418,7 +418,7 @@ export default function VoiceChangerTool() {
 
                 {audioFile ? (
                   <div className="flex items-center gap-3 rounded-xl border border-line bg-surface-2 px-4 py-3">
-                    <div className="w-8 h-8 rounded-lg bg-[#335CFF]/10 flex items-center justify-center text-brand flex-shrink-0">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-brand flex-shrink-0">
                       <IcMic />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -477,7 +477,7 @@ export default function VoiceChangerTool() {
                   type="checkbox"
                   checked={removeNoise}
                   onChange={e => setRemoveNoise(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 accent-[#335CFF] cursor-pointer"
+                  className="w-4 h-4 rounded border-line accent-primary cursor-pointer"
                 />
                 <span className="text-sm text-fg-muted">Remove background noise</span>
               </label>
@@ -495,7 +495,7 @@ export default function VoiceChangerTool() {
                   step={0.01}
                   value={speed}
                   onChange={e => setSpeed(parseFloat(e.target.value))}
-                  className="w-full accent-[#335CFF]"
+                  className="w-full accent-primary"
                 />
               </div>
 
@@ -562,7 +562,7 @@ export default function VoiceChangerTool() {
                   <a
                     href={downloadUrl}
                     download={downloadFilename}
-                    className="flex items-center justify-center gap-2 w-full rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm font-semibold py-2.5 hover:bg-emerald-100 transition-colors"
+                    className="flex items-center justify-center gap-2 w-full rounded-xl border border-success/30 bg-success/10 text-success text-sm font-semibold py-2.5 hover:bg-success/15 transition-colors"
                   >
                     <IcDownload /> Download again
                   </a>

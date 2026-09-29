@@ -24,7 +24,7 @@ const BADGE_LABEL: Record<ReviewBadge, string> = {
 };
 
 const BADGE_CLASS: Record<ReviewBadge, string> = {
-  verified_customer: "text-emerald-700 bg-tint-emerald",
+  verified_customer: "text-success bg-tint-emerald",
   top_helpful: "text-brand bg-tint-blue",
   power_user: "text-accent-violet bg-tint-violet",
   early_adopter: "text-accent-fuchsia bg-tint-fuchsia",
@@ -165,7 +165,7 @@ export function ReviewCard({ review }: { review: PublicReviewDTO }) {
           {featureUsedLabel(review.featureUsed)}
         </span>
         {review.verifiedCustomer && (
-          <span className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wide rounded-full px-2 py-1 text-emerald-700 bg-tint-emerald">
+          <span className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wide rounded-full px-2 py-1 text-success bg-tint-emerald">
             <IcCheck /> Verified
           </span>
         )}
