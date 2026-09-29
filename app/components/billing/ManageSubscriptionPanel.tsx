@@ -164,8 +164,8 @@ export function ManageSubscriptionPanel({
                 {resuming ? "Turning renewal on…" : "Resume subscription"}
               </Button>
               {resumeError && (
-                <div role="alert" className="rounded-xl bg-amber-50 border border-amber-100 px-3.5 py-2.5">
-                  <p className="text-xs text-amber-900">{resumeError}</p>
+                <div role="alert" className="rounded-xl bg-warning/10 border border-warning/30 px-3.5 py-2.5">
+                  <p className="text-xs text-warning">{resumeError}</p>
                   {resumeNeedsNewPlan && (
                     <button
                       onClick={onChangePlan}

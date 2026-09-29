@@ -18,7 +18,7 @@ export default function FilterPanel() {
   if (!clip) {
     return (
       <div className="p-4">
-        <p className="text-xs leading-relaxed text-zinc-500">
+        <p className="text-xs leading-relaxed text-editor-text-muted">
           Select a video clip on the timeline to apply a color filter.
         </p>
       </div>
@@ -27,7 +27,7 @@ export default function FilterPanel() {
 
   return (
     <div className="flex flex-col gap-2 p-3">
-      <p className="px-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">Filter</p>
+      <p className="px-1 text-xs font-semibold uppercase tracking-wide text-editor-text-muted">Filter</p>
       <div className="grid grid-cols-2 gap-2">
         {(Object.keys(FILTER_PRESETS) as FilterPreset[]).map((key) => (
           <button
@@ -35,8 +35,8 @@ export default function FilterPanel() {
             onClick={() => updateClip("video", clip.id, { filter: key === "none" ? undefined : key })}
             className={`rounded-xl border p-3 text-left text-sm font-semibold transition-all cursor-pointer ${
               (clip.filter ?? "none") === key
-                ? "border-violet-500 bg-violet-600/15 text-violet-300"
-                : "border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-600"
+                ? "border-editor-accent bg-editor-accent/15 text-editor-accent"
+                : "border-editor-border bg-editor-card text-editor-text hover:border-editor-border-strong"
             }`}
             style={{ filter: FILTER_PRESETS[key].css }}
           >

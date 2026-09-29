@@ -83,7 +83,7 @@ export default function AdminAuditPage() {
 
   function actionColor(action: string) {
     if (action.includes("delete") || action.includes("expired") || action.includes("deactivat")) return "bg-error/15 text-error";
-    if (action.includes("created") || action.includes("refill") || action.includes("extend")) return "bg-green-100 text-green-700";
+    if (action.includes("created") || action.includes("refill") || action.includes("extend")) return "bg-success/15 text-success";
     return "bg-tint-violet text-brand";
   }
 

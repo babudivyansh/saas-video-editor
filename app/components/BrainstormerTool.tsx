@@ -74,7 +74,7 @@ function IdeaCard({ idea, index }: { idea: Idea; index: number }) {
         <button
           onClick={handleCopy}
           title="Copy idea"
-          className={`flex-shrink-0 p-1.5 rounded-lg transition-colors ${copied ? "text-success bg-green-50" : "text-fg-subtle hover:text-fg hover:bg-surface-3"}`}
+          className={`flex-shrink-0 p-1.5 rounded-lg transition-colors ${copied ? "text-success bg-success/10" : "text-fg-subtle hover:text-fg hover:bg-surface-3"}`}
         >
           {copied ? <IcCheck /> : <IcCopy />}
         </button>
@@ -230,8 +230,7 @@ export default function BrainstormerTool() {
           <button
             onClick={() => void handleGenerate()}
             disabled={!canGenerate}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40"
-            style={{ background: "linear-gradient(135deg, #335CFF 0%, #7B5EA7 100%)" }}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold grad-brand text-on-primary transition-all disabled:opacity-40"
           >
             {stage === "loading" ? (
               <><Spinner /> Generating ideas…</>
@@ -275,7 +274,7 @@ export default function BrainstormerTool() {
             {stage === "done" && ideas.length > 0 && (
               <div className="space-y-3">
                 {ideas.length < 5 && (
-                  <p className="text-xs text-warning bg-amber-50 rounded-lg px-3 py-2">
+                  <p className="text-xs text-warning bg-warning/10 rounded-lg px-3 py-2">
                     Only {ideas.length} idea{ideas.length === 1 ? "" : "s"} came back this time — try generating again for a full set of 5.
                   </p>
                 )}

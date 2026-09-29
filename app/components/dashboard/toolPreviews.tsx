@@ -198,7 +198,7 @@ export function YouTubeDownloaderPreview() {
       </div>
       <div className="flex gap-1.5">
         {["720p MP4", "480p MP4", "MP3"].map((q, i) => (
-          <span key={i} className={`text-[9px] font-semibold px-2 py-1 rounded-lg border ${i === 0 ? "bg-red-500 text-white border-red-500" : "bg-panel border-line text-fg-muted"}`}>{q}</span>
+          <span key={i} className={`text-[9px] font-semibold px-2 py-1 rounded-lg border ${i === 0 ? "bg-red-500 text-white border-error/60" : "bg-panel border-line text-fg-muted"}`}>{q}</span>
         ))}
       </div>
     </div>
@@ -251,7 +251,7 @@ export function FaceSwapPreview() {
       {/* Arrow */}
       <svg viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" className="w-5 h-5 flex-shrink-0"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       {/* Target image */}
-      <div className="flex-1 rounded-xl overflow-hidden border-2 border-violet-300 bg-panel flex flex-col items-center justify-center p-2 gap-1.5 h-full max-h-44">
+      <div className="flex-1 rounded-xl overflow-hidden border-2 border-primary/30 bg-panel flex flex-col items-center justify-center p-2 gap-1.5 h-full max-h-44">
         <div className="w-16 h-16 rounded-full bg-gradient-to-br from-accent-violet to-accent-fuchsia flex items-center justify-center shadow">
           <svg viewBox="0 0 24 24" fill="white" className="w-8 h-8"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
         </div>

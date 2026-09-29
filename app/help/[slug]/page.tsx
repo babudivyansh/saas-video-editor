@@ -32,7 +32,7 @@ export default async function HelpArticlePage({ params }: { params: Promise<{ sl
             ← Help Center
           </Link>
 
-          <span className="mt-5 inline-block rounded-full bg-[#335CFF]/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-brand">
+          <span className="mt-5 inline-block rounded-full bg-primary/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-brand">
             {article.category}
           </span>
           <h1 className="mt-4 text-3xl font-extrabold leading-tight text-fg md:text-4xl">{article.title}</h1>
@@ -48,7 +48,7 @@ export default async function HelpArticlePage({ params }: { params: Promise<{ sl
             ))}
           </div>
 
-          <div className="mt-12 rounded-2xl border border-[#E8EDFF] bg-gradient-to-br from-[#335CFF]/[0.04] to-purple-400/[0.04] p-8 text-center">
+          <div className="mt-12 rounded-2xl border border-line bg-gradient-to-br from-primary/[0.04] to-emerald-bright/[0.04] p-8 text-center">
             <h2 className="text-xl font-extrabold text-fg">Didn&apos;t answer your question?</h2>
             <p className="mx-auto mt-2 max-w-md text-sm text-fg-muted">We answer every message — usually within a day.</p>
             <Link
@@ -67,7 +67,7 @@ export default async function HelpArticlePage({ params }: { params: Promise<{ sl
                   <Link
                     key={r.slug}
                     href={`/help/${r.slug}`}
-                    className="group rounded-xl border border-line p-5 transition-colors hover:border-[#335CFF]/30"
+                    className="group rounded-xl border border-line p-5 transition-colors hover:border-primary/30"
                   >
                     <span className="text-xs font-bold uppercase tracking-widest text-brand">{r.category}</span>
                     <p className="mt-1.5 text-sm font-bold leading-snug text-fg group-hover:text-brand">{r.title}</p>

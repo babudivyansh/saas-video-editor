@@ -31,8 +31,8 @@ const STATUS_TABS = ["all", "pending", "published", "rejected", "hidden"] as con
 type StatusTab = (typeof STATUS_TABS)[number];
 
 const STATUS_BADGE: Record<AdminReview["status"], string> = {
-  pending: "bg-amber-100 text-amber-700",
-  published: "bg-emerald-100 text-emerald-700",
+  pending: "bg-warning/15 text-warning",
+  published: "bg-success/15 text-success",
   rejected: "bg-error/15 text-error",
   hidden: "bg-surface-3 text-fg-muted",
 };
@@ -157,7 +157,7 @@ export default function AdminReviewsPage() {
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {r.status !== "published" && (
-                            <Button variant="secondary" size="sm" disabled={busy} onClick={() => moderateMutation.mutate({ id: r.id, action: "approve" })} className="!text-emerald-700 !border-emerald-200 hover:!bg-emerald-50">
+                            <Button variant="secondary" size="sm" disabled={busy} onClick={() => moderateMutation.mutate({ id: r.id, action: "approve" })} className="!text-success !border-success/30 hover:!bg-success/10">
                               Approve
                             </Button>
                           )}
@@ -177,11 +177,11 @@ export default function AdminReviewsPage() {
                           )}
                           {r.status === "published" && (
                             r.pinned ? (
-                              <Button variant="secondary" size="sm" disabled={busy} onClick={() => moderateMutation.mutate({ id: r.id, action: "unpin" })} className="!text-violet-700 !border-violet-200 hover:!bg-violet-50">
+                              <Button variant="secondary" size="sm" disabled={busy} onClick={() => moderateMutation.mutate({ id: r.id, action: "unpin" })} className="!text-primary !border-primary/30 hover:!bg-primary/10">
                                 Unpin
                               </Button>
                             ) : (
-                              <Button variant="secondary" size="sm" disabled={busy} onClick={() => moderateMutation.mutate({ id: r.id, action: "pin" })} className="!text-violet-700 !border-violet-200 hover:!bg-violet-50">
+                              <Button variant="secondary" size="sm" disabled={busy} onClick={() => moderateMutation.mutate({ id: r.id, action: "pin" })} className="!text-primary !border-primary/30 hover:!bg-primary/10">
                                 Feature
                               </Button>
                             )

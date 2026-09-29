@@ -46,10 +46,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ];
   });
 
-  const publishedReviews = await prisma.review.findMany({
-    where: { status: "published" },
-    select: { id: true, updatedAt: true },
-  });
+  // The one DB-backed section. If the database is unreachable the rest of the
+  // sitemap is still valid — a 500 here used to drop every URL at once.
+  const publishedReviews = await prisma.review
+    .findMany({
+      where: { status: "published" },
+      select: { id: true, updatedAt: true },
+    })
+    .catch(() => []);
   const reviewEntries: MetadataRoute.Sitemap = publishedReviews.map((r) => ({
     url: `${base}/reviews/${r.id}`,
     lastModified: r.updatedAt,

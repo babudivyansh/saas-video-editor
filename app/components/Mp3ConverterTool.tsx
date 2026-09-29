@@ -250,9 +250,9 @@ export default function Mp3ConverterTool() {
 
           {/* Uploaded file card */}
           {stage !== "idle" && file && (
-            <div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 flex items-center gap-3">
+            <div className="mt-4 rounded-xl border border-success/30 bg-success/10 px-4 py-3 flex items-center gap-3">
               <span className="text-success flex-shrink-0"><IcCheck /></span>
-              <span className="w-8 h-8 rounded-lg bg-panel border border-green-200 flex items-center justify-center text-fg-muted flex-shrink-0"><IcDoc /></span>
+              <span className="w-8 h-8 rounded-lg bg-panel border border-success/30 flex items-center justify-center text-fg-muted flex-shrink-0"><IcDoc /></span>
               <div className="min-w-0 flex-1">
                 <p className="text-[14px] font-semibold text-fg truncate">{truncate(file.name)}</p>
                 <p className="text-xs text-fg-muted mt-0.5">{fmtMB(file.size)} • Uploaded successfully</p>
@@ -315,8 +315,8 @@ export default function Mp3ConverterTool() {
 
           {/* Conversion complete */}
           {stage === "done" && file && outputBlob && (
-            <div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
-              <div className="flex items-center gap-2 text-green-700 font-semibold">
+            <div className="mt-4 rounded-xl border border-success/30 bg-success/10 px-4 py-3">
+              <div className="flex items-center gap-2 text-success font-semibold">
                 <IcCheck className="w-5 h-5" /> Conversion Complete
               </div>
               <div className="mt-2 space-y-1 text-sm">

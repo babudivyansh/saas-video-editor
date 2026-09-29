@@ -16,7 +16,7 @@ import { Card as UiCard } from "@/app/components/ui/Card";
 
 function Badge({ ok, label }: { ok: boolean; label: string }) {
   return (
-    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${ok ? "bg-emerald-100 text-emerald-700" : "bg-error/15 text-error"}`}>
+    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${ok ? "bg-success/15 text-success" : "bg-error/15 text-error"}`}>
       {label}
     </span>
   );

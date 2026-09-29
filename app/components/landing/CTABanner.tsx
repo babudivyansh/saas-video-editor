@@ -17,7 +17,7 @@ export default function CTABanner() {
           <div className="relative overflow-hidden rounded-3xl md:ml-25 bg-gradient-to-br from-brand-deep to-brand-dark px-8 py-16 text-center shadow-2xl shadow-brand/30 md:px-16">
             {/* Decorative blobs */}
             <div className="clipiro-blob pointer-events-none absolute -left-10 -top-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
-            <div className="clipiro-blob pointer-events-none absolute -bottom-12 -right-8 h-56 w-56 rounded-full bg-emerald-200/20 blur-2xl" style={{ animationDelay: "3s" }} />
+            <div className="clipiro-blob pointer-events-none absolute -bottom-12 -right-8 h-56 w-56 rounded-full bg-success/5 blur-2xl" style={{ animationDelay: "3s" }} />
 
             <div className="relative">
               <h2 className="mx-auto max-w-2xl text-3xl font-extrabold leading-tight text-white md:text-5xl">

@@ -90,7 +90,7 @@ export default function AdminToolsPage() {
                       <td className="py-3 px-3 text-fg-muted text-xs">{t.service}</td>
                       <td className="py-3 px-3">
                         {t.enabled
-                          ? <span className="text-[10px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">ENABLED</span>
+                          ? <span className="text-[10px] font-bold text-success bg-success/15 px-2 py-0.5 rounded-full">ENABLED</span>
                           : <span className="text-[10px] font-bold text-error bg-error/15 px-2 py-0.5 rounded-full">DISABLED</span>}
                       </td>
                       <td className="py-3 px-3">

@@ -242,7 +242,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                   <Link
                     key={r.slug}
                     href={`/blog/${r.slug}`}
-                    className="group rounded-xl border border-line p-5 transition-colors hover:border-[#335CFF]/30"
+                    className="group rounded-xl border border-line p-5 transition-colors hover:border-primary/30"
                   >
                     <span className="text-xs font-bold uppercase tracking-widest text-brand">{r.category}</span>
                     <p className="mt-1.5 text-sm font-bold leading-snug text-fg group-hover:text-brand">{r.title}</p>

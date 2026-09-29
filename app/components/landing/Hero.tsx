@@ -160,11 +160,11 @@ export default function Hero({ reviewSummary }: HeroProps) {
                       <div className="h-full w-1/3 rounded bg-brand/60" />
                     </div>
                     <div className="flex h-3.5 items-center gap-1">
-                      <div className="ml-[10%] h-full w-1/4 rounded bg-amber-300/80" />
-                      <div className="ml-[15%] h-full w-1/5 rounded bg-amber-200" />
+                      <div className="ml-[10%] h-full w-1/4 rounded bg-warning/80" />
+                      <div className="ml-[15%] h-full w-1/5 rounded bg-warning/50" />
                     </div>
                     <div className="flex h-3.5 items-center">
-                      <div className="h-full w-3/4 rounded bg-emerald-200" />
+                      <div className="h-full w-3/4 rounded bg-success/50" />
                     </div>
                   </div>
                 </div>

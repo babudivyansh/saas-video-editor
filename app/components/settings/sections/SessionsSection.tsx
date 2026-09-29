@@ -94,7 +94,7 @@ export default function SessionsSettingsPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-ink truncate">
                     {s.device}
-                    {s.isCurrent && <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-green-700 bg-tint-emerald px-1.5 py-0.5 rounded-full align-middle">{t("thisDevice")}</span>}
+                    {s.isCurrent && <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-success bg-tint-emerald px-1.5 py-0.5 rounded-full align-middle">{t("thisDevice")}</span>}
                   </p>
                   <p className="text-xs text-ink-soft mt-0.5">{s.country ?? t("unknownLocation")}{s.ip ? ` · ${s.ip}` : ""} · {t("activeAgo", { relative: format.relativeTime(s.lastSeenAt, now) })}</p>
                 </div>

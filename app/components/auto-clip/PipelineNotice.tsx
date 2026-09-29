@@ -5,8 +5,8 @@ import { useState } from "react";
 // What the pipeline had to skip, said once and quietly.
 //
 // This replaces two stacked amber banners that opened with an apology and ran
-// to three lines each. They were also styled light — bg-amber-50 on
-// text-amber-800 — which on the dark results page read as two white slabs
+// to three lines each. They were also styled light — bg-warning/10 on
+// text-warning — which on the dark results page read as two white slabs
 // above the clips, which is what made a truthful message feel like an error
 // state.
 //

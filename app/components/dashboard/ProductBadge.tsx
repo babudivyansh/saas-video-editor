@@ -15,7 +15,7 @@ export const PRODUCT_LABELS: Record<string, string> = {
 };
 
 const COLORS: Record<string, string> = {
-  "auto-clip": "bg-tint-emerald text-emerald-600",
+  "auto-clip": "bg-tint-emerald text-success",
   editor: "bg-tint-violet text-accent-violet",
 };
 

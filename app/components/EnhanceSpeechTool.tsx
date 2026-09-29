@@ -283,11 +283,11 @@ export default function EnhanceSpeechTool() {
 
           {/* Complete */}
           {stage === "done" && downloadUrl && (
-            <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-3">
+            <div className="flex items-center gap-3 bg-success/10 border border-success/30 rounded-xl p-3">
               <svg className="w-5 h-5 text-success shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-sm text-green-700 font-medium flex-1">Done! Audio downloaded.</p>
+              <p className="text-sm text-success font-medium flex-1">Done! Audio downloaded.</p>
               <a href={downloadUrl} download={downloadName} className="text-xs text-brand font-medium hover:underline">
                 Download again
               </a>
@@ -299,16 +299,14 @@ export default function EnhanceSpeechTool() {
             <button
               onClick={() => void handleGenerate()}
               disabled={stage === "processing" || !file}
-              className="w-full py-3 rounded-xl text-sm font-semibold text-white transition-opacity disabled:opacity-40"
-              style={{ background: "linear-gradient(135deg, #335CFF 0%, #7B5EA7 100%)" }}
+              className="w-full py-3 rounded-xl text-sm font-semibold grad-brand text-on-primary transition-opacity disabled:opacity-40"
             >
               {stage === "processing" ? "Enhancing…" : "Generate Audio"}
             </button>
           ) : (
             <button
               onClick={handleAgain}
-              className="w-full py-3 rounded-xl text-sm font-semibold text-white"
-              style={{ background: "linear-gradient(135deg, #335CFF 0%, #7B5EA7 100%)" }}
+              className="w-full py-3 rounded-xl text-sm font-semibold grad-brand text-on-primary"
             >
               Enhance Another
             </button>

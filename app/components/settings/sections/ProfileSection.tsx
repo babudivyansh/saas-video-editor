@@ -17,7 +17,7 @@ function IcCopy() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentC
 function IcCheck() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M5 13l4 4L19 7" /></svg>; }
 function IcSpinner() { return <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />; }
 
-const inputCls = "w-full bg-panel border border-card-border rounded-xl px-4 py-3 text-sm text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all";
+const inputCls = "w-full bg-panel border border-card-border rounded-xl px-4 py-3 text-sm text-ink placeholder:text-fg-subtle outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/25 transition-all"; // same as ui/Field
 const labelCls = "text-xs font-semibold text-ink-soft uppercase tracking-wide block mb-1.5";
 
 export default function ProfileSettingsPage() {

@@ -29,11 +29,16 @@ export interface GaugeProps {
 const LOW = 40;
 const HIGH = 70;
 
-/** Band colours come from the design tokens, not from a red/amber/green guess. */
+/**
+ * Band colours come from the design tokens, not from a red/amber/green guess.
+ * (--brand-fuchsia / --brand-violet were never defined in the emerald theme,
+ * so every gauge rendered its retired fuchsia/violet fallbacks.) Brighter =
+ * better: lime for strong, emerald for middling, muted for low.
+ */
 function bandColor(value: number): string {
-  if (value >= HIGH) return "var(--brand-fuchsia, #d946ef)";
-  if (value >= LOW) return "var(--brand-violet, #7c3aed)";
-  return "var(--brand, #335cff)";
+  if (value >= HIGH) return "var(--primary)";
+  if (value >= LOW) return "var(--emerald-bright)";
+  return "var(--fg-subtle)";
 }
 
 export function Gauge({ label, value, confidence = null, components = [], className = "" }: GaugeProps) {

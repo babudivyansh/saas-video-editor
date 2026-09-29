@@ -16,10 +16,10 @@ import type { BlogCategorySlug } from "./categories";
 type Palette = { from: string; to: string; ink: string };
 
 const PALETTES: Record<BlogCategorySlug, Palette> = {
-  guide: { from: "#335CFF", to: "#7C3AED", ink: "#ffffff" },
-  tutorial: { from: "#7C3AED", to: "#D946EF", ink: "#ffffff" },
-  growth: { from: "#0EA5E9", to: "#335CFF", ink: "#ffffff" },
-  captions: { from: "#D946EF", to: "#F97316", ink: "#ffffff" },
+  guide: { from: "#06291c", to: "#00a968", ink: "#f5f7f4" },
+  tutorial: { from: "#0b1210", to: "#20d68a", ink: "#f5f7f4" },
+  growth: { from: "#0a2a2a", to: "#14b8a6", ink: "#f5f7f4" },
+  captions: { from: "#1a2a06", to: "#84cc16", ink: "#f5f7f4" },
   "multi-language": { from: "#10B981", to: "#0EA5E9", ink: "#ffffff" },
   product: { from: "#3B5EFF", to: "#06B6D4", ink: "#ffffff" },
 };

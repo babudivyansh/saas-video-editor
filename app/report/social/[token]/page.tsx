@@ -15,6 +15,13 @@ import { fmtCompact, fmtPct } from "@/app/components/charts/format";
 
 export const dynamic = "force-dynamic";
 
+// A shared analytics report is private data behind a link — it must never be
+// indexed (it had no metadata at all, and /report/ wasn't in robots.txt).
+export const metadata = {
+  title: "Social report",
+  robots: { index: false, follow: false, nocache: true },
+};
+
 const RANGE_DAYS = 30;
 
 const REJECTION_COPY: Record<LinkRejection, { title: string; detail: string }> = {

@@ -7,7 +7,7 @@ export function ProjectStatusBadge({ status }: { status: string }) {
   return (
     <span
       className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-        status === "completed" ? "bg-tint-emerald text-green-700"
+        status === "completed" ? "bg-tint-emerald text-success"
         : status === "failed" ? "bg-error/10 text-error"
         : "bg-tint-violet text-accent-violet"
       }`}
