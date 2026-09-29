@@ -79,6 +79,7 @@ function ImageDropZone({
           <img src={slot.preview} alt={label} className="w-full h-full object-cover" />
           {!disabled && (
             <button
+              aria-label="Remove image"
               type="button"
               onClick={onClear}
               className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/70 hover:bg-black/850 text-white flex items-center justify-center transition-colors"

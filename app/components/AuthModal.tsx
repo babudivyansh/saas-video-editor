@@ -2,12 +2,12 @@
 
 import { useAuth } from "./AuthContext";
 import AuthForm from "./AuthForm";
+import { Modal } from "./ui/Modal";
 
 export default function AuthModal() {
   const { authModal, closeAuthModal, refreshUser } = useAuth();
   const { feature, isFree, next } = authModal;
 
-  if (!authModal.isOpen) return null;
 
   const handleSuccess = async (_token: string) => {
     await refreshUser();
@@ -22,27 +22,24 @@ export default function AuthModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300"
-        onClick={isFree ? undefined : closeAuthModal}
-      />
-
-      {/* Modal Container */}
-      <div className="relative z-10 w-full max-w-[760px] min-h-[520px] flex rounded-2xl shadow-2xl overflow-hidden bg-panel max-h-[90vh]">
-        {/* Close Button — hidden for free tools (sign-in required) */}
-        {!isFree && (
-          <button
-            onClick={closeAuthModal}
-            className="absolute top-4 right-4 z-50 p-1.5 rounded-full text-fg-subtle hover:text-fg-muted hover:bg-surface-3 transition-all"
-            aria-label="Close authentication window"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-        )}
+    <Modal
+      open={authModal.isOpen}
+      onClose={closeAuthModal}
+      bare
+      ariaLabel={authModal.mode === "register" ? "Create your account" : "Sign in"}
+      maxWidth="max-w-[760px]"
+      panelClassName="relative flex !overflow-hidden sm:min-h-[min(520px,90vh)]"
+    >
+        <button
+          type="button"
+          onClick={closeAuthModal}
+          className="absolute top-4 right-4 z-50 p-1.5 rounded-full text-fg-subtle hover:text-fg-muted hover:bg-surface-3 transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+          aria-label="Close"
+        >
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
 
         {/* Auth Form (Left sliding panel inside AuthForm) */}
         <div className="flex-1 overflow-y-auto max-h-[90vh]">
@@ -111,7 +108,6 @@ export default function AuthModal() {
             )}
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

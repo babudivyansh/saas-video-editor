@@ -33,7 +33,7 @@ export default function SelectField({
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className="flex w-full items-center justify-between gap-1 rounded-editor-sm border border-editor-border bg-editor-card px-2 py-1 text-xs text-editor-text outline-none transition-colors cursor-pointer hover:border-editor-border-strong"
+          className="flex w-full items-center justify-between gap-1 rounded-editor-sm border border-editor-border bg-editor-card px-2 py-1 text-xs text-editor-text outline-none transition-colors cursor-pointer hover:border-editor-border-strong focus-visible:ring-2 focus-visible:ring-editor-accent"
         >
           <span className="truncate">{value}</span>
           <ChevronDown className={`h-3 w-3 flex-shrink-0 text-editor-text-muted transition-transform ${open ? "rotate-180" : ""}`} />

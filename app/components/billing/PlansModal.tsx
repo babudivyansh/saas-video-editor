@@ -354,7 +354,7 @@ function CheckoutStep({
                   You&apos;ve already paid through {new Date(subscriptionEndsAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} — this plan begins right after, so you won&apos;t be charged for time you already have.
                 </p>
               </div>
-              <button onClick={onDismissRenewalWarning} className="text-warning hover:text-amber-700 flex-shrink-0 ml-1">
+              <button aria-label="Dismiss" onClick={onDismissRenewalWarning} className="text-warning hover:text-amber-700 flex-shrink-0 ml-1">
                 <XIcon className="w-4 h-4" />
               </button>
             </div>
@@ -369,7 +369,7 @@ function CheckoutStep({
                   Buying now will <strong>reset</strong> your subscription to {plan.intervalMonths && plan.intervalMonths > 1 ? `${plan.intervalMonths} months` : "1 month"} from today — not extend your current plan (active until {new Date(subscriptionEndsAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}).
                 </p>
               </div>
-              <button onClick={onDismissRenewalWarning} className="text-warning hover:text-amber-700 flex-shrink-0 ml-1">
+              <button aria-label="Dismiss" onClick={onDismissRenewalWarning} className="text-warning hover:text-amber-700 flex-shrink-0 ml-1">
                 <XIcon className="w-4 h-4" />
               </button>
             </div>

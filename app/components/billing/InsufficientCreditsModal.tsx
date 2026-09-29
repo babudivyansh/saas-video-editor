@@ -12,6 +12,7 @@ import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
 import type { InsufficientCreditsInfo } from "./CreditModalContext";
+import { Modal } from "@/app/components/ui/Modal";
 
 interface DbPlan {
   id: string;
@@ -100,12 +101,13 @@ export function InsufficientCreditsModal({ info, onClose }: {
     });
   }
 
+  // ui/Modal for Esc, focus trap and scroll lock (it had only the role).
+  // Can't be dismissed while a payment is in flight.
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Out of credits">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={paying ? undefined : onClose} />
-
-      <div className="relative z-10 w-full max-w-md bg-panel rounded-2xl shadow-2xl p-7">
+    <Modal open onClose={paying ? () => {} : onClose} bare ariaLabel="Out of credits" maxWidth="max-w-md">
+      <div className="relative p-7">
         <button
+          type="button"
           onClick={onClose}
           disabled={paying}
           className="absolute top-4 right-4 p-1.5 rounded-full text-fg-subtle hover:text-fg-muted hover:bg-surface-3 transition-all disabled:opacity-40"
@@ -168,7 +170,7 @@ export function InsufficientCreditsModal({ info, onClose }: {
                       name="topup-pack"
                       checked={active}
                       onChange={() => setSelected(pack.slug)}
-                      className="w-4 h-4 accent-blue-600 flex-shrink-0"
+                      className="w-4 h-4 accent-primary flex-shrink-0"
                     />
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-fg text-sm">{pack.name}</p>
@@ -206,6 +208,6 @@ export function InsufficientCreditsModal({ info, onClose }: {
           </>
         )}
       </div>
-    </div>
+    </Modal>
   );
 }

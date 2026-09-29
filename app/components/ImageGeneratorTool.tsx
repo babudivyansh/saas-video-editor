@@ -8,6 +8,7 @@ import type { ModelOverrideMap } from "@/lib/model-overrides";
 import { useModelOverrides } from "./useModelOverrides";
 import type { ImageParam } from "@/lib/models/types";
 import { Tooltip } from "@/app/components/ui/Tooltip";
+import { Modal } from "@/app/components/ui/Modal";
 
 // Aspect ratios are per model (lib/models/imageModels.ts, from each provider's
 // schema). The old shared list offered "Original" and ratios most models ignored.
@@ -300,30 +301,34 @@ export default function ImageGeneratorTool() {
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleReferenceUpload} />
 
       {/* Lightbox */}
+      {/* ui/Modal: Esc closes it now, focus is trapped, and the icon buttons
+          have names. */}
       {lightbox && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6" onClick={() => setLightbox(null)}>
-          <div className="relative max-w-3xl w-full" onClick={e => e.stopPropagation()}>
+        <Modal open onClose={() => setLightbox(null)} bare ariaLabel="Generated image" maxWidth="max-w-3xl" panelClassName="!bg-transparent !border-transparent !shadow-none">
+          <div className="relative w-full">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={lightbox.imageUrl} alt={lightbox.prompt} className="w-full rounded-2xl shadow-2xl" />
             <div className="absolute top-3 right-3 flex gap-2">
               <a
                 href={lightbox.imageUrl}
                 download="generated-image.png"
-                className="w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center transition-colors"
-                onClick={e => e.stopPropagation()}
+                aria-label="Download image"
+                className="w-10 h-10 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white/70"
               >
                 <IcDownload />
               </a>
               <button
+                type="button"
                 onClick={() => setLightbox(null)}
-                className="w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center transition-colors cursor-pointer"
+                aria-label="Close"
+                className="w-10 h-10 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-white/70"
               >
                 <IcX />
               </button>
             </div>
             <p className="text-white/70 text-[12px] mt-3 line-clamp-2">{lightbox.prompt}</p>
           </div>
-        </div>
+        </Modal>
       )}
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">

@@ -132,10 +132,10 @@ const BUDGET = {
   // 30 -> 26: Studio shell + home redesign dropped the old tinted cards and skeletons.
   // 26 -> 23: homepage SocialProof / HowItWorks / FAQ lost their bg-gray-50/60
   // bands so every landing section sits on the one page background.
-  "raw-gray": 21, // audit 2026-09-29 stage 5: cookie preferences on tokens. Was: // 31 -> 30: PlansModal lost its subscription coupon field (and its hover:bg-gray-800)
+  "raw-gray": 20, /* stage 6: recovery-code placeholder */ // audit 2026-09-29 stage 5: cookie preferences on tokens. Was: // 31 -> 30: PlansModal lost its subscription coupon field (and its hover:bg-gray-800)
   // 5 -> 4: same deletion.
   "bg-white": 0, // 1 -> 0: the GST receipt rewrite dropped the last print:bg-white
-  "raw-slate": 9,
+  "raw-slate": 6, // audit 2026-09-29 stage 6: voice cards + reset page wash (was 9)
   "raw-zinc": 0,
   "raw-blue": 0,
   "raw-red": 11,
@@ -149,7 +149,7 @@ const BUDGET = {
   // 90 -> 82: the clips/assets library redesign replaced the assets sidebar,
   // toolbar and drop zone, and the Projects tab's gradient covers.
   // 82 -> 79: Studio shell + home redesign (tool tiles, header, quest card).
-  "raw-violet": 57, // audit 2026-09-29: /editor wizard deleted + stage 5 API keys/export modal (was 79)
+  "raw-violet": 55, /* + stage 6 asset cards */ // audit 2026-09-29: /editor wizard deleted + stage 5 API keys/export modal (was 79)
   // First measurement, 2026-09-10, taken AFTER the Social Tracker's share was
   // paid off in the same commit that added the rule. The 138 that remain are
   // spread over ~30 files — pricing (11), PlansModal (10), admin/ops (8),
@@ -160,7 +160,7 @@ const BUDGET = {
   // 119 -> 111: the AI video generator removal (its tool page, dashboard tile
   // and onboarding goal chip).
   // 111 -> 108: Studio shell + home redesign.
-  "raw-emerald": 107, // audit 2026-09-29 stage 5: cookie preferences (was 108)
+  "raw-emerald": 105, /* stage 6: asset card badge */ // audit 2026-09-29 stage 5: cookie preferences (was 108)
   // 51 -> 47: four of the retired brand hexes lived in the caption tile tables
   // deleted below.
   // 47 -> 43: four more went with the per-page voice lists, whose entries

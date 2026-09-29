@@ -7,7 +7,6 @@
 import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { useTranslations } from "next-intl";
 
 interface ModalProps {
   open: boolean;
@@ -27,10 +26,24 @@ interface ModalProps {
    * between views in place rather than stacking a second dialog on top.
    */
   onBack?: () => void;
+  /**
+   * For dialogs with their own full layout (the auth split panel, a media
+   * lightbox): no body padding and no panel chrome beyond the container, but
+   * the same focus trap, Esc, scroll lock, focus restore and portal. Hand-rolled
+   * overlays existed mostly because this padding didn't fit them.
+   */
+  bare?: boolean;
+  /** Accessible name when there is no visible `title`. */
+  ariaLabel?: string;
+  /** Extra classes for the dialog panel (e.g. size or background for `bare`). */
+  panelClassName?: string;
 }
 
-export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", variant = "center", onBack }: ModalProps) {
-  const t = useTranslations("Common");
+export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", variant = "center", onBack, bare = false, ariaLabel, panelClassName = "" }: ModalProps) {
+  // No useTranslations here: the root layout has no NextIntlClientProvider,
+  // and this dialog is used outside the dashboard (the sign-in modal on every
+  // marketing page, the homepage demo). A translated aria-label isn't worth
+  // a crash on those pages; callers with a visible title already name it.
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const lastFocused = useRef<HTMLElement | null>(null);
@@ -100,12 +113,12 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", v
             role="dialog"
             aria-modal="true"
             aria-labelledby={title ? titleId : undefined}
-            aria-label={title ? undefined : "Dialog"}
+            aria-label={title ? undefined : ariaLabel ?? "Dialog"}
             tabIndex={-1}
             className={
               isDrawer
                 ? `w-full ${maxWidth} h-full bg-panel shadow-xl border-l border-card-border outline-none overflow-y-auto`
-                : `w-full ${maxWidth} bg-panel rounded-[var(--radius-card)] shadow-xl border border-card-border outline-none max-h-[90vh] overflow-y-auto`
+                : `w-full ${maxWidth} bg-panel rounded-[var(--radius-card)] shadow-xl border border-card-border outline-none max-h-[90vh] overflow-y-auto ${panelClassName}`
             }
             initial={isDrawer ? { x: "100%" } : { opacity: 0, scale: 0.96, y: 8 }}
             animate={isDrawer ? { x: 0 } : { opacity: 1, scale: 1, y: 0 }}
@@ -132,7 +145,7 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", v
                 </div>
                 <button
                   onClick={onClose}
-                  aria-label={t("close")}
+                  aria-label="Close"
                   className="w-7 h-7 rounded-full flex items-center justify-center text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors cursor-pointer"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
@@ -141,7 +154,7 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", v
                 </button>
               </div>
             )}
-            <div className="p-5">{children}</div>
+            {bare ? children : <div className="p-5">{children}</div>}
           </motion.div>
         </motion.div>
       )}

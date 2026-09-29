@@ -29,7 +29,7 @@ export default function Slider({
           step={step}
           onChange={(e) => onChange(parseFloat(e.target.value))}
           style={sliderTrackStyle(value, min, max)}
-          className={`h-1.5 w-24 cursor-pointer appearance-none rounded-editor-full border border-editor-border outline-none ${SLIDER_THUMB_CLASSES}`}
+          className={`h-1.5 w-24 cursor-pointer appearance-none rounded-editor-full border border-editor-border outline-none focus-visible:ring-2 focus-visible:ring-editor-accent focus-visible:ring-offset-1 focus-visible:ring-offset-editor-bg ${SLIDER_THUMB_CLASSES}`}
         />
         <span className="w-8 text-right text-[10px] text-editor-text-muted">{Math.round(value * 100)}%</span>
       </span>

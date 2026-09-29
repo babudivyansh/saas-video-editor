@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import Reveal from "@/app/components/Reveal";
+import { Modal } from "@/app/components/ui/Modal";
 import ShowcaseGlow from "@/app/components/marketing/ShowcaseGlow";
 import { PlayIcon, CheckIcon } from "@/app/components/landing/icons";
 import HeroRatingBadge from "@/app/components/landing/HeroRatingBadge";
@@ -188,15 +189,23 @@ export default function Hero({ reviewSummary }: HeroProps) {
         </Reveal>
       </div>
 
-      {/* Watch Demo modal */}
-      {demoOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setDemoOpen(false)} />
-          <div className="relative z-10 w-full max-w-4xl overflow-hidden rounded-2xl bg-black shadow-2xl">
+      {/* Watch Demo modal — ui/Modal for Esc, focus trap and a label (the
+          hand-rolled overlay had none). No autoplay: a video starting with
+          sound the moment a dialog opens is jarring, and the controls are
+          focused and one keypress away. */}
+      <Modal
+        open={demoOpen}
+        onClose={() => setDemoOpen(false)}
+        bare
+        ariaLabel="Clipiro demo video"
+        maxWidth="max-w-4xl"
+        panelClassName="relative !bg-black !border-transparent"
+      >
             <button
+              type="button"
               onClick={() => setDemoOpen(false)}
               aria-label="Close demo"
-              className="absolute right-3 top-3 z-10 rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+              className="absolute right-3 top-3 z-10 rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20 outline-none focus-visible:ring-2 focus-visible:ring-white/70"
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
@@ -207,13 +216,10 @@ export default function Hero({ reviewSummary }: HeroProps) {
                 className="h-full w-full"
                 src="/demo-video.mp4"
                 controls
-                autoPlay
                 playsInline
               />
             </div>
-          </div>
-        </div>
-      )}
+      </Modal>
     </section>
   );
 }
