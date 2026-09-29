@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { deleteS3Object, abortMultipartUpload } from "@/utils/s3-upload";
 import { env } from "@/lib/env";
 import { cronSecretMatches } from "@/lib/cron-auth";
 import { KNOWN_CRON_JOBS } from "@/lib/cron-tracking";
-import { logger } from "@/lib/logger";
 import { withCronTracking } from "@/lib/cron-tracking";
+import { purgeExpiredArchives, sweepOrphanedUploads } from "@/lib/asset-cleanup";
 
 // Scheduled entrypoint for an external scheduler (cron-job.org, Vercel Cron,
 // GitHub Actions, etc.) — same shared-secret pattern as
 // app/api/cron/social-refresh. Closes the audit finding that no job existed
 // to reconcile orphaned S3 objects or hard-delete archived assets.
 //
-// Jobs (select with ?job=):
+// Jobs (select with ?job=), implemented in lib/asset-cleanup.ts (shared with
+// the admin Content & Storage page):
 //   orphans    (default) — deletes S3 objects whose PendingUpload row never
 //                           got cleared (the DB insert after upload failed)
 //   retention            — permanently deletes assets archived >30 days ago
@@ -22,52 +21,6 @@ import { withCronTracking } from "@/lib/cron-tracking";
 //                   https://app.example.com/api/cron/asset-cleanup
 //   0 5 * * *     curl -H "Authorization: Bearer $ASSET_CLEANUP_SECRET" \
 //                   https://app.example.com/api/cron/asset-cleanup?job=retention
-
-const PENDING_GRACE_MINUTES = 30;
-const ARCHIVE_RETENTION_DAYS = 30;
-
-async function sweepOrphanedUploads(): Promise<{ deleted: number; failed: number }> {
-  const cutoff = new Date(Date.now() - PENDING_GRACE_MINUTES * 60 * 1000);
-  const stale = await prisma.pendingUpload.findMany({ where: { createdAt: { lt: cutoff } } });
-
-  let deleted = 0;
-  let failed = 0;
-  for (const row of stale) {
-    try {
-      if (row.multipartUploadId) {
-        await abortMultipartUpload(row.s3Key, row.multipartUploadId);
-      } else {
-        await deleteS3Object(row.s3Key);
-      }
-      await prisma.pendingUpload.delete({ where: { id: row.id } });
-      deleted++;
-    } catch (e) {
-      failed++;
-      logger.warn("asset-cleanup", `failed to clean up orphaned upload ${row.s3Key}`, { reason: (e as Error).message });
-    }
-  }
-  return { deleted, failed };
-}
-
-async function purgeExpiredArchives(): Promise<{ deleted: number; failed: number }> {
-  const cutoff = new Date(Date.now() - ARCHIVE_RETENTION_DAYS * 24 * 60 * 60 * 1000);
-  const expired = await prisma.asset.findMany({ where: { archivedAt: { lt: cutoff } } });
-
-  let deleted = 0;
-  let failed = 0;
-  for (const asset of expired) {
-    try {
-      await deleteS3Object(asset.s3Key);
-      if (asset.thumbnailS3Key) await deleteS3Object(asset.thumbnailS3Key).catch(() => {});
-      await prisma.asset.delete({ where: { id: asset.id } });
-      deleted++;
-    } catch (e) {
-      failed++;
-      logger.warn("asset-cleanup", `failed to purge expired archive ${asset.id}`, { reason: (e as Error).message });
-    }
-  }
-  return { deleted, failed };
-}
 
 async function handleGET(req: NextRequest) {
   const secret = env.ASSET_CLEANUP_SECRET;
@@ -82,12 +35,8 @@ async function handleGET(req: NextRequest) {
     return NextResponse.json({ error: `unknown job "${job}"` }, { status: 400 });
   }
 
-  if (job === "retention") {
-    const result = await purgeExpiredArchives();
-    return NextResponse.json({ ok: true, job, ...result });
-  }
-  const result = await sweepOrphanedUploads();
-  return NextResponse.json({ ok: true, job, ...result });
+  const { deleted, failed } = job === "retention" ? await purgeExpiredArchives() : await sweepOrphanedUploads();
+  return NextResponse.json({ ok: true, job, deleted, failed });
 }
 
 // Records when the run finished and whether it succeeded (lib/cron-tracking.ts).
