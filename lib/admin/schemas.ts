@@ -5,7 +5,6 @@
 // client bug we want surfaced, not silently dropped.
 
 import { z } from "zod";
-import { KNOWN_RENDER_QUEUE_NAMES } from "@/lib/render-queue";
 import { FEATURE_USED_VALUES, REVIEW_RATING_MAX, REVIEW_RATING_MIN, REVIEW_TITLE_MAX, REVIEW_BODY_MIN, REVIEW_BODY_MAX } from "@/lib/reviews/constants";
 
 const credits = z.number().int().min(0).max(1_000_000);
@@ -395,15 +394,21 @@ export const modelOverrideSchema = z
   .strict()
   .refine((v) => v.clear || v.enabled !== undefined || v.creditCost !== undefined, { message: "Nothing to update" });
 
-export const opsJobActionSchema = z
+// POST /api/admin/ops/queues/[name] — one queue action (lib/admin/queues.ts).
+// `confirmPhrase` must be the queue name for the destructive ones
+// (DESTRUCTIVE_QUEUE_ACTIONS), checked in the route.
+export const queueActionSchema = z
   .object({
-    jobId: z.string().min(1).max(200),
-    action: z.enum(["retry", "remove"]),
-    // Optional + defaulted (not required) so any existing caller that only
-    // ever knew about the editor-render queue keeps working unchanged.
-    queueName: z.enum(KNOWN_RENDER_QUEUE_NAMES).optional(),
+    action: z.enum(["retry", "remove", "retry-all-failed", "clean-failed", "clean-completed", "pause", "resume", "drain-waiting"]),
+    jobId: z.string().min(1).max(200).optional(),
+    confirmPhrase: z.string().max(200).optional(),
+    reason: z.string().trim().max(500).optional(),
   })
   .strict();
+
+export const queueJobsQuerySchema = z.object({
+  state: z.enum(["waiting", "active", "delayed", "failed", "completed"]).default("failed"),
+});
 
 export const opsFlagsSchema = z
   .object({

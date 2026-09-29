@@ -59,6 +59,59 @@ describe("InProcessQueue retries", () => {
   });
 });
 
+describe("InProcessQueue admin controls", () => {
+  it("keeps a job that exhausted its attempts in the failed set, and retry re-runs it", async () => {
+    let fail = true;
+    const handler = vi.fn(async () => { if (fail) throw new Error("boom"); });
+    const q = new InProcessQueue<{ projectId: string }>("admin-test-1", handler);
+    q.enqueue("f1", { projectId: "p1" });
+    await settle();
+    const snap = q.snapshot();
+    expect(snap.failed).toMatchObject([{ id: "f1", attempts: 3, error: "boom" }]);
+    expect(snap.failedTotal).toBe(1);
+
+    fail = false;
+    expect(q.retryFailed("f1")).toBe(true);
+    await settle();
+    expect(q.snapshot().failed).toEqual([]);
+    expect(q.snapshot().completedTotal).toBe(1);
+    expect(q.retryFailed("f1")).toBe(false);
+  });
+
+  it("pause stops new jobs starting; resume drains them", async () => {
+    const handler = vi.fn(async () => {});
+    const q = new InProcessQueue<{ projectId: string }>("admin-test-2", handler);
+    q.pause();
+    q.enqueue("a", { projectId: "p" });
+    q.enqueue("b", { projectId: "p" });
+    await settle();
+    expect(handler).not.toHaveBeenCalled();
+    expect(q.snapshot().waiting.map((w) => w.id)).toEqual(["a", "b"]);
+    expect(q.removeWaiting("a")).toBe(true);
+    q.resume();
+    await settle();
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("drainWaiting drops every waiting job without running it", async () => {
+    const handler = vi.fn(async () => {});
+    const q = new InProcessQueue<{ projectId: string }>("admin-test-3", handler);
+    q.pause();
+    q.enqueue("a", { projectId: "p" });
+    q.enqueue("b", { projectId: "p" });
+    expect(q.drainWaiting()).toBe(2);
+    q.resume();
+    await settle();
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("registers itself by name for the admin Queues tab", async () => {
+    const { inProcessQueues } = await import("./job-queue");
+    const q = new InProcessQueue<{ projectId: string }>("admin-test-4", vi.fn(async () => {}));
+    expect(inProcessQueues.get("admin-test-4")).toBe(q);
+  });
+});
+
 describe("NonRetryableError", () => {
   // Both drivers must recognise the SAME class. Re-exporting it from
   // render-queue (rather than declaring a second one) is what guarantees an
