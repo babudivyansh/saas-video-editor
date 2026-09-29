@@ -109,6 +109,11 @@ export async function POST(req: NextRequest) {
         where: { id: userId },
         select: { trialUsedAt: true, subscriptionEndsAt: true, razorpaySubscriptionId: true },
       });
+      if (!plan || !user) {
+        // Paid activation we can't attach to anything — a mis-slugged plan or a
+        // deleted user. Used to fall through to a silent 200.
+        logger.error("webhook", `subscription.activated ${sub.id} has no matching ${!plan ? `plan "${planSlug}"` : `user ${userId}`} — customer may be paying with no plan applied`);
+      }
       if (plan && user) {
         const endsAt = new Date();
         endsAt.setDate(endsAt.getDate() + 7); // covers the trial window; extended for real on first charge
@@ -239,13 +244,20 @@ export async function POST(req: NextRequest) {
     const reason = payment?.error_description ?? payment?.error_reason ?? null;
     // payment.failed also fires for one-off pack purchases, which have no
     // subscription and need no dunning — the user simply retries checkout.
+    // A failed write answers 500 so Razorpay redelivers — a 200 here meant the
+    // event (and the customer's dunning notice) was lost for good on any DB blip.
     if (sub?.id) {
-      await recordSubscriptionFailure({
-        subscriptionId: sub.id,
-        notesUserId: sub.notes?.userId,
-        type: event.event === "payment.failed" ? "payment_failed" : "pending",
-        reason,
-      }).catch((e) => logger.error("webhook", `dunning record failed for ${sub.id}`, e));
+      try {
+        await recordSubscriptionFailure({
+          subscriptionId: sub.id,
+          notesUserId: sub.notes?.userId,
+          type: event.event === "payment.failed" ? "payment_failed" : "pending",
+          reason,
+        });
+      } catch (e) {
+        logger.error("webhook", `dunning record failed for ${sub.id}`, e);
+        return NextResponse.json({ error: "dunning record failed" }, { status: 500 });
+      }
     }
     return NextResponse.json({ received: true });
   }
@@ -263,11 +275,13 @@ export async function POST(req: NextRequest) {
     // that the event is now persisted and, for a halt, surfaced to the user.
     if (sub?.id) {
       const type = event.event.replace("subscription.", "");
-      await recordSubscriptionLifecycle({
-        subscriptionId: sub.id,
-        notesUserId: sub.notes?.userId,
-        type,
-      }).catch((e) => logger.error("webhook", `lifecycle record failed for ${sub.id}`, e));
+      try {
+        await recordSubscriptionLifecycle({ subscriptionId: sub.id, notesUserId: sub.notes?.userId, type });
+      } catch (e) {
+        // Same as dunning: 500 so Razorpay retries instead of dropping the event.
+        logger.error("webhook", `lifecycle record failed for ${sub.id}`, e);
+        return NextResponse.json({ error: "lifecycle record failed" }, { status: 500 });
+      }
     }
     return NextResponse.json({ received: true });
   }
@@ -298,14 +312,21 @@ export async function POST(req: NextRequest) {
     const paymentId = event.payload?.refund?.entity?.payment_id ?? event.payload?.payment?.entity?.id;
     if (paymentId) {
       const { refundPurchase } = await import("@/lib/admin/billing");
-      await refundPurchase({
-        purchaseId: paymentId,
-        actorId: "system:razorpay-webhook",
-        reason: `Razorpay ${event.event}`,
-        clawbackCredits: true,
-      }).catch(() => {
-        /* unknown payment id (e.g. refund of a non-fulfilled payment) — nothing to record */
-      });
+      // An unknown payment id (a refund of a payment we never fulfilled)
+      // comes back as { ok: false }, not a throw — that's a normal 200. A throw
+      // is a real failure (DB down mid-clawback); answering 200 to it lost the
+      // refund and the credit clawback permanently, since Razorpay won't retry.
+      try {
+        await refundPurchase({
+          purchaseId: paymentId,
+          actorId: "system:razorpay-webhook",
+          reason: `Razorpay ${event.event}`,
+          clawbackCredits: true,
+        });
+      } catch (e) {
+        logger.error("webhook", `refund mirror failed for ${paymentId}`, e);
+        return NextResponse.json({ error: "refund mirror failed" }, { status: 500 });
+      }
     }
   }
 

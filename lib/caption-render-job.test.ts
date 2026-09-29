@@ -132,6 +132,32 @@ describe("claimAndEnqueueDownload", () => {
   });
 });
 
+describe("enqueue ids and lost enqueues", () => {
+  it("export and download ids are unique per attempt and colon-free, and must be accepted", async () => {
+    await claimAndEnqueueExport(job);
+    await claimAndEnqueueDownload(job);
+    const [exportCall, downloadCall] = enqueue.mock.calls as unknown as [string, unknown, { rejectOnFailure?: boolean }][];
+    expect(exportCall[0]).toMatch(/^job_1-export-/);
+    expect(downloadCall[0]).toMatch(/^job_1-download-/);
+    for (const call of [exportCall, downloadCall]) {
+      expect(call[0]).not.toContain(":");
+      expect(call[2]).toMatchObject({ rejectOnFailure: true });
+    }
+  });
+
+  it("hands an export claim back when the job can't be queued", async () => {
+    enqueue.mockRejectedValueOnce(new Error("redis down"));
+    await expect(claimAndEnqueueExport(job)).rejects.toThrow("redis down");
+    expect(updateMany).toHaveBeenLastCalledWith({ where: { id: "job_1", status: "export_queued" }, data: { status: "ready_to_edit" } });
+  });
+
+  it("puts a download claim back to rendering so the sweep can retry it", async () => {
+    enqueue.mockRejectedValueOnce(new Error("redis down"));
+    await expect(claimAndEnqueueDownload(job)).rejects.toThrow("redis down");
+    expect(updateMany).toHaveBeenLastCalledWith({ where: { id: "job_1", status: "downloading" }, data: { status: "rendering" } });
+  });
+});
+
 describe("failCaptionRender", () => {
   it("refunds against the stored refId", async () => {
     await failCaptionRender(job, "TIMEOUT", "took too long");
