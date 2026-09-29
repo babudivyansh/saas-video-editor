@@ -8,7 +8,7 @@ import { NextRequest } from "next/server";
 
 vi.mock("@/lib/env", () => ({ env: { CRON_SECRET: "cron" } }));
 vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
-vi.mock("@/lib/cron-tracking", () => ({ recordCronRun: vi.fn(async () => {}) }));
+vi.mock("@/lib/cron-tracking", () => ({ recordCronRun: vi.fn(async () => {}), withCronTracking: (_n: string, h: unknown) => h }));
 vi.mock("@/lib/notifications", () => ({ shouldSendCategory: vi.fn(async () => false) })); // everything opted out
 vi.mock("@/lib/currency", () => ({
   getPlanPriceMinor: vi.fn(async (_slug: string, paise: number, currency: string) => (currency === "USD" ? 2900 : paise)),

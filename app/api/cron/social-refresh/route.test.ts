@@ -32,11 +32,16 @@ vi.mock("@/lib/autoclip-publish", () => ({ refreshClipPublishMetrics: () => refr
 const recalibrateViralityWeights = vi.fn(async () => ({ recalibrated: false }));
 vi.mock("@/lib/virality-calibration", () => ({ recalibrateViralityWeights: () => recalibrateViralityWeights() }));
 
-const recordCronRun = vi.fn(async () => {});
-vi.mock("@/lib/cron-tracking", async (orig) => ({
-  ...(await orig<typeof import("@/lib/cron-tracking")>()),
-  recordCronRun: (...a: unknown[]) => recordCronRun(...a),
+// The real cron-tracking runs (withCronTracking wraps the route); what it
+// wrote to Redis is what these tests check.
+const redisKeys: string[] = [];
+vi.mock("@/lib/redis", () => ({
+  redis: {
+    set: vi.fn(async (k: string) => { redisKeys.push(k); }),
+    get: vi.fn(async () => null),
+  },
 }));
+const cronKeys = () => redisKeys.filter((k) => k.startsWith("cron:"));
 
 const { GET } = await import("./route");
 
@@ -65,12 +70,12 @@ const WORKERS = {
   goals: evaluateGoals,
 } as const;
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => { vi.clearAllMocks(); redisKeys.length = 0; });
 
 describe("GET /api/cron/social-refresh", () => {
   it("rejects a missing secret", async () => {
     expect((await run(undefined, null)).status).toBe(401);
-    expect(recordCronRun).not.toHaveBeenCalled();
+    expect(cronKeys()).toHaveLength(0);
   });
 
   it("rejects a wrong secret", async () => {
@@ -103,7 +108,8 @@ describe("GET /api/cron/social-refresh", () => {
     async (job) => {
       await run(job === "refresh" ? undefined : job);
       await settle();
-      expect(recordCronRun).toHaveBeenCalledWith("social-refresh", job);
+      expect(cronKeys()).toContain(`cron:lastok:social-refresh:${job}`);
+      expect(cronKeys()).not.toContain("cron:lastok:social-refresh");
     },
   );
 
@@ -112,7 +118,7 @@ describe("GET /api/cron/social-refresh", () => {
     await settle();
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: 'unknown job "not-a-job"' });
-    expect(recordCronRun).not.toHaveBeenCalled();
+    expect(cronKeys()).toHaveLength(0);
     for (const worker of Object.values(WORKERS)) expect(worker).not.toHaveBeenCalled();
     expect(refreshStaleAccounts).not.toHaveBeenCalled();
   });

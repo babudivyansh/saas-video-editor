@@ -5,6 +5,7 @@ import { env } from "@/lib/env";
 import { cronSecretMatches } from "@/lib/cron-auth";
 import { KNOWN_CRON_JOBS } from "@/lib/cron-tracking";
 import { logger } from "@/lib/logger";
+import { withCronTracking } from "@/lib/cron-tracking";
 
 // Scheduled entrypoint for an external scheduler (cron-job.org, Vercel Cron,
 // GitHub Actions, etc.) — same shared-secret pattern as
@@ -68,7 +69,7 @@ async function purgeExpiredArchives(): Promise<{ deleted: number; failed: number
   return { deleted, failed };
 }
 
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const secret = env.ASSET_CLEANUP_SECRET;
   if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -80,7 +81,6 @@ export async function GET(req: NextRequest) {
   if (!(KNOWN_CRON_JOBS["asset-cleanup"] as readonly string[]).includes(job)) {
     return NextResponse.json({ error: `unknown job "${job}"` }, { status: 400 });
   }
-  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("asset-cleanup", job)).catch(() => {});
 
   if (job === "retention") {
     const result = await purgeExpiredArchives();
@@ -89,3 +89,6 @@ export async function GET(req: NextRequest) {
   const result = await sweepOrphanedUploads();
   return NextResponse.json({ ok: true, job, ...result });
 }
+
+// Records when the run finished and whether it succeeded (lib/cron-tracking.ts).
+export const GET = withCronTracking("asset-cleanup", handleGET);

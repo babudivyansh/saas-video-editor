@@ -14,6 +14,7 @@ import { cronSecretMatches } from "@/lib/cron-auth";
 import Razorpay from "razorpay";
 import { nextRefillAfter } from "@/lib/billing/term";
 import { greetingName } from "@/lib/display-name";
+import { withCronTracking } from "@/lib/cron-tracking";
 
 // Constructed on first use, not at module load: this route is imported by
 // tests and by the scheduler, and the SDK throws at construction time when
@@ -49,13 +50,11 @@ const RECURRING_LAPSE_GRACE_DAYS = 14;
 //   3. Expire stale bonus credits (30 days after the latest bonus grant).
 //   4. Free-tier monthly grant — users without a plan get a small bonus-
 //      credit drip so the product stays tasteable at zero credits.
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const secret = env.CRON_SECRET;
   if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("refill-credits")).catch(() => {});
 
   const now = new Date();
   let refilled = 0;
@@ -232,3 +231,6 @@ export async function GET(req: NextRequest) {
     at: now.toISOString(),
   });
 }
+
+// Records when the run finished and whether it succeeded (lib/cron-tracking.ts).
+export const GET = withCronTracking("refill-credits", handleGET);

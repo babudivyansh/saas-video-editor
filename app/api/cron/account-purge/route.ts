@@ -4,6 +4,7 @@ import { hardDeleteUserAccount } from "@/lib/account-deletion";
 import { env } from "@/lib/env";
 import { cronSecretMatches } from "@/lib/cron-auth";
 import { logger } from "@/lib/logger";
+import { withCronTracking } from "@/lib/cron-tracking";
 
 // Daily cron — hard-deletes accounts whose 30-day deactivation recovery
 // window (app/api/account/deactivate) has passed. Uses the same
@@ -15,13 +16,11 @@ import { logger } from "@/lib/logger";
 //   GET /api/cron/account-purge
 //   Authorization: Bearer <CRON_SECRET>
 
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const secret = env.CRON_SECRET;
   if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("account-purge")).catch(() => {});
 
   const due = await prisma.user.findMany({
     where: { deactivatedAt: { not: null }, deactivationScheduledPurgeAt: { lte: new Date() } },
@@ -59,3 +58,6 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ ok: true, purged, blocked, checked: due.length, at: new Date().toISOString() });
 }
+
+// Records when the run finished and whether it succeeded (lib/cron-tracking.ts).
+export const GET = withCronTracking("account-purge", handleGET);

@@ -8,7 +8,7 @@ import { NextRequest } from "next/server";
 // permanently stuck as "due".
 
 vi.mock("@/lib/env", () => ({ env: { CRON_SECRET: "secret" } }));
-vi.mock("@/lib/cron-tracking", () => ({ recordCronRun: vi.fn(async () => {}) }));
+vi.mock("@/lib/cron-tracking", () => ({ recordCronRun: vi.fn(async () => {}), withCronTracking: (_n: string, h: unknown) => h }));
 vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 
 const RECIPIENTS = [

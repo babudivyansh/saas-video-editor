@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/lib/env";
 import { cronSecretMatches } from "@/lib/cron-auth";
 import { runSubmagicSweep } from "@/lib/cron/submagic-sweep";
+import { withCronTracking } from "@/lib/cron-tracking";
 
 // Reconciles premium caption renders (lib/caption-render-job.ts) — see
 // lib/cron/submagic-sweep.ts's doc comment for why this is the primary
@@ -11,14 +12,15 @@ import { runSubmagicSweep } from "@/lib/cron/submagic-sweep";
 //   GET /api/cron/submagic-sweep
 //   Authorization: Bearer <CRON_SECRET>
 // Recommended cadence: every 2 minutes (see SETUP.md), matching dub-sweep.
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const secret = env.CRON_SECRET;
   if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("submagic-sweep")).catch(() => {});
-
   const result = await runSubmagicSweep();
   return NextResponse.json(result);
 }
+
+// Records when the run finished and whether it succeeded (lib/cron-tracking.ts).
+export const GET = withCronTracking("submagic-sweep", handleGET);

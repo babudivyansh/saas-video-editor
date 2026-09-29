@@ -3,6 +3,7 @@ import { publishDueClips } from "@/lib/clip-scheduler";
 import { env } from "@/lib/env";
 import { cronSecretMatches } from "@/lib/cron-auth";
 import { logger } from "@/lib/logger";
+import { withCronTracking } from "@/lib/cron-tracking";
 
 // Scheduled entrypoint for publishing clips whose scheduledFor time has
 // arrived. Same shape and secret convention as the other app/api/cron/*
@@ -16,7 +17,7 @@ import { logger } from "@/lib/logger";
 // Run it often — a schedule is only as precise as its polling interval:
 //   */10 * * * *  curl -H "Authorization: Bearer $CRON_SECRET" \
 //                   https://app.example.com/api/cron/clip-publish
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   // Fails CLOSED, matching every other app/api/cron/* route: an unset secret
   // must make this endpoint unusable, not unauthenticated. The original
   // `if (secret) { ...check... }` skipped the check entirely when CRON_SECRET
@@ -27,8 +28,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("clip-publish")).catch(() => {});
-
   try {
     const result = await publishDueClips();
     logger.info("clip-scheduler", `published ${result.published}, reminded ${result.reminded}, failed ${result.failed}, skipped ${result.skipped}`);
@@ -38,3 +37,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Scheduled publish run failed" }, { status: 500 });
   }
 }
+
+// Records when the run finished and whether it succeeded (lib/cron-tracking.ts).
+export const GET = withCronTracking("clip-publish", handleGET);

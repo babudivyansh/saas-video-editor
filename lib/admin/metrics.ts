@@ -407,10 +407,13 @@ const CRON_STALE_AFTER_SEC: Record<CronRunId, number> = {
   "mrr-snapshot": 30 * 3600,
 };
 
+// Judged on the last SUCCESS, not the last run: a cron that runs on time and
+// fails every time is as broken as one that never runs. A cron whose most
+// recent run failed counts too, even if an earlier success is still recent.
 async function staleCronCount(): Promise<number> {
   const statuses = await getCronRunStatuses();
   return statuses.filter(
-    (s) => s.ageSeconds === null || s.ageSeconds > CRON_STALE_AFTER_SEC[s.name],
+    (s) => s.failing || s.successAgeSeconds === null || s.successAgeSeconds > CRON_STALE_AFTER_SEC[s.name],
   ).length;
 }
 

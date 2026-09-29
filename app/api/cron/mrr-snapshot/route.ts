@@ -3,6 +3,7 @@ import { env } from "@/lib/env";
 import { cronSecretMatches } from "@/lib/cron-auth";
 import { captureMrrSnapshot } from "@/lib/admin/mrr-snapshot";
 import { logger } from "@/lib/logger";
+import { withCronTracking } from "@/lib/cron-tracking";
 
 // Writes one MrrSnapshot row per UTC day. Same shared-secret guard as the
 // other cron entrypoints:
@@ -13,13 +14,11 @@ import { logger } from "@/lib/logger";
 // at 03:15 UTC records the day that just started — the exact minute matters
 // far less than running every day without gaps, since a missed day is a hole
 // in the series that can never be filled in afterwards.
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const secret = env.SOCIAL_REFRESH_SECRET;
   if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  void import("@/lib/cron-tracking").then((m) => m.recordCronRun("mrr-snapshot")).catch(() => {});
 
   try {
     const snapshot = await captureMrrSnapshot();
@@ -29,3 +28,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Capture failed" }, { status: 500 });
   }
 }
+
+// Records when the run finished and whether it succeeded (lib/cron-tracking.ts).
+export const GET = withCronTracking("mrr-snapshot", handleGET);

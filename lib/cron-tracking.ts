@@ -1,3 +1,4 @@
+import type { NextRequest } from "next/server";
 import { redis } from "@/lib/redis";
 import { logger } from "@/lib/logger";
 
@@ -8,6 +9,11 @@ import { logger } from "@/lib/logger";
 // there was no way to see that from inside the app. Stored in Redis (same as
 // worker heartbeats) — this is liveness telemetry, not durable business data,
 // so a Redis flush degrading it to "unknown" is acceptable.
+//
+// It records OUTCOMES, not just hits. The first version stamped "last run" at
+// the top of each route, before the work — so a cron that threw on every run
+// still showed green. Routes now export `withCronTracking(name, handler)`,
+// which records when the run finished and whether it succeeded.
 
 export const KNOWN_CRON_NAMES = [
   "refill-credits",
@@ -73,38 +79,130 @@ export const KNOWN_CRON_RUN_IDS: readonly CronRunId[] = [
 ];
 
 const key = (id: string) => `cron:lastrun:${id}`;
+const okKey = (id: string) => `cron:lastok:${id}`;
+const failKey = (id: string) => `cron:lastfail:${id}`;
 // Keep a fortnight so a weekly / low-frequency cron still shows its last run.
 const TTL_SEC = 14 * 24 * 60 * 60;
 
 /**
- * Fire-and-forget — never throws, never blocks the cron it's attached to.
- * Pass `job` for a ?job= route, and pass it AFTER the job has been resolved
- * and validated, or you re-create the false-green this split exists to fix.
+ * Stamps a run as finished (and, with `outcome`, how it went). Never throws,
+ * never blocks the cron it's attached to. Pass `job` for a ?job= route, and
+ * pass it AFTER the job has been resolved and validated, or you re-create the
+ * false-green the per-job split exists to fix.
  */
-export async function recordCronRun(name: CronName, job?: string): Promise<void> {
+export async function recordCronRun(
+  name: CronName,
+  job?: string,
+  outcome?: { ok: true } | { ok: false; error: string },
+): Promise<void> {
   const id = job ? `${name}:${job}` : name;
+  const at = new Date().toISOString();
   try {
-    await redis.set(key(id), new Date().toISOString(), "EX", TTL_SEC);
+    await redis.set(key(id), at, "EX", TTL_SEC);
+    if (outcome?.ok) await redis.set(okKey(id), at, "EX", TTL_SEC);
+    else if (outcome) {
+      await redis.set(failKey(id), JSON.stringify({ at, error: outcome.error.slice(0, 300) }), "EX", TTL_SEC);
+    }
   } catch (e) {
     logger.warn("cron-tracking", `failed to record run for ${id}`, e);
   }
 }
 
+/**
+ * The run id a request is for: the bare name, or "<name>:<job>" for a ?job=
+ * route (the FIRST listed job is the route's default). Null for a job the
+ * route doesn't know — that request is a 400, not a run.
+ */
+function runJobFor(name: CronName, req: NextRequest): { job?: string } | null {
+  const jobs = (KNOWN_CRON_JOBS as Record<string, readonly string[]>)[name];
+  if (!jobs) return {};
+  const job = req.nextUrl.searchParams.get("job") ?? jobs[0];
+  return jobs.includes(job) ? { job } : null;
+}
+
+function describe(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+/**
+ * Wraps a cron route handler so every run records its OUTCOME once it ends:
+ *   2xx          → succeeded
+ *   5xx / throws → failed (the error is kept for the admin ops page)
+ *   4xx          → not a run at all (bad secret, unknown ?job=) — recorded
+ *                  as nothing, so a scanner hitting the URL can't fake a run.
+ * Partial failures a route handles itself (one user's email bouncing) still
+ * answer 2xx and count as a successful run, which is what they are.
+ */
+export function withCronTracking<Args extends unknown[]>(
+  name: CronName,
+  handler: (req: NextRequest, ...args: Args) => Promise<Response>,
+): (req: NextRequest, ...args: Args) => Promise<Response> {
+  return async (req, ...args) => {
+    const run = runJobFor(name, req);
+    let res: Response;
+    try {
+      res = await handler(req, ...args);
+    } catch (e) {
+      if (run) await recordCronRun(name, run.job, { ok: false, error: describe(e) });
+      throw e;
+    }
+    if (run && res.status >= 500) {
+      const body = await res.clone().json().catch(() => null) as { error?: unknown } | null;
+      await recordCronRun(name, run.job, { ok: false, error: typeof body?.error === "string" ? body.error : `HTTP ${res.status}` });
+    } else if (run && res.status < 400) {
+      await recordCronRun(name, run.job, { ok: true });
+    }
+    return res;
+  };
+}
+
 export interface CronRunStatus {
   /** "mrr-snapshot", or "social-refresh:scores" for a ?job= route. */
   name: CronRunId;
+  /** When the last run (of either outcome) finished. */
   lastRunAt: string | null;
   ageSeconds: number | null;
+  lastSuccessAt: string | null;
+  /** Age of the last SUCCESS — what staleness is judged on. */
+  successAgeSeconds: number | null;
+  lastFailureAt: string | null;
+  lastError: string | null;
+  /** The most recent run failed (a success since then clears it). */
+  failing: boolean;
 }
 
-/** Last-run time + age for every known cron, for the admin ops snapshot. */
+const age = (iso: string | null, now: number) => (iso ? Math.round((now - new Date(iso).getTime()) / 1000) : null);
+
+/** Last run, last success and last failure for every known cron, for admin ops. */
 export async function getCronRunStatuses(): Promise<CronRunStatus[]> {
   const now = Date.now();
   return Promise.all(
     KNOWN_CRON_RUN_IDS.map(async (name) => {
-      const lastRunAt = await redis.get(key(name)).catch(() => null);
-      const ageSeconds = lastRunAt ? Math.round((now - new Date(lastRunAt).getTime()) / 1000) : null;
-      return { name, lastRunAt, ageSeconds };
+      const [lastRunAt, lastSuccessAt, failRaw] = await Promise.all([
+        redis.get(key(name)).catch(() => null),
+        redis.get(okKey(name)).catch(() => null),
+        redis.get(failKey(name)).catch(() => null),
+      ]);
+      let lastFailureAt: string | null = null;
+      let lastError: string | null = null;
+      if (failRaw) {
+        try {
+          const f = JSON.parse(failRaw) as { at?: string; error?: string };
+          lastFailureAt = f.at ?? null;
+          lastError = f.error ?? null;
+        } catch { /* ignore a malformed entry */ }
+      }
+      const failing = !!lastFailureAt && (!lastSuccessAt || lastFailureAt > lastSuccessAt);
+      return {
+        name,
+        lastRunAt,
+        ageSeconds: age(lastRunAt, now),
+        lastSuccessAt,
+        successAgeSeconds: age(lastSuccessAt, now),
+        lastFailureAt,
+        lastError,
+        failing,
+      };
     }),
   );
 }
