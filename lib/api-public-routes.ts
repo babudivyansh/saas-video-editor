@@ -70,6 +70,9 @@ const PUBLIC_API_PREFIXES = [
   "/api/email/unsubscribe",
   "/api/health",
   "/api/cron/",
+  // The per-minute scheduler that calls the /api/cron/* routes on hosts with
+  // no cron (app/api/cron-tick). Same bearer-secret protection as they have.
+  "/api/cron-tick",
   "/api/plans",
   "/api/tool-costs",
   // Admin price overrides for the image/video models — the generator pages

@@ -26,6 +26,9 @@ interface OpsData {
     lastError: string | null;
     failing: boolean;
   }>;
+  /** Last call to /api/cron-tick (the external per-minute scheduler). */
+  cronTickLastAt?: string | null;
+  cronTickAgeSeconds?: number | null;
   flags: Record<string, boolean>;
   maintenance: { on: boolean; message?: string };
   tableSizes: Array<{ table: string; size: string }>;
@@ -212,6 +215,19 @@ export default function AdminOpsPage() {
               last run succeeded. Runs are recorded when they FINISH. */}
           <div className="mt-4 pt-3 border-t border-line space-y-2 text-sm">
             <p className="text-[11px] font-semibold text-fg-muted mb-1">Cron jobs</p>
+            {/* The scheduler itself. If this is old or missing, nothing below can run. */}
+            <div className="flex items-center gap-2">
+              <span
+                className={`w-2.5 h-2.5 rounded-full ${
+                  d.cronTickAgeSeconds != null && d.cronTickAgeSeconds < 5 * 60 ? "bg-success" : "bg-error"
+                }`}
+                aria-hidden
+              />
+              <span className="text-fg font-mono text-xs">scheduler tick</span>
+              <span className="text-xs text-fg-subtle ml-auto">
+                {d.cronTickLastAt ? `last ${new Date(d.cronTickLastAt).toLocaleString()}` : "never — /api/cron-tick isn't being called"}
+              </span>
+            </div>
             {d.cronRuns.map((c) => (
               <div key={c.name}>
                 <div className="flex items-center gap-2">

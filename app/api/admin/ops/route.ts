@@ -6,6 +6,7 @@ import { opsFlagsSchema } from "@/lib/admin/schemas";
 import { renderQueueCounts } from "@/lib/admin/metrics";
 import { getHeartbeats } from "@/lib/worker-heartbeat";
 import { getCronRunStatuses } from "@/lib/cron-tracking";
+import { redis } from "@/lib/redis";
 import { getFeatureFlags, getMaintenanceMode, setFeatureFlag, setMaintenanceMode } from "@/lib/flags";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
@@ -18,7 +19,7 @@ import { captionRenderOpsSnapshot } from "@/lib/captions/ops";
 export const GET = withAdmin(async () => {
   const [
     queueCounts, failedJobs, heartbeats, flags, maintenance, cronRuns, tableSizes,
-    captionProvider, captionRenders,
+    captionProvider, captionRenders, cronTickLastAt,
   ] = await Promise.all([
     renderQueueCounts(),
     getFailedRenderJobs(),
@@ -39,6 +40,8 @@ export const GET = withAdmin(async () => {
     // an operator most needs to look at it.
     captionProviderHealth(),
     captionRenderOpsSnapshot(),
+    // Last minute /api/cron-tick was called by the external scheduler.
+    redis.get("cron:tick:last").catch(() => null),
   ]);
 
   return NextResponse.json({
@@ -51,6 +54,9 @@ export const GET = withAdmin(async () => {
     tableSizes: tableSizes.map((t) => ({ table: t.table, size: t.size })),
     captionProvider,
     captionRenders,
+    cronTickLastAt,
+    // Age computed here, not in the page: a render must be pure (no Date.now()).
+    cronTickAgeSeconds: cronTickLastAt ? Math.round((Date.now() - new Date(cronTickLastAt).getTime()) / 1000) : null,
   });
 });
 
