@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { publishDueClips } from "@/lib/clip-scheduler";
 import { env } from "@/lib/env";
+import { cronSecretMatches } from "@/lib/cron-auth";
 import { logger } from "@/lib/logger";
 
 // Scheduled entrypoint for publishing clips whose scheduledFor time has
 // arrived. Same shape and secret convention as the other app/api/cron/*
 // routes: an external scheduler hits it, protected by a shared secret in the
-// Authorization header or ?secret=.
+// Authorization header (lib/cron-auth.ts).
 //
 // ClipPublish.scheduledFor was written by the publish route from the day it
 // was added but never read by anything, so a scheduled post sat pending
@@ -22,11 +23,7 @@ export async function GET(req: NextRequest) {
   // was absent, which on a deploy that hadn't set it would have left a public
   // endpoint able to publish users' clips to their connected accounts.
   const secret = env.CRON_SECRET;
-  const provided =
-    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
-    new URL(req.url).searchParams.get("secret") ||
-    "";
-  if (!secret || provided !== secret) {
+  if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

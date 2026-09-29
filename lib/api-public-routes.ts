@@ -99,10 +99,9 @@ const PUBLIC_API_PREFIXES = [
   // required" code comment and does its own IP rate limiting, but none were
   // ever added here — every logged-out request still died at this gate with
   // a blanket 401 before reaching the route's own (deliberately permissive)
-  // logic. enhance-prompt/voice-preview back the Image Generator and
-  // Voiceover Generator tool pages; voices is the (previously-unused)
-  // cached-preview-URL endpoint those same pickers now call.
-  "/api/tools/enhance-prompt",
+  // logic. voices is the cached-preview-URL endpoint the voice pickers call.
+  // enhance-prompt used to be listed here too; it is a real Gemini call, so it
+  // now requires sign-in like the image generation it feeds.
   // The voice catalogue. Public because the create pages render for
   // logged-out visitors and this carries nothing sensitive — names,
   // languages and the provider's own public preview URLs, with the id that

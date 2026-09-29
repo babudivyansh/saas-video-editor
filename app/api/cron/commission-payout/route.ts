@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/lib/env";
+import { cronSecretMatches } from "@/lib/cron-auth";
 import { runCommissionPayoutSweep } from "@/lib/cron/commission-payout";
 
 // Daily cron — notifies affiliates when their commission hold period (30 days)
@@ -13,8 +14,7 @@ import { runCommissionPayoutSweep } from "@/lib/cron/commission-payout";
 
 export async function GET(req: NextRequest) {
   const secret = env.CRON_SECRET;
-  const authz = req.headers.get("authorization");
-  if (!secret || authz !== `Bearer ${secret}`) {
+  if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

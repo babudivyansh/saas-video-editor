@@ -3,6 +3,7 @@
 // implementation so the two never drift apart. Mirrors
 // lib/cron/commission-payout.ts's shape.
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
@@ -32,6 +33,13 @@ export const STALE_ANALYZING_TIMEOUT_MINUTES = 3 * 60;
 export const RECONCILE_FAILURE_REASON =
   "Rendering was interrupted before it could finish. Any credits for the unfinished clips have been refunded — please try again.";
 
+// Editor exports report progress as they go, so an hour without a write
+// means the worker died mid-render (restart, OOM) and nothing will finish it.
+export const STALE_EDITOR_RENDER_TIMEOUT_MINUTES = 60;
+
+export const STRANDED_EDITOR_RENDER_REASON =
+  "The export was interrupted before it could finish. Your credit has been refunded — please export again.";
+
 export const STRANDED_ANALYSIS_REASON =
   "Analysis was interrupted and didn't finish. You haven't been charged — please try again.";
 
@@ -41,6 +49,7 @@ export interface StaleClipSweepResult {
   reconciled: number;
   rerendersRefunded: number;
   analyzingFailed: number;
+  editorRendersFailed: number;
   at: string;
 }
 
@@ -60,6 +69,11 @@ export interface StaleClipSweepResult {
  *
  *  3. Projects stuck on "analyzing" past STALE_ANALYZING_TIMEOUT_MINUTES are
  *     failed and fully refunded.
+ *
+ *  4. Editor exports (no clips at all) stuck on "rendering" past
+ *     STALE_EDITOR_RENDER_TIMEOUT_MINUTES are failed and their credit refunded.
+ *     Step 2 only ever looked at projects WITH clips, so a crashed editor
+ *     export stayed "rendering" forever and every retry 409'd.
  */
 export async function runStaleClipSweep(): Promise<StaleClipSweepResult> {
   const now = Date.now();
@@ -107,8 +121,9 @@ export async function runStaleClipSweep(): Promise<StaleClipSweepResult> {
 
   const reconciled = await reconcileStrandedProjects();
   const analyzingFailed = await failStrandedAnalyses();
+  const editorRendersFailed = await failStrandedEditorRenders();
 
-  return { ok: true, swept, reconciled, rerendersRefunded, analyzingFailed, at: new Date().toISOString() };
+  return { ok: true, swept, reconciled, rerendersRefunded, analyzingFailed, editorRendersFailed, at: new Date().toISOString() };
 }
 
 /** Step 2 above. Returns how many projects were moved to a terminal state. */
@@ -175,5 +190,47 @@ async function failStrandedAnalyses(): Promise<number> {
     }
   }
   if (failed > 0) logger.warn("cron/stale-clip-sweep", `failed and refunded ${failed} stranded analysis run(s)`);
+  return failed;
+}
+
+/** Step 4 above. */
+async function failStrandedEditorRenders(): Promise<number> {
+  const cutoff = new Date(Date.now() - STALE_EDITOR_RENDER_TIMEOUT_MINUTES * 60 * 1000);
+  const where = {
+    status: "rendering",
+    updatedAt: { lt: cutoff },
+    clips: { none: {} },
+    editorDoc: { not: Prisma.AnyNull },
+  } satisfies Prisma.ProjectWhereInput;
+  const stuck = await prisma.project.findMany({ where, select: { id: true, userId: true } });
+  if (stuck.length === 0) return 0;
+
+  const [{ restoreSpend }, { EDITOR_RENDER_CREDIT_COST }] = await Promise.all([
+    import("@/lib/credits"),
+    import("@/lib/editor/render-job"),
+  ]);
+
+  let failed = 0;
+  for (const { id: projectId, userId } of stuck) {
+    try {
+      // The transition is the claim: a worker that wrote progress since the
+      // read (touching updatedAt) is left alone.
+      const moved = await prisma.project.updateMany({
+        where: { ...where, id: projectId },
+        data: { status: "failed", failureReason: STRANDED_EDITOR_RENDER_REASON },
+      });
+      if (moved.count === 0) continue;
+      await restoreSpend({
+        userId,
+        refId: `editor-render:${projectId}`,
+        amount: EDITOR_RENDER_CREDIT_COST,
+        reason: "refund:editor-render-stranded",
+      });
+      failed++;
+    } catch (e) {
+      logger.error("cron/stale-clip-sweep", `failed to reconcile stranded editor render ${projectId}`, e);
+    }
+  }
+  if (failed > 0) logger.warn("cron/stale-clip-sweep", `failed and refunded ${failed} stranded editor export(s)`);
   return failed;
 }

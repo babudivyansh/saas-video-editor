@@ -93,29 +93,3 @@ export class InProcessQueue<T> {
     this.running = false;
   }
 }
-
-export type RenderJobPayload = {
-  projectId: string;
-  bgVideoUrl: string;
-  voiceAudioUrl: string;
-  musicUrl?: string;
-  wordTimings: Array<{ word: string; start: number; end: number }>;
-  subtitlesStyle: {
-    fontName?: string;
-    fontSize?: number;
-    highlightColor?: string;
-    baseColor?: string;
-  };
-};
-
-// Singleton — imported by the compile API route
-let _renderQueue: InProcessQueue<RenderJobPayload> | null = null;
-
-export function getRenderQueue(
-  handler: JobHandler<RenderJobPayload>
-): InProcessQueue<RenderJobPayload> {
-  if (!_renderQueue) {
-    _renderQueue = new InProcessQueue<RenderJobPayload>("render", handler);
-  }
-  return _renderQueue;
-}

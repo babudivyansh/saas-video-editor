@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/lib/env";
+import { cronSecretMatches } from "@/lib/cron-auth";
 import { captureMrrSnapshot } from "@/lib/admin/mrr-snapshot";
 import { logger } from "@/lib/logger";
 
@@ -14,11 +15,7 @@ import { logger } from "@/lib/logger";
 // in the series that can never be filled in afterwards.
 export async function GET(req: NextRequest) {
   const secret = env.SOCIAL_REFRESH_SECRET;
-  const provided =
-    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
-    req.nextUrl.searchParams.get("secret") ||
-    "";
-  if (!secret || provided !== secret) {
+  if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

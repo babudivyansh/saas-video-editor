@@ -135,6 +135,15 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     build: auth.passwordChanged,
     samples: { default: { name: "Divyansh", time: "5 August 2026 at 15:42 IST" } },
   }),
+  "email-changed": entry({
+    id: "email-changed",
+    title: "Email changed",
+    group: "auth",
+    category: "transactional",
+    trigger: "A change of email address is confirmed (sent to the old address)",
+    build: auth.emailChanged,
+    samples: { default: { name: "Divyansh", newEmail: "new@example.com", time: "5 August 2026 at 15:42 IST" } },
+  }),
   "two-factor-changed": entry({
     id: "two-factor-changed",
     title: "Two-factor changed",

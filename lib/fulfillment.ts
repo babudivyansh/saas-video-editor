@@ -443,7 +443,13 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
       ]);
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-        logger.warn("fulfillment", "coupon already redeemed by user, skipping duplicate");
+        // The payment already went through at the discounted price, so this
+        // is money, not noise: someone got a single-use coupon twice (the
+        // checkout hold makes this rare, not impossible — an old order can
+        // still be paid later). Surface it for a manual refund/adjustment.
+        logger.error("fulfillment", "coupon redeemed twice by the same user — discounted payment already captured, review for refund", {
+          couponId: notes.couponId, userId: uid, orderId, paymentId,
+        });
       } else {
         logger.error("fulfillment", "coupon redemption error", err);
       }

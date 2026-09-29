@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getApiKeyAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
+import { sourceUrlError } from "@/lib/source-url";
 
 // Public API — /api/v1/projects. POST creates the project that
 // POST /api/v1/clips needs (that route's long-standing "create the project
@@ -13,9 +14,17 @@ async function handleGET(req: NextRequest) {
   const auth = await getApiKeyAuth(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized — missing or invalid API key" }, { status: 401 });
 
-  const projects = await prisma.project.findMany({
+  // Paged: ?limit (1–100, default 50) and ?cursor (the previous page's
+  // nextCursor). This returned every project the key's owner ever made.
+  const limitParam = parseInt(req.nextUrl.searchParams.get("limit") ?? "", 10);
+  const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 50;
+  const cursor = req.nextUrl.searchParams.get("cursor") || undefined;
+
+  const rows = await prisma.project.findMany({
     where: { userId: auth.userId },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: limit + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     select: {
       id: true,
       title: true,
@@ -26,7 +35,9 @@ async function handleGET(req: NextRequest) {
       _count: { select: { clips: true } },
     },
   });
-  return NextResponse.json({ projects });
+  const hasMore = rows.length > limit;
+  const projects = hasMore ? rows.slice(0, limit) : rows;
+  return NextResponse.json({ projects, nextCursor: hasMore ? projects[projects.length - 1].id : null });
 }
 
 async function handlePOST(req: NextRequest) {
@@ -48,16 +59,9 @@ async function handlePOST(req: NextRequest) {
   // Optional source video for the auto-clip flow — must be an https URL.
   let uploadedVideoUrl: string | null = null;
   if (body.uploadedVideoUrl !== undefined && body.uploadedVideoUrl !== null) {
-    if (typeof body.uploadedVideoUrl !== "string") {
-      return NextResponse.json({ error: "uploadedVideoUrl must be a string URL" }, { status: 400 });
-    }
-    try {
-      const url = new URL(body.uploadedVideoUrl);
-      if (url.protocol !== "https:") throw new Error("not https");
-    } catch {
-      return NextResponse.json({ error: "uploadedVideoUrl must be a valid https URL" }, { status: 400 });
-    }
-    uploadedVideoUrl = body.uploadedVideoUrl;
+    const urlError = sourceUrlError(body.uploadedVideoUrl);
+    if (urlError) return NextResponse.json({ error: urlError }, { status: 400 });
+    uploadedVideoUrl = body.uploadedVideoUrl as string;
   }
 
   const project = await prisma.project.create({

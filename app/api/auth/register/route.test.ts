@@ -18,7 +18,7 @@ class OtpDeliveryError extends Error {}
 const issueOtp = vi.hoisted(() => vi.fn(async () => ({})));
 vi.mock("@/lib/otp", () => ({ issueOtp, OtpDeliveryError }));
 
-const savePendingSignup = vi.hoisted(() => vi.fn(async () => {}));
+const savePendingSignup = vi.hoisted(() => vi.fn(async () => "tok-1"));
 vi.mock("@/lib/signup-pending", () => ({ savePendingSignup }));
 
 let emailTaken: boolean;
@@ -56,7 +56,7 @@ describe("POST /api/auth/register", () => {
     const res = await post({ ...VALID_BODY, referralCode: " JOH-N4X2 " });
     expect(res.status).toBe(202);
     const data = await res.json();
-    expect(data).toMatchObject({ pending: true, email: "new@test.com" });
+    expect(data).toMatchObject({ pending: true, email: "new@test.com", signupToken: "tok-1" });
     expect(data.token).toBeUndefined();
     expect(savePendingSignup).toHaveBeenCalledWith("new@test.com", {
       name: "New User",
