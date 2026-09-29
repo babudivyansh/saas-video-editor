@@ -3,6 +3,7 @@
 import { useState, FormEvent, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { PasswordInput } from "@/app/components/ui/PasswordInput";
 
 function BoltIcon() {
   return <img src="/icon.png" alt="Clipiro" className="w-10 h-10 rounded-xl" />;
@@ -83,30 +84,30 @@ function ResetForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-fg-muted mb-1.5">New password</label>
-        <input
-          type="password"
+        <label htmlFor="new-password" className="block text-sm font-medium text-fg-muted mb-1.5">New password</label>
+        <PasswordInput
+          id="new-password"
           value={password}
           onChange={e => setPassword(e.target.value)}
           placeholder="At least 8 characters"
+          autoComplete="new-password"
           required
-          className="w-full rounded-xl border border-line bg-surface-3 px-4 py-2.5 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:border-brand transition-colors"
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-fg-muted mb-1.5">Confirm password</label>
-        <input
-          type="password"
+        <label htmlFor="confirm-password" className="block text-sm font-medium text-fg-muted mb-1.5">Confirm password</label>
+        <PasswordInput
+          id="confirm-password"
           value={confirm}
           onChange={e => setConfirm(e.target.value)}
           placeholder="Repeat new password"
+          autoComplete="new-password"
           required
-          className="w-full rounded-xl border border-line bg-surface-3 px-4 py-2.5 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:border-brand transition-colors"
         />
       </div>
 
       {error && (
-        <p className="text-error text-sm bg-error/12/40 border border-error/40/40 rounded-lg px-3 py-2">{error}</p>
+        <p role="alert" className="text-error text-sm bg-error/10 border border-error/40 rounded-lg px-3 py-2">{error}</p>
       )}
 
       <button

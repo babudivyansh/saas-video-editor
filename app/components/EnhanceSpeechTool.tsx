@@ -197,6 +197,10 @@ export default function EnhanceSpeechTool() {
                   dragging ? "border-brand bg-tint-blue" : "border-line hover:border-line-strong bg-surface-2"
                 }`}
                 onClick={() => fileInputRef.current?.click()}
+                role="button"
+                tabIndex={0}
+                aria-label="Upload audio or video"
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInputRef.current?.click(); } }}
                 onDragOver={e => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
                 onDrop={onDrop}
@@ -221,7 +225,7 @@ export default function EnhanceSpeechTool() {
                   <p className="text-sm font-medium text-fg truncate">{file.name}</p>
                   <p className="text-xs text-fg-subtle">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
                 </div>
-                <button onClick={removeFile} className="text-fg-subtle hover:text-fg-muted transition-colors p-1">
+                <button aria-label="Remove file" onClick={removeFile} className="text-fg-subtle hover:text-fg-muted transition-colors p-1">
                   <IcX />
                 </button>
               </div>

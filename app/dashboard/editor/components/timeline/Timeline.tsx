@@ -70,7 +70,7 @@ export default function Timeline() {
             value={zoom}
             onChange={(e) => setZoom(parseInt(e.target.value))}
             style={sliderTrackStyle(zoom, 10, 300)}
-            className={`h-1.5 w-24 cursor-pointer appearance-none rounded-editor-full border border-editor-border outline-none ${SLIDER_THUMB_CLASSES}`}
+            className={`h-1.5 w-24 cursor-pointer appearance-none rounded-editor-full border border-editor-border outline-none focus-visible:ring-2 focus-visible:ring-editor-accent focus-visible:ring-offset-1 focus-visible:ring-offset-editor-bg ${SLIDER_THUMB_CLASSES}`}
             aria-label="Timeline zoom"
           />
           <IconButton icon={<ZoomIn className="h-3.5 w-3.5" />} label="Zoom in" size="sm" onClick={() => setZoom(zoom + 20)} />

@@ -84,7 +84,7 @@ export default function SettingsGeneralPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h1>
+        <h2 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h2>
         <p className="text-sm text-ink-soft mt-1">{t("pageSubtitle")}</p>
       </div>
 
@@ -96,7 +96,7 @@ export default function SettingsGeneralPage() {
       </div>
 
       <Card padding="md" className="space-y-5">
-        <h2 className="text-base font-extrabold text-ink">{t("accountHealth")}</h2>
+        <h3 className="text-base font-extrabold text-ink">{t("accountHealth")}</h3>
         <Meter label={t("profileCompleteness")} pct={completenessPct} sublabel={`${completenessPct}%`} />
         <Meter label={t("securityScore")} pct={securityPct} sublabel={`${securityChecks.filter(Boolean).length}/${securityChecks.length}`} />
         {assetStats ? (
@@ -111,7 +111,7 @@ export default function SettingsGeneralPage() {
       </Card>
 
       <div>
-        <h2 className="text-base font-extrabold text-ink mb-3">{t("quickActions")}</h2>
+        <h3 className="text-base font-extrabold text-ink mb-3">{t("quickActions")}</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <QuickAction href="/dashboard/settings/profile" label={t("editProfile.label")} desc={t("editProfile.desc")} />
           <QuickAction href="/dashboard/settings/security" label={t("secureAccount.label")} desc={t("secureAccount.desc")} />
@@ -131,7 +131,7 @@ export default function SettingsGeneralPage() {
 
       <Card padding="md">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-extrabold text-ink">{t("recentSignIns")}</h2>
+          <h3 className="text-base font-extrabold text-ink">{t("recentSignIns")}</h3>
           <Link href="/dashboard/settings/sessions" className="text-xs font-semibold text-brand hover:underline">{t("viewAll")}</Link>
         </div>
         {!recentLogins ? (

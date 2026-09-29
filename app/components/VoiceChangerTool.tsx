@@ -6,6 +6,7 @@ import { AUDIO_RATE_LABEL } from "@/lib/audio-pricing";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { VOICES, voiceBySlug, type Voice } from "@/app/components/voice-catalog";
 import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
+import { Modal } from "@/app/components/ui/Modal";
 
 // Priced by length since 2026-09-26 — the route charges voiceFxCredits(duration).
 const VOICE_CHANGER_RATE = AUDIO_RATE_LABEL["voice-changer"];
@@ -147,16 +148,12 @@ function VoicePickerModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={handleDone}>
-      <div
-        className="bg-panel rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col"
-        style={{ maxHeight: "85vh" }}
-        onClick={e => e.stopPropagation()}
-      >
+    <Modal open onClose={handleDone} bare ariaLabel="Select AI voice" maxWidth="max-w-3xl" panelClassName="!overflow-hidden">
+      <div className="flex flex-col" style={{ maxHeight: "85vh" }}>
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-7 pt-6 pb-4">
           <h2 className="text-2xl font-bold text-fg">Select AI Voice</h2>
-          <button onClick={handleDone} className="p-1.5 rounded-lg text-fg-subtle hover:text-fg hover:bg-surface-3 transition-colors">
+          <button type="button" onClick={handleDone} aria-label="Close" className="p-1.5 rounded-lg text-fg-subtle hover:text-fg hover:bg-surface-3 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70">
             <IcX />
           </button>
         </div>
@@ -177,18 +174,23 @@ function VoicePickerModal({
 
         {/* Grid */}
         <div className="overflow-y-auto flex-1 px-4 sm:px-7 pb-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+          <div role="radiogroup" aria-label="Voices" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             {filtered.map(voice => {
               const isSelected = selected === voice.slug;
               const isPlaying = playingSlug === voice.slug;
               return (
                 <div
                   key={voice.slug}
+                  role="radio"
+                  aria-checked={isSelected}
+                  aria-label={voice.name}
+                  tabIndex={0}
                   onClick={() => setSelected(voice.slug)}
-                  className={`relative rounded-xl border-2 p-4 cursor-pointer transition-all ${
+                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelected(voice.slug); } }}
+                  className={`relative rounded-xl border-2 p-4 cursor-pointer transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary/70 ${
                     isSelected
-                      ? "border-slate-900 bg-panel"
-                      : "border-line bg-panel hover:border-slate-300 hover:shadow-sm"
+                      ? "border-primary bg-panel"
+                      : "border-line bg-panel hover:border-line-strong hover:shadow-sm"
                   }`}
                 >
                   {/* Top row: avatar + name + play btn */}
@@ -235,7 +237,7 @@ function VoicePickerModal({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -424,6 +426,7 @@ export default function VoiceChangerTool() {
                       <p className="text-[11px] text-fg-subtle">{(audioFile.size / 1024 / 1024).toFixed(2)} MB</p>
                     </div>
                     <button
+                      aria-label="Remove file"
                       onClick={() => { setAudioFile(null); job.reset(); }}
                       className="p-1 rounded-md text-fg-subtle hover:text-fg-muted hover:bg-slate-200 transition-colors"
                     >
@@ -433,6 +436,10 @@ export default function VoiceChangerTool() {
                 ) : (
                   <div
                     onClick={() => fileInputRef.current?.click()}
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Upload audio or video"
+                    onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInputRef.current?.click(); } }}
                     onDragOver={e => { e.preventDefault(); setDragging(true); }}
                     onDragLeave={() => setDragging(false)}
                     onDrop={e => {

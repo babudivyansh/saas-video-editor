@@ -56,6 +56,50 @@ function GoogleIcon() {
 const inputClass =
   "w-full pl-10 pr-4 py-3 border border-line hover:border-line-strong focus:border-brand focus:ring-2 focus:ring-brand/10 rounded-xl text-sm text-fg placeholder-fg-subtle focus:outline-none bg-panel transition-all";
 
+// Password input for this form's icon-left layout, with a show/hide toggle.
+// None of the four password fields had one, and none set autoComplete, so
+// password managers couldn't tell sign-in from sign-up.
+function AuthPasswordInput({
+  value, onChange, placeholder, autoComplete, required,
+}: {
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  placeholder: string;
+  autoComplete: "current-password" | "new-password";
+  required?: boolean;
+}) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <>
+      <input
+        type={visible ? "text" : "password"}
+        value={value}
+        onChange={onChange}
+        required={required}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        autoComplete={autoComplete}
+        className={`${inputClass} pr-11`}
+      />
+      <button
+        type="button"
+        onClick={() => setVisible((v) => !v)}
+        aria-label={visible ? "Hide password" : "Show password"}
+        aria-pressed={visible}
+        className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-lg text-fg-subtle hover:text-fg outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
+      >
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          {visible ? (
+            <><path d="M17.94 17.94A10.1 10.1 0 0 1 12 19c-6.5 0-10-7-10-7a18.4 18.4 0 0 1 5.06-5.94M9.9 4.24A9.1 9.1 0 0 1 12 4c6.5 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24" /><path d="M1 1l22 22" /></>
+          ) : (
+            <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>
+          )}
+        </svg>
+      </button>
+    </>
+  );
+}
+
 // Panels of the horizontal login slider, in the order they're laid out. "otp"
 // is the emailed code; "totp" is the second factor from an authenticator app
 // (only reached when the account has 2FA on).
@@ -98,12 +142,31 @@ function DigitBoxes({
     return () => clearTimeout(timer);
   }, [focused]);
 
+  // Once every box is filled the form submits itself — no reaching for the
+  // button after typing (or autofilling) the sixth digit.
+  function submitIfComplete(next: string[]) {
+    if (next.every((d) => d !== "")) {
+      setTimeout(() => refs.current[0]?.form?.requestSubmit(), 0);
+    }
+  }
+
   function handleChange(idx: number, val: string) {
     if (!/^\d*$/.test(val)) return;
+    // SMS/email autofill (autocomplete="one-time-code") drops the whole code
+    // into one box — spread it like a paste instead of keeping the last digit.
+    if (val.length > 1) {
+      const updated = [...digits];
+      val.slice(0, CODE_LENGTH - idx).split("").forEach((ch, i) => { updated[idx + i] = ch; });
+      onChange(updated);
+      refs.current[Math.min(idx + val.length, CODE_LENGTH - 1)]?.focus();
+      submitIfComplete(updated);
+      return;
+    }
     const updated = [...digits];
     updated[idx] = val.slice(-1);
     onChange(updated);
     if (val && idx < CODE_LENGTH - 1) refs.current[idx + 1]?.focus();
+    submitIfComplete(updated);
   }
 
   function handleKeyDown(idx: number, e: React.KeyboardEvent) {
@@ -118,17 +181,21 @@ function DigitBoxes({
     pasted.split("").forEach((ch, i) => { if (i < CODE_LENGTH) updated[i] = ch; });
     onChange(updated);
     refs.current[Math.min(pasted.length, CODE_LENGTH - 1)]?.focus();
+    submitIfComplete(updated);
   }
 
   return (
-    <div className="flex justify-center gap-2" onPaste={handlePaste}>
+    <div role="group" aria-label="Verification code" className="flex justify-center gap-2" onPaste={handlePaste}>
       {digits.map((digit, idx) => (
         <input
           key={idx}
           ref={el => { refs.current[idx] = el; }}
           type="text"
           inputMode="numeric"
-          maxLength={1}
+          // Only the first box offers autofill; it may receive all six digits.
+          autoComplete={idx === 0 ? "one-time-code" : "off"}
+          maxLength={idx === 0 ? CODE_LENGTH : 1}
+          aria-label={`Digit ${idx + 1} of ${CODE_LENGTH}`}
           value={digit}
           onChange={e => handleChange(idx, e.target.value)}
           onKeyDown={e => handleKeyDown(idx, e)}
@@ -578,7 +645,7 @@ export default function AuthForm({
   };
 
   const errorBlock = error && (
-    <div className="flex items-start gap-2 text-error text-sm bg-error/10 border border-error/30 rounded-xl px-3.5 py-2.5">
+    <div role="alert" className="flex items-start gap-2 text-error text-sm bg-error/10 border border-error/30 rounded-xl px-3.5 py-2.5">
       <svg className="w-4 h-4 mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
       </svg>
@@ -667,6 +734,7 @@ export default function AuthForm({
               maxLength={60}
               autoComplete="name"
               placeholder="Your name"
+              aria-label="Your name"
               className={inputClass}
             />
           </div>
@@ -681,6 +749,7 @@ export default function AuthForm({
               required
               autoComplete="email"
               placeholder="Email address"
+              aria-label="Email address"
               className={inputClass}
             />
           </div>
@@ -694,6 +763,7 @@ export default function AuthForm({
                 onChange={e => { setReg({ ...reg, referralCode: e.target.value }); setCodeCheck(null); }}
                 onBlur={e => checkReferralCode(e.target.value)}
                 placeholder="Referral code (optional)"
+                aria-label="Referral code (optional)"
                 className={inputClass.replace("pl-10", "pl-4")}
               />
               {checkingCode ? (
@@ -720,24 +790,22 @@ export default function AuthForm({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"><LockIcon /></span>
-              <input
-                type="password"
+<AuthPasswordInput
                 value={reg.password}
                 onChange={e => setReg({ ...reg, password: e.target.value })}
                 required
                 placeholder="Password"
-                className={inputClass}
+                autoComplete="new-password"
               />
             </div>
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"><LockIcon /></span>
-              <input
-                type="password"
+<AuthPasswordInput
                 value={reg.confirmPassword}
                 onChange={e => setReg({ ...reg, confirmPassword: e.target.value })}
                 required
                 placeholder="Confirm password"
-                className={inputClass}
+                autoComplete="new-password"
               />
             </div>
           </div>
@@ -786,15 +854,16 @@ export default function AuthForm({
   return (
     <div className="flex-1 bg-panel overflow-hidden">
       <div
-        className="flex"
+        // Off-screen panels are inert (below): they used to stay in the tab
+        // order, so Tab walked into forms the user couldn't see.
+        className="flex transition-transform duration-[450ms] ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none"
         style={{
           width: `${LOGIN_STEPS.length * 100}%`,
           transform: `translateX(${translateX})`,
-          transition: "transform 0.45s cubic-bezier(0.4, 0, 0.2, 1)",
         }}
       >
         {/* Panel 1 — identifier */}
-        <div className="px-8 py-8 flex-shrink-0" style={panelStyle}>
+        <div className="px-8 py-8 flex-shrink-0" style={panelStyle} inert={loginStep !== "identifier"}>
           <div className="flex flex-col items-center text-center mb-7">
             <BrandIcon />
             <h1 className="mt-4 text-[22px] font-bold text-fg tracking-tight">Welcome back</h1>
@@ -813,6 +882,7 @@ export default function AuthForm({
                 required
                 autoComplete="email"
                 placeholder="Email address"
+                aria-label="Email address"
                 className={inputClass}
               />
             </div>
@@ -848,7 +918,7 @@ export default function AuthForm({
         </div>
 
         {/* Panel 2 — password */}
-        <div className="px-8 py-8 flex-shrink-0" style={panelStyle}>
+        <div className="px-8 py-8 flex-shrink-0" style={panelStyle} inert={loginStep !== "password"}>
           <div className="flex flex-col items-center text-center mb-7">
             <BrandIcon />
             <h1 className="mt-4 text-[22px] font-bold text-fg tracking-tight">Enter password</h1>
@@ -860,12 +930,11 @@ export default function AuthForm({
           <form onSubmit={handlePasswordLogin} className="space-y-3">
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"><LockIcon /></span>
-              <input
-                type="password"
+<AuthPasswordInput
                 value={loginPassword}
                 onChange={e => setLoginPassword(e.target.value)}
                 placeholder="Your password"
-                className={inputClass}
+                autoComplete="current-password"
               />
             </div>
 
@@ -922,7 +991,7 @@ export default function AuthForm({
         </div>
 
         {/* Panel 3 — OTP */}
-        <div className="px-8 py-8 flex-shrink-0 flex flex-col" style={panelStyle}>
+        <div className="px-8 py-8 flex-shrink-0 flex flex-col" style={panelStyle} inert={loginStep !== "otp"}>
           <div className="flex flex-col items-center text-center mb-7">
             <BrandIcon />
             <h1 className="mt-4 text-[22px] font-bold text-fg tracking-tight">
@@ -976,7 +1045,7 @@ export default function AuthForm({
         </div>
 
         {/* Panel 4 — two-factor authentication */}
-        <div className="px-8 py-8 flex-shrink-0 flex flex-col" style={panelStyle}>
+        <div className="px-8 py-8 flex-shrink-0 flex flex-col" style={panelStyle} inert={loginStep !== "totp"}>
           <div className="flex flex-col items-center text-center mb-7">
             <BrandIcon />
             <h1 className="mt-4 text-[22px] font-bold text-fg tracking-tight">Two-factor authentication</h1>
@@ -995,7 +1064,8 @@ export default function AuthForm({
                 value={recoveryCode}
                 onChange={e => setRecoveryCode(e.target.value.toUpperCase())}
                 placeholder="XXXXX-XXXXX"
-                className="w-full px-4 py-3 border-2 border-line rounded-xl text-center text-lg font-mono tracking-[0.2em] text-fg placeholder-gray-300 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 bg-panel transition-all"
+                aria-label="Recovery code"
+                className="w-full px-4 py-3 border-2 border-line rounded-xl text-center text-lg font-mono tracking-[0.2em] text-fg placeholder-fg-subtle focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 bg-panel transition-all"
               />
             ) : (
               <DigitBoxes
@@ -1042,7 +1112,7 @@ export default function AuthForm({
         </div>
 
         {/* Panel 5 — forgot password */}
-        <div className="px-8 py-8 flex-shrink-0" style={panelStyle}>
+        <div className="px-8 py-8 flex-shrink-0" style={panelStyle} inert={loginStep !== "forgot-password"}>
           {forgotSent ? (
             <div className="text-center">
               <div className="w-14 h-14 rounded-full bg-tint-blue flex items-center justify-center mx-auto">
@@ -1081,7 +1151,9 @@ export default function AuthForm({
                     value={forgotEmail}
                     onChange={e => setForgotEmail(e.target.value)}
                     required
+                    autoComplete="email"
                     placeholder="Email address"
+                    aria-label="Email address"
                     className={inputClass}
                   />
                 </div>

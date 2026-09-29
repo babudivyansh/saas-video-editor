@@ -29,7 +29,10 @@
   /* Text */
   --editor-text: #f2f2f5;
   --editor-text-muted: #8b8b96;
-  --editor-text-faint: #55555f;
+  /* Was #55555f (~2.6:1 on the panels) — used for real labels and values,
+     not decoration, so it has to clear 4.5:1. #7d8783 is ~5:1 on
+     --editor-panel and stays visibly quieter than --editor-text-muted. */
+  --editor-text-faint: #7d8783;
 
   /* Shadows (elevation scale) */
   --editor-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);

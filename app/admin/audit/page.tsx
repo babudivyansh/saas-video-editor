@@ -179,8 +179,11 @@ export default function AdminAuditPage() {
                 <tbody>
                   {logs.map(l => (
                     <Fragment key={l.id}>
-                      <tr className="border-b border-line last:border-0 hover:bg-surface-2 cursor-pointer"
-                        onClick={() => setExpanded(expanded === l.id ? null : l.id)}>
+                      <tr className="border-b border-line last:border-0 hover:bg-surface-2 cursor-pointer outline-none focus-visible:bg-surface-2 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60"
+                        tabIndex={0}
+                        aria-expanded={expanded === l.id}
+                        onClick={() => setExpanded(expanded === l.id ? null : l.id)}
+                        onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpanded(expanded === l.id ? null : l.id); } }}>
                         <td className="py-3 px-5 text-xs text-fg-muted">{l.adminEmail}</td>
                         <td className="py-3 px-3">
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${actionColor(l.action)}`}>

@@ -73,13 +73,13 @@ export default function SessionsSettingsPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h1>
+        <h2 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h2>
         <p className="text-sm text-ink-soft mt-1">{t("pageSubtitle")}</p>
       </div>
 
       <Card padding="md">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-extrabold text-ink">{t("activeSessions")}</h2>
+          <h3 className="text-base font-extrabold text-ink">{t("activeSessions")}</h3>
           {sessions && sessions.length > 1 && (
             <Button variant="secondary" size="sm" onClick={() => setConfirmAll(true)}>{t("signOutAllOthers")}</Button>
           )}
@@ -114,7 +114,7 @@ export default function SessionsSettingsPage() {
       </Card>
 
       <Card padding="md">
-        <h2 className="text-base font-extrabold text-ink mb-4">{t("recentSignIns")}</h2>
+        <h3 className="text-base font-extrabold text-ink mb-4">{t("recentSignIns")}</h3>
         {!history ? (
           <div className="space-y-2">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-10" />)}</div>
         ) : history.length === 0 ? (

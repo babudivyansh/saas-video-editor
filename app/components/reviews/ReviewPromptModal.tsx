@@ -339,12 +339,15 @@ export function ReviewPromptModal({ featureHint, mode = "new", onClose }: Review
             </div>
           )}
 
-          <div
-            className="flex items-start gap-2.5 cursor-pointer"
-            onClick={() => setForm((f) => ({ ...f, publicDisplayConsent: !f.publicDisplayConsent }))}
-          >
-            <Checkbox checked={form.publicDisplayConsent} onChange={(checked) => setForm((f) => ({ ...f, publicDisplayConsent: checked }))} label="Allow public display" />
-            <span className="text-xs text-ink-soft">I allow Clipiro to display my review publicly on the website.</span>
+          <div className="flex items-start gap-2.5">
+            <Checkbox checked={form.publicDisplayConsent} onChange={(checked) => setForm((f) => ({ ...f, publicDisplayConsent: checked }))} label="I allow Clipiro to display my review publicly on the website." />
+            <span
+              aria-hidden="true"
+              className="text-xs text-ink-soft cursor-pointer"
+              onClick={() => setForm((f) => ({ ...f, publicDisplayConsent: !f.publicDisplayConsent }))}
+            >
+              I allow Clipiro to display my review publicly on the website.
+            </span>
           </div>
 
           {/* Honeypot — visually hidden via the classic clip-rect technique

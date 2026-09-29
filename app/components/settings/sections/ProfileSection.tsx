@@ -166,7 +166,7 @@ export default function ProfileSettingsPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h1>
+        <h2 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h2>
         <p className="text-sm text-ink-soft mt-1">{t("pageSubtitle")}</p>
       </div>
 
@@ -202,10 +202,10 @@ export default function ProfileSettingsPage() {
 
       {/* UID */}
       <Card padding="md">
-        <label className={labelCls}>{t("uid")}</label>
+        <p className={labelCls}>{t("uid")}</p>
         <div className="flex items-center gap-2 bg-surface border border-card-border rounded-xl px-4 py-3">
           <span className="text-xs text-fg-muted font-mono flex-1 truncate">{user?.id ?? "—"}</span>
-          <button onClick={copyUid} title={t("copyUid")} className="text-ink-soft/60 hover:text-brand transition-colors cursor-pointer">
+          <button type="button" onClick={copyUid} title={t("copyUid")} aria-label={t("copyUid")} className="text-ink-soft/60 hover:text-brand transition-colors cursor-pointer">
             {uidCopied ? <IcCheck /> : <IcCopy />}
           </button>
         </div>
@@ -215,8 +215,8 @@ export default function ProfileSettingsPage() {
       <Card padding="md" className="space-y-4">
         <form onSubmit={handleSaveName} className="space-y-4">
           <div>
-            <label className={labelCls}>{t("nickname")}</label>
-            <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder={t("nicknamePlaceholder")} maxLength={60} className={inputCls} />
+            <label htmlFor="settings-nickname" className={labelCls}>{t("nickname")}</label>
+            <input id="settings-nickname" type="text" autoComplete="nickname" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder={t("nicknamePlaceholder")} maxLength={60} className={inputCls} />
           </div>
           <Button type="submit" disabled={savingName}>
             {savingName ? <><IcSpinner /> {t("saving")}</> : t("saveChanges")}
@@ -229,8 +229,8 @@ export default function ProfileSettingsPage() {
 
       {/* Gender */}
       <Card padding="md">
-        <label className={labelCls}>{t("gender")}</label>
-        <div className="flex items-center gap-5 mt-2">
+        <p id="settings-gender-label" className={labelCls}>{t("gender")}</p>
+        <div role="radiogroup" aria-labelledby="settings-gender-label" className="flex items-center gap-5 mt-2">
           {GENDERS.map((g) => (
             <label key={g.value} className="flex items-center gap-2 text-sm text-fg cursor-pointer">
               <input type="radio" name="gender" checked={gender === g.value} onChange={() => saveChoice("gender", g.value)} disabled={savingChoice === "gender"} className="accent-brand" />
@@ -242,11 +242,13 @@ export default function ProfileSettingsPage() {
 
       {/* Intended use */}
       <Card padding="md">
-        <label className={labelCls}>{t("intendedUseLabel")}</label>
-        <div className="flex flex-wrap gap-2 mt-2">
+        <p id="settings-use-label" className={labelCls}>{t("intendedUseLabel")}</p>
+        <div role="group" aria-labelledby="settings-use-label" className="flex flex-wrap gap-2 mt-2">
           {INTENDED_USES.map((o) => (
             <button
               key={o.value}
+              type="button"
+              aria-pressed={intendedUse === o.value}
               onClick={() => saveChoice("intendedUse", o.value)}
               disabled={savingChoice === "intendedUse"}
               className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${

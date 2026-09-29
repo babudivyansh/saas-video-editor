@@ -6,6 +6,7 @@ import { Tooltip } from "@/app/components/ui/Tooltip";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { VOICES, voiceBySlug, type Voice } from "@/app/components/voice-catalog";
 import { voiceoverCredits } from "@/lib/audio-pricing";
+import { Modal } from "@/app/components/ui/Modal";
 
 function IcInfo() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
@@ -205,21 +206,16 @@ function VoicePickerModal({
     ...filtered.filter((v) => !liked.has(v.slug)),
   ];
 
+  // ui/Modal: Esc, focus trap, scroll lock and a dialog role — the overlay
+  // this replaced had none, and its close button had no name.
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-      onClick={onClose}
-    >
+    <Modal open onClose={onClose} bare ariaLabel="Select AI voice" maxWidth="max-w-[780px]" panelClassName="!overflow-hidden">
       <audio ref={previewRef} />
-      <div
-        className="relative bg-panel rounded-2xl shadow-2xl w-full max-w-[780px] flex flex-col"
-        style={{ maxHeight: "82vh" }}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="relative flex flex-col" style={{ maxHeight: "82vh" }}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-line flex-shrink-0">
           <h2 className="text-[17px] font-extrabold text-fg">Select AI Voice</h2>
-          <button onClick={onClose} className="text-fg-subtle hover:text-fg transition-colors cursor-pointer">
+          <button type="button" onClick={onClose} aria-label="Close" className="text-fg-subtle hover:text-fg transition-colors cursor-pointer rounded outline-none focus-visible:ring-2 focus-visible:ring-primary/70">
             <IcX />
           </button>
         </div>
@@ -325,7 +321,7 @@ function VoicePickerModal({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 

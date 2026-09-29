@@ -22,7 +22,7 @@ export default function MessagesSection() {
   const t = useTranslations("SettingsMessages");
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h1>
+      <h2 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h2>
       <Card className="py-12">
         <EmptyState
           icon={<IcMessage />}

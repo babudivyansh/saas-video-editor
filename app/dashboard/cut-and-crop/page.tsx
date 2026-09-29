@@ -582,6 +582,10 @@ export default function CutAndCropPage() {
               /* Empty state */
               <div
                 onClick={onAddVideo}
+                role="button"
+                tabIndex={0}
+                aria-label="Add a video"
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onAddVideo(); } }}
                 className={`flex flex-col items-center gap-4 cursor-pointer rounded-2xl border-2 border-dashed px-14 py-12 transition-colors ${
                   draggingOver
                     ? "border-brand bg-tint-blue0/10"

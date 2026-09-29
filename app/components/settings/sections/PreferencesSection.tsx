@@ -21,7 +21,7 @@ export default function PreferencesSection() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h1>
+        <h2 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h2>
         <p className="text-sm text-ink-soft mt-1">{t("pageSubtitle")}</p>
       </div>
 

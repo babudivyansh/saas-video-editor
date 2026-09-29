@@ -245,7 +245,7 @@ export default function BackgroundRemoverTool() {
                   <p className="text-xs text-fg-subtle">{fmtMB(file.size)}</p>
                 </div>
                 {!busy && (
-                  <button type="button" onClick={clearFile} className="text-fg-subtle hover:text-fg-muted flex-shrink-0">
+                  <button aria-label="Remove image" type="button" onClick={clearFile} className="text-fg-subtle hover:text-fg-muted flex-shrink-0">
                     <IcX />
                   </button>
                 )}

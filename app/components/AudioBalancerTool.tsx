@@ -253,7 +253,7 @@ export default function AudioBalancerTool() {
                 <p className="text-xs text-fg-muted mt-0.5">{fmtMB(file.size)} • Uploaded successfully</p>
               </div>
               {!busy && (
-                <button type="button" onClick={clearFile} className="text-fg-subtle hover:text-fg-muted flex-shrink-0">
+                <button aria-label="Remove file" type="button" onClick={clearFile} className="text-fg-subtle hover:text-fg-muted flex-shrink-0">
                   <IcX />
                 </button>
               )}

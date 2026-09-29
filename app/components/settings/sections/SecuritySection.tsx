@@ -8,6 +8,7 @@ import { Card } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Modal } from "@/app/components/ui/Modal";
 import { StepUpField, stepUpBody } from "@/app/components/settings/StepUpField";
+import { PasswordInput } from "@/app/components/ui/PasswordInput";
 
 function IcSpinner() { return <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />; }
 function IcCheck() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M5 13l4 4L19 7" /></svg>; }
@@ -97,11 +98,11 @@ function EmailSection() {
   return (
     <Card padding="md" className="space-y-4">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-base font-extrabold text-ink">{t("title")}</h2>
+        <h3 className="text-base font-extrabold text-ink">{t("title")}</h3>
         <Badge ok={!!user?.emailVerifiedAt}>{user?.emailVerifiedAt ? t("verified") : t("unverified")}</Badge>
       </div>
       <div>
-        <label className={labelCls}>{t("emailAddress")}</label>
+        <p className={labelCls}>{t("emailAddress")}</p>
         <div className="flex items-center gap-2 bg-surface border border-card-border rounded-xl px-4 py-3">
           <span className="text-sm text-fg flex-1 truncate">{user?.email ?? "—"}</span>
         </div>
@@ -133,8 +134,8 @@ function EmailSection() {
       {changing && (
         <form onSubmit={submitChangeEmail} className="space-y-3 pt-2 border-t border-card-border">
           <div>
-            <label className={labelCls}>{t("newEmailAddress")}</label>
-            <input type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="you@example.com" className={inputCls} />
+            <label htmlFor="settings-new-email" className={labelCls}>{t("newEmailAddress")}</label>
+            <input id="settings-new-email" type="email" required autoComplete="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="you@example.com" className={inputCls} />
           </div>
           <div>
             <label className={labelCls}>{t("confirmItsYou")}</label>
@@ -181,15 +182,15 @@ function PasswordSection() {
   }
 
   const fields = [
-    { label: t("currentPassword"), value: currentPw, setter: setCurrentPw, placeholder: t("currentPasswordPlaceholder") },
-    { label: t("newPassword"), value: newPw, setter: setNewPw, placeholder: t("newPasswordPlaceholder") },
-    { label: t("confirmNewPassword"), value: confirmPw, setter: setConfirmPw, placeholder: t("confirmNewPasswordPlaceholder") },
+    { id: "settings-current-password", autoComplete: "current-password" as const, label: t("currentPassword"), value: currentPw, setter: setCurrentPw, placeholder: t("currentPasswordPlaceholder") },
+    { id: "settings-new-password", autoComplete: "new-password" as const, label: t("newPassword"), value: newPw, setter: setNewPw, placeholder: t("newPasswordPlaceholder") },
+    { id: "settings-confirm-password", autoComplete: "new-password" as const, label: t("confirmNewPassword"), value: confirmPw, setter: setConfirmPw, placeholder: t("confirmNewPasswordPlaceholder") },
   ];
 
   return (
     <Card padding="md">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-extrabold text-ink">{t("title")}</h2>
+        <h3 className="text-base font-extrabold text-ink">{t("title")}</h3>
         {user?.hasPassword !== false && (
           <Button variant="secondary" size="sm" onClick={() => setOpen((o) => !o)}>{open ? t("cancel") : t("changePassword")}</Button>
         )}
@@ -202,8 +203,8 @@ function PasswordSection() {
         <form onSubmit={handleChangePassword} className="mt-4 space-y-4">
           {fields.map((f) => (
             <div key={f.label}>
-              <label className={labelCls}>{f.label}</label>
-              <input type="password" value={f.value} onChange={(e) => f.setter(e.target.value)} placeholder={f.placeholder} required className={inputCls} />
+              <label htmlFor={f.id} className={labelCls}>{f.label}</label>
+              <PasswordInput id={f.id} autoComplete={f.autoComplete} value={f.value} onChange={(e) => f.setter(e.target.value)} placeholder={f.placeholder} required />
             </div>
           ))}
           <Button type="submit" disabled={loading}>{loading ? <><IcSpinner /> {t("updating")}</> : t("updatePassword")}</Button>
@@ -339,7 +340,7 @@ function TwoFactorSection() {
   return (
     <Card padding="md">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-base font-extrabold text-ink">{t("title")}</h2>
+        <h3 className="text-base font-extrabold text-ink">{t("title")}</h3>
         {status && <Badge ok={status.enabled}>{status.enabled ? t("enabled") : t("disabled")}</Badge>}
       </div>
       <p className="text-sm text-ink-soft mt-2">
@@ -375,8 +376,8 @@ function TwoFactorSection() {
               <code className="text-xs font-mono text-ink break-all">{secret}</code>
             </div>
             <div>
-              <label className={labelCls}>{t("sixDigitCode")}</label>
-              <input type="text" required autoFocus inputMode="numeric" pattern="\d{6}" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="000000" className={`${inputCls} text-center text-lg tracking-[0.5em] font-mono`} />
+              <label htmlFor="settings-2fa-code" className={labelCls}>{t("sixDigitCode")}</label>
+              <input id="settings-2fa-code" autoComplete="one-time-code" type="text" required autoFocus inputMode="numeric" pattern="\d{6}" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="000000" className={`${inputCls} text-center text-lg tracking-[0.5em] font-mono`} />
             </div>
             <Button type="submit" disabled={busy || code.length !== 6} className="w-full">{busy ? <><IcSpinner /> {t("verifying")}</> : t("verifyAndEnable")}</Button>
           </form>
@@ -426,7 +427,7 @@ export default function SecuritySettingsPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h1>
+        <h2 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h2>
         <p className="text-sm text-ink-soft mt-1">{t("pageSubtitle")}</p>
       </div>
       <EmailSection />

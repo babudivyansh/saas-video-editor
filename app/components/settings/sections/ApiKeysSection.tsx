@@ -148,7 +148,7 @@ export default function ApiKeysPage() {
     <div className="max-w-3xl">
       <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
         <div>
-          <h1 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h1>
+          <h2 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h2>
           <p className="text-sm text-ink-soft mt-1">
             {t.rich("pageSubtitle", { link: (chunks) => <Link href="/docs/api" className="text-brand hover:underline">{chunks}</Link> })}
           </p>
