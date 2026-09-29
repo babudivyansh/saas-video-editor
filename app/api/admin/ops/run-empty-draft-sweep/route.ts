@@ -11,11 +11,17 @@ import { runEmptyDraftSweep } from "@/lib/cron/empty-draft-sweep";
 // Defaults to a dry run: pass { "dryRun": false } to actually delete. Optional
 // "userId" scopes it to one account, "minAgeDays" overrides the grace period.
 export const POST = withAdmin(async (req, { admin }) => {
-  let body: { dryRun?: boolean; userId?: string; minAgeDays?: number } = {};
+  let body: { dryRun?: boolean; userId?: string; minAgeDays?: number; confirmPhrase?: string } = {};
   try {
     body = await req.json();
   } catch {
     // No body — keep the safe defaults.
+  }
+
+  // A real deletion needs the typed phrase the Ops page asks for — enforced
+  // here, not just in the UI.
+  if (body.dryRun === false && body.confirmPhrase !== "DELETE") {
+    return NextResponse.json({ error: 'Type "DELETE" to confirm' }, { status: 400 });
   }
 
   const result = await runEmptyDraftSweep({

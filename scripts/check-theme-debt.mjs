@@ -160,7 +160,7 @@ const BUDGET = {
   // 119 -> 111: the AI video generator removal (its tool page, dashboard tile
   // and onboarding goal chip).
   // 111 -> 108: Studio shell + home redesign.
-  "raw-emerald": 21, /* cron ops panel */ // audit 2026-09-29 stage 7 (pastel chips, old brand hex, editor violet → tokens)
+  "raw-emerald": 19, /* ops control center */ // audit 2026-09-29 stage 7 (pastel chips, old brand hex, editor violet → tokens)
   // 51 -> 47: four of the retired brand hexes lived in the caption tile tables
   // deleted below.
   // 47 -> 43: four more went with the per-page voice lists, whose entries

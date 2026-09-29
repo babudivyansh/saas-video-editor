@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const claims = new Set<string>();
+const store = new Map<string, string>();
 const env: Record<string, string | undefined> = {
   CRON_SECRET: "cron-s",
   SOCIAL_REFRESH_SECRET: "social-s",
@@ -15,6 +16,7 @@ vi.mock("@/lib/redis", () => ({
   redis: {
     setNx: vi.fn(async (k: string) => (claims.has(k) ? false : (claims.add(k), true))),
     set: vi.fn(async () => {}),
+    get: vi.fn(async (k: string) => store.get(k) ?? null),
   },
 }));
 // Run after() callbacks inline so the dispatched fetches are observable.
@@ -36,6 +38,7 @@ const called = () => fetchMock.mock.calls.map((c) => {
 
 beforeEach(() => {
   claims.clear();
+  store.clear();
   pending.length = 0;
   fetchMock.mockClear();
   vi.stubGlobal("fetch", fetchMock);
@@ -108,5 +111,16 @@ describe("GET /api/cron-tick", () => {
     expect(body.missingSecret).toContain("/api/cron/asset-cleanup");
     expect(called().map((c) => c.path)).not.toContain("/api/cron/asset-cleanup");
     expect(called().map((c) => c.path)).toContain("/api/cron/stale-clip-sweep");
+  });
+
+  it("skips a job paused from /admin/ops, and still claims its slot so resuming doesn't replay it", async () => {
+    store.set("cron:paused:/api/cron/dub-sweep", JSON.stringify({ by: "admin1", at: "2026-09-30T09:00:00Z" }));
+    const res = await tickAt("2026-09-30T10:02");
+    expect((await res.json()).paused).toEqual(["/api/cron/dub-sweep"]);
+    expect(called().map((c) => c.path)).not.toContain("/api/cron/dub-sweep");
+    store.clear();
+    fetchMock.mockClear();
+    await tickAt("2026-09-30T10:02");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

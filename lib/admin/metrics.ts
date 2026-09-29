@@ -13,6 +13,8 @@ import { env } from "@/lib/env";
 import { getSyncStats } from "@/lib/social/service";
 import { KNOWN_RENDER_QUEUE_NAMES } from "@/lib/render-queue";
 import { getCronRunStatuses, type CronRunId } from "@/lib/cron-tracking";
+import { getCronPauses } from "@/lib/cron-dispatch";
+import { runIdForPath } from "@/lib/cron-catalog";
 import { mrrHistory } from "./mrr-snapshot";
 
 export type MetricsSection =
@@ -410,10 +412,12 @@ const CRON_STALE_AFTER_SEC: Record<CronRunId, number> = {
 // Judged on the last SUCCESS, not the last run: a cron that runs on time and
 // fails every time is as broken as one that never runs. A cron whose most
 // recent run failed counts too, even if an earlier success is still recent.
+// A job an admin paused on purpose isn't stale — it's off.
 async function staleCronCount(): Promise<number> {
-  const statuses = await getCronRunStatuses();
+  const [statuses, pauses] = await Promise.all([getCronRunStatuses(), getCronPauses()]);
+  const paused = new Set([...pauses.keys()].map(runIdForPath));
   return statuses.filter(
-    (s) => s.failing || s.successAgeSeconds === null || s.successAgeSeconds > CRON_STALE_AFTER_SEC[s.name],
+    (s) => !paused.has(s.name) && (s.failing || s.successAgeSeconds === null || s.successAgeSeconds > CRON_STALE_AFTER_SEC[s.name]),
   ).length;
 }
 
