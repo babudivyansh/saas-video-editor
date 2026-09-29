@@ -44,11 +44,16 @@ export default function ContactPage() {
   const [formData, setFormData] = useState({ name: "", email: "", subject: "support", message: "" });
   const [honeypot, setHoneypot] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
+  // Every failure used to say "Please fill in all the required fields" —
+  // including a server error or being offline, which sent people hunting for
+  // a field they'd already filled in.
+  const [errorMessage, setErrorMessage] = useState("");
+  const fail = (message: string) => { setErrorMessage(message); setStatus("error"); };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.email || !formData.message) {
-      setStatus("error");
+      fail("Please fill in all the required fields.");
       return;
     }
 
@@ -60,13 +65,20 @@ export default function ContactPage() {
         body: JSON.stringify({ ...formData, hp: honeypot }),
       });
       if (!res.ok) {
-        setStatus("error");
+        const data = await res.json().catch(() => ({}));
+        fail(
+          res.status === 429
+            ? "You've sent a few messages already. Please wait a little while and try again."
+            : typeof data.error === "string" && res.status < 500
+              ? data.error
+              : "We couldn't send your message right now. Please try again, or email us directly.",
+        );
         return;
       }
       setStatus("success");
       setFormData({ name: "", email: "", subject: "support", message: "" });
     } catch {
-      setStatus("error");
+      fail("You seem to be offline. Check your connection and try again.");
     }
   };
 
@@ -160,8 +172,8 @@ export default function ContactPage() {
                     </h2>
 
                     {status === "error" && (
-                      <div className="rounded-xl border border-error/40 bg-error/10 p-4 text-[13px] font-medium text-error">
-                        Please fill in all the required fields.
+                      <div role="alert" className="rounded-xl border border-error/40 bg-error/10 p-4 text-[13px] font-medium text-error">
+                        {errorMessage}
                       </div>
                     )}
 

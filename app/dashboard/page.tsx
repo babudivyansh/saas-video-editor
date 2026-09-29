@@ -132,6 +132,10 @@ function DashboardPageInner() {
   const [now] = useState(() => Date.now());
   const [questData, setQuestData] = useState<QuestData | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  // A failed summary used to leave the skeleton pulsing forever for returning
+  // users; now it becomes an error card with a retry.
+  const [summaryFailed, setSummaryFailed] = useState(false);
+  const [summaryAttempt, setSummaryAttempt] = useState(0);
   // Avoids a first-time-layout flash for known-returning users while the real
   // summary fetch is in flight (this client page has no server-fetch seam).
   // Starts false so server-rendered HTML and the first client render match
@@ -162,8 +166,8 @@ function DashboardPageInner() {
       // {error:"Unauthorized"} as quest data crashes the reads below.
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (d) setQuestData(d); })
-      .catch(() => {});
-  }, [user, token]);
+      .catch(() => setSummaryFailed(true));
+  }, [user, token, summaryAttempt]);
 
   // Rank rewards are granted server-side from inside tool routes, where no
   // client is listening — so the credits used to arrive with no acknowledgement
@@ -185,13 +189,14 @@ function DashboardPageInner() {
 
   useEffect(() => {
     if (!user || !token) return;
+    setSummaryFailed(false);
     fetch("/api/dashboard/summary", { headers: { Authorization: `Bearer ${token}` } })
       // Without the r.ok check a 401/500 body ({error:"..."}) parsed fine and was
       // stored as the summary — then `summary?.inProgress[0]` below read [0] of
       // undefined and took the whole dashboard to its error boundary.
       .then(r => (r.ok ? r.json() : null))
       .then((d: DashboardSummary | null) => {
-        if (!d) return;
+        if (!d) { setSummaryFailed(true); return; }
         setSummary(d);
         if (d.hasAnyProjects) sessionStorage.setItem(HAS_PROJECTS_STORAGE_KEY, "true");
       })
@@ -374,7 +379,19 @@ function DashboardPageInner() {
               </section>
 
               {/* ── Continue where you left off ── */}
-              {summary === null && optimisticReturning && (
+              {summary === null && summaryFailed && (
+                <div role="alert" className="flex items-center justify-between gap-3 rounded-2xl border border-error/30 bg-error/10 px-4 py-3">
+                  <p className="text-sm text-fg">{t("summaryLoadFailed")}</p>
+                  <button
+                    type="button"
+                    onClick={() => setSummaryAttempt((n) => n + 1)}
+                    className="rounded-full border border-line bg-surface-2 px-3.5 py-1.5 text-xs font-semibold text-fg hover:bg-surface-3 outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+                  >
+                    {t("retry")}
+                  </button>
+                </div>
+              )}
+              {summary === null && !summaryFailed && optimisticReturning && (
                 <div className="space-y-2">
                   {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-[68px] rounded-2xl bg-surface-2 animate-pulse" />)}
                 </div>
@@ -447,12 +464,12 @@ function DashboardPageInner() {
                   {[
                     [t("totalClips"), summary.stats.totalClips],
                     [t("activeProjects"), summary.stats.activeProjects],
-                    [t("completed"), summary.stats.completedProjects],
+                    [t("minutesRemaining"), user?.minutes ?? 0],
                     [t("creditsRemaining"), user?.credits ?? 0],
                   ].map(([label, value], i) => (
                     <div key={i} className="rounded-2xl border border-line bg-surface-1 px-4 py-3.5">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-fg-subtle">{label}</p>
-                      <p className={`mt-1.5 text-2xl font-semibold tabular-nums ${i === 3 ? "text-primary" : "text-fg"}`}>{value}</p>
+                      <p className={`mt-1.5 text-2xl font-semibold tabular-nums ${i >= 2 ? "text-primary" : "text-fg"}`}>{value}</p>
                     </div>
                   ))}
                 </div>

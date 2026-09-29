@@ -81,6 +81,9 @@
     "activeProjects": "Active projects",
     "completed": "Completed",
     "creditsRemaining": "Credits remaining",
+    "minutesRemaining": "Clip minutes left",
+    "summaryLoadFailed": "We couldn't load your projects.",
+    "retry": "Try again",
     "clipCount": "{count, plural, one {# clip} other {# clips}}",
     "projectActions": "Project actions",
     "renameProject": "Rename",
@@ -398,7 +401,12 @@
     "keyMeta": "Created {created} · Last used {lastUsed} · {count, plural, one {# request} other {# requests}} · Expires {expires}",
     "never": "Never",
     "revoke": "Revoke",
-    "errors": { "createFailed": "Could not create key" }
+    "revokeTitle": "Revoke this key?",
+    "revokeMessage": "Anything using “{name}” will stop working immediately. This can’t be undone.",
+    "revoked": "Key revoked",
+    "renamed": "Key renamed",
+    "retry": "Try again",
+    "errors": { "createFailed": "Could not create key", "loadFailed": "Couldn’t load your API keys.", "revokeFailed": "Couldn’t revoke that key. Please try again.", "renameFailed": "Couldn’t rename that key." }
   },
   "SettingsMessages": {
     "pageTitle": "Messages",

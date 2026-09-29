@@ -134,9 +134,9 @@ function ClipsTab() {
   }, [rawQuery]);
 
   const filters: ClipFilters = useMemo(() => ({ q, status, sort, favorite }), [q, status, sort, favorite]);
-  const { clips, isLoading, error, hasNextPage, fetchNextPage, isFetchingNextPage } =
+  const { clips, isLoading, error, hasNextPage, fetchNextPage, isFetchingNextPage, refetch } =
     useClipsLibrary(filters);
-  const mutations = useClipMutations();
+  const mutations = useClipMutations({ onError: (message) => showToast(message, "error") });
 
   const menu = useContextMenu<ClipRow>();
   const [renaming, setRenaming] = useState<ClipRow | null>(null);
@@ -228,8 +228,9 @@ function ClipsTab() {
       {/* A failed request is visibly a failure, never the "nothing here yet"
           empty state. */}
       {error && (
-        <div className="rounded-2xl border border-error/40 bg-error/10 px-4 py-3 text-sm text-error">
-          We couldn&apos;t load your clips. {(error as Error).message}
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-error/40 bg-error/10 px-4 py-3 text-sm text-error">
+          <span>We couldn&apos;t load your clips. {(error as Error).message}</span>
+          <button type="button" onClick={() => void refetch()} className="ml-3 rounded-full border border-error/40 px-3 py-1 text-xs font-semibold text-error hover:bg-error/10 outline-none focus-visible:ring-2 focus-visible:ring-error/60">Try again</button>
         </div>
       )}
 
@@ -448,8 +449,9 @@ function ProjectsTab() {
       )}
 
       {projectsQuery.error && (
-        <div className="rounded-2xl border border-error/40 bg-error/10 px-4 py-3 text-sm text-error">
-          We couldn&apos;t load your projects. {(projectsQuery.error as Error).message}
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-error/40 bg-error/10 px-4 py-3 text-sm text-error">
+          <span>We couldn&apos;t load your projects. {(projectsQuery.error as Error).message}</span>
+          <button type="button" onClick={() => void projectsQuery.refetch()} className="ml-3 rounded-full border border-error/40 px-3 py-1 text-xs font-semibold text-error hover:bg-error/10 outline-none focus-visible:ring-2 focus-visible:ring-error/60">Try again</button>
         </div>
       )}
 

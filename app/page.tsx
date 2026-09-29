@@ -53,7 +53,7 @@ export default async function HomePage() {
         "@type": "FAQPage",
         mainEntity: [
           { "@type": "Question", name: "What is Clipiro?", acceptedAnswer: { "@type": "Answer", text: "Clipiro is an AI-powered video tool that turns long videos into viral short-form clips with automatic clipping, captions, and social formatting." } },
-          { "@type": "Question", name: "Is there a free plan?", acceptedAnswer: { "@type": "Answer", text: "Yes. Free tools are open to everyone and you can start creating without a credit card." } },
+          { "@type": "Question", name: "Is there a free plan?", acceptedAnswer: { "@type": "Answer", text: "Yes. Create a free account — no credit card — and the free tools are yours to use." } },
           { "@type": "Question", name: "Which platforms are supported?", acceptedAnswer: { "@type": "Answer", text: "Clips are optimized for YouTube Shorts, Instagram Reels, and Facebook." } },
         ],
       },

@@ -135,7 +135,7 @@ export function CompareTable({ subs, term }: { subs: DbPlan[]; term: number }) {
         <table className="w-full min-w-[640px] border-collapse">
           <thead>
             <tr className="bg-surface-2">
-              <th scope="col" className="px-6 py-4 text-left text-sm font-medium text-fg-muted">Plan</th>
+              <th scope="col" className="sticky left-0 z-10 bg-surface-2 px-6 py-4 text-left text-sm font-medium text-fg-muted">Plan</th>
               {TIER_ORDER.map(t => (
                 <th
                   key={t}
@@ -158,7 +158,7 @@ export function CompareTable({ subs, term }: { subs: DbPlan[]; term: number }) {
               </tr>
               {g.rows.map(r => (
                 <tr key={r.label} className="border-t border-line">
-                  <th scope="row" className="px-6 py-3.5 text-left text-sm font-normal text-fg-muted">{r.label}</th>
+                  <th scope="row" className="sticky left-0 z-10 bg-bg px-6 py-3.5 text-left text-sm font-normal text-fg-muted max-sm:max-w-[9.5rem] max-sm:px-4">{r.label}</th>
                   {TIER_ORDER.map(t => (
                     <td key={t} className={`px-4 py-3.5 text-center ${t === "pro" ? "bg-[color-mix(in_oklab,var(--primary)_4%,transparent)]" : ""}`}>
                       <CellValue value={r.cells[t]} />

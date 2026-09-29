@@ -19,6 +19,8 @@ export default function WebVitals() {
     // next/web-vitals also emits custom Next timings (hydration, route-change).
     // Only the standard CWV set is meaningful here.
     if (!isWebVitalMetric(metric.name)) return;
+    // Honour the Analytics toggle on /cookies (absence = allowed).
+    if (document.cookie.split("; ").includes("cookie_consent_analytics=denied")) return;
 
     try {
       void fetch("/api/marketing/vitals", {

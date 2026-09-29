@@ -175,7 +175,7 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
         </div>
         {/* Announced: this is the only signal a screen-reader user gets that the
             run moved from upload to analysis. */}
-        <h1 role="status" aria-live="polite" className="text-2xl font-extrabold text-ink mb-2">{heading}</h1>
+        <h1 className="text-2xl font-extrabold text-ink mb-2"><span role="status" aria-live="polite">{heading}</span></h1>
         <p className="text-[15px] text-ink-soft mb-7">{status === "uploading" ? "Uploading your source video…" : `Analyzing speech, pacing and engagement${fileName ? ` across ${fileName}` : ""}.`}</p>
         <div className="h-1.5 rounded-full bg-brand-soft overflow-hidden max-w-[360px] mx-auto mb-2.5 relative">
           <div className="ac-shimmer absolute inset-0" style={{ background: "linear-gradient(90deg, transparent, var(--brand), transparent)" }} />
@@ -224,7 +224,7 @@ export function ClipsResults({ projectId, status, error, expectedCount, fileName
       {/* Header */}
       <div className="flex items-end justify-between gap-6 flex-wrap mb-6">
         <div>
-          <h1 role="status" aria-live="polite" className="text-[28px] font-extrabold tracking-tight text-ink mb-1.5">{allDone ? "Your clips are ready 🎉" : "Generating your clips"}</h1>
+          <h1 className="text-[28px] font-extrabold tracking-tight text-ink mb-1.5"><span role="status" aria-live="polite">{allDone ? "Your clips are ready 🎉" : "Generating your clips"}</span></h1>
           <p className="text-sm text-ink-soft">
             {`${ready} of ${total} ready${fileName ? ` · ${fileName}` : ""}`}
           </p>
