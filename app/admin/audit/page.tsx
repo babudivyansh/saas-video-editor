@@ -1,237 +1,187 @@
 "use client";
-import { useEffect, useState, useCallback, Fragment } from "react";
+
+// Audit Log: every admin action (and the user / security events worth an
+// audit record) as a readable, filterable, verifiable timeline. Filters live
+// in the URL so a view can be linked. Open an event for who / where / reason,
+// a field-by-field diff, integrity, and related activity.
+
+import { Suspense, useCallback, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import AdminShell from "../AdminShell";
 import { useAuth } from "@/app/components/AuthContext";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
+import { AuditOverview } from "./_components/AuditOverview";
+import { AuditTimeline } from "./_components/AuditTimeline";
+import { CATEGORY_LABEL, EMPTY_FILTERS, SEVERITY_LABEL, toParams, type AuditFilterState } from "./_components/types";
 
-interface AuditEntry {
-  id: string;
-  adminId: string;
-  adminEmail: string;
-  action: string;
-  targetId: string | null;
-  before: string | null;
-  after: string | null;
-  createdAt: string;
+const RANGES: Array<[AuditFilterState["range"], string]> = [["24h", "24 h"], ["7d", "7 days"], ["30d", "30 days"], ["90d", "90 days"], ["all", "All time"], ["custom", "Custom"]];
+
+function readFilters(sp: URLSearchParams): AuditFilterState {
+  const f = { ...EMPTY_FILTERS };
+  for (const k of ["q", "category", "severity", "actorType", "adminEmail", "targetId", "from", "to"] as const) f[k] = sp.get(k) ?? "";
+  f.missingReason = sp.get("missingReason") === "1";
+  const r = sp.get("range");
+  if (r && RANGES.some(([id]) => id === r)) f.range = r as AuditFilterState["range"];
+  return f;
 }
 
-function fmt(iso: string) {
-  return new Date(iso).toLocaleString("en-US", {
-    year: "numeric", month: "short", day: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
-}
-function fmtShort(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
+function AuditLog() {
+  const { token } = useAuth();
+  const router = useRouter();
+  const sp = useSearchParams();
+  const filters = useMemo(() => readFilters(new URLSearchParams(sp.toString())), [sp]);
+  const [searchDraft, setSearchDraft] = useState(filters.q);
+  const headers = useCallback(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
-function prettyJson(raw: string | null) {
-  if (!raw) return "—";
-  try {
-    return JSON.stringify(JSON.parse(raw), null, 2);
-  } catch {
-    return raw;
+  const update = (patch: Partial<AuditFilterState>) => {
+    const next = { ...filters, ...patch };
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(next)) {
+      if (k === "range") { if (v !== "30d") p.set(k, String(v)); continue; }
+      if (k === "missingReason") { if (v) p.set(k, "1"); continue; }
+      if (v) p.set(k, String(v));
+    }
+    router.replace(`/admin/audit${p.toString() ? `?${p}` : ""}`, { scroll: false });
+  };
+
+  // Stable per filter set; Date-relative ranges resolve when filters change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const params = useMemo(() => toParams(filters).toString(), [sp]);
+  const active = Object.entries(filters).filter(([k, v]) => k !== "range" && k !== "from" && k !== "to" && v).length;
+
+  async function exportCsv() {
+    const p = new URLSearchParams(params);
+    p.set("export", "csv");
+    const res = await fetch(`/api/admin/audit?${p}`, { headers: headers() });
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `audit-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
   }
-}
 
-const LIMIT = 50;
+  const chip = (on: boolean) =>
+    `text-xs font-semibold rounded-full border px-3 py-1.5 min-h-[32px] whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+      on ? "border-brand text-brand bg-brand/10" : "border-line text-fg-muted hover:text-fg"
+    }`;
+  const inputCls = "bg-surface-2 border border-line rounded-lg px-3 py-2 text-sm text-fg";
 
-interface AdminActivity {
-  adminEmail: string;
-  actions30d: number;
-  lastActionAt: string | null;
+  return (
+    <>
+      {token && (
+        <AuditOverview
+          headers={headers}
+          params={params}
+          onPick={(patch) => { if (patch.q) setSearchDraft(patch.q); update(patch); }}
+        />
+      )}
+
+      <Card shadow padding="md" className="mb-4 space-y-3">
+        <div className="flex flex-wrap gap-2 items-center">
+          <form
+            className="flex-1 min-w-[14rem] flex gap-2"
+            onSubmit={(e) => { e.preventDefault(); update({ q: searchDraft.trim() }); }}
+          >
+            <label htmlFor="audit-search" className="sr-only">Search the audit log</label>
+            <input
+              id="audit-search"
+              value={searchDraft}
+              onChange={(e) => setSearchDraft(e.target.value)}
+              placeholder="Search action, reason, IDs, values…"
+              className={`${inputCls} flex-1 min-w-0`}
+            />
+            <Button type="submit" size="sm" variant="secondary">Search</Button>
+          </form>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Date range">
+            {RANGES.map(([id, label]) => (
+              <button key={id} type="button" aria-pressed={filters.range === id} className={chip(filters.range === id)} onClick={() => update({ range: id })}>{label}</button>
+            ))}
+          </div>
+        </div>
+
+        {filters.range === "custom" && (
+          <div className="flex flex-wrap gap-2 items-center">
+            <label className="text-xs text-fg-muted" htmlFor="audit-from">From</label>
+            <input id="audit-from" type="date" value={filters.from} onChange={(e) => update({ from: e.target.value })} className={inputCls} />
+            <label className="text-xs text-fg-muted" htmlFor="audit-to">to</label>
+            <input id="audit-to" type="date" value={filters.to} onChange={(e) => update({ to: e.target.value })} className={inputCls} />
+            <span className="text-[11px] text-fg-subtle">in your timezone ({Intl.DateTimeFormat().resolvedOptions().timeZone})</span>
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Category">
+          <button type="button" aria-pressed={!filters.category} className={chip(!filters.category)} onClick={() => update({ category: "" })}>All categories</button>
+          {Object.entries(CATEGORY_LABEL).map(([id, label]) => (
+            <button key={id} type="button" aria-pressed={filters.category === id} className={chip(filters.category === id)} onClick={() => update({ category: filters.category === id ? "" : id })}>{label}</button>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap gap-2 items-center">
+          <label className="sr-only" htmlFor="audit-severity">Severity</label>
+          <select id="audit-severity" value={filters.severity} onChange={(e) => update({ severity: e.target.value })} className={inputCls}>
+            <option value="">Any severity</option>
+            {Object.entries(SEVERITY_LABEL).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+          </select>
+          <label className="sr-only" htmlFor="audit-actor">Actor type</label>
+          <select id="audit-actor" value={filters.actorType} onChange={(e) => update({ actorType: e.target.value })} className={inputCls}>
+            <option value="">Admins + users</option>
+            <option value="admin">Admins only</option>
+            <option value="user">Users only</option>
+            <option value="system">System</option>
+          </select>
+          <label className="sr-only" htmlFor="audit-admin">Actor email</label>
+          <input
+            id="audit-admin"
+            defaultValue={filters.adminEmail}
+            key={`admin-${filters.adminEmail}`}
+            onBlur={(e) => e.target.value.trim() !== filters.adminEmail && update({ adminEmail: e.target.value.trim() })}
+            onKeyDown={(e) => { if (e.key === "Enter") update({ adminEmail: (e.target as HTMLInputElement).value.trim() }); }}
+            placeholder="Done by (email)"
+            className={`${inputCls} w-48`}
+          />
+          <label className="inline-flex items-center gap-2 text-xs text-fg-muted cursor-pointer">
+            <input type="checkbox" checked={filters.missingReason} onChange={(e) => update({ missingReason: e.target.checked })} />
+            Only actions missing a reason
+          </label>
+          <div className="ml-auto flex gap-2">
+            {(active > 0 || filters.range !== "30d") && (
+              <Button size="sm" variant="link" className="text-fg-muted" onClick={() => { setSearchDraft(""); router.replace("/admin/audit", { scroll: false }); }}>
+                Clear filters
+              </Button>
+            )}
+            <Button size="sm" variant="secondary" onClick={exportCsv}>Export CSV</Button>
+          </div>
+        </div>
+
+        {filters.targetId && (
+          <p className="text-xs text-fg-muted">
+            Showing activity on one target <span className="font-mono">{filters.targetId}</span>{" "}
+            <Button variant="link" className="text-brand text-xs" onClick={() => update({ targetId: "" })}>show everything</Button>
+          </p>
+        )}
+      </Card>
+
+      {token && (
+        <AuditTimeline
+          headers={headers}
+          params={params}
+          onFilterTarget={(targetId) => update({ targetId, range: "all" })}
+          emptyText={active ? "No audit entries match these filters." : "No audit entries in this period."}
+        />
+      )}
+    </>
+  );
 }
 
 export default function AdminAuditPage() {
-  const { token, user } = useAuth();
-  const [logs, setLogs]     = useState<AuditEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [total, setTotal]   = useState(0);
-  const [page, setPage]     = useState(1);
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [byAdmin, setByAdmin] = useState<AdminActivity[]>([]);
-  const [activityWindow, setActivityWindow] = useState<{ from: string; to: string | null } | null>(null);
-  // filters
-  const [fAction, setFAction] = useState("");
-  const [fTarget, setFTarget] = useState("");
-  const [fAdmin, setFAdmin] = useState("");
-  const [fFrom, setFFrom] = useState("");
-  const [fTo, setFTo] = useState("");
-
-  const load = useCallback(async () => {
-    if (!token || user?.role !== "ADMIN") return;
-    setLoading(true);
-    const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
-    for (const [k, v] of [["action", fAction], ["targetId", fTarget], ["adminEmail", fAdmin], ["from", fFrom], ["to", fTo]] as const) {
-      if (v.trim()) params.set(k, v.trim());
-    }
-    const res = await fetch(`/api/admin/audit?${params}`, { headers: { Authorization: `Bearer ${token}` } });
-    const data = res.ok ? await res.json() : { logs: [], total: 0, byAdmin: [] };
-    setLogs(data.logs ?? []);
-    setTotal(data.total ?? 0);
-    if (page === 1) {
-      setByAdmin(data.byAdmin ?? []);
-      setActivityWindow(data.activityWindow ?? null);
-    }
-    setLoading(false);
-  }, [token, user?.role, page, fAction, fTarget, fAdmin, fFrom, fTo]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const totalPages = Math.max(1, Math.ceil(total / LIMIT));
-
-  function actionColor(action: string) {
-    if (action.includes("delete") || action.includes("expired") || action.includes("deactivat")) return "bg-error/15 text-error";
-    if (action.includes("created") || action.includes("refill") || action.includes("extend")) return "bg-success/15 text-success";
-    return "bg-tint-violet text-brand";
-  }
-
   return (
     <AdminShell title="Audit Log">
-      <p className="text-sm text-fg-muted mb-4">
-        Every admin action is recorded here. Click a row to see the before/after snapshot.
-      </p>
-
-      {byAdmin.length > 0 && (
-        <Card shadow padding="sm" className="mb-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-fg-subtle mb-2">
-            Admin activity — {activityWindow
-              ? `since ${fmtShort(activityWindow.from)}${activityWindow.to ? ` to ${fmtShort(activityWindow.to)}` : ""}`
-              : "last 30 days"}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {byAdmin.map(a => (
-              <Button
-                key={a.adminEmail}
-                variant="secondary"
-                size="sm"
-                onClick={() => { setFAdmin(a.adminEmail); setPage(1); }}
-              >
-                <span className="font-semibold text-fg">{a.adminEmail}</span>
-                <span className="text-fg-subtle"> · {a.actions30d} actions</span>
-              </Button>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      <Card shadow padding="sm" className="mb-4 flex flex-wrap gap-2 items-end">
-        <input value={fAction} onChange={e => { setFAction(e.target.value); setPage(1); }} placeholder="Action prefix (e.g. user., commission.)"
-          className="text-xs border border-line rounded-lg px-3 py-2 w-56" aria-label="Filter by action" />
-        <input value={fTarget} onChange={e => { setFTarget(e.target.value); setPage(1); }} placeholder="Target ID"
-          className="text-xs border border-line rounded-lg px-3 py-2 w-44 font-mono" aria-label="Filter by target" />
-        <input value={fAdmin} onChange={e => { setFAdmin(e.target.value); setPage(1); }} placeholder="Admin email"
-          className="text-xs border border-line rounded-lg px-3 py-2 w-44" aria-label="Filter by admin" />
-        <input type="date" value={fFrom} onChange={e => { setFFrom(e.target.value); setPage(1); }}
-          className="text-xs border border-line rounded-lg px-3 py-2" aria-label="From date" />
-        <input type="date" value={fTo} onChange={e => { setFTo(e.target.value); setPage(1); }}
-          className="text-xs border border-line rounded-lg px-3 py-2" aria-label="To date" />
-        {(fAction || fTarget || fAdmin || fFrom || fTo) && (
-          <Button variant="link" onClick={() => { setFAction(""); setFTarget(""); setFAdmin(""); setFFrom(""); setFTo(""); setPage(1); }} className="text-fg-muted hover:text-error">
-            Clear filters
-          </Button>
-        )}
-        <Button
-          variant="secondary"
-          size="sm"
-          className="ml-auto"
-          onClick={async () => {
-            const params = new URLSearchParams({ export: "csv" });
-            for (const [k, v] of [["action", fAction], ["targetId", fTarget], ["adminEmail", fAdmin], ["from", fFrom], ["to", fTo]] as const) {
-              if (v.trim()) params.set(k, v.trim());
-            }
-            const res = await fetch(`/api/admin/audit?${params}`, { headers: { Authorization: `Bearer ${token}` } });
-            if (!res.ok) return;
-            const blob = await res.blob();
-            const a = document.createElement("a");
-            a.href = URL.createObjectURL(blob);
-            a.download = `audit-${Date.now()}.csv`;
-            a.click();
-            URL.revokeObjectURL(a.href);
-          }}
-        >
-          Export CSV
-        </Button>
-      </Card>
-
-      {loading ? (
-        <p className="text-sm text-fg-subtle">Loading logs…</p>
-      ) : logs.length === 0 ? (
-        <Card shadow className="p-12 text-center">
-          <p className="text-sm font-semibold text-fg-muted">No audit entries yet</p>
-          <p className="text-xs text-fg-subtle mt-1">Admin actions will be logged here automatically.</p>
-        </Card>
-      ) : (
-        <>
-          <Card shadow className="mb-4">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-line text-left text-xs font-semibold text-fg-subtle uppercase tracking-wide">
-                    <th className="py-3.5 px-5">Admin</th>
-                    <th className="py-3.5 px-3">Action</th>
-                    <th className="py-3.5 px-3">Target</th>
-                    <th className="py-3.5 px-3">Date</th>
-                    <th className="py-3.5 px-3">Detail</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {logs.map(l => (
-                    <Fragment key={l.id}>
-                      <tr className="border-b border-line last:border-0 hover:bg-surface-2 cursor-pointer outline-none focus-visible:bg-surface-2 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60"
-                        tabIndex={0}
-                        aria-expanded={expanded === l.id}
-                        onClick={() => setExpanded(expanded === l.id ? null : l.id)}
-                        onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpanded(expanded === l.id ? null : l.id); } }}>
-                        <td className="py-3 px-5 text-xs text-fg-muted">{l.adminEmail}</td>
-                        <td className="py-3 px-3">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${actionColor(l.action)}`}>
-                            {l.action}
-                          </span>
-                        </td>
-                        <td className="py-3 px-3 font-mono text-xs text-fg-subtle truncate max-w-[120px]">
-                          {l.targetId ?? "—"}
-                        </td>
-                        <td className="py-3 px-3 text-xs text-fg-subtle whitespace-nowrap">{fmt(l.createdAt)}</td>
-                        <td className="py-3 px-3 text-xs text-brand">{expanded === l.id ? "▲ Hide" : "▼ Show"}</td>
-                      </tr>
-                      {expanded === l.id && (
-                        <tr className="bg-surface-2 border-b border-line">
-                          <td colSpan={5} className="px-5 py-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div>
-                                <p className="text-[10px] font-bold text-fg-subtle uppercase mb-1">Before</p>
-                                <pre className="text-xs text-fg bg-panel border border-line rounded-xl p-3 overflow-x-auto whitespace-pre-wrap break-words">
-                                  {prettyJson(l.before)}
-                                </pre>
-                              </div>
-                              <div>
-                                <p className="text-[10px] font-bold text-fg-subtle uppercase mb-1">After</p>
-                                <pre className="text-xs text-fg bg-panel border border-line rounded-xl p-3 overflow-x-auto whitespace-pre-wrap break-words">
-                                  {prettyJson(l.after)}
-                                </pre>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-
-          <div className="flex items-center justify-between text-sm text-fg-muted">
-            <span>Page {page} of {totalPages} ({total} entries)</span>
-            <div className="flex gap-2">
-              <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>← Prev</Button>
-              <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>Next →</Button>
-            </div>
-          </div>
-        </>
-      )}
+      <Suspense fallback={null}>
+        <AuditLog />
+      </Suspense>
     </AdminShell>
   );
 }

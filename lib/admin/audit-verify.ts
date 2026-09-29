@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
-import { CHAIN_GENESIS, CHAIN_HEAD_KEY, hashAuditRow } from "@/lib/admin/audit";
+import { CHAIN_GENESIS, chainHeadKey, hashAuditRow } from "@/lib/admin/audit";
 
 // Walks the audit hash chain and reports anything that doesn't add up:
 //
@@ -79,7 +79,7 @@ export async function verifyAuditChain(): Promise<AuditVerifyResult> {
     }
   }
 
-  const storedHead = await redis.get(CHAIN_HEAD_KEY).catch(() => null);
+  const storedHead = await redis.get(chainHeadKey()).catch(() => null);
   // The newest hash recorded at write time must still exist. (A flushed Redis
   // has no head and can't vouch either way; a head older than the last row —
   // a missed Redis write — is still present, so it isn't flagged.)

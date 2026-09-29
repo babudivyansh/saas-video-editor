@@ -46,7 +46,14 @@ export interface AuditEventInput extends AuditDetails {
 /** Arbitrary constant: the advisory-lock id that serializes audit writes. */
 const CHAIN_LOCK = 742_019_311;
 export const CHAIN_GENESIS = "GENESIS";
-export const CHAIN_HEAD_KEY = "audit:chain:head";
+/**
+ * Redis key for the newest chain hash — scoped to the database, so two
+ * environments sharing one Redis (staging + prod, or a test run against the
+ * dev Redis) can never read each other's head as a "deleted newest entry".
+ */
+export function chainHeadKey(): string {
+  return `audit:chain:head:${createHash("sha256").update(env.DATABASE_URL ?? "").digest("hex").slice(0, 16)}`;
+}
 
 function chainKey(): string {
   return env.AUDIT_HMAC_KEY || createHash("sha256").update(`audit-chain:${env.JWT_SECRET}`).digest("hex");
@@ -115,7 +122,7 @@ export async function auditEvent(input: AuditEventInput): Promise<void> {
       await tx.auditLog.create({ data: { ...row, hash: rowHash } });
       return rowHash;
     });
-    await redis.set(CHAIN_HEAD_KEY, hash).catch(() => {});
+    await redis.set(chainHeadKey(), hash).catch(() => {});
   } catch (e) {
     // error, not warn: a lost audit row is invisible everywhere except
     // whatever the team already watches at error level.

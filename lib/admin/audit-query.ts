@@ -20,6 +20,8 @@ export const auditFiltersSchema = z.object({
   q: z.preprocess(blank, z.string().trim().max(200).optional()),
   action: z.preprocess(blank, z.string().max(64).optional()),
   targetId: z.preprocess(blank, z.string().max(128).optional()),
+  /** An account's whole history: events done TO it or BY it. */
+  involving: z.preprocess(blank, z.string().max(128).optional()),
   adminEmail: z.preprocess(blank, z.string().max(200).optional()),
   targetEmail: z.preprocess(blank, z.string().max(200).optional()),
   category: z.preprocess(blank, z.enum(CATEGORIES).optional()),
@@ -60,6 +62,7 @@ export async function buildAuditWhere(f: AuditFilters, { withDates = true } = {}
 
   if (f.action) and.push({ action: { startsWith: f.action } });
   if (f.targetId) and.push({ targetId: f.targetId });
+  if (f.involving) and.push({ OR: [{ targetId: f.involving }, { adminId: f.involving }] });
   if (f.category) and.push(actionFilter(actionsInCategory(f.category), patternPrefixesIn({ category: f.category })));
   if (f.severity) and.push(actionFilter(actionsWithSeverity(f.severity), patternPrefixesIn({ severity: f.severity })));
   if (f.missingReason) {

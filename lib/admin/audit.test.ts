@@ -35,7 +35,7 @@ vi.mock("@/lib/redis", () => ({
     setNx: vi.fn(async () => true),
   },
 }));
-vi.mock("@/lib/env", () => ({ env: { JWT_SECRET: "test-secret-test-secret-test-secret" } }));
+vi.mock("@/lib/env", () => ({ env: { JWT_SECRET: "test-secret-test-secret-test-secret", DATABASE_URL: "postgres://test" } }));
 vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/rate-limit", () => ({ getClientIp: () => "unknown" }));
 
