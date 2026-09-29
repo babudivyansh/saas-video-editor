@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/lib/env";
+import { cronSecretMatches } from "@/lib/cron-auth";
 import { runSubmagicSweep } from "@/lib/cron/submagic-sweep";
 
 // Reconciles premium caption renders (lib/caption-render-job.ts) — see
@@ -12,8 +13,7 @@ import { runSubmagicSweep } from "@/lib/cron/submagic-sweep";
 // Recommended cadence: every 2 minutes (see SETUP.md), matching dub-sweep.
 export async function GET(req: NextRequest) {
   const secret = env.CRON_SECRET;
-  const authz = req.headers.get("authorization");
-  if (!secret || authz !== `Bearer ${secret}`) {
+  if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -34,7 +34,7 @@ type Pending = { name: string; passwordHash: string; referralCode: string | null
 let pending: Pending;
 const clearPendingSignup = vi.fn(async () => {});
 vi.mock("@/lib/signup-pending", () => ({
-  readPendingSignup: vi.fn(async () => pending),
+  readPendingSignup: vi.fn(async (_email: string, token: unknown) => (token === "tok-1" ? pending : null)),
   clearPendingSignup,
 }));
 
@@ -61,7 +61,7 @@ beforeEach(() => {
 
 describe("POST /api/auth/register/verify", () => {
   it("creates a verified account with the parked name and password, and signs it in", async () => {
-    const res = await post({ email: "New@Test.com", otp: "123456" });
+    const res = await post({ email: "New@Test.com", otp: "123456", signupToken: "tok-1" });
     expect(res.status).toBe(201);
     expect((await res.json()).token).toBe("tok-1");
     expect(consumeOtp).toHaveBeenCalledWith("signup", "new@test.com", "123456");
@@ -80,7 +80,7 @@ describe("POST /api/auth/register/verify", () => {
 
   it("creates nothing on a wrong code", async () => {
     codeOk = false;
-    const res = await post({ email: "new@test.com", otp: "000000" });
+    const res = await post({ email: "new@test.com", otp: "000000", signupToken: "tok-1" });
     expect(res.status).toBe(401);
     expect(create).not.toHaveBeenCalled();
     expect(clearPendingSignup).not.toHaveBeenCalled();
@@ -88,30 +88,38 @@ describe("POST /api/auth/register/verify", () => {
 
   it("reports an expired signup so the client can go back to the form", async () => {
     pending = null;
-    const res = await post({ email: "new@test.com", otp: "123456" });
+    const res = await post({ email: "new@test.com", otp: "123456", signupToken: "tok-1" });
     expect(res.status).toBe(400);
     expect((await res.json()).expired).toBe(true);
     expect(create).not.toHaveBeenCalled();
   });
 
+  it("won't complete a signup started by a different browser, even with the right code", async () => {
+    const res = await post({ email: "new@test.com", otp: "123456", signupToken: "someone-elses" });
+    expect(res.status).toBe(400);
+    expect((await res.json()).expired).toBe(true);
+    expect(consumeOtp).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it("429s after too many guesses, before checking the code", async () => {
     rateLimitAllowed = false;
-    const res = await post({ email: "new@test.com", otp: "123456" });
+    const res = await post({ email: "new@test.com", otp: "123456", signupToken: "tok-1" });
     expect(res.status).toBe(429);
     expect(consumeOtp).not.toHaveBeenCalled();
   });
 
   it("409s if the address was registered while the code was in flight", async () => {
     createError = Object.assign(new Error("unique"), { code: "P2002" });
-    const res = await post({ email: "new@test.com", otp: "123456" });
+    const res = await post({ email: "new@test.com", otp: "123456", signupToken: "tok-1" });
     expect(res.status).toBe(409);
   });
 
   it("grants the free tier's Clip Minutes, and survives the grant failing", async () => {
-    await post({ email: "new@test.com", otp: "123456" });
+    await post({ email: "new@test.com", otp: "123456", signupToken: "tok-1" });
     expect(grantFreeTierMinutes).toHaveBeenCalledWith("new-user-1", "grant:signup");
     grantFreeTierMinutes.mockRejectedValueOnce(new Error("db blip"));
-    expect((await post({ email: "new@test.com", otp: "123456" })).status).toBe(201);
+    expect((await post({ email: "new@test.com", otp: "123456", signupToken: "tok-1" })).status).toBe(201);
   });
 
   it("attributes the typed referral code with the trusted client IP, never leaking the affiliate", async () => {
@@ -122,7 +130,7 @@ describe("POST /api/auth/register/verify", () => {
       affiliateId: "aff-1",
       affiliateUser: { userId: "owner-1", email: "owner@test.com", name: "Owner" },
     });
-    const res = await post({ email: "new@test.com", otp: "123456" });
+    const res = await post({ email: "new@test.com", otp: "123456", signupToken: "tok-1" });
     const data = await res.json();
     expect(attributeReferral).toHaveBeenCalledWith(expect.objectContaining({
       typedCode: "JOH-N4X2",
@@ -134,7 +142,7 @@ describe("POST /api/auth/register/verify", () => {
   });
 
   it("omits the referral key entirely when no code or cookie was involved", async () => {
-    const data = await (await post({ email: "new@test.com", otp: "123456" })).json();
+    const data = await (await post({ email: "new@test.com", otp: "123456", signupToken: "tok-1" })).json();
     expect(data.referral).toBeUndefined();
   });
 });

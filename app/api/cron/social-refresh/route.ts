@@ -5,11 +5,12 @@ import { evaluateGoals, recomputeScores, runScheduledReports, syncDailyMetrics }
 import { refreshClipPublishMetrics } from "@/lib/autoclip-publish";
 import { recalibrateViralityWeights } from "@/lib/virality-calibration";
 import { env } from "@/lib/env";
+import { cronSecretMatches } from "@/lib/cron-auth";
 import { KNOWN_CRON_JOBS } from "@/lib/cron-tracking";
 
 // Scheduled entrypoint for an external scheduler (cron-job.org, Vercel Cron,
 // GitHub Actions, etc.). Protected by a shared secret in the Authorization
-// header (`Bearer <SOCIAL_REFRESH_SECRET>`) or `?secret=`.
+// header (`Bearer <SOCIAL_REFRESH_SECRET>`); see lib/cron-auth.ts.
 //
 // Jobs (select with ?job=):
 //   refresh              (default) — re-sync stale accounts + clip-publish metrics
@@ -39,11 +40,7 @@ import { KNOWN_CRON_JOBS } from "@/lib/cron-tracking";
 //   0 6 * * *    …?job=reports         (due configs; due-ness is elapsed time, not a calendar match)
 export async function GET(req: NextRequest) {
   const secret = env.SOCIAL_REFRESH_SECRET;
-  const provided =
-    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
-    req.nextUrl.searchParams.get("secret") ||
-    "";
-  if (!secret || provided !== secret) {
+  if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

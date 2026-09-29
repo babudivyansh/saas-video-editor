@@ -5,6 +5,14 @@ import { headers } from "next/headers";
 // of each repeating the same <script type="application/ld+json"
 // dangerouslySetInnerHTML=.../> boilerplate. The single point of control
 // also means a CSP nonce only needs to be threaded through here once.
+// Structured data embeds user-written text (review titles/bodies, author
+// names). JSON.stringify leaves `<` alone, so a value containing `</script>`
+// would close the tag and run whatever follows it. Escaping every `<` as
+// < parses to the identical JSON but can't break out of the element.
+export function serializeJsonLd(data: unknown): string {
+  return JSON.stringify(data).replace(/</g, "\\u003c");
+}
+
 export async function JsonLd({ data }: { data: unknown }) {
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
@@ -21,7 +29,7 @@ export async function JsonLd({ data }: { data: unknown }) {
       // CSP enforcement is unaffected either way — it's decided at parse
       // time from the response, not from what's readable after the fact.
       suppressHydrationWarning
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+      dangerouslySetInnerHTML={{ __html: serializeJsonLd(data) }}
     />
   );
 }

@@ -14,7 +14,8 @@ const requested: string[] = [];
 /** What each requested URL answers with: a redirect Location, or null for "don't care". */
 let redirects: Record<string, string> = {};
 
-function fakeGet(url: string, cb: Handler) {
+function fakeGet(url: string, optsOrCb: unknown, maybeCb?: Handler) {
+  const cb = (typeof optsOrCb === "function" ? optsOrCb : maybeCb) as Handler;
   requested.push(url);
   const location = redirects[url];
   queueMicrotask(() => cb({ statusCode: location ? 302 : 500, headers: location ? { location } : {} }));

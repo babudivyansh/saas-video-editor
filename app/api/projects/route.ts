@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { invalidateDashboardSummary } from "@/lib/dashboard-summary-cache";
 import { parseS3Url } from "@/lib/s3-url";
+import { sourceUrlError } from "@/lib/source-url";
 import { getAssetReadUrl } from "@/utils/s3-upload";
 
 // Stored media URLs are permanent and unsigned; re-sign before handing one out.
@@ -56,6 +57,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { title } = body;
   if (!title) return NextResponse.json({ error: "title required" }, { status: 400 });
+  const urlError = sourceUrlError(body.uploadedVideoUrl ?? null);
+  if (urlError) return NextResponse.json({ error: urlError }, { status: 400 });
 
   const project = await prisma.project.create({
     data: {

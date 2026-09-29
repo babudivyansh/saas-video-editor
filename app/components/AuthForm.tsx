@@ -177,10 +177,16 @@ export default function AuthForm({
   const [loginPassword, setLoginPassword] = useState("");
   const [otpDigits, setOtpDigits] = useState(emptyDigits);
   const [devCode, setDevCode] = useState<string | null>(null);
+  // Issued by /api/auth/register to this browser only; verify must send it
+  // back so nobody else can swap in their own password mid-signup.
+  const [signupToken, setSignupToken] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
   // The code panel doubles as the one-time address check that older, never-
   // verified accounts get after their password (server: requiresEmailVerification).
   const [verifyingEmail, setVerifyingEmail] = useState(false);
+  // Returned with requiresEmailVerification; verify-otp only treats the
+  // password as proven when this same browser sends it back.
+  const [passwordProof, setPasswordProof] = useState<string | null>(null);
   // A deactivated account's login answers "deactivated" — offer the
   // reactivate call with the credentials just typed instead of a dead end.
   const [canReactivate, setCanReactivate] = useState(false);
@@ -319,10 +325,11 @@ export default function AuthForm({
   }
 
   /** Password login and reactivation answer in the same shapes. */
-  function handleLoginResult(data: { requires2fa?: boolean; ticket?: string; requiresEmailVerification?: boolean; devCode?: string; token?: string }) {
+  function handleLoginResult(data: { requires2fa?: boolean; ticket?: string; requiresEmailVerification?: boolean; passwordProof?: string; devCode?: string; token?: string }) {
     if (data.requires2fa && data.ticket) { startTwoFactor(data.ticket); return; }
     if (data.requiresEmailVerification) {
       setVerifyingEmail(true);
+      setPasswordProof(data.passwordProof ?? null);
       setDevCode(data.devCode ?? null);
       setOtpDigits(emptyDigits());
       setCooldown(60);
@@ -431,7 +438,7 @@ export default function AuthForm({
       const res = await fetch("/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: identifier.trim(), otp }),
+        body: JSON.stringify({ email: identifier.trim(), otp, ...(passwordProof ? { passwordProof } : {}) }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Verification failed");
@@ -497,6 +504,7 @@ export default function AuthForm({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Sign up failed");
       setDevCode(data.devCode ?? null);
+      setSignupToken(data.signupToken ?? null);
       setRegDigits(emptyDigits());
       setCooldown(60);
       setRegStep("code");
@@ -517,7 +525,7 @@ export default function AuthForm({
       const res = await fetch("/api/auth/register/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: reg.email.trim(), otp }),
+        body: JSON.stringify({ email: reg.email.trim(), otp, signupToken }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -567,6 +575,7 @@ export default function AuthForm({
     setOtpDigits(emptyDigits());
     setDevCode(null);
     setVerifyingEmail(false);
+    setPasswordProof(null);
     setCanReactivate(false);
     setRegStep("form");
     setRegDigits(emptyDigits());
@@ -890,7 +899,7 @@ export default function AuthForm({
           <div className="flex items-center justify-between mt-3">
             <button
               type="button"
-              onClick={() => { setVerifyingEmail(false); void handleSendOtp(); }}
+              onClick={() => { setVerifyingEmail(false); setPasswordProof(null); void handleSendOtp(); }}
               disabled={loading}
               className="text-sm text-brand-deep font-semibold hover:underline disabled:opacity-60 bg-transparent border-none p-0 cursor-pointer"
             >
