@@ -5,6 +5,8 @@ import { AuthProvider } from "@/app/components/AuthContext";
 import AuthModal from "@/app/components/AuthModal";
 import QueryProvider from "@/app/components/QueryProvider";
 import WebVitals from "@/app/components/analytics/WebVitals";
+import HtmlLang from "@/app/components/HtmlLang";
+import MotionProvider from "@/app/components/MotionProvider";
 
 // Geist replaces Plus Jakarta Sans as the UI face for the emerald design
 // system: a neutral grotesk reads as more restrained at the large heading
@@ -81,11 +83,14 @@ export default function RootLayout({
       <body className="theme-emerald min-h-full flex flex-col bg-canvas text-on-canvas">
         {/* Renders nothing; reports Core Web Vitals to our own endpoint. */}
         <WebVitals />
+        <HtmlLang />
         <QueryProvider>
-          <AuthProvider>
-            {children}
-            <AuthModal />
-          </AuthProvider>
+          <MotionProvider>
+            <AuthProvider>
+              {children}
+              <AuthModal />
+            </AuthProvider>
+          </MotionProvider>
         </QueryProvider>
       </body>
     </html>

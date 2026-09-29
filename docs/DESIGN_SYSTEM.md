@@ -203,6 +203,26 @@ rather than one-off styling a page.
 hairline), `ghost` (translucent white, for gradient/hero surfaces **only**),
 `inverse` (`bg-fg text-bg` — deliberately inverted against the page in both
 themes), `danger` (outlined error), `link`. All carry a focus-visible ring.
+`loading` shows a spinner, sets `aria-busy` and blocks clicks — use it on every
+submit instead of hand-rolling a pending state. `sm` keeps its look but has a
+padded ~40px hit area.
+
+**Input / Textarea** — pass `error` and/or `hint`; they render under the control
+and are wired with `aria-describedby` (+ `aria-invalid` for an error). Show form
+errors here, next to the field, not only in a toast.
+
+**PasswordInput** — show/hide toggle; `autoComplete` is required
+(`current-password` for sign-in, `new-password` for set/change).
+
+**StatusBadge** — `success | warning | error | info | primary | neutral` chips on
+the semantic tokens. Use it instead of pastel `bg-*-50 text-*-700` chips.
+
+**SkipLink** — already in every shell (marketing, dashboard, admin); the shell's
+`<main id="main">` is its target. New shells must include both.
+
+Motion: framer-motion runs under `<MotionConfig reducedMotion="user">` (root
+layout), so animations honour the OS setting automatically. CSS animations need
+their own `prefers-reduced-motion` rule.
 
 **Card** — 7 tints, `interactive` for hover lift, `padding`, `shadow`.
 
