@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { MIN_PAYOUT_AMOUNT } from "@/lib/affiliate-constants";
 import { notifyAdminsIfPayoutEligible } from "@/lib/affiliate";
 import { logger } from "@/lib/logger";
+import { auditEvent, auditIp } from "@/lib/admin/audit";
 
 export async function POST(req: NextRequest) {
   const user = await getAuthUser(req);
@@ -29,14 +30,17 @@ export async function POST(req: NextRequest) {
 
   await prisma.affiliate.update({ where: { id: affiliate.id }, data: { payoutRequestedAt: new Date() } });
 
-  // Log a payout request in AuditLog so admin can see it
-  await prisma.auditLog.create({
-    data: {
-      adminId: user.userId,
-      action: "affiliate.payout_requested",
-      targetId: affiliate.id,
-      after: JSON.stringify({ amount: availableAmount, affiliateCode: affiliate.code }),
-    },
+  // A USER action in the audit log so admins see the request, attributed to
+  // the affiliate rather than presented as if an admin did it.
+  await auditEvent({
+    actorId: user.userId,
+    actorType: "user",
+    action: "affiliate.payout_requested",
+    targetId: affiliate.id,
+    after: { amount: availableAmount, affiliateCode: affiliate.code },
+    ip: auditIp(req),
+    userAgent: req.headers.get("user-agent") ?? undefined,
+    sessionId: user.sessionId,
   });
 
   // Defensive: covers the rare case where balance crossed the threshold

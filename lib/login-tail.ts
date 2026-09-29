@@ -16,6 +16,7 @@ import { completeLogin, updateSessionCountry } from "@/lib/auth";
 import { sendNewLoginAlertEmail } from "@/lib/email";
 import { greetingName } from "@/lib/display-name";
 import { logger } from "@/lib/logger";
+import { auditEvent } from "@/lib/admin/audit";
 
 export interface LoginTailUser {
   id: string;
@@ -34,6 +35,20 @@ export async function finishLogin(req: NextRequest, user: LoginTailUser, ip: str
   // Fire & forget — geo lookup, LoginEvent, session-country backfill, alert email.
   ;(async () => {
     try {
+      // An admin sign-in is a security event: it goes in the audit log too,
+      // tied to the session it opened.
+      const role = await prisma.user.findUnique({ where: { id: user.id }, select: { role: true } }).then((u) => u?.role).catch(() => null);
+      if (role === "ADMIN") {
+        await auditEvent({
+          actorId: user.id,
+          actorType: "admin",
+          action: "admin.signed_in",
+          ip: ip === "unknown" ? undefined : ip,
+          userAgent: req.headers.get("user-agent") ?? undefined,
+          sessionId,
+          after: { device },
+        });
+      }
       let location = "Unknown location";
       let country: string | null = null;
       if (ip !== "unknown" && ip !== "::1" && !ip.startsWith("127.")) {

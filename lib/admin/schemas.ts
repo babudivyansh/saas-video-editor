@@ -428,15 +428,7 @@ export const opsSessionsRevokeSchema = z.object({ confirm: z.literal(true) }).st
 
 // Empty-string query params (cleared filter inputs) are treated as absent.
 const blankAsUndefined = (v: unknown) => (v === "" ? undefined : v);
-export const auditQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
-  action: z.preprocess(blankAsUndefined, z.string().max(64).optional()),
-  targetId: z.preprocess(blankAsUndefined, z.string().max(128).optional()),
-  adminEmail: z.preprocess(blankAsUndefined, z.string().max(200).optional()),
-  from: z.preprocess(blankAsUndefined, z.coerce.date().optional()),
-  to: z.preprocess(blankAsUndefined, z.coerce.date().optional()),
-});
+// (The Audit Log's filters live in lib/admin/audit-query.ts — auditFiltersSchema.)
 
 export const metricsQuerySchema = z.object({
   section: z.enum([

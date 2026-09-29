@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
-import { auditAdminAction, auditIp } from "@/lib/admin/audit";
+import { auditEvent, auditIp } from "@/lib/admin/audit";
 import { createElevationOtp, isElevated, verifyElevationOtp, ELEVATION_HOURS } from "@/lib/admin/elevation";
 import { sendOtpEmail } from "@/lib/email";
 
@@ -10,6 +10,10 @@ import { sendOtpEmail } from "@/lib/email";
 //   GET  → { elevated }
 //   POST { action: "send" }            → email a 6-digit code (3/15min)
 //   POST { action: "verify", code }    → grant an 8h elevation window
+//
+// Every step is audited — including failures, which are exactly what an
+// attempted break-in into an admin session looks like. Outside withAdmin, so
+// who/where is passed explicitly rather than taken from the request context.
 
 export async function GET(req: NextRequest) {
   const admin = await requireAdmin(req);
@@ -21,15 +25,29 @@ export async function POST(req: NextRequest) {
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+  const audit = (action: string, after?: Record<string, unknown>, reason?: string) =>
+    auditEvent({
+      actorId: admin.userId,
+      actorType: "admin",
+      action,
+      after,
+      reason,
+      ip: auditIp(req),
+      userAgent: req.headers.get("user-agent") ?? undefined,
+      sessionId: admin.sessionId,
+    });
+
   const body = (await req.json().catch(() => ({}))) as { action?: string; code?: string };
 
   if (body.action === "send") {
     const { allowed } = await rateLimit(`admin-elevate-send:${admin.userId}`, 3, 900);
     if (!allowed) {
+      await audit("admin.elevation_failed", { step: "send" }, "Too many codes requested");
       return NextResponse.json({ error: "Too many codes requested — wait a few minutes." }, { status: 429 });
     }
     const code = await createElevationOtp(admin.userId);
     const channel = await sendOtpEmail(admin.email, code);
+    await audit("admin.elevation_code_sent", { channel });
     return NextResponse.json({ sent: true, channel });
   }
 
@@ -38,7 +56,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Enter the 6-digit code." }, { status: 400 });
     }
     const { allowed } = await rateLimit(`admin-elevate-verify:${admin.userId}`, 10, 900);
-    if (!allowed) return NextResponse.json({ error: "Too many attempts — wait a few minutes." }, { status: 429 });
+    if (!allowed) {
+      await audit("admin.elevation_failed", { step: "verify" }, "Too many verification attempts (rate limited)");
+      return NextResponse.json({ error: "Too many attempts — wait a few minutes." }, { status: 429 });
+    }
 
     const result = await verifyElevationOtp(admin.userId, body.code!, admin.sessionId);
     if (!result.ok) {
@@ -48,13 +69,11 @@ export async function POST(req: NextRequest) {
           : result.reason === "too_many_attempts"
             ? "Too many wrong attempts — request a new code."
             : "Wrong code — check your email and try again.";
+      await audit("admin.elevation_failed", { step: "verify", result: result.reason }, msg);
       return NextResponse.json({ error: msg }, { status: 401 });
     }
 
-    await auditAdminAction(admin.userId, "admin.elevated", undefined, {
-      after: { hours: ELEVATION_HOURS },
-      ip: auditIp(req),
-    });
+    await audit("admin.elevated", { hours: ELEVATION_HOURS });
     return NextResponse.json({ elevated: true });
   }
 

@@ -16,7 +16,7 @@ interface CommissionRow {
 }
 let commission: CommissionRow;
 let totalEarnedDecrements: number[];
-let auditRows: Array<{ action: string; after: string | null }>;
+let auditRows: Array<{ action: string; after: string | null; reason: string | null; ip: string | null }>;
 
 const tx = {
   commission: {
@@ -32,17 +32,20 @@ const tx = {
       return {};
     }),
   },
+  // The audit writer appends inside its own transaction (lib/admin/audit.ts).
+  $queryRaw: vi.fn(async () => []),
+  auditLog: {
+    findFirst: vi.fn(async () => null),
+    create: vi.fn(async ({ data }: { data: { action: string; after: string | null; reason: string | null; ip: string | null } }) => {
+      auditRows.push({ action: data.action, after: data.after, reason: data.reason, ip: data.ip });
+      return data;
+    }),
+  },
 };
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     $transaction: vi.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)),
-    auditLog: {
-      create: vi.fn(async ({ data }: { data: { action: string; after: string | null } }) => {
-        auditRows.push({ action: data.action, after: data.after });
-        return data;
-      }),
-    },
   },
 }));
 vi.mock("@/lib/redis", () => ({
@@ -106,8 +109,9 @@ describe("commission reject", () => {
     expect(commission.status).toBe("rejected");
     expect(totalEarnedDecrements).toEqual([250]);
     expect(auditRows[0].action).toBe("commission.rejected");
-    expect(auditRows[0].after).toContain("fraudulent referral");
-    expect(auditRows[0].after).toContain("1.2.3.4");
+    // Reason and IP are first-class audit columns now, not buried in after._meta.
+    expect(auditRows[0].reason).toBe("fraudulent referral");
+    expect(auditRows[0].ip).toBe("1.2.3.4");
   });
 
   it("a second reject returns 409 and does NOT decrement again (double-decrement bug guard)", async () => {

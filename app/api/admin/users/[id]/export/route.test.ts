@@ -20,7 +20,12 @@ vi.mock("@/lib/prisma", () => ({
 }));
 vi.mock("@/lib/rate-limit", () => ({ rateLimit: vi.fn(async () => ({ allowed: true })) }));
 const audit = vi.fn();
-vi.mock("@/lib/admin/audit", () => ({ auditAdminAction: (...a: unknown[]) => audit(...a), auditIp: () => "127.0.0.1" }));
+const seen = new Set<string>();
+vi.mock("@/lib/admin/audit", () => ({
+  auditAdminAction: (...a: unknown[]) => audit(...a),
+  auditIp: () => "127.0.0.1",
+  auditOnce: async (key: string) => (seen.has(key) ? false : (seen.add(key), true)),
+}));
 const enqueue = vi.fn(() => "job-1");
 const statuses: Record<string, unknown> = {};
 vi.mock("@/lib/account-export", () => ({
@@ -56,6 +61,9 @@ describe("admin user data export", () => {
     statuses["job-1"] = { status: "ready", url: "https://s3/x.json", userId: "u1" };
     const mine = await GET(new NextRequest("http://x"), { params: Promise.resolve({ id: "u1", jobId: "job-1" }) });
     expect(await mine.json()).toEqual({ status: "ready", url: "https://s3/x.json" });
+    // The download is audited once, not on every poll.
+    await GET(new NextRequest("http://x"), { params: Promise.resolve({ id: "u1", jobId: "job-1" }) });
+    expect(audit.mock.calls.filter((c) => c[1] === "user.data_export_downloaded")).toHaveLength(1);
     const other = await GET(new NextRequest("http://x"), { params: Promise.resolve({ id: "u2", jobId: "job-1" }) });
     expect(other.status).toBe(403);
   });

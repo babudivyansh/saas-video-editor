@@ -30,20 +30,23 @@ const tx = {
   },
   creditTransaction: { create: vi.fn(async () => ({})) },
   // lockUserRow's SELECT ... FOR UPDATE, taken by every balance mutation that
-  // reads then writes (clawbackCredits here).
+  // reads then writes (clawbackCredits here) — and the audit writer's
+  // advisory lock, which runs in its own transaction.
   $queryRaw: vi.fn(async () => []),
+  // The audit writer appends inside a transaction (lib/admin/audit.ts).
+  auditLog: {
+    findFirst: vi.fn(async () => null),
+    create: vi.fn(async ({ data }: { data: { action: string } }) => {
+      auditActions.push(data.action);
+      return data;
+    }),
+  },
 };
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     $transaction: vi.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)),
     user: { findUnique: vi.fn(async () => ({ credits: userCredits })) },
-    auditLog: {
-      create: vi.fn(async ({ data }: { data: { action: string } }) => {
-        auditActions.push(data.action);
-        return data;
-      }),
-    },
   },
 }));
 vi.mock("@/lib/redis", () => ({

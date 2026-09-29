@@ -25,8 +25,9 @@ let updateManyCalls: Array<{ where: unknown; data: Record<string, unknown> }>;
 let affiliateUpdates: Array<{ where: { id: string }; data: Record<string, unknown> }>;
 let auditRows: Array<{ action: string; after: string | null }>;
 
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
+// withAuditTx: lets the audit writer run its transaction against this mock.
+vi.mock("@/lib/prisma", async () => ({
+  prisma: (await import("@/lib/admin/audit-test-helpers")).withAuditTx({
     commission: {
       findMany: vi.fn(async () => availableCommissions),
       updateMany: vi.fn(async ({ where, data }: { where: unknown; data: Record<string, unknown> }) => {
@@ -47,7 +48,7 @@ vi.mock("@/lib/prisma", () => ({
         return data;
       }),
     },
-  },
+  }),
 }));
 
 const { POST } = await import("./route");

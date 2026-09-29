@@ -17,8 +17,9 @@ vi.mock("@/lib/redis", () => ({
 let review: Record<string, unknown> | null;
 const updates: Array<Record<string, unknown>> = [];
 const auditLogCreate = vi.fn(async () => ({}));
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
+// withAuditTx: lets the audit writer run its transaction against this mock.
+vi.mock("@/lib/prisma", async () => ({
+  prisma: (await import("@/lib/admin/audit-test-helpers")).withAuditTx({
     review: {
       findUnique: vi.fn(async () => review),
       update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
@@ -28,7 +29,7 @@ vi.mock("@/lib/prisma", () => ({
       }),
     },
     auditLog: { create: (...args: unknown[]) => auditLogCreate(...args) },
-  },
+  }),
 }));
 
 const notify = vi.fn(async () => {});

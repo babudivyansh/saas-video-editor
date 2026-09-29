@@ -1596,9 +1596,24 @@ model AuditLog {
   after     String? // JSON snapshot
   createdAt DateTime @default(now())
 
+  // Who / where (lib/admin/request-context.ts fills these for admin routes).
+  // Null on rows written before 2026-09-30, whose reason/ip live in after._meta.
+  actorType String? // "admin" | "user" | "system" — adminId holds the actor's id either way
+  reason    String?
+  ip        String?
+  userAgent String?
+  sessionId String?
+
+  // Tamper evidence (lib/admin/audit-verify.ts): hash = sha256(prevHash +
+  // canonical row). An edited row breaks its own hash; a deleted one breaks
+  // the next row's prevHash link. Null on legacy rows.
+  hash     String?
+  prevHash String?
+
   // The viewer lists newest-first and filters by admin — both were seq scans.
   @@index([createdAt])
   @@index([adminId, createdAt])
+  @@index([targetId, createdAt])
 }
 
 // ── Rating & Review system ──────────────────────────────────────────────

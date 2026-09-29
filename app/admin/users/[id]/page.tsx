@@ -24,6 +24,7 @@ import { CreditAdjust } from "../CreditAdjust";
 import { AccountSecurity } from "../_components/AccountSecurity";
 import { useAccountAction } from "../_components/useAccountAction";
 import { DataExport } from "../_components/DataExport";
+import { AuditTimeline } from "../../audit/_components/AuditTimeline";
 import { ContentBrowser } from "../../_components/ContentBrowser";
 
 interface Detail {
@@ -316,6 +317,23 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           { id: "security", label: "Security", content: <AccountSecurity user={d.user} loginEvents={d.loginEvents} headers={headers} /> },
           { id: "billing", label: "Billing", content: billing },
           { id: "content", label: "Content", content: <Card shadow padding="md"><ContentBrowser headers={headers} userId={id} /></Card> },
+          {
+            id: "activity",
+            label: "Activity",
+            content: (
+              <Card shadow padding="md">
+                <p className="text-xs text-fg-subtle mb-3">
+                  Every audited action taken on this account — by admins and by the user themselves — newest first.{" "}
+                  <Link href={`/admin/audit?targetId=${id}&range=all`} className="text-brand hover:underline">Open in Audit Log</Link>
+                </p>
+                <AuditTimeline
+                  headers={headers}
+                  params={`involving=${encodeURIComponent(id)}&from=2000-01-01T00:00:00.000Z`}
+                  emptyText="No audited activity on this account yet."
+                />
+              </Card>
+            ),
+          },
           {
             id: "data",
             label: "Data",

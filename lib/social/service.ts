@@ -10,6 +10,7 @@ import { classifyError, withRetry } from "./errors";
 import { CACHE_TTL, cached, invalidateAccount, invalidateUser, keys, userVersion } from "./cache";
 import type { NormalizedAccount, OAuthProvider, OAuthTokens, ProviderId, ProviderSync } from "./types";
 import { logger } from "@/lib/logger";
+import { auditEvent } from "@/lib/admin/audit";
 import { greetingName } from "@/lib/display-name";
 import { shouldSendCategory } from "@/lib/notifications";
 
@@ -551,27 +552,16 @@ export async function pruneTimeSeries(): Promise<RetentionResult> {
 
 // ── Audit trail ──────────────────────────────────────────────────────────────
 // Token-touching actions are recorded per docs/social-tracker-security.md.
-// AuditLog's actor column is named adminId, but the affiliate payout flow set
-// the precedent of logging user-initiated actions under the acting user's id.
-// Best-effort: an audit failure must never fail the underlying action.
+// Written through the shared audit writer as a USER action (actorType "user")
+// so it joins the hash chain and the admin viewer doesn't present the user as
+// an admin. auditEvent never throws.
 async function recordAudit(
   userId: string,
   action: string,
   targetId?: string,
   details?: Record<string, unknown>,
 ): Promise<void> {
-  try {
-    await prisma.auditLog.create({
-      data: {
-        adminId: userId,
-        action,
-        targetId: targetId ?? null,
-        after: details ? JSON.stringify(details) : null,
-      },
-    });
-  } catch (e) {
-    logger.error("social", "audit log write failed", e);
-  }
+  await auditEvent({ actorId: userId, actorType: "user", action, targetId, after: details });
 }
 
 // ── Persistence helpers ──────────────────────────────────────────────────────
