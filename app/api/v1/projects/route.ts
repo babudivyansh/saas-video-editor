@@ -14,9 +14,17 @@ async function handleGET(req: NextRequest) {
   const auth = await getApiKeyAuth(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized — missing or invalid API key" }, { status: 401 });
 
-  const projects = await prisma.project.findMany({
+  // Paged: ?limit (1–100, default 50) and ?cursor (the previous page's
+  // nextCursor). This returned every project the key's owner ever made.
+  const limitParam = parseInt(req.nextUrl.searchParams.get("limit") ?? "", 10);
+  const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 50;
+  const cursor = req.nextUrl.searchParams.get("cursor") || undefined;
+
+  const rows = await prisma.project.findMany({
     where: { userId: auth.userId },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: limit + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     select: {
       id: true,
       title: true,
@@ -27,7 +35,9 @@ async function handleGET(req: NextRequest) {
       _count: { select: { clips: true } },
     },
   });
-  return NextResponse.json({ projects });
+  const hasMore = rows.length > limit;
+  const projects = hasMore ? rows.slice(0, limit) : rows;
+  return NextResponse.json({ projects, nextCursor: hasMore ? projects[projects.length - 1].id : null });
 }
 
 async function handlePOST(req: NextRequest) {

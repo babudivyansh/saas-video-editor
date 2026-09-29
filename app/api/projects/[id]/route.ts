@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { MAX_DOC_BYTES } from "@/lib/editor/types";
 import { invalidateDashboardSummary } from "@/lib/dashboard-summary-cache";
 import { parseS3Url } from "@/lib/s3-url";
+import { withRateLimit } from "@/lib/with-rate-limit";
+import { collectProjectMediaKeys, deleteUnreferencedKeys } from "@/lib/storage-cleanup";
 import { sourceUrlError } from "@/lib/source-url";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -15,7 +17,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   return NextResponse.json({ project });
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function handlePATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
@@ -111,6 +113,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   return NextResponse.json({ project });
 }
 
+// Autosave hits this every few seconds while someone edits, with a body of
+// up to MAX_DOC_BYTES — generous for a person, a ceiling for a script.
+export const PATCH = withRateLimit(handlePATCH, { limit: 120, windowSec: 60, keyBy: "user", name: "projects:patch" });
+
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -119,7 +125,12 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const existing = await prisma.project.findFirst({ where: { id, userId: auth.userId } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Collected before the rows go; deleted after, skipping anything the
+  // library still references (lib/storage-cleanup.ts). Not awaited — the
+  // delete has succeeded either way.
+  const mediaKeys = await collectProjectMediaKeys({ id });
   await prisma.project.delete({ where: { id } });
+  void deleteUnreferencedKeys(mediaKeys, `project ${id}`);
   // Without this the 60s-cached summary serves the deleted card straight back
   // on the next load, which reads as the delete having silently failed.
   await invalidateDashboardSummary(auth.userId);

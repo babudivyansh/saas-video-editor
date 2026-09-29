@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { invalidateAllSessions } from "@/lib/auth";
 import { redis } from "@/lib/redis";
 import { cancelRazorpaySubscriptionBestEffort } from "@/lib/billing/cancel-on-account-lifecycle";
+import { collectProjectMediaKeys, collectUserAssetKeys, deleteUnreferencedKeys } from "@/lib/storage-cleanup";
 
 export type DeleteAccountResult = { ok: true } | { ok: false; reason: string };
 
@@ -40,6 +41,13 @@ export async function hardDeleteUserAccount(userId: string): Promise<DeleteAccou
     await cancelRazorpaySubscriptionBestEffort(forCancel.razorpaySubscriptionId, userId, "delete");
   }
 
+  // Storage is gathered while the rows still exist and deleted once they're
+  // gone — the cascade removes the DB side only (lib/storage-cleanup.ts).
+  const storageKeys = [
+    ...(await collectUserAssetKeys(userId)),
+    ...(await collectProjectMediaKeys({ userId })),
+  ];
+
   await prisma.$transaction([
     prisma.commission.deleteMany({ where: { referral: { referredUserId: userId } } }),
     prisma.referral.deleteMany({ where: { referredUserId: userId } }),
@@ -52,6 +60,7 @@ export async function hardDeleteUserAccount(userId: string): Promise<DeleteAccou
   await Promise.allSettled([
     invalidateAllSessions(userId),
     redis.del(`credits:${userId}`),
+    deleteUnreferencedKeys([...new Set(storageKeys)], `account ${userId}`),
   ]);
 
   return { ok: true };

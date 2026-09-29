@@ -149,7 +149,7 @@ const BUDGET = {
   // 90 -> 82: the clips/assets library redesign replaced the assets sidebar,
   // toolbar and drop zone, and the Projects tab's gradient covers.
   // 82 -> 79: Studio shell + home redesign (tool tiles, header, quest card).
-  "raw-violet": 79, // AutoClip stage 6: old-system violet focus rings + hovers
+  "raw-violet": 61, // audit 2026-09-29: legacy /editor wizard deleted (was 79)
   // First measurement, 2026-09-10, taken AFTER the Social Tracker's share was
   // paid off in the same commit that added the rule. The 138 that remain are
   // spread over ~30 files — pricing (11), PlansModal (10), admin/ops (8),

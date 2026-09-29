@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
+import { logger } from "@/lib/logger";
+
 // Last-resort boundary: catches errors thrown by the root layout itself,
 // where app/error.tsx can't render. Must provide its own <html>/<body>.
 export default function GlobalError({
@@ -9,6 +12,13 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  // Same reporting as app/error.tsx (logger.error forwards to Sentry). This
+  // boundary is the one that catches a crash in the root layout itself — the
+  // worst kind — and it was the only one that never reported anything.
+  useEffect(() => {
+    logger.error("GlobalError", "Unhandled root layout error", error);
+  }, [error]);
+
   return (
     <html lang="en">
       <body style={{ margin: 0, background: "#050908", color: "#F5F7F4", fontFamily: "system-ui, sans-serif" }}>

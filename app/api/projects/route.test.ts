@@ -12,15 +12,16 @@ const getAssetReadUrl = vi.fn(async (key: string) => `https://signed.example/${k
 vi.mock("@/utils/s3-upload", () => ({ getAssetReadUrl }));
 
 const S3 = "https://bucket.s3.ap-south-1.amazonaws.com";
-let lastArgs: { where?: unknown; include?: Record<string, unknown> } = {};
+let lastArgs: { where?: unknown; select?: Record<string, unknown>; take?: number; cursor?: unknown } = {};
 let rows: Record<string, unknown>[] = [];
 const findMany = vi.fn(async (args: typeof lastArgs) => {
   lastArgs = args;
   return rows;
 });
-vi.mock("@/lib/prisma", () => ({ prisma: { project: { findMany: (a: never) => findMany(a) } } }));
+const create = vi.fn(async (a: { data: Record<string, unknown> }) => ({ id: "new", ...a.data }));
+vi.mock("@/lib/prisma", () => ({ prisma: { project: { findMany: (a: never) => findMany(a), create: (a: never) => create(a) } } }));
 
-const { GET } = await import("./route");
+const { GET, POST } = await import("./route");
 const req = (qs = "") => new NextRequest(`http://localhost/api/projects${qs}`);
 
 beforeEach(() => {
@@ -32,7 +33,7 @@ beforeEach(() => {
 describe("GET /api/projects", () => {
   it("does not load or sign media unless asked", async () => {
     await GET(req("?productType=auto-clip"));
-    expect(lastArgs.include).not.toHaveProperty("clips");
+    expect(lastArgs.select).not.toHaveProperty("clips");
     expect(getAssetReadUrl).not.toHaveBeenCalled();
   });
 
@@ -49,5 +50,40 @@ describe("GET /api/projects", () => {
     const body = await (await GET(req("?cover=1"))).json();
     expect(body.projects[0].coverUrl).toBeNull();
     expect(body.projects[0].sourceUrl).toBeNull();
+  });
+});
+
+describe("GET /api/projects payload and paging", () => {
+  it("never selects the heavy per-project JSON columns", async () => {
+    await GET(req());
+    expect(lastArgs.select).not.toHaveProperty("editorDoc");
+    expect(lastArgs.select).not.toHaveProperty("faceTimeline");
+    expect(lastArgs.select).not.toHaveProperty("captionsJson");
+    expect(lastArgs.select).toMatchObject({ id: true, title: true, status: true });
+  });
+
+  it("is bounded and hands back a cursor when there is more", async () => {
+    rows = [{ id: "a" }, { id: "b" }, { id: "c" }];
+    const body = await (await GET(req("?limit=2"))).json();
+    expect(lastArgs.take).toBe(3);
+    expect(body.projects.map((p: { id: string }) => p.id)).toEqual(["a", "b"]);
+    expect(body.nextCursor).toBe("b");
+    await GET(req("?limit=2&cursor=b"));
+    expect(lastArgs.cursor).toEqual({ id: "b" });
+  });
+});
+
+describe("POST /api/projects productType", () => {
+  const post = (body: unknown) => POST(new NextRequest("http://localhost/api/projects", { method: "POST", body: JSON.stringify(body) }));
+
+  it("defaults to auto-clip and accepts editor", async () => {
+    expect((await post({ title: "A" })).status).toBe(201);
+    expect(create.mock.calls[0][0].data.productType).toBe("auto-clip");
+    expect((await post({ title: "B", productType: "editor" })).status).toBe(201);
+  });
+
+  it("refuses a removed or made-up product type", async () => {
+    expect((await post({ title: "C", productType: "split-screen" })).status).toBe(400);
+    expect(create).not.toHaveBeenCalled();
   });
 });

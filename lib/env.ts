@@ -160,6 +160,12 @@ const schema = z.object({
   // Social-account OAuth token encryption (lib/encryption.ts). Required in
   // production; falls back to a JWT_SECRET-derived key in dev.
   SOCIAL_TOKEN_KEY: z.string().optional(),
+
+  // Read directly via process.env at their call sites (utils/ffmpeg-render.ts
+  // resolves the binary before anything else loads; lib/pipeline-metrics.ts
+  // is a kill switch) — listed here so the schema is the full inventory.
+  CLIPIRO_FFMPEG_PATH: z.string().optional(),
+  PIPELINE_METRICS: z.string().optional(), // "off" disables
   // Meta (Facebook/Instagram) OAuth — social account linking.
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
@@ -237,6 +243,16 @@ export function validateEnv(): void {
   // be rotated to a 256-bit (>=32 char) random value on the next deploy.
   if ((process.env.JWT_SECRET ?? "").length < 32) {
     console.warn("[env] JWT_SECRET is shorter than 32 characters — rotate it to a 256-bit random value.");
+  }
+  // lib/encryption.ts refuses to encrypt or decrypt social OAuth tokens in
+  // production without a valid key, but only on first use — so a deploy that
+  // lost it booted fine and broke Social Tracker linking later. Said loudly at
+  // boot instead; not fatal, because nothing else in the app needs it.
+  if (process.env.NODE_ENV === "production") {
+    const key = process.env.SOCIAL_TOKEN_KEY;
+    if (!key || Buffer.from(key, "base64").length !== 32) {
+      console.error("[env] SOCIAL_TOKEN_KEY is missing or not a base64 32-byte key — Social Tracker account linking and syncing will fail.");
+    }
   }
 }
 
