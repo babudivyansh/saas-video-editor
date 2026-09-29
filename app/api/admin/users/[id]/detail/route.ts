@@ -20,6 +20,9 @@ export const GET = withAdmin<{ id: string }>(async (_req, { params }) => {
       credits: true, monthlyCredits: true, minutes: true, monthlyMinutes: true, role: true, createdAt: true,
       lastLoginAt: true, suspendedAt: true, adminNotes: true,
       subscriptionEndsAt: true, nextRefillAt: true,
+      // Security + billing state the account controls act on.
+      emailVerifiedAt: true, twoFactorEnabled: true, deactivatedAt: true,
+      subscriptionCancelledAt: true, razorpaySubscriptionId: true, trialEndsAt: true,
       plan: { select: { id: true, name: true, slug: true, kind: true } },
     },
   });
@@ -59,8 +62,11 @@ export const GET = withAdmin<{ id: string }>(async (_req, { params }) => {
       prisma.generation.aggregate({ _sum: { creditsCost: true }, _count: true, where: { userId: id } }),
     ]);
 
+  const { razorpaySubscriptionId, ...rest } = user;
   return NextResponse.json({
-    user,
+    // The provider id itself isn't shown; whether one exists is.
+    user: { ...rest, hasRecurringSubscription: !!razorpaySubscriptionId },
+    purchaseCount: await prisma.purchase.count({ where: { userId: id } }),
     purchases,
     generations,
     generationTotals: { count: generationTotals._count, creditsConsumed: generationTotals._sum.creditsCost ?? 0 },

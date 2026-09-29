@@ -559,3 +559,50 @@ export const cronPauseSchema = z
     reason: z.string().trim().max(500).optional(),
   })
   .strict();
+
+// POST /api/admin/users/[id]/actions — every per-account control that isn't
+// already its own route. `confirmPhrase` must be the target's email for the
+// ones marked (route-checked); `reason` is required where noted and audited.
+const actionReason = z.string().trim().min(3, "Give a reason (it goes in the audit log)").max(500);
+export const userActionSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("reset_2fa"), confirmPhrase: z.string().max(320), reason: actionReason }).strict(),
+  z.object({ action: z.literal("mark_email_verified"), reason: actionReason }).strict(),
+  z.object({ action: z.literal("resend_verification") }).strict(),
+  z.object({ action: z.literal("send_password_reset") }).strict(),
+  z.object({ action: z.literal("revoke_session"), sessionId: z.string().min(1).max(100) }).strict(),
+  z.object({ action: z.literal("cancel_subscription"), confirmPhrase: z.string().max(320), reason: actionReason }).strict(),
+  z.object({ action: z.literal("hard_delete"), confirmPhrase: z.string().max(320), reason: actionReason }).strict(),
+]);
+
+// POST /api/admin/users/bulk — the same action on many accounts at once.
+// confirmPhrase must be "<n> users" (route-checked).
+export const userBulkSchema = z
+  .object({
+    ids: z.array(z.string().min(1).max(100)).min(1).max(200),
+    action: z.enum(["suspend", "unsuspend", "revoke_sessions"]),
+    confirmPhrase: z.string().max(50),
+    reason: actionReason,
+  })
+  .strict();
+
+// GET/POST /api/admin/content — browse and delete projects / assets.
+export const contentQuerySchema = z.object({
+  kind: z.enum(["project", "asset"]).default("project"),
+  userId: z.preprocess(blankAsUndefined, z.string().max(100).optional()),
+  search: z.preprocess(blankAsUndefined, z.string().max(200).optional()),
+  filter: z.preprocess(blankAsUndefined, z.enum(["all", "flagged", "archived"]).optional()),
+  cursor: z.preprocess(blankAsUndefined, z.string().max(100).optional()),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+export const contentDeleteSchema = z
+  .object({
+    kind: z.enum(["project", "asset"]),
+    ids: z.array(z.string().min(1).max(100)).min(1).max(200),
+    userId: z.string().max(100).optional(),
+    confirmPhrase: z.literal("DELETE"),
+    reason: actionReason,
+  })
+  .strict();
+
+// DELETE /api/admin/users/[id] — hard delete, typed email required.
+export const userDeleteSchema = z.object({ confirmPhrase: z.string().max(320), reason: actionReason.optional() }).strict();

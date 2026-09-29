@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
-import { redis } from "@/lib/redis";
-import { sendPasswordResetEmail } from "@/lib/email";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
-import { env } from "@/lib/env";
 import { normalizeEmail } from "@/lib/auth-validation";
-import { greetingName } from "@/lib/display-name";
 import { atLeast } from "@/lib/min-duration";
+import { issuePasswordReset } from "@/lib/password-reset";
 
-const RESET_TTL = 60 * 15; // 15 minutes
 // Every answer takes at least this long, sent or not (see lib/min-duration.ts).
 const RESPONSE_FLOOR_MS = 900;
 
@@ -45,13 +40,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  const token = crypto.randomBytes(32).toString("hex");
-  await redis.set(`pwd-reset:${token}`, user.id, "EX", RESET_TTL);
-
-  const resetLink = `${env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
-
   try {
-    await sendPasswordResetEmail(user.email, greetingName(user.name), resetLink);
+    await issuePasswordReset(user);
   } catch (err) {
     logger.error("forgot-password", "email send failed", err);
   }
