@@ -2,9 +2,17 @@ import fs from "fs";
 import path from "path";
 import https from "https";
 import http from "http";
+import { isPrivateHostLiteral, publicOnlyLookup } from "@/utils/network-guard";
 
 /** Redirect hops allowed before we assume a loop. */
 const MAX_REDIRECTS = 5;
+
+/**
+ * Applied when a caller sets no maxBytes of its own. Generous enough for any
+ * source video we accept, but it means no download can fill the disk just
+ * because the far end keeps streaming.
+ */
+export const DEFAULT_MAX_BYTES = 5 * 1024 * 1024 * 1024;
 
 export interface DownloadLimits {
   /**
@@ -17,7 +25,7 @@ export interface DownloadLimits {
    * than the advertised header (the header IS checked first, as a cheap
    * early-out before a single byte is transferred).
    *
-   * Omitted = unbounded, the historical behaviour, which is fine for our own S3.
+   * Omitted = DEFAULT_MAX_BYTES.
    */
   maxBytes?: number;
   /**
@@ -43,7 +51,8 @@ export function downloadFile(
   timeoutMs = 5 * 60 * 1000,
   limits: DownloadLimits = {},
 ): Promise<void> {
-  const { maxBytes, allowHost } = limits;
+  const { allowHost } = limits;
+  const maxBytes = limits.maxBytes ?? DEFAULT_MAX_BYTES;
   const redirectsLeft = limits.redirectsLeft ?? MAX_REDIRECTS;
 
   if (allowHost) {
@@ -52,6 +61,20 @@ export function downloadFile(
     if (!parsed || parsed.protocol !== "https:" || !allowHost(parsed.hostname)) {
       return Promise.reject(new Error(`Download refused: ${parsed ? parsed.host : "unparseable URL"} is not an allowed source`));
     }
+  }
+
+  // Every hop, every caller: never connect to a private/internal address
+  // (cloud metadata, localhost, the VPC). IP literals skip DNS, so they are
+  // checked here; hostnames are checked on the resolved address by the lookup.
+  let parsedUrl: URL;
+  try { parsedUrl = new URL(url); } catch {
+    return Promise.reject(new Error("Download refused: unparseable URL"));
+  }
+  if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") {
+    return Promise.reject(new Error(`Download refused: unsupported protocol ${parsedUrl.protocol}`));
+  }
+  if (isPrivateHostLiteral(parsedUrl.hostname)) {
+    return Promise.reject(new Error(`Download refused: ${parsedUrl.host} is not a public address`));
   }
 
   return new Promise((resolve, reject) => {
@@ -68,9 +91,9 @@ export function downloadFile(
       }
     };
 
-    const request = protocol.get(url, (res) => {
+    const request = protocol.get(url, { lookup: publicOnlyLookup }, (res) => {
       // Follow redirects
-      if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307) {
+      if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 303 || res.statusCode === 307 || res.statusCode === 308) {
         cleanup();
         const redirectUrl = res.headers.location;
         if (!redirectUrl) {
@@ -100,7 +123,7 @@ export function downloadFile(
         return;
       }
 
-      if (maxBytes !== undefined) {
+      {
         const declared = Number(res.headers["content-length"]);
         if (Number.isFinite(declared) && declared > maxBytes) {
           request.destroy();

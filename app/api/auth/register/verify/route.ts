@@ -17,7 +17,7 @@ import { greetingName } from "@/lib/display-name";
 const MAX_ATTEMPTS = 5;
 const WINDOW_SECONDS = 600;
 
-// POST /api/auth/register/verify { email, otp }
+// POST /api/auth/register/verify { email, otp, signupToken }
 //
 // Step two of signup. The code proves the inbox, so this is where the account
 // is actually created — with emailVerifiedAt already set — and everything
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const pending = await readPendingSignup(email);
+    const pending = await readPendingSignup(email, body.signupToken);
     if (!pending) {
       return NextResponse.json(
         { error: "This signup has expired. Please sign up again.", expired: true },

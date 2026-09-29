@@ -219,13 +219,14 @@ export default function ImageGeneratorTool() {
   }
 
   async function enhancePrompt() {
+    if (!user || !token) { openAuthModal("login", "AI Image Generator"); return; }
     if (!prompt.trim() || enhancing) return;
     setEnhancing(true);
     setError(null);
     try {
       const res = await fetch("/api/tools/enhance-prompt", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ prompt }),
       });
       const data = await res.json();

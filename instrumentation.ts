@@ -30,6 +30,15 @@ export async function register() {
     else logger.error("ffmpeg", `bundled binary NOT found — falling back to "${info.path}" on PATH. Video probing and rendering will fail if it is absent.`);
   } catch { /* never block boot on a diagnostic */ }
 
+  // Same idea for the queue driver: which one production actually runs was
+  // unknowable from outside (docs said in-process, the code defaulted to
+  // BullMQ), and the two drivers fail in different ways.
+  try {
+    const { env } = await import("./lib/env");
+    const { logger } = await import("./lib/logger");
+    logger.info("render-queue", `driver: ${env.RENDER_QUEUE_DRIVER ?? "bullmq (default)"}`);
+  } catch { /* never block boot on a diagnostic */ }
+
   const { startSocialRefreshWorker } = await import("./lib/social/refresh-queue");
   startSocialRefreshWorker();
 
@@ -69,6 +78,10 @@ export async function register() {
   createRenderQueue("asset-moderation", assetModerationJob);
   createRenderQueue("asset-zip", assetZipJob);
   createRenderQueue("account-export", accountExportJob);
+  // Created at that module's top level (like video-compressor below); it was
+  // the one name in KNOWN_RENDER_QUEUE_NAMES never started at boot, so a scan
+  // enqueued from a process that hadn't loaded it sat in "waiting" forever.
+  await import("./lib/reviews/attachment-moderation");
   // video-compressor's handler is an inline closure over that route file's
   // own in-process job map, not a standalone exported function like the ones
   // above — importing the route module runs its own top-level

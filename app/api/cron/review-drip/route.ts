@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
+import { cronSecretMatches } from "@/lib/cron-auth";
 import { getReviewSettings } from "@/lib/reviews/settings";
 import { shouldSendCategory } from "@/lib/notifications";
 import { sendReviewDripEmail1, sendReviewDripEmail2, sendReviewDripEmail3 } from "@/lib/email";
@@ -25,8 +26,7 @@ interface DueRow {
 
 export async function GET(req: NextRequest) {
   const secret = env.CRON_SECRET;
-  const authz = req.headers.get("authorization");
-  if (!secret || authz !== `Bearer ${secret}`) {
+  if (!secret || !cronSecretMatches(req, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

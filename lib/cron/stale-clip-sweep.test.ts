@@ -7,6 +7,7 @@ let clipUpdateManyArgs: { where: Record<string, unknown>; data: unknown } | null
 let strandedRendering: Array<{ id: string; userId: string }> = [];
 let stuckAnalyzing: Array<{ id: string; userId: string }> = [];
 let analyzingClaim = 1;
+let strandedEditor: Array<{ id: string; userId: string }> = [];
 
 const finalizeRun = vi.fn(async (..._a: unknown[]) => {});
 const refundRunCharge = vi.fn(async (..._a: unknown[]) => 5);
@@ -26,8 +27,9 @@ vi.mock("@/lib/prisma", () => ({
       deleteMany: vi.fn(async () => ({ count: 0 })),
     },
     project: {
-      findMany: vi.fn(async (args: { where: { status: string } }) =>
-        args.where.status === "rendering" ? strandedRendering : stuckAnalyzing,
+      findMany: vi.fn(async (args: { where: { status: string; editorDoc?: unknown } }) =>
+        args.where.editorDoc !== undefined ? strandedEditor
+          : args.where.status === "rendering" ? strandedRendering : stuckAnalyzing,
       ),
       updateMany: vi.fn(async () => ({ count: analyzingClaim })),
     },
@@ -40,11 +42,12 @@ vi.mock("@/lib/autoclip-pipeline", () => ({
 }));
 vi.mock("@/lib/autoclip-rerender", () => ({ refundFailedRerender: (id: string) => refundFailedRerender(id) }));
 vi.mock("@/lib/credits", () => ({ restoreSpend: (a: unknown) => restoreSpend(a) }));
+vi.mock("@/lib/editor/render-job", () => ({ EDITOR_RENDER_CREDIT_COST: 1 }));
 vi.mock("@/lib/autoclip-pricing", () => ({ analysisRefId: (id: string) => `auto-clip-analysis:${id}` }));
 
 const {
   runStaleClipSweep, STALE_CLIP_TIMEOUT_MINUTES, STALE_QUEUED_TIMEOUT_MINUTES, RECONCILE_FAILURE_REASON,
-  STRANDED_ANALYSIS_REASON,
+  STRANDED_ANALYSIS_REASON, STRANDED_EDITOR_RENDER_REASON,
 } = await import("./stale-clip-sweep");
 
 beforeEach(() => {
@@ -54,6 +57,7 @@ beforeEach(() => {
   strandedRendering = [];
   stuckAnalyzing = [];
   analyzingClaim = 1;
+  strandedEditor = [];
 });
 
 describe("stale clips", () => {
@@ -127,5 +131,25 @@ describe("runs stuck on analyzing", () => {
     const result = await runStaleClipSweep();
     expect(refundRunCharge).not.toHaveBeenCalled();
     expect(result.analyzingFailed).toBe(0);
+  });
+});
+
+describe("stranded editor exports", () => {
+  it("fails and refunds an editor export that stopped reporting progress", async () => {
+    strandedEditor = [{ id: "ed-1", userId: "u9" }];
+    const result = await runStaleClipSweep();
+    expect(result.editorRendersFailed).toBe(1);
+    expect(restoreSpend).toHaveBeenCalledWith(expect.objectContaining({
+      userId: "u9", refId: "editor-render:ed-1", amount: 1, reason: "refund:editor-render-stranded",
+    }));
+    expect(STRANDED_EDITOR_RENDER_REASON).toMatch(/refunded/);
+  });
+
+  it("leaves one alone if a worker touched it between the read and the claim", async () => {
+    strandedEditor = [{ id: "ed-2", userId: "u9" }];
+    analyzingClaim = 0;
+    const result = await runStaleClipSweep();
+    expect(result.editorRendersFailed).toBe(0);
+    expect(restoreSpend).not.toHaveBeenCalledWith(expect.objectContaining({ refId: "editor-render:ed-2" }));
   });
 });

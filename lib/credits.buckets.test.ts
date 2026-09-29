@@ -75,6 +75,8 @@ vi.mock("@/lib/prisma", () => {
       create: vi.fn(async ({ data }: { data: (typeof ledger)[number] }) => { ledger.push(data); return data; }),
       findMany: vi.fn(async ({ where }: { where: { refId: string } }) =>
         ledger.filter((l) => l.refId === where.refId)),
+      count: vi.fn(async ({ where }: { where: { refId: string } }) =>
+        ledger.filter((l) => l.refId === where.refId).length),
     },
     $queryRaw: vi.fn(async (...args: unknown[]) => {
       const amount = (args.slice(1).find((v) => typeof v === "number") as number) ?? 0;
@@ -86,7 +88,7 @@ vi.mock("@/lib/prisma", () => {
   return { prisma: client };
 });
 
-const { spendCredits, restoreSpend, grantCredits, clawbackCredits, setSubscriptionCredits, getBalances } =
+const { spendCredits, restoreSpend, refundCredits, grantCredits, clawbackCredits, setSubscriptionCredits, getBalances } =
   await import("./credits");
 
 beforeEach(() => {
@@ -163,5 +165,21 @@ describe("setSubscriptionCredits", () => {
     expect(ledger).toEqual([expect.objectContaining({ bucket: "subscription", delta: -10, reason: "lapse" })]);
     const bal = await getBalances("u1");
     expect(bal.total).toBe(25);
+  });
+});
+
+describe("refundCredits", () => {
+  it("refunds a ledgered charge once, however many times it is called", async () => {
+    await spendCredits({ userId: "u1", amount: 3, reason: "spend:test", refId: "gen-9" });
+    await refundCredits({ userId: "u1", amount: 3, generationId: "gen-9" });
+    await refundCredits({ userId: "u1", amount: 3, generationId: "gen-9" });
+    expect(buckets).toEqual({ bonus: 5, subscription: 10, purchased: 20 });
+    expect(ledger.filter((l) => l.reason === "refund:legacy")).toHaveLength(0);
+  });
+
+  it("still grants a legacy charge that predates the ledger — once", async () => {
+    await refundCredits({ userId: "u1", amount: 2, generationId: "old-gen" });
+    await refundCredits({ userId: "u1", amount: 2, generationId: "old-gen" });
+    expect(buckets.purchased).toBe(22);
   });
 });

@@ -128,6 +128,13 @@ const nextConfig: NextConfig = {
       // indexed and its dashboard route was linked from emails and quests.
       { source: "/tools/ai-video-generator", destination: "/tools", permanent: true },
       { source: "/dashboard/tools/video-generator", destination: "/dashboard/tools", permanent: true },
+      // The six create products were removed (2026-09-10) and the old
+      // script → voice → compile wizard at /editor went with the 2026-09-29
+      // audit. Old bookmarks, emails and quests land somewhere real instead
+      // of a 404.
+      { source: "/editor", destination: "/dashboard/editor", permanent: true },
+      { source: "/dashboard/create/:product(reddit-video|text-video|split-video|streamer-video|viral-split-screen)", destination: "/dashboard", permanent: true },
+      { source: "/dashboard/ai-creator", destination: "/dashboard", permanent: true },
     ];
   },
 };

@@ -149,7 +149,7 @@ const BUDGET = {
   // 90 -> 82: the clips/assets library redesign replaced the assets sidebar,
   // toolbar and drop zone, and the Projects tab's gradient covers.
   // 82 -> 79: Studio shell + home redesign (tool tiles, header, quest card).
-  "raw-violet": 35, // audit 2026-09-29 stage 7 (pastel chips, old brand hex, editor violet → tokens)
+  "raw-violet": 17, /* + stage 7 pastel/editor tokens */ /* + stage 6 asset cards */ // audit 2026-09-29: /editor wizard deleted + stage 5 API keys/export modal (was 79)
   // First measurement, 2026-09-10, taken AFTER the Social Tracker's share was
   // paid off in the same commit that added the rule. The 138 that remain are
   // spread over ~30 files — pricing (11), PlansModal (10), admin/ops (8),

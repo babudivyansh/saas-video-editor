@@ -531,16 +531,25 @@ export interface RefundCreditsParams {
 
 export async function refundCredits(params: RefundCreditsParams): Promise<void> {
   if (params.generationId) {
+    // Whether this charge is in the ledger at all — decided BEFORE restoring,
+    // because afterwards a second call can't tell "legacy, never ledgered"
+    // from "already refunded": both restore 0.
+    const ledgered = (await prisma.creditTransaction.count({
+      where: { userId: params.userId, refId: params.generationId },
+    })) > 0;
     // Ledger-driven: restore up to `amount` into exactly the buckets the
-    // original spend drained (supports partial refunds).
+    // original spend drained (supports partial refunds). Capped at the net
+    // spend, so calling this twice refunds once.
     const restored = await restoreSpend({
       userId: params.userId,
       refId: params.generationId,
       amount: params.amount,
     });
     // Legacy safety net: a generation charged before the bucket split has no
-    // ledger rows — fall back to granting the purchased bucket.
-    if (restored < params.amount) {
+    // ledger rows — fall back to granting the purchased bucket. Only then: a
+    // short restore on a ledgered charge means it was already refunded, and
+    // topping it up here used to pay the refund out a second time.
+    if (!ledgered && restored < params.amount) {
       await grantCredits({
         userId: params.userId,
         bucket: "purchased",
