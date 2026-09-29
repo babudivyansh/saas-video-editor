@@ -9,6 +9,7 @@ import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { useToast } from "@/app/components/ui/Toast";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
+import { StatusBadge } from "@/app/components/ui/StatusBadge";
 import { CreditAdjust } from "./CreditAdjust";
 import { buildUserPatchBody, toDateInputValue } from "./patch-body";
 
@@ -35,8 +36,25 @@ interface AdminUser {
   subscriptionEndsAt: string | null;
   nextRefillAt: string | null;
   plan: PlanRef | null;
+  suspendedAt: string | null;
+  deactivatedAt: string | null;
+  emailVerifiedAt: string | null;
+  twoFactorEnabled: boolean;
   _count: { projects: number };
 }
+
+const FILTERS = [
+  ["", "All users"],
+  ["subscribed", "Subscribed"],
+  ["suspended", "Suspended"],
+  ["deactivated", "Deactivated"],
+  ["unverified", "Email unverified"],
+  ["2fa", "Two-factor on"],
+  ["admins", "Admins"],
+] as const;
+
+type BulkAction = "suspend" | "unsuspend" | "revoke_sessions";
+const BULK_LABEL: Record<BulkAction, string> = { suspend: "Suspend", unsuspend: "Unsuspend", revoke_sessions: "Sign out everywhere" };
 
 function fmt(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
@@ -83,6 +101,9 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const search = useDebouncedValue(searchInput);
+  const [filter, setFilter] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulk, setBulk] = useState<BulkAction | null>(null);
 
   // Expanded action row
   const [expandedId, setExpandedId]       = useState<string | null>(null);
@@ -124,9 +145,9 @@ export default function AdminUsersPage() {
   const headers = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` });
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["admin-users", page, search],
+    queryKey: ["admin-users", page, search, filter],
     queryFn: async () => {
-      const params = new URLSearchParams({ search, page: String(page), limit: String(LIMIT) });
+      const params = new URLSearchParams({ search, filter, page: String(page), limit: String(LIMIT) });
       const [u, p] = await Promise.all([
         fetch(`/api/admin/users?${params}`, { headers: headers() }),
         fetch("/api/admin/plans", { headers: headers() }),
@@ -151,8 +172,8 @@ export default function AdminUsersPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/admin/users/${id}`, { method: "DELETE", headers: headers() });
+    mutationFn: async ({ id, confirmPhrase, reason }: { id: string; confirmPhrase: string; reason: string }) => {
+      const res = await fetch(`/api/admin/users/${id}`, { method: "DELETE", headers: headers(), body: JSON.stringify({ confirmPhrase, reason }) });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Failed to delete user.");
     },
     onSuccess: () => {
@@ -162,6 +183,26 @@ export default function AdminUsersPage() {
     },
     onError: (e: Error) => { showToast(e.message, "error"); setDeleteConfirmId(null); },
   });
+
+  async function runBulk(action: BulkAction, phrase: string, reason: string) {
+    const res = await fetch("/api/admin/users/bulk", {
+      method: "POST", headers: headers(), body: JSON.stringify({ ids: [...selected], action, confirmPhrase: phrase, reason }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) { showToast(d.error ?? "Bulk action failed", "error"); return; }
+    showToast(`${BULK_LABEL[action]}: ${d.affected} account(s)${d.skipped ? `, ${d.skipped} skipped (admins / you)` : ""}`, "success");
+    setSelected(new Set());
+    queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+  }
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   function seedEditBuffer(u: AdminUser) {
     setEditMonthly(String(u.monthlyCredits));
@@ -225,12 +266,23 @@ export default function AdminUsersPage() {
     <AdminShell title="Users">
       {/* Search + pagination controls */}
       <div className="flex items-center justify-between mb-5 gap-4 flex-wrap">
-        <input
-          value={searchInput}
-          onChange={e => { setSearchInput(e.target.value); setPage(1); }}
-          placeholder="Search by email or name…"
-          className="w-72 bg-panel border border-line rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 shadow-sm"
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            value={searchInput}
+            onChange={e => { setSearchInput(e.target.value); setPage(1); setSelected(new Set()); }}
+            placeholder="Search by email or name…"
+            aria-label="Search users"
+            className="w-72 max-w-full bg-panel border border-line rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 shadow-sm"
+          />
+          <select
+            value={filter}
+            onChange={e => { setFilter(e.target.value); setPage(1); setSelected(new Set()); }}
+            aria-label="Filter users"
+            className="bg-panel border border-line rounded-xl px-3 py-2.5 text-sm text-fg focus:outline-none focus:ring-2 focus:ring-primary/40"
+          >
+            {FILTERS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+          </select>
+        </div>
         <span className="text-sm text-fg-subtle">{total} user{total !== 1 ? "s" : ""}</span>
       </div>
 
@@ -240,12 +292,29 @@ export default function AdminUsersPage() {
         <p className="text-sm text-fg-subtle">Loading users…</p>
       ) : (
         <>
+          {selected.size > 0 && (
+            <div className="flex flex-wrap items-center gap-2 mb-3 rounded-xl border border-brand/30 bg-brand/5 px-4 py-2.5">
+              <span className="text-sm font-semibold text-fg mr-2">{selected.size} selected</span>
+              {(Object.keys(BULK_LABEL) as BulkAction[]).map((a) => (
+                <Button key={a} size="sm" variant={a === "suspend" ? "danger" : "secondary"} onClick={() => setBulk(a)}>{BULK_LABEL[a]}</Button>
+              ))}
+              <Button size="sm" variant="link" className="text-fg-muted ml-auto" onClick={() => setSelected(new Set())}>Clear</Button>
+            </div>
+          )}
           <Card shadow className="mb-4">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-line text-left text-xs font-semibold text-fg-subtle uppercase tracking-wide">
-                    <th className="py-3.5 px-5">User</th>
+                    <th className="py-3.5 pl-5 pr-1 w-8">
+                      <input
+                        type="checkbox"
+                        aria-label="Select every user on this page"
+                        checked={users.length > 0 && users.every(u => selected.has(u.id))}
+                        onChange={e => setSelected(e.target.checked ? new Set(users.map(u => u.id)) : new Set())}
+                      />
+                    </th>
+                    <th className="py-3.5 px-3">User</th>
                     <th className="py-3.5 px-3">Credits</th>
                     <th className="py-3.5 px-3">Mo. Credits</th>
                     <th className="py-3.5 px-3">Plan</th>
@@ -265,10 +334,19 @@ export default function AdminUsersPage() {
                       <Fragment key={u.id}>
                         <tr
                           className={`border-b border-line last:border-0 transition-colors ${isAdmin ? "bg-tint-blue/40" : ""}`}>
-                          <td className="py-3 px-5">
+                          <td className="py-3 pl-5 pr-1">
+                            <input type="checkbox" aria-label={`Select ${u.email}`} checked={selected.has(u.id)} onChange={() => toggle(u.id)} />
+                          </td>
+                          <td className="py-3 px-3">
                             <p className="font-semibold text-fg">{u.name || u.email}</p>
                             {u.name && <p className="text-xs text-fg-subtle">{u.email}</p>}
-                            {isAdmin && <span className="text-[10px] font-bold text-brand bg-tint-violet px-1.5 py-0.5 rounded-full">ADMIN</span>}
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {isAdmin && <StatusBadge tone="primary">Admin</StatusBadge>}
+                              {u.suspendedAt && <StatusBadge tone="error">Suspended</StatusBadge>}
+                              {u.deactivatedAt && <StatusBadge tone="warning">Deactivated</StatusBadge>}
+                              {!u.emailVerifiedAt && <StatusBadge tone="neutral">Unverified</StatusBadge>}
+                              {u.twoFactorEnabled && <StatusBadge tone="info">2FA</StatusBadge>}
+                            </div>
                           </td>
                           <td className="py-3 px-3 font-semibold text-fg">{u.credits}</td>
                           <td className="py-3 px-3 text-fg-muted">{u.monthlyCredits > 0 ? u.monthlyCredits : "—"}</td>
@@ -323,7 +401,7 @@ export default function AdminUsersPage() {
                         </tr>
                         {expandedId === u.id && (
                           <tr key={`${u.id}-expand`} className="bg-tint-blue/60 border-b border-line">
-                            <td colSpan={9} className="px-5 py-4">
+                            <td colSpan={10} className="px-5 py-4">
                               <div className="flex flex-wrap items-end gap-4">
                                 <div>
                                   <label className="text-[10px] font-semibold text-fg-subtle block mb-1">Display Name</label>
@@ -456,11 +534,32 @@ export default function AdminUsersPage() {
       <ConfirmDialog
         open={deleteConfirmId !== null}
         title="Delete user"
-        message={`Permanently delete "${users.find(u => u.id === deleteConfirmId)?.email ?? ""}"? This cannot be undone.`}
+        message={`Permanently delete "${users.find(u => u.id === deleteConfirmId)?.email ?? ""}" — the account, their projects, clips and library, including the stored files? Accounts with billing history are refused. This cannot be undone.`}
         confirmLabel="Delete"
         danger
-        onConfirm={async () => { if (deleteConfirmId) await deleteMutation.mutateAsync(deleteConfirmId); }}
+        confirmPhrase={users.find(u => u.id === deleteConfirmId)?.email}
+        requireReason
+        onConfirm={async ({ phrase, reason }) => {
+          if (deleteConfirmId) await deleteMutation.mutateAsync({ id: deleteConfirmId, confirmPhrase: phrase, reason }).catch(() => {});
+        }}
         onClose={() => setDeleteConfirmId(null)}
+      />
+      <ConfirmDialog
+        open={bulk !== null}
+        title={bulk ? `${BULK_LABEL[bulk]}: ${selected.size} account(s)` : ""}
+        message={
+          bulk === "suspend"
+            ? "Block sign-in for every selected account and sign them out now. Admin accounts (and yours) are skipped."
+            : bulk === "unsuspend"
+              ? "Let every selected account sign in again."
+              : "Sign every selected account out of all devices. They can sign straight back in."
+        }
+        confirmLabel={bulk ? BULK_LABEL[bulk] : ""}
+        danger={bulk === "suspend"}
+        confirmPhrase={`${selected.size} users`}
+        requireReason
+        onConfirm={({ phrase, reason }) => (bulk ? runBulk(bulk, phrase, reason) : undefined)}
+        onClose={() => setBulk(null)}
       />
     </AdminShell>
   );

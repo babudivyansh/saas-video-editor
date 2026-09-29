@@ -3,11 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { withAdmin, parseBody } from "@/lib/admin/api";
 import { auditAdminAction, auditIp } from "@/lib/admin/audit";
-import { userPatchSchema } from "@/lib/admin/schemas";
+import { userDeleteSchema, userPatchSchema } from "@/lib/admin/schemas";
+import { hardDeleteUserAccount } from "@/lib/account-deletion";
 import { grantCredits, getBalances, setSubscriptionCredits, type CreditBucket } from "@/lib/credits";
 import { grantMinutes, setSubscriptionMinutes, type MinuteBucket } from "@/lib/minutes";
 import { cancelExistingSubscriptionForSwitch } from "@/lib/billing/subscription-switch";
-import { invalidateAllSessions } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -233,52 +233,30 @@ export const DELETE = withAdmin<{ id: string }>(async (req, { admin, params }) =
     return NextResponse.json({ error: "Demote the admin role before deleting this account." }, { status: 409 });
   }
 
+  // Typed confirmation, checked here and not only in the dialog.
+  const { confirmPhrase, reason } = await parseBody(req, userDeleteSchema);
+  if (confirmPhrase.trim().toLowerCase() !== target.email.toLowerCase()) {
+    return NextResponse.json({ error: `Type the user's email (${target.email}) to confirm` }, { status: 400 });
+  }
+
   const { allowed } = await rateLimit(`admin-user-delete:${admin.userId}`, 10, 900);
   if (!allowed) return NextResponse.json({ error: "Too many requests — try again shortly." }, { status: 429 });
 
-  // Purchase rows are financial/audit records and can't cascade away with the
-  // account (Purchase.user is onDelete: Restrict) — refuse up front with a
-  // clear message instead of letting the delete below throw.
-  const purchaseCount = await prisma.purchase.count({ where: { userId: id } });
-  if (purchaseCount > 0) {
-    return NextResponse.json(
-      { error: "This user has billing history that must be retained for financial records, so the account can't be deleted." },
-      { status: 409 },
-    );
-  }
-
-  // Affiliate/Referral/Commission rows have no onDelete: Cascade, so they must
-  // be cleared before the User row can be deleted, or Postgres throws a
-  // foreign-key violation (this previously crashed with an unhandled 500 for
-  // any affiliate-linked or referred user — see DELETE /api/auth/profile for
-  // the same pattern used for self-service deletion).
+  // The same core the user's own delete and the purge cron use: refuses an
+  // account with billing history (Purchase is onDelete: Restrict), cancels any
+  // live Razorpay mandate, clears the affiliate rows that don't cascade, and —
+  // unlike the hand-rolled transaction this replaced — deletes the account's
+  // stored media from S3 instead of leaving it in the bucket forever.
+  let result: Awaited<ReturnType<typeof hardDeleteUserAccount>>;
   try {
-    await prisma.$transaction([
-      prisma.commission.deleteMany({ where: { referral: { referredUserId: id } } }),
-      prisma.referral.deleteMany({ where: { referredUserId: id } }),
-      prisma.commission.deleteMany({ where: { affiliate: { userId: id } } }),
-      prisma.referral.deleteMany({ where: { affiliate: { userId: id } } }),
-      prisma.affiliate.deleteMany({ where: { userId: id } }),
-      prisma.user.delete({ where: { id } }),
-    ]);
+    result = await hardDeleteUserAccount(id);
   } catch (err) {
     logger.error("admin.deleteUser", "request failed", err);
     return NextResponse.json({ error: "Could not delete this user — they may have related records that couldn't be cleared." }, { status: 409 });
   }
+  if (!result.ok) return NextResponse.json({ error: result.reason }, { status: 409 });
 
-  // Clean up Redis session and credit cache.
-  //
-  // This deleted `session:${id}` (singular) while sessions have been stored
-  // under `sessions:${userId}` since the multi-session migration — so deleting
-  // a user left every one of their JWTs live until natural expiry, up to seven
-  // days. Going through the exported helper instead of rebuilding the key by
-  // hand means it cannot drift again; sessionsKey stays private on purpose.
-  await Promise.allSettled([
-    invalidateAllSessions(id),
-    redis.del(`credits:${id}`),
-  ]);
-
-  await auditAdminAction(admin.userId, "user.deleted", id, { before: target, ip: auditIp(req) });
+  await auditAdminAction(admin.userId, "user.deleted", id, { before: target, reason, ip: auditIp(req) });
 
   return NextResponse.json({ success: true });
 });
