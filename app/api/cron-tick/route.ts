@@ -4,6 +4,7 @@ import { cronSecretMatches } from "@/lib/cron-auth";
 import { redis } from "@/lib/redis";
 import { logger } from "@/lib/logger";
 import { CRON_SCHEDULE, isDue, type CronScheduleEntry } from "@/lib/cron-schedule";
+import { dispatchCronJob, getCronPauses, secretFor } from "@/lib/cron-dispatch";
 
 // GET /api/cron-tick — the scheduler for hosts without cron.
 //
@@ -42,20 +43,6 @@ function dueSlots(entry: CronScheduleEntry, now: Date): Date[] {
   return slots;
 }
 
-async function runJob(origin: string, entry: CronScheduleEntry, secret: string): Promise<void> {
-  try {
-    const res = await fetch(`${origin}${entry.path}`, {
-      headers: { Authorization: `Bearer ${secret}` },
-      cache: "no-store",
-    });
-    // The job route records its own outcome (lib/cron-tracking.ts); this is
-    // just a breadcrumb in the server log.
-    if (!res.ok) logger.warn("cron-tick", `${entry.path} answered ${res.status}`);
-  } catch (e) {
-    logger.error("cron-tick", `${entry.path} could not be called`, e);
-  }
-}
-
 export async function GET(req: NextRequest) {
   const secret = env.CRON_SECRET;
   if (!secret || !cronSecretMatches(req, secret)) {
@@ -65,6 +52,10 @@ export async function GET(req: NextRequest) {
   const now = minuteFloor(new Date());
   const toRun: CronScheduleEntry[] = [];
   const missingSecret: string[] = [];
+  const paused: string[] = [];
+  // Paused from /admin/ops. A paused job's slots are still claimed below, so
+  // resuming it doesn't replay the runs it skipped.
+  const pauses = await getCronPauses();
 
   for (const entry of CRON_SCHEDULE) {
     const slots = dueSlots(entry, now);
@@ -76,7 +67,11 @@ export async function GET(req: NextRequest) {
       if (await redis.setNx(`cron:tick:${entry.path}:${slot.toISOString()}`, "1", CLAIM_TTL_SEC)) claimed = true;
     }
     if (!claimed) continue;
-    if (!env[entry.secret]) {
+    if (pauses.has(entry.path)) {
+      paused.push(entry.path);
+      continue;
+    }
+    if (!secretFor(entry)) {
       missingSecret.push(entry.path);
       continue;
     }
@@ -90,7 +85,7 @@ export async function GET(req: NextRequest) {
   // Answer the scheduler straight away (cron-job.org gives up after 30s);
   // the jobs themselves run after the response, in parallel.
   const origin = req.nextUrl.origin;
-  after(() => Promise.all(toRun.map((entry) => runJob(origin, entry, env[entry.secret] as string))));
+  after(() => Promise.all(toRun.map((entry) => dispatchCronJob(origin, entry, secretFor(entry) as string))));
 
   await redis.set("cron:tick:last", now.toISOString(), "EX", CLAIM_TTL_SEC).catch(() => {});
 
@@ -99,5 +94,6 @@ export async function GET(req: NextRequest) {
     at: now.toISOString(),
     started: toRun.map((e) => e.path),
     ...(missingSecret.length ? { missingSecret } : {}),
+    ...(paused.length ? { paused } : {}),
   });
 }

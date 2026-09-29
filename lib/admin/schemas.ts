@@ -534,3 +534,23 @@ export const announcementPatchSchema = z
   .strict()
   .refine((v) => Object.keys(v).length > 0, { message: "Nothing to update" })
   .superRefine(ctaConsistency);
+
+// POST /api/admin/ops/cron/run — run one scheduled job now. `path` must be an
+// exact CRON_SCHEDULE entry (checked in the route); `confirmPhrase` must equal
+// the job id for a danger-tier job (lib/cron-catalog.ts).
+export const cronRunSchema = z
+  .object({
+    path: z.string().min(1).max(200),
+    confirmPhrase: z.string().max(200).optional(),
+    reason: z.string().trim().max(500).optional(),
+  })
+  .strict();
+
+// POST /api/admin/ops/cron/pause — pause or resume one scheduled job.
+export const cronPauseSchema = z
+  .object({
+    path: z.string().min(1).max(200),
+    paused: z.boolean(),
+    reason: z.string().trim().max(500).optional(),
+  })
+  .strict();

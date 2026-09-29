@@ -6,6 +6,7 @@ import { opsFlagsSchema } from "@/lib/admin/schemas";
 import { renderQueueCounts } from "@/lib/admin/metrics";
 import { getHeartbeats } from "@/lib/worker-heartbeat";
 import { getCronRunStatuses } from "@/lib/cron-tracking";
+import { getCronJobRows } from "@/lib/admin/cron-jobs";
 import { redis } from "@/lib/redis";
 import { getFeatureFlags, getMaintenanceMode, setFeatureFlag, setMaintenanceMode } from "@/lib/flags";
 import { env } from "@/lib/env";
@@ -19,7 +20,7 @@ import { captionRenderOpsSnapshot } from "@/lib/captions/ops";
 export const GET = withAdmin(async () => {
   const [
     queueCounts, failedJobs, heartbeats, flags, maintenance, cronRuns, tableSizes,
-    captionProvider, captionRenders, cronTickLastAt,
+    captionProvider, captionRenders, cronTickLastAt, cronJobs, dbOk, redisOk,
   ] = await Promise.all([
     renderQueueCounts(),
     getFailedRenderJobs(),
@@ -42,6 +43,9 @@ export const GET = withAdmin(async () => {
     captionRenderOpsSnapshot(),
     // Last minute /api/cron-tick was called by the external scheduler.
     redis.get("cron:tick:last").catch(() => null),
+    getCronJobRows(),
+    prisma.$queryRaw`SELECT 1`.then(() => true).catch(() => false),
+    redis.ping(),
   ]);
 
   return NextResponse.json({
@@ -51,6 +55,9 @@ export const GET = withAdmin(async () => {
     flags,
     maintenance,
     cronRuns,
+    cronJobs,
+    health: { db: dbOk, redis: redisOk },
+    queueDriver: env.RENDER_QUEUE_DRIVER ?? "bullmq",
     tableSizes: tableSizes.map((t) => ({ table: t.table, size: t.size })),
     captionProvider,
     captionRenders,

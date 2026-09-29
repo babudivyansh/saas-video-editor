@@ -43,4 +43,27 @@ describe("ConfirmDialog", () => {
     await vi.waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps confirm disabled until the exact phrase is typed, then passes phrase + reason", async () => {
+    const onConfirm = vi.fn(async () => {});
+    render(
+      <ConfirmDialog open title="Delete user" message="Delete?" confirmLabel="Delete" confirmPhrase="a@b.co" requireReason danger onConfirm={onConfirm} onClose={() => {}} />,
+    );
+    const btn = screen.getByRole("button", { name: "Delete" });
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "spam account" } });
+    fireEvent.change(screen.getByLabelText(/to confirm/), { target: { value: "a@b.c" } });
+    expect(btn).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/to confirm/), { target: { value: "a@b.co" } });
+    expect(btn).not.toBeDisabled();
+    fireEvent.click(btn);
+    await vi.waitFor(() => expect(onConfirm).toHaveBeenCalledWith({ phrase: "a@b.co", reason: "spam account" }));
+  });
+
+  it("requires a reason of at least 3 characters when requireReason is set", () => {
+    render(<ConfirmDialog open title="Pause" message="Pause?" confirmLabel="Pause" requireReason onConfirm={() => {}} onClose={() => {}} />);
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "no" } });
+    expect(screen.getByRole("button", { name: "Pause" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "noisy" } });
+    expect(screen.getByRole("button", { name: "Pause" })).not.toBeDisabled();
+  });
 });

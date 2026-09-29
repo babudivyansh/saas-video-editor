@@ -31,14 +31,18 @@ export interface TabItem {
 export interface TabsProps {
   items: TabItem[];
   defaultId?: string;
+  /** Controlled mode: the parent owns the active tab (e.g. from ?tab=) and
+   * updates it in onChange. Omit for the self-managed default. */
+  activeId?: string;
   label: string;
   className?: string;
   onChange?: (id: string) => void;
 }
 
-export function Tabs({ items, defaultId, label, className = "", onChange }: TabsProps) {
+export function Tabs({ items, defaultId, activeId, label, className = "", onChange }: TabsProps) {
   const base = useId();
-  const [active, setActive] = useState(defaultId ?? items[0]?.id);
+  const [ownActive, setActive] = useState(defaultId ?? items[0]?.id);
+  const active = activeId ?? ownActive;
   const refs = useRef(new Map<string, HTMLButtonElement>());
 
   if (items.length === 0) return null;
@@ -66,7 +70,7 @@ export function Tabs({ items, defaultId, label, className = "", onChange }: Tabs
 
   return (
     <div className={className}>
-      <div role="tablist" aria-label={label} onKeyDown={onKeyDown} className="flex gap-1 border-b border-card-border">
+      <div role="tablist" aria-label={label} onKeyDown={onKeyDown} className="flex gap-1 border-b border-card-border overflow-x-auto overflow-y-hidden [scrollbar-width:none]">
         {items.map((item, i) => {
           const selected = item.id === active;
           return (
@@ -86,7 +90,7 @@ export function Tabs({ items, defaultId, label, className = "", onChange }: Tabs
               // turns a 6-tab strip into 6 stops on the way to the content.
               tabIndex={selected ? 0 : -1}
               onClick={() => select(i, false)}
-              className={`-mb-px rounded-t-lg px-3.5 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+              className={`shrink-0 whitespace-nowrap rounded-t-lg px-3.5 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
                 selected
                   ? "border-b-2 border-brand text-brand"
                   : "border-b-2 border-transparent text-ink-soft hover:text-ink"
