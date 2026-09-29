@@ -11,6 +11,8 @@ import { useEditorStore } from "../store/editorStore";
 import { docDuration } from "@/lib/editor/doc-utils";
 import { useInsufficientCredits } from "@/app/components/billing/CreditModalContext";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
+import { Modal } from "@/app/components/ui/Modal";
+import { Button } from "@/app/components/ui/Button";
 
 type Stage = "confirm" | "waiting-save" | "rendering" | "done" | "error";
 
@@ -121,8 +123,8 @@ export default function ExportModal() {
       return;
     }
     if ((user?.credits ?? 0) < CREDIT_COST) {
-      setError("Not enough credits. Top up to export.");
-      setStage("error");
+      close();
+      insufficientCredits.open({ required: CREDIT_COST, balance: user?.credits ?? 0, action: "Export" });
       return;
     }
     if (saveState !== "saved") setStage("waiting-save");
@@ -131,94 +133,87 @@ export default function ExportModal() {
 
   const duration = docDuration(doc);
 
+  // ui/Modal gives this Esc, a focus trap, scroll lock and focus restore —
+  // the hand-rolled overlay had none of them. It can't be dismissed while a
+  // render is being started (the server is already charging for it).
+  const busy = stage === "rendering" || stage === "waiting-save";
+
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={stage === "rendering" ? undefined : close} />
-      <div className="relative z-10 w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
-        <h2 className="text-lg font-bold text-zinc-100">Export video</h2>
-
-        {stage === "confirm" && (
-          <>
-            <div className="mt-4 space-y-2 rounded-xl bg-zinc-950 p-4 text-sm text-zinc-100">
-              <Row label="Aspect ratio" value={doc.aspect} />
-              <Row label="Duration" value={`${Math.round(duration)}s`} />
-              <Row label="Resolution" value={doc.aspect === "16:9" ? "1920×1080" : doc.aspect === "1:1" ? "1080×1080" : "1080×1920"} />
-              <Row label="Cost" value={`${CREDIT_COST} credit`} />
-              <Row label="Your balance" value={`${user?.credits ?? 0} credits`} />
-            </div>
-            <p className="mt-3 text-xs leading-snug text-zinc-500">
-              Rendering happens on our servers — you can keep editing other projects while it runs. Preview and export
-              are closely matched, though text rendering may differ by a pixel or two.
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <button onClick={close} className="rounded-full px-4 py-2 text-sm font-semibold text-zinc-400 hover:text-zinc-100 cursor-pointer">
-                Cancel
-              </button>
-              <button
-                onClick={onConfirm}
-                className="rounded-full bg-violet-600 px-5 py-2 text-sm font-bold text-white hover:bg-violet-500 cursor-pointer"
-              >
-                Export ({CREDIT_COST} credit)
-              </button>
-            </div>
-          </>
-        )}
-
-        {(stage === "rendering" || stage === "waiting-save") && (
-          <div className="mt-5">
-            <p className="text-sm text-zinc-400">
-              {stage === "waiting-save" ? "Saving your latest changes…" : "Rendering your video…"}
-            </p>
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-800">
-              <div
-                className="h-full rounded-full bg-violet-500 transition-all duration-500"
-                style={{ width: `${Math.max(progress, 4)}%` }}
-              />
-            </div>
-            <p className="mt-2 text-right text-xs text-zinc-500">{progress}%</p>
+    <Modal open onClose={busy ? () => {} : close} title="Export video" maxWidth="max-w-md">
+      {stage === "confirm" && (
+        <>
+          <div className="space-y-2 rounded-xl bg-surface-2 p-4 text-sm text-fg">
+            <Row label="Aspect ratio" value={doc.aspect} />
+            <Row label="Duration" value={`${Math.round(duration)}s`} />
+            <Row label="Resolution" value={doc.aspect === "16:9" ? "1920×1080" : doc.aspect === "1:1" ? "1080×1080" : "1080×1920"} />
+            <Row label="Cost" value={`${CREDIT_COST} credit`} />
+            <Row label="Your balance" value={`${user?.credits ?? 0} credits`} />
           </div>
-        )}
-
-        {stage === "done" && videoUrl && (
-          <div className="mt-5">
-            <p className="text-sm text-zinc-100">Your video is ready 🎉</p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button onClick={close} className="rounded-full px-4 py-2 text-sm font-semibold text-zinc-400 hover:text-zinc-100 cursor-pointer">
-                Close
-              </button>
-              <a
-                href={videoUrl}
-                download
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-full bg-violet-600 px-5 py-2 text-sm font-bold text-white hover:bg-violet-500"
-              >
-                Download MP4
-              </a>
-            </div>
+          <p className="mt-3 text-xs leading-snug text-fg-muted">
+            Rendering happens on our servers — you can keep editing other projects while it runs. Preview and export
+            are closely matched, though text rendering may differ by a pixel or two.
+          </p>
+          <div className="mt-5 flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={close}>Cancel</Button>
+            <Button type="button" onClick={onConfirm}>Export ({CREDIT_COST} credit)</Button>
           </div>
-        )}
+        </>
+      )}
 
-        {stage === "error" && (
-          <div className="mt-5">
-            <p className="text-sm text-red-400">{error}</p>
-            <div className="mt-4 flex justify-end">
-              <button onClick={close} className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:bg-zinc-800 cursor-pointer">
-                Close
-              </button>
-            </div>
+      {busy && (
+        <div role="status" aria-live="polite">
+          <p className="text-sm text-fg-muted">
+            {stage === "waiting-save" ? "Saving your latest changes…" : "Rendering your video…"}
+          </p>
+          <div
+            className="mt-3 h-2 overflow-hidden rounded-full bg-surface-3"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={progress}
+            aria-label="Export progress"
+          >
+            <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${Math.max(progress, 4)}%` }} />
           </div>
-        )}
-      </div>
-    </div>
+          <p className="mt-2 text-right text-xs text-fg-muted">{progress}%</p>
+        </div>
+      )}
+
+      {stage === "done" && videoUrl && (
+        <div>
+          <p className="text-sm text-fg">Your video is ready 🎉</p>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={close}>Close</Button>
+            <a
+              href={videoUrl}
+              download
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center rounded-full grad-brand px-5 py-2 text-sm font-semibold text-on-primary shadow-glow outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+            >
+              Download MP4
+            </a>
+          </div>
+        </div>
+      )}
+
+      {stage === "error" && (
+        <div>
+          <p role="alert" className="text-sm text-error">{error}</p>
+          <div className="mt-4 flex justify-end">
+            <Button type="button" variant="secondary" onClick={close}>Close</Button>
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 }
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between">
-      <span className="text-zinc-500">{label}</span>
-      <span className="font-semibold text-zinc-100">{value}</span>
+      <span className="text-fg-muted">{label}</span>
+      <span className="font-semibold text-fg">{value}</span>
     </div>
   );
 }

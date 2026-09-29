@@ -9,7 +9,7 @@ import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
-import { ChevronLeft, Command, Bell, Sparkles, User as UserIcon, LogOut } from "lucide-react";
+import { ChevronLeft, Sparkles, User as UserIcon, LogOut } from "lucide-react";
 import type { Aspect } from "@/lib/editor/types";
 import { useAuth } from "@/app/components/AuthContext";
 import { useEditorStore } from "./store/editorStore";
@@ -23,7 +23,8 @@ import Timeline from "./components/timeline/Timeline";
 // still bundles it into the initial editor chunk regardless — React just
 // doesn't mount it early. Dynamic import defers the actual code fetch too.
 const ExportModal = dynamic(() => import("./components/ExportModal"), { ssr: false });
-import { Button, IconButton } from "./components/ui";
+import { Button } from "./components/ui";
+import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 
 const ASPECTS: Aspect[] = ["9:16", "1:1", "16:9"];
 
@@ -43,25 +44,29 @@ export default function EditorShell() {
   const exportOpen = useEditorStore((s) => s.exportOpen);
   const setExportOpen = useEditorStore((s) => s.setExportOpen);
   const [reloading, setReloading] = useState(false);
+  // Replaces window.confirm / window.alert, which blocked the tab and looked
+  // like a browser warning rather than part of the product.
+  const [confirmReload, setConfirmReload] = useState(false);
+  const [reloadError, setReloadError] = useState<string | null>(null);
 
   useAutosave();
   useKeyboardShortcuts();
 
   const save = SAVE_LABEL[saveState];
 
+  // The only path that ever discards local edits — only reachable from the
+  // conflict banner, only on explicit click (and a confirm), never automatic.
   const handleReloadLatest = async () => {
     if (!projectId || reloading) return;
-    // The only path that ever discards local edits — only reachable from the
-    // conflict banner, only on explicit click, never automatic.
-    if (!window.confirm("Load the version saved from another tab/device? Your unsaved changes here will be lost.")) return;
+    setReloadError(null);
     setReloading(true);
     const result = await reloadLatestProject(projectId);
     setReloading(false);
-    if (!result.ok) window.alert(result.error ?? "Could not load the latest version.");
+    if (!result.ok) setReloadError(result.error ?? "Could not load the latest version.");
   };
 
   return (
-    <div className="clipiro-editor flex h-screen flex-col overflow-hidden bg-editor-bg font-sans text-editor-text">
+    <div className="clipiro-editor flex h-[100dvh] flex-col overflow-hidden bg-editor-bg font-sans text-editor-text">
       {/* Top bar */}
       <header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-editor-border bg-editor-glass px-5 backdrop-blur-editor-glass">
         <div className="flex items-center gap-3">
@@ -83,7 +88,8 @@ export default function EditorShell() {
           </span>
           {saveState === "conflict" && (
             <button
-              onClick={handleReloadLatest}
+              type="button"
+              onClick={() => setConfirmReload(true)}
               disabled={reloading}
               className="rounded-editor-full border border-red-500/40 px-2.5 py-1 text-[11px] font-semibold text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50 cursor-pointer"
               title="Someone (or another tab) saved this project after your last edit here. Your changes below are safe but not saved yet."
@@ -91,14 +97,17 @@ export default function EditorShell() {
               {reloading ? "Loading…" : "Reload latest"}
             </button>
           )}
+          {reloadError && <span role="alert" className="text-[11px] font-semibold text-red-400">{reloadError}</span>}
 
           {/* Aspect picker */}
-          <div className="flex items-center rounded-editor-md border border-editor-border bg-editor-panel p-0.5">
+          <div role="group" aria-label="Aspect ratio" className="flex items-center rounded-editor-md border border-editor-border bg-editor-panel p-0.5">
             {ASPECTS.map((a) => (
               <button
                 key={a}
+                type="button"
+                aria-pressed={aspect === a}
                 onClick={() => setAspect(a)}
-                className="relative rounded-editor-sm px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer"
+                className="relative rounded-editor-sm px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-editor-accent"
               >
                 {aspect === a && (
                   <motion.span
@@ -107,17 +116,14 @@ export default function EditorShell() {
                     className="absolute inset-0 rounded-editor-sm bg-editor-card"
                   />
                 )}
-                <span className={`relative ${aspect === a ? "text-editor-text" : "text-editor-text-faint"}`}>{a}</span>
+                <span className={`relative ${aspect === a ? "text-editor-text" : "text-editor-text-muted"}`}>{a}</span>
               </button>
             ))}
           </div>
 
-          {/* Inert chrome — not wired up in this pass. */}
-          {/* TODO(phase-2): wire ⌘K command palette */}
-          <span className="hidden items-center gap-1 rounded-editor-md border border-editor-border px-2 py-1 text-[11px] font-medium text-editor-text-faint lg:flex">
-            <Command className="h-3 w-3" />K
-          </span>
-          <IconButton icon={<Bell className="h-4 w-4" />} label="Notifications" size="sm" tooltipSide="bottom" />
+          {/* The ⌘K chip and a Notifications button used to sit here, neither
+              wired to anything: controls that look clickable and do nothing.
+              Removed until the command palette exists. */}
 
           <Button variant="primary" rounded="rounded-editor-full" onClick={() => setExportOpen(true)} className="!px-5 hover:shadow-editor-glow">
             <Sparkles className="h-3.5 w-3.5" />
@@ -127,6 +133,16 @@ export default function EditorShell() {
           <ProfileChip />
         </div>
       </header>
+
+      <ConfirmDialog
+        open={confirmReload}
+        title="Load the other version?"
+        message="This loads the version saved from another tab or device. Your unsaved changes here will be lost."
+        confirmLabel="Load it"
+        danger
+        onConfirm={handleReloadLatest}
+        onClose={() => setConfirmReload(false)}
+      />
 
       {/* Main panes — sidebar spans the full remaining height, alongside
           both the preview row and the timeline row below it. */}

@@ -109,8 +109,10 @@ export function useClipsLibrary(filters: ClipFilters) {
   return { ...query, clips, isLoading: authLoading || (!!user && query.isLoading) };
 }
 
+type ClipsPages = { pages: { clips: ClipRow[] }[]; pageParams: unknown[] };
+
 /** Rename, star, and delete — none of which had a route before. */
-export function useClipMutations() {
+export function useClipMutations(opts: { onError?: (message: string) => void } = {}) {
   const { token } = useAuth();
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: ["clips", "list"] });
@@ -138,7 +140,24 @@ export function useClipMutations() {
         method: "PATCH",
         body: JSON.stringify({ isFavorite }),
       }),
-    onSuccess: invalidate,
+    // Optimistic, like the Assets library: the star used to wait on the
+    // round-trip, and a failure left it silently unchanged.
+    onMutate: async ({ clipId, isFavorite }) => {
+      await qc.cancelQueries({ queryKey: ["clips", "list"] });
+      const previous = qc.getQueriesData<ClipsPages>({ queryKey: ["clips", "list"] });
+      qc.setQueriesData<ClipsPages>({ queryKey: ["clips", "list"] }, (data) =>
+        data && {
+          ...data,
+          pages: data.pages.map((p) => ({ ...p, clips: p.clips.map((c) => (c.id === clipId ? { ...c, isFavorite } : c)) })),
+        },
+      );
+      return { previous };
+    },
+    onError: (_e, _v, ctx) => {
+      for (const [key, data] of ctx?.previous ?? []) qc.setQueryData(key, data);
+      opts.onError?.("Couldn't update the star. Please try again.");
+    },
+    onSettled: invalidate,
   });
 
   const remove = useMutation({

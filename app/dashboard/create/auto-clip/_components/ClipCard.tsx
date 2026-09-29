@@ -76,10 +76,10 @@ export function ClipCard({ projectId, clip, onChanged, onOpen }: {
           <OverflowMenu>
             {(close) => (
               <>
-                <a href={`/api/projects/${projectId}/clips/${clip.id}/download`} download onClick={close} className="block w-full text-left text-[13px] font-medium py-2 px-3 rounded-lg text-ink hover:bg-tint-blue transition-colors">Download</a>
-                <button onClick={() => { close(); openWith("edit"); }} className="block w-full text-left text-[13px] font-medium py-2 px-3 rounded-lg text-ink hover:bg-tint-blue transition-colors">Edit clip</button>
-                <button onClick={() => { close(); openWith("captions"); }} className="block w-full text-left text-[13px] font-medium py-2 px-3 rounded-lg text-ink hover:bg-tint-blue transition-colors">Captions</button>
-                <button onClick={() => { close(); openWith("publish"); }} className="block w-full text-left text-[13px] font-medium py-2 px-3 rounded-lg text-ink hover:bg-tint-blue transition-colors">Publish / Dub</button>
+                <a href={`/api/projects/${projectId}/clips/${clip.id}/download`} role="menuitem" download onClick={close} className="block w-full text-left text-[13px] font-medium py-2 px-3 rounded-lg text-ink hover:bg-tint-blue transition-colors outline-none focus-visible:bg-tint-blue">Download</a>
+                <button type="button" role="menuitem" onClick={() => { close(); openWith("edit"); }} className="block w-full text-left text-[13px] font-medium py-2 px-3 rounded-lg text-ink hover:bg-tint-blue transition-colors outline-none focus-visible:bg-tint-blue">Edit clip</button>
+                <button type="button" role="menuitem" onClick={() => { close(); openWith("captions"); }} className="block w-full text-left text-[13px] font-medium py-2 px-3 rounded-lg text-ink hover:bg-tint-blue transition-colors outline-none focus-visible:bg-tint-blue">Captions</button>
+                <button type="button" role="menuitem" onClick={() => { close(); openWith("publish"); }} className="block w-full text-left text-[13px] font-medium py-2 px-3 rounded-lg text-ink hover:bg-tint-blue transition-colors outline-none focus-visible:bg-tint-blue">Publish / Dub</button>
               </>
             )}
           </OverflowMenu>

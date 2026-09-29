@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { registerAsset, type AssetRow } from "@/app/dashboard/editor/components/panels/shared/assetData";
 import { IcMore, apiFetch, ClipItem, publishStatusLabel } from "./shared";
+import { useMenuNav } from "@/app/components/ui/useMenuNav";
 
 // Stable empty fallbacks. An inline `?? []` is a NEW array every render, so
 // the effects that depend on these re-ran on every render (and on every poll
@@ -226,6 +227,10 @@ export function RetryClipButton({ projectId, clip, onQueued }: { projectId: stri
 export function OverflowMenu({ children, ariaLabel = "More actions", align = "right" }: { children: (close: () => void) => ReactNode; ariaLabel?: string; align?: "right" | "left" }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
+  // Arrow keys / Home / End between items, focus in on open and back on close
+  // — role="menu" promises that, and it had none of it.
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  useMenuNav(panelRef, open);
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
@@ -246,7 +251,7 @@ export function OverflowMenu({ children, ariaLabel = "More actions", align = "ri
         <IcMore />
       </button>
       {open && (
-        <div role="menu" className={`ac-pop absolute z-30 mt-1 w-52 rounded-xl border border-card-border bg-panel p-1.5 shadow-card ${align === "right" ? "right-0" : "left-0"}`}>
+        <div ref={panelRef} role="menu" aria-label={ariaLabel} className={`ac-pop absolute z-30 mt-1 w-52 rounded-xl border border-card-border bg-panel p-1.5 shadow-card ${align === "right" ? "right-0" : "left-0"}`}>
           {children(() => setOpen(false))}
         </div>
       )}

@@ -137,7 +137,16 @@ export function ClipWorkspace({
   }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { onClose(); return; }
+      if (e.key === "Escape") {
+        // Not while typing (Esc there dismisses autocomplete/IME, and closing
+        // threw away half-typed caption and transcript edits), and not when an
+        // inner menu already consumed it.
+        const t = e.target as HTMLElement | null;
+        const typing = !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
+        if (typing || e.defaultPrevented) return;
+        onClose();
+        return;
+      }
       if (e.key !== "Tab" || !dialogRef.current) return;
       const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
         'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
@@ -462,6 +471,7 @@ export function ClipWorkspace({
                   <button
                     type="button"
                     onClick={() => setPlaying(true)}
+                    aria-label={clip.videoUrl ? "Play clip" : "Clip preview (not rendered yet)"}
                     className="group relative h-full rounded-2xl overflow-hidden"
                     style={{ aspectRatio: arCss(clip.aspectRatio), background: "linear-gradient(160deg, var(--surface-3), var(--bg) 70%)", boxShadow: "0 24px 70px rgba(0,0,0,.5)" }}
                   >
@@ -536,7 +546,7 @@ export function ClipWorkspace({
                 {tab === "captions" && (
                   <div className="ac-panel-in space-y-5">
                     <div>
-                      <h4 className="text-[12px] font-bold text-ink-soft uppercase tracking-wider mb-1">Caption style</h4>
+                      <h3 className="text-[12px] font-bold text-ink-soft uppercase tracking-wider mb-1">Caption style</h3>
                       <p className="text-[12.5px] text-ink-soft mb-3">One choice sets typography, keyword colour and emoji.</p>
                       <CaptionTemplatePicker
                         value={templateId}
@@ -672,7 +682,7 @@ export function ClipWorkspace({
                 {tab === "reframe" && (
                   <div className="ac-panel-in space-y-5">
                     <div>
-                      <h4 className="text-[12px] font-bold text-ink-soft uppercase tracking-wider mb-1">Aspect ratio</h4>
+                      <h3 className="text-[12px] font-bold text-ink-soft uppercase tracking-wider mb-1">Aspect ratio</h3>
                       <p className="text-[12.5px] text-ink-soft mb-2.5">Re-frames and re-renders this clip for a different placement.</p>
                       <div className="flex gap-1.5">
                         {ASPECTS.map((a) => (
@@ -715,7 +725,7 @@ export function ClipWorkspace({
                 {tab === "insights" && (
                   transcriptionFailed ? (
                     <div className="ac-panel-in rounded-xl border border-warning/40 bg-tint-amber p-4">
-                      <h4 className="text-xs font-bold text-warning uppercase tracking-wider mb-1.5">Insights unavailable</h4>
+                      <h3 className="text-xs font-bold text-warning uppercase tracking-wider mb-1.5">Insights unavailable</h3>
                       <p className="text-sm text-fg leading-relaxed">This video couldn&apos;t be transcribed, so the AI never read its content. Virality scores and suggested captions would just be guesses, so they&apos;re hidden. Add a working transcription key and re-run the analysis to get genuine insights.</p>
                     </div>
                   ) : (

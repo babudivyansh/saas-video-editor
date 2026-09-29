@@ -22,6 +22,12 @@ import { CAPTION_RENDER_PRICING_DEFAULTS, type CaptionRenderPricing } from "@/li
 import { IcFilm, IcCloud, IcFile, IcX, IcSparkle, apiFetch, ASPECTS } from "./_components/shared";
 import { ClipsResults } from "./_components/ClipsResults";
 
+// Mirrors the limits printed on the drop zone (and enforced server-side).
+const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/mov", "video/webm"];
+const MAX_SOURCE_BYTES = 500 * 1024 * 1024;
+const MIN_SOURCE_SEC = 60;
+const MAX_SOURCE_SEC = 90 * 60;
+
 // ── Main flow (single-screen Create + overlay) ───────────────────────────────
 type LengthPreset = "short" | "standard" | "long";
 const LENGTH_PRESETS: { id: LengthPreset; label: string; min: number; max: number }[] = [
@@ -164,6 +170,12 @@ function AutoClipFlow() {
   const [dragging, setDragging] = useState(false);
 
   const handleFile = useCallback((f: File) => {
+    // Checked here because a drop bypasses the input's `accept`, and the
+    // server only said no after the whole upload had finished.
+    const typeOk = ACCEPTED_VIDEO_TYPES.includes(f.type) || [".mp4", ".mov", ".webm"].some((ext) => f.name.toLowerCase().endsWith(ext));
+    if (!typeOk) { setImportError("That file isn't a supported video. Use MP4, MOV or WebM."); return; }
+    if (f.size > MAX_SOURCE_BYTES) { setImportError("That video is over 500 MB. Trim or compress it, then try again."); return; }
+    setImportError(null);
     if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
     setFile(f);
     setVideoPreviewUrl(URL.createObjectURL(f));
@@ -188,9 +200,22 @@ function AutoClipFlow() {
     return () => { live = false; el.removeAttribute("src"); };
   }, [file, videoPreviewUrl]);
 
+  // Length is only known once the file's metadata loads (effect above).
+  const durationError =
+    sourceDurationSec == null ? null
+      : sourceDurationSec < MIN_SOURCE_SEC ? "That video is under a minute — AutoClip needs at least 1 minute of footage."
+        : sourceDurationSec > MAX_SOURCE_SEC ? "That video is over 1 h 30 m. Trim it and try again."
+          : null;
+
+  // Covers the awaits before the status flips (project create, URL import):
+  // the button showed nothing for those seconds, and a second click made a
+  // second project and a second run.
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+
   const lengthPreset: LengthPreset = LENGTH_PRESETS.find((p) => p.min === minDuration && p.max === maxDuration)?.id ?? "standard";
 
-  const handleGenerate = useCallback(async () => {
+  const runGenerate = useCallback(async () => {
     const token = getStoredToken();
     if (!token) return;
     const settings = {
@@ -249,6 +274,18 @@ function AutoClipFlow() {
     await generateAutoClip({ file, token, ...settings });
   }, [file, retryProject, pickedAsset, importedUrl, importedTitle, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionsOn, captionStyleIndex, captionTemplateId, reframingPreset, removeSilence, silenceThresholdMs, removeFillers, smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions, allowCreditOverflow, generateAutoClip, generateAutoClipForProject]);
 
+  const handleGenerate = useCallback(async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setSubmitting(true);
+    try {
+      await runGenerate();
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
+  }, [runGenerate]);
+
   const handleReset = useCallback(() => {
     reset();
     handleClearFile();
@@ -263,7 +300,7 @@ function AutoClipFlow() {
 
   const showOverlay = !!resumeProjectId || genStatus !== "idle";
   const activeProjectId = resumeProjectId ?? genProjectId;
-  const canGenerate = !!file || !!importedUrl || !!pickedAsset || !!retryProject;
+  const canGenerate = (!!file || !!importedUrl || !!pickedAsset || !!retryProject) && !durationError && !submitting;
 
   // "Try again" on a failed run: back to the form with this session's settings
   // kept (it used to offer only "Create another", which wiped them), and the
@@ -348,6 +385,7 @@ function AutoClipFlow() {
           </>
         )}
 
+        {durationError && <p role="alert" className="mt-3 rounded-xl border border-error/40 bg-error/10 px-3 py-2 text-xs font-medium text-error">{durationError}</p>}
         {importError && <p role="alert" className="mt-3 rounded-xl border border-error/40 bg-error/10 px-3 py-2 text-xs font-medium text-error">{importError}</p>}
         {paymentBlock && (
           <div role="alert" className="mt-3 rounded-xl border border-warning/40 bg-tint-amber px-4 py-3 flex flex-wrap items-center gap-3 text-sm">
@@ -374,10 +412,10 @@ function AutoClipFlow() {
         <div className="mt-8 rounded-[20px] border border-card-border bg-panel p-6 flex flex-col gap-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
-              <label className="text-[13px] font-semibold text-ink block mb-2">Clip length</label>
-              <div className="flex gap-1.5">
+              <p id="ac-length-label" className="text-[13px] font-semibold text-ink block mb-2">Clip length</p>
+              <div role="group" aria-labelledby="ac-length-label" className="flex gap-1.5">
                 {LENGTH_PRESETS.map((p) => (
-                  <button key={p.id} onClick={() => { setMinDuration(p.min); setMaxDuration(p.max); }}
+                  <button key={p.id} type="button" aria-pressed={lengthPreset === p.id} onClick={() => { setMinDuration(p.min); setMaxDuration(p.max); }}
                     className={`flex-1 rounded-[10px] border py-2.5 text-[13px] font-semibold transition-colors ${lengthPreset === p.id ? "grad-brand text-on-primary shadow-glow border-transparent" : "bg-panel border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"}`}>
                     {p.label}
                   </button>
@@ -385,20 +423,20 @@ function AutoClipFlow() {
               </div>
             </div>
             <div>
-              <label className="text-[13px] font-semibold text-ink block mb-2">How many clips</label>
+              <p id="ac-count-label" className="text-[13px] font-semibold text-ink block mb-2">How many clips</p>
               <div className="flex items-center gap-3 border border-card-border rounded-[10px] px-3 py-1.5">
                 <button onClick={() => setClipCount((c) => Math.max(1, c - 1))} aria-label="Fewer clips" className="w-8 h-8 rounded-lg border border-card-border text-ink hover:bg-tint-blue transition-colors">−</button>
-                <span className="flex-1 text-center text-sm font-bold text-ink">{clipCount}</span>
+                <span className="flex-1 text-center text-sm font-bold text-ink" aria-live="polite" aria-labelledby="ac-count-label">{clipCount}</span>
                 <button onClick={() => setClipCount((c) => Math.min(20, c + 1))} aria-label="More clips" className="w-8 h-8 rounded-lg border border-card-border text-ink hover:bg-tint-blue transition-colors">+</button>
               </div>
             </div>
           </div>
 
           <div>
-            <label className="text-[13px] font-semibold text-ink block mb-2">Aspect ratio</label>
-            <div className="flex gap-2">
+            <p id="ac-aspect-label" className="text-[13px] font-semibold text-ink block mb-2">Aspect ratio</p>
+            <div role="group" aria-labelledby="ac-aspect-label" className="flex gap-2">
               {ASPECTS.map((a) => (
-                <button key={a.value} onClick={() => setAspectRatio(a.value)} className={`inline-flex items-center gap-2 rounded-[10px] border px-3.5 py-2.5 text-[13px] font-semibold transition-colors ${aspectRatio === a.value ? "grad-brand text-on-primary shadow-glow border-transparent" : "bg-panel border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"}`}>
+                <button key={a.value} type="button" aria-pressed={aspectRatio === a.value} onClick={() => setAspectRatio(a.value)} className={`inline-flex items-center gap-2 rounded-[10px] border px-3.5 py-2.5 text-[13px] font-semibold transition-colors ${aspectRatio === a.value ? "grad-brand text-on-primary shadow-glow border-transparent" : "bg-panel border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"}`}>
                   <span className={`${a.box} border-[1.5px] border-current rounded-[2px]`} />{a.label}
                 </button>
               ))}
@@ -421,12 +459,12 @@ function AutoClipFlow() {
 
           <div className="h-px bg-card-border" />
 
-          <button onClick={() => setAdvancedOpen((o) => !o)} className="flex items-center justify-between w-full text-left">
+          <button type="button" aria-expanded={advancedOpen} aria-controls="ac-advanced" onClick={() => setAdvancedOpen((o) => !o)} className="flex items-center justify-between w-full text-left">
             <span className="flex flex-col"><span className="text-[13px] font-semibold text-ink">Advanced</span><span className="text-xs text-ink-soft">Reframe, camera motion, zoom, speaker mode, audio cleanup, instructions</span></span>
             <span className="text-[12px] font-semibold text-brand">{advancedOpen ? "Hide" : "Show"}</span>
           </button>
           {advancedOpen && (
-            <div className="ac-panel-in flex flex-col gap-5 border-t border-card-border pt-5">
+            <div id="ac-advanced" className="ac-panel-in flex flex-col gap-5 border-t border-card-border pt-5">
               <ReframeAndCutsControls
                 smartAutoReframe={smartAutoReframe} setSmartAutoReframe={setSmartAutoReframe}
                 reframingPreset={reframingPreset} setReframingPreset={setReframingPreset}
@@ -440,21 +478,21 @@ function AutoClipFlow() {
               />
               {captionsOn && (
                 <div className="flex items-center justify-between rounded-xl border border-card-border p-3">
-                  <div><p className="text-[12.5px] font-semibold text-ink">Animated subtitles</p><p className="text-[11px] text-ink-soft">Highlight words with dynamic sizes and colours like Opus Clip.</p></div>
+                  <div><p className="text-[12.5px] font-semibold text-ink">Animated subtitles</p><p className="text-[11px] text-ink-soft">Highlight words with dynamic sizes and colours as they&apos;re spoken.</p></div>
                   <Switch checked={animatedCaptions} onChange={setAnimatedCaptions} label="Animated subtitles" />
                 </div>
               )}
               <div>
-                <label className="text-[12px] font-bold text-ink-soft uppercase tracking-wider block mb-2">Instructions (optional)</label>
-                <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={3} maxLength={MAX_INSTRUCTIONS_CHARS} placeholder="e.g. Focus on funny moments, avoid silent parts, prioritize high-energy sections…" className="w-full rounded-xl border border-card-border bg-panel px-3 py-3 text-sm text-ink placeholder:text-ink-soft/50 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/30 transition-all resize-none" />
+                <label htmlFor="ac-instructions" className="text-[12px] font-bold text-ink-soft uppercase tracking-wider block mb-2">Instructions (optional)</label>
+                <textarea id="ac-instructions" value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={3} maxLength={MAX_INSTRUCTIONS_CHARS} placeholder="e.g. Focus on funny moments, avoid silent parts, prioritize high-energy sections…" className="w-full rounded-xl border border-card-border bg-panel px-3 py-3 text-sm text-ink placeholder:text-ink-soft/50 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/30 transition-all resize-none" />
               </div>
             </div>
           )}
         </div>
 
         <div className="flex items-center gap-4 mt-7 flex-wrap">
-          <button onClick={handleGenerate} disabled={!canGenerate} className="inline-flex items-center gap-2.5 grad-brand shadow-glow hover:shadow-glow-hover hover:brightness-105 text-on-primary text-base font-bold px-8 py-4 rounded-[14px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-            <IcSparkle /> Generate clips
+          <button onClick={handleGenerate} disabled={!canGenerate} aria-busy={submitting || undefined} className="inline-flex items-center gap-2.5 grad-brand shadow-glow hover:shadow-glow-hover hover:brightness-105 text-on-primary text-base font-bold px-8 py-4 rounded-[14px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+            <IcSparkle /> {submitting ? "Starting…" : "Generate clips"}
           </button>
           {/* There is no review step any more, so this is the LAST moment a
               price can be shown before money is spent. It has to be itemised

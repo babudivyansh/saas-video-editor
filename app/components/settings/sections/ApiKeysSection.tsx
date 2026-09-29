@@ -7,6 +7,9 @@ import { useAuth } from "@/app/components/AuthContext";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
 import { Checkbox } from "@/app/components/ui/Checkbox";
+import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
+import { Input } from "@/app/components/ui/Field";
+import { useToast } from "@/app/components/ui/Toast";
 
 function IcCopy() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>; }
 function IcCheck() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M5 13l4 4L19 7" /></svg>; }
@@ -57,14 +60,24 @@ export default function ApiKeysPage() {
   const [error, setError] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameVal, setRenameVal] = useState("");
+  // In-flight create: a second click used to make a second key.
+  const [submitting, setSubmitting] = useState(false);
+  // A failed list load used to fall through to "No API keys yet".
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [revokeTarget, setRevokeTarget] = useState<ApiKeyRow | null>(null);
+  const { showToast } = useToast();
 
   const load = useCallback(async () => {
     if (!token) return;
     setLoading(true);
+    setLoadFailed(false);
     try {
       const res = await fetch("/api/api-keys", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error(String(res.status));
       const data = await res.json();
       setKeys(data.keys ?? []);
+    } catch {
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -73,8 +86,9 @@ export default function ApiKeysPage() {
   useEffect(() => { void load(); }, [load]);
 
   async function handleCreate() {
-    if (!token || !newName.trim() || newScopes.length === 0) return;
+    if (!token || !newName.trim() || newScopes.length === 0 || submitting) return;
     setError(null);
+    setSubmitting(true);
     try {
       const res = await fetch("/api/api-keys", {
         method: "POST",
@@ -89,23 +103,31 @@ export default function ApiKeysPage() {
       await load();
     } catch {
       setError(t("errors.createFailed"));
+    } finally {
+      setSubmitting(false);
     }
   }
 
+  // Called from the ConfirmDialog, which shows its own pending state while
+  // this runs. Revoking breaks whatever uses the key, so it is never one click.
   async function handleRevoke(id: string) {
     if (!token) return;
-    await fetch(`/api/api-keys/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(`/api/api-keys/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
+    if (!res?.ok) { showToast(t("errors.revokeFailed"), "error"); return; }
+    showToast(t("revoked"));
     await load();
   }
 
   async function handleRename(id: string) {
     if (!token || !renameVal.trim()) { setRenamingId(null); return; }
-    await fetch(`/api/api-keys/${id}`, {
+    const res = await fetch(`/api/api-keys/${id}`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ name: renameVal.trim() }),
-    });
+    }).catch(() => null);
     setRenamingId(null);
+    if (!res?.ok) { showToast(t("errors.renameFailed"), "error"); return; }
+    showToast(t("renamed"));
     await load();
   }
 
@@ -156,12 +178,13 @@ export default function ApiKeysPage() {
       {creating && !freshKey && (
         <Card padding="md" className="mb-6 space-y-4">
           <div>
-            <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide block mb-1.5">{t("keyName")}</label>
-            <input
+            <label htmlFor="api-key-name" className="text-xs font-semibold text-ink-soft uppercase tracking-wide block mb-1.5">{t("keyName")}</label>
+            <Input
+              id="api-key-name"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder={t("keyNamePlaceholder")}
-              className="w-full bg-panel border border-card-border rounded-xl px-4 py-2.5 text-sm text-ink placeholder:text-ink-soft/50 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
+              error={error}
               autoFocus
             />
           </div>
@@ -177,18 +200,18 @@ export default function ApiKeysPage() {
             </div>
           </div>
           <div>
-            <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide block mb-1.5">{t("expires")}</label>
+            <label htmlFor="api-key-expiry" className="text-xs font-semibold text-ink-soft uppercase tracking-wide block mb-1.5">{t("expires")}</label>
             <select
+              id="api-key-expiry"
               value={newExpiry}
               onChange={(e) => setNewExpiry(e.target.value)}
-              className="text-sm border border-card-border rounded-xl px-3 py-2 bg-panel text-ink outline-none focus:border-violet-300"
+              className="text-sm border border-card-border rounded-xl px-3 py-2 bg-panel text-ink outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/25"
             >
               {EXPIRY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
-          {error && <p className="text-xs text-error">{error}</p>}
           <div className="flex gap-2">
-            <Button onClick={handleCreate} disabled={!newName.trim() || newScopes.length === 0} size="sm">{t("create")}</Button>
+            <Button onClick={handleCreate} disabled={!newName.trim() || newScopes.length === 0} loading={submitting} size="sm">{t("create")}</Button>
             <Button type="button" variant="secondary" size="sm" onClick={() => { setCreating(false); setNewName(""); setError(null); }}>{t("cancel")}</Button>
           </div>
         </Card>
@@ -196,7 +219,12 @@ export default function ApiKeysPage() {
 
       <Card padding="none">
         {loading ? (
-          <div className="p-8 text-center text-sm text-ink-soft">{t("loading")}</div>
+          <div className="p-8 text-center text-sm text-ink-soft" role="status">{t("loading")}</div>
+        ) : loadFailed ? (
+          <div role="alert" className="p-8 text-center">
+            <p className="text-sm font-semibold text-ink">{t("errors.loadFailed")}</p>
+            <Button variant="secondary" size="sm" className="mt-3" onClick={() => void load()}>{t("retry")}</Button>
+          </div>
         ) : activeKeys.length === 0 ? (
           <div className="p-8 text-center">
             <p className="text-sm font-semibold text-ink">{t("noKeysYet")}</p>
@@ -216,12 +244,13 @@ export default function ApiKeysPage() {
                         onChange={(e) => setRenameVal(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") handleRename(k.id); if (e.key === "Escape") setRenamingId(null); }}
                         onBlur={() => handleRename(k.id)}
-                        className="text-sm font-semibold border border-violet-400 rounded-lg px-2 py-1 outline-none"
+                        aria-label={t("rename")}
+                        className="text-sm font-semibold bg-panel text-ink border border-primary/60 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-primary/25"
                       />
                     ) : (
                       <div className="flex items-center gap-1.5 group">
                         <p className="text-sm font-semibold text-ink truncate">{k.name}</p>
-                        <button onClick={() => { setRenamingId(k.id); setRenameVal(k.name); }} className="text-ink-soft/50 hover:text-brand opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" aria-label={t("rename")}>
+                        <button onClick={() => { setRenamingId(k.id); setRenameVal(k.name); }} className="text-ink-soft/70 hover:text-brand opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity cursor-pointer rounded outline-none focus-visible:ring-2 focus-visible:ring-primary/70" aria-label={t("rename")}>
                           <IcEdit />
                         </button>
                         {expired && <span className="text-[10px] font-bold uppercase tracking-wide text-error bg-error/10 px-1.5 py-0.5 rounded-full">{t("expired")}</span>}
@@ -232,7 +261,7 @@ export default function ApiKeysPage() {
                       {t("keyMeta", { created: fmtDate(k.createdAt), lastUsed: fmtDate(k.lastUsedAt), count: k.requestCount, expires: fmtDate(k.expiresAt) })}
                     </p>
                   </div>
-                  <button onClick={() => handleRevoke(k.id)} className="flex-shrink-0 text-xs font-semibold text-error hover:underline">
+                  <button type="button" onClick={() => setRevokeTarget(k)} className="flex-shrink-0 text-xs font-semibold text-error hover:underline rounded outline-none focus-visible:ring-2 focus-visible:ring-error/60">
                     {t("revoke")}
                   </button>
                 </div>
@@ -241,6 +270,16 @@ export default function ApiKeysPage() {
           </div>
         )}
       </Card>
+
+      <ConfirmDialog
+        open={!!revokeTarget}
+        title={t("revokeTitle")}
+        message={t("revokeMessage", { name: revokeTarget?.name ?? "" })}
+        confirmLabel={t("revoke")}
+        danger
+        onConfirm={async () => { if (revokeTarget) await handleRevoke(revokeTarget.id); }}
+        onClose={() => setRevokeTarget(null)}
+      />
     </div>
   );
 }
