@@ -42,9 +42,10 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     ],
   },
   {
-    label: "Users",
+    // Accounts (the /admin/users pages) moved to System with the other
+    // run-the-business controls; what's left here is customer engagement.
+    label: "Community",
     items: [
-      { href: "/admin/users",         label: "Users",         icon: Users,     exact: false },
       { href: "/admin/reviews",       label: "Reviews",       icon: Star,      exact: false },
       { href: "/admin/announcements", label: "Announcements", icon: Megaphone, exact: false },
     ],
@@ -60,6 +61,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: "System",
     items: [
       { href: "/admin/ops",     label: "Operations",        icon: Server,     exact: false },
+      { href: "/admin/users",   label: "Accounts",          icon: Users,      exact: false },
       { href: "/admin/content", label: "Content & Storage", icon: HardDrive,  exact: false },
       { href: "/admin/audit",   label: "Audit Log",         icon: ScrollText, exact: false },
     ],
